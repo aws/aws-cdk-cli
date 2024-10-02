@@ -2,25 +2,12 @@
   "tasks": {
     "build": {
       "name": "build",
-      "description": "Full release build",
       "steps": [
         {
           "spawn": "default"
         },
         {
-          "spawn": "pre-compile"
-        },
-        {
-          "spawn": "compile"
-        },
-        {
-          "spawn": "post-compile"
-        },
-        {
-          "spawn": "test"
-        },
-        {
-          "spawn": "package"
+          "exec": "yarn workspaces run build"
         }
       ]
     },
@@ -61,7 +48,7 @@
       "description": "Only compile",
       "steps": [
         {
-          "exec": "tsc --build"
+          "exec": "yarn workspaces run compile"
         }
       ]
     },
@@ -71,28 +58,6 @@
       "steps": [
         {
           "exec": "ts-node --project tsconfig.dev.json .projenrc.ts"
-        }
-      ]
-    },
-    "eject": {
-      "name": "eject",
-      "description": "Remove projen from the project",
-      "env": {
-        "PROJEN_EJECTING": "true"
-      },
-      "steps": [
-        {
-          "spawn": "default"
-        }
-      ]
-    },
-    "eslint": {
-      "name": "eslint",
-      "description": "Runs eslint against the codebase",
-      "steps": [
-        {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ src test build-tools projenrc .projenrc.ts",
-          "receiveArgs": true
         }
       ]
     },
@@ -119,77 +84,80 @@
       "description": "Creates the distribution package",
       "steps": [
         {
-          "exec": "mkdir -p dist/js"
-        },
-        {
-          "exec": "npm pack --pack-destination dist/js"
+          "exec": "yarn workspaces run package"
         }
       ]
-    },
-    "post-compile": {
-      "name": "post-compile",
-      "description": "Runs after successful compilation"
     },
     "post-upgrade": {
       "name": "post-upgrade",
       "description": "Runs after upgrading dependencies"
     },
-    "pre-compile": {
-      "name": "pre-compile",
-      "description": "Prepare the project for compilation"
+    "release": {
+      "name": "release",
+      "description": "Prepare a release from all monorepo packages",
+      "env": {
+        "RELEASE": "true"
+      },
+      "steps": [
+        {
+          "exec": "yarn workspaces run shx rm -rf dist"
+        },
+        {
+          "exec": "yarn workspaces run bump"
+        },
+        {
+          "exec": "yarn workspaces run build"
+        },
+        {
+          "exec": "yarn workspaces run unbump"
+        },
+        {
+          "exec": "git diff --ignore-space-at-eol --exit-code"
+        }
+      ]
+    },
+    "run": {
+      "name": "run",
+      "steps": [
+        {
+          "exec": "yarn workspaces run",
+          "receiveArgs": true
+        }
+      ]
     },
     "test": {
       "name": "test",
       "description": "Run tests",
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
-          "receiveArgs": true
-        },
-        {
-          "spawn": "eslint"
-        }
-      ]
-    },
-    "test:watch": {
-      "name": "test:watch",
-      "description": "Run jest in watch mode",
-      "steps": [
-        {
-          "exec": "jest --watch"
+          "exec": "yarn workspaces run test"
         }
       ]
     },
     "upgrade": {
       "name": "upgrade",
-      "description": "upgrade dependencies",
+      "description": "Upgrade dependencies in all workspaces",
       "env": {
         "CI": "0"
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --dep=dev,peer,prod,optional --filter=@types/jest,@types/node,eslint-import-resolver-typescript,eslint-plugin-import,jest,projen,ts-jest,ts-node,typescript"
+          "exec": "npx npm-check-updates@16 --dep=dev,optional,peer,prod,bundle --upgrade --target=minor"
+        },
+        {
+          "exec": "yarn workspaces run check-for-updates"
         },
         {
           "exec": "yarn install --check-files"
         },
         {
-          "exec": "yarn upgrade @types/jest @types/node @typescript-eslint/eslint-plugin @typescript-eslint/parser constructs eslint-import-resolver-typescript eslint-plugin-import eslint jest jest-junit projen ts-jest ts-node typescript"
+          "exec": "yarn upgrade"
         },
         {
-          "exec": "npx projen"
+          "spawn": "default"
         },
         {
           "spawn": "post-upgrade"
-        }
-      ]
-    },
-    "watch": {
-      "name": "watch",
-      "description": "Watch & compile in the background",
-      "steps": [
-        {
-          "exec": "tsc --build -w"
         }
       ]
     }

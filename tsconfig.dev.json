@@ -26,12 +26,48 @@
     "target": "ES2019"
   },
   "include": [
-    "src/**/*.ts",
-    "test/**/*.ts",
     ".projenrc.ts",
     "projenrc/**/*.ts"
   ],
   "exclude": [
     "node_modules"
+  ],
+  "references": [
+    {
+      "path": "packages/@aws-cdk/cloud-assembly-schema"
+    },
+    {
+      "path": "packages/@aws-cdk/cloudformation-diff"
+    },
+    {
+      "path": "packages/@aws-cdk/yarn-cling"
+    },
+    {
+      "path": "packages/@aws-cdk/cli-args-gen"
+    },
+    {
+      "path": "packages/@aws-cdk/node-bundle"
+    },
+    {
+      "path": "packages/@aws-cdk/cdk-build-tools"
+    },
+    {
+      "path": "packages/@aws-cdk/cli-plugin-contract"
+    },
+    {
+      "path": "packages/cdk-assets"
+    },
+    {
+      "path": "packages/aws-cdk"
+    },
+    {
+      "path": "packages/@aws-cdk/cli-lib-alpha"
+    },
+    {
+      "path": "packages/@aws-cdk/cdk-cli-wrapper"
+    },
+    {
+      "path": "packages/cdk"
+    }
   ]
 }
