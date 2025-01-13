@@ -138,6 +138,8 @@ const repo = configureProject(
     },
 
     githubOptions: {
+      mergify: false,
+      mergeQueue: true,
       pullRequestLintOptions: {
         semanticTitleOptions: {
           types: ['feat', 'fix', 'chore', 'refactor'],
