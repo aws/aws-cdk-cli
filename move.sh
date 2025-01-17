@@ -73,3 +73,8 @@ for package in $packages; do
     echo "${package}@v${version}"
     git tag -f "${package}@v${version}" $merge_base
 done
+
+
+# Apply the right tag for the CLI to become 2.1000.0 on the next release
+merge_base=$(git merge-base HEAD main)
+git tag -f "aws-cdk@v2.999.0" $merge_base
