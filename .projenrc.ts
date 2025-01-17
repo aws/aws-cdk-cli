@@ -695,6 +695,10 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
 
 //////////////////////////////////////////////////////////////////////
 
+const CLI_LIB_EXCLUDE_PATTERNS = [
+  "lib/init-templates/*/typescript/*/*.template.ts",
+];
+
 const cliLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -737,6 +741,7 @@ new JsiiBuild(cliLib, {
   rosettaStrict: true,
   stability: Stability.EXPERIMENTAL,
   composite: true,
+  excludeTypescript: CLI_LIB_EXCLUDE_PATTERNS,
 });
 
 // clilib needs to bundle some resources, same as the CLI
@@ -748,6 +753,13 @@ for (const resourceCommand of includeCliResourcesCommands) {
 cliLib.postCompileTask.exec(`cp $(node -p 'require.resolve("aws-cdk/build-info.json")') .`);
 cliLib.postCompileTask.exec('esbuild --bundle lib/index.ts --target=node18 --platform=node --external:fsevents --minify-whitespace --outfile=lib/main.js');
 cliLib.postCompileTask.exec('node ./lib/main.js >/dev/null </dev/null'); // Smoke test
+
+// Exclude takes precedence over include
+for (const tsconfig of [cliLib.tsconfigDev]) {
+  for (const pat of CLI_LIB_EXCLUDE_PATTERNS) {
+    tsconfig?.addExclude(pat);
+  }
+}
 
 //////////////////////////////////////////////////////////////////////
 
