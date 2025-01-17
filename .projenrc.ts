@@ -500,12 +500,16 @@ cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
 
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
 
+// Specifically this and not ^ because between 3.699 and 3.730 some change has
+// been made that causes our nifty network interception via 'sinon' to fail.
+const CLI_SDK_V3_RANGE = '3.699.0';
+
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
     parent: repo,
     name: 'aws-cdk',
-    description: 'Using TypeScript as a knowledge base',
+    description: 'AWS CDK CLI, the command line tool for CDK apps',
     srcdir: 'lib',
     devDeps: [
       yarnCling,
@@ -532,6 +536,7 @@ const cli = configureProject(
       'axios',
       'constructs',
       'fast-check',
+      'jest-environment-node',
       'jest-mock',
       'madge',
       'make-runnable',
@@ -550,27 +555,26 @@ const cli = configureProject(
       ...CLI_SDK_VERSION === '2' ? [
         'aws-sdk',
       ] : [
-        '@aws-sdk/client-appsync',
-        '@aws-sdk/client-appsync',
-        '@aws-sdk/client-cloudformation',
-        '@aws-sdk/client-cloudwatch-logs',
-        '@aws-sdk/client-codebuild',
-        '@aws-sdk/client-ec2',
-        '@aws-sdk/client-ecr',
-        '@aws-sdk/client-ecs',
-        '@aws-sdk/client-elastic-load-balancing-v2',
-        '@aws-sdk/client-iam',
-        '@aws-sdk/client-kms',
-        '@aws-sdk/client-lambda',
-        '@aws-sdk/client-route-53',
-        '@aws-sdk/client-s3',
-        '@aws-sdk/client-secrets-manager',
-        '@aws-sdk/client-sfn',
-        '@aws-sdk/client-ssm',
-        '@aws-sdk/client-sts',
-        '@aws-sdk/credential-providers',
-        '@aws-sdk/ec2-metadata-service',
-        '@aws-sdk/lib-storage',
+        `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
         '@aws-sdk/middleware-endpoint',
         '@aws-sdk/util-retry',
         '@aws-sdk/util-waiter',
@@ -623,6 +627,13 @@ const cli = configureProject(
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: ['*.template.ts', '*.d.ts', 'test/**/*.ts'],
+    },
+    jestOptions: {
+      ...genericCdkProps().jestOptions,
+      jestConfig: {
+        ...genericCdkProps().jestOptions.jestConfig,
+        testEnvironment: './test/jest-bufferedconsole.ts',
+      },
     },
   }),
 );
