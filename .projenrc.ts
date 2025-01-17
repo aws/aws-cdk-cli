@@ -325,7 +325,7 @@ const yargsGen = configureProject(
     ...genericCdkProps(),
     private: true,
     parent: repo,
-    name: '@aws-cdk/cli-args-gen',
+    name: '@aws-cdk/user-input-gen',
     description: 'Generate CLI arguments',
     srcdir: 'lib',
     deps: ['@cdklabs/typewriter', 'prettier@^2.8', 'lodash.clonedeep'],
@@ -632,7 +632,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${__dirname}/${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('ts-node scripts/cli-args-gen.ts');
+cli.preCompileTask.prependExec('ts-node scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   `cp $(node -p 'require.resolve("cdk-from-cfn/index_bg.wasm")') ./lib/`,

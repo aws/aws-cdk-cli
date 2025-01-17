@@ -56,7 +56,7 @@ move_from_cdk packages/@aws-cdk/cli-lib-alpha @aws-cdk/cli-lib-alpha
 move_from_cdk packages/@aws-cdk/cdk-cli-wrapper @aws-cdk/cdk-cli-wrapper
 move_from_cdk packages/@aws-cdk/cloudformation-diff @aws-cdk/cloudformation-diff
 move_from_cdk tools/@aws-cdk/yarn-cling @aws-cdk/yarn-cling
-move_from_cdk tools/@aws-cdk/cli-args-gen @aws-cdk/cli-args-gen
+move_from_cdk tools/@aws-cdk/user-input-gen @aws-cdk/user-input-gen
 rsync -ah ../aws-cdk/tools/@aws-cdk/yarn-cling/test/test-fixture/ "packages/@aws-cdk/yarn-cling/test/test-fixture/"
 
 move ../cloud-assembly-schema "packages/@aws-cdk/cloud-assembly-schema"
