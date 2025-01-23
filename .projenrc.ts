@@ -1,6 +1,6 @@
 import * as pj from 'projen';
 import { yarn } from 'cdklabs-projen-project-types';
-import { ESLINT_RULES } from './.projenrc/eslint';
+import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
 import { BundleCli } from './projenrc/bundle';
 import { Stability } from 'projen/lib/cdk';
@@ -502,7 +502,7 @@ let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
 
 // Specifically this and not ^ because between 3.699 and 3.730 some change has
 // been made that causes our nifty network interception via 'sinon' to fail.
-const CLI_SDK_V3_RANGE = '3.699.0';
+const CLI_SDK_V3_RANGE = '^3.730';
 
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -711,6 +711,13 @@ const cliLib = configureProject(
     nextVersionCommand: `tsx ${__dirname}/projenrc/copy-version-from.ts ${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
+    eslintOptions: {
+      dirs: ['lib'],
+      ignorePatterns: [
+        ...CLI_LIB_EXCLUDE_PATTERNS,
+        '*.d.ts',
+      ],
+    },
   }),
 );
 
