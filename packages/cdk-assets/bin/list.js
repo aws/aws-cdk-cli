@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.list = list;
+const lib_1 = require("../lib");
+async function list(args) {
+    const manifest = lib_1.AssetManifest.fromPath(args.path);
+    // eslint-disable-next-line no-console
+    console.log(manifest.list().join('\n'));
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibGlzdC5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImxpc3QudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFFQSxvQkFJQztBQU5ELGdDQUF1QztBQUVoQyxLQUFLLFVBQVUsSUFBSSxDQUFDLElBQXNCO0lBQy9DLE1BQU0sUUFBUSxHQUFHLG1CQUFhLENBQUMsUUFBUSxDQUFDLElBQUksQ0FBQyxJQUFJLENBQUMsQ0FBQztJQUNuRCxzQ0FBc0M7SUFDdEMsT0FBTyxDQUFDLEdBQUcsQ0FBQyxRQUFRLENBQUMsSUFBSSxFQUFFLENBQUMsSUFBSSxDQUFDLElBQUksQ0FBQyxDQUFDLENBQUM7QUFDMUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IEFzc2V0TWFuaWZlc3QgfSBmcm9tICcuLi9saWInO1xuXG5leHBvcnQgYXN5bmMgZnVuY3Rpb24gbGlzdChhcmdzOiB7IHBhdGg6IHN0cmluZyB9KSB7XG4gIGNvbnN0IG1hbmlmZXN0ID0gQXNzZXRNYW5pZmVzdC5mcm9tUGF0aChhcmdzLnBhdGgpO1xuICAvLyBlc2xpbnQtZGlzYWJsZS1uZXh0LWxpbmUgbm8tY29uc29sZVxuICBjb25zb2xlLmxvZyhtYW5pZmVzdC5saXN0KCkuam9pbignXFxuJykpO1xufVxuIl19
