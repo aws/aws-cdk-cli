@@ -146,6 +146,18 @@ const repo = configureProject(
         },
       },
     },
+    buildWorkflowOptions: {
+      preBuildSteps: [
+        // Need this for the init tests
+        {
+          name: 'Set git identity',
+          run: [
+            'git config --global user.name "aws-cdk-cli"',
+            'git config --global user.email "noreply@example.com"',
+          ].join('\n'),
+        },
+      ],
+    },
   }),
 );
 

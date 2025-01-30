@@ -26,6 +26,10 @@ jobs:
           node-version: lts/*
       - name: Install dependencies
         run: yarn install --check-files
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli"
+          git config --global user.email "noreply@example.com"
       - name: build
         run: npx projen build
       - name: Find mutations
