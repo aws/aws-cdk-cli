@@ -638,6 +638,48 @@ const cli = configureProject(
   }),
 );
 
+// People should not have imported from the `aws-cdk` package, but they have in the past.
+// We have identified all locations that are currently used, are maintaining a backwards compat
+// layer for those. Future imports will be rejected.
+cli.package.addField("exports", {
+  // package.json is always reasonable
+  "./package.json": "./package.json",
+  // The rest is legacy
+  ".": "./lib/legacy-exports.js",
+  "./bin/cdk": "./bin/cdk",
+  "./lib/api/bootstrap/bootstrap-template.yaml": "./lib/api/bootstrap/bootstrap-template.yaml",
+  "./lib/util": "./lib/legacy-exports.js",
+  "./lib": "./lib/legacy-exports.js",
+  "./lib/api/plugin": "./lib/legacy-exports.js",
+  "./lib/util/content-hash": "./lib/legacy-exports.js",
+  "./lib/settings": "./lib/legacy-exports.js",
+  "./lib/api/bootstrap": "./lib/legacy-exports.js",
+  "./lib/api/cxapp/cloud-assembly": "./lib/legacy-exports.js",
+  "./lib/api/cxapp/cloud-executable": "./lib/legacy-exports.js",
+  "./lib/api/cxapp/exec": "./lib/legacy-exports.js",
+  "./lib/diff": "./lib/legacy-exports.js",
+  "./lib/api/util/string-manipulation": "./lib/legacy-exports.js",
+  "./lib/util/console-formatters": "./lib/legacy-exports.js",
+  "./lib/util/tracing": "./lib/legacy-exports.js",
+  "./lib/commands/docs": "./lib/legacy-exports.js",
+  "./lib/api/hotswap/common": "./lib/legacy-exports.js",
+  "./lib/util/objects": "./lib/legacy-exports.js",
+  "./lib/api/deployments": "./lib/legacy-exports.js",
+  "./lib/util/directories": "./lib/legacy-exports.js",
+  "./lib/version": "./lib/legacy-exports.js",
+  "./lib/init": "./lib/legacy-exports.js",
+  "./lib/api/aws-auth/cached": "./lib/legacy-exports.js",
+  "./lib/api/deploy-stack": "./lib/legacy-exports.js",
+  "./lib/api/evaluate-cloudformation-template": "./lib/legacy-exports.js",
+  "./lib/api/aws-auth/credential-plugins": "./lib/legacy-exports.js",
+  "./lib/api/aws-auth/awscli-compatible": "./lib/legacy-exports.js",
+  "./lib/notices": "./lib/legacy-exports.js",
+  "./lib/index": "./lib/legacy-exports.js",
+  "./lib/api/aws-auth/index.js": "./lib/legacy-exports.js",
+  "./lib/api/aws-auth": "./lib/legacy-exports.js",
+  "./lib/logging": "./lib/legacy-exports.js"
+});
+
 cli.gitignore.addPatterns('build-info.json');
 
 const cliPackageJson = `${__dirname}/${cli.workspaceDirectory}/package.json`;
