@@ -46,6 +46,11 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   x.eslint?.addRules({ 'prettier/prettier': ['off'] });
 
   x.addDevDeps('prettier@^2.8');
+
+  x.npmignore?.addPatterns('.eslintrc.js');
+  // As a rule we don't include .ts sources in the NPM package
+  x.npmignore?.addPatterns('*.ts', '!*.d.ts');
+
   return x;
 }
 
@@ -665,6 +670,9 @@ const cli = configureProject(
   }),
 );
 
+// Do include all .ts files inside init-templates
+cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+
 cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
 
 // People should not have imported from the `aws-cdk` package, but they have in the past.
@@ -793,7 +801,13 @@ const cliLib = configureProject(
   }),
 );
 
-cliLib.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
+// Do include all .ts files inside init-templates
+cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+
+cliLib.gitignore.addPatterns(
+  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'cdk.out',
+);
 
 new JsiiBuild(cliLib, {
   jsiiVersion: TYPESCRIPT_VERSION,
