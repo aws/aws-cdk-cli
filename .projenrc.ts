@@ -4,10 +4,16 @@ import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
 import { BundleCli } from './projenrc/bundle';
 import { Stability } from 'projen/lib/cdk';
+import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
 const TYPESCRIPT_VERSION = "5.6";
+
+const APPROVAL_ENVIRONMENT = 'integ-approval';
+const TEST_ENVIRONMENT = 'run-tests';
+const TEST_RUNNER = 'aws-cdk_ubuntu-latest_4-core';
+
 
 /**
  * Projen depends on TypeScript-eslint 7 by default.
@@ -826,5 +832,21 @@ new pj.YamlFile(repo, ".github/dependabot.yml", {
   },
   committed: true,
 });
+
+new CdkCliIntegTestsWorkflow(repo, {
+  approvalEnvironment: APPROVAL_ENVIRONMENT,
+  buildRunsOn: workflowRunsOn[0],
+  testEnvironment: TEST_ENVIRONMENT,
+  testRunsOn: TEST_RUNNER,
+  localPackages: [
+    cloudAssemblySchema.name,
+    cloudFormationDiff.name,
+    cdkAssets.name,
+    cli.name,
+    cliLib.name,
+    cdkAliasPackage.name,
+  ],
+});
+
 
 repo.synth();
