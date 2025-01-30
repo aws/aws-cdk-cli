@@ -1,4 +1,5 @@
 import * as pj from 'projen';
+import * as fs from 'fs';
 import { yarn } from 'cdklabs-projen-project-types';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
@@ -922,3 +923,20 @@ for (const gi of [repo.gitignore, cli.gitignore]) {
 }
 
 repo.synth();
+
+// Until this is merged, we'll have to hack it: https://github.com/cdklabs/cdklabs-projen-project-types/pull/760
+(() => {
+  const pj = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+  const bundledDeps = [
+    [cloudAssemblySchema, 'jsonschema'],
+    [cloudAssemblySchema, 'semver'],
+  ] as const;
+  pj.workspaces = {
+    ...pj.workspaces,
+    nohoist: bundledDeps.flatMap(([ws, name]) => [
+      `${ws.name}/${name}`,
+      `${ws.name}/${name}/**`,
+    ])
+  };
+  fs.writeFileSync('package.json', JSON.stringify(pj, null, 2), 'utf-8');
+})();

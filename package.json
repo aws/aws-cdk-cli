@@ -55,6 +55,12 @@
       "packages/@aws-cdk/cli-lib-alpha",
       "packages/@aws-cdk/cdk-cli-wrapper",
       "packages/cdk"
+    ],
+    "nohoist": [
+      "@aws-cdk/cloud-assembly-schema/jsonschema",
+      "@aws-cdk/cloud-assembly-schema/jsonschema/**",
+      "@aws-cdk/cloud-assembly-schema/semver",
+      "@aws-cdk/cloud-assembly-schema/semver/**"
     ]
   },
   "jest": {
