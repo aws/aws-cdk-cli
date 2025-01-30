@@ -505,6 +505,11 @@ cdkAssets.addTask('shrinkwrap', {
   ],
 });
 
+cdkAssets.gitignore.addPatterns(
+  '*.js',
+  '*.d.ts',
+);
+
 // This package happens do something only slightly naughty
 cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
 
@@ -650,6 +655,13 @@ const cli = configureProject(
   }),
 );
 
+cli.gitignore.addPatterns(
+  'db.json.gz',
+  '.init-version.json',
+  'index_bg.wasm',
+  'build-info.json',
+);
+
 // People should not have imported from the `aws-cdk` package, but they have in the past.
 // We have identified all locations that are currently used, are maintaining a backwards compat
 // layer for those. Future imports will be rejected.
@@ -774,6 +786,14 @@ const cliLib = configureProject(
       ],
     },
   }),
+);
+
+cliLib.gitignore.addPatterns(
+  'db.json.gz',
+  '.init-version.json',
+  'index_bg.wasm',
+  'cdk.out',
+  'build-info.json',
 );
 
 new JsiiBuild(cliLib, {

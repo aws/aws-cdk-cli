@@ -8696,10 +8696,10 @@ projen@^0.91.1:
     yaml "^2.2.2"
     yargs "^17.7.2"
 
-projen@^0.91.6:
-  version "0.91.6"
-  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.6.tgz#3e04c7e5987df18988096037efe392deda0bf2ad"
-  integrity sha512-azGxE8BDX7jkS+PovP8s70+wuURVOwtXYUh2z+kXbP11WDq4Gpfo5F/IyRQTI1kPrHR8sQbXkEnLGi2xIroBxA==
+projen@^0.91.7:
+  version "0.91.7"
+  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.7.tgz#7a1bca77dcc70d0c93df34d41d04a9f6623d1a9b"
+  integrity sha512-HECW1Q/0TzS1fKVGpobr/fcLAHRWGfaOL7GmLAmwh0enhcmeE0Tld5kjyb8Sj+q3Hf0KdWP8lufuQ0WxltYcYQ==
   dependencies:
     "@iarna/toml" "^2.2.5"
     case "^1.6.3"
@@ -8710,7 +8710,7 @@ projen@^0.91.6:
     fast-json-patch "^3.1.1"
     glob "^8"
     ini "^2.0.0"
-    semver "^7.6.3"
+    semver "^7.7.0"
     shx "^0.3.4"
     xmlbuilder2 "^3.1.1"
     yaml "^2.2.2"
