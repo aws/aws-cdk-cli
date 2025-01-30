@@ -2486,14 +2486,7 @@
     chalk "^4.1.2"
     semver "^7.6.3"
 
-"@jsii/spec@^1.105.0":
-  version "1.105.0"
-  resolved "https://registry.yarnpkg.com/@jsii/spec/-/spec-1.105.0.tgz#500dcffc0e2258932c5b71b4a342ce4a8dfab641"
-  integrity sha512-pLy8JyPT9Vv5UTxtM4ZHm/iisWzU62m3/dn9TPW2oANI5TLiBpjLlJw/iF+KRjYAeQnFASUfXtWTXgbN4xp9Rw==
-  dependencies:
-    ajv "^8.17.1"
-
-"@jsii/spec@^1.106.0":
+"@jsii/spec@^1.105.0", "@jsii/spec@^1.106.0":
   version "1.106.0"
   resolved "https://registry.yarnpkg.com/@jsii/spec/-/spec-1.106.0.tgz#f40010ec8cde14b7a003dd5b6a46480d9d7e222f"
   integrity sha512-pAIvqEGf0YLmtzFtUKWNEGkCmXMHENy7k+rzCD147wnM4jHhvEL1mEvxi99aA2VcmvLYaAYNOs/XozT+s+kLqQ==
@@ -7570,12 +7563,12 @@ jsii-rosetta@5.6:
     yargs "^17.7.2"
 
 jsii@5.6, jsii@~5.6.0:
-  version "5.6.2"
-  resolved "https://registry.yarnpkg.com/jsii/-/jsii-5.6.2.tgz#b18c156e8dc54e2d709b9c81555b25d2a457e1d8"
-  integrity sha512-En1ekdfm/cSdozWNIu+vqBhpBOJNJ6JFmdTHqN+tLgiyHNfhZczwfsMrKwxbUL2GTMPeBR+hFZRhBdHtL7ES+w==
+  version "5.6.4"
+  resolved "https://registry.yarnpkg.com/jsii/-/jsii-5.6.4.tgz#105774013380a51469528aad127bc3508df41e9c"
+  integrity sha512-ZfrnPJeuIQJscs3NN8jAYy246DByFcgTIRomoAOM0PY9nfRx/8qXLkWI2LZ49Zmh7WNzqVt8dBCJ6+z1CUqdpQ==
   dependencies:
-    "@jsii/check-node" "1.105.0"
-    "@jsii/spec" "^1.105.0"
+    "@jsii/check-node" "1.106.0"
+    "@jsii/spec" "^1.106.0"
     case "^1.6.3"
     chalk "^4"
     fast-deep-equal "^3.1.3"
@@ -9983,15 +9976,10 @@ typescript-json-schema@^0.65.1:
     typescript "~5.5.0"
     yargs "^17.1.1"
 
-typescript@5.6, typescript@^5.4.4, typescript@^5.4.5, typescript@^5.5.4, typescript@~5.6:
+typescript@5.6, typescript@^5.4.4, typescript@^5.4.5, typescript@^5.5.4, typescript@^5.6.2, typescript@~5.6:
   version "5.6.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.6.3.tgz#5f3449e31c9d94febb17de03cc081dd56d81db5b"
   integrity sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==
-
-typescript@^5.6.2:
-  version "5.6.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.6.2.tgz#d1de67b6bef77c41823f822df8f0b3bcff60a5a0"
-  integrity sha512-NW8ByodCSNCwZeghjN3o+JX5OFH0Ojg6sadjEKY4huZ52TqbJTJnDo5+Tw98lSy63NZvi4n+ez5m2u5d4PkZyw==
 
 typescript@~5.5.0:
   version "5.5.4"
