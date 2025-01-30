@@ -656,6 +656,7 @@ const cli = configureProject(
 cli.package.addField("exports", {
   // package.json is always reasonable
   "./package.json": "./package.json",
+  "./build-info.json": "./build-info.json",
   // The rest is legacy
   ".": "./lib/legacy-exports.js",
   "./bin/cdk": "./bin/cdk",
