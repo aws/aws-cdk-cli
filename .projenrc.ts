@@ -54,6 +54,16 @@ const workflowRunsOn = [
   // 'awscdk-service-spec_ubuntu-latest_32-core',
 ];
 
+// Ignore patterns that apply both to the CLI and to cli-lib
+const ADDITIONAL_CLI_IGNORE_PATTERNS = [
+  'db.json.gz',
+  '.init-version.json',
+  'index_bg.wasm',
+  'build-info.json',
+  '.recommended-feature-flags.json',
+  '!lib/init-templates/**',
+];
+
 /**
  * Shared jest config
  *
@@ -655,12 +665,7 @@ const cli = configureProject(
   }),
 );
 
-cli.gitignore.addPatterns(
-  'db.json.gz',
-  '.init-version.json',
-  'index_bg.wasm',
-  'build-info.json',
-);
+cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
 
 // People should not have imported from the `aws-cdk` package, but they have in the past.
 // We have identified all locations that are currently used, are maintaining a backwards compat
@@ -788,13 +793,7 @@ const cliLib = configureProject(
   }),
 );
 
-cliLib.gitignore.addPatterns(
-  'db.json.gz',
-  '.init-version.json',
-  'index_bg.wasm',
-  'cdk.out',
-  'build-info.json',
-);
+cliLib.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
 
 new JsiiBuild(cliLib, {
   jsiiVersion: TYPESCRIPT_VERSION,
