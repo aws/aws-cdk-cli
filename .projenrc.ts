@@ -869,4 +869,10 @@ new pj.YamlFile(repo, ".github/dependabot.yml", {
   committed: true,
 });
 
+// By default, projen ignores any directories named 'logs', but we have a source directory
+// like that in the CLI (https://github.com/projen/projen/issues/4059).
+for (const gi of [repo.gitignore, cli.gitignore]) {
+  gi.removePatterns('logs');
+}
+
 repo.synth();
