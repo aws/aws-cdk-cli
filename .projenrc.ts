@@ -862,6 +862,135 @@ for (const tsconfig of [cliLib.tsconfigDev]) {
 
 //////////////////////////////////////////////////////////////////////
 
+const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
+  "lib/init-templates/*/typescript/*/*.template.ts",
+];
+
+const toolkitLib = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: '@aws-cdk/toolkit',
+    description: 'AWS CDK Programmatic Toolkit Library',
+    private: true,
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema,
+      cloudFormationDiff,
+      cxApi,
+      '@aws-cdk/region-info',
+      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@jsii/check-node',
+      '@smithy/middleware-endpoint',
+      '@smithy/node-http-handler',
+      '@smithy/property-provider',
+      '@smithy/shared-ini-file-loader',
+      '@smithy/util-retry',
+      '@smithy/util-stream',
+      '@smithy/util-waiter',
+      'archiver',
+      'camelcase@^6', // Non-ESM
+      cdkAssets,
+      'cdk-from-cfn',
+      'chalk@^4',
+      'chokidar@^3',
+      'decamelize@^5', // Non-ESM
+      'fs-extra@^9',
+      'glob',
+      'json-diff',
+      'minimatch',
+      'p-limit@^3',
+      'promptly',
+      'proxy-agent',
+      'semver',
+      'split2',
+      'strip-ansi@^6',
+      'table@^6',
+      'uuid',
+      'wrap-ansi@^7',  // Last non-ESM version
+      'yaml@^1',
+      'yargs@^15',
+    ],
+    devDeps: [
+      cdkBuildTools,
+      '@smithy/types',
+      '@types/fs-extra',
+      '@types/split2',
+      cli,
+      'aws-cdk-lib',
+      'aws-sdk-client-mock',
+      'esbuild',
+      'typedoc',
+    ],
+    // Watch 2 directories at once
+    releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
+    eslintOptions: {
+      dirs: ['lib'],
+      ignorePatterns: [
+        ...TOOLKIT_LIB_EXCLUDE_PATTERNS,
+        '*.d.ts',
+      ],
+    },
+    tsconfig: {
+      compilerOptions: {
+        target: 'es2022',
+        lib: ['es2022'],
+        esModuleInterop: false,
+      },
+    },
+  }),
+);
+
+// Prevent imports of private API surface
+toolkitLib.package.addField("exports", {
+  ".": {
+    "types": "./lib/index.d.ts",
+    "default": "./lib/index.js"
+  },
+  "./package.json": "./package.json"
+});
+
+toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
+// Smoke test built JS files
+toolkitLib.postCompileTask.exec("node ./lib/index.js >/dev/null 2>/dev/null </dev/null");
+toolkitLib.postCompileTask.exec("node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null");
+
+// Do include all .ts files inside init-templates
+toolkitLib.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+
+toolkitLib.gitignore.addPatterns(
+  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'cdk.out',
+);
+
+// Exclude takes precedence over include
+for (const tsconfig of [toolkitLib.tsconfigDev]) {
+  for (const pat of CLI_LIB_EXCLUDE_PATTERNS) {
+    tsconfig?.addExclude(pat);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////
+
 const cdkCliWrapper = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),

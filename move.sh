@@ -57,6 +57,7 @@ move_from_cdk packages/@aws-cdk/cdk-cli-wrapper @aws-cdk/cdk-cli-wrapper
 move_from_cdk packages/@aws-cdk/cloudformation-diff @aws-cdk/cloudformation-diff
 move_from_cdk tools/@aws-cdk/yarn-cling @aws-cdk/yarn-cling
 move_from_cdk tools/@aws-cdk/user-input-gen @aws-cdk/user-input-gen
+move_from_cdk packages/@aws-cdk/toolkit @aws-cdk/toolkit
 rsync -ah ../aws-cdk/tools/@aws-cdk/yarn-cling/test/test-fixture/ "packages/@aws-cdk/yarn-cling/test/test-fixture/"
 rsync -ah ../aws-cdk/packages/aws-cdk/lib/init-templates/ "packages/aws-cdk/lib/init-templates/"
 

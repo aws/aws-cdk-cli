@@ -241,8 +241,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
         {
           name: 'Configure npm to use local registry',
           run: [
-            'npm config set registry http://localhost:4873/',
             'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
+            'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
           ].join('\n'),
         },
         {
