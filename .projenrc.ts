@@ -5,6 +5,7 @@ import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
 import { BundleCli } from './projenrc/bundle';
 import { Stability } from 'projen/lib/cdk';
+import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -69,6 +70,12 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   '.recommended-feature-flags.json',
   '!lib/init-templates/**',
 ];
+
+// Specifically this and not ^ because when the SDK version updates there is a
+// high chance that our manually copied enums are no longer compatible.
+//
+// FIXME: Sort that out after we've moved.
+const CLI_SDK_V3_RANGE = '3.741';
 
 /**
  * Shared jest config
@@ -445,10 +452,10 @@ const cdkAssets = configureProject(
       ...CDK_ASSETS === '2' ? [
         'aws-sdk',
       ] : [
-        '@aws-sdk/client-ecr',
-        '@aws-sdk/client-s3',
-        '@aws-sdk/client-secrets-manager',
-        '@aws-sdk/client-sts',
+        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
         '@aws-sdk/credential-providers',
         '@aws-sdk/lib-storage',
         '@smithy/config-resolver',
@@ -532,10 +539,6 @@ cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
 //////////////////////////////////////////////////////////////////////
 
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
-
-// Specifically this and not ^ because between 3.699 and 3.730 some change has
-// been made that causes our nifty network interception via 'sinon' to fail.
-const CLI_SDK_V3_RANGE = '^3.730';
 
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -921,6 +924,29 @@ new pj.YamlFile(repo, ".github/dependabot.yml", {
 for (const gi of [repo.gitignore, cli.gitignore]) {
   gi.removePatterns('logs');
 }
+const APPROVAL_ENVIRONMENT = 'integ-approval';
+const TEST_ENVIRONMENT = 'run-tests';
+const TEST_RUNNER = 'aws-cdk_ubuntu-latest_4-core';
+
+new CdkCliIntegTestsWorkflow(repo, {
+  approvalEnvironment: APPROVAL_ENVIRONMENT,
+  buildRunsOn: workflowRunsOn[0],
+  testEnvironment: TEST_ENVIRONMENT,
+  testRunsOn: TEST_RUNNER,
+
+
+  localPackages: [
+    cloudAssemblySchema.name,
+    cloudFormationDiff.name,
+    cliPluginContract.name,
+    cdkAssets.name,
+    cli.name,
+    cliLib.name,
+    cdkCliWrapper.name,
+    cdkAliasPackage.name,
+  ],
+});
+
 
 repo.synth();
 
