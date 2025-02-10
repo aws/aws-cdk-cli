@@ -60,6 +60,7 @@ move_from_cdk tools/@aws-cdk/user-input-gen @aws-cdk/user-input-gen
 move_from_cdk packages/@aws-cdk/toolkit @aws-cdk/toolkit
 rsync -ah ../aws-cdk/tools/@aws-cdk/yarn-cling/test/test-fixture/ "packages/@aws-cdk/yarn-cling/test/test-fixture/"
 rsync -ah ../aws-cdk/packages/aws-cdk/lib/init-templates/ "packages/aws-cdk/lib/init-templates/"
+rsync -ah ../aws-cdk/packages/@aws-cdk/toolkit/test/_fixtures/ "packages/@aws-cdk/toolkit/test/_fixtures/"
 
 move ../cloud-assembly-schema "packages/@aws-cdk/cloud-assembly-schema"
 move ../cdk-assets "packages/cdk-assets"

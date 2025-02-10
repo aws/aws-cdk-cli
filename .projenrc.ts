@@ -953,8 +953,18 @@ const toolkitLib = configureProject(
     tsconfig: {
       compilerOptions: {
         target: 'es2022',
-        lib: ['es2022'],
+        lib: ['es2022', 'esnext.disposable'],
+        module: 'NodeNext',
         esModuleInterop: false,
+      },
+    },
+
+    // Turn off randomization, these tests are order-dependent in some way
+    jestOptions: {
+      ...genericCdkProps().jestOptions,
+      jestConfig: {
+        ...genericCdkProps().jestOptions.jestConfig,
+        randomize: false,
       },
     },
   }),
@@ -975,11 +985,27 @@ toolkitLib.postCompileTask.exec("node ./lib/index.js >/dev/null 2>/dev/null </de
 toolkitLib.postCompileTask.exec("node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null");
 
 // Do include all .ts files inside init-templates
-toolkitLib.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+toolkitLib.npmignore?.addPatterns(
+  // Explicitly allow all required files
+  '!build-info.json',
+  '!db.json.gz',
+  '!lib/api/bootstrap/bootstrap-template.yaml',
+  '!*.d.ts',
+  '!*.d.ts.map',
+  '!lib/*.js',
+  '!LICENSE',
+  '!NOTICE',
+  '!THIRD_PARTY_LICENSES',
+);
+
 
 toolkitLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
-  'cdk.out',
+  'build-info.json',
+  'lib/**/*.wasm',
+  'lib/**/*.yaml',
+  '!test/_fixtures/**/app.js',
+  '!test/_fixtures/**/cdk.out',
 );
 
 // Exclude takes precedence over include
