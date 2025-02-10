@@ -1,7 +1,7 @@
-import { typescript } from "projen";
+import { typescript } from 'projen';
 const project = new typescript.TypeScriptProject({
-  defaultReleaseBranch: "main",
-  name: "aws-cdk-cli",
+  defaultReleaseBranch: 'main',
+  name: 'aws-cdk-cli',
   projenrcTs: true,
   release: false,
 
