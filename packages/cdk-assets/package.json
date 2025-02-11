@@ -60,7 +60,7 @@
     "fs-extra": "^11.3.0",
     "graceful-fs": "^4.2.11",
     "jest": "^29.7.0",
-    "jest-junit": "^15",
+    "jest-junit": "^16",
     "jszip": "^3.10.1",
     "mock-fs": "^5",
     "prettier": "^2.8",

@@ -32,7 +32,7 @@
         "RELEASE_TAG_PREFIX": "cdk@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx /Users/huijbers/Workspaces/move-cli/aws-cdk-cli/projenrc/copy-version-from.ts /Users/huijbers/Workspaces/move-cli/aws-cdk-cli/packages/aws-cdk/package.json",
+        "NEXT_VERSION_COMMAND": "tsx /home/runner/work/aws-cdk-cli/aws-cdk-cli/projenrc/copy-version-from.ts /home/runner/work/aws-cdk-cli/aws-cdk-cli/packages/aws-cdk/package.json",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../aws-cdk"
       },
       "steps": [
@@ -168,7 +168,7 @@
         "RELEASE_TAG_PREFIX": "cdk@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx /Users/huijbers/Workspaces/move-cli/aws-cdk-cli/projenrc/copy-version-from.ts /Users/huijbers/Workspaces/move-cli/aws-cdk-cli/packages/aws-cdk/package.json",
+        "NEXT_VERSION_COMMAND": "tsx /home/runner/work/aws-cdk-cli/aws-cdk-cli/projenrc/copy-version-from.ts /home/runner/work/aws-cdk-cli/aws-cdk-cli/packages/aws-cdk/package.json",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../aws-cdk"
       },
       "steps": [
