@@ -724,7 +724,8 @@ cli.package.addField("exports", {
 
 cli.gitignore.addPatterns('build-info.json');
 
-const cliPackageJson = `${__dirname}/${cli.workspaceDirectory}/package.json`;
+const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
+const copyVersionFrom = 'projenrc/copy-version-from.ts';
 
 cli.preCompileTask.prependExec('./generate.sh');
 cli.preCompileTask.prependExec('ts-node scripts/user-input-gen.ts');
@@ -792,7 +793,7 @@ const cliLib = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
-    nextVersionCommand: `tsx ../../../projenrc/copy-version-from.ts ${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../${copyVersionFrom} ../../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
     eslintOptions: {
@@ -1026,7 +1027,7 @@ const cdkCliWrapper = configureProject(
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
-    nextVersionCommand: `tsx ../../../projenrc/copy-version-from.ts ${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../${copyVersionFrom} ../../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
   }),
@@ -1049,7 +1050,7 @@ const cdkAliasPackage = configureProject(
     description: 'AWS CDK Toolkit',
     srcdir: 'lib',
     deps: [cli],
-    nextVersionCommand: `tsx ../../projenrc/copy-version-from.ts ${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../${copyVersionFrom} ../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../${cli.name}`),
   }),
