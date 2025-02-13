@@ -1089,9 +1089,12 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   testRunsOn: TEST_RUNNER,
 
-
   localPackages: [
-    cloudAssemblySchema.name,
+    // CloudAssemblySchema is not in this list because in the way we're doing
+    // Verdaccio now, its 0.0.0 version will shadow the ACTUAL published version
+    // that aws-cdk-lib depends on, and so will not be found.
+    //
+    // Not sure if that will cause problems yet.
     cloudFormationDiff.name,
     cliPluginContract.name,
     cdkAssets.name,
