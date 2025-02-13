@@ -1005,6 +1005,7 @@ toolkitLib.gitignore.addPatterns(
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
+  'lib/**/*.js.map',
   '!test/_fixtures/**/app.js',
   '!test/_fixtures/**/cdk.out',
 );
