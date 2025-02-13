@@ -118,7 +118,7 @@ const repo = configureProject(
 
     defaultReleaseBranch: 'main',
     devDeps: [
-      'cdklabs-projen-project-types@^0.1.218',
+      'cdklabs-projen-project-types@^0.1.219',
     ],
     vscodeWorkspace: true,
     // nx: true,

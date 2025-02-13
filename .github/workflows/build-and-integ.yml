@@ -81,20 +81,23 @@ jobs:
           sleep 5 # Wait for Verdaccio to start
       - name: Configure npm to use local registry
         run: |-
-          npm config set registry http://localhost:4873/
           echo '//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="' > ~/.npmrc
+          echo 'registry=http://localhost:4873/' >> ~/.npmrc
       - name: Find an locally publish all tarballs
-        run: find packages -name \*.tgz -print0 | xargs -0 -n1 npm publish --registry http://localhost:4873/
+        run: find packages -name \*.tgz -print0 | xargs -0 -n1 npm publish
       - name: Download and install the test artifact
         run: |-
           npm install @aws-cdk-testing/cli-integ
           mv ./node_modules/@aws-cdk-testing/cli-integ/* .
-      - name: Determine latest CLI version
-        id: cli_version
+      - name: Determine latest package versions
+        id: versions
         run: |-
           CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
           echo "CLI version: ${CLI_VERSION}"
           echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
           JEST_TEST_CONCURRENT: ${{ matrix.suite == 'cli-integ-tests' && 'true' || 'false' }}
@@ -106,7 +109,7 @@ jobs:
           CDK_MAJOR_VERSION: "2"
           RELEASE_TAG: latest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bin/run-suite --use-cli-release=${{ steps.cli_version.outputs.cli_version }} ${{ matrix.suite }}
+        run: bin/run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
     strategy:
       fail-fast: false
       matrix:
