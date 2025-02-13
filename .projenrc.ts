@@ -792,7 +792,7 @@ const cliLib = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
-    nextVersionCommand: `tsx ${__dirname}/projenrc/copy-version-from.ts ${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../projenrc/copy-version-from.ts ${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
     eslintOptions: {
@@ -1026,7 +1026,7 @@ const cdkCliWrapper = configureProject(
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
-    nextVersionCommand: `tsx ${__dirname}/projenrc/copy-version-from.ts ${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../projenrc/copy-version-from.ts ${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
   }),
@@ -1049,7 +1049,7 @@ const cdkAliasPackage = configureProject(
     description: 'AWS CDK Toolkit',
     srcdir: 'lib',
     deps: [cli],
-    nextVersionCommand: `tsx ${__dirname}/projenrc/copy-version-from.ts ${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../projenrc/copy-version-from.ts ${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../${cli.name}`),
   }),
