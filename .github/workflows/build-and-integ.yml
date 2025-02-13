@@ -81,8 +81,8 @@ jobs:
           sleep 5 # Wait for Verdaccio to start
       - name: Configure npm to use local registry
         run: |-
+          npm config set registry http://localhost:4873/
           echo '//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="' > ~/.npmrc
-          echo 'registry=http://localhost:4873/' >> ~/.npmrc
       - name: Find an locally publish all tarballs
         run: find packages -name \*.tgz -print0 | xargs -0 -n1 npm publish --registry http://localhost:4873/
       - name: Download and install the test artifact

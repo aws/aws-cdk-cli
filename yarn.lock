@@ -5035,12 +5035,12 @@ cdk-from-cfn@^0.188.0:
   resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.188.0.tgz#3c718a0ac0b59eac5642cbc58edd192664362da0"
   integrity sha512-7Vy6RwmDVeCCbIbS7GzRlosflMVUEpuItsiD52IZLelq2UU0jQoG49sAQ40KL7QWFxHWgSCCxwhAwBDBjZexqA==
 
-cdklabs-projen-project-types@^0.1.213:
-  version "0.1.213"
-  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.213.tgz#1c616594d29eda3e7262a1ddfc2c1fb62907f3ec"
-  integrity sha512-iGgWjoTYyCXpG615rRFh3yUVmQ4yBG891BAgw/QU1/h7YqksbdZ1gp9kYTasrnHejKtyNYzRiAzYGkwQdCFWTA==
+cdklabs-projen-project-types@^0.1.218:
+  version "0.1.218"
+  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.218.tgz#295a476b233825106a492a8bc6daada8fd966af2"
+  integrity sha512-3H3j2ZKNNfzsGdejlQJ6KQoAEAvMnlrUqZKmUN+ej23MDRcipJqD7jsDXFfPeMwgkKowZSv94l8DqW8UaUslAQ==
   dependencies:
-    yaml "^2.6.1"
+    yaml "^2.7.0"
 
 chai@^5.1.2:
   version "5.1.2"
@@ -10866,7 +10866,7 @@ yaml@^2.2.2:
   resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.5.1.tgz#c9772aacf62cb7494a95b0c4f1fb065b563db130"
   integrity sha512-bLQOjaX/ADgQ20isPJRvF0iRUHIxVhYvr53Of7wGcWlO2jvtUlH5m87DsmulFVxRpNLOnI4tB6p/oh8D7kpn9Q==
 
-yaml@^2.4.1:
+yaml@^2.4.1, yaml@^2.7.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.7.0.tgz#aef9bb617a64c937a9a748803786ad8d3ffe1e98"
   integrity sha512-+hSoy/QHluxmC9kCIJyL/uyFmLmc+e5CFR5Wa+bpIhIj85LVb9ZH2nVnqrHoSvKogwODv0ClqZkmiSSaIH5LTA==

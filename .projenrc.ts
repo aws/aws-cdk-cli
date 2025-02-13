@@ -1,11 +1,9 @@
 import * as pj from 'projen';
-import * as fs from 'fs';
-import { yarn } from 'cdklabs-projen-project-types';
+import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
 import { BundleCli } from './projenrc/bundle';
 import { Stability } from 'projen/lib/cdk';
-import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -120,7 +118,7 @@ const repo = configureProject(
 
     defaultReleaseBranch: 'main',
     devDeps: [
-      'cdklabs-projen-project-types@^0.1.213',
+      'cdklabs-projen-project-types@^0.1.218',
     ],
     vscodeWorkspace: true,
     // nx: true,
@@ -1106,20 +1104,3 @@ new CdkCliIntegTestsWorkflow(repo, {
 
 
 repo.synth();
-
-// Until this is merged, we'll have to hack it: https://github.com/cdklabs/cdklabs-projen-project-types/pull/760
-(() => {
-  const pj = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
-  const bundledDeps = [
-    [cloudAssemblySchema, 'jsonschema'],
-    [cloudAssemblySchema, 'semver'],
-  ] as const;
-  pj.workspaces = {
-    ...pj.workspaces,
-    nohoist: bundledDeps.flatMap(([ws, name]) => [
-      `${ws.name}/${name}`,
-      `${ws.name}/${name}/**`,
-    ])
-  };
-  fs.writeFileSync('package.json', JSON.stringify(pj, null, 2), 'utf-8');
-})();
