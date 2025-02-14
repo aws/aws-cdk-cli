@@ -1100,7 +1100,6 @@ new CdkCliIntegTestsWorkflow(repo, {
     cdkAssets.name,
     cli.name,
     cliLib.name,
-    cdkCliWrapper.name,
     cdkAliasPackage.name,
   ],
 });
