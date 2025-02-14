@@ -225,7 +225,7 @@ const cloudAssemblySchema = configureProject(
     disableTsconfig: true,
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../../next-version.ts majorFromRevision:schema/version.json maybeRc`,
+    nextVersionCommand: `tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc`,
   }),
 );
 
@@ -294,7 +294,7 @@ const cloudFormationDiff = configureProject(
     },
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../../next-version.ts maybeRc`,
+    nextVersionCommand: `tsx ../../../projenrc/next-version.ts maybeRc`,
   }),
 );
 
@@ -508,7 +508,7 @@ const cdkAssets = configureProject(
     ],
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../../next-version.ts maybeRc`,
+    nextVersionCommand: `tsx ../../../projenrc/next-version.ts maybeRc`,
   }),
 );
 
@@ -674,7 +674,7 @@ const cli = configureProject(
     },
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../../next-version.ts maybeRc`,
+    nextVersionCommand: `tsx ../../../projenrc/next-version.ts maybeRc`,
   }),
 );
 
@@ -796,7 +796,7 @@ const cliLib = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
-    nextVersionCommand: `tsx ../../../next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
+    nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
     eslintOptions: {
@@ -1031,7 +1031,7 @@ const cdkCliWrapper = configureProject(
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
-    nextVersionCommand: `tsx ../../../next-version.ts copyVersion:../../../${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
   }),
@@ -1054,7 +1054,7 @@ const cdkAliasPackage = configureProject(
     description: 'AWS CDK Toolkit',
     srcdir: 'lib',
     deps: [cli],
-    nextVersionCommand: `tsx ../../next-version.ts copyVersion:../../${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../${cli.name}`),
   }),
