@@ -7678,10 +7678,10 @@ jest-haste-map@^29.7.0:
   optionalDependencies:
     fsevents "^2.3.2"
 
-jest-junit@^15:
-  version "15.0.0"
-  resolved "https://registry.yarnpkg.com/jest-junit/-/jest-junit-15.0.0.tgz#a47544ab42e9f8fe7ada56306c218e09e52bd690"
-  integrity sha512-Z5sVX0Ag3HZdMUnD5DFlG+1gciIFSy7yIVPhOdGUi8YJaI9iLvvBb530gtQL2CHmv0JJeiwRZenr0VrSR7frvg==
+jest-junit@^16:
+  version "16.0.0"
+  resolved "https://registry.yarnpkg.com/jest-junit/-/jest-junit-16.0.0.tgz#d838e8c561cf9fdd7eb54f63020777eee4136785"
+  integrity sha512-A94mmw6NfJab4Fg/BlvVOUXzXgF0XIH6EmTgJ5NDPp4xoKq0Kr7sErb+4Xs9nZvu58pJojz5RFGpqnZYJTrRfQ==
   dependencies:
     mkdirp "^1.0.4"
     strip-ansi "^6.0.1"
@@ -9146,10 +9146,10 @@ process@^0.11.10:
   resolved "https://registry.yarnpkg.com/process/-/process-0.11.10.tgz#7332300e840161bda3e69a1d1d91a7d4bc16f182"
   integrity sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==
 
-projen@^0.91.1:
-  version "0.91.1"
-  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.1.tgz#a96e87e56c9a03d121c3e86566ed2912ae93a061"
-  integrity sha512-SUfZiEEILFaIHY85X5RpvZKkn0oRR4m7KX1z4HBRPL/7FCrUD1GUb68DZKnHyKnAe/FUTnrFva/J3PxXVxsHOA==
+projen@^0.91.10:
+  version "0.91.10"
+  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.10.tgz#d0ac45ee98dd0ed81e7bab0205b0f7ea431d83e3"
+  integrity sha512-l5ES+SoVowNmBbXaVLjK8cvGaCsX6T/rT4aHzzUn5xAnCRmViWA9KuP4zSglfUfNLm4wSgdLvOWE6lgw3wHx3Q==
   dependencies:
     "@iarna/toml" "^2.2.5"
     case "^1.6.3"
@@ -9160,7 +9160,7 @@ projen@^0.91.1:
     fast-json-patch "^3.1.1"
     glob "^8"
     ini "^2.0.0"
-    semver "^7.6.3"
+    semver "^7.7.1"
     shx "^0.3.4"
     xmlbuilder2 "^3.1.1"
     yaml "^2.2.2"

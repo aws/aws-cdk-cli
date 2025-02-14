@@ -153,9 +153,7 @@ const repo = configureProject(
     release: true,
     releaseOptions: {
       publishToNpm: true,
-      releaseTrigger: pj.release.ReleaseTrigger.scheduled({
-        schedule: '11 8 * * 5',
-      }),
+      releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
     },
 
     githubOptions: {
