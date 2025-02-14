@@ -1,0 +1,372 @@
+{
+  "dependencies": [
+    {
+      "name": "@aws-cdk/cdk-build-tools",
+      "type": "build"
+    },
+    {
+      "name": "@cdklabs/eslint-plugin",
+      "type": "build"
+    },
+    {
+      "name": "@smithy/types",
+      "type": "build"
+    },
+    {
+      "name": "@stylistic/eslint-plugin",
+      "type": "build"
+    },
+    {
+      "name": "@types/fs-extra",
+      "type": "build"
+    },
+    {
+      "name": "@types/jest",
+      "type": "build"
+    },
+    {
+      "name": "@types/node",
+      "version": "^16",
+      "type": "build"
+    },
+    {
+      "name": "@types/split2",
+      "type": "build"
+    },
+    {
+      "name": "@typescript-eslint/eslint-plugin",
+      "version": "^8",
+      "type": "build"
+    },
+    {
+      "name": "@typescript-eslint/parser",
+      "version": "^8",
+      "type": "build"
+    },
+    {
+      "name": "aws-cdk",
+      "type": "build"
+    },
+    {
+      "name": "aws-cdk-lib",
+      "type": "build"
+    },
+    {
+      "name": "aws-sdk-client-mock",
+      "type": "build"
+    },
+    {
+      "name": "constructs",
+      "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
+      "type": "build"
+    },
+    {
+      "name": "eslint-config-prettier",
+      "type": "build"
+    },
+    {
+      "name": "eslint-import-resolver-typescript",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-import",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-jest",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-prettier",
+      "type": "build"
+    },
+    {
+      "name": "eslint",
+      "version": "^9",
+      "type": "build"
+    },
+    {
+      "name": "jest",
+      "type": "build"
+    },
+    {
+      "name": "jest-junit",
+      "version": "^16",
+      "type": "build"
+    },
+    {
+      "name": "prettier",
+      "version": "^2.8",
+      "type": "build"
+    },
+    {
+      "name": "projen",
+      "type": "build"
+    },
+    {
+      "name": "ts-jest",
+      "type": "build"
+    },
+    {
+      "name": "typedoc",
+      "type": "build"
+    },
+    {
+      "name": "typescript",
+      "version": "5.6",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/cloud-assembly-schema",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-cdk/cloudformation-diff",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-cdk/cx-api",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-cdk/region-info",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-appsync",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-cloudformation",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-cloudwatch-logs",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-codebuild",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ec2",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ecr",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ecs",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-elastic-load-balancing-v2",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-iam",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-kms",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-lambda",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-route-53",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-secrets-manager",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sfn",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ssm",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sts",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/credential-providers",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/ec2-metadata-service",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/lib-storage",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
+      "name": "@jsii/check-node",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/middleware-endpoint",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/node-http-handler",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/property-provider",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/shared-ini-file-loader",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/util-retry",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/util-stream",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/util-waiter",
+      "type": "runtime"
+    },
+    {
+      "name": "archiver",
+      "type": "runtime"
+    },
+    {
+      "name": "camelcase",
+      "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "cdk-assets",
+      "type": "runtime"
+    },
+    {
+      "name": "cdk-from-cfn",
+      "type": "runtime"
+    },
+    {
+      "name": "chalk",
+      "version": "^4",
+      "type": "runtime"
+    },
+    {
+      "name": "chokidar",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "decamelize",
+      "version": "^5",
+      "type": "runtime"
+    },
+    {
+      "name": "fs-extra",
+      "version": "^9",
+      "type": "runtime"
+    },
+    {
+      "name": "glob",
+      "type": "runtime"
+    },
+    {
+      "name": "json-diff",
+      "type": "runtime"
+    },
+    {
+      "name": "minimatch",
+      "type": "runtime"
+    },
+    {
+      "name": "p-limit",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "promptly",
+      "type": "runtime"
+    },
+    {
+      "name": "proxy-agent",
+      "type": "runtime"
+    },
+    {
+      "name": "semver",
+      "type": "runtime"
+    },
+    {
+      "name": "split2",
+      "type": "runtime"
+    },
+    {
+      "name": "strip-ansi",
+      "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "table",
+      "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "uuid",
+      "type": "runtime"
+    },
+    {
+      "name": "wrap-ansi",
+      "version": "^7",
+      "type": "runtime"
+    },
+    {
+      "name": "yaml",
+      "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "yargs",
+      "version": "^15",
+      "type": "runtime"
+    }
+  ],
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+}
