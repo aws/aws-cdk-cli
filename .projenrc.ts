@@ -1094,7 +1094,6 @@ new CdkCliIntegTestsWorkflow(repo, {
     //
     // Not sure if that will cause problems yet.
     cloudFormationDiff.name,
-    cliPluginContract.name,
     cdkAssets.name,
     cli.name,
     cliLib.name,
