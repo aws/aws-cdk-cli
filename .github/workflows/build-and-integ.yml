@@ -84,7 +84,10 @@ jobs:
           echo '//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="' > ~/.npmrc
           echo 'registry=http://localhost:4873/' >> ~/.npmrc
       - name: Find an locally publish all tarballs
-        run: find packages -name \*.tgz -print0 | xargs -0 -n1 npm publish
+        run: |-
+          for pkg in packages/{@aws-cdk/cloudformation-diff,@aws-cdk/cli-plugin-contract,cdk-assets,aws-cdk,@aws-cdk/cli-lib-alpha,cdk}/dist/js/*.tgz; do
+            npm publish $pkg
+          done
       - name: Download and install the test artifact
         run: |-
           npm install @aws-cdk-testing/cli-integ
