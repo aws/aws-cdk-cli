@@ -213,8 +213,6 @@ function genericCdkProps() {
 
 //////////////////////////////////////////////////////////////////////
 
-const SCHEMA_VERSION: typeof import('./packages/@aws-cdk/cloud-assembly-schema/schema/version.json') = require('./packages/@aws-cdk/cloud-assembly-schema/schema/version.json');
-
 const cloudAssemblySchema = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -225,8 +223,9 @@ const cloudAssemblySchema = configureProject(
     bundledDeps: ['jsonschema', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
     disableTsconfig: true,
-    // This forces every release to be the major version from the data file
-    minMajorVersion: SCHEMA_VERSION.revision,
+
+    // Append a specific version string for testing
+    nextVersionCommand: `tsx ../../../next-version.ts majorFromRevision:schema/version.json maybeRc`,
   }),
 );
 
@@ -293,6 +292,9 @@ const cloudFormationDiff = configureProject(
         esModuleInterop: false,
       },
     },
+
+    // Append a specific version string for testing
+    nextVersionCommand: `tsx ../../../next-version.ts maybeRc`,
   }),
 );
 
@@ -504,6 +506,9 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
+
+    // Append a specific version string for testing
+    nextVersionCommand: `tsx ../../../next-version.ts maybeRc`,
   }),
 );
 
@@ -667,6 +672,9 @@ const cli = configureProject(
         testEnvironment: './test/jest-bufferedconsole.ts',
       },
     },
+
+    // Append a specific version string for testing
+    nextVersionCommand: `tsx ../../../next-version.ts maybeRc`,
   }),
 );
 
@@ -721,7 +729,6 @@ cli.package.addField("exports", {
 cli.gitignore.addPatterns('build-info.json');
 
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
-const copyVersionFrom = 'projenrc/copy-version-from.ts';
 
 cli.preCompileTask.prependExec('./generate.sh');
 cli.preCompileTask.prependExec('ts-node scripts/user-input-gen.ts');
@@ -789,7 +796,7 @@ const cliLib = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
-    nextVersionCommand: `tsx ../../../${copyVersionFrom} ../../../${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
     eslintOptions: {
@@ -1024,7 +1031,7 @@ const cdkCliWrapper = configureProject(
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
-    nextVersionCommand: `tsx ../../../${copyVersionFrom} ../../../${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../../next-version.ts copyVersion:../../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
   }),
@@ -1047,7 +1054,7 @@ const cdkAliasPackage = configureProject(
     description: 'AWS CDK Toolkit',
     srcdir: 'lib',
     deps: [cli],
-    nextVersionCommand: `tsx ../../${copyVersionFrom} ../../${cliPackageJson}`,
+    nextVersionCommand: `tsx ../../next-version.ts copyVersion:../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../${cli.name}`),
   }),
