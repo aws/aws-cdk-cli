@@ -40,7 +40,7 @@ async function main() {
         if (process.env.TESTING_CANDIDATE === 'true') {
           const originalPrereleaseTag = semver.prerelease(version)?.[0];
 
-          const rc = semver.inc(version, 'prerelease', originalPrereleaseTag ? `${originalPrereleaseTag}` : 'test');
+          const rc = semver.inc(version, 'prerelease', originalPrereleaseTag ? `${originalPrereleaseTag}` : 'pre');
           if (!rc) {
             throw new Error(`Unable to increment ${version}`);
           }
