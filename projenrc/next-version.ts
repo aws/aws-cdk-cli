@@ -38,13 +38,19 @@ async function main() {
 
       case 'maybeRc': {
         if (process.env.TESTING_CANDIDATE === 'true') {
-          const originalPrereleaseTag = semver.prerelease(version)?.[0];
+          // To make an rc version for testing, we set the last component (either
+          // patch or prerelease version) to 999.
+          //
+          // Adding `rc.0` causes problems for Amplify tests, which install
+          // `aws-cdk@^2` which won't match the prerelease version.
+          const originalPre = semver.prerelease(version);
 
-          const rc = semver.inc(version, 'prerelease', originalPrereleaseTag ? `${originalPrereleaseTag}` : 'pre');
-          if (!rc) {
-            throw new Error(`Unable to increment ${version}`);
+          if (originalPre) {
+            version = version.replace(new RegExp('\\.' + originalPre[1] + '$'), '.999');
+          } else {
+            const patch = semver.patch(version);
+            version = version.replace(new RegExp('\\.' + patch + '$'), '.999');
           }
-          version = `${rc}`;
         }
         break;
       }
