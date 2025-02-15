@@ -32,7 +32,7 @@
         "RELEASE_TAG_PREFIX": "cdk-assets@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts maybeRc",
+        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
       },
       "steps": [
@@ -185,7 +185,7 @@
         "RELEASE_TAG_PREFIX": "cdk-assets@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts maybeRc",
+        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
       },
       "steps": [
