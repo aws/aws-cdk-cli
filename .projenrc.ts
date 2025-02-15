@@ -1116,6 +1116,15 @@ build.steps.splice(3, 0, {
     TESTING_CANDIDATE: 'true',
   },
 });
+build.steps.splice(4, 1, {
+  name: 'build',
+  run: 'npx projen build',
+  env: {
+    // This is necessary to prevent projen from resetting the version numbers to
+    // 0.0.0 during its synthesis.
+    RELEASE: 'true',
+  },
+});
 const integ = wf?.getJob('integ') as pj.github.workflows.Job;
 (integ?.env ?? {}).CLI_LIB_VERSION_MIRRORS_CLI = 'true';
 

@@ -38,13 +38,11 @@ async function main() {
 
       case 'maybeRc': {
         if (process.env.TESTING_CANDIDATE === 'true') {
-          const patched = semver.inc(version, 'patch');
-          if (!patched) {
-            throw new Error(`Unable to patch ${version}`);
-          }
-          const rc = semver.inc(patched, 'prerelease', 'test');
+          const originalPrereleaseTag = semver.prerelease(version)?.[0];
+
+          const rc = semver.inc(version, 'prerelease', originalPrereleaseTag ? `${originalPrereleaseTag}` : 'test');
           if (!rc) {
-            throw new Error(`Unable to increment ${patched}`);
+            throw new Error(`Unable to increment ${version}`);
           }
           version = `${rc}`;
         }
