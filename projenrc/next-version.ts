@@ -18,7 +18,11 @@ async function main() {
     switch (cmd) {
       case 'majorFromRevision': {
         const contents = JSON.parse(await fs.readFile(value, 'utf-8'));
-        version = `${contents.revision}`;
+        if (semver.major(version) === contents.revision) {
+          version = `${semver.inc(version, 'minor')}`;
+        } else {
+          version = `${contents.revision}.0.0`;
+        }
         break;
       }
 
