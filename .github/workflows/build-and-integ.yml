@@ -28,6 +28,8 @@ jobs:
       - name: Install dependencies
         run: yarn install --check-files
       - name: build
+        env:
+          RELEASE: "true"
         run: npx projen build
       - name: Upload artifact
         uses: actions/upload-artifact@v4.4.0

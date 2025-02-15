@@ -1112,7 +1112,22 @@ new CdkCliIntegTestsWorkflow(repo, {
 });
 const wf = repo.github?.tryFindWorkflow('build-and-integ');
 const build = wf?.getJob('build') as pj.github.workflows.Job;
-(build?.env ?? {}).TESTING_CANDIDATE = 'true';
+build.steps.splice(3, 0, {
+  name: 'Bump to realistic versions',
+  run: 'yarn workspaces run bump',
+  env: {
+    TESTING_CANDIDATE: 'true',
+  },
+});
+build.steps.splice(4, 1, {
+  name: 'build',
+  run: 'npx projen build',
+  env: {
+    // This is necessary to prevent projen from resetting the version numbers to
+    // 0.0.0 during its synthesis.
+    RELEASE: 'true',
+  },
+});
 const integ = wf?.getJob('integ') as pj.github.workflows.Job;
 (integ?.env ?? {}).CLI_LIB_VERSION_MIRRORS_CLI = 'true';
 
