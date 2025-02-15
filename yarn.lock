@@ -9067,7 +9067,7 @@ process@^0.11.10:
   resolved "https://registry.yarnpkg.com/process/-/process-0.11.10.tgz#7332300e840161bda3e69a1d1d91a7d4bc16f182"
   integrity sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==
 
-projen@^0.91.10, projen@^0.91.11:
+projen@^0.91.11:
   version "0.91.11"
   resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.11.tgz#d035a0375499a7ecef4c430f9a91031c6a24dc58"
   integrity sha512-FaBbwMGQ4+be4oMR6MgwlVboA32CaAKPotPbVy4kPkxvqTiWxzjoAqKM51iOgrytMzFfU5pb+VX3H1unuIVOqA==
