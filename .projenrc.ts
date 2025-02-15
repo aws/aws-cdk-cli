@@ -506,6 +506,7 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
+    npmDistTag: 'v3-latest',
 
     // Append a specific version string for testing
     nextVersionCommand: `tsx ../../projenrc/next-version.ts maybeRc`,
