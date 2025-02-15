@@ -507,6 +507,7 @@ const cdkAssets = configureProject(
       },
     ],
     npmDistTag: 'v3-latest',
+    prerelease: 'rc',
 
     // Append a specific version string for testing
     nextVersionCommand: `tsx ../../projenrc/next-version.ts maybeRc`,
