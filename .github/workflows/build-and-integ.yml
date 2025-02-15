@@ -14,7 +14,6 @@ jobs:
     env:
       CI: "true"
       CLI_LIB_VERSION_MIRRORS_CLI: "true"
-      TESTING_CANDIDATE: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +26,10 @@ jobs:
           node-version: lts/*
       - name: Install dependencies
         run: yarn install --check-files
+      - name: Bump to realistic versions
+        env:
+          TESTING_CANDIDATE: "true"
+        run: yarn workspaces run bump
       - name: build
         run: npx projen build
       - name: Upload artifact

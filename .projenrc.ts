@@ -1109,7 +1109,13 @@ new CdkCliIntegTestsWorkflow(repo, {
 });
 const wf = repo.github?.tryFindWorkflow('build-and-integ');
 const build = wf?.getJob('build') as pj.github.workflows.Job;
-(build?.env ?? {}).TESTING_CANDIDATE = 'true';
+build.steps.splice(3, 0, {
+  name: 'Bump to realistic versions',
+  run: 'yarn workspaces run bump',
+  env: {
+    TESTING_CANDIDATE: 'true',
+  },
+});
 const integ = wf?.getJob('integ') as pj.github.workflows.Job;
 (integ?.env ?? {}).CLI_LIB_VERSION_MIRRORS_CLI = 'true';
 
