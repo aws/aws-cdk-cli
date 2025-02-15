@@ -4916,9 +4916,9 @@ cdk-from-cfn@^0.189.0:
   integrity sha512-m8+aWIakaKdrKeyAjMTDmU2Jc+sR+myAcxbUo9aCzJG98U3zQuhIwXd7Z39TLmeQFM76bh0MClY94k0xZ7ds7Q==
 
 cdklabs-projen-project-types@^0.1.220:
-  version "0.1.220"
-  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.220.tgz#fc9dc9180d88ae5a7452e43fc03635feac76e192"
-  integrity sha512-0I2jxYatzPVQ2O+caomafshebnM8kCGZx7XrQA2KOiyl7I3pLXUbrFNA66w7zRGUBH/F/0EBipfOIac6t5h4fQ==
+  version "0.1.221"
+  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.221.tgz#da68ca1fafcf5e7c79883849b754cff173c59385"
+  integrity sha512-zhNvC2ZvdxlCZESLqvgOsSF0vPIpudeASF2+ARVAq0T3GqT0TR96+Ry3mZ2tpN3d9L0++6pMecgJGmNvEfuCUQ==
   dependencies:
     yaml "^2.7.0"
 
