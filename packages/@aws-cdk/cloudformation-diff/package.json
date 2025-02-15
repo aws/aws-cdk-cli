@@ -29,7 +29,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudformation": "^3.744.0",
+    "@aws-sdk/client-cloudformation": "^3.749.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3.1.0",
     "@types/jest": "^29.5.14",
