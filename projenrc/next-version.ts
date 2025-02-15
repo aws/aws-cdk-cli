@@ -51,6 +51,10 @@ async function main() {
         throw new Error(`Unknown command: ${cmd}`);
     }
   }
+
+  if (version !== (process.env.VERSION ?? '')) {
+    console.log(version);
+  }
 }
 
 main().catch((error) => {
