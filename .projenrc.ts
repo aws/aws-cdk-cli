@@ -795,6 +795,7 @@ const cliLib = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/cli-lib-alpha',
+    entrypoint: 'lib/main.js', // Bundled entrypoint
     description: 'AWS CDK Programmatic CLI library',
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
