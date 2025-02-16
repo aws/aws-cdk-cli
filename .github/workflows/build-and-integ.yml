@@ -13,20 +13,23 @@ jobs:
     environment: integ-approval
     env:
       CI: "true"
-      CLI_LIB_VERSION_MIRRORS_CLI: "true"
-      TESTING_CANDIDATE: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
       - name: Install dependencies
         run: yarn install --check-files
+      - name: Bump to realistic versions
+        env:
+          TESTING_CANDIDATE: "true"
+        run: yarn workspaces run bump
       - name: build
         env:
           RELEASE: "true"

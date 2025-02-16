@@ -3124,9 +3124,9 @@
     "@types/hast" "^3.0.4"
 
 "@shikijs/vscode-textmate@^10.0.1":
-  version "10.0.1"
-  resolved "https://registry.yarnpkg.com/@shikijs/vscode-textmate/-/vscode-textmate-10.0.1.tgz#d06d45b67ac5e9b0088e3f67ebd3f25c6c3d711a"
-  integrity sha512-fTIQwLF+Qhuws31iw7Ncl1R3HUDtGwIipiJ9iU+UsDUwMhegFcQKQHd51nZjb7CArq0MvON8rbgCGQYWHUKAdg==
+  version "10.0.2"
+  resolved "https://registry.yarnpkg.com/@shikijs/vscode-textmate/-/vscode-textmate-10.0.2.tgz#a90ab31d0cc1dfb54c66a69e515bf624fa7b2224"
+  integrity sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==
 
 "@sinclair/typebox@^0.27.8":
   version "0.27.8"
@@ -4916,9 +4916,9 @@ cdk-from-cfn@^0.189.0:
   integrity sha512-m8+aWIakaKdrKeyAjMTDmU2Jc+sR+myAcxbUo9aCzJG98U3zQuhIwXd7Z39TLmeQFM76bh0MClY94k0xZ7ds7Q==
 
 cdklabs-projen-project-types@^0.1.220:
-  version "0.1.221"
-  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.221.tgz#da68ca1fafcf5e7c79883849b754cff173c59385"
-  integrity sha512-zhNvC2ZvdxlCZESLqvgOsSF0vPIpudeASF2+ARVAq0T3GqT0TR96+Ry3mZ2tpN3d9L0++6pMecgJGmNvEfuCUQ==
+  version "0.1.222"
+  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.222.tgz#6b75d93466c7a9015c3197e7990521a28df771d1"
+  integrity sha512-wYCJHRPgNUQe1Hyq/+rQZviB9Pfx1FlFrjip9lqWQ17eRXYGrI4cRa9/MGn43xSUrIG/7npxpR8nf0nQev0dlw==
   dependencies:
     yaml "^2.7.0"
 
