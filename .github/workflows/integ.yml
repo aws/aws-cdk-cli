@@ -5,6 +5,8 @@ on:
   pull_request_target:
     branches:
       - main
+  merge_group: {}
+  workflow_dispatch: {}
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -13,6 +15,7 @@ jobs:
     environment: integ-approval
     env:
       CI: "true"
+    if: github.event_name != 'merge_group'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,6 +55,7 @@ jobs:
       IS_CANARY: "true"
       CI: "true"
       CLI_LIB_VERSION_MIRRORS_CLI: "true"
+    if: github.event_name != 'merge_group'
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
