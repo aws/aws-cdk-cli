@@ -1,0 +1,12 @@
+{
+  "version": "38.0.1",
+  "files": {
+    "asset1": {
+      "type": "file",
+      "source": { "path": "/Users/huijbers/Downloads/HEY-arm64.dmg" },
+      "destinations": {
+        "dest1": { "bucketName": "huijbers-test-objectlock", "objectKey": "hey.dmg" }
+      }
+    }
+  }
+}
