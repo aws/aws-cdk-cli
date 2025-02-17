@@ -1009,6 +1009,7 @@ toolkitLib.npmignore?.addPatterns(
 
 toolkitLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'docs',
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
