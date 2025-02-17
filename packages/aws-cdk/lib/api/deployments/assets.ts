@@ -7,7 +7,7 @@ import { AssetManifestBuilder } from './asset-manifest-builder';
 import { debug } from '../../cli/messages';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { EnvironmentResources } from '../environment-resources';
+import { EnvironmentResources } from '../environment';
 import { ToolkitInfo } from '../toolkit-info';
 
 /**

@@ -9,7 +9,7 @@ import { toYAML } from '../../serialize';
 import { ToolkitError } from '../../toolkit/error';
 import { contentHash } from '../../util/content-hash';
 import { type AssetManifestBuilder } from '../deployments';
-import { EnvironmentResources } from '../environment-resources';
+import { EnvironmentResources } from '../environment';
 
 export type TemplateBodyParameter = {
   TemplateBody?: string;

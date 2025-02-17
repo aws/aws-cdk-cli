@@ -1,12 +1,12 @@
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
-import { ToolkitInfo } from '../../lib/api';
-import { Context } from '../../lib/api/context';
-import { EnvironmentResourcesRegistry } from '../../lib/api/environment-resources';
-import * as version from '../../lib/cli/version';
-import { CachedDataSource, Notices, NoticesFilter } from '../../lib/notices';
-import { CliIoHost, IoMessaging } from '../../lib/toolkit/cli-io-host';
-import { MockSdk, mockBootstrapStack, mockSSMClient } from '../util/mock-sdk';
-import { MockToolkitInfo } from '../util/mock-toolkitinfo';
+import { ToolkitInfo } from '../../../lib/api';
+import { Context } from '../../../lib/api/context';
+import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
+import * as version from '../../../lib/cli/version';
+import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
+import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
+import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../util/mock-sdk';
+import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
 
 let mockSdk: MockSdk;
 let envRegistry: EnvironmentResourcesRegistry;

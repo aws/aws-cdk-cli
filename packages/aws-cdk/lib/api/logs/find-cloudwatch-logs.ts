@@ -4,7 +4,7 @@ import { debug } from '../../logging';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { formatErrorMessage } from '../../util/error';
 import type { SDK, SdkProvider } from '../aws-auth';
-import { EnvironmentAccess } from '../environment-access';
+import { EnvironmentAccess } from '../environment';
 import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../evaluate-cloudformation-template';
 import { Mode } from '../plugin/mode';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';

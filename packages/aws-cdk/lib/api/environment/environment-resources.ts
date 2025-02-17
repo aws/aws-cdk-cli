@@ -1,11 +1,11 @@
 import type { Environment } from '@aws-cdk/cx-api';
-import type { SDK } from './aws-auth';
-import { type EcrRepositoryInfo, ToolkitInfo } from './toolkit-info';
-import { debug, warn } from '../cli/messages';
-import { Notices } from '../notices';
-import { IoMessaging } from '../toolkit/cli-io-host';
-import { ToolkitError } from '../toolkit/error';
-import { formatErrorMessage } from '../util/error';
+import { debug, warn } from '../../cli/messages';
+import { Notices } from '../../notices';
+import { IoMessaging } from '../../toolkit/cli-io-host';
+import { ToolkitError } from '../../toolkit/error';
+import { formatErrorMessage } from '../../util/error';
+import type { SDK } from '../aws-auth';
+import { type EcrRepositoryInfo, ToolkitInfo } from '../toolkit-info';
 
 /**
  * Registry class for `EnvironmentResources`.

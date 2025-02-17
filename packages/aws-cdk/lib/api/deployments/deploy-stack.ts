@@ -33,7 +33,7 @@ import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util/error';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
-import type { EnvironmentResources } from '../environment-resources';
+import type { EnvironmentResources } from '../environment';
 import { CfnEvaluationException } from '../evaluate-cloudformation-template';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
 import { StackActivityMonitor, type StackActivityProgress } from '../util/cloudformation/stack-activity-monitor';

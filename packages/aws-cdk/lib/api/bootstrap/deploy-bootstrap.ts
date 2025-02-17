@@ -15,7 +15,7 @@ import { IoMessaging } from '../../toolkit/cli-io-host';
 import type { SDK, SdkProvider } from '../aws-auth';
 import { assertIsSuccessfulDeployStackResult, SuccessfulDeployStackResult } from '../deployments';
 import { deployStack } from '../deployments/deploy-stack';
-import { NoBootstrapStackEnvironmentResources } from '../environment-resources';
+import { NoBootstrapStackEnvironmentResources } from '../environment';
 import { Mode } from '../plugin/mode';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 
