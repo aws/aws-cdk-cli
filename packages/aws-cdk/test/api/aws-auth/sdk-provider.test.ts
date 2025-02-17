@@ -19,14 +19,14 @@ import * as fromEnv from '@aws-sdk/credential-provider-env';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
 import { FakeSts, RegisterRoleOptions, RegisterUserOptions } from './fake-sts';
-import { ConfigurationOptions, CredentialsOptions, SDK, SdkProvider } from '../../lib/api/aws-auth';
-import { AwsCliCompatible } from '../../lib/api/aws-auth/awscli-compatible';
-import { defaultCliUserAgent } from '../../lib/api/aws-auth/user-agent';
-import { PluginHost } from '../../lib/api/plugin';
-import { Mode } from '../../lib/api/plugin/mode';
-import { CliIoHost } from '../../lib/toolkit/cli-io-host';
-import { withMocked } from '../util';
-import { undoAllSdkMocks } from '../util/mock-sdk';
+import { ConfigurationOptions, CredentialsOptions, SDK, SdkProvider } from '../../../lib/api/aws-auth';
+import { AwsCliCompatible } from '../../../lib/api/aws-auth/awscli-compatible';
+import { defaultCliUserAgent } from '../../../lib/api/aws-auth/user-agent';
+import { PluginHost } from '../../../lib/api/plugin';
+import { Mode } from '../../../lib/api/plugin/mode';
+import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
+import { withMocked } from '../../util';
+import { undoAllSdkMocks } from '../../util/mock-sdk';
 
 // As part of the imports above we import `mock-sdk.ts` which automatically mocks
 // all SDK clients. We don't want that for this test suite, so undo it.

@@ -19,7 +19,7 @@ import {
 import { assertIsSuccessfulDeployStackResult } from '../../../lib/api/deployments';
 import { deployStack, DeployStackOptions } from '../../../lib/api/deployments/deploy-stack';
 import { tryHotswapDeployment } from '../../../lib/api/deployments/hotswap-deployments';
-import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment-resources';
+import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../util';
