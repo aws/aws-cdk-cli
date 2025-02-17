@@ -60,6 +60,14 @@
         }
       ]
     },
+    "docs": {
+      "name": "docs",
+      "steps": [
+        {
+          "exec": "typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal"
+        }
+      ]
+    },
     "eslint": {
       "name": "eslint",
       "description": "Runs eslint against the codebase",
@@ -131,6 +139,14 @@
     "pre-compile": {
       "name": "pre-compile",
       "description": "Prepare the project for compilation"
+    },
+    "publish-local": {
+      "name": "publish-local",
+      "steps": [
+        {
+          "exec": "./build-tools/package.sh"
+        }
+      ]
     },
     "test": {
       "name": "test",

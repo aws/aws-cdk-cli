@@ -1024,6 +1024,13 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
+toolkitLib.addTask('docs', {
+  exec: 'typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal'
+});
+toolkitLib.addTask('publish-local', {
+  exec: './build-tools/package.sh'
+});
+
 //////////////////////////////////////////////////////////////////////
 
 const cdkCliWrapper = configureProject(
