@@ -42,6 +42,8 @@ jspm_packages/
 /lib
 /dist/
 !/aws-cdk-cli.code-workspace
+/.nx
+!/nx.json
 !/.github/dependabot.yml
 !/.github/workflows/integ.yml
 !/.projenrc.ts

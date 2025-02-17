@@ -108,6 +108,15 @@
         }
       ]
     },
+    "nx": {
+      "name": "nx",
+      "steps": [
+        {
+          "exec": "nx run",
+          "receiveArgs": true
+        }
+      ]
+    },
     "package": {
       "name": "package",
       "description": "Creates the distribution package"

@@ -17,6 +17,7 @@
     ".projen/tasks.json",
     "aws-cdk-cli.code-workspace",
     "LICENSE",
+    "nx.json",
     "tsconfig.dev.json",
     "tsconfig.json"
   ],

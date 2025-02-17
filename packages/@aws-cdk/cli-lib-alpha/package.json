@@ -16,6 +16,7 @@
     "docgen": "npx projen docgen",
     "eslint": "npx projen eslint",
     "gather-versions": "npx projen gather-versions",
+    "nx": "npx projen nx",
     "package": "npx projen package",
     "package-all": "npx projen package-all",
     "package:dotnet": "npx projen package:dotnet",

@@ -20,6 +20,7 @@
 /.projen/tasks.json linguist-generated
 /aws-cdk-cli.code-workspace linguist-generated
 /LICENSE linguist-generated
+/nx.json linguist-generated
 /package.json linguist-generated
 /tsconfig.dev.json linguist-generated
 /tsconfig.json linguist-generated

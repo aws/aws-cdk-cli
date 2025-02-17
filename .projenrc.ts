@@ -121,7 +121,7 @@ const repo = configureProject(
       'cdklabs-projen-project-types@^0.1.220',
     ],
     vscodeWorkspace: true,
-    // nx: true,
+    nx: true,
 
     eslintOptions: {
       // prettier: true,

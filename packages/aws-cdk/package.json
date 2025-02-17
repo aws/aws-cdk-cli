@@ -17,6 +17,7 @@
     "default": "npx projen default",
     "eslint": "npx projen eslint",
     "gather-versions": "npx projen gather-versions",
+    "nx": "npx projen nx",
     "package": "npx projen package",
     "post-compile": "npx projen post-compile",
     "pre-compile": "npx projen pre-compile",
