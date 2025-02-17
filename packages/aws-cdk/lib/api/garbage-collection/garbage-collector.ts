@@ -3,11 +3,11 @@ import { ImageIdentifier } from '@aws-sdk/client-ecr';
 import { Tag } from '@aws-sdk/client-s3';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import { debug, info } from '../../logging';
 import { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
+import { debug, info } from '../../cli/messages';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { Mode } from '../plugin/mode';
@@ -188,12 +188,15 @@ export class GarbageCollector {
   private permissionToTag: boolean;
   private bootstrapStackName: string;
   private confirm: boolean;
+  private ioHost: IoMessaging['ioHost'];
+  private action: IoMessaging['action'];
 
   public constructor(readonly props: GarbageCollectorProps) {
+    this.ioHost = props.msg.ioHost;
+    this.action = props.msg.action;
+
     this.garbageCollectS3Assets = ['s3', 'all'].includes(props.type);
     this.garbageCollectEcrAssets = ['ecr', 'all'].includes(props.type);
-
-    debug(`${this.garbageCollectS3Assets} ${this.garbageCollectEcrAssets}`);
 
     this.permissionToDelete = ['delete-tagged', 'full'].includes(props.action);
     this.permissionToTag = ['tag', 'full'].includes(props.action);
@@ -206,6 +209,8 @@ export class GarbageCollector {
    * Perform garbage collection on the resolved environment.
    */
   public async garbageCollect() {
+    await this.ioHost.notify(debug(this.action, `${this.garbageCollectS3Assets} ${this.garbageCollectEcrAssets}`));
+
     // SDKs
     const sdk = (await this.props.sdkProvider.forEnvironment(this.props.resolvedEnvironment, Mode.ForWriting)).sdk;
     const cfn = sdk.cloudFormation();
@@ -214,10 +219,11 @@ export class GarbageCollector {
     const activeAssets = new ActiveAssetCache();
 
     // Grab stack templates first
-    await refreshStacks(cfn, activeAssets, qualifier);
+    await refreshStacks(cfn, this.props.msg, activeAssets, qualifier);
     // Start the background refresh
     const backgroundStackRefresh = new BackgroundStackRefresh({
       cfn,
+      msg: this.props.msg,
       activeAssets,
       qualifier,
     });
@@ -245,9 +251,9 @@ export class GarbageCollector {
     const ecr = sdk.ecr();
     const repo = await this.bootstrapRepositoryName(sdk, this.bootstrapStackName);
     const numImages = await this.numImagesInRepo(ecr, repo);
-    const printer = new ProgressPrinter(numImages, 1000);
+    const printer = new ProgressPrinter(this.props.msg, numImages, 1000);
 
-    debug(`Found bootstrap repo ${repo} with ${numImages} images`);
+    await this.ioHost.notify(debug(this.action, `Found bootstrap repo ${repo} with ${numImages} images`));
 
     try {
       // const batches = 1;
@@ -255,7 +261,7 @@ export class GarbageCollector {
       const currentTime = Date.now();
       const graceDays = this.props.rollbackBufferDays;
 
-      debug(`Parsing through ${numImages} images in batches`);
+      await this.ioHost.notify(debug(this.action, `Parsing through ${numImages} images in batches`));
 
       printer.start();
 
@@ -264,16 +270,16 @@ export class GarbageCollector {
 
         const { included: isolated, excluded: notIsolated } = partition(batch, asset => !asset.tags.some(t => activeAssets.contains(t)));
 
-        debug(`${isolated.length} isolated images`);
-        debug(`${notIsolated.length} not isolated images`);
-        debug(`${batch.length} images total`);
+        await this.ioHost.notify(debug(this.action, `${isolated.length} isolated images`));
+        await this.ioHost.notify(debug(this.action, `${notIsolated.length} not isolated images`));
+        await this.ioHost.notify(debug(this.action, `${batch.length} images total`));
 
         let deletables: ImageAsset[] = isolated;
         let taggables: ImageAsset[] = [];
         let untaggables: ImageAsset[] = [];
 
         if (graceDays > 0) {
-          debug('Filtering out images that are not old enough to delete');
+          await this.ioHost.notify(debug(this.action, 'Filtering out images that are not old enough to delete'));
 
           // We delete images that are not referenced in ActiveAssets and have the Isolated Tag with a date
           // earlier than the current time - grace period.
@@ -286,9 +292,9 @@ export class GarbageCollector {
           untaggables = notIsolated.filter(img => img.hasIsolatedTag());
         }
 
-        debug(`${deletables.length} deletable assets`);
-        debug(`${taggables.length} taggable assets`);
-        debug(`${untaggables.length} assets to untag`);
+        await this.ioHost.notify(debug(this.action, `${deletables.length} deletable assets`));
+        await this.ioHost.notify(debug(this.action, `${taggables.length} taggable assets`));
+        await this.ioHost.notify(debug(this.action, `${untaggables.length} assets to untag`));
 
         if (this.permissionToDelete && deletables.length > 0) {
           await this.confirmationPrompt(printer, deletables, 'image');
@@ -319,16 +325,16 @@ export class GarbageCollector {
     const s3 = sdk.s3();
     const bucket = await this.bootstrapBucketName(sdk, this.bootstrapStackName);
     const numObjects = await this.numObjectsInBucket(s3, bucket);
-    const printer = new ProgressPrinter(numObjects, 1000);
+    const printer = new ProgressPrinter(this.props.msg, numObjects, 1000);
 
-    debug(`Found bootstrap bucket ${bucket} with ${numObjects} objects`);
+    await this.ioHost.notify(debug(this.action, `Found bootstrap bucket ${bucket} with ${numObjects} objects`));
 
     try {
       const batchSize = 1000;
       const currentTime = Date.now();
       const graceDays = this.props.rollbackBufferDays;
 
-      debug(`Parsing through ${numObjects} objects in batches`);
+      await this.ioHost.notify(debug(this.action, `Parsing through ${numObjects} objects in batches`));
 
       printer.start();
 
@@ -340,16 +346,16 @@ export class GarbageCollector {
 
         const { included: isolated, excluded: notIsolated } = partition(batch, asset => !activeAssets.contains(asset.fileName()));
 
-        debug(`${isolated.length} isolated assets`);
-        debug(`${notIsolated.length} not isolated assets`);
-        debug(`${batch.length} objects total`);
+        await this.ioHost.notify(debug(this.action, `${isolated.length} isolated assets`));
+        await this.ioHost.notify(debug(this.action, `${notIsolated.length} not isolated assets`));
+        await this.ioHost.notify(debug(this.action, `${batch.length} objects total`));
 
         let deletables: ObjectAsset[] = isolated;
         let taggables: ObjectAsset[] = [];
         let untaggables: ObjectAsset[] = [];
 
         if (graceDays > 0) {
-          debug('Filtering out assets that are not old enough to delete');
+          await this.ioHost.notify(debug(this.action, 'Filtering out assets that are not old enough to delete'));
           await this.parallelReadAllTags(s3, batch);
 
           // We delete objects that are not referenced in ActiveAssets and have the Isolated Tag with a date
@@ -363,9 +369,9 @@ export class GarbageCollector {
           untaggables = notIsolated.filter(obj => obj.hasIsolatedTag());
         }
 
-        debug(`${deletables.length} deletable assets`);
-        debug(`${taggables.length} taggable assets`);
-        debug(`${untaggables.length} assets to untag`);
+        await this.ioHost.notify(debug(this.action, `${deletables.length} deletable assets`));
+        await this.ioHost.notify(debug(this.action, `${taggables.length} taggable assets`));
+        await this.ioHost.notify(debug(this.action, `${untaggables.length} assets to untag`));
 
         if (this.permissionToDelete && deletables.length > 0) {
           await this.confirmationPrompt(printer, deletables, 'object');
@@ -416,7 +422,7 @@ export class GarbageCollector {
       );
     }
 
-    debug(`Untagged ${untaggables.length} assets`);
+    await this.ioHost.notify(debug(this.action, `Untagged ${untaggables.length} assets`));
   }
 
   /**
@@ -447,7 +453,7 @@ export class GarbageCollector {
       );
     }
 
-    debug(`Untagged ${untaggables.length} assets`);
+    await this.ioHost.notify(debug(this.action, `Untagged ${untaggables.length} assets`));
   }
 
   /**
@@ -470,14 +476,14 @@ export class GarbageCollector {
           // This is a false negative -- an isolated asset is untagged
           // likely due to an imageTag collision. We can safely ignore,
           // and the isolated asset will be tagged next time.
-          debug(`Warning: unable to tag image ${JSON.stringify(img.tags)} with ${img.buildImageTag(i)} due to the following error: ${error}`);
+          await this.ioHost.notify(debug(this.action, `Warning: unable to tag image ${JSON.stringify(img.tags)} with ${img.buildImageTag(i)} due to the following error: ${error}`));
         }
       };
       await limit(() => tagEcr());
     }
 
     printer.reportTaggedAsset(taggables);
-    debug(`Tagged ${taggables.length} assets`);
+    await this.ioHost.notify(debug(this.action, `Tagged ${taggables.length} assets`));
   }
 
   /**
@@ -505,7 +511,7 @@ export class GarbageCollector {
     }
 
     printer.reportTaggedAsset(taggables);
-    debug(`Tagged ${taggables.length} assets`);
+    await this.ioHost.notify(debug(this.action, `Tagged ${taggables.length} assets`));
   }
 
   /**
@@ -530,11 +536,11 @@ export class GarbageCollector {
         });
 
         const deletedCount = batch.length;
-        debug(`Deleted ${deletedCount} assets`);
+        await this.ioHost.notify(debug(this.action, `Deleted ${deletedCount} assets`));
         printer.reportDeletedAsset(deletables.slice(0, deletedCount));
       }
     } catch (err) {
-      info(chalk.red(`Error deleting images: ${err}`));
+      await this.ioHost.notify(info(this.action, chalk.red(`Error deleting images: ${err}`)));
     }
   }
 
@@ -563,11 +569,11 @@ export class GarbageCollector {
         });
 
         const deletedCount = batch.length;
-        debug(`Deleted ${deletedCount} assets`);
+        await this.ioHost.notify(debug(this.action, `Deleted ${deletedCount} assets`));
         printer.reportDeletedAsset(deletables.slice(0, deletedCount));
       }
     } catch (err) {
-      info(chalk.red(`Error deleting objects: ${err}`));
+      await this.ioHost.notify(debug(this.action, chalk.red(`Error deleting objects: ${err}`)));
     }
   }
 
