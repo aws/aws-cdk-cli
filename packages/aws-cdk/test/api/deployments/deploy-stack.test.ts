@@ -179,6 +179,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
   // THEN
   expect(tryHotswapDeployment).toHaveBeenCalledWith(
     expect.anything(),
+    expect.anything(),
     { A: 'A-value', B: 'B=value' },
     expect.anything(),
     expect.anything(),
@@ -218,6 +219,7 @@ test('correctly passes SSM parameters when hotswapping', async () => {
 
   // THEN
   expect(tryHotswapDeployment).toHaveBeenCalledWith(
+    expect.anything(),
     expect.anything(),
     { SomeParameter: 'SomeValue' },
     expect.anything(),

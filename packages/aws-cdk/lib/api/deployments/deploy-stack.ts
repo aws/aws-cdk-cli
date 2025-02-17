@@ -317,6 +317,7 @@ export async function deployStack(options: DeployStackOptions, { ioHost, action 
     try {
       const hotswapDeploymentResult = await tryHotswapDeployment(
         options.sdkProvider,
+        { ioHost, action },
         stackParams.values,
         cloudFormationStack,
         stackArtifact,
