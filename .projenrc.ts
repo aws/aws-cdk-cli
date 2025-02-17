@@ -161,7 +161,7 @@ const repo = configureProject(
       mergeQueue: true,
       pullRequestLintOptions: {
         semanticTitleOptions: {
-          types: ['feat', 'fix', 'chore', 'refactor'],
+          types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
         },
       },
     },
