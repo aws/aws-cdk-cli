@@ -966,15 +966,6 @@ const toolkitLib = configureProject(
         esModuleInterop: false,
       },
     },
-
-    // Turn off randomization, these tests are order-dependent in some way
-    jestOptions: {
-      ...genericCdkProps().jestOptions,
-      jestConfig: {
-        ...genericCdkProps().jestOptions.jestConfig,
-        randomize: false,
-      },
-    },
   }),
 );
 

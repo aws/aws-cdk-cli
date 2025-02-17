@@ -44,7 +44,7 @@
       }
     ]
   ],
-  "randomize": false,
+  "randomize": true,
   "testTimeout": 60000,
   "clearMocks": true,
   "coverageDirectory": "coverage",
