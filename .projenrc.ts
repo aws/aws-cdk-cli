@@ -122,26 +122,17 @@ const repo = configureProject(
       'cdklabs-projen-project-types@^0.1.220',
     ],
     vscodeWorkspace: true,
+    vscodeWorkspaceOptions: {
+      includeRootWorkspace: true,
+    },
     nx: true,
 
     eslintOptions: {
-      // prettier: true,
       dirs: ['lib'],
       devdirs: ['test'],
 
     },
 
-    /*
-    // Too many files don't match prettier
-    prettier: true,
-    prettierOptions: {
-      settings: {
-        printWidth: 120,
-        singleQuote: true,
-        trailingComma: pj.javascript.TrailingComma.ALL,
-      },
-    },
-    */
     workflowNodeVersion: 'lts/*',
     workflowRunsOn,
     gitignore: ['.DS_Store'],

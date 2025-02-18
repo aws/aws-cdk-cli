@@ -2,6 +2,10 @@
 {
   "folders": [
     {
+      "path": ".",
+      "name": "<root>"
+    },
+    {
       "path": "packages/@aws-cdk/cdk-build-tools"
     },
     {
@@ -41,5 +45,9 @@
       "path": "packages/cdk-assets"
     }
   ],
-  "settings": {}
+  "settings": {
+    "files.exclude": {
+      "packages": true
+    }
+  }
 }
