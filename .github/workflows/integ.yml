@@ -148,5 +148,5 @@ jobs:
       - name: Integ test result
         run: echo ${{ needs.integ_matrix.result }}
       - name: Set status based on matrix job
-        if: ${{ needs.integ_matrix.result != 'success' }}
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.integ_matrix.result) }}
         run: exit 1
