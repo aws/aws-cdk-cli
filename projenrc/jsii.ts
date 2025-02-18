@@ -5,6 +5,8 @@ import { Job, JobPermission, Step, Tools } from 'projen/lib/github/workflows-mod
 import { NodePackageManager } from 'projen/lib/javascript';
 import { CommonPublishOptions, NpmPublishOptions } from 'projen/lib/release';
 
+import { yarn } from 'cdklabs-projen-project-types';
+
 export interface JsiiBuildOptions {
   /**
    * Publish to maven
@@ -133,13 +135,25 @@ export class JsiiBuild extends pj.Component {
   public readonly packageAllTask: pj.Task;
   private readonly packageJsTask: pj.Task;
   private readonly tsProject: pj.typescript.TypeScriptProject;
+  private readonly monoProject: yarn.TypeScriptWorkspace
+  private readonly monorepoRelease: yarn.MonorepoRelease;
 
-  constructor(project: pj.Project, options: JsiiBuildOptions) {
+  constructor(project: yarn.TypeScriptWorkspace, options: JsiiBuildOptions) {
     super(project);
+
+    this.monoProject = project;
 
     if (!(project instanceof pj.typescript.TypeScriptProject)) {
       throw new Error('JsiiBuild() must be passed a TypeScript project');
     }
+    if (!project.parent || !yarn.Monorepo.isMonorepo(project.parent)) {
+      throw new Error('Project root must be Monorepo component');
+    }
+    if (!project.parent.monorepoRelease) {
+      throw new Error('Monorepo does not have a release component');
+    }
+
+    this.monorepoRelease = project.parent.monorepoRelease;
 
     const tsProject = project;
     this.tsProject = tsProject;
@@ -365,9 +379,7 @@ export class JsiiBuild extends pj.Component {
       | pj.cdk.JsiiJavaTarget
       | NpmPublishOptions
   ) {
-    if (!this.tsProject.release) {
-      return;
-    }
+    const release = this.monorepoRelease.workspaceRelease(this.monoProject);
 
     const pacmak = this.pacmakForLanguage(language, packTask);
     const prePublishSteps = [
@@ -386,7 +398,8 @@ export class JsiiBuild extends pj.Component {
     };
 
     const handler: PublishTo = publishTo[language];
-    this.tsProject.release?.publisher[handler]({
+
+    release.publisher?.[handler]({
       ...commonPublishOptions,
       ...target,
     });

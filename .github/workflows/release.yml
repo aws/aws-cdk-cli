@@ -53,9 +53,9 @@ jobs:
       - id: check-publish-cdk
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/cdk
-      - name: Check for new commits
+      - name: Output the sha value that downstream checks expect
         id: git_remote
-        run: echo "latest_commit=$(git ls-remote origin -h ${{ github.ref }} | cut -f1)" >> $GITHUB_OUTPUT
+        run: echo "latest_commit=${{ github.sha }}" >> $GITHUB_OUTPUT
       - name: "@aws-cdk/cloud-assembly-schema: Backup artifact permissions"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
         run: cd dist && getfacl -R . > permissions-backup.acl
@@ -133,6 +133,10 @@ jobs:
     needs:
       - release
       - aws-cdk-cloud-assembly-schema_release_npm
+      - aws-cdk-cloud-assembly-schema_release_maven
+      - aws-cdk-cloud-assembly-schema_release_pypi
+      - aws-cdk-cloud-assembly-schema_release_nuget
+      - aws-cdk-cloud-assembly-schema_release_golang
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,12 +159,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-    environment: integ-approval
   aws-cdk-cloud-assembly-schema_release_npm:
     name: "@aws-cdk/cloud-assembly-schema: Publish to npm"
     needs: release
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
@@ -175,13 +179,196 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create js artifact
+        run: cd .repo && npx projen package:js
+      - name: Collect js artifact
+        run: mv .repo/dist dist
       - name: Release
         env:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
-    environment: integ-approval
+  aws-cdk-cloud-assembly-schema_release_maven:
+    name: "@aws-cdk/cloud-assembly-schema: Publish to Maven Central"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: "11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cloud-assembly-schema_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create java artifact
+        run: cd .repo && npx projen package:java
+      - name: Collect java artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          MAVEN_ENDPOINT: https://aws.oss.sonatype.org
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.MAVEN_GPG_PRIVATE_KEY_PASSPHRASE }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_STAGING_PROFILE_ID: ${{ secrets.MAVEN_STAGING_PROFILE_ID }}
+        run: npx -p publib@latest publib-maven
+  aws-cdk-cloud-assembly-schema_release_pypi:
+    name: "@aws-cdk/cloud-assembly-schema: Publish to PyPI"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cloud-assembly-schema_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create python artifact
+        run: cd .repo && npx projen package:python
+      - name: Collect python artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+        run: npx -p publib@latest publib-pypi
+  aws-cdk-cloud-assembly-schema_release_nuget:
+    name: "@aws-cdk/cloud-assembly-schema: Publish to NuGet Gallery"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.x
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cloud-assembly-schema_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create dotnet artifact
+        run: cd .repo && npx projen package:dotnet
+      - name: Collect dotnet artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: npx -p publib@latest publib-nuget
+  aws-cdk-cloud-assembly-schema_release_golang:
+    name: "@aws-cdk/cloud-assembly-schema: Publish to GitHub Go Module Repository"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ^1.18.0
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cloud-assembly-schema_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create go artifact
+        run: cd .repo && npx projen package:go
+      - name: Collect go artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          GIT_USER_NAME: github-actions
+          GIT_USER_EMAIL: github-actions@github.com
+          GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
+        run: npx -p publib@latest publib-golang
   aws-cdk-cloudformation-diff_release_github:
     name: "@aws-cdk/cloudformation-diff: Publish to GitHub Releases"
     needs:
@@ -209,7 +396,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-    environment: integ-approval
   aws-cdk-cloudformation-diff_release_npm:
     name: "@aws-cdk/cloudformation-diff: Publish to npm"
     needs: release
@@ -235,7 +421,6 @@ jobs:
           NPM_REGISTRY: registry.npmjs.org
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
-    environment: integ-approval
   cdk-assets_release_github:
     name: "cdk-assets: Publish to GitHub Releases"
     needs:
@@ -263,7 +448,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-    environment: integ-approval
   cdk-assets_release_npm:
     name: "cdk-assets: Publish to npm"
     needs: release
@@ -289,7 +473,6 @@ jobs:
           NPM_REGISTRY: registry.npmjs.org
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
-    environment: integ-approval
   aws-cdk_release_github:
     name: "aws-cdk: Publish to GitHub Releases"
     needs:
@@ -317,7 +500,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-    environment: integ-approval
   aws-cdk_release_npm:
     name: "aws-cdk: Publish to npm"
     needs: release
@@ -343,12 +525,15 @@ jobs:
           NPM_REGISTRY: registry.npmjs.org
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
-    environment: integ-approval
   aws-cdk-cli-lib-alpha_release_github:
     name: "@aws-cdk/cli-lib-alpha: Publish to GitHub Releases"
     needs:
       - release
       - aws-cdk-cli-lib-alpha_release_npm
+      - aws-cdk-cli-lib-alpha_release_maven
+      - aws-cdk-cli-lib-alpha_release_pypi
+      - aws-cdk-cli-lib-alpha_release_nuget
+      - aws-cdk-cli-lib-alpha_release_golang
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -371,12 +556,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-    environment: integ-approval
   aws-cdk-cli-lib-alpha_release_npm:
     name: "@aws-cdk/cli-lib-alpha: Publish to npm"
     needs: release
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
@@ -391,13 +576,195 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create js artifact
+        run: cd .repo && npx projen package:js
+      - name: Collect js artifact
+        run: mv .repo/dist dist
       - name: Release
         env:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
-    environment: integ-approval
+  aws-cdk-cli-lib-alpha_release_maven:
+    name: "@aws-cdk/cli-lib-alpha: Publish to Maven Central"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: "11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cli-lib-alpha_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create java artifact
+        run: cd .repo && npx projen package:java
+      - name: Collect java artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.MAVEN_GPG_PRIVATE_KEY_PASSPHRASE }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_STAGING_PROFILE_ID: ${{ secrets.MAVEN_STAGING_PROFILE_ID }}
+        run: npx -p publib@latest publib-maven
+  aws-cdk-cli-lib-alpha_release_pypi:
+    name: "@aws-cdk/cli-lib-alpha: Publish to PyPI"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cli-lib-alpha_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create python artifact
+        run: cd .repo && npx projen package:python
+      - name: Collect python artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+        run: npx -p publib@latest publib-pypi
+  aws-cdk-cli-lib-alpha_release_nuget:
+    name: "@aws-cdk/cli-lib-alpha: Publish to NuGet Gallery"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.x
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cli-lib-alpha_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create dotnet artifact
+        run: cd .repo && npx projen package:dotnet
+      - name: Collect dotnet artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: npx -p publib@latest publib-nuget
+  aws-cdk-cli-lib-alpha_release_golang:
+    name: "@aws-cdk/cli-lib-alpha: Publish to GitHub Go Module Repository"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ^1.18.0
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-cli-lib-alpha_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: .repo
+      - name: Install Dependencies
+        run: cd .repo && yarn install --check-files --frozen-lockfile
+      - name: Extract build artifact
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+      - name: Move build artifact out of the way
+        run: mv dist dist.old
+      - name: Create go artifact
+        run: cd .repo && npx projen package:go
+      - name: Collect go artifact
+        run: mv .repo/dist dist
+      - name: Release
+        env:
+          GIT_USER_NAME: github-actions
+          GIT_USER_EMAIL: github-actions@github.com
+          GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
+        run: npx -p publib@latest publib-golang
   cdk_release_github:
     name: "cdk: Publish to GitHub Releases"
     needs:
@@ -425,7 +792,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-    environment: integ-approval
   cdk_release_npm:
     name: "cdk: Publish to npm"
     needs: release
@@ -451,4 +817,3 @@ jobs:
           NPM_REGISTRY: registry.npmjs.org
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
-    environment: integ-approval
