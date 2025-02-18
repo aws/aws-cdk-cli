@@ -160,6 +160,7 @@ const repo = configureProject(
       mergify: false,
       mergeQueue: true,
       pullRequestLintOptions: {
+        contributorStatement: "By submitting this pull request, I confirm that my contribution is made under the terms of the Apache-2.0 license",
         semanticTitleOptions: {
           types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
         },
