@@ -704,6 +704,13 @@ cli.eslint?.addOverride({
 // Do include all .ts files inside init-templates
 cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
 
+// Exclude other scripts and files from the npm package
+cli.npmignore?.addPatterns(
+  'images/',
+  'CONTRIBUTING.md',
+  'generate.sh',
+);
+
 cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
 
 // People should not have imported from the `aws-cdk` package, but they have in the past.
@@ -834,7 +841,7 @@ const cliLib = configureProject(
 );
 
 // Do include all .ts files inside init-templates
-cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+cliLib.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
 
 cliLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,

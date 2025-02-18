@@ -25,4 +25,7 @@ tsconfig.tsbuildinfo
 *.ts
 !*.d.ts
 !lib/init-templates/**/*.ts
+images/
+CONTRIBUTING.md
+generate.sh
 /.gitattributes
