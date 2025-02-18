@@ -28,6 +28,7 @@ import {
   ListImagesCommand,
   PutImageCommand,
 } from '@aws-sdk/client-ecr';
+import { CliIoHost } from '../../lib/toolkit/cli-io-host';
 
 let garbageCollector: GarbageCollector;
 
@@ -68,6 +69,10 @@ function gc(props: {
 }): GarbageCollector {
   return new GarbageCollector({
     sdkProvider: new MockSdkProvider(),
+    msg: {
+      ioHost: CliIoHost.instance(),
+      action: 'gc',
+    },
     action: props.action,
     resolvedEnvironment: {
       account: '123456789012',
@@ -929,6 +934,10 @@ describe('BackgroundStackRefresh', () => {
 
     refreshProps = {
       cfn: foo.cloudFormation(),
+      msg: {
+        ioHost: CliIoHost.instance(),
+        action: 'gc',
+      },
       activeAssets: new ActiveAssetCache(),
     };
 
@@ -1013,7 +1022,10 @@ describe('ProgressPrinter', () => {
     setInterval = jest.spyOn(global, 'setInterval');
     clearInterval = jest.spyOn(global, 'clearInterval');
 
-    progressPrinter = new ProgressPrinter(0, 1000);
+    progressPrinter = new ProgressPrinter({
+      ioHost: CliIoHost.instance(),
+      action: 'gc',
+    }, 0, 1000);
   });
 
   afterEach(() => {

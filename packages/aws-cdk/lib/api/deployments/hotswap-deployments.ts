@@ -1,3 +1,4 @@
+import { format } from 'util';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import { WaiterResult } from '@smithy/util-waiter';
@@ -5,7 +6,7 @@ import * as chalk from 'chalk';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { CloudFormationStack } from './cloudformation';
 import { NestedStackTemplates, loadCurrentTemplateWithNestedStacks } from './nested-stack-helpers';
-import { info } from '../../logging';
+import { info } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util/error';
 import { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
@@ -31,6 +32,7 @@ import {
 import { isHotswappableStateMachineChange } from '../hotswap/stepfunctions-state-machines';
 import { Mode } from '../plugin';
 import { SuccessfulDeployStackResult } from './deployment-result';
+import { IoMessaging } from '../../toolkit/cli-io-host';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -83,6 +85,7 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
  */
 export async function tryHotswapDeployment(
   sdkProvider: SdkProvider,
+  { ioHost, action }: IoMessaging,
   assetParams: { [key: string]: string },
   cloudFormationStack: CloudFormationStack,
   stackArtifact: cxapi.CloudFormationStackArtifact,
@@ -115,7 +118,7 @@ export async function tryHotswapDeployment(
     currentTemplate.nestedStacks, hotswapPropertyOverrides,
   );
 
-  logNonHotswappableChanges(nonHotswappableChanges, hotswapMode);
+  await logNonHotswappableChanges({ ioHost, action }, nonHotswappableChanges, hotswapMode);
 
   // preserve classic hotswap behavior
   if (hotswapMode === HotswapMode.FALL_BACK) {
@@ -125,7 +128,7 @@ export async function tryHotswapDeployment(
   }
 
   // apply the short-circuitable changes
-  await applyAllHotswappableChanges(sdk, hotswappableChanges);
+  await applyAllHotswappableChanges(sdk, { ioHost, action }, hotswappableChanges);
 
   return {
     type: 'did-deploy-stack',
@@ -399,24 +402,24 @@ function isCandidateForHotswapping(
   };
 }
 
-async function applyAllHotswappableChanges(sdk: SDK, hotswappableChanges: HotswappableChange[]): Promise<void[]> {
+async function applyAllHotswappableChanges(sdk: SDK, { ioHost, action }: IoMessaging, hotswappableChanges: HotswappableChange[]): Promise<void[]> {
   if (hotswappableChanges.length > 0) {
-    info(`\n${ICON} hotswapping resources:`);
+    await ioHost.notify(info(action, `\n${ICON} hotswapping resources:`));
   }
   const limit = pLimit(10);
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(hotswappableChanges.map(hotswapOperation => limit(() => {
-    return applyHotswappableChange(sdk, hotswapOperation);
+    return applyHotswappableChange(sdk, { ioHost, action }, hotswapOperation);
   })));
 }
 
-async function applyHotswappableChange(sdk: SDK, hotswapOperation: HotswappableChange): Promise<void> {
+async function applyHotswappableChange(sdk: SDK, { ioHost, action }: IoMessaging, hotswapOperation: HotswappableChange): Promise<void> {
   // note the type of service that was successfully hotswapped in the User-Agent
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);
 
   for (const name of hotswapOperation.resourceNames) {
-    info(`   ${ICON} %s`, chalk.bold(name));
+    await ioHost.notify(info(action, format(`   ${ICON} %s`, chalk.bold(name))));
   }
 
   // if the SDK call fails, an error will be thrown by the SDK
@@ -434,7 +437,7 @@ async function applyHotswappableChange(sdk: SDK, hotswapOperation: HotswappableC
   }
 
   for (const name of hotswapOperation.resourceNames) {
-    info(`${ICON} %s %s`, chalk.bold(name), chalk.green('hotswapped!'));
+    await ioHost.notify(info(action, format(`${ICON} %s %s`, chalk.bold(name), chalk.green('hotswapped!'))));
   }
 
   sdk.removeCustomUserAgent(customUserAgent);
@@ -458,7 +461,11 @@ function formatWaiterErrorResult(result: WaiterResult) {
   return main;
 }
 
-function logNonHotswappableChanges(nonHotswappableChanges: NonHotswappableChange[], hotswapMode: HotswapMode): void {
+async function logNonHotswappableChanges(
+  { ioHost, action }: IoMessaging,
+  nonHotswappableChanges: NonHotswappableChange[],
+  hotswapMode: HotswapMode,
+): Promise<void> {
   if (nonHotswappableChanges.length === 0) {
     return;
   }
@@ -476,34 +483,34 @@ function logNonHotswappableChanges(nonHotswappableChanges: NonHotswappableChange
       return;
     }
   }
+
+  const messages = ['']; // start with empty line
+
   if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
-    info(
-      '\n%s %s',
-      chalk.red('⚠️'),
-      chalk.red(
-        'The following non-hotswappable changes were found. To reconcile these using CloudFormation, specify --hotswap-fallback',
-      ),
-    );
+    messages.push(format('%s %s', chalk.red('⚠️'), chalk.red('The following non-hotswappable changes were found. To reconcile these using CloudFormation, specify --hotswap-fallback')));
   } else {
-    info('\n%s %s', chalk.red('⚠️'), chalk.red('The following non-hotswappable changes were found:'));
+    messages.push(format('%s %s', chalk.red('⚠️'), chalk.red('The following non-hotswappable changes were found:')));
   }
 
   for (const change of nonHotswappableChanges) {
-    change.rejectedChanges.length > 0
-      ? info(
+    if (change.rejectedChanges.length > 0) {
+      messages.push(format(
         '    logicalID: %s, type: %s, rejected changes: %s, reason: %s',
         chalk.bold(change.logicalId),
         chalk.bold(change.resourceType),
         chalk.bold(change.rejectedChanges),
         chalk.red(change.reason),
-      )
-      : info(
+      ));
+    } else {
+      messages.push(format(
         '    logicalID: %s, type: %s, reason: %s',
         chalk.bold(change.logicalId),
         chalk.bold(change.resourceType),
         chalk.red(change.reason),
-      );
+      ));
+    }
   }
+  messages.push(''); // newline
 
-  info(''); // newline
+  await ioHost.notify(info(action, messages.join('\n')));
 }

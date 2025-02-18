@@ -1,7 +1,7 @@
+import { format } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import type { SDK } from './aws-auth';
-import { debug } from '../logging';
 import {
   BOOTSTRAP_VARIANT_PARAMETER,
   BOOTSTRAP_VERSION_OUTPUT,
@@ -11,6 +11,8 @@ import {
   REPOSITORY_NAME_OUTPUT,
 } from './bootstrap/bootstrap-props';
 import { type CloudFormationStack, stabilizeStack } from './deployments/cloudformation';
+import { debug } from '../cli/messages';
+import { IoMessaging } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
 
 export const DEFAULT_TOOLKIT_STACK_NAME = 'CDKToolkit';
@@ -46,29 +48,36 @@ export abstract class ToolkitInfo {
   public static async lookup(
     environment: cxapi.Environment,
     sdk: SDK,
+    { ioHost, action }: IoMessaging,
     stackName: string | undefined,
   ): Promise<ToolkitInfo> {
     const cfn = sdk.cloudFormation();
     stackName = ToolkitInfo.determineName(stackName);
     try {
-      const stack = await stabilizeStack(cfn, stackName);
+      const stack = await stabilizeStack(cfn, { ioHost, action }, stackName);
       if (!stack) {
-        debug(
-          "The environment %s doesn't have the CDK toolkit stack (%s) installed. Use %s to setup your environment for use with the toolkit.",
-          environment.name,
-          stackName,
-          chalk.blue(`cdk bootstrap "${environment.name}"`),
-        );
+        await ioHost.notify(debug(
+          action,
+          format(
+            "The environment %s doesn't have the CDK toolkit stack (%s) installed. Use %s to setup your environment for use with the toolkit.",
+            environment.name,
+            stackName,
+            chalk.blue(`cdk bootstrap "${environment.name}"`),
+          ),
+        ));
         return ToolkitInfo.bootstrapStackNotFoundInfo(stackName);
       }
       if (stack.stackStatus.isCreationFailure) {
         // Treat a "failed to create" bootstrap stack as an absent one.
-        debug(
-          'The environment %s has a CDK toolkit stack (%s) that failed to create. Use %s to try provisioning it again.',
-          environment.name,
-          stackName,
-          chalk.blue(`cdk bootstrap "${environment.name}"`),
-        );
+        await ioHost.notify(debug(
+          action,
+          format(
+            'The environment %s has a CDK toolkit stack (%s) that failed to create. Use %s to try provisioning it again.',
+            environment.name,
+            stackName,
+            chalk.blue(`cdk bootstrap "${environment.name}"`),
+          ),
+        ));
         return ToolkitInfo.bootstrapStackNotFoundInfo(stackName);
       }
 

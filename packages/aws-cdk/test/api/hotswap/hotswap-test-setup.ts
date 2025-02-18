@@ -5,6 +5,7 @@ import { ICloudFormationClient, SuccessfulDeployStackResult } from '../../../lib
 import { CloudFormationStack, Template } from '../../../lib/api/deployments';
 import * as deployments from '../../../lib/api/deployments/hotswap-deployments';
 import { HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
+import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 import { testStack, TestStackArtifact } from '../../util';
 import {
   mockCloudFormationClient,
@@ -23,6 +24,11 @@ let currentCfnStack: FakeCloudformationStack;
 const currentCfnStackResources: StackResourceSummary[] = [];
 let stackTemplates: { [stackName: string]: any };
 let currentNestedCfnStackResources: { [stackName: string]: StackResourceSummary[] };
+
+let mockMsg: IoMessaging = {
+  ioHost: CliIoHost.instance(),
+  action: 'deploy',
+};
 
 export function setupHotswapTests(): HotswapMockSdkProvider {
   restoreSdkMocksToDefault();
@@ -143,6 +149,6 @@ export class HotswapMockSdkProvider extends MockSdkProvider {
     hotswapPropertyOverrides?: HotswapPropertyOverrides,
   ): Promise<SuccessfulDeployStackResult | undefined> {
     let hotswapProps = hotswapPropertyOverrides || new HotswapPropertyOverrides();
-    return deployments.tryHotswapDeployment(this, assetParams, currentCfnStack, stackArtifact, hotswapMode, hotswapProps);
+    return deployments.tryHotswapDeployment(this, mockMsg, assetParams, currentCfnStack, stackArtifact, hotswapMode, hotswapProps);
   }
 }
