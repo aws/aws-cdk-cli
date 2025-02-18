@@ -1113,4 +1113,30 @@ new CdkCliIntegTestsWorkflow(repo, {
   ],
 });
 
+const originalPreSynth = repo.monorepoRelease?.preSynthesize;
+
+(repo.monorepoRelease ?? {} as any).preSynthesize = function() {
+  originalPreSynth?.call(this);
+
+  const wf = this.workflow;
+  if (!wf) {
+    throw new Error('wut');
+  }
+  if (!wf.file) {
+    throw new Error('No whey');
+  }
+
+  wf?.file?.patch(...[
+    'aws-cdk-cloud-assembly-schema',
+    'aws-cdk-cloudformation-diff',
+    'cdk-assets',
+    'aws-cdk',
+    'aws-cdk-cli-lib-alpha',
+    'cdk',
+  ].flatMap(name => [
+    pj.JsonPatch.add(`/jobs/${name}_release_github/environment`, 'integ-approval'),
+    pj.JsonPatch.add(`/jobs/${name}_release_npm/environment`, 'integ-approval'),
+  ]));
+}
+
 repo.synth();
