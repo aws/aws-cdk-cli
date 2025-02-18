@@ -27,7 +27,7 @@
       "path": "packages/@aws-cdk/node-bundle"
     },
     {
-      "path": "packages/@aws-cdk/toolkit"
+      "path": "packages/@aws-cdk/toolkit-lib"
     },
     {
       "path": "packages/@aws-cdk/user-input-gen"

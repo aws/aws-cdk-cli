@@ -900,7 +900,7 @@ const toolkitLib = configureProject(
       private: true,
     }),
     parent: repo,
-    name: '@aws-cdk/toolkit',
+    name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
     srcdir: 'lib',
     deps: [

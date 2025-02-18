@@ -54,7 +54,7 @@
       "packages/cdk-assets",
       "packages/aws-cdk",
       "packages/@aws-cdk/cli-lib-alpha",
-      "packages/@aws-cdk/toolkit",
+      "packages/@aws-cdk/toolkit-lib",
       "packages/@aws-cdk/cdk-cli-wrapper",
       "packages/cdk"
     ],
@@ -77,7 +77,7 @@
       "<rootDir>/packages/cdk-assets",
       "<rootDir>/packages/aws-cdk",
       "<rootDir>/packages/@aws-cdk/cli-lib-alpha",
-      "<rootDir>/packages/@aws-cdk/toolkit",
+      "<rootDir>/packages/@aws-cdk/toolkit-lib",
       "<rootDir>/packages/@aws-cdk/cdk-cli-wrapper",
       "<rootDir>/packages/cdk"
     ]

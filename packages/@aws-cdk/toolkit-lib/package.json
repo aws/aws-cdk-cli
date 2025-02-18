@@ -1,10 +1,10 @@
 {
-  "name": "@aws-cdk/toolkit",
+  "name": "@aws-cdk/toolkit-lib",
   "description": "AWS CDK Programmatic Toolkit Library",
   "repository": {
     "type": "git",
     "url": "https://github.com/aws/aws-cdk-cli",
-    "directory": "packages/@aws-cdk/toolkit"
+    "directory": "packages/@aws-cdk/toolkit-lib"
   },
   "scripts": {
     "build": "npx projen build",
