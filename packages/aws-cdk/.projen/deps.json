@@ -378,6 +378,7 @@
     },
     {
       "name": "cdk-from-cfn",
+      "version": "0.162.1",
       "type": "runtime"
     },
     {

@@ -122,7 +122,7 @@
     "archiver": "^7.0.1",
     "camelcase": "^6",
     "cdk-assets": "^0.0.0",
-    "cdk-from-cfn": "^0.189.0",
+    "cdk-from-cfn": "0.162.1",
     "chalk": "^4",
     "chokidar": "^3",
     "decamelize": "^5",

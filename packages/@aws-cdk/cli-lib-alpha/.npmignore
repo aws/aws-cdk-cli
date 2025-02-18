@@ -24,5 +24,6 @@ tsconfig.tsbuildinfo
 .eslintrc.js
 *.ts
 !*.d.ts
+!lib/init-templates/**/*.ts
 !.jsii
 /.gitattributes

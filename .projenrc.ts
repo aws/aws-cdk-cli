@@ -637,7 +637,8 @@ const cli = configureProject(
       ],
       'camelcase@^6', // Non-ESM
       cdkAssets,
-      'cdk-from-cfn',
+      // A version that is guaranteed to still work on Node 16
+      'cdk-from-cfn@0.162.1',
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
@@ -703,6 +704,13 @@ cli.eslint?.addOverride({
 
 // Do include all .ts files inside init-templates
 cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+
+// Exclude other scripts and files from the npm package
+cli.npmignore?.addPatterns(
+  'images/',
+  'CONTRIBUTING.md',
+  'generate.sh',
+);
 
 cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
 
@@ -834,7 +842,7 @@ const cliLib = configureProject(
 );
 
 // Do include all .ts files inside init-templates
-cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+cliLib.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
 
 cliLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
