@@ -158,6 +158,10 @@
       "type": "build"
     },
     {
+      "name": "license-checker",
+      "type": "build"
+    },
+    {
       "name": "madge",
       "type": "build"
     },

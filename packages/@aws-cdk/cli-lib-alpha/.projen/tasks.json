@@ -52,7 +52,16 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@stylistic/eslint-plugin,@types/jest,aws-cdk-lib,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-prettier,jest,jsii-diff,jsii-pacmak,projen,ts-jest"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@stylistic/eslint-plugin,@types/jest,aws-cdk-lib,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-prettier,jest,jsii-diff,jsii-pacmak,license-checker,projen,ts-jest"
+        }
+      ]
+    },
+    "check-licenses": {
+      "name": "check-licenses",
+      "steps": [
+        {
+          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC\"",
+          "receiveArgs": true
         }
       ]
     },
@@ -253,7 +262,12 @@
     },
     "pre-compile": {
       "name": "pre-compile",
-      "description": "Prepare the project for compilation"
+      "description": "Prepare the project for compilation",
+      "steps": [
+        {
+          "spawn": "check-licenses"
+        }
+      ]
     },
     "test": {
       "name": "test",

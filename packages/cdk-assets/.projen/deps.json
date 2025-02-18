@@ -122,6 +122,10 @@
       "type": "build"
     },
     {
+      "name": "license-checker",
+      "type": "build"
+    },
+    {
       "name": "mock-fs",
       "version": "^5",
       "type": "build"

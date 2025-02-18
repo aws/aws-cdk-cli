@@ -94,6 +94,10 @@
       "type": "build"
     },
     {
+      "name": "license-checker",
+      "type": "build"
+    },
+    {
       "name": "mock-fs",
       "type": "build"
     },
