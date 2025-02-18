@@ -373,7 +373,6 @@ const yargsGen = configureProject(
     name: '@aws-cdk/user-input-gen',
     description: 'Generate CLI arguments',
     srcdir: 'lib',
-    checkLicenses: undefined,
     deps: ['@cdklabs/typewriter', 'prettier@^2.8', 'lodash.clonedeep'],
     devDeps: ['@types/semver', '@types/yarnpkg__lockfile', '@types/lodash.clonedeep', '@types/prettier@^2'],
     minNodeVersion: '17.0.0', // Necessary for 'structuredClone'
@@ -390,7 +389,6 @@ const nodeBundle = configureProject(
     parent: repo,
     name: '@aws-cdk/node-bundle',
     description: 'Tool for generating npm-shrinkwrap from yarn.lock',
-    checkLicenses: undefined,
     deps: ['esbuild', 'fs-extra@^9', 'license-checker', 'madge', 'shlex', 'yargs'],
     devDeps: ['@types/license-checker', '@types/madge', '@types/fs-extra@^9', 'jest-junit', 'standard-version'],
   }),
@@ -410,7 +408,6 @@ const cdkBuildTools = configureProject(
     name: '@aws-cdk/cdk-build-tools',
     description: 'Build tools for CDK packages',
     srcdir: 'lib',
-    checkLicenses: undefined,
     deps: [
       yarnCling,
       nodeBundle,
