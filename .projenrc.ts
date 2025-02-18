@@ -699,6 +699,17 @@ const cli = configureProject(
   }),
 );
 
+// Eslint rules
+cli.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': ['error'],
+});
+cli.eslint?.addOverride({
+  files: ["./test/**"],
+  rules: {
+    "@cdklabs/no-throw-default-error": "off",
+  },
+});
+
 // Do include all .ts files inside init-templates
 cli.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
 
@@ -987,6 +998,24 @@ const toolkitLib = configureProject(
     },
   }),
 );
+
+// Eslint rules
+toolkitLib.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': ['error'],
+  'import/no-restricted-paths': ['error', {
+    zones: [{
+      target: './',
+      from: '../../aws-cdk',
+      message: "All `aws-cdk` code must be used via lib/api/aws-cdk.ts",
+    }]
+  }],
+});
+toolkitLib.eslint?.addOverride({
+  files: ["./test/**"],
+  rules: {
+    "@cdklabs/no-throw-default-error": "off",
+  },
+});
 
 // Prevent imports of private API surface
 toolkitLib.package.addField("exports", {

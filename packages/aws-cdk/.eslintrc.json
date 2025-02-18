@@ -262,7 +262,19 @@
     "jest/no-focused-tests": "error",
     "prettier/prettier": [
       "off"
+    ],
+    "@cdklabs/no-throw-default-error": [
+      "error"
     ]
   },
-  "overrides": []
+  "overrides": [
+    {
+      "files": [
+        "./test/**"
+      ],
+      "rules": {
+        "@cdklabs/no-throw-default-error": "off"
+      }
+    }
+  ]
 }

@@ -1,4 +1,3 @@
-
 export const ESLINT_RULES = {
   '@cdklabs/no-core-construct': ['error'],
   '@cdklabs/invalid-cfn-imports': ['error'],
