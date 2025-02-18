@@ -7,8 +7,8 @@ function codesToMarkdownTable(codes: Record<string, CodeInfo>, mdPrefix?: string
   let table = '| Code | Description | Level | Data Interface |\n';
   table += '|------|-------------|-------|----------------|\n';
   
-  Object.entries(codes).forEach(([id, code]) => {
-    table += `| ${id} | ${code.description} | ${code.level} | ${code.interface ?? 'n/a'} |\n`;
+  Object.values(codes).forEach((code) => {
+    table += `| ${code.code} | ${code.description} | ${code.level} | ${code.interface ?? 'n/a'} |\n`;
   });
 
   const prefix = mdPrefix ? `${mdPrefix}\n\n` : '';

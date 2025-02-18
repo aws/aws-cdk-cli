@@ -10,4 +10,15 @@ export interface ToolkitServices {
   ioHost: ActionAwareIoHost;
 }
 
-// export inter
+export interface StackData {
+  assemblyDirectory: string;
+  stacksCount: number;
+  stackIds: string[];
+  stack: {
+    stackName: string;
+    hierarchicalId: string;
+    template: any;
+    stringifiedJson: string;
+    stringifiedYaml: string;
+  };
+}

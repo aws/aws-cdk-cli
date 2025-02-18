@@ -3,7 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
-import { ToolkitServices } from './private';
+import { StackData, ToolkitServices } from './private';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -19,7 +19,7 @@ import { CachedCloudAssemblySource, IdentityCloudAssemblySource, StackAssembly, 
 import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
 import { ToolkitError } from '../api/errors';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
-import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace } from '../api/io/private';
+import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace, CODES } from '../api/io/private';
 
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.
@@ -177,7 +177,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const firstStack = stacks.firstStack!;
       const template = firstStack.template;
       const obscuredTemplate = obscureTemplate(template);
-      await ioHost.notify(result(message, 'CDK_TOOLKIT_I1901', {
+      await ioHost.notify(result(message, CODES.CDK_TOOLKIT_I1901, {
         ...assemblyData,
         stack: {
           stackName: firstStack.stackName,
@@ -186,10 +186,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stringifiedJson: serializeStructure(obscuredTemplate, true),
           stringifiedYaml: serializeStructure(obscuredTemplate, false),
         },
-      }));
+      } as StackData));
     } else {
       // not outputting template to stdout, let's explain things to the user a little bit...
-      await ioHost.notify(result(chalk.green(message), 'CDK_TOOLKIT_I1902', assemblyData));
+      await ioHost.notify(result(chalk.green(message), CODES.CDK_TOOLKIT_I1902, assemblyData));
       await ioHost.notify(info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`));
     }
 
@@ -211,7 +211,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const stacks = stackCollection.withDependencies();
     const message = stacks.map(s => s.id).join('\n');
 
-    await ioHost.notify(result(message, 'CDK_TOOLKIT_I2901', { stacks }));
+    await ioHost.notify(result(message, CODES.CDK_TOOLKIT_I2901, { stacks }));
     return stacks;
   }
 
@@ -458,7 +458,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           ? ` ✅  ${stack.displayName} (no changes)`
           : ` ✅  ${stack.displayName}`;
 
-        await ioHost.notify(result(chalk.green('\n' + message), 'CDK_TOOLKIT_I5900', deployResult));
+        await ioHost.notify(result(chalk.green('\n' + message), CODES.CDK_TOOLKIT_I5900, deployResult));
         deployDuration = await deployTimer.endAs(ioHost, 'deploy');
 
         if (Object.keys(deployResult.outputs).length > 0) {

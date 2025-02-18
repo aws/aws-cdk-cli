@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import type { IoMessageCodeCategory, IoMessageLevel } from '../io-message';
-import { type VALID_CODE } from './codes';
+import { CodeInfo, type VALID_CODE } from './codes';
 import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage } from './types';
 
 /**
@@ -83,10 +83,10 @@ export const error = <T>(message: string, code: VALID_CODE, payload?: T) => {
  * However actions that operate on Cloud Assemblies might include a result per Stack.
  * Unlike other messages, results must always have a code and a payload.
  */
-export const result = <T>(message: string, code: VALID_CODE, payload: T) => {
+export const result = <T>(message: string, code: CodeInfo, payload: T) => {
   return formatMessage({
     level: 'result',
-    code,
+    code: code.code,
     message,
     data: payload,
   });
