@@ -646,7 +646,8 @@ const cli = configureProject(
       ],
       'camelcase@^6', // Non-ESM
       cdkAssets,
-      'cdk-from-cfn',
+      // A version that is guaranteed to still work on Node 16
+      'cdk-from-cfn@0.162.1',
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
