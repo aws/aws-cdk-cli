@@ -1,15 +1,23 @@
 import * as fs from 'fs';
 import { CODES, CodeInfo } from '../lib/api/io/private/codes';
 
-function objectToMarkdownTable(codes: Record<string, CodeInfo>) {
+// TODO: prefix / postfix
+
+function codesToMarkdownTable(codes: Record<string, CodeInfo>, mdPrefix?: string, mdPostfix?: string) {
   let table = '| Code | Description | Level | Data Interface |\n';
-  table += '|------|-------------| ----- | -------------- |\n';
+  table += '|------|-------------|-------|----------------|\n';
   
   Object.entries(codes).forEach(([id, code]) => {
     table += `| ${id} | ${code.description} | ${code.level} | ${code.interface ?? 'n/a'} |\n`;
   });
-  
-  return table;
+
+  const prefix = mdPrefix ? `${mdPrefix}\n\n` : '';
+  const postfix = mdPostfix ? `\n\n${mdPostfix}\n` : '';
+
+  return prefix + table + postfix;
 }
 
-fs.writeFileSync('CODE_REGISTRY.md', objectToMarkdownTable(CODES));
+fs.writeFileSync('CODE_REGISTRY.md', codesToMarkdownTable(
+  CODES,
+  '## Toolkit Code Registry',
+));

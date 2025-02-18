@@ -1,5 +1,7 @@
+## Toolkit Code Registry
+
 | Code | Description | Level | Data Interface |
-|------|-------------| ----- | -------------- |
+|------|-------------|-------|----------------|
 | CDK_TOOLKIT_I1000 | Provides synthesis times. | info | n/a |
 | CDK_TOOLKIT_I1901 | Provides stack data | result | n/a |
 | CDK_TOOLKIT_I1902 | Successfully deployed stacks | result | n/a |
