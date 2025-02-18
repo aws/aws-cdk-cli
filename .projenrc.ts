@@ -54,9 +54,10 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   return x;
 }
 
+const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_4-core';
+
 const workflowRunsOn = [
-  'ubuntu-latest',
-  // 'awscdk-service-spec_ubuntu-latest_32-core',
+  POWERFUL_RUNNER,
 ];
 
 // Ignore patterns that apply both to the CLI and to cli-lib
@@ -1098,13 +1099,12 @@ for (const gi of [repo.gitignore, cli.gitignore]) {
 }
 const APPROVAL_ENVIRONMENT = 'integ-approval';
 const TEST_ENVIRONMENT = 'run-tests';
-const TEST_RUNNER = 'aws-cdk_ubuntu-latest_4-core';
 
 new CdkCliIntegTestsWorkflow(repo, {
   approvalEnvironment: APPROVAL_ENVIRONMENT,
-  buildRunsOn: workflowRunsOn[0],
   testEnvironment: TEST_ENVIRONMENT,
-  testRunsOn: TEST_RUNNER,
+  buildRunsOn: POWERFUL_RUNNER,
+  testRunsOn: POWERFUL_RUNNER,
   expectNewCliLibVersion: true,
 
   localPackages: [

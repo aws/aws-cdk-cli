@@ -7,7 +7,7 @@ on:
   merge_group: {}
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
       contents: write
     outputs:
@@ -53,7 +53,7 @@ jobs:
           exit 1
   self-mutation:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
       contents: write
     if: always() && needs.build.outputs.self_mutation_happened && !(github.event.pull_request.head.repo.full_name != github.repository)

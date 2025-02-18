@@ -9,7 +9,7 @@ on:
   workflow_dispatch: {}
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
       contents: read
     environment: integ-approval
@@ -148,5 +148,5 @@ jobs:
       - name: Integ test result
         run: echo ${{ needs.integ_matrix.result }}
       - name: Set status based on matrix job
-        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.integ_matrix.result) }}
+        if: ${{ needs.integ_matrix.result != 'success' }}
         run: exit 1
