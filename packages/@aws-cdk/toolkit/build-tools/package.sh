@@ -7,12 +7,10 @@ commit=$(git rev-parse --short HEAD)
 # Toolkit package root
 cd "$(dirname $(dirname "$0"))"
 
+rm -rf dist/
+mkdir -p dist/js
 npm pkg set version=0.0.0-alpha.$commit
-npm pkg set dependencies.@aws-cdk/cx-api=$version
 npm pkg set dependencies.@aws-cdk/cloudformation-diff=$version
-npm pkg set dependencies.@aws-cdk/region-info=$version
-yarn package --private
+npm pack --pack-destination dist/js
 npm pkg set version=$reset
-npm pkg set dependencies.@aws-cdk/cx-api=$reset
-npm pkg set dependencies.@aws-cdk/cloudformation-diff=$reset
-npm pkg set dependencies.@aws-cdk/region-info=$reset
+npm pkg set dependencies.@aws-cdk/cloudformation-diff=^$reset

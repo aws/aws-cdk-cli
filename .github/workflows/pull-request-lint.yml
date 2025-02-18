@@ -28,4 +28,7 @@ jobs:
             fix
             chore
             refactor
+            test
+            docs
+            revert
           requireScope: false

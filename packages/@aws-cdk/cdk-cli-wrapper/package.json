@@ -39,7 +39,7 @@
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "aws-cdk": "^0.0.0",
-    "aws-cdk-lib": "^2.178.2",
+    "aws-cdk-lib": "^2.179.0",
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.0.1",

@@ -161,7 +161,7 @@ const repo = configureProject(
       mergeQueue: true,
       pullRequestLintOptions: {
         semanticTitleOptions: {
-          types: ['feat', 'fix', 'chore', 'refactor'],
+          types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
         },
       },
     },
@@ -1000,6 +1000,7 @@ toolkitLib.npmignore?.addPatterns(
 
 toolkitLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'docs',
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
@@ -1014,6 +1015,13 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
     tsconfig?.addExclude(pat);
   }
 }
+
+toolkitLib.addTask('docs', {
+  exec: 'typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal'
+});
+toolkitLib.addTask('publish-local', {
+  exec: './build-tools/package.sh'
+});
 
 //////////////////////////////////////////////////////////////////////
 
