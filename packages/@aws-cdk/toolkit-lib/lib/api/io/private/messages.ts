@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import type { IoMessageCodeCategory, IoMessageLevel } from '../io-message';
-import { type VALID_CODE } from './codes';
+import { CODES, type VALID_CODE } from './codes';
 import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage } from './types';
 
 /**

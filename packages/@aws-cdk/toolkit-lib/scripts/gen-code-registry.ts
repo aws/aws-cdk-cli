@@ -6,7 +6,7 @@ function objectToMarkdownTable(codes: Record<string, CodeInfo>) {
   table += '|------|-------------| ----- | -------------- |\n';
   
   Object.entries(codes).forEach(([id, code]) => {
-    table += `| ${id} | ${code.description} | ${code.level} | ${code.interface} |\n`;
+    table += `| ${id} | ${code.description} | ${code.level} | ${code.interface ?? 'n/a'} |\n`;
   });
   
   return table;
