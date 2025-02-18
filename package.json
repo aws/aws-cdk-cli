@@ -59,8 +59,8 @@
       "packages/cdk"
     ],
     "nohoist": [
-      "@aws-cdk/cloud-assembly-schema/jsonschema",
-      "@aws-cdk/cloud-assembly-schema/jsonschema/**",
+      "@aws-cdk/cloud-assembly-schema/jsonschema@~1.4.1",
+      "@aws-cdk/cloud-assembly-schema/jsonschema@~1.4.1/**",
       "@aws-cdk/cloud-assembly-schema/semver",
       "@aws-cdk/cloud-assembly-schema/semver/**"
     ]
