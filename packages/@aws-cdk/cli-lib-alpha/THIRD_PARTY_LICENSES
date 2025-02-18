@@ -1648,7 +1648,7 @@ The @aws-cdk/cli-lib-alpha package includes the following third-party software/l
 
 ----------------
 
-** @aws-sdk/client-cognito-identity@3.749.0 - https://www.npmjs.com/package/@aws-sdk/client-cognito-identity/v/3.749.0 | Apache-2.0
+** @aws-sdk/client-cognito-identity@3.750.0 - https://www.npmjs.com/package/@aws-sdk/client-cognito-identity/v/3.750.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4532,7 +4532,7 @@ The @aws-cdk/cli-lib-alpha package includes the following third-party software/l
 
 ----------------
 
-** @aws-sdk/client-sso@3.749.0 - https://www.npmjs.com/package/@aws-sdk/client-sso/v/3.749.0 | Apache-2.0
+** @aws-sdk/client-sso@3.750.0 - https://www.npmjs.com/package/@aws-sdk/client-sso/v/3.750.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4948,7 +4948,7 @@ The @aws-cdk/cli-lib-alpha package includes the following third-party software/l
 
 ----------------
 
-** @aws-sdk/core@3.749.0 - https://www.npmjs.com/package/@aws-sdk/core/v/3.749.0 | Apache-2.0
+** @aws-sdk/core@3.750.0 - https://www.npmjs.com/package/@aws-sdk/core/v/3.750.0 | Apache-2.0
 
 ----------------
 
@@ -5158,7 +5158,7 @@ The @aws-cdk/cli-lib-alpha package includes the following third-party software/l
 
 ----------------
 
-** @aws-sdk/credential-provider-cognito-identity@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-cognito-identity@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.750.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5569,7 +5569,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-env@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-env@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5778,7 +5778,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-http@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-http@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.750.0 | Apache-2.0
 
 ----------------
 
@@ -5987,7 +5987,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-ini@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-ini@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6397,7 +6397,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-node@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-node@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6807,7 +6807,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-process@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-process@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7217,7 +7217,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-sso@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-sso@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7627,7 +7627,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-web-identity@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-provider-web-identity@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8037,7 +8037,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-providers@3.749.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.749.0 | Apache-2.0
+** @aws-sdk/credential-providers@3.750.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8652,7 +8652,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/lib-storage@3.749.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.749.0 | Apache-2.0
+** @aws-sdk/lib-storage@3.750.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11327,7 +11327,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-user-agent@3.749.0 - https://www.npmjs.com/package/@aws-sdk/middleware-user-agent/v/3.749.0 | Apache-2.0
+** @aws-sdk/middleware-user-agent@3.750.0 - https://www.npmjs.com/package/@aws-sdk/middleware-user-agent/v/3.750.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11537,7 +11537,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/nested-clients@3.749.0 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.749.0 | Apache-2.0
+** @aws-sdk/nested-clients@3.750.0 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.750.0 | Apache-2.0
 
 ----------------
 
@@ -12157,7 +12157,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/token-providers@3.749.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.749.0 | Apache-2.0
+** @aws-sdk/token-providers@3.750.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.750.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13388,7 +13388,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/util-user-agent-node@3.749.0 - https://www.npmjs.com/package/@aws-sdk/util-user-agent-node/v/3.749.0 | Apache-2.0
+** @aws-sdk/util-user-agent-node@3.750.0 - https://www.npmjs.com/package/@aws-sdk/util-user-agent-node/v/3.750.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
