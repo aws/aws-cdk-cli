@@ -40,5 +40,6 @@
     {
       "path": "packages/cdk-assets"
     }
-  ]
+  ],
+  "settings": {}
 }

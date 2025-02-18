@@ -4284,36 +4284,36 @@
     eslint-visitor-keys "^4.2.0"
 
 "@vitest/expect@>1.6.0":
-  version "3.0.5"
-  resolved "https://registry.yarnpkg.com/@vitest/expect/-/expect-3.0.5.tgz#aa0acd0976cf56842806e5dcaebd446543966b14"
-  integrity sha512-nNIOqupgZ4v5jWuQx2DSlHLEs7Q4Oh/7AYwNyE+k0UQzG7tSmjPXShUikn1mpNGzYEN2jJbTvLejwShMitovBA==
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@vitest/expect/-/expect-3.0.6.tgz#30993c0841203d2243826ee04fb25463eb86e20d"
+  integrity sha512-zBduHf/ja7/QRX4HdP1DSq5XrPgdN+jzLOwaTq/0qZjYfgETNFCKf9nOAp2j3hmom3oTbczuUzrzg9Hafh7hNg==
   dependencies:
-    "@vitest/spy" "3.0.5"
-    "@vitest/utils" "3.0.5"
-    chai "^5.1.2"
+    "@vitest/spy" "3.0.6"
+    "@vitest/utils" "3.0.6"
+    chai "^5.2.0"
     tinyrainbow "^2.0.0"
 
-"@vitest/pretty-format@3.0.5":
-  version "3.0.5"
-  resolved "https://registry.yarnpkg.com/@vitest/pretty-format/-/pretty-format-3.0.5.tgz#10ae6a83ccc1a866e31b2d0c1a7a977ade02eff9"
-  integrity sha512-CjUtdmpOcm4RVtB+up8r2vVDLR16Mgm/bYdkGFe3Yj/scRfCpbSi2W/BDSDcFK7ohw8UXvjMbOp9H4fByd/cOA==
+"@vitest/pretty-format@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@vitest/pretty-format/-/pretty-format-3.0.6.tgz#a828569818b666a6e955c9af8129e6b0d2968ee6"
+  integrity sha512-Zyctv3dbNL+67qtHfRnUE/k8qxduOamRfAL1BurEIQSyOEFffoMvx2pnDSSbKAAVxY0Ej2J/GH2dQKI0W2JyVg==
   dependencies:
     tinyrainbow "^2.0.0"
 
-"@vitest/spy@3.0.5":
-  version "3.0.5"
-  resolved "https://registry.yarnpkg.com/@vitest/spy/-/spy-3.0.5.tgz#7bb5d84ec21cc0d62170fda4e31cd0b46c1aeb8b"
-  integrity sha512-5fOzHj0WbUNqPK6blI/8VzZdkBlQLnT25knX0r4dbZI9qoZDf3qAdjoMmDcLG5A83W6oUUFJgUd0EYBc2P5xqg==
+"@vitest/spy@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@vitest/spy/-/spy-3.0.6.tgz#3a50ec0ab11e8f729cdaa938a6d271b12547cea1"
+  integrity sha512-HfOGx/bXtjy24fDlTOpgiAEJbRfFxoX3zIGagCqACkFKKZ/TTOE6gYMKXlqecvxEndKFuNHcHqP081ggZ2yM0Q==
   dependencies:
     tinyspy "^3.0.2"
 
-"@vitest/utils@3.0.5":
-  version "3.0.5"
-  resolved "https://registry.yarnpkg.com/@vitest/utils/-/utils-3.0.5.tgz#dc3eaefd3534598917e939af59d9a9b6a5be5082"
-  integrity sha512-N9AX0NUoUtVwKwy21JtwzaqR5L5R5A99GAbrHfCCXK1lp593i/3AZAXhSP43wRQuxYsflrdzEfXZFo1reR1Nkg==
+"@vitest/utils@3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@vitest/utils/-/utils-3.0.6.tgz#be4246ab46a076db1e49b9e0479bdd9a7f65782f"
+  integrity sha512-18ktZpf4GQFTbf9jK543uspU03Q2qya7ZGya5yiZ0Gx0nnnalBvd5ZBislbl2EhLjM8A8rt4OilqKG7QwcGkvQ==
   dependencies:
-    "@vitest/pretty-format" "3.0.5"
-    loupe "^3.1.2"
+    "@vitest/pretty-format" "3.0.6"
+    loupe "^3.1.3"
     tinyrainbow "^2.0.0"
 
 "@vue/compiler-core@3.5.13":
@@ -5018,13 +5018,13 @@ cdk-from-cfn@^0.189.0:
   integrity sha512-m8+aWIakaKdrKeyAjMTDmU2Jc+sR+myAcxbUo9aCzJG98U3zQuhIwXd7Z39TLmeQFM76bh0MClY94k0xZ7ds7Q==
 
 cdklabs-projen-project-types@^0.1.220:
-  version "0.1.226"
-  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.226.tgz#2f7aaf7640a71e39f60f5ff8cc6b5ab3d9a4256d"
-  integrity sha512-I/zWSGsmNrutVhe0n49rb7Cq6EJS7cFNChGmHZj/6/psi9HDBfchwNXOCJakm/ph/avfCAw5kOUtKI2bCnM+Uw==
+  version "0.1.227"
+  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.1.227.tgz#ffa2afa6f35b90c87a6e92023ac74790398a59f9"
+  integrity sha512-T7rcWQuIaFhmWSK9aC7vDMu4QdAsQ/E1XM25WkLRvXDMuykKagSPno7eRwKe1mtBTICV2wo+r/amWYgaY0dehg==
   dependencies:
     yaml "^2.7.0"
 
-chai@^5.1.2:
+chai@^5.2.0:
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/chai/-/chai-5.2.0.tgz#1358ee106763624114addf84ab02697e411c9c05"
   integrity sha512-mCuXncKXk5iCLhfhwTc0izo0gtEmpz5CtG2y8GiOINBlMVS6v8TMRc5TaLWKS6692m9+dVVfzgeVxR5UxWHTYw==
@@ -8401,7 +8401,7 @@ log4js@^6.9.1:
     rfdc "^1.3.0"
     streamroller "^3.1.5"
 
-loupe@^3.1.0, loupe@^3.1.2:
+loupe@^3.1.0, loupe@^3.1.3:
   version "3.1.3"
   resolved "https://registry.yarnpkg.com/loupe/-/loupe-3.1.3.tgz#042a8f7986d77f3d0f98ef7990a2b2fef18b0fd2"
   integrity sha512-kkIp7XSkP78ZxJEsSxW3712C6teJVoeHHwgo9zJ380de7IYyJ2ISlxojcH2pC5OFLewESmnRi/+XCDIEEVyoug==
