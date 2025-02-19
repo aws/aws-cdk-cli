@@ -2,11 +2,11 @@ export const ESLINT_RULES = {
   '@cdklabs/no-core-construct': ['error'],
   '@cdklabs/invalid-cfn-imports': ['error'],
   '@cdklabs/no-literal-partition': ['error'],
-  '@cdklabs/no-invalid-path': [ 'error' ],
-  '@cdklabs/promiseall-no-unbounded-parallelism': [ 'error' ],
+  '@cdklabs/no-invalid-path': ['error'],
+  '@cdklabs/promiseall-no-unbounded-parallelism': ['error'],
 
   // Error handling
-  'no-throw-literal': [ 'error' ],
+  'no-throw-literal': ['error'],
 
   // Require use of the `import { foo } from 'bar';` form instead of `import foo = require('bar');`
   '@typescript-eslint/no-require-imports': ['error'],
@@ -29,26 +29,14 @@ export const ESLINT_RULES = {
   'space-before-blocks': 'error', // require space before blocks
   'curly': ['error', 'multi-line', 'consistent'], // require curly braces for multiline control statements
   'eol-last': ['error', 'always'], // require a newline a the end of files
-  '@stylistic/spaced-comment': ['error', 'always', { 'exceptions': ['/', '*'], 'markers': ['/'] }], // require a whitespace at the beginninng of each comment
-  '@stylistic/padded-blocks': ['error', { 'classes': 'never', 'blocks': 'never', 'switches': 'never'}],
+  '@stylistic/spaced-comment': ['error', 'always', { exceptions: ['/', '*'], markers: ['/'] }], // require a whitespace at the beginninng of each comment
+  '@stylistic/padded-blocks': ['error', { classes: 'never', blocks: 'never', switches: 'never' }],
 
   // JSDoc
   'jsdoc/require-param-description': ['error'],
   'jsdoc/require-property-description': ['error'],
   'jsdoc/require-returns-description': ['error'],
   'jsdoc/check-alignment': ['error'],
-
-  // Require all imported dependencies are actually declared in package.json
-  'import/no-extraneous-dependencies': [
-    'error',
-    {
-      devDependencies: [ // Only allow importing devDependencies from:
-        '**/build-tools/**', // --> Build tools
-        '**/test/**', // --> Unit tests
-      ],
-      optionalDependencies: false, // Disallow importing optional dependencies (those shouldn't be in use in the project)
-    },
-  ],
 
   // Require all imported libraries actually resolve (!!required for import/no-extraneous-dependencies to work!!)
   'import/no-unresolved': ['error'],
@@ -65,7 +53,7 @@ export const ESLINT_RULES = {
       paths: [
         {
           name: 'punycode',
-          message: `Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation`,
+          message: 'Package \'punycode\' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation',
         },
       ],
       patterns: ['!punycode/'],
@@ -89,7 +77,7 @@ export const ESLINT_RULES = {
   'quote-props': ['error', 'consistent-as-needed'],
 
   // No multiple empty lines
-  'no-multiple-empty-lines': ['error', { 'max': 1 }],
+  'no-multiple-empty-lines': ['error', { max: 1 }],
 
   // Max line lengths
   'max-len': ['error', {
@@ -122,13 +110,13 @@ export const ESLINT_RULES = {
   'no-bitwise': ['error'],
 
   // No more md5, will break in FIPS environments
-  "no-restricted-syntax": [
-    "error",
+  'no-restricted-syntax': [
+    'error',
     {
       // Both qualified and unqualified calls
-      "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
-      "message": "Use the md5hash() function from the core library if you want md5"
-    }
+      selector: "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
+      message: 'Use the md5hash() function from the core library if you want md5',
+    },
   ],
 
   // Oh ho ho naming. Everyone's favorite topic!
@@ -177,13 +165,13 @@ export const ESLINT_RULES = {
   }],
 
   // Overrides for plugin:jest/recommended
-  "jest/expect-expect": "off",
-  "jest/no-conditional-expect": "off",
-  "jest/no-done-callback": "off", // Far too many of these in the codebase.
-  "jest/no-standalone-expect": "off", // nodeunitShim confuses this check.
-  "jest/valid-expect": "off", // expect from '@aws-cdk/assert' can take a second argument
-  "jest/valid-title": "off", // A little over-zealous with test('test foo') being an error.
-  "jest/no-identical-title": "off", // TEMPORARY - Disabling this until https://github.com/jest-community/eslint-plugin-jest/issues/836 is resolved
+  'jest/expect-expect': 'off',
+  'jest/no-conditional-expect': 'off',
+  'jest/no-done-callback': 'off', // Far too many of these in the codebase.
+  'jest/no-standalone-expect': 'off', // nodeunitShim confuses this check.
+  'jest/valid-expect': 'off', // expect from '@aws-cdk/assert' can take a second argument
+  'jest/valid-title': 'off', // A little over-zealous with test('test foo') being an error.
+  'jest/no-identical-title': 'off', // TEMPORARY - Disabling this until https://github.com/jest-community/eslint-plugin-jest/issues/836 is resolved
   'jest/no-disabled-tests': 'error', // Skipped tests are easily missed in PR reviews
   'jest/no-focused-tests': 'error', // Focused tests are easily missed in PR reviews
 };

@@ -61,11 +61,15 @@ async function main() {
   }
 
   if (version !== (process.env.VERSION ?? '')) {
+    // this is a cli
+    // eslint-disable-next-line no-console
     console.log(version);
   }
 }
 
 main().catch((error) => {
+  // this is a cli
+  // eslint-disable-next-line no-console
   console.error(error);
   process.exitCode = 1;
 });

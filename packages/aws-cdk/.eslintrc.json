@@ -53,10 +53,11 @@
       "error",
       {
         "devDependencies": [
-          "**/build-tools/**",
-          "**/test/**"
+          "**/test/**",
+          "**/build-tools/**"
         ],
-        "optionalDependencies": false
+        "optionalDependencies": false,
+        "peerDependencies": true
       }
     ],
     "import/no-unresolved": [

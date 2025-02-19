@@ -111,7 +111,6 @@ export interface Externals {
 
 }
 
-
 export class BundleCli extends pj.Component {
   constructor(project: pj.Project, options: BundleProps) {
     super(project);

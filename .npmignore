@@ -15,6 +15,7 @@ dist
 /.projenrc.js
 tsconfig.tsbuildinfo
 /.nx
+/.eslintrc.json
 .eslintrc.js
 *.ts
 !*.d.ts

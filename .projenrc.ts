@@ -1,13 +1,13 @@
-import * as pj from 'projen';
 import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
+import * as pj from 'projen';
+import { Stability } from 'projen/lib/cdk';
+import { BundleCli } from './projenrc/bundle';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
-import { BundleCli } from './projenrc/bundle';
-import { Stability } from 'projen/lib/cdk';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
-const TYPESCRIPT_VERSION = "5.6";
+const TYPESCRIPT_VERSION = '5.6';
 
 /**
  * Projen depends on TypeScript-eslint 7 by default.
@@ -29,7 +29,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
     '@cdklabs/eslint-plugin',
     'eslint-plugin-import',
     'eslint-plugin-jest',
-    "eslint-plugin-jsdoc",
+    'eslint-plugin-jsdoc',
   );
   x.eslint?.addPlugins(
     '@typescript-eslint',
@@ -113,70 +113,85 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
   };
 }
 
-const repo = configureProject(
-  new yarn.Monorepo({
-    projenrcTs: true,
-    name: 'aws-cdk-cli',
-    description: "Monorepo for the AWS CDK's CLI",
-    repository: 'https://github.com/aws/aws-cdk-cli',
+const repoProject = new yarn.Monorepo({
+  projenrcTs: true,
+  name: 'aws-cdk-cli',
+  description: "Monorepo for the AWS CDK's CLI",
+  repository: 'https://github.com/aws/aws-cdk-cli',
 
-    defaultReleaseBranch: 'main',
-    devDeps: [
-      'cdklabs-projen-project-types@^0.1.220',
-    ],
-    vscodeWorkspace: true,
-    vscodeWorkspaceOptions: {
-      includeRootWorkspace: true,
-    },
-    nx: true,
+  defaultReleaseBranch: 'main',
+  devDeps: [
+    'cdklabs-projen-project-types@^0.1.220',
+    'glob',
+    'semver',
+    `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+    '@aws-sdk/credential-providers',
+    '@aws-sdk/lib-storage',
+  ],
+  vscodeWorkspace: true,
+  vscodeWorkspaceOptions: {
+    includeRootWorkspace: true,
+  },
+  nx: true,
 
-    eslintOptions: {
-      dirs: ['lib'],
-      devdirs: ['test'],
-    },
+  eslintOptions: {
+    dirs: ['lib'],
+    devdirs: ['test'],
+  },
 
-    workflowNodeVersion: 'lts/*',
-    workflowRunsOn,
-    gitignore: ['.DS_Store'],
+  workflowNodeVersion: 'lts/*',
+  workflowRunsOn,
+  gitignore: ['.DS_Store'],
 
-    autoApproveUpgrades: true,
-    autoApproveOptions: {
-      allowedUsernames: ['aws-cdk-automation', 'dependabot[bot]'],
-    },
+  autoApproveUpgrades: true,
+  autoApproveOptions: {
+    allowedUsernames: ['aws-cdk-automation', 'dependabot[bot]'],
+  },
 
-    release: true,
-    releaseOptions: {
-      publishToNpm: true,
-      releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
-    },
+  release: true,
+  releaseOptions: {
+    publishToNpm: true,
+    releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
+  },
 
-    githubOptions: {
-      mergify: false,
-      mergeQueue: true,
-      pullRequestLintOptions: {
-        contributorStatement: "By submitting this pull request, I confirm that my contribution is made under the terms of the Apache-2.0 license",
-        contributorStatementOptions: {
-          exemptUsers: ["aws-cdk-automation", "dependabot[bot]"],
-        },
-        semanticTitleOptions: {
-          types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
-        },
+  githubOptions: {
+    mergify: false,
+    mergeQueue: true,
+    pullRequestLintOptions: {
+      contributorStatement: 'By submitting this pull request, I confirm that my contribution is made under the terms of the Apache-2.0 license',
+      contributorStatementOptions: {
+        exemptUsers: ['aws-cdk-automation', 'dependabot[bot]'],
+      },
+      semanticTitleOptions: {
+        types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
       },
     },
-    buildWorkflowOptions: {
-      preBuildSteps: [
-        // Need this for the init tests
-        {
-          name: 'Set git identity',
-          run: [
-            'git config --global user.name "aws-cdk-cli"',
-            'git config --global user.email "noreply@example.com"',
-          ].join('\n'),
-        },
-      ],
-    },
-  }),
-);
+  },
+  buildWorkflowOptions: {
+    preBuildSteps: [
+      // Need this for the init tests
+      {
+        name: 'Set git identity',
+        run: [
+          'git config --global user.name "aws-cdk-cli"',
+          'git config --global user.email "noreply@example.com"',
+        ].join('\n'),
+      },
+    ],
+  },
+});
+
+// Eslint for projen config
+// @ts-ignore
+repoProject.eslint = new pj.javascript.Eslint(repoProject, {
+  tsconfigPath: `./${repoProject.tsconfigDev.fileName}`,
+  dirs: [],
+  devdirs: ['projenrc', '.projenrc.ts'],
+  fileExtensions: ['.ts', '.tsx'],
+  lintProjenRc: false,
+});
+
+const repo = configureProject(repoProject);
 
 interface GenericProps {
   private?: boolean;
@@ -211,7 +226,7 @@ function genericCdkProps(props: GenericProps = {}) {
     },
     typescriptVersion: TYPESCRIPT_VERSION,
     checkLicenses: props.private ? undefined : {
-      allow: ['Apache-2.0', 'MIT', 'ISC']
+      allow: ['Apache-2.0', 'MIT', 'ISC'],
     },
     ...props,
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
@@ -231,7 +246,7 @@ const cloudAssemblySchema = configureProject(
     disableTsconfig: true,
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc`,
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
   }),
 );
 
@@ -259,7 +274,7 @@ new JsiiBuild(cloudAssemblySchema, {
     'Framework :: AWS CDK :: 2',
   ],
   publishToGo: {
-    moduleName: `github.com/cdklabs/cloud-assembly-schema-go`,
+    moduleName: 'github.com/cdklabs/cloud-assembly-schema-go',
   },
   composite: true,
 });
@@ -300,7 +315,7 @@ const cloudFormationDiff = configureProject(
     },
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../../projenrc/next-version.ts maybeRc`,
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 
@@ -333,7 +348,7 @@ const cxApi = overrideEslint(
     "lint": "cdk-lint && madge --circular --extensions js lib",
     */
 
-    /*
+/*
   "awscdkio": {
     "announce": false
   },
@@ -522,7 +537,7 @@ const cdkAssets = configureProject(
     majorVersion: 3,
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../projenrc/next-version.ts maybeRc`,
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
   }),
 );
 
@@ -656,7 +671,7 @@ const cli = configureProject(
       'strip-ansi@^6',
       'table',
       'uuid',
-      'wrap-ansi@^7',  // Last non-ESM version
+      'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
       'yargs@^15',
     ],
@@ -689,7 +704,7 @@ const cli = configureProject(
     },
 
     // Append a specific version string for testing
-    nextVersionCommand: `tsx ../../projenrc/next-version.ts maybeRc`,
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
   }),
 );
 
@@ -698,9 +713,9 @@ cli.eslint?.addRules({
   '@cdklabs/no-throw-default-error': ['error'],
 });
 cli.eslint?.addOverride({
-  files: ["./test/**"],
+  files: ['./test/**'],
   rules: {
-    "@cdklabs/no-throw-default-error": "off",
+    '@cdklabs/no-throw-default-error': 'off',
   },
 });
 
@@ -719,44 +734,44 @@ cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
 // People should not have imported from the `aws-cdk` package, but they have in the past.
 // We have identified all locations that are currently used, are maintaining a backwards compat
 // layer for those. Future imports will be rejected.
-cli.package.addField("exports", {
+cli.package.addField('exports', {
   // package.json is always reasonable
-  "./package.json": "./package.json",
-  "./build-info.json": "./build-info.json",
+  './package.json': './package.json',
+  './build-info.json': './build-info.json',
   // The rest is legacy
-  ".": "./lib/legacy-exports.js",
-  "./bin/cdk": "./bin/cdk",
-  "./lib/api/bootstrap/bootstrap-template.yaml": "./lib/api/bootstrap/bootstrap-template.yaml",
-  "./lib/util": "./lib/legacy-exports.js",
-  "./lib": "./lib/legacy-exports.js",
-  "./lib/api/plugin": "./lib/legacy-exports.js",
-  "./lib/util/content-hash": "./lib/legacy-exports.js",
-  "./lib/settings": "./lib/legacy-exports.js",
-  "./lib/api/bootstrap": "./lib/legacy-exports.js",
-  "./lib/api/cxapp/cloud-assembly": "./lib/legacy-exports.js",
-  "./lib/api/cxapp/cloud-executable": "./lib/legacy-exports.js",
-  "./lib/api/cxapp/exec": "./lib/legacy-exports.js",
-  "./lib/diff": "./lib/legacy-exports.js",
-  "./lib/api/util/string-manipulation": "./lib/legacy-exports.js",
-  "./lib/util/console-formatters": "./lib/legacy-exports.js",
-  "./lib/util/tracing": "./lib/legacy-exports.js",
-  "./lib/commands/docs": "./lib/legacy-exports.js",
-  "./lib/api/hotswap/common": "./lib/legacy-exports.js",
-  "./lib/util/objects": "./lib/legacy-exports.js",
-  "./lib/api/deployments": "./lib/legacy-exports.js",
-  "./lib/util/directories": "./lib/legacy-exports.js",
-  "./lib/version": "./lib/legacy-exports.js",
-  "./lib/init": "./lib/legacy-exports.js",
-  "./lib/api/aws-auth/cached": "./lib/legacy-exports.js",
-  "./lib/api/deploy-stack": "./lib/legacy-exports.js",
-  "./lib/api/evaluate-cloudformation-template": "./lib/legacy-exports.js",
-  "./lib/api/aws-auth/credential-plugins": "./lib/legacy-exports.js",
-  "./lib/api/aws-auth/awscli-compatible": "./lib/legacy-exports.js",
-  "./lib/notices": "./lib/legacy-exports.js",
-  "./lib/index": "./lib/legacy-exports.js",
-  "./lib/api/aws-auth/index.js": "./lib/legacy-exports.js",
-  "./lib/api/aws-auth": "./lib/legacy-exports.js",
-  "./lib/logging": "./lib/legacy-exports.js"
+  '.': './lib/legacy-exports.js',
+  './bin/cdk': './bin/cdk',
+  './lib/api/bootstrap/bootstrap-template.yaml': './lib/api/bootstrap/bootstrap-template.yaml',
+  './lib/util': './lib/legacy-exports.js',
+  './lib': './lib/legacy-exports.js',
+  './lib/api/plugin': './lib/legacy-exports.js',
+  './lib/util/content-hash': './lib/legacy-exports.js',
+  './lib/settings': './lib/legacy-exports.js',
+  './lib/api/bootstrap': './lib/legacy-exports.js',
+  './lib/api/cxapp/cloud-assembly': './lib/legacy-exports.js',
+  './lib/api/cxapp/cloud-executable': './lib/legacy-exports.js',
+  './lib/api/cxapp/exec': './lib/legacy-exports.js',
+  './lib/diff': './lib/legacy-exports.js',
+  './lib/api/util/string-manipulation': './lib/legacy-exports.js',
+  './lib/util/console-formatters': './lib/legacy-exports.js',
+  './lib/util/tracing': './lib/legacy-exports.js',
+  './lib/commands/docs': './lib/legacy-exports.js',
+  './lib/api/hotswap/common': './lib/legacy-exports.js',
+  './lib/util/objects': './lib/legacy-exports.js',
+  './lib/api/deployments': './lib/legacy-exports.js',
+  './lib/util/directories': './lib/legacy-exports.js',
+  './lib/version': './lib/legacy-exports.js',
+  './lib/init': './lib/legacy-exports.js',
+  './lib/api/aws-auth/cached': './lib/legacy-exports.js',
+  './lib/api/deploy-stack': './lib/legacy-exports.js',
+  './lib/api/evaluate-cloudformation-template': './lib/legacy-exports.js',
+  './lib/api/aws-auth/credential-plugins': './lib/legacy-exports.js',
+  './lib/api/aws-auth/awscli-compatible': './lib/legacy-exports.js',
+  './lib/notices': './lib/legacy-exports.js',
+  './lib/index': './lib/legacy-exports.js',
+  './lib/api/aws-auth/index.js': './lib/legacy-exports.js',
+  './lib/api/aws-auth': './lib/legacy-exports.js',
+  './lib/logging': './lib/legacy-exports.js',
 });
 
 cli.gitignore.addPatterns('build-info.json');
@@ -767,8 +782,8 @@ cli.preCompileTask.prependExec('./generate.sh');
 cli.preCompileTask.prependExec('ts-node scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
-  `cp $(node -p 'require.resolve("cdk-from-cfn/index_bg.wasm")') ./lib/`,
-  `cp $(node -p 'require.resolve("@aws-cdk/aws-service-spec/db.json.gz")') ./`,
+  'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
+  'cp $(node -p \'require.resolve("@aws-cdk/aws-service-spec/db.json.gz")\') ./',
 ];
 
 for (const resourceCommand of includeCliResourcesCommands) {
@@ -779,9 +794,9 @@ Object.assign(cli.jest?.config ?? {}, {
   coveragePathIgnorePatterns: [
     ...(cli.jest?.config.coveragePathIgnorePatterns ?? []),
     // Mostly wrappers around the SDK, which get mocked in unit tests
-    "<rootDir>/lib/api/aws-auth/sdk.ts",
+    '<rootDir>/lib/api/aws-auth/sdk.ts',
   ],
-  setupFilesAfterEnv: ["<rootDir>/test/jest-setup-after-env.ts"],
+  setupFilesAfterEnv: ['<rootDir>/test/jest-setup-after-env.ts'],
 });
 
 new BundleCli(cli, {
@@ -791,33 +806,33 @@ new BundleCli(cli, {
     ],
   },
   allowedLicenses: [
-    "Apache-2.0",
-    "MIT",
-    "BSD-3-Clause",
-    "ISC",
-    "BSD-2-Clause",
-    "0BSD",
-    "MIT OR Apache-2.0",
+    'Apache-2.0',
+    'MIT',
+    'BSD-3-Clause',
+    'ISC',
+    'BSD-2-Clause',
+    '0BSD',
+    'MIT OR Apache-2.0',
   ],
-  dontAttribute: "^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$",
-  test: "bin/cdk --version",
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  test: 'bin/cdk --version',
   entryPoints: [
-    "lib/index.js"
+    'lib/index.js',
   ],
   minifyWhitespace: true,
 });
 
 // Exclude takes precedence over include
 for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
-  tsconfig?.addExclude("lib/init-templates/*/typescript/*/*.template.ts");
-  tsconfig?.addExclude("test/integ/cli/sam_cdk_integ_app/**/*");
-  tsconfig?.addExclude("vendor/**/*");
+  tsconfig?.addExclude('lib/init-templates/*/typescript/*/*.template.ts');
+  tsconfig?.addExclude('test/integ/cli/sam_cdk_integ_app/**/*');
+  tsconfig?.addExclude('vendor/**/*');
 }
 
 //////////////////////////////////////////////////////////////////////
 
 const CLI_LIB_EXCLUDE_PATTERNS = [
-  "lib/init-templates/*/typescript/*/*.template.ts",
+  'lib/init-templates/*/typescript/*/*.template.ts',
 ];
 
 const cliLib = configureProject(
@@ -854,26 +869,26 @@ cliLib.gitignore.addPatterns(
 new JsiiBuild(cliLib, {
   jsiiVersion: TYPESCRIPT_VERSION,
   publishToNuget: {
-    dotNetNamespace: "Amazon.CDK.Cli.Lib.Alpha",
-    "packageId": "Amazon.CDK.Cli.Lib.Alpha",
-    "iconUrl": "https://raw.githubusercontent.com/aws/aws-cdk/main/logo/default-256-dark.png"
+    dotNetNamespace: 'Amazon.CDK.Cli.Lib.Alpha',
+    packageId: 'Amazon.CDK.Cli.Lib.Alpha',
+    iconUrl: 'https://raw.githubusercontent.com/aws/aws-cdk/main/logo/default-256-dark.png',
   },
   publishToMaven: {
-    javaPackage: "software.amazon.awscdk.cli.lib.alpha",
-    "mavenGroupId": "software.amazon.awscdk",
-    "mavenArtifactId": "cdk-cli-lib-alpha"
+    javaPackage: 'software.amazon.awscdk.cli.lib.alpha',
+    mavenGroupId: 'software.amazon.awscdk',
+    mavenArtifactId: 'cdk-cli-lib-alpha',
   },
   publishToPypi: {
-    "distName": "aws-cdk.cli-lib-alpha",
-    "module": "aws_cdk.cli_lib_alpha",
+    distName: 'aws-cdk.cli-lib-alpha',
+    module: 'aws_cdk.cli_lib_alpha',
   },
   pypiClassifiers: [
-    "Framework :: AWS CDK",
-    "Framework :: AWS CDK :: 2"
+    'Framework :: AWS CDK',
+    'Framework :: AWS CDK :: 2',
   ],
   publishToGo: {
-    "moduleName": "github.com/aws/aws-cdk-go",
-    "packageName": "awscdkclilibalpha"
+    moduleName: 'github.com/aws/aws-cdk-go',
+    packageName: 'awscdkclilibalpha',
   },
   rosettaStrict: true,
   stability: Stability.EXPERIMENTAL,
@@ -887,7 +902,7 @@ cliLib.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/l
 for (const resourceCommand of includeCliResourcesCommands) {
   cliLib.postCompileTask.exec(resourceCommand);
 }
-cliLib.postCompileTask.exec(`cp $(node -p 'require.resolve("aws-cdk/build-info.json")') .`);
+cliLib.postCompileTask.exec('cp $(node -p \'require.resolve("aws-cdk/build-info.json")\') .');
 cliLib.postCompileTask.exec('esbuild --bundle lib/index.ts --target=node18 --platform=node --external:fsevents --minify-whitespace --outfile=lib/main.js');
 cliLib.postCompileTask.exec('node ./lib/main.js >/dev/null </dev/null'); // Smoke test
 
@@ -901,7 +916,7 @@ for (const tsconfig of [cliLib.tsconfigDev]) {
 //////////////////////////////////////////////////////////////////////
 
 const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
-  "lib/init-templates/*/typescript/*/*.template.ts",
+  'lib/init-templates/*/typescript/*/*.template.ts',
 ];
 
 const toolkitLib = configureProject(
@@ -965,7 +980,7 @@ const toolkitLib = configureProject(
       'strip-ansi@^6',
       'table@^6',
       'uuid',
-      'wrap-ansi@^7',  // Last non-ESM version
+      'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
       'yargs@^15',
     ],
@@ -1007,30 +1022,30 @@ toolkitLib.eslint?.addRules({
     zones: [{
       target: './',
       from: '../../aws-cdk',
-      message: "All `aws-cdk` code must be used via lib/api/aws-cdk.ts",
-    }]
+      message: 'All `aws-cdk` code must be used via lib/api/aws-cdk.ts',
+    }],
   }],
 });
 toolkitLib.eslint?.addOverride({
-  files: ["./test/**"],
+  files: ['./test/**'],
   rules: {
-    "@cdklabs/no-throw-default-error": "off",
+    '@cdklabs/no-throw-default-error': 'off',
   },
 });
 
 // Prevent imports of private API surface
-toolkitLib.package.addField("exports", {
-  ".": {
-    "types": "./lib/index.d.ts",
-    "default": "./lib/index.js"
+toolkitLib.package.addField('exports', {
+  '.': {
+    types: './lib/index.d.ts',
+    default: './lib/index.js',
   },
-  "./package.json": "./package.json"
+  './package.json': './package.json',
 });
 
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
-toolkitLib.postCompileTask.exec("node ./lib/index.js >/dev/null 2>/dev/null </dev/null");
-toolkitLib.postCompileTask.exec("node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null");
+toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1045,7 +1060,6 @@ toolkitLib.npmignore?.addPatterns(
   '!NOTICE',
   '!THIRD_PARTY_LICENSES',
 );
-
 
 toolkitLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
@@ -1066,10 +1080,10 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
 }
 
 toolkitLib.addTask('docs', {
-  exec: 'typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal'
+  exec: 'typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal',
 });
 toolkitLib.addTask('publish-local', {
-  exec: './build-tools/package.sh'
+  exec: './build-tools/package.sh',
 });
 
 //////////////////////////////////////////////////////////////////////
@@ -1118,14 +1132,14 @@ void cdkAliasPackage;
 
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects
-new pj.YamlFile(repo, ".github/dependabot.yml", {
+new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
     version: 2,
     updates: ['pip', 'maven', 'nuget'].map((pkgEco) => ({
       'package-ecosystem': pkgEco,
-      directory: '/',
-      schedule: { interval: 'weekly' },
-      labels: ['auto-approve'],
+      'directory': '/',
+      'schedule': { interval: 'weekly' },
+      'labels': ['auto-approve'],
       'open-pull-requests-limit': 5,
     })),
   },

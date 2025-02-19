@@ -2,6 +2,7 @@
 
 * text=auto eol=lf
 *.snap linguist-generated
+/.eslintrc.json linguist-generated
 /.gitattributes linguist-generated
 /.github/dependabot.yml linguist-generated
 /.github/pull_request_template.md linguist-generated
