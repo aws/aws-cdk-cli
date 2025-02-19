@@ -190,9 +190,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create js artifact
-        run: cd .repo && npx projen package:js
+        run: cd .repo/packages/@aws-cdk/cloud-assembly-schema && npx projen package:js
       - name: Collect js artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
           NPM_DIST_TAG: latest
@@ -234,9 +234,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create java artifact
-        run: cd .repo && npx projen package:java
+        run: cd .repo/packages/@aws-cdk/cloud-assembly-schema && npx projen package:java
       - name: Collect java artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
           MAVEN_ENDPOINT: https://aws.oss.sonatype.org
@@ -279,9 +279,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create python artifact
-        run: cd .repo && npx projen package:python
+        run: cd .repo/packages/@aws-cdk/cloud-assembly-schema && npx projen package:python
       - name: Collect python artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
           TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
@@ -320,9 +320,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create dotnet artifact
-        run: cd .repo && npx projen package:dotnet
+        run: cd .repo/packages/@aws-cdk/cloud-assembly-schema && npx projen package:dotnet
       - name: Collect dotnet artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
@@ -360,9 +360,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create go artifact
-        run: cd .repo && npx projen package:go
+        run: cd .repo/packages/@aws-cdk/cloud-assembly-schema && npx projen package:go
       - name: Collect go artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
           GIT_USER_NAME: github-actions
@@ -447,7 +447,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF -p 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
   cdk-assets_release_npm:
     name: "cdk-assets: Publish to npm"
     needs: release
@@ -469,7 +469,7 @@ jobs:
         continue-on-error: true
       - name: Release
         env:
-          NPM_DIST_TAG: v3-latest
+          NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
@@ -587,9 +587,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create js artifact
-        run: cd .repo && npx projen package:js
+        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:js
       - name: Collect js artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
       - name: Release
         env:
           NPM_DIST_TAG: latest
@@ -631,9 +631,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create java artifact
-        run: cd .repo && npx projen package:java
+        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:java
       - name: Collect java artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
       - name: Release
         env:
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
@@ -675,9 +675,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create python artifact
-        run: cd .repo && npx projen package:python
+        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:python
       - name: Collect python artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
       - name: Release
         env:
           TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
@@ -716,9 +716,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create dotnet artifact
-        run: cd .repo && npx projen package:dotnet
+        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:dotnet
       - name: Collect dotnet artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
       - name: Release
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
@@ -756,9 +756,9 @@ jobs:
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create go artifact
-        run: cd .repo && npx projen package:go
+        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:go
       - name: Collect go artifact
-        run: mv .repo/dist dist
+        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
       - name: Release
         env:
           GIT_USER_NAME: github-actions

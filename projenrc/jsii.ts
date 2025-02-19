@@ -504,11 +504,11 @@ export class JsiiBuild extends pj.Component {
       },
       {
         name: `Create ${target} artifact`,
-        run: `cd ${REPO_TEMP_DIRECTORY} && ${this.tsProject.runTaskCommand(packTask)}`,
+        run: `cd ${REPO_TEMP_DIRECTORY}/${this.monoProject.workspaceDirectory} && ${this.tsProject.runTaskCommand(packTask)}`,
       },
       {
         name: `Collect ${target} artifact`,
-        run: `mv ${REPO_TEMP_DIRECTORY}/${this.tsProject.artifactsDirectory} ${this.tsProject.artifactsDirectory}`,
+        run: `mv ${REPO_TEMP_DIRECTORY}/${this.monoProject.workspaceDirectory}/${this.tsProject.artifactsDirectory} ${this.tsProject.artifactsDirectory}`,
       },
     );
 
