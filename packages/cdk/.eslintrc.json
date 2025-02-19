@@ -165,6 +165,10 @@
     "@stylistic/no-extra-semi": [
       "error"
     ],
+    "@stylistic/curly-newline": [
+      "error",
+      "always"
+    ],
     "comma-spacing": [
       "error",
       {
