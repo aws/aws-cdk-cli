@@ -29,12 +29,15 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
     '@cdklabs/eslint-plugin',
     'eslint-plugin-import',
     'eslint-plugin-jest',
+    "eslint-plugin-jsdoc",
   );
   x.eslint?.addPlugins(
     '@typescript-eslint',
+    'import',
     '@cdklabs',
     '@stylistic',
     'jest',
+    'jsdoc',
   );
   x.eslint?.addExtends(
     'plugin:jest/recommended',
@@ -130,7 +133,6 @@ const repo = configureProject(
     eslintOptions: {
       dirs: ['lib'],
       devdirs: ['test'],
-
     },
 
     workflowNodeVersion: 'lts/*',

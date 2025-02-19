@@ -10,7 +10,8 @@
     "import",
     "@cdklabs",
     "@stylistic",
-    "jest"
+    "jest",
+    "jsdoc"
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
@@ -139,6 +140,9 @@
     "@cdklabs/promiseall-no-unbounded-parallelism": [
       "error"
     ],
+    "no-throw-literal": [
+      "error"
+    ],
     "@stylistic/indent": [
       "error",
       2
@@ -156,6 +160,9 @@
     "@stylistic/comma-dangle": [
       "error",
       "always-multiline"
+    ],
+    "@stylistic/no-extra-semi": [
+      "error"
     ],
     "comma-spacing": [
       "error",
@@ -211,6 +218,43 @@
       "multi-line",
       "consistent"
     ],
+    "eol-last": [
+      "error",
+      "always"
+    ],
+    "@stylistic/spaced-comment": [
+      "error",
+      "always",
+      {
+        "exceptions": [
+          "/",
+          "*"
+        ],
+        "markers": [
+          "/"
+        ]
+      }
+    ],
+    "@stylistic/padded-blocks": [
+      "error",
+      {
+        "classes": "never",
+        "blocks": "never",
+        "switches": "never"
+      }
+    ],
+    "jsdoc/require-param-description": [
+      "error"
+    ],
+    "jsdoc/require-property-description": [
+      "error"
+    ],
+    "jsdoc/require-returns-description": [
+      "error"
+    ],
+    "jsdoc/check-alignment": [
+      "error"
+    ],
     "no-restricted-imports": [
       "error",
       {
@@ -231,6 +275,10 @@
     "semi": [
       "error",
       "always"
+    ],
+    "quote-props": [
+      "error",
+      "consistent-as-needed"
     ],
     "max-len": [
       "error",

@@ -54,7 +54,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/types,@smithy/util-stream,@stylistic/eslint-plugin,@types/archiver,@types/glob,@types/jest,@types/yargs,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,projen,ts-jest,@aws-cdk/cx-api,@aws-sdk/credential-providers,@aws-sdk/lib-storage,@smithy/config-resolver,@smithy/node-config-provider,archiver,glob,yargs"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/types,@smithy/util-stream,@stylistic/eslint-plugin,@types/archiver,@types/glob,@types/jest,@types/yargs,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,projen,ts-jest,@aws-cdk/cx-api,@aws-sdk/credential-providers,@aws-sdk/lib-storage,@smithy/config-resolver,@smithy/node-config-provider,archiver,glob,yargs"
         }
       ]
     },
