@@ -178,7 +178,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const bootstrapTimer = Timer.start();
 
       try {
-        const bootstrapResult = await bootstrapper.bootstrapEnvironment(environment, sdkProvider, options);
+        const { toolkitStackName } = this;
+        const bootstrapResult = await bootstrapper.bootstrapEnvironment(environment, sdkProvider, { ...options, toolkitStackName });
         const message = bootstrapResult.noOp
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
