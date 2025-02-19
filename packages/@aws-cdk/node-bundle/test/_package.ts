@@ -34,7 +34,6 @@ export interface PackageOptions {
  * Generate packages for test scenarios.
  */
 export class Package {
-
   /**
    * Create a package.
    */
@@ -47,7 +46,7 @@ export class Package {
 
     if (options.licenses?.length === 1) {
       manifest.license = options.licenses[0];
-    };
+    }
 
     if (options.licenses && options.licenses.length > 1) {
       manifest.licenses = options.licenses!.map(l => ({ type: l }));
@@ -159,5 +158,4 @@ export class Package {
     }
     fs.removeSync(this.dir);
   }
-
 }

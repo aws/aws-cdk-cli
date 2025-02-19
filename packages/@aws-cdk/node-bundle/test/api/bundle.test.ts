@@ -4,7 +4,6 @@ import { Bundle } from '../../src';
 import { Package } from '../_package';
 
 test('validate', () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'], circular: true });
   const dep1 = pkg.addDependency({ name: 'dep1', licenses: ['INVALID'] });
   const dep2 = pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0', 'MIT'] });
@@ -31,7 +30,6 @@ test('validate', () => {
 });
 
 test('write', () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -58,11 +56,9 @@ test('write', () => {
   const manifest = fs.readJSONSync(path.join(bundleDir, 'package.json'));
 
   expect(manifest.dependencies).toEqual({});
-
 });
 
 test('pack', () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   const dep1 = pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   const dep2 = pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -95,11 +91,9 @@ test('pack', () => {
 
   const tarball = path.join(pkg.dir, `${pkg.name}-${pkg.version}.tgz`);
   expect(fs.existsSync(tarball)).toBeTruthy();
-
 });
 
 test('validate and fix', () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -125,11 +119,9 @@ test('validate and fix', () => {
   bundle.pack();
   const tarball = path.join(pkg.dir, `${pkg.name}-${pkg.version}.tgz`);
   expect(fs.existsSync(tarball)).toBeTruthy();
-
 });
 
 test('write ignores only .git and node_modules directories', () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -153,5 +145,4 @@ test('write ignores only .git and node_modules directories', () => {
 
   expect(fs.existsSync(path.join(bundleDir, '.gitignore'))).toBeTruthy();
   expect(fs.existsSync(path.join(bundleDir, 'node_modules_file'))).toBeTruthy();
-
 });

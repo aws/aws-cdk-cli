@@ -250,7 +250,6 @@ export function checkRequiredVersions(root: PackageLock | PackageLockPackage) {
   function recurse(entry: PackageLock | PackageLockPackage, parentChain: PackageLockEntry[]) {
     // On the root, 'requires' is the value 'true', for God knows what reason. Don't care about those.
     if (typeof entry.requires === 'object') {
-
       // For every 'requires' dependency, find the version it actually got resolved to and compare.
       for (const [name, range] of Object.entries(entry.requires)) {
         const resolvedPackage = findResolved(name, [entry, ...parentChain]);

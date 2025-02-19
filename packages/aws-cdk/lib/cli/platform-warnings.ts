@@ -31,7 +31,6 @@ export function isVersionBetween(version: string, lower: string, upper: string) 
   }
 
   return false;
-
 }
 
 function splitVersion(version: string): number[] {

@@ -48,7 +48,6 @@ export interface AttributionsProps {
  * `Attributions` represents an attributions file containing third-party license information.
  */
 export class Attributions {
-
   private readonly packageDir: string;
   private readonly packageName: string;
   private readonly dependencies: Package[];
@@ -79,7 +78,6 @@ export class Attributions {
    * This method never throws. The Caller is responsible for inspecting the report returned and act accordinagly.
    */
   public validate(): ViolationsReport {
-
     const violations: Violation[] = [];
     const relNoticePath = path.relative(this.packageDir, this.filePath);
 
@@ -124,7 +122,6 @@ export class Attributions {
   }
 
   private render(attributions: Map<string, Attribution>): string {
-
     const content = [];
 
     if (attributions.size > 0) {
@@ -152,11 +149,9 @@ export class Attributions {
       // endings, so we standardize to LF.
       .map(l => l.replace(/\r\n/g, '\n'))
       .join('\n');
-
   }
 
   private generateAttributions(): Map<string, Attribution> {
-
     if (this.dependencies.length === 0) {
       return new Map();
     }
@@ -216,7 +211,6 @@ export class Attributions {
 
     return attributions;
   }
-
 }
 
 /**

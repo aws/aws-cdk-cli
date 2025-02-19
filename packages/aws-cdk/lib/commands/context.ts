@@ -121,7 +121,6 @@ function invalidateContext(context: Context, key: string, force: boolean) {
   const matches = keysByExpression(context, key);
 
   if (matches.length > 0) {
-
     matches.forEach((match) => {
       context.unset(match);
     });

@@ -108,13 +108,11 @@ export class NoticesFilter {
 
       return [new FilteredNotice(notice)];
     });
-
   }
 
   private static findForFrameworkVersion(data: Notice[], outDir: string): FilteredNotice[] {
     const tree = loadTreeFromDir(outDir);
     return flatMap(data, notice => {
-
       //  A match happens when:
       //
       //  1. The version of the node matches the version in the notice, interpreted
@@ -158,7 +156,6 @@ export class NoticesFilter {
       }
 
       const affected = bootstrappedEnvironments.filter(i => {
-
         const semverBootstrapVersion = semver.coerce(i.bootstrapStackVersion);
         if (!semverBootstrapVersion) {
           // we don't throw because notices should never crash the cli.
@@ -167,7 +164,6 @@ export class NoticesFilter {
         }
 
         return semver.satisfies(semverBootstrapVersion, affectedRange);
-
       });
 
       if (affected.length === 0) {
@@ -355,7 +351,6 @@ export class FilteredNotice {
   }
 
   public format(): string {
-
     const componentsValue = this.notice.components.map(c => `${c.name}: ${c.version}`).join(', ');
     return this.resolveDynamicValues([
       `${this.notice.issueNumber}\t${this.notice.title}`,

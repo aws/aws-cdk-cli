@@ -139,7 +139,6 @@ export class StackEventPoller {
         if (nextToken === undefined) {
           finished = true;
         }
-
       }
     } catch (e: any) {
       if (!(e.name === 'ValidationError' && formatErrorMessage(e) === `Stack [${this.props.stackName}] does not exist`)) {

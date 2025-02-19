@@ -176,7 +176,6 @@ export interface Externals {
  * Bundle class to validate and pack nodejs bundles.
  */
 export class Bundle {
-
   private readonly manifest: any;
   private readonly noticePath: string;
 
@@ -239,7 +238,6 @@ export class Bundle {
    * returned report and act accordingly.
    */
   public validate(options: BundleValidateOptions = {}): ViolationsReport {
-
     const fix = options.fix ?? false;
 
     // first validate
@@ -270,7 +268,6 @@ export class Bundle {
    * Returns the temp directory location.
    */
   public write(): string {
-
     const target = fs.mkdtempSync(path.join(os.tmpdir(), 'bundle-write-'));
 
     // we definitely don't need these directories in the package
@@ -302,7 +299,6 @@ export class Bundle {
    * Returns the location of the tarball.
    */
   public pack(options: BundlePackOptions = {}): string {
-
     const target = options.target ?? this.packageDir;
 
     const report = this.validate();
@@ -324,7 +320,6 @@ export class Bundle {
     console.log('Writing bundle');
     const bundleDir = this.write();
     try {
-
       if (this.test) {
         const command = `${path.join(bundleDir, this.test)}`;
         console.log(`Running sanity test: ${command}`);
@@ -385,7 +380,6 @@ export class Bundle {
   }
 
   private findExternalDependencyVersion(name: string): string {
-
     const versions = new Set<string>();
 
     // external dependencies will not exist in the dependencies list
@@ -418,7 +412,6 @@ export class Bundle {
   }
 
   private closestPackagePath(fdp: string): string {
-
     if (fs.existsSync(path.join(fdp, 'package.json'))) {
       return fdp;
     }
@@ -437,7 +430,6 @@ export class Bundle {
   }
 
   private esbuild(): esbuild.BuildResult {
-
     const bundle = esbuild.buildSync({
       entryPoints: this.entryPoints,
       bundle: true,
@@ -506,7 +498,6 @@ export class Bundle {
   }
 
   private addExternals(manifest: any) {
-
     // external dependencies should be specified as runtime dependencies
     for (const external of this.externals.dependencies ?? []) {
       const version = this.findExternalDependencyVersion(external);
@@ -520,7 +511,6 @@ export class Bundle {
       manifest.optionalDependencies = manifest.optionalDependencies ?? {};
       manifest.optionalDependencies[external] = version;
     }
-
   }
 
   private removeDependencies(manifest: any) {
@@ -551,7 +541,6 @@ export class Bundle {
 }
 
 function longestCommonParent(paths: string[]) {
-
   function _longestCommonParent(p1: string, p2: string): string {
     const dirs1 = p1.split(path.sep);
     const dirs2 = p2.split(path.sep);

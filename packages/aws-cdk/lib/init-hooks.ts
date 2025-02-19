@@ -76,7 +76,6 @@ export async function invokeBuiltinHooks(target: HookTarget, context: HookContex
     case 'typescript':
       // See above, but for 'package.json'.
       await context.substitutePlaceholdersIn('package.json');
-
   }
 }
 
@@ -89,4 +88,4 @@ async function dotnetAddProject(targetDirectory: string, context: HookContext, e
   } catch (e: any) {
     throw new ToolkitError(`Could not add project ${pname}.${ext} to solution ${pname}.sln. ${formatErrorMessage(e)}`);
   }
-};
+}

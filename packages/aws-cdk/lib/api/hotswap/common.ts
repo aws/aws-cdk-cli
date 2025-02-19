@@ -139,7 +139,7 @@ export class EcsHotswapProperties {
   /**
    * Check if any hotswap properties are defined
    * @returns true if all properties are undefined, false otherwise
-  */
+   */
   public isEmpty(): boolean {
     return this.minimumHealthyPercent === 0 && this.maximumHealthyPercent === undefined;
   }

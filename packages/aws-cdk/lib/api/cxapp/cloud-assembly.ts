@@ -140,7 +140,6 @@ export class CloudAssembly {
     patterns: string[],
     extend: ExtendedStackSelection = ExtendedStackSelection.None,
   ): StackCollection {
-
     const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => minimatch(stack.hierarchicalId, pattern);
     const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
 

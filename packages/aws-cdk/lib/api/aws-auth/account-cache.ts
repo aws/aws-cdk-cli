@@ -35,9 +35,6 @@ export class AccountAccessKeyCache {
    *    const accountId = cache.fetch(accessKey, async () => {
    *      return await fetchAccountIdFromSomewhere(accessKey);
    *    });
-   *
-   * @param accessKeyId
-   * @param resolver
    */
   public async fetch<A extends Account>(accessKeyId: string, resolver: () => Promise<A>) {
     // try to get account ID based on this access key ID from disk.

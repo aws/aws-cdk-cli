@@ -171,7 +171,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     if (cmd === 'notices') {
       await notices.refresh({ force: true });
       notices.display({ showTotal: argv.unacknowledged });
-
     } else if (cmd !== 'version') {
       await notices.refresh();
       notices.display();
@@ -559,7 +558,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   let hotswapMode: HotswapMode;
   if (hotswap) {
     hotswapMode = HotswapMode.HOTSWAP_ONLY;
-  /*if (hotswapFallback)*/
+  /* if (hotswapFallback)*/
   } else {
     hotswapMode = HotswapMode.FALL_BACK;
   }

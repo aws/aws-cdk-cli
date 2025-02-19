@@ -193,7 +193,6 @@ async function getRegionFromIni(profile: string): Promise<string | undefined> {
     ?? getRegionFromIniFile(profile, sharedFiles.configFile)
     ?? getRegionFromIniFile('default', sharedFiles.credentialsFile)
     ?? getRegionFromIniFile('default', sharedFiles.configFile);
-
 }
 
 function getRegionFromIniFile(profile: string, data?: any) {

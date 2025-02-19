@@ -35,5 +35,4 @@ export function rangeFromSemver(ver: string, targetType: RangeType) {
           throw new ToolkitError(`unsupported range syntax - ${prefixPart}`);
       }
   }
-
 }

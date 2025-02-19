@@ -5,7 +5,6 @@ import { Package } from './_package';
 import { cliMain } from '../src/cli-main';
 
 test('validate', async () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'], circular: true });
   const dep1 = pkg.addDependency({ name: 'dep1', licenses: ['INVALID'] });
   const dep2 = pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0', 'MIT'] });
@@ -32,11 +31,9 @@ test('validate', async () => {
     ]);
     expect(violations).toEqual(expected);
   }
-
 });
 
 test('write', async () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -63,11 +60,9 @@ test('write', async () => {
   const manifest = fs.readJSONSync(path.join(bundleDir, 'package.json'));
 
   expect(manifest.dependencies).toEqual({});
-
 });
 
 test('validate and fix', async () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -97,11 +92,9 @@ test('validate and fix', async () => {
   await run(['pack']);
   const tarball = path.join(pkg.dir, `${pkg.name}-${pkg.version}.tgz`);
   expect(fs.existsSync(tarball)).toBeTruthy();
-
 });
 
 test('pack', async () => {
-
   const pkg = Package.create({ name: 'consumer', licenses: ['Apache-2.0'] });
   const dep1 = pkg.addDependency({ name: 'dep1', licenses: ['MIT'] });
   const dep2 = pkg.addDependency({ name: 'dep2', licenses: ['Apache-2.0'] });
@@ -134,7 +127,6 @@ test('pack', async () => {
 
   const tarball = path.join(pkg.dir, `${pkg.name}-${pkg.version}.tgz`);
   expect(fs.existsSync(tarball)).toBeTruthy();
-
 });
 
 async function runCliMain(cwd: string, command: string[]): Promise<string> {

@@ -169,8 +169,8 @@ export interface DeployStackOptions {
   readonly hotswap?: HotswapMode;
 
   /**
-  * Properties that configure hotswap behavior
-  */
+   * Properties that configure hotswap behavior
+   */
   readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
 
   /**

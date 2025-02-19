@@ -30,7 +30,6 @@ export async function provideContextValues(
   missingValues: cxschema.MissingContext[],
   context: Context,
   sdk: SdkProvider) {
-
   for (const missingContext of missingValues) {
     const key = missingContext.key;
 

@@ -27,7 +27,7 @@ describe('Integration test', () => {
                   notificationArns: ['arn1', 'arn2'],
                   execute: true,
                   parameters: {
-                    MYPARAM: 'Value',
+                    'MYPARAM': 'Value',
                     'Stack1:OtherParam': 'OtherValue',
                   },
                   usePreviousParameters: true,
