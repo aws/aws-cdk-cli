@@ -241,7 +241,7 @@
           "exec": "node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute \"^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$\""
         },
         {
-          "exec": "mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/"
+          "exec": "mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/custom-bootstrap-template.yaml ./lib/api/bootstrap/"
         },
         {
           "exec": "cp $(node -p 'require.resolve(\"cdk-from-cfn/index_bg.wasm\")') ./lib/"
