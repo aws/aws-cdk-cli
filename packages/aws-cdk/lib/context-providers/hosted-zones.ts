@@ -7,7 +7,8 @@ import { debug } from '../logging';
 import { ContextProviderError } from '../toolkit/error';
 
 export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: HostedZoneContextQuery): Promise<object> {
     const account = args.account;

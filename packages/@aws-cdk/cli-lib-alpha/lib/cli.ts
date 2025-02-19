@@ -133,7 +133,8 @@ export class AwsCdkCli implements IAwsCdkCli {
 
   private constructor(
     private readonly cli: (args: string[]) => Promise<number | void>,
-  ) {}
+  ) {
+  }
 
   /**
    * Execute the CLI with a list of arguments

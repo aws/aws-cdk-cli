@@ -6,7 +6,8 @@ import type { ContextProviderPlugin } from '../api/plugin';
 import { ContextProviderError } from '../toolkit/error';
 
 export class SecurityGroupContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   async getValue(args: SecurityGroupContextQuery): Promise<SecurityGroupContextResponse> {
     if (args.securityGroupId && args.securityGroupName) {

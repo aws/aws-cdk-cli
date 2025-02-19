@@ -24,7 +24,8 @@ export class ContainerImageAssetHandler implements IAssetHandler {
     private readonly asset: DockerImageManifestEntry,
     private readonly host: IHandlerHost,
     private readonly options: IHandlerOptions,
-  ) {}
+  ) {
+  }
 
   public async build(): Promise<void> {
     const initOnce = await this.initOnce();
@@ -159,7 +160,8 @@ class ContainerImageBuilder {
     private readonly workDir: string,
     private readonly asset: DockerImageManifestEntry,
     private readonly host: IHandlerHost,
-  ) {}
+  ) {
+  }
 
   async build(): Promise<string | undefined> {
     return this.asset.source.executable

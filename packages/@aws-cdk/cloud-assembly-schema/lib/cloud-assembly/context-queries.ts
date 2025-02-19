@@ -125,7 +125,8 @@ export interface AmiContextQuery extends ContextLookupRoleOptions {
 /**
  * Query to availability zone context provider
  */
-export interface AvailabilityZonesContextQuery extends ContextLookupRoleOptions {}
+export interface AvailabilityZonesContextQuery extends ContextLookupRoleOptions {
+}
 
 /**
  * Query to hosted zone context provider
@@ -256,7 +257,8 @@ export interface LoadBalancerFilter extends ContextLookupRoleOptions {
 /**
  * Query input for looking up a load balancer
  */
-export interface LoadBalancerContextQuery extends LoadBalancerFilter {}
+export interface LoadBalancerContextQuery extends LoadBalancerFilter {
+}
 
 /**
  * The protocol for connections from clients to the load balancer

@@ -185,18 +185,30 @@ function obscureDiff(diff: TemplateDiff) {
   if (diff.unknown) {
     // see https://github.com/aws/aws-cdk/issues/17942
     diff.unknown = diff.unknown.filter(change => {
-      if (!change) { return true; }
-      if (change.newValue?.CheckBootstrapVersion) { return false; }
-      if (change.oldValue?.CheckBootstrapVersion) { return false; }
+      if (!change) {
+        return true;
+      }
+      if (change.newValue?.CheckBootstrapVersion) {
+        return false;
+      }
+      if (change.oldValue?.CheckBootstrapVersion) {
+        return false;
+      }
       return true;
     });
   }
 
   if (diff.resources) {
     diff.resources = diff.resources.filter(change => {
-      if (!change) { return true; }
-      if (change.newResourceType === 'AWS::CDK::Metadata') { return false; }
-      if (change.oldResourceType === 'AWS::CDK::Metadata') { return false; }
+      if (!change) {
+        return true;
+      }
+      if (change.newResourceType === 'AWS::CDK::Metadata') {
+        return false;
+      }
+      if (change.oldResourceType === 'AWS::CDK::Metadata') {
+        return false;
+      }
       return true;
     });
   }

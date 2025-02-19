@@ -147,6 +147,8 @@ async function prepareDockerImageAsset(
     imageTag,
   });
 
-  if (!asset.imageNameParameter) { return {}; }
+  if (!asset.imageNameParameter) {
+    return {};
+  }
   return { [asset.imageNameParameter]: `${repositoryUri}:${imageTag}` };
 }

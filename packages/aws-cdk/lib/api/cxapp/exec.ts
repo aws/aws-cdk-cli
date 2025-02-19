@@ -207,9 +207,13 @@ export async function prepareContext(settings: Settings, context: {[key: string]
   }
 
   const versionReporting: boolean = settings.get(['versionReporting']) ?? true;
-  if (versionReporting) { context[cxapi.ANALYTICS_REPORTING_ENABLED_CONTEXT] = true; }
+  if (versionReporting) {
+    context[cxapi.ANALYTICS_REPORTING_ENABLED_CONTEXT] = true;
+  }
   // We need to keep on doing this for framework version from before this flag was deprecated.
-  if (!versionReporting) { context['aws:cdk:disable-version-reporting'] = true; }
+  if (!versionReporting) {
+    context['aws:cdk:disable-version-reporting'] = true;
+  }
 
   const stagingEnabled = settings.get(['staging']) ?? true;
   if (!stagingEnabled) {

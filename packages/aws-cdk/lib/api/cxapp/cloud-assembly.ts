@@ -311,7 +311,8 @@ export class StackCollection {
    */
   public async validateMetadata(
     failAt: 'warn' | 'error' | 'none' = 'error',
-    logger: (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> = async () => {},
+    logger: (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> = async () => {
+    },
   ) {
     let warnings = false;
     let errors = false;

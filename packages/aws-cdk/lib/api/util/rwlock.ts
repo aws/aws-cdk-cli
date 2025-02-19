@@ -99,7 +99,9 @@ export class RWLock {
    */
   private async currentWriter(): Promise<number | undefined> {
     const contents = await readFileIfExists(this.writerFile);
-    if (!contents) { return undefined; }
+    if (!contents) {
+      return undefined;
+    }
 
     const pid = parseInt(contents, 10);
     if (!processExists(pid)) {
@@ -123,7 +125,9 @@ export class RWLock {
       children = await fs.readdir(this.directory, { encoding: 'utf-8' });
     } catch (e: any) {
       // Can't be locked if the directory doesn't exist
-      if (e.code === 'ENOENT') { return []; }
+      if (e.code === 'ENOENT') {
+        return [];
+      }
       throw e;
     }
 
@@ -165,7 +169,9 @@ async function readFileIfExists(filename: string): Promise<string | undefined> {
   try {
     return await fs.readFile(filename, { encoding: 'utf-8' });
   } catch (e: any) {
-    if (e.code === 'ENOENT') { return undefined; }
+    if (e.code === 'ENOENT') {
+      return undefined;
+    }
     throw e;
   }
 }

@@ -84,7 +84,8 @@ export class CloudFormationStack {
     public readonly stackName: string,
     private readonly stack?: Stack,
     private readonly retrieveProcessedTemplate: boolean = false,
-  ) {}
+  ) {
+  }
 
   /**
    * Retrieve the stack's deployed template
@@ -649,7 +650,8 @@ export class TemplateParameters {
     return new TemplateParameters(template.Parameters || {});
   }
 
-  constructor(private readonly params: Record<string, TemplateParameter>) {}
+  constructor(private readonly params: Record<string, TemplateParameter>) {
+  }
 
   /**
    * Calculate stack parameters to pass from the given desired parameter values

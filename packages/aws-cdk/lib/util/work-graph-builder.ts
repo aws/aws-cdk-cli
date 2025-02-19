@@ -22,7 +22,9 @@ export class WorkGraphBuilder {
   };
   private readonly graph = new WorkGraph();
 
-  constructor(private readonly prebuildAssets: boolean, private readonly idPrefix = '') { }
+  constructor(private readonly prebuildAssets: boolean, private readonly idPrefix = '') {
+
+  }
 
   private addStack(artifact: cxapi.CloudFormationStackArtifact) {
     this.graph.addNodes({

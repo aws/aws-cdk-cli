@@ -319,7 +319,9 @@ export class WorkGraph {
     const self = this;
     for (const nodeId of Object.keys(this.nodes)) {
       const cycle = recurse(nodeId, [nodeId]);
-      if (cycle) { return cycle; }
+      if (cycle) {
+        return cycle;
+      }
     }
     return undefined;
 
@@ -335,7 +337,9 @@ export class WorkGraph {
           }
 
           const cycle = recurse(dep, [...path, dep]);
-          if (cycle) { return cycle; }
+          if (cycle) {
+            return cycle;
+          }
         }
 
         return undefined;

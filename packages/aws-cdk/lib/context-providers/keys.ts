@@ -8,7 +8,8 @@ import { debug } from '../logging';
 import { ContextProviderError } from '../toolkit/error';
 
 export class KeyContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: KeyContextQuery) {
     const kms = (await initContextProviderSdk(this.aws, args)).kms();

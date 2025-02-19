@@ -18,7 +18,8 @@ describe('shell', () => {
       progressListener.onPublishEvent(eventType, {
         message,
         percentComplete: 0,
-        abort: () => {},
+        abort: () => {
+        },
       });
     };
     mockfs({

@@ -13,7 +13,8 @@ export class StackStatus {
   constructor(
     public readonly name: string,
     public readonly reason?: string,
-  ) {}
+  ) {
+  }
 
   get isCreationFailure(): boolean {
     return this.name === _StackStatus.ROLLBACK_COMPLETE || this.name === _StackStatus.ROLLBACK_FAILED;

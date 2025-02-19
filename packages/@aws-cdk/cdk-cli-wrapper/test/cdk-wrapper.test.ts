@@ -18,7 +18,8 @@ beforeEach(() => {
   });
   spawnMock = jest.spyOn(child_process, 'spawn').mockImplementation(jest.fn(() => {
     return {
-      on: jest.fn(() => {}),
+      on: jest.fn(() => {
+      }),
     } as unknown as child_process.ChildProcess;
   }));
 });

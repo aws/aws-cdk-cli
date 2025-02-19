@@ -137,7 +137,8 @@ export interface GetBucketEncryptionOutput {
 
 export interface GetBucketEncryptionCommandOutput
   extends GetBucketEncryptionOutput,
-  MetadataBearer {}
+  MetadataBearer {
+}
 
 export interface GetBucketLocationCommandInput {
   /**
@@ -200,7 +201,8 @@ export interface GetBucketLocationOutput {
   LocationConstraint?: BucketLocationConstraint;
 }
 
-export interface GetBucketLocationCommandOutput extends GetBucketLocationOutput, MetadataBearer {}
+export interface GetBucketLocationCommandOutput extends GetBucketLocationOutput, MetadataBearer {
+}
 
 export const EncodingType = {
   url: 'url',
@@ -663,7 +665,8 @@ export interface ListObjectsV2Output {
   RequestCharged?: RequestCharged;
 }
 
-export interface ListObjectsV2CommandOutput extends ListObjectsV2Output, MetadataBearer {}
+export interface ListObjectsV2CommandOutput extends ListObjectsV2Output, MetadataBearer {
+}
 
 export const ObjectCannedACL = {
   authenticated_read: 'authenticated-read',
@@ -1271,7 +1274,8 @@ export interface CompleteMultipartUploadOutput {
 
 export interface CompleteMultipartUploadCommandOutput
   extends CompleteMultipartUploadOutput,
-  MetadataBearer {}
+  MetadataBearer {
+}
 
 export interface ImageIdentifier {
   /**
@@ -1343,9 +1347,11 @@ export interface DescribeImagesRequest {
   filter?: DescribeImagesFilter;
 }
 
-export interface DescribeImagesCommandInput extends DescribeImagesRequest {}
+export interface DescribeImagesCommandInput extends DescribeImagesRequest {
+}
 
-export interface DescribeImagesCommandOutput extends DescribeImagesResponse, MetadataBearer {}
+export interface DescribeImagesCommandOutput extends DescribeImagesResponse, MetadataBearer {
+}
 
 export const ScanStatus = {
   ACTIVE: 'ACTIVE',
@@ -1519,7 +1525,8 @@ export interface DescribeRepositoriesRequest {
   maxResults?: number;
 }
 
-export interface DescribeRepositoriesCommandInput extends DescribeRepositoriesRequest {}
+export interface DescribeRepositoriesCommandInput extends DescribeRepositoriesRequest {
+}
 
 export const ImageTagMutability = {
   IMMUTABLE: 'IMMUTABLE',
@@ -1642,7 +1649,8 @@ export interface DescribeRepositoriesResponse {
 
 export interface DescribeRepositoriesCommandOutput
   extends DescribeRepositoriesResponse,
-  MetadataBearer {}
+  MetadataBearer {
+}
 
 export interface GetAuthorizationTokenRequest {
   /**
@@ -1654,7 +1662,8 @@ export interface GetAuthorizationTokenRequest {
   registryIds?: string[];
 }
 
-export interface GetAuthorizationTokenCommandInput extends GetAuthorizationTokenRequest {}
+export interface GetAuthorizationTokenCommandInput extends GetAuthorizationTokenRequest {
+}
 
 export interface AuthorizationData {
   /**
@@ -1688,7 +1697,8 @@ export interface GetAuthorizationTokenResponse {
 
 export interface GetAuthorizationTokenCommandOutput
   extends GetAuthorizationTokenResponse,
-  MetadataBearer {}
+  MetadataBearer {
+}
 
 export interface GetSecretValueRequest {
   /**
@@ -1716,7 +1726,8 @@ export interface GetSecretValueRequest {
   VersionStage?: string;
 }
 
-export interface GetSecretValueCommandInput extends GetSecretValueRequest {}
+export interface GetSecretValueCommandInput extends GetSecretValueRequest {
+}
 
 export interface GetSecretValueResponse {
   /**
@@ -1761,4 +1772,5 @@ export interface GetSecretValueResponse {
   CreatedDate?: Date;
 }
 
-export interface GetSecretValueCommandOutput extends GetSecretValueResponse, MetadataBearer {}
+export interface GetSecretValueCommandOutput extends GetSecretValueResponse, MetadataBearer {
+}

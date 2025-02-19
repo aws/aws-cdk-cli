@@ -27,7 +27,8 @@ export async function isHotswappableLambdaFunctionChange(
         resourceNames: [],
         propsChanged: [],
         service: 'lambda',
-        apply: async (_sdk: SDK) => {},
+        apply: async (_sdk: SDK) => {
+        },
       },
     ];
   }
@@ -164,7 +165,8 @@ function classifyAliasChanges(change: HotswappableChangeCandidate): ChangeHotswa
       propsChanged: [],
       service: 'lambda',
       resourceNames: [],
-      apply: async (_sdk: SDK) => {},
+      apply: async (_sdk: SDK) => {
+      },
     });
   }
 

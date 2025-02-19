@@ -84,7 +84,8 @@ export class PublishingAws implements IAws {
      * Environment where the stack we're deploying is going
      */
     private readonly targetEnv: Environment,
-  ) {}
+  ) {
+  }
 
   public async discoverPartition(): Promise<string> {
     return (await this.aws.baseCredentialsPartition(this.targetEnv, Mode.ForWriting)) ?? 'aws';

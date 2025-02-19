@@ -28,7 +28,9 @@ export async function cliMain(cliArgs: string[]) {
     .strict() // require a VALID subcommand, and only supported options
     .fail((msg, err) => {
       // Throw an error in test mode, exit with an error code otherwise
-      if (err) { throw err; }
+      if (err) {
+        throw err;
+      }
       if (process.env.NODE_ENV === 'test') {
         throw new Error(msg);
       }

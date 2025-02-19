@@ -118,8 +118,12 @@ async function dependenciesFor(deps: Record<string, string>, yarnLock: YarnLock,
     }
 
     // Simplify by removing useless entries
-    if (Object.keys(ret[depName].requires ?? {}).length === 0) { delete ret[depName].requires; }
-    if (Object.keys(ret[depName].dependencies ?? {}).length === 0) { delete ret[depName].dependencies; }
+    if (Object.keys(ret[depName].requires ?? {}).length === 0) {
+      delete ret[depName].requires;
+    }
+    if (Object.keys(ret[depName].dependencies ?? {}).length === 0) {
+      delete ret[depName].dependencies;
+    }
   }
 
   return ret;
@@ -153,7 +157,9 @@ async function fileExists(fullPath: string): Promise<boolean> {
     await fs.stat(fullPath);
     return true;
   } catch (e: any) {
-    if (e.code === 'ENOENT' || e.code === 'ENOTDIR') { return false; }
+    if (e.code === 'ENOENT' || e.code === 'ENOTDIR') {
+      return false;
+    }
     throw e;
   }
 }
@@ -253,7 +259,9 @@ export function checkRequiredVersions(root: PackageLock | PackageLockPackage) {
       // For every 'requires' dependency, find the version it actually got resolved to and compare.
       for (const [name, range] of Object.entries(entry.requires)) {
         const resolvedPackage = findResolved(name, [entry, ...parentChain]);
-        if (!resolvedPackage) { continue; }
+        if (!resolvedPackage) {
+          continue;
+        }
 
         if (!semver.satisfies(resolvedPackage.version, range)) {
           // Ruh-roh.

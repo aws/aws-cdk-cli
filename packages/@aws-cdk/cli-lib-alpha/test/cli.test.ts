@@ -13,7 +13,9 @@ jest.mock('../../../aws-cdk/lib', () => {
     exec: jest.fn(original.exec),
   };
 });
-const stdoutMock = jest.spyOn(process.stdout, 'write').mockImplementation(() => { return true; });
+const stdoutMock = jest.spyOn(process.stdout, 'write').mockImplementation(() => {
+  return true;
+});
 
 beforeEach(() => {
   stdoutMock.mockClear();

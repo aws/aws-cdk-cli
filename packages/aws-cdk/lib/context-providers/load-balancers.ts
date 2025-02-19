@@ -14,7 +14,8 @@ import { ContextProviderError } from '../toolkit/error';
  * Provides load balancer context information.
  */
 export class LoadBalancerContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   async getValue(query: LoadBalancerContextQuery): Promise<LoadBalancerContextResponse> {
     if (!query.loadBalancerArn && !query.loadBalancerTags) {
@@ -41,7 +42,8 @@ export class LoadBalancerContextProviderPlugin implements ContextProviderPlugin 
  * Provides load balancer listener context information
  */
 export class LoadBalancerListenerContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   async getValue(query: LoadBalancerListenerContextQuery): Promise<LoadBalancerListenerContextResponse> {
     if (!query.listenerArn && !query.loadBalancerArn && !query.loadBalancerTags) {
@@ -80,7 +82,8 @@ class LoadBalancerProvider {
     private readonly client: IElasticLoadBalancingV2Client,
     private readonly filter: LoadBalancerListenerContextQuery,
     private readonly listener?: Listener,
-  ) {}
+  ) {
+  }
 
   public async getLoadBalancer(): Promise<LoadBalancer> {
     const loadBalancers = await this.getLoadBalancers();

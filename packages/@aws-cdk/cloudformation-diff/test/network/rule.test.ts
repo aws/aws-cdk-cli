@@ -17,7 +17,9 @@ test('can parse cidr-ip', () => {
   expect(rule.toPort).toEqual(20);
 
   const peer = rule.peer!;
-  if (peer.kind !== 'cidr-ip') { throw new Error('Fail'); }
+  if (peer.kind !== 'cidr-ip') {
+    throw new Error('Fail');
+  }
   expect(peer.ip).toEqual('1.2.3.4/8');
 });
 
@@ -27,7 +29,9 @@ test('can parse cidr-ip 6', () => {
   });
 
   const peer = rule.peer!;
-  if (peer.kind !== 'cidr-ip') { throw new Error('Fail'); }
+  if (peer.kind !== 'cidr-ip') {
+    throw new Error('Fail');
+  }
   expect(peer.ip).toEqual('::/0');
 });
 
@@ -38,7 +42,9 @@ test('can parse securityGroup', () => {
     });
 
     const peer = rule.peer!;
-    if (peer.kind !== 'security-group') { throw new Error('Fail'); }
+    if (peer.kind !== 'security-group') {
+      throw new Error('Fail');
+    }
     expect(peer.securityGroupId).toEqual('sg-1234');
   }
 });
@@ -50,7 +56,9 @@ test('can parse prefixlist', () => {
     });
 
     const peer = rule.peer!;
-    if (peer.kind !== 'prefix-list') { throw new Error('Fail'); }
+    if (peer.kind !== 'prefix-list') {
+      throw new Error('Fail');
+    }
     expect(peer.prefixListId).toEqual('pl-1');
   }
 });

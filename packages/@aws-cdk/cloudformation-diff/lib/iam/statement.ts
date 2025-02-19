@@ -146,8 +146,12 @@ export interface TargetsJson {
  * Parse a list of statements from undefined, a Statement, or a list of statements
  */
 export function parseStatements(x: any): Statement[] {
-  if (x === undefined) { x = []; }
-  if (!Array.isArray(x)) { x = [x]; }
+  if (x === undefined) {
+    x = [];
+  }
+  if (!Array.isArray(x)) {
+    x = [x];
+  }
   return x.map((s: any) => new Statement(s));
 }
 
@@ -180,15 +184,21 @@ export function parseLambdaPermission(x: any): Statement {
     }
   }
   if (x.SourceArn !== undefined) {
-    if (statement.Condition === undefined) { statement.Condition = {}; }
+    if (statement.Condition === undefined) {
+      statement.Condition = {};
+    }
     statement.Condition.ArnLike = { 'AWS:SourceArn': x.SourceArn };
   }
   if (x.SourceAccount !== undefined) {
-    if (statement.Condition === undefined) { statement.Condition = {}; }
+    if (statement.Condition === undefined) {
+      statement.Condition = {};
+    }
     statement.Condition.StringEquals = { 'AWS:SourceAccount': x.SourceAccount };
   }
   if (x.EventSourceToken !== undefined) {
-    if (statement.Condition === undefined) { statement.Condition = {}; }
+    if (statement.Condition === undefined) {
+      statement.Condition = {};
+    }
     statement.Condition.StringEquals = { 'lambda:EventSourceToken': x.EventSourceToken };
   }
 
@@ -285,13 +295,19 @@ function expectString(x: unknown): string | undefined {
 }
 
 function expectEffect(x: unknown): Effect {
-  if (x === Effect.Allow || x === Effect.Deny) { return x as Effect; }
+  if (x === Effect.Allow || x === Effect.Deny) {
+    return x as Effect;
+  }
   return Effect.Unknown;
 }
 
 function forceListOfStrings(x: unknown): string[] {
-  if (typeof x === 'string') { return [x]; }
-  if (typeof x === 'undefined' || x === null) { return []; }
+  if (typeof x === 'string') {
+    return [x];
+  }
+  if (typeof x === 'undefined' || x === null) {
+    return [];
+  }
 
   if (Array.isArray(x)) {
     return x.map(e => forceListOfStrings(e).join(','));
@@ -312,7 +328,9 @@ function forceListOfStrings(x: unknown): string[] {
  * Render the Condition column
  */
 export function renderCondition(condition: any): string {
-  if (!condition || Object.keys(condition).length === 0) { return ''; }
+  if (!condition || Object.keys(condition).length === 0) {
+    return '';
+  }
   const jsonRepresentation = JSON.stringify(condition, undefined, 2);
 
   // The JSON representation looks like this:

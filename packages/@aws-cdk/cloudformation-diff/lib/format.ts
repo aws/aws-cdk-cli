@@ -67,7 +67,9 @@ export function formatSecurityChanges(
 }
 
 function formatSecurityChangesWithBanner(formatter: Formatter, templateDiff: TemplateDiff) {
-  if (!templateDiff.iamChanges.hasChanges && !templateDiff.securityGroupChanges.hasChanges) { return; }
+  if (!templateDiff.iamChanges.hasChanges && !templateDiff.securityGroupChanges.hasChanges) {
+    return;
+  }
   formatter.formatIamChanges(templateDiff.iamChanges);
   formatter.formatSecurityGroupChanges(templateDiff.securityGroupChanges);
 
@@ -130,7 +132,9 @@ export class Formatter {
    * @param diff the difference to be rendered.
    */
   public formatDifference(type: string, logicalId: string, diff: Difference<any> | undefined) {
-    if (!diff || !diff.isDifferent) { return; }
+    if (!diff || !diff.isDifferent) {
+      return;
+    }
 
     let value;
 
@@ -154,7 +158,9 @@ export class Formatter {
    * @param diff      the change to be rendered.
    */
   public formatResourceDifference(_type: string, logicalId: string, diff: ResourceDifference) {
-    if (!diff.isDifferent) { return; }
+    if (!diff.isDifferent) {
+      return;
+    }
 
     const resourceType = diff.isRemoval ? diff.oldResourceType : diff.newResourceType;
 
@@ -172,15 +178,23 @@ export class Formatter {
   }
 
   public formatResourcePrefix(diff: ResourceDifference) {
-    if (diff.isImport) { return IMPORT; }
+    if (diff.isImport) {
+      return IMPORT;
+    }
 
     return this.formatPrefix(diff);
   }
 
   public formatPrefix<T>(diff: Difference<T>) {
-    if (diff.isAddition) { return ADDITION; }
-    if (diff.isUpdate) { return UPDATE; }
-    if (diff.isRemoval) { return REMOVAL; }
+    if (diff.isAddition) {
+      return ADDITION;
+    }
+    if (diff.isUpdate) {
+      return UPDATE;
+    }
+    if (diff.isRemoval) {
+      return REMOVAL;
+    }
     return chalk.white('[?]');
   }
 
@@ -191,8 +205,12 @@ export class Formatter {
    * @returns the formatted string, with color applied.
    */
   public formatValue(value: any, color: (str: string) => string) {
-    if (value == null) { return undefined; }
-    if (typeof value === 'string') { return color(value); }
+    if (value == null) {
+      return undefined;
+    }
+    if (typeof value === 'string') {
+      return color(value);
+    }
     return color(JSON.stringify(value));
   }
 
@@ -311,7 +329,9 @@ export class Formatter {
    */
   public readConstructPathsFrom(templateDiff: TemplateDiff) {
     for (const [logicalId, resourceDiff] of Object.entries(templateDiff.resources)) {
-      if (!resourceDiff) { continue; }
+      if (!resourceDiff) {
+        continue;
+      }
 
       const oldPathMetadata = resourceDiff.oldValue?.Metadata?.[PATH_METADATA_KEY];
       if (oldPathMetadata && !(logicalId in this.logicalToPathMap)) {
@@ -369,7 +389,9 @@ export class Formatter {
   }
 
   public formatIamChanges(changes: IamChanges) {
-    if (!changes.hasChanges) { return; }
+    if (!changes.hasChanges) {
+      return;
+    }
 
     if (changes.statements.hasChanges) {
       this.printSectionHeader('IAM Statement Changes');
@@ -396,7 +418,9 @@ export class Formatter {
   }
 
   public formatSecurityGroupChanges(changes: SecurityGroupChanges) {
-    if (!changes.hasChanges) { return; }
+    if (!changes.hasChanges) {
+      return;
+    }
 
     this.printSectionHeader('Security Group Changes');
     this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarize()), this.stream.columns));
@@ -454,7 +478,9 @@ function _diffStrings(oldStr: string, newStr: string, context: number): string[]
     const baseIndent = _findIndent(hunk.lines);
     for (const line of hunk.lines) {
       // Don't care about termination newline.
-      if (line === '\\ No newline at end of file') { continue; }
+      if (line === '\\ No newline at end of file') {
+        continue;
+      }
       const marker = line.charAt(0);
       const text = line.slice(1 + baseIndent);
       switch (marker) {

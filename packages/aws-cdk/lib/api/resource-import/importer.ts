@@ -508,7 +508,9 @@ function fmtdict<A>(xs: Record<string, A>) {
  * deleting stateful resources in the process of importing to CDK.
  */
 function addDefaultDeletionPolicy(resource: any): any {
-  if (resource.DeletionPolicy) { return resource; }
+  if (resource.DeletionPolicy) {
+    return resource;
+  }
 
   return {
     ...resource,

@@ -19,7 +19,8 @@ import { type EcrRepositoryInfo, ToolkitInfo } from '../toolkit-info';
 export class EnvironmentResourcesRegistry {
   private readonly cache = new Map<string, EnvironmentCache>();
 
-  constructor(private readonly toolkitStackName?: string) {}
+  constructor(private readonly toolkitStackName?: string) {
+  }
 
   public for(resolvedEnvironment: Environment, sdk: SDK, msg: IoMessaging) {
     const key = `${resolvedEnvironment.account}:${resolvedEnvironment.region}`;
@@ -51,7 +52,8 @@ export class EnvironmentResources {
     private readonly msg: IoMessaging,
     private readonly cache: EnvironmentCache,
     private readonly toolkitStackName?: string,
-  ) {}
+  ) {
+  }
 
   /**
    * Look up the toolkit for a given environment, using a given SDK

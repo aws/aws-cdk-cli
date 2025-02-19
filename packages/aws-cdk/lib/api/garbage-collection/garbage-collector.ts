@@ -32,7 +32,8 @@ export class ImageAsset {
     public readonly size: number,
     public readonly tags: string[],
     public readonly manifest: string,
-  ) {}
+  ) {
+  }
 
   private getTag(tag: string) {
     return this.tags.find(t => t.includes(tag));
@@ -75,7 +76,8 @@ export class ImageAsset {
 export class ObjectAsset {
   private cached_tags: Tag[] | undefined = undefined;
 
-  public constructor(private readonly bucket: string, public readonly key: string, public readonly size: number) {}
+  public constructor(private readonly bucket: string, public readonly key: string, public readonly size: number) {
+  }
 
   public fileName(): string {
     return this.key.split('.')[0];
@@ -776,7 +778,9 @@ function partition<A>(xs: Iterable<A>, pred: (x: A) => boolean): { included: A[]
 function imageMap(imageIds: ImageIdentifier[]) {
   const images: Record<string, string[]> = {};
   for (const image of imageIds ?? []) {
-    if (!image.imageDigest || !image.imageTag) { continue; }
+    if (!image.imageDigest || !image.imageTag) {
+      continue;
+    }
     if (!images[image.imageDigest]) {
       images[image.imageDigest] = [];
     }

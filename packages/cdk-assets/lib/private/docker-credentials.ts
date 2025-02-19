@@ -42,7 +42,8 @@ export function cdkCredentialsConfig(): DockerCredentialsConfig | undefined {
       _cdkCredentials = JSON.parse(
         fs.readFileSync(cdkCredentialsConfigFile(), { encoding: 'utf-8' }),
       ) as DockerCredentialsConfig;
-    } catch {}
+    } catch {
+    }
   }
   return _cdkCredentials;
 }

@@ -9,7 +9,8 @@ import { ContextProviderError } from '../toolkit/error';
  * Plugin to read arbitrary SSM parameter names
  */
 export class SSMContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: SSMParameterContextQuery) {
     const region = args.region;

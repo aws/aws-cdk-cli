@@ -58,7 +58,8 @@ export class Docker {
   constructor(
     private readonly eventEmitter: EventEmitter,
     private readonly subprocessOutputDestination: SubprocessOutputDestination,
-  ) {}
+  ) {
+  }
 
   /**
    * Whether an image with the given tag exists

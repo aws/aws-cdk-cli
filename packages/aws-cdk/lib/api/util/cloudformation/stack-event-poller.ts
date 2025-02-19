@@ -53,7 +53,8 @@ export class StackEventPoller {
   constructor(
     private readonly cfn: ICloudFormationClient,
     private readonly props: StackEventPollerProps,
-  ) {}
+  ) {
+  }
 
   /**
    * From all accumulated events, return only the errors

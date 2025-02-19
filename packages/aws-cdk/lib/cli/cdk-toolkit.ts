@@ -1208,8 +1208,12 @@ export class CdkToolkit {
    */
   private async validateStacks(stacks: StackCollection) {
     let failAt: 'warn' | 'error' | 'none' = 'error';
-    if (this.props.ignoreErrors) { failAt = 'none'; }
-    if (this.props.strict) { failAt = 'warn'; }
+    if (this.props.ignoreErrors) {
+      failAt = 'none';
+    }
+    if (this.props.strict) {
+      failAt = 'warn';
+    }
 
     await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
   }
@@ -1871,7 +1875,9 @@ async function askUserConfirmation(
     }
 
     const confirmed = await promptly.confirm(`${chalk.cyan(question)} (y/n)?`);
-    if (!confirmed) { throw new ToolkitError('Aborted by user'); }
+    if (!confirmed) {
+      throw new ToolkitError('Aborted by user');
+    }
   });
 }
 

@@ -7,7 +7,8 @@ import { debug } from '../logging';
  * Plugin to retrieve the Availability Zones for an endpoint service
  */
 export class EndpointServiceAZContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: EndpointServiceAvailabilityZonesContextQuery) {
     const region = args.region;

@@ -114,7 +114,8 @@ export abstract class ToolkitInfo {
   public abstract readonly bootstrapStack: CloudFormationStack;
   public abstract readonly stackName: string;
 
-  constructor() {}
+  constructor() {
+  }
 }
 
 /**

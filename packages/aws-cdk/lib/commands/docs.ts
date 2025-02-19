@@ -27,8 +27,12 @@ export async function docs(options: DocsOptions): Promise<number> {
         debug(`An error occurred when trying to open a browser: ${err.stack || err.message}`);
         return resolve(0);
       }
-      if (stdout) { debug(stdout); }
-      if (stderr) { warning(stderr); }
+      if (stdout) {
+        debug(stdout);
+      }
+      if (stderr) {
+        warning(stderr);
+      }
       resolve(0);
     });
   });

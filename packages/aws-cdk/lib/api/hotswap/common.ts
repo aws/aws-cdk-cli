@@ -189,7 +189,8 @@ export class ClassifiedChanges {
     public readonly change: HotswappableChangeCandidate,
     public readonly hotswappableProps: PropDiffs,
     public readonly nonHotswappableProps: PropDiffs,
-  ) {}
+  ) {
+  }
 
   public reportNonHotswappablePropertyChanges(ret: ChangeHotswapResult): void {
     const nonHotswappablePropNames = Object.keys(this.nonHotswappableProps);

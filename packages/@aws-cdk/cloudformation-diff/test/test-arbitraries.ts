@@ -77,12 +77,24 @@ export const twoArbitraryStatements = fc.record({
   const original = op.statement1;
   const modified = Object.create(original, {});
 
-  if (op.copySid) { modified.Sid = op.statement2.Sid; }
-  if (op.copyEffect) { modified.Effect = op.statement2.Effect; }
-  if (op.copyResource) { modified.Resource = op.statement2.Resource; modified.NotResource = op.statement2.NotResource; }
-  if (op.copyAction) { modified.Action = op.statement2.Action; modified.NotAction = op.statement2.NotAction; }
-  if (op.copyPrincipal) { modified.Principal = op.statement2.Principal; modified.NotPrincipal = op.statement2.NotPrincipal; }
-  if (op.copyCondition) { modified.Condition = op.statement2.Condition; }
+  if (op.copySid) {
+    modified.Sid = op.statement2.Sid;
+  }
+  if (op.copyEffect) {
+    modified.Effect = op.statement2.Effect;
+  }
+  if (op.copyResource) {
+    modified.Resource = op.statement2.Resource; modified.NotResource = op.statement2.NotResource;
+  }
+  if (op.copyAction) {
+    modified.Action = op.statement2.Action; modified.NotAction = op.statement2.NotAction;
+  }
+  if (op.copyPrincipal) {
+    modified.Principal = op.statement2.Principal; modified.NotPrincipal = op.statement2.NotPrincipal;
+  }
+  if (op.copyCondition) {
+    modified.Condition = op.statement2.Condition;
+  }
 
   return { statement1: original, statement2: modified };
 });
@@ -112,12 +124,24 @@ export const twoArbitraryRules = fc.record({
   const original = op.rule1;
   const modified = Object.create(original, {});
 
-  if (op.copyIp) { modified.IpProtocol = op.rule2.IpProtocol; }
-  if (op.copyFromPort) { modified.FromPort = op.rule2.FromPort; }
-  if (op.copyToPort) { modified.ToPort = op.rule2.ToPort; }
-  if (op.copyCidrIp) { modified.CidrIp = op.rule2.CidrIp; }
-  if (op.copySecurityGroupId) { modified.DestinationSecurityGroupId = op.rule2.DestinationSecurityGroupId; }
-  if (op.copyPrefixListId) { modified.DestinationPrefixListId = op.rule2.DestinationPrefixListId; }
+  if (op.copyIp) {
+    modified.IpProtocol = op.rule2.IpProtocol;
+  }
+  if (op.copyFromPort) {
+    modified.FromPort = op.rule2.FromPort;
+  }
+  if (op.copyToPort) {
+    modified.ToPort = op.rule2.ToPort;
+  }
+  if (op.copyCidrIp) {
+    modified.CidrIp = op.rule2.CidrIp;
+  }
+  if (op.copySecurityGroupId) {
+    modified.DestinationSecurityGroupId = op.rule2.DestinationSecurityGroupId;
+  }
+  if (op.copyPrefixListId) {
+    modified.DestinationPrefixListId = op.rule2.DestinationPrefixListId;
+  }
 
   return { rule1: original, rule2: modified };
 });

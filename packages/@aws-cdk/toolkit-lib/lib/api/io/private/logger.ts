@@ -105,8 +105,10 @@ export function withTrimmedWhitespace(ioHost: IIoHost): IIoHost {
 export function asSdkLogger(ioHost: IIoHost, action: ToolkitAction): Logger {
   return new class implements Logger {
     // This is too much detail for our logs
-    public trace(..._content: any[]) {}
-    public debug(..._content: any[]) {}
+    public trace(..._content: any[]) {
+    }
+    public debug(..._content: any[]) {
+    }
 
     /**
      * Info is called mostly (exclusively?) for successful API calls

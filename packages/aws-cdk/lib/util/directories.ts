@@ -25,7 +25,8 @@ export function cdkHomeDir() {
       userInfoHome = undefined;
     }
     home = path.join((userInfoHome ?? os.homedir()).trim(), '.cdk');
-  } catch {}
+  } catch {
+  }
   return process.env.CDK_HOME
     ? path.resolve(process.env.CDK_HOME)
     : home || fs.mkdtempSync(path.join(tmpDir, '.cdk')).trim();

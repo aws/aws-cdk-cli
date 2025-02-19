@@ -65,7 +65,9 @@ function cll() {
 }
 
 function terminalWrap(width: number | undefined, lines: string[]) {
-  if (width === undefined) { return lines; }
+  if (width === undefined) {
+    return lines;
+  }
 
   return lines.flatMap(line => wrapAnsi(line, width - 1, {
     hard: true,
@@ -82,6 +84,8 @@ function expandNewlines(lines: string[]): string[] {
 }
 
 function getMaxBlockHeight(windowHeight: number | undefined, lastHeight: number, lines: string[]): number {
-  if (windowHeight === undefined) { return Math.max(lines.length, lastHeight); }
+  if (windowHeight === undefined) {
+    return Math.max(lines.length, lastHeight);
+  }
   return lines.length < windowHeight ? lines.length : windowHeight - 1;
 }

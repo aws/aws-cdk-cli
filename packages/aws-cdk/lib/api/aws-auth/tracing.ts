@@ -27,7 +27,9 @@ function traceCall(receiver: object, _propertyKey: string, descriptor: PropertyD
 
   descriptor.value = function (...args: any[]) {
     const logger = (this as any).logger;
-    if (!ENABLED || typeof logger?.info !== 'function') { return fn.apply(this, args); }
+    if (!ENABLED || typeof logger?.info !== 'function') {
+      return fn.apply(this, args);
+    }
 
     logger.info.apply(logger, [`[trace] ${' '.repeat(INDENT)}${className || this.constructor.name || '(anonymous)'}#${fn.name}()`]);
     INDENT += 2;
@@ -52,7 +54,9 @@ function traceCall(receiver: object, _propertyKey: string, descriptor: PropertyD
 export function traceMemberMethods(constructor: Function) {
   // Instance members
   for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(constructor.prototype))) {
-    if (typeof descriptor.value !== 'function') { continue; }
+    if (typeof descriptor.value !== 'function') {
+      continue;
+    }
     const newDescriptor = traceCall(constructor.prototype, name, descriptor, constructor.name) ?? descriptor;
     Object.defineProperty(constructor.prototype, name, newDescriptor);
   }

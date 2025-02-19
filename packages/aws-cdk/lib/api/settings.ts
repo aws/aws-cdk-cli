@@ -27,7 +27,8 @@ export class Settings {
   constructor(
     private settings: SettingsMap = {},
     public readonly readOnly = false,
-  ) {}
+  ) {
+  }
 
   public async load(fileName: string): Promise<this> {
     if (this.readOnly) {

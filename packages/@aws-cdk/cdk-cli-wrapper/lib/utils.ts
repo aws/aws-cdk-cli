@@ -14,7 +14,9 @@ export function exec(commandLine: string[], options: { cwd?: string; json?: bool
     cwd: options.cwd,
   });
 
-  if (proc.error) { throw proc.error; }
+  if (proc.error) {
+    throw proc.error;
+  }
   if (proc.status !== 0) {
     if (process.stderr) { // will be 'null' in verbose mode
       process.stderr.write(proc.stderr);
@@ -26,7 +28,9 @@ export function exec(commandLine: string[], options: { cwd?: string; json?: bool
 
   try {
     if (options.json) {
-      if (output.length === 0) { return {}; }
+      if (output.length === 0) {
+        return {};
+      }
 
       return JSON.parse(output);
     }

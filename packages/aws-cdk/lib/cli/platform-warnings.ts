@@ -21,13 +21,21 @@ export function isVersionBetween(version: string, lower: string, upper: string) 
   const lo = splitVersion(lower);
   const up = splitVersion(upper);
 
-  while (lo.length < ver.length) { lo.push(0); }
-  while (up.length < ver.length) { up.push(9999999); }
+  while (lo.length < ver.length) {
+    lo.push(0);
+  }
+  while (up.length < ver.length) {
+    up.push(9999999);
+  }
 
   let n = ver.length;
   for (let i = 0; i < n; i++) {
-    if (lo[i] < ver[i] && ver[i] < up[i]) { return true; }
-    if (lo[i] > ver[i] || ver[i] > up[i]) { return false; }
+    if (lo[i] < ver[i] && ver[i] < up[i]) {
+      return true;
+    }
+    if (lo[i] > ver[i] || ver[i] > up[i]) {
+      return false;
+    }
   }
 
   return false;

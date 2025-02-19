@@ -32,7 +32,9 @@ export function hoistDependencies(packageTree: PackageLockPackage) {
 
   // Move the children of the parent onto the same level if there are no conflicts
   function moveUp(node: PackageLockPackage, parent?: PackageLockPackage) {
-    if (!node.dependencies) { return; }
+    if (!node.dependencies) {
+      return;
+    }
 
     // Recurse
     for (const child of Object.values(node.dependencies)) {
@@ -51,7 +53,9 @@ export function hoistDependencies(packageTree: PackageLockPackage) {
   }
 
   function removeDupes(node: PackageLockPackage, rootPath: Array<PackageLockPackage>) {
-    if (!node.dependencies) { return; }
+    if (!node.dependencies) {
+      return;
+    }
 
     // Any dependencies here that are the same in the parent can be removed
     for (const [depName, depPackage] of Object.entries(node.dependencies)) {
@@ -67,7 +71,9 @@ export function hoistDependencies(packageTree: PackageLockPackage) {
   }
 
   function removeUseless(node: PackageLockPackage) {
-    if (!node.dependencies) { return; }
+    if (!node.dependencies) {
+      return;
+    }
     for (const [depName, depPkg] of Object.entries(node.dependencies)) {
       if (!necessaryInTree(depName, depPkg.version, node)) {
         delete node.dependencies[depName];
@@ -95,7 +101,9 @@ export function hoistDependencies(packageTree: PackageLockPackage) {
   }
 
   function recordOriginalDependencies(node: PackageLockPackage) {
-    if (!node.dependencies) { return; }
+    if (!node.dependencies) {
+      return;
+    }
 
     let list = originalDependencies.get(node);
     if (!list) {
@@ -113,10 +121,14 @@ export function hoistDependencies(packageTree: PackageLockPackage) {
     if (originalDependencies.get(tree)?.includes(`${name}@${version}`)) {
       return true;
     }
-    if (!tree.dependencies) { return false; }
+    if (!tree.dependencies) {
+      return false;
+    }
 
     for (const depPackage of Object.values(tree.dependencies)) {
-      if (necessaryInTree(name, version, depPackage)) { return true; }
+      if (necessaryInTree(name, version, depPackage)) {
+        return true;
+      }
     }
     return false;
   }
@@ -141,7 +153,9 @@ export function renderTree(tree: PackageLockPackage): string[] {
 
     for (let i = 0; i < as.length && i < bs.length; i++) {
       const cmp = as[i].localeCompare(bs[i]);
-      if (cmp !== 0) { return cmp; }
+      if (cmp !== 0) {
+        return cmp;
+      }
     }
 
     return as.length - bs.length;

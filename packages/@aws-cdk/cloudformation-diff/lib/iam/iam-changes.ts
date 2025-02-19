@@ -330,7 +330,9 @@ export class IamChanges {
    * Parse a list of policies on an identity
    */
   private readIdentityPolicies(policies: any, logicalId: string): Statement[] {
-    if (policies === undefined || !Array.isArray(policies)) { return []; }
+    if (policies === undefined || !Array.isArray(policies)) {
+      return [];
+    }
 
     const appliesToPrincipal = 'AWS:${' + logicalId + '}';
 
@@ -347,7 +349,9 @@ export class IamChanges {
    * Parse an IAM::Policy resource
    */
   private readIdentityPolicyResource(properties: any): Statement[] {
-    if (properties === undefined) { return []; }
+    if (properties === undefined) {
+      return [];
+    }
 
     properties = renderIntrinsics(properties);
 
@@ -359,7 +363,9 @@ export class IamChanges {
   }
 
   private readSsoInstanceACAConfigs(properties: any, logicalId: string): SsoInstanceACAConfig[] {
-    if (properties === undefined) { return []; }
+    if (properties === undefined) {
+      return [];
+    }
 
     properties = renderIntrinsics(properties);
 
@@ -371,7 +377,9 @@ export class IamChanges {
   }
 
   private readSsoAssignments(properties: any, logicalId: string): SsoAssignment[] {
-    if (properties === undefined) { return []; }
+    if (properties === undefined) {
+      return [];
+    }
 
     properties = renderIntrinsics(properties);
 
@@ -387,7 +395,9 @@ export class IamChanges {
   }
 
   private readSsoPermissionSet(properties: any, logicalId: string): SsoPermissionSet[] {
-    if (properties === undefined) { return []; }
+    if (properties === undefined) {
+      return [];
+    }
 
     properties = renderIntrinsics(properties);
 
@@ -401,7 +411,9 @@ export class IamChanges {
   }
 
   private readResourceStatements(policy: any, logicalId: string): Statement[] {
-    if (policy === undefined) { return []; }
+    if (policy === undefined) {
+      return [];
+    }
 
     const appliesToResource = '${' + logicalId + '.Arn}';
     return defaultResource(appliesToResource, parseStatements(renderIntrinsics(policy.Statement)));
@@ -411,7 +423,9 @@ export class IamChanges {
    * Parse an AWS::*::{Bucket,Topic,Queue}policy
    */
   private readResourcePolicyResource(properties: any): Statement[] {
-    if (properties === undefined) { return []; }
+    if (properties === undefined) {
+      return [];
+    }
 
     properties = renderIntrinsics(properties);
 
@@ -432,14 +446,18 @@ export class IamChanges {
   }
 
   private readManagedPolicies(policyArns: any, logicalId: string): ManagedPolicyAttachment[] {
-    if (!policyArns) { return []; }
+    if (!policyArns) {
+      return [];
+    }
 
     const rep = '${' + logicalId + '}';
     return ManagedPolicyAttachment.parseManagedPolicies(rep, renderIntrinsics(policyArns));
   }
 
   private readLambdaStatements(properties?: PropertyMap): Statement[] {
-    if (!properties) { return []; }
+    if (!properties) {
+      return [];
+    }
 
     return [parseLambdaPermission(renderIntrinsics(properties))];
   }

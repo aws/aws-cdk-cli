@@ -10,7 +10,9 @@ export function looksLikeGlob(environment: string) {
 
 // eslint-disable-next-line max-len
 export async function globEnvironmentsFromStacks(stacks: StackCollection, environmentGlobs: string[], sdk: SdkProvider): Promise<cxapi.Environment[]> {
-  if (environmentGlobs.length === 0) { return []; }
+  if (environmentGlobs.length === 0) {
+    return [];
+  }
 
   const availableEnvironments = new Array<cxapi.Environment>();
   for (const stack of stacks.stackArtifacts) {
@@ -62,7 +64,9 @@ function distinct(envs: cxapi.Environment[]): cxapi.Environment[] {
   const unique: { [id: string]: cxapi.Environment } = {};
   for (const env of envs) {
     const id = `${env.account || 'default'}/${env.region || 'default'}`;
-    if (id in unique) { continue; }
+    if (id in unique) {
+      continue;
+    }
     unique[id] = env;
   }
   return Object.values(unique);

@@ -142,7 +142,8 @@ export class SdkProvider {
     public readonly defaultRegion: string,
     private readonly requestHandler: NodeHttpHandlerOptions = {},
     private readonly logger?: Logger,
-  ) {}
+  ) {
+  }
 
   /**
    * Return an SDK which can do operations in the given environment

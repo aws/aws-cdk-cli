@@ -168,7 +168,9 @@ function propagateReplacedReferences(template: object, logicalId: string): boole
 
   function replaceReference(obj: any) {
     const keys = Object.keys(obj);
-    if (keys.length !== 1) { return false; }
+    if (keys.length !== 1) {
+      return false;
+    }
     const key = keys[0];
 
     if (key === 'Ref') {

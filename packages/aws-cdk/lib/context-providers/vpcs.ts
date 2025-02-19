@@ -7,7 +7,8 @@ import { ContextProviderPlugin } from '../api/plugin';
 import { debug } from '../logging';
 import { ContextProviderError } from '../toolkit/error';
 export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: VpcContextQuery) {
     const ec2 = (await initContextProviderSdk(this.aws, args)).ec2();

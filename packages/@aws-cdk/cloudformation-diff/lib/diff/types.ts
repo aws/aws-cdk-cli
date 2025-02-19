@@ -182,7 +182,9 @@ export class TemplateDiff implements ITemplateDiff {
     const ret = new Array<ResourceChange>();
 
     for (const [resourceLogicalId, resourceChange] of Object.entries(this.resources.changes)) {
-      if (!resourceChange) { continue; }
+      if (!resourceChange) {
+        continue;
+      }
 
       const commonProps = {
         oldProperties: resourceChange.oldProperties,
@@ -370,7 +372,8 @@ export class PropertyDifference<ValueType> extends Difference<ValueType> {
 }
 
 export class DifferenceCollection<V, T extends IDifference<V>> {
-  constructor(private readonly diffs: { [logicalId: string]: T }) {}
+  constructor(private readonly diffs: { [logicalId: string]: T }) {
+  }
 
   public get changes(): { [logicalId: string]: T } {
     return onlyChanges(this.diffs);
@@ -382,7 +385,9 @@ export class DifferenceCollection<V, T extends IDifference<V>> {
 
   public get(logicalId: string): T {
     const ret = this.diffs[logicalId];
-    if (!ret) { throw new Error(`No object with logical ID '${logicalId}'`); }
+    if (!ret) {
+      throw new Error(`No object with logical ID '${logicalId}'`);
+    }
     return ret;
   }
 
@@ -518,7 +523,9 @@ export enum ResourceImpact {
  *      able to determine some properties impact).
  */
 function worstImpact(one: ResourceImpact, two?: ResourceImpact): ResourceImpact {
-  if (!two) { return one; }
+  if (!two) {
+    return one;
+  }
   const badness = {
     [ResourceImpact.NO_CHANGE]: 0,
     [ResourceImpact.WILL_IMPORT]: 0,
@@ -685,7 +692,9 @@ export class ResourceDifference implements IDifference<Resource> {
     }
     // Check the Type first
     if (this.resourceTypes.oldType !== this.resourceTypes.newType) {
-      if (this.resourceTypes.oldType === undefined) { return ResourceImpact.WILL_CREATE; }
+      if (this.resourceTypes.oldType === undefined) {
+        return ResourceImpact.WILL_CREATE;
+      }
       if (this.resourceTypes.newType === undefined) {
         return this.oldValue!.DeletionPolicy === 'Retain'
           ? ResourceImpact.WILL_ORPHAN

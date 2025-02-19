@@ -347,7 +347,8 @@ export class Manifest {
     });
   }
 
-  private constructor() {}
+  private constructor() {
+  }
 }
 
 type Endofunctor<A> = (x: A) => A;

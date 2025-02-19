@@ -37,7 +37,9 @@ namespace bockfs {
    * Turn a fake path into a real path
    */
   export function path(fakePath: string) {
-    if (fakePath.startsWith('/')) { fakePath = fakePath.slice(1); } // Force path to be non-absolute
+    if (fakePath.startsWith('/')) {
+      fakePath = fakePath.slice(1);
+    } // Force path to be non-absolute
     return path_.join(bockFsRoot, fakePath);
   }
 

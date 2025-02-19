@@ -335,7 +335,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           const question = `${motivation}\nDo you wish to deploy these changes`;
           // @todo reintroduce concurrency and corked logging in CliHost
           const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5060', question, motivation, true, concurrency));
-          if (!confirmed) { throw new ToolkitError('Aborted by user'); }
+          if (!confirmed) {
+            throw new ToolkitError('Aborted by user');
+          }
         }
       }
 
@@ -412,7 +414,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
                 await ioHost.notify(warn(`${motivation}. Rolling back first (--force).`));
               } else {
                 const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5050', question, motivation, true, concurrency));
-                if (!confirmed) { throw new ToolkitError('Aborted by user'); }
+                if (!confirmed) {
+                  throw new ToolkitError('Aborted by user');
+                }
               }
 
               // Perform a rollback
@@ -435,7 +439,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
                 await ioHost.notify(warn(`${motivation}. Proceeding with regular deployment (--force).`));
               } else {
                 const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5050', question, motivation, true, concurrency));
-                if (!confirmed) { throw new ToolkitError('Aborted by user'); }
+                if (!confirmed) {
+                  throw new ToolkitError('Aborted by user');
+                }
               }
 
               // Go around through the 'while' loop again but switch rollback to true.

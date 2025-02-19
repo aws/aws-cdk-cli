@@ -118,9 +118,13 @@ function missingContextKeys(missing?: cxapi.MissingContext[]): Set<string> {
 }
 
 function setsEqual<A>(a: Set<A>, b: Set<A>) {
-  if (a.size !== b.size) { return false; }
+  if (a.size !== b.size) {
+    return false;
+  }
   for (const x of a) {
-    if (!b.has(x)) { return false; }
+    if (!b.has(x)) {
+      return false;
+    }
   }
   return true;
 }

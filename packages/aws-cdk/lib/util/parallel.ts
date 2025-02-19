@@ -33,8 +33,12 @@ export async function parallelPromises<A>(n: number, promises: Array<() => Promi
     function start(fn: () => Promise<A>) {
       count += 1;
       fn()
-        .then((result) => { ret.push(result); })
-        .catch((e) => { error = e; })
+        .then((result) => {
+          ret.push(result);
+        })
+        .catch((e) => {
+          error = e;
+        })
         .finally(() => {
           count -= 1;
           tick();

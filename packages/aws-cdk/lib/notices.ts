@@ -136,7 +136,9 @@ export class NoticesFilter {
       return [new FilteredNotice(notice)];
 
       function compareNames(pattern: string, target: string | undefined): boolean {
-        if (target == null) { return false; }
+        if (target == null) {
+          return false;
+        }
         return pattern.endsWith('.') ? target.startsWith(pattern) : pattern === target;
       }
 
@@ -344,7 +346,8 @@ export interface Notice {
 export class FilteredNotice {
   private readonly dynamicValues: { [key: string]: string } = {};
 
-  public constructor(public readonly notice: Notice) {}
+  public constructor(public readonly notice: Notice) {
+  }
 
   public addDynamicValue(key: string, value: string) {
     this.dynamicValues[`{resolve:${key}}`] = value;

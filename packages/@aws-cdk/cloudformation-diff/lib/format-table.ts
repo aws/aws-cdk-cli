@@ -28,7 +28,9 @@ function lineBetween(rowA: string[], rowB: string[]) {
 }
 
 function buildColumnConfig(widths: number[] | undefined): { [index: number]: table.ColumnUserConfig } | undefined {
-  if (widths === undefined) { return undefined; }
+  if (widths === undefined) {
+    return undefined;
+  }
 
   const ret: { [index: number]: table.ColumnUserConfig } = {};
   widths.forEach((width, i) => {
@@ -60,7 +62,9 @@ function calculateColumnWidths(rows: string[][], terminalWidth: number): number[
   const contentWidth = terminalWidth - 2 - columns.length * 3;
 
   // If we don't exceed the terminal width, do nothing
-  if (sum(columns) <= contentWidth) { return columns; }
+  if (sum(columns) <= contentWidth) {
+    return columns;
+  }
 
   const fairShare = Math.min(contentWidth / columns.length);
   const smallColumns = columns.filter(w => w < fairShare);

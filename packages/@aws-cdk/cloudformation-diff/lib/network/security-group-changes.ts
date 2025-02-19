@@ -97,7 +97,9 @@ export class SecurityGroupChanges {
   }
 
   private readInlineRules(rules: any, logicalId: string): SecurityGroupRule[] {
-    if (!rules || !Array.isArray(rules)) { return []; }
+    if (!rules || !Array.isArray(rules)) {
+      return [];
+    }
 
     // UnCloudFormation so the parser works in an easier domain
 
@@ -110,7 +112,9 @@ export class SecurityGroupChanges {
   }
 
   private readRuleResource(resource: any): SecurityGroupRule[] {
-    if (!resource) { return []; }
+    if (!resource) {
+      return [];
+    }
 
     // UnCloudFormation so the parser works in an easier domain
 

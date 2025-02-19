@@ -8,7 +8,8 @@ import { debug } from '../logging';
  * Plugin to retrieve the Availability Zones for the current account
  */
 export class AZContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: AvailabilityZonesContextQuery) {
     const region = args.region;

@@ -52,7 +52,8 @@ export class BootstrapStack {
     private readonly toolkitStackName: string,
     private readonly currentToolkitInfo: ToolkitInfo,
     private readonly msg: IoMessaging,
-  ) {}
+  ) {
+  }
 
   public get parameters(): Record<string, string> {
     return this.currentToolkitInfo.found ? this.currentToolkitInfo.bootstrapStack.parameters : {};

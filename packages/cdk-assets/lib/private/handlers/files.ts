@@ -31,7 +31,8 @@ export class FileAssetHandler implements IAssetHandler {
     this.fileCacheRoot = path.join(workDir, '.cache');
   }
 
-  public async build(): Promise<void> {}
+  public async build(): Promise<void> {
+  }
 
   public async isPublished(): Promise<boolean> {
     const destination = await replaceAwsPlaceholders(this.asset.destination, this.host.aws);
@@ -299,7 +300,8 @@ class BucketInformation {
   private readonly ownerships = new Map<string, BucketOwnership>();
   private readonly encryptions = new Map<string, BucketEncryption>();
 
-  private constructor() {}
+  private constructor() {
+  }
 
   public async bucketOwnership(
     s3: IS3Client,

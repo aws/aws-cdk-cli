@@ -20,7 +20,8 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-  docker = new Docker(() => {}, 'ignore');
+  docker = new Docker(() => {
+  }, 'ignore');
 });
 
 describe('Docker', () => {

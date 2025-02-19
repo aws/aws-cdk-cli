@@ -20,7 +20,8 @@ export class Bootstrapper {
   constructor(
     private readonly source: BootstrapSource = { source: 'default' },
     private readonly msg: IoMessaging,
-  ) {}
+  ) {
+  }
 
   public bootstrapEnvironment(
     environment: cxapi.Environment,

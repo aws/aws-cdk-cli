@@ -17,7 +17,9 @@ import { Resource, SpecDatabase } from '@aws-cdk/service-spec-types';
  * @returns +true+ if both +lvalue+ and +rvalue+ are equivalent to each other.
  */
 export function deepEqual(lvalue: any, rvalue: any): boolean {
-  if (lvalue === rvalue) { return true; }
+  if (lvalue === rvalue) {
+    return true;
+  }
   // CloudFormation allows passing strings into boolean-typed fields
   if (((typeof lvalue === 'string' && typeof rvalue === 'boolean') ||
       (typeof lvalue === 'boolean' && typeof rvalue === 'string')) &&
@@ -30,12 +32,20 @@ export function deepEqual(lvalue: any, rvalue: any): boolean {
       safeParseFloat(lvalue) === safeParseFloat(rvalue)) {
     return true;
   }
-  if (typeof lvalue !== typeof rvalue) { return false; }
-  if (Array.isArray(lvalue) !== Array.isArray(rvalue)) { return false; }
+  if (typeof lvalue !== typeof rvalue) {
+    return false;
+  }
+  if (Array.isArray(lvalue) !== Array.isArray(rvalue)) {
+    return false;
+  }
   if (Array.isArray(lvalue) /* && Array.isArray(rvalue) */) {
-    if (lvalue.length !== rvalue.length) { return false; }
+    if (lvalue.length !== rvalue.length) {
+      return false;
+    }
     for (let i = 0 ; i < lvalue.length ; i++) {
-      if (!deepEqual(lvalue[i], rvalue[i])) { return false; }
+      if (!deepEqual(lvalue[i], rvalue[i])) {
+        return false;
+      }
     }
     return true;
   }
@@ -45,15 +55,23 @@ export function deepEqual(lvalue: any, rvalue: any): boolean {
       return false;
     }
     const keys = Object.keys(lvalue);
-    if (keys.length !== Object.keys(rvalue).length) { return false; }
+    if (keys.length !== Object.keys(rvalue).length) {
+      return false;
+    }
     for (const key of keys) {
-      if (!rvalue.hasOwnProperty(key)) { return false; }
+      if (!rvalue.hasOwnProperty(key)) {
+        return false;
+      }
       if (key === 'DependsOn') {
-        if (!dependsOnEqual(lvalue[key], rvalue[key])) { return false; }
+        if (!dependsOnEqual(lvalue[key], rvalue[key])) {
+          return false;
+        }
         // check differences other than `DependsOn`
         continue;
       }
-      if (!deepEqual(lvalue[key], rvalue[key])) { return false; }
+      if (!deepEqual(lvalue[key], rvalue[key])) {
+        return false;
+      }
     }
     return true;
   }
@@ -84,7 +102,9 @@ function dependsOnEqual(lvalue: any, rvalue: any): boolean {
 
   // allows arrays passed to DependsOn to be equivalent irrespective of element order
   if (Array.isArray(lvalue) && Array.isArray(rvalue)) {
-    if (lvalue.length !== rvalue.length) { return false; }
+    if (lvalue.length !== rvalue.length) {
+      return false;
+    }
     for (let i = 0 ; i < lvalue.length ; i++) {
       for (let j = 0 ; j < lvalue.length ; j++) {
         if ((!deepEqual(lvalue[i], rvalue[j])) && (j === lvalue.length - 1)) {

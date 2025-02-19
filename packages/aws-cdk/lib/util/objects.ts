@@ -20,8 +20,12 @@ export function applyDefaults(hash: any, defaults: any) {
  * Return whether the given parameter is an empty object or empty list.
  */
 export function isEmpty(x: any) {
-  if (x == null) { return false; }
-  if (isArray(x)) { return x.length === 0; }
+  if (x == null) {
+    return false;
+  }
+  if (isArray(x)) {
+    return x.length === 0;
+  }
   return Object.keys(x).length === 0;
 }
 
@@ -31,10 +35,18 @@ export function isEmpty(x: any) {
  * Does not support cycles.
  */
 export function deepClone(x: any): any {
-  if (typeof x === 'undefined') { return undefined; }
-  if (x === null) { return null; }
-  if (isArray(x)) { return x.map(deepClone); }
-  if (isObject(x)) { return makeObject(mapObject(x, (k, v) => [k, deepClone(v)] as [string, any])); }
+  if (typeof x === 'undefined') {
+    return undefined;
+  }
+  if (x === null) {
+    return null;
+  }
+  if (isArray(x)) {
+    return x.map(deepClone);
+  }
+  if (isObject(x)) {
+    return makeObject(mapObject(x, (k, v) => [k, deepClone(v)] as [string, any]));
+  }
   return x;
 }
 
@@ -90,7 +102,9 @@ export function deepSet(x: any, path: string[], value: any) {
 
   while (path.length > 1 && isObject(x)) {
     const key = path.shift()!;
-    if (!(key in x)) { x[key] = {}; }
+    if (!(key in x)) {
+      x[key] = {};
+    }
     x = x[key];
   }
 
@@ -123,7 +137,9 @@ export function deepMerge(...objects: Array<Obj<any> | undefined>) {
       const value = source[key];
 
       if (isObject(value)) {
-        if (!isObject(target[key])) { target[key] = {}; } // Overwrite on purpose
+        if (!isObject(target[key])) {
+          target[key] = {};
+        } // Overwrite on purpose
         mergeOne(target[key], value);
       } else if (typeof value !== 'undefined') {
         target[key] = value;
@@ -133,7 +149,9 @@ export function deepMerge(...objects: Array<Obj<any> | undefined>) {
 
   const others = objects.filter(x => x != null) as Array<Obj<any>>;
 
-  if (others.length === 0) { return {}; }
+  if (others.length === 0) {
+    return {};
+  }
   const into = others.splice(0, 1)[0];
 
   others.forEach(other => mergeOne(into, other));

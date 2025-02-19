@@ -67,7 +67,8 @@ export class DiffMethod {
   private constructor(
     public readonly method: 'change-set' | 'template-only' | 'local-file',
     public readonly options: ChangeSetDiffOptions | CloudFormationDiffOptions | { path: string },
-  ) {}
+  ) {
+  }
 }
 
 export interface DiffOptions {

@@ -8,7 +8,8 @@ import { ContextProviderError } from '../toolkit/error';
  * Plugin to search AMIs for the current account
  */
 export class AmiContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   public async getValue(args: AmiContextQuery) {
     const region = args.region;

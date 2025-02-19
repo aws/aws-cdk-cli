@@ -31,7 +31,9 @@ export function deserialize(str: string): any {
 
 function makeTagForCfnIntrinsic(intrinsicName: string, addFnPrefix: boolean): yaml_types.Schema.CustomTag {
   return {
-    identify(value: any) { return typeof value === 'string'; },
+    identify(value: any) {
+      return typeof value === 'string';
+    },
     tag: `!${intrinsicName}`,
     resolve: (_doc: yaml.Document, cstNode: yaml_cst.CST.Node) => {
       const ret: any = {};

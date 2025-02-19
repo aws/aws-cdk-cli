@@ -12,7 +12,8 @@ describe('Logging System', () => {
   const originalConsoleError = console.error;
 
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+    });
   });
 
   afterEach(() => {
