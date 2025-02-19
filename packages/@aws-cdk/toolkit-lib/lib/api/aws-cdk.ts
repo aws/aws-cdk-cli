@@ -1,5 +1,7 @@
 /* eslint-disable import/no-restricted-paths */
 
+export { Bootstrapper } from '../../../../aws-cdk/lib/api';
+
 // APIs
 export { formatSdkLoggerContent, SdkProvider } from '../../../../aws-cdk/lib/api/aws-auth';
 export { Context, PROJECT_CONTEXT } from '../../../../aws-cdk/lib/api/context';
