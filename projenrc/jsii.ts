@@ -243,12 +243,12 @@ export class JsiiBuild extends pj.Component {
 
     // FIXME: Not support "runsOn" and the workflow container image for now
     const extraJobOptions: Partial<Job> = {
-    /*
-      ...this.getJobRunsOnConfig(options),
-      ...(options.workflowContainerImage
-        ? { container: { image: options.workflowContainerImage } }
-        : {}),
-    */
+      /*
+        ...this.getJobRunsOnConfig(options),
+        ...(options.workflowContainerImage
+          ? { container: { image: options.workflowContainerImage } }
+          : {}),
+      */
     };
 
     const npmjs: NpmPublishOptions = {
@@ -466,10 +466,10 @@ export class JsiiBuild extends pj.Component {
     target: JsiiPacmakTarget,
     packTask: pj.Task,
   ): {
-      publishTools: Tools;
-      bootstrapSteps: Array<Step>;
-      packagingSteps: Array<Step>;
-    } {
+    publishTools: Tools;
+    bootstrapSteps: Array<Step>;
+    packagingSteps: Array<Step>;
+  } {
     const bootstrapSteps: Array<Step> = [];
     const packagingSteps: Array<Step> = [];
 
@@ -496,7 +496,7 @@ export class JsiiBuild extends pj.Component {
       },
       {
         name: 'Extract build artifact',
-        run: `tar --strip-components=1 -xzvf ${this.tsProject.artifactsDirectory}/js/*.tgz -C ${REPO_TEMP_DIRECTORY}`,
+        run: `tar --strip-components=1 -xzvf ${this.tsProject.artifactsDirectory}/js/*.tgz -C ${REPO_TEMP_DIRECTORY}/${this.monoProject.workspaceDirectory}`,
       },
       {
         name: 'Move build artifact out of the way',

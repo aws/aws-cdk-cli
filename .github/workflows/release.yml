@@ -186,7 +186,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create js artifact
@@ -230,7 +230,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create java artifact
@@ -275,7 +275,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create python artifact
@@ -316,7 +316,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create dotnet artifact
@@ -356,7 +356,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create go artifact
@@ -583,7 +583,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create js artifact
@@ -627,7 +627,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create java artifact
@@ -671,7 +671,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create python artifact
@@ -712,7 +712,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create dotnet artifact
@@ -752,7 +752,7 @@ jobs:
       - name: Install Dependencies
         run: cd .repo && yarn install --check-files --frozen-lockfile
       - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo
+        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
       - name: Move build artifact out of the way
         run: mv dist dist.old
       - name: Create go artifact
