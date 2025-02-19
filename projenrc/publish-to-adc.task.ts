@@ -1,7 +1,7 @@
-import { S3 } from '@aws-sdk/client-s3';
 import { createReadStream } from 'fs';
+import { S3 } from '@aws-sdk/client-s3';
+import { fromTemporaryCredentials, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { Upload } from '@aws-sdk/lib-storage';
-import { fromTemporaryCredentials, fromNodeProviderChain  } from '@aws-sdk/credential-providers';
 
 /**
  * Takes files from `dist/standalone` and moves them to specific ADC buckets
@@ -32,6 +32,8 @@ async function main() {
 
   for (const bucket of TARGET_BUCKETS.split(' ')) {
     // This value is secret-ish, mask it out
+    // this is a cli
+    // eslint-disable-next-line no-console
     console.log(`::add-mask::${bucket}`);
 
     const upload = new Upload({
@@ -48,6 +50,8 @@ async function main() {
 }
 
 main().catch(e => {
+  // this is a cli
+  // eslint-disable-next-line no-console
   console.error(e);
   process.exitCode = 1;
 });

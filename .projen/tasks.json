@@ -61,6 +61,19 @@
         }
       ]
     },
+    "eslint": {
+      "name": "eslint",
+      "description": "Runs eslint against the codebase",
+      "env": {
+        "ESLINT_USE_FLAT_CONFIG": "false"
+      },
+      "steps": [
+        {
+          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ projenrc .projenrc.ts",
+          "receiveArgs": true
+        }
+      ]
+    },
     "install": {
       "name": "install",
       "description": "Install project dependencies and update lockfile (non-frozen)",
@@ -131,6 +144,9 @@
       "steps": [
         {
           "exec": "yarn workspaces run test"
+        },
+        {
+          "spawn": "eslint"
         }
       ]
     },

@@ -1,6 +1,19 @@
 {
   "dependencies": [
     {
+      "name": "@aws-sdk/client-s3",
+      "version": "3.741",
+      "type": "build"
+    },
+    {
+      "name": "@aws-sdk/credential-providers",
+      "type": "build"
+    },
+    {
+      "name": "@aws-sdk/lib-storage",
+      "type": "build"
+    },
+    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -33,6 +46,10 @@
       "type": "build"
     },
     {
+      "name": "eslint-import-resolver-typescript",
+      "type": "build"
+    },
+    {
       "name": "eslint-plugin-import",
       "type": "build"
     },
@@ -42,6 +59,15 @@
     },
     {
       "name": "eslint-plugin-jsdoc",
+      "type": "build"
+    },
+    {
+      "name": "eslint",
+      "version": "^9",
+      "type": "build"
+    },
+    {
+      "name": "glob",
       "type": "build"
     },
     {
@@ -55,6 +81,10 @@
     },
     {
       "name": "projen",
+      "type": "build"
+    },
+    {
+      "name": "semver",
       "type": "build"
     },
     {
