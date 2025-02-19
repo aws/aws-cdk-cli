@@ -9,6 +9,8 @@ import {
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {
+  MockSdkProvider,
+  SdkProvider,
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
@@ -16,6 +18,10 @@ import {
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
+const mockSdkProvider = new MockSdkProvider();
+
+// we don't need to use AWS CLI compatible defaults here, since everything is mocked anyway
+jest.spyOn(SdkProvider, 'withAwsCliCompatibleDefaults').mockResolvedValue(mockSdkProvider);
 
 beforeEach(() => {
   restoreSdkMocksToDefault();

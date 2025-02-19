@@ -1,8 +1,8 @@
 /* eslint-disable import/no-restricted-paths */
 
 // Node.js built-in modules
-import * as path from 'node:path';
 import * as os from 'node:os';
+import * as path from 'node:path';
 
 // Third-party modules
 import * as cxapi from '@aws-cdk/cx-api';
@@ -22,7 +22,7 @@ import {
 import {
   SdkProvider,
   Bootstrapper,
-  type StringWithoutPlaceholders
+  type StringWithoutPlaceholders,
 } from '../../lib/api/aws-cdk';
 
 // Re-exports
@@ -42,5 +42,5 @@ export {
 export {
   SdkProvider,
   Bootstrapper,
-  type StringWithoutPlaceholders
+  type StringWithoutPlaceholders,
 };
