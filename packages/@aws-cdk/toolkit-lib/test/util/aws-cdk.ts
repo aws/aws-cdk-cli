@@ -22,7 +22,7 @@ import {
 import {
   SdkProvider,
   Bootstrapper,
-  type StringWithoutPlaceholders,
+  rootDir,
 } from '../../lib/api/aws-cdk';
 
 // Re-exports
@@ -42,5 +42,5 @@ export {
 export {
   SdkProvider,
   Bootstrapper,
-  type StringWithoutPlaceholders,
+  rootDir,
 };

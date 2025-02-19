@@ -1,12 +1,9 @@
-import { Tag, StringWithoutPlaceholders } from '../../api/aws-cdk';
+import { Tag } from '../../api/aws-cdk';
 
 /**
  * Options for the bootstrapEnvironment operation(s)
  */
 export interface BootstrapOptions {
-  readonly roleArn?: StringWithoutPlaceholders;
-  readonly parameters?: BootstrappingParameters;
-  readonly force?: boolean;
 
   /**
    * The source of the bootstrap stack
@@ -133,4 +130,23 @@ export interface BootstrappingParameters {
   readonly customPermissionsBoundary?: string;
 }
 
-export type BootstrapSource = { source: 'legacy' } | { source: 'default' } | { source: 'custom'; templateFile: string };
+/**
+ * Source configuration for bootstrap operations
+ */
+export type BootstrapSource = { source: 'default' } | { source: 'custom'; templateFile: string };
+
+export const BootstrapSource = {
+  /**
+   * Use the default bootstrap template
+   */
+  default(): BootstrapSource {
+    return { source: 'default' };
+  },
+
+  /**
+   * Use a custom bootstrap template
+   */
+  customTemplate(templateFile: string): BootstrapSource {
+    return { source: 'custom', templateFile };
+  },
+} as const;

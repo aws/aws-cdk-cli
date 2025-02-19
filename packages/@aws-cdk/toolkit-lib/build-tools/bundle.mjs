@@ -20,7 +20,7 @@ await Promise.all([
 
 // # Copy all resources that aws_cdk/generate.sh produced, and some othersCall the generator for the
 // cp -R $aws_cdk/lib/init-templates ./lib/
-// mkdir -p ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/
+// mkdir -p ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/custom-bootstrap-template.yaml ./lib/api/bootstrap/
 
 await esbuild.build({
   entryPoints: ['lib/api/aws-cdk.ts'],
