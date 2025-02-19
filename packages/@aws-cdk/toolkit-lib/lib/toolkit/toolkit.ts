@@ -21,10 +21,7 @@ import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/pr
 import { ToolkitError } from '../api/errors';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
 import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace } from '../api/io/private';
-
-// Must use a require() otherwise esbuild complains about calling a namespace
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pLimit: typeof import('p-limit') = require('p-limit');
+import { pLimit } from '../util/concurrency';
 
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.

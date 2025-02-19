@@ -1,5 +1,4 @@
-import { Tag } from './private';
-import { StringWithoutPlaceholders } from '../../api/aws-cdk';
+import { Tag, StringWithoutPlaceholders } from '../../api/aws-cdk';
 
 /**
  * Options for the bootstrapEnvironment operation(s)
