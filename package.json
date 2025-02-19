@@ -28,9 +28,9 @@
     "constructs": "^10.0.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jest": "^28.11.0",
-    "nx": "^20.4.4",
+    "nx": "^20.4.5",
     "prettier": "^2.8",
-    "projen": "^0.91.11",
+    "projen": "^0.91.12",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },

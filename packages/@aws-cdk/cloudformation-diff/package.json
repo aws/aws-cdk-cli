@@ -42,7 +42,7 @@
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.0.1",
-    "eslint-import-resolver-typescript": "^3.8.1",
+    "eslint-import-resolver-typescript": "^3.8.2",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jest": "^28.11.0",
     "eslint-plugin-prettier": "^5.2.3",
@@ -51,7 +51,7 @@
     "jest-junit": "^16",
     "license-checker": "^25.0.1",
     "prettier": "^2.8",
-    "projen": "^0.91.11",
+    "projen": "^0.91.12",
     "ts-jest": "^29.2.5",
     "typescript": "5.6"
   },
