@@ -4,7 +4,7 @@ import { StringWithoutPlaceholders } from '../../api/aws-cdk';
 /**
  * Options for the bootstrapEnvironment operation(s)
  */
-export interface BootstrapEnvironmentOptions {
+export interface BootstrapOptions {
   readonly toolkitStackName?: string;
   readonly roleArn?: StringWithoutPlaceholders;
   readonly parameters?: BootstrappingParameters;

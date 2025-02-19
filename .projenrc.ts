@@ -1139,6 +1139,8 @@ toolkitLib.package.addField('exports', {
 });
 
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
+// Copy bootstrap template from cli-lib-alpha
+toolkitLib.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../cli-lib-alpha/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');

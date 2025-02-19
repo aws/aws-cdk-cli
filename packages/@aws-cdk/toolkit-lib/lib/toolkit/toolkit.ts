@@ -4,7 +4,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
-import { BootstrapEnvironmentOptions } from '../actions/bootstrap';
+import { BootstrapOptions } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -161,7 +161,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(cx: ICloudAssemblySource, options: BootstrapEnvironmentOptions = {}): Promise<void> {
+  public async bootstrap(cx: ICloudAssemblySource, options: BootstrapOptions = {}): Promise<void> {
     const ioHost = withAction(this.ioHost, 'bootstrap');
     const assembly = await this.assemblyFromSource(cx);
     const stackCollection = assembly.selectStacksV2({
