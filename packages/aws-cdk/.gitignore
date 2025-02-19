@@ -28,8 +28,6 @@ jspm_packages/
 *.tgz
 .yarn-integrity
 .cache
-/test-reports/
-junit.xml
 !/jest.config.json
 /coverage/
 !/.prettierignore

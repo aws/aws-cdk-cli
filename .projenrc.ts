@@ -30,6 +30,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
     'eslint-plugin-import',
     'eslint-plugin-jest',
     'eslint-plugin-jsdoc',
+    'jest-junit@^16',
   );
   x.eslint?.addPlugins(
     '@typescript-eslint',
@@ -86,19 +87,24 @@ const CLI_SDK_V3_RANGE = '3.741';
  */
 function sharedJestConfig(): pj.javascript.JestConfigOptions {
   return {
+    moduleFileExtensions: [
+      // .ts first to prefer a ts over a js if present
+      'ts',
+      'js',
+    ],
     maxWorkers: '80%',
     testEnvironment: 'node',
     coverageThreshold: {
-      global: {
-        branches: 80,
-        statements: 80,
-      },
-    } as any,
+      statements: 80,
+      branches: 80,
+      functions: 80,
+      lines: 80,
+    },
     collectCoverage: true,
     coverageReporters: [
       'text-summary', // for console summary
       'cobertura', // for codecov. see https://docs.codecov.com/docs/code-coverage-with-javascript
-      'html', // for local deep dive
+      ['html', { subdir: 'html-report' }] as any, // for local deep dive
     ],
     testMatch: ['<rootDir>/test/**/?(*.)+(test).ts'],
     coveragePathIgnorePatterns: ['\\.generated\\.[jt]s$', '<rootDir>/test/', '.warnings.jsii.js$', '/node_modules/'],
@@ -108,8 +114,29 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
     // fail because they rely on shared mutable state left by other tests
     // (files on disk, global mocks, etc).
     randomize: true,
+  };
+}
 
-    testTimeout: 60_000,
+/**
+ * Extend default jest options for a project
+ */
+function jestOptionsForProject(options: pj.javascript.JestOptions): pj.javascript.JestOptions {
+  const generic = genericCdkProps().jestOptions;
+  return {
+    ...generic,
+    ...options,
+    jestConfig: {
+      ...generic.jestConfig,
+      ...(options.jestConfig ?? {}),
+      coveragePathIgnorePatterns: [
+        ...(generic.jestConfig?.coveragePathIgnorePatterns ?? []),
+        ...(options.jestConfig?.coveragePathIgnorePatterns ?? []),
+      ],
+      coverageThreshold: {
+        ...(generic.jestConfig?.coverageThreshold ?? {}),
+        ...(options.jestConfig?.coverageThreshold ?? {}),
+      },
+    },
   };
 }
 
@@ -213,6 +240,8 @@ function genericCdkProps(props: GenericProps = {}) {
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
     jestOptions: {
       configFilePath: 'jest.config.json',
+      junitReporting: false,
+      coverageText: false,
       jestConfig: sharedJestConfig(),
       preserveDefaultReporters: false,
     },
@@ -244,6 +273,14 @@ const cloudAssemblySchema = configureProject(
     bundledDeps: ['jsonschema@~1.4.1', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
     disableTsconfig: true,
+
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          functions: 75,
+        },
+      },
+    }),
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
@@ -313,6 +350,14 @@ const cloudFormationDiff = configureProject(
         esModuleInterop: false,
       },
     },
+
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          functions: 75,
+        },
+      },
+    }),
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
@@ -402,6 +447,13 @@ const nodeBundle = configureProject(
     description: 'Tool for generating npm-shrinkwrap from yarn.lock',
     deps: ['esbuild', 'fs-extra@^9', 'license-checker', 'madge', 'shlex', 'yargs'],
     devDeps: ['@types/license-checker', '@types/madge', '@types/fs-extra@^9', 'jest-junit', 'standard-version'],
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          branches: 75,
+        },
+      },
+    }),
   }),
 );
 // Too many console statements
@@ -535,6 +587,13 @@ const cdkAssets = configureProject(
     npmDistTag: 'v3-latest',
     prerelease: 'rc',
     majorVersion: 3,
+
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        // We have many tests here that commonly time out
+        testTimeout: 10_000,
+      },
+    }),
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
@@ -695,13 +754,32 @@ const cli = configureProject(
       dirs: ['lib'],
       ignorePatterns: ['*.template.ts', '*.d.ts', 'test/**/*.ts'],
     },
-    jestOptions: {
-      ...genericCdkProps().jestOptions,
+    jestOptions: jestOptionsForProject({
       jestConfig: {
-        ...genericCdkProps().jestOptions.jestConfig,
+        coverageThreshold: {
+          // We want to improve our test coverage
+          // DO NOT LOWER THESE VALUES!
+          // If you need to break glass, open an issue to re-up the values with additional test coverage
+          statements: 84,
+          branches: 74,
+          functions: 87,
+          lines: 84,
+        },
+        // We have many tests here that commonly time out
+        testTimeout: 60_000,
+        coveragePathIgnorePatterns: [
+          // Mostly wrappers around the SDK, which get mocked in unit tests
+          '<rootDir>/lib/api/aws-auth/sdk.ts',
+
+          // Files generated by cli-args-gen
+          '<rootDir>/lib/parse-command-line-arguments.ts',
+          '<rootDir>/lib/user-input.ts',
+          '<rootDir>/lib/convert-to-user-input.ts',
+        ],
         testEnvironment: './test/jest-bufferedconsole.ts',
+        setupFilesAfterEnv: ['<rootDir>/test/jest-setup-after-env.ts'],
       },
-    },
+    }),
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
@@ -790,15 +868,6 @@ for (const resourceCommand of includeCliResourcesCommands) {
   cli.postCompileTask.exec(resourceCommand);
 }
 
-Object.assign(cli.jest?.config ?? {}, {
-  coveragePathIgnorePatterns: [
-    ...(cli.jest?.config.coveragePathIgnorePatterns ?? []),
-    // Mostly wrappers around the SDK, which get mocked in unit tests
-    '<rootDir>/lib/api/aws-auth/sdk.ts',
-  ],
-  setupFilesAfterEnv: ['<rootDir>/test/jest-setup-after-env.ts'],
-});
-
 new BundleCli(cli, {
   externals: {
     optionalDependencies: [
@@ -855,6 +924,13 @@ const cliLib = configureProject(
         '*.d.ts',
       ],
     },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        // cli-lib-alpha cannot deal with the ts files for some reason
+        // we can revisit this once toolkit-lib work has progressed
+        moduleFileExtensions: undefined,
+      },
+    }),
   }),
 );
 
@@ -1004,6 +1080,18 @@ const toolkitLib = configureProject(
         '*.d.ts',
       ],
     },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
+        coverageThreshold: {
+          // this is very sad but we will get better
+          statements: 85,
+          branches: 77,
+          functions: 77,
+          lines: 85,
+        },
+      },
+    }),
     tsconfig: {
       compilerOptions: {
         target: 'es2022',

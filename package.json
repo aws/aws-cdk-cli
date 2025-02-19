@@ -36,6 +36,7 @@
     "eslint-plugin-jest": "^28.11.0",
     "eslint-plugin-jsdoc": "^50.6.3",
     "glob": "^11.0.1",
+    "jest-junit": "^16",
     "nx": "^20.4.5",
     "prettier": "^2.8",
     "projen": "^0.91.12",

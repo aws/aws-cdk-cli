@@ -71,6 +71,11 @@
       "type": "build"
     },
     {
+      "name": "jest-junit",
+      "version": "^16",
+      "type": "build"
+    },
+    {
       "name": "nx",
       "type": "build"
     },
