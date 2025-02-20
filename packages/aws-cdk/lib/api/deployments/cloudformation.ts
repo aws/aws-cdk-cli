@@ -19,7 +19,7 @@ import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util/error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
 import type { Deployments } from './deployments';
-import { StackStatus } from '../util/cloudformation/stack-status';
+import { StackStatus } from '../stack-events';
 import { makeBodyParameter, TemplateBodyParameter } from '../util/template-body-parameter';
 
 export type ResourcesToImport = ResourceToImport[];

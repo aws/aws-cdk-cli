@@ -3,10 +3,10 @@ import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-as
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { ResourceEvent, StackEventPoller } from './stack-event-poller';
-import { error, info } from '../../../logging';
-import { CliIoHost, IoMessageLevel } from '../../../toolkit/cli-io-host';
-import type { ICloudFormationClient } from '../../aws-auth';
-import { RewritableBlock } from '../display';
+import { error, info } from '../../logging';
+import { CliIoHost, IoMessageLevel } from '../../toolkit/cli-io-host';
+import type { ICloudFormationClient } from '../aws-auth';
+import { RewritableBlock } from './display';
 
 export interface StackActivity extends ResourceEvent {
   readonly metadata?: ResourceMetadata;

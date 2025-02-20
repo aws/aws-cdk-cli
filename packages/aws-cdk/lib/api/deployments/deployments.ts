@@ -31,11 +31,9 @@ import { formatErrorMessage } from '../../util/error';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
+import { StackActivityMonitor, StackActivityProgress, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
-import { StackActivityMonitor, StackActivityProgress } from '../util/cloudformation/stack-activity-monitor';
-import { StackEventPoller } from '../util/cloudformation/stack-event-poller';
-import { RollbackChoice } from '../util/cloudformation/stack-status';
 import { makeBodyParameter } from '../util/template-body-parameter';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;

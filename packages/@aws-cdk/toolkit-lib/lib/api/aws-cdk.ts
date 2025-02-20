@@ -8,13 +8,13 @@ export { Settings } from '../../../../aws-cdk/lib/api/settings';
 export { tagsForStack } from '../../../../aws-cdk/lib/api/tags';
 export { DEFAULT_TOOLKIT_STACK_NAME } from '../../../../aws-cdk/lib/api/toolkit-info';
 export { ResourceMigrator } from '../../../../aws-cdk/lib/api/resource-import';
+export { StackActivityProgress } from '../../../../aws-cdk/lib/api/stack-events';
 
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
 
 // @todo APIs not clean import
 export { HotswapMode } from '../../../../aws-cdk/lib/api/hotswap/common';
-export { StackActivityProgress } from '../../../../aws-cdk/lib/api/util/cloudformation/stack-activity-monitor';
 export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/util/rwlock';
 export { formatTime } from '../../../../aws-cdk/lib/api/util/string-manipulation';
 

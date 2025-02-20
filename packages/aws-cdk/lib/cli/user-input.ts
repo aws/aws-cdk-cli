@@ -1331,5 +1331,4 @@ export interface DocsOptions {
  *
  * @struct
  */
-export interface DoctorOptions {
-}
+export interface DoctorOptions {}

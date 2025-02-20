@@ -6,8 +6,8 @@ import {
   ListStacksCommand,
   Stack,
 } from '@aws-sdk/client-cloudformation';
-import { ECR_ISOLATED_TAG, GarbageCollector, S3_ISOLATED_TAG, ToolkitInfo } from '../../lib/api';
-import { mockBootstrapStack, mockCloudFormationClient, mockECRClient, mockS3Client, MockSdk, MockSdkProvider } from '../util/mock-sdk';
+import { ECR_ISOLATED_TAG, GarbageCollector, S3_ISOLATED_TAG, ToolkitInfo } from '../../../lib/api';
+import { mockBootstrapStack, mockCloudFormationClient, mockECRClient, mockS3Client, MockSdk, MockSdkProvider } from '../../util/mock-sdk';
 import {
   DeleteObjectsCommand,
   DeleteObjectTaggingCommand,
@@ -19,8 +19,8 @@ import {
   ActiveAssetCache,
   BackgroundStackRefresh,
   BackgroundStackRefreshProps,
-} from '../../lib/api/garbage-collection/stack-refresh';
-import { ProgressPrinter } from '../../lib/api/garbage-collection/progress-printer';
+} from '../../../lib/api/garbage-collection/stack-refresh';
+import { ProgressPrinter } from '../../../lib/api/garbage-collection/progress-printer';
 import {
   BatchDeleteImageCommand,
   BatchGetImageCommand,
@@ -28,7 +28,7 @@ import {
   ListImagesCommand,
   PutImageCommand,
 } from '@aws-sdk/client-ecr';
-import { CliIoHost } from '../../lib/toolkit/cli-io-host';
+import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
 
 let garbageCollector: GarbageCollector;
 

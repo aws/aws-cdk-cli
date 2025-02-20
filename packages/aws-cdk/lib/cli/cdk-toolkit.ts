@@ -25,8 +25,8 @@ import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
+import { StackActivityProgress } from '../api/stack-events';
 import { tagsForStack, type Tag } from '../api/tags';
-import { StackActivityProgress } from '../api/util/cloudformation/stack-activity-monitor';
 import { formatTime } from '../api/util/string-manipulation';
 import {
   generateCdkApp,
