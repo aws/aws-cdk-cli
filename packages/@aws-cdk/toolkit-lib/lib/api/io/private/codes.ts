@@ -1,9 +1,9 @@
-import { IoMessageCode } from '../io-message';
+import { IoMessageCode, IoMessageLevel } from '../io-message';
 
 export interface CodeInfo {
   code: IoMessageCode;
   description: string;
-  level: string;
+  level: IoMessageLevel;
   interface?: any;
 }
 

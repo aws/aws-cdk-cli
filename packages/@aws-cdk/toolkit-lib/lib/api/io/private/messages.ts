@@ -76,6 +76,15 @@ export const error = <T>(message: string, code: VALID_CODE, payload?: T) => {
   });
 };
 
+export const message = <T>(message: string, code: CodeInfo, payload: T) => {
+  return formatMessage({
+    level: code.level,
+    code: code.code,
+    message,
+    data: payload,
+  });
+}
+
 /**
  * Creates a result level message and represents the most important message for a given action.
  *
