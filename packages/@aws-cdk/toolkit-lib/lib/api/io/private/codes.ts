@@ -179,8 +179,3 @@ export const CODES = {
     level: 'error',
   }),
 };
-
-// If we give CODES a type with key: IoMessageCode,
-// this dynamically generated type will generalize to allow all IoMessageCodes.
-// Instead, we will validate that VALID_CODE must be IoMessageCode with the '&'.
-export type VALID_CODE = keyof typeof CODES & IoMessageCode;

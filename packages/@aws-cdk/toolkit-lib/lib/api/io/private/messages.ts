@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import type { IoMessageCodeCategory, IoMessageLevel } from '../io-message';
-import { CodeInfo, CODES, type VALID_CODE } from './codes';
+import { CodeInfo, CODES } from './codes';
 import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage } from './types';
 
 /**
@@ -8,7 +8,7 @@ import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage 
  * Handles string interpolation, format strings, and object parameter styles.
  * Applies optional styling and prepares the final message for logging.
  */
-export function formatMessage<T>(msg: Optional<SimplifiedMessage<T>, 'code'>, category: IoMessageCodeCategory = 'TOOLKIT'): ActionLessMessage<T> {
+function formatMessage<T>(msg: Optional<SimplifiedMessage<T>, 'code'>, category: IoMessageCodeCategory = 'TOOLKIT'): ActionLessMessage<T> {
   return {
     time: new Date(),
     level: msg.level,
@@ -34,7 +34,7 @@ export function defaultMessageCode(level: IoMessageLevel, category: IoMessageCod
  * Requests a yes/no confirmation from the IoHost.
  */
 export const confirm = (
-  code: VALID_CODE,
+  code: CodeInfo,
   question: string,
   motivation: string,
   defaultResponse: boolean,
@@ -50,14 +50,14 @@ export const confirm = (
 };
 
 /**
- * Prompt for a a response from the IoHost.
+ * Prompt for a response from the IoHost.
  */
-export const prompt = <T, U>(code: VALID_CODE, message: string, defaultResponse: U, payload?: T): ActionLessRequest<T, U> => {
+export const prompt = <T, U>(code: CodeInfo, message: string, defaultResponse: U, payload?: T): ActionLessRequest<T, U> => {
   return {
     defaultResponse,
     ...formatMessage({
-      level: 'info',
-      code,
+      level: code.level,
+      code: code.code,
       message,
       data: payload,
     }),

@@ -335,7 +335,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
           const question = `${motivation}\nDo you wish to deploy these changes`;
           // @todo reintroduce concurrency and corked logging in CliHost
-          const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5060', question, motivation, true, concurrency));
+          const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5060, question, motivation, true, concurrency));
           if (!confirmed) {
             throw new ToolkitError('Aborted by user');
           }
@@ -414,7 +414,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               if (options.force) {
                 await ioHost.notify(warn(`${motivation}. Rolling back first (--force).`));
               } else {
-                const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5050', question, motivation, true, concurrency));
+                const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5050, question, motivation, true, concurrency));
                 if (!confirmed) {
                   throw new ToolkitError('Aborted by user');
                 }
@@ -439,7 +439,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               if (options.force) {
                 await ioHost.notify(warn(`${motivation}. Proceeding with regular deployment (--force).`));
               } else {
-                const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5050', question, motivation, true, concurrency));
+                const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5050, question, motivation, true, concurrency));
                 if (!confirmed) {
                   throw new ToolkitError('Aborted by user');
                 }
@@ -718,7 +718,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const motivation = 'Destroying stacks is an irreversible action';
     const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
-    const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I7010', question, motivation, true));
+    const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I7010, question, motivation, true));
     if (!confirmed) {
       return ioHost.notify(error('Aborted by user', CODES.CDK_TOOLKIT_E7010));
     }
