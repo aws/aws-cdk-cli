@@ -1,5 +1,4 @@
 import { IoMessageCode, IoMessageLevel } from '../io-message';
-// import { SuccessfulDeployStackResult } from '../../aws-cdk';
 
 export interface CodeInfo {
   code: IoMessageCode;
