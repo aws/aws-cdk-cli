@@ -107,7 +107,7 @@ export interface BootstrappingParameterValues {
   /**
    * Identifier to distinguish multiple bootstrapped environments
    * The default qualifier is an arbitrary but unique string
-   * 
+   *
    * @default - 'hnb659fds'
    */
   readonly qualifier?: string;
@@ -173,8 +173,6 @@ export class BootstrappingParameters {
 /**
  * Source configuration for bootstrap operations
  */
-// export type BootstrapSource = { source: 'default' } | { source: 'custom'; templateFile: string };
-
 export class BootstrapSource {
   /**
    * Use the default bootstrap template
