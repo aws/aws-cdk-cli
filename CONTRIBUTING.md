@@ -1,4 +1,4 @@
-# Contributing to the AWS Cloud Development Kit CLI
+# Contributing to the AWS Cloud Development Kit Toolkit
 
 The AWS Cloud Development Kit (AWS CDK) is an open-source software development
 framework that you can contribute to. We value community contributions which
