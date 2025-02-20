@@ -9,16 +9,3 @@ export interface ToolkitServices {
   sdkProvider: SdkProvider;
   ioHost: ActionAwareIoHost;
 }
-
-export interface StackData {
-  assemblyDirectory: string;
-  stacksCount: number;
-  stackIds: string[];
-  stack: {
-    stackName: string;
-    hierarchicalId: string;
-    template: any;
-    stringifiedJson: string;
-    stringifiedYaml: string;
-  };
-}

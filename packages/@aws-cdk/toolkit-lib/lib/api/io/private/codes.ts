@@ -1,4 +1,5 @@
 import { IoMessageCode, IoMessageLevel } from '../io-message';
+// import { SuccessfulDeployStackResult } from '../../aws-cdk';
 
 export interface CodeInfo {
   code: IoMessageCode;
@@ -28,11 +29,13 @@ export const CODES = {
     code: 'CDK_TOOLKIT_I1901',
     description: 'Provides stack data',
     level: 'result',
+    interface: 'StackData',
   }),
   CDK_TOOLKIT_I1902: codeInfo({
     code: 'CDK_TOOLKIT_I1902',
     description: 'Successfully deployed stacks',
     level: 'result',
+    interface: 'AssemblyData',
   }),
 
   // 2: List
@@ -61,6 +64,7 @@ export const CODES = {
     code: 'CDK_TOOLKIT_I5001',
     description: 'Provides total time in deploy action, including synth and rollback',
     level: 'info',
+    interface: 'Duration',
   }),
   CDK_TOOLKIT_I5002: codeInfo({
     code: 'CDK_TOOLKIT_I5002',
@@ -75,17 +79,18 @@ export const CODES = {
   CDK_TOOLKIT_I5050: codeInfo({
     code: 'CDK_TOOLKIT_I5050',
     description: 'Confirm rollback during deployment',
-    level: 'response',
+    level: 'info',
   }),
   CDK_TOOLKIT_I5060: codeInfo({
     code: 'CDK_TOOLKIT_I5060',
     description: 'Confirm deploy security sensitive changes',
-    level: 'response',
+    level: 'info',
   }),
   CDK_TOOLKIT_I5900: codeInfo({
     code: 'CDK_TOOLKIT_I5900',
     description: 'Deployment results on success',
     level: 'result',
+    interface: 'SuccessfulDeployStackResult',
   }),
 
   CDK_TOOLKIT_E5001: codeInfo({
@@ -121,7 +126,7 @@ export const CODES = {
   CDK_TOOLKIT_I7010: codeInfo({
     code: 'CDK_TOOLKIT_I7010',
     description: 'Confirm destroy stacks',
-    level: 'response',
+    level: 'info',
   }),
 
   CDK_TOOLKIT_E7010: codeInfo({

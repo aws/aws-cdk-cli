@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import type { IoMessageCodeCategory, IoMessageLevel } from '../io-message';
-import { CodeInfo, type VALID_CODE } from './codes';
+import { CodeInfo, CODES, type VALID_CODE } from './codes';
 import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage } from './types';
 
 /**
@@ -12,7 +12,7 @@ export function formatMessage<T>(msg: Optional<SimplifiedMessage<T>, 'code'>, ca
   return {
     time: new Date(),
     level: msg.level,
-    code: msg.code ?? defaultMessageCode(msg.level, category),
+    code: msg.code ?? defaultMessageCode(msg.level, category).code,
     message: msg.message,
     data: msg.data,
   };
@@ -22,11 +22,12 @@ export function formatMessage<T>(msg: Optional<SimplifiedMessage<T>, 'code'>, ca
  * Build a message code from level and category. The code must be valid for this function to pass.
  * Otherwise it returns a ToolkitError.
  */
-export function defaultMessageCode(level: IoMessageLevel, category: IoMessageCodeCategory = 'TOOLKIT'): VALID_CODE {
+export function defaultMessageCode(level: IoMessageLevel, category: IoMessageCodeCategory = 'TOOLKIT'): CodeInfo {
   const levelIndicator = level === 'error' ? 'E' :
     level === 'warn' ? 'W' :
       'I';
-  return `CDK_${category}_${levelIndicator}0000` as VALID_CODE;
+  const code = `CDK_${category}_${levelIndicator}0000` as keyof typeof CODES;
+  return CODES[code];
 }
 
 /**
@@ -67,23 +68,23 @@ export const prompt = <T, U>(code: VALID_CODE, message: string, defaultResponse:
  * Creates an error level message.
  * Errors must always have a unique code.
  */
-export const error = <T>(message: string, code: VALID_CODE, payload?: T) => {
+export const error = <T>(message: string, code: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'error',
-    code,
+    code: code.code,
     message,
     data: payload,
   });
 };
 
-export const message = <T>(message: string, code: CodeInfo, payload: T) => {
-  return formatMessage({
-    level: code.level,
-    code: code.code,
-    message,
-    data: payload,
-  });
-}
+// export const message = <T>(message: string, code: CodeInfo, payload: T) => {
+//   return formatMessage({
+//     level: code.level,
+//     code: code.code,
+//     message,
+//     data: payload,
+//   });
+// };
 
 /**
  * Creates a result level message and represents the most important message for a given action.
@@ -104,10 +105,10 @@ export const result = <T>(message: string, code: CodeInfo, payload: T) => {
 /**
  * Creates a warning level message.
  */
-export const warn = <T>(message: string, code?: VALID_CODE, payload?: T) => {
+export const warn = <T>(message: string, code?: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'warn',
-    code,
+    code: code?.code,
     message,
     data: payload,
   });
@@ -116,10 +117,10 @@ export const warn = <T>(message: string, code?: VALID_CODE, payload?: T) => {
 /**
  * Creates an info level message.
  */
-export const info = <T>(message: string, code?: VALID_CODE, payload?: T) => {
+export const info = <T>(message: string, code?: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'info',
-    code,
+    code: code?.code,
     message,
     data: payload,
   });
@@ -128,10 +129,10 @@ export const info = <T>(message: string, code?: VALID_CODE, payload?: T) => {
 /**
  * Creates a debug level message.
  */
-export const debug = <T>(message: string, code?: VALID_CODE, payload?: T) => {
+export const debug = <T>(message: string, code?: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'debug',
-    code,
+    code: code?.code,
     message,
     data: payload,
   });
@@ -140,10 +141,10 @@ export const debug = <T>(message: string, code?: VALID_CODE, payload?: T) => {
 /**
  * Creates a trace level message.
  */
-export const trace = <T>(message: string, code?: VALID_CODE, payload?: T) => {
+export const trace = <T>(message: string, code?: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'trace',
-    code,
+    code: code?.code,
     message,
     data: payload,
   });
@@ -153,10 +154,10 @@ export const trace = <T>(message: string, code?: VALID_CODE, payload?: T) => {
  * Creates an info level success message in green text.
  * @deprecated
  */
-export const success = <T>(message: string, code?: VALID_CODE, payload?: T) => {
+export const success = <T>(message: string, code?: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'info',
-    code,
+    code: code?.code,
     message: chalk.green(message),
     data: payload,
   });
@@ -166,10 +167,10 @@ export const success = <T>(message: string, code?: VALID_CODE, payload?: T) => {
  * Creates an info level message in bold text.
  * @deprecated
  */
-export const highlight = <T>(message: string, code?: VALID_CODE, payload?: T) => {
+export const highlight = <T>(message: string, code?: CodeInfo, payload?: T) => {
   return formatMessage({
     level: 'info',
-    code,
+    code: code?.code,
     message: chalk.bold(message),
     data: payload,
   });
