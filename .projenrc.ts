@@ -4,6 +4,7 @@ import { Stability } from 'projen/lib/cdk';
 import { BundleCli } from './projenrc/bundle';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
+import { CodeCovWorkflow } from './projenrc/codecov';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -1276,6 +1277,11 @@ new CdkCliIntegTestsWorkflow(repo, {
     cliLib.name,
     cdkAliasPackage.name,
   ],
+});
+
+new CodeCovWorkflow(repo, {
+  restrictToRepos: ['aws-cdk-cli/aws-cdk-cli'],
+  packages: [cli.name],
 });
 
 repo.synth();
