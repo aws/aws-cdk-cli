@@ -8,7 +8,7 @@ import type { CloudFormationStack } from './cloudformation';
 import { NestedStackTemplates, loadCurrentTemplateWithNestedStacks } from './nested-stack-helpers';
 import { info } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/error';
+import { formatErrorMessage } from '../../util/format-error';
 import { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 import { isHotswappableAppSyncChange } from '../hotswap/appsync-mapping-templates';
 import { isHotswappableCodeBuildProjectChange } from '../hotswap/code-build-projects';

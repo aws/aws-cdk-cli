@@ -5,9 +5,8 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { CloudAssemblyBuilder } from '@aws-cdk/cx-api';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expect } from '@jest/globals';
-import { WorkGraph } from '../lib/util/work-graph';
-import { WorkGraphBuilder } from '../lib/util/work-graph-builder';
-import { AssetBuildNode, AssetPublishNode, StackNode, WorkNode } from '../lib/util/work-graph-types';
+import { WorkGraph, WorkGraphBuilder } from '../../../lib/api/work-graph';
+import type { AssetBuildNode, AssetPublishNode, StackNode, WorkNode } from '../../../lib/api/work-graph';
 
 let rootBuilder: CloudAssemblyBuilder;
 beforeEach(() => {

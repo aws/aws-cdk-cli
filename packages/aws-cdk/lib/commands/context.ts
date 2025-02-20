@@ -1,11 +1,11 @@
 import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
 import { Context } from '../api/context';
+import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';
 import * as version from '../cli/version';
 import { error, warning, info, result } from '../logging';
 import { ToolkitError } from '../toolkit/error';
-import { renderTable } from '../util';
 
 /**
  * Options for the context command
