@@ -215,10 +215,15 @@ export class JsiiBuild extends pj.Component {
       // Only run in CI
       condition: 'node -e "if (!process.env.CI) process.exit(1)"',
     });
+
+    // Do not spawn 'package-all' automatically as part of 'package', the jsii packaging will
+    // be done as part of the release task.
+    /*
     tsProject.packageTask.spawn(this.packageAllTask, {
       // Don't run in CI
       condition: 'node -e "if (process.env.CI) process.exit(1)"',
     });
+    */
 
     const targets: Record<string, any> = {};
 
