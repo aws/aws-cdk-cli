@@ -165,7 +165,7 @@
       "description": "Prepare the project for compilation",
       "steps": [
         {
-          "exec": "ts-node scripts/user-input-gen.ts"
+          "exec": "ts-node --prefer-ts-exts scripts/user-input-gen.ts"
         },
         {
           "exec": "./generate.sh"

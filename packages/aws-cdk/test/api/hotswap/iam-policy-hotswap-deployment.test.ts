@@ -1,5 +1,5 @@
 import { StackStatus } from '@aws-sdk/client-cloudformation';
-import * as setup from './hotswap-test-setup';
+import * as setup from '../_helpers/hotswap-test-setup';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { silentTest } from '../../util/silent';
 

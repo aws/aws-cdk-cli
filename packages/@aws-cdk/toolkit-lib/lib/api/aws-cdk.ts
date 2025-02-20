@@ -8,29 +8,27 @@ export { Settings } from '../../../../aws-cdk/lib/api/settings';
 export { tagsForStack } from '../../../../aws-cdk/lib/api/tags';
 export { DEFAULT_TOOLKIT_STACK_NAME } from '../../../../aws-cdk/lib/api/toolkit-info';
 export { ResourceMigrator } from '../../../../aws-cdk/lib/api/resource-import';
+export { StackActivityProgress } from '../../../../aws-cdk/lib/api/stack-events';
+export { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../../../../aws-cdk/lib/api/logs';
+export { WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
 
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
 
+// utils
+export { formatTime } from '../../../../aws-cdk/lib/util/string-manipulation';
+export { formatErrorMessage } from '../../../../aws-cdk/lib/util/format-error';
+export { obscureTemplate, serializeStructure } from '../../../../aws-cdk/lib/util/serialize';
+export { validateSnsTopicArn } from '../../../../aws-cdk/lib/util/cloudformation';
+export { splitBySize } from '../../../../aws-cdk/lib/util/objects';
+
 // @todo APIs not clean import
 export { HotswapMode } from '../../../../aws-cdk/lib/api/hotswap/common';
-export { StackActivityProgress } from '../../../../aws-cdk/lib/api/util/cloudformation/stack-activity-monitor';
+export { HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap/common';
 export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/util/rwlock';
-export { formatTime } from '../../../../aws-cdk/lib/api/util/string-manipulation';
 
 // @todo Not yet API probably should be
-export { formatErrorMessage } from '../../../../aws-cdk/lib/util/error';
-export { obscureTemplate, serializeStructure } from '../../../../aws-cdk/lib/serialize';
 export { loadTree, some } from '../../../../aws-cdk/lib/tree';
-export { splitBySize } from '../../../../aws-cdk/lib/util';
-export { validateSnsTopicArn } from '../../../../aws-cdk/lib/util/validate-notification-arn';
-export { WorkGraph } from '../../../../aws-cdk/lib/util/work-graph';
-export type { Concurrency } from '../../../../aws-cdk/lib/util/work-graph';
-export { WorkGraphBuilder } from '../../../../aws-cdk/lib/util/work-graph-builder';
-export type { AssetBuildNode, AssetPublishNode, StackNode } from '../../../../aws-cdk/lib/util/work-graph-types';
-export { CloudWatchLogEventMonitor } from '../../../../aws-cdk/lib/api/logs/logs-monitor';
-export { findCloudWatchLogGroups } from '../../../../aws-cdk/lib/api/logs/find-cloudwatch-logs';
-export { HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap/common';
 
 // @todo Cloud Assembly and Executable - this is a messy API right now
 export { CloudAssembly, sanitizePatterns, type StackDetails, StackCollection, ExtendedStackSelection } from '../../../../aws-cdk/lib/api/cxapp/cloud-assembly';

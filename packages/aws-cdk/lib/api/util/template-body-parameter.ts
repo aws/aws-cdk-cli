@@ -5,9 +5,9 @@ import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { debug, error } from '../../logging';
-import { toYAML } from '../../serialize';
 import { ToolkitError } from '../../toolkit/error';
 import { contentHash } from '../../util/content-hash';
+import { toYAML } from '../../util/serialize';
 import { type AssetManifestBuilder } from '../deployments';
 import { EnvironmentResources } from '../environment';
 

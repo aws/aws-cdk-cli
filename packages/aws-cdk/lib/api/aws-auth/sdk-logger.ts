@@ -1,7 +1,7 @@
 import { inspect, format } from 'util';
 import { Logger } from '@smithy/types';
-import { replacerBufferWithInfo } from '../../serialize';
 import type { IIoHost } from '../../toolkit/cli-io-host';
+import { replacerBufferWithInfo } from '../../util/serialize';
 
 export class SdkToCliLogger implements Logger {
   private readonly ioHost: IIoHost;

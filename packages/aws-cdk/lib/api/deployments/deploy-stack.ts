@@ -31,12 +31,12 @@ import { tryHotswapDeployment } from './hotswap-deployments';
 import { debug, info, warn } from '../../cli/messages';
 import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/error';
+import { formatErrorMessage } from '../../util/format-error';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
 import type { EnvironmentResources } from '../environment';
 import { CfnEvaluationException } from '../evaluate-cloudformation-template';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
-import { StackActivityMonitor, type StackActivityProgress } from '../util/cloudformation/stack-activity-monitor';
+import { StackActivityMonitor, type StackActivityProgress } from '../stack-events';
 import { StringWithoutPlaceholders } from '../util/placeholders';
 import { type TemplateBodyParameter, makeBodyParameter } from '../util/template-body-parameter';
 

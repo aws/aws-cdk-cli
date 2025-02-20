@@ -12,14 +12,14 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { AssetManifest, FileManifestEntry } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
+import type { Deployments } from './deployments';
 import { debug } from '../../cli/messages';
-import { deserializeStructure } from '../../serialize';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/error';
+import { formatErrorMessage } from '../../util/format-error';
+import { deserializeStructure } from '../../util/serialize';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
-import type { Deployments } from './deployments';
-import { StackStatus } from '../util/cloudformation/stack-status';
+import { StackStatus } from '../stack-events';
 import { makeBodyParameter, TemplateBodyParameter } from '../util/template-body-parameter';
 
 export type ResourcesToImport = ResourceToImport[];
