@@ -1,4 +1,4 @@
-# AWS CDK Toolkit
+# AWS CDK Toolkit CLI
 <!--BEGIN STABILITY BANNER-->
 
 ---
