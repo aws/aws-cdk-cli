@@ -6,11 +6,13 @@ import {
   ExecuteChangeSetCommand,
   Stack,
 } from '@aws-sdk/client-cloudformation';
+import { bold } from 'chalk';
 import { BootstrapSource } from '../../lib/actions/bootstrap';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {
   MockSdkProvider,
+  MockSdk,
   SdkProvider,
   mockCloudFormationClient,
   path,
@@ -76,9 +78,9 @@ function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]):
   } as Stack;
 }
 
-async function runBootstrap(options?: { source?: BootstrapSource }) {
+async function runBootstrap(options?: { environments?: string[]; source?: BootstrapSource }) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
-  return toolkit.bootstrap(cx, options);
+  return toolkit.bootstrap(cx, options?.environments ?? [], { source: options?.source });
 }
 
 function expectSuccessfulBootstrap() {
@@ -92,6 +94,93 @@ function expectSuccessfulBootstrap() {
 }
 
 describe('bootstrap', () => {
+  describe('with user-specified environments', () => {
+    let originalSdk = mockSdkProvider.forEnvironment;
+    beforeEach(() => {
+      const mockForEnvironment = jest.fn().mockImplementation(() => {
+        return { sdk: new MockSdk() };
+      });
+      mockSdkProvider.forEnvironment = mockForEnvironment;
+    });
+
+    afterAll(() => {
+      mockSdkProvider.forEnvironment = originalSdk;
+    });
+
+    test('bootstraps specified environments', async () => {
+      // GIVEN
+      const mockStack1 = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_1' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_1' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      const mockStack2 = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_2' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_2' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack1);
+      setupMockCloudFormationClient(mockStack2);
+
+      // WHEN
+      await runBootstrap({ environments: ['aws://123456789012/us-east-1', 'aws://210987654321/eu-west-1'] });
+
+      // THEN
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')}: bootstrapping...`),
+      }));
+
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining(`${bold('aws://210987654321/eu-west-1')}: bootstrapping...`),
+      }));
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('✅'),
+      }));
+    });
+
+    test('handles errors in user-specified environments', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      // Mock an access denied error
+      const accessDeniedError = new Error('Access Denied');
+      accessDeniedError.name = 'AccessDeniedException';
+      mockCloudFormationClient
+        .on(CreateChangeSetCommand)
+        .rejects(accessDeniedError);
+
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Access Denied');
+
+      // Get all error notifications
+      const errorCalls = ioHost.notifySpy.mock.calls
+        .filter(call => call[0].level === 'error')
+        .map(call => call[0]);
+
+      // Verify error notifications
+      expect(errorCalls).toContainEqual(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('❌'),
+      }));
+      expect(errorCalls).toContainEqual(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')} failed: Access Denied`),
+      }));
+    });
+
+    test('throws error for invalid environment format', async () => {
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['invalid-format'] }))
+        .rejects.toThrow('Expected environment name in format \'aws://<account>/<region>\', got: invalid-format');
+    });
+  });
+
   describe('template sources', () => {
     test('uses default template when no source is specified', async () => {
       // GIVEN
@@ -109,31 +198,7 @@ describe('bootstrap', () => {
       expectSuccessfulBootstrap();
     });
 
-    test('uses custom template when specified (old api)', async () => {
-      // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'CUSTOM_BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'CUSTOM_BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
-      // WHEN
-
-      await runBootstrap({
-        source: {
-          source: 'custom',
-          templateFile: path.join(rootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'),
-        },
-      });
-
-      // THEN
-      const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
-      expect(createChangeSetCalls.length).toBeGreaterThan(0);
-      expectSuccessfulBootstrap();
-    });
-
-    test('uses custom template when specified (new api)', async () => {
+    test('uses custom template when specified', async () => {
       // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
@@ -162,10 +227,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await expect(runBootstrap({
-        source: {
-          source: 'custom',
-          templateFile: path.join(rootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'),
-        },
+        source: BootstrapSource.customTemplate(path.join(rootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml')),
       })).rejects.toThrow('Invalid template file');
 
       // THEN

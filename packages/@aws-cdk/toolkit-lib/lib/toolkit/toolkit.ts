@@ -4,7 +4,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
-import { BootstrapOptions } from '../actions/bootstrap';
+import { BootstrapOptions, BootstrappingParameters, BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -22,6 +22,7 @@ import { ToolkitError } from '../api/errors';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
 import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace } from '../api/io/private';
 import { pLimit } from '../util/concurrency';
+import { environmentsFromDescriptors } from '../util/environments';
 
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.
@@ -158,17 +159,28 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(cx: ICloudAssemblySource, options: BootstrapOptions = {}): Promise<void> {
+  public async bootstrap(cx: ICloudAssemblySource, userEnvironmentSpecs: string[], options: BootstrapOptions = {}): Promise<void> {
     const ioHost = withAction(this.ioHost, 'bootstrap');
     const assembly = await this.assemblyFromSource(cx);
-    const stackCollection = assembly.selectStacksV2({
-      patterns: ['**'],
-      strategy: StackSelectionStrategy.ALL_STACKS,
-    });
 
-    const bootstrapper = new Bootstrapper(options.source, { ioHost: withAction(this.ioHost, 'bootstrap'), action: 'bootstrap' });
+    let environments;
+    if (userEnvironmentSpecs.length) {
+      environments = environmentsFromDescriptors(userEnvironmentSpecs);
+    } else {
+      // select all environments we can find, from stacks being bootstrapped
+      const stackCollection = assembly.selectStacksV2({
+        patterns: ['**'],
+        strategy: StackSelectionStrategy.ALL_STACKS,
+      });
+      environments = stackCollection.stackArtifacts.map(stack => stack.environment);
+    }
 
-    const environments = stackCollection.stackArtifacts.map(stack => stack.environment);
+    const source = options.source ?? BootstrapSource.default();
+
+    const parameters = options.parameters ?? BootstrappingParameters.default();
+
+    const bootstrapper = new Bootstrapper(source.render(), { ioHost: withAction(this.ioHost, 'bootstrap'), action: 'bootstrap' });
+
     const sdkProvider = await this.sdkProvider('bootstrap');
     const limit = pLimit(20);
 
@@ -179,7 +191,16 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
       try {
         const { toolkitStackName } = this;
-        const bootstrapResult = await bootstrapper.bootstrapEnvironment(environment, sdkProvider, { ...options, toolkitStackName });
+        const bootstrapResult = await bootstrapper.bootstrapEnvironment(
+          environment,
+          sdkProvider,
+          {
+            ...options,
+            toolkitStackName,
+            source: source.render(),
+            parameters: parameters.render(),
+          },
+        );
         const message = bootstrapResult.noOp
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
