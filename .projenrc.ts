@@ -1189,6 +1189,14 @@ const cdkCliWrapper = configureProject(
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
     // Watch 2 directories at once
     releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
+
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          branches: 62,
+        },
+      },
+    }),
   }),
 );
 
