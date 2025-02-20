@@ -1,5 +1,5 @@
-import { WorkGraph } from '../lib/util/work-graph';
-import { AssetBuildNode, AssetPublishNode, DeploymentState, StackNode } from '../lib/util/work-graph-types';
+import { WorkGraph, DeploymentState } from '../../../lib/api/work-graph';
+import type { AssetBuildNode, AssetPublishNode, StackNode } from '../../../lib/api/work-graph';
 
 const DUMMY: any = 'DUMMY';
 

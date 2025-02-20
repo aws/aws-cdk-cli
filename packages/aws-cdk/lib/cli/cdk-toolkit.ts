@@ -25,9 +25,10 @@ import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
+import { StackActivityProgress } from '../api/stack-events';
 import { tagsForStack, type Tag } from '../api/tags';
-import { StackActivityProgress } from '../api/util/cloudformation/stack-activity-monitor';
-import { formatTime } from '../api/util/string-manipulation';
+import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, WorkGraph } from '../api/work-graph';
+import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import {
   generateCdkApp,
   generateStack,
@@ -49,15 +50,13 @@ import {
 import { printSecurityDiff, printStackDiff, RequireApproval } from '../diff';
 import { listStacks } from '../list-stacks';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { deserializeStructure, obscureTemplate, serializeStructure } from '../serialize';
 import { CliIoHost } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
 import { numberFromBool, partition } from '../util';
-import { formatErrorMessage } from '../util/error';
-import { validateSnsTopicArn } from '../util/validate-notification-arn';
-import { Concurrency, WorkGraph } from '../util/work-graph';
-import { WorkGraphBuilder } from '../util/work-graph-builder';
-import { AssetBuildNode, AssetPublishNode, StackNode } from '../util/work-graph-types';
+import { validateSnsTopicArn } from '../util/cloudformation';
+import { formatErrorMessage } from '../util/format-error';
+import { deserializeStructure, obscureTemplate, serializeStructure } from '../util/serialize';
+import { formatTime } from '../util/string-manipulation';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -4,12 +4,12 @@ import {
   type StackEvent,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from './mock-sdk';
+import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
 import {
   StackActivityMonitor,
   type IActivityPrinter,
   type StackActivity,
-} from '../../lib/api/util/cloudformation/stack-activity-monitor';
+} from '../../../lib/api/stack-events';
 
 let sdk: MockSdk;
 let printer: FakePrinter;

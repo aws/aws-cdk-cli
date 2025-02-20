@@ -1,9 +1,9 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import { AssetManifest, type IManifestEntry } from 'cdk-assets';
-import { contentHashAny } from './content-hash';
 import { WorkGraph } from './work-graph';
 import { DeploymentState, AssetBuildNode, WorkNode } from './work-graph-types';
-import { ToolkitError } from '../toolkit/error';
+import { ToolkitError } from '../../toolkit/error';
+import { contentHashAny } from '../../util/content-hash';
 
 export class WorkGraphBuilder {
   /**

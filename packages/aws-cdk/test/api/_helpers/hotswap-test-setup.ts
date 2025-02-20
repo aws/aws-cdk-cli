@@ -14,7 +14,7 @@ import {
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
 } from '../../util/mock-sdk';
-import { FakeCloudformationStack } from '../fake-cloudformation-stack';
+import { FakeCloudformationStack } from './fake-cloudformation-stack';
 
 const STACK_NAME = 'withouterrors';
 export const STACK_ID = 'stackId';

@@ -1,7 +1,7 @@
-import { parallelPromises } from './parallel';
 import { WorkNode, DeploymentState, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
-import { debug, trace } from '../logging';
-import { ToolkitError } from '../toolkit/error';
+import { debug, trace } from '../../logging';
+import { ToolkitError } from '../../toolkit/error';
+import { parallelPromises } from '../../util/parallel';
 
 export type Concurrency = number | Record<WorkNode['type'], number>;
 

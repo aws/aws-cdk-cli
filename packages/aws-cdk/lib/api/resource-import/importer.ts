@@ -9,8 +9,8 @@ import { error, info, warn } from '../../cli/messages';
 import { IIoHost, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { assertIsSuccessfulDeployStackResult, type Deployments, DeploymentMethod, ResourceIdentifierProperties, ResourcesToImport } from '../deployments';
-import { Tag } from '../tags';
-import { StackActivityProgress } from '../util/cloudformation/stack-activity-monitor';
+import type { StackActivityProgress } from '../stack-events';
+import type { Tag } from '../tags';
 
 export interface ResourceImporterProps {
   deployments: Deployments;

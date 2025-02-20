@@ -1,7 +1,7 @@
-import { ICloudFormationClient } from '../../lib/api';
-import { CloudFormationStack, Template } from '../../lib/api/deployments';
-import { StackStatus } from '../../lib/api/util/cloudformation/stack-status';
-import { MockSdk } from '../util/mock-sdk';
+import { ICloudFormationClient } from '../../../lib/api';
+import { CloudFormationStack, Template } from '../../../lib/api/deployments';
+import { StackStatus } from '../../../lib/api/stack-events';
+import { MockSdk } from '../../util/mock-sdk';
 
 export interface FakeCloudFormationStackProps {
   readonly stackName: string;

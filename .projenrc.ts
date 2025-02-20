@@ -864,7 +864,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('ts-node scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('ts-node --prefer-ts-exts scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
