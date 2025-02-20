@@ -1,4 +1,4 @@
-import { Component, github, Project } from "projen";
+import { Component, github } from "projen";
 import { JobPermission } from "projen/lib/github/workflows-model";
 import { TypeScriptProject } from "projen/lib/typescript";
 
@@ -23,7 +23,7 @@ export class CodeCovWorkflow extends Component {
       pullRequest: { branches: ['main'] },
     });
 
-    const collect = this.workflow.addJob('collect', {
+    this.workflow.addJob('collect', {
       permissions: { idToken: JobPermission.WRITE },
       if: props.restrictToRepos.map(r => `github.repository == '${r}'`).join(' || '),
       steps: [
