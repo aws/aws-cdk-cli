@@ -877,6 +877,7 @@ new JsiiBuild(cliLib, {
     javaPackage: 'software.amazon.awscdk.cli.lib.alpha',
     mavenGroupId: 'software.amazon.awscdk',
     mavenArtifactId: 'cdk-cli-lib-alpha',
+    mavenEndpoint: 'https://aws.oss.sonatype.org',
   },
   publishToPypi: {
     distName: 'aws-cdk.cli-lib-alpha',
