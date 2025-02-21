@@ -2,6 +2,8 @@ import * as util from 'node:util';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
+import { ActivityPrinterProps, CurrentActivityPrinter, HistoryActivityPrinter, IActivityPrinter } from '../cli/activity-printer';
+import { StackActivityProgress } from '../commands/deploy';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';
@@ -186,6 +188,10 @@ export class CliIoHost implements IIoHost {
   private _isTTY: boolean;
   private _logLevel: IoMessageLevel;
   private _internalIoHost?: IIoHost;
+  private _progress: StackActivityProgress = StackActivityProgress.BAR;
+
+  // Stack Activity Printer
+  private activityPrinter?: IActivityPrinter;
 
   // Corked Logging
   private corkedCounter = 0;
@@ -196,6 +202,8 @@ export class CliIoHost implements IIoHost {
     this._isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this._logLevel = props.logLevel ?? 'info';
     this._isCI = props.isCI ?? isCI();
+
+    this.setActivityProgressType();
   }
 
   /**
@@ -205,6 +213,15 @@ export class CliIoHost implements IIoHost {
     if (ioHost !== this) {
       this._internalIoHost = ioHost;
     }
+  }
+
+  /**
+   * Returns the singleton instance
+   *
+   * @default StackActivityProgress.BAR
+   */
+  public setActivityProgressType(type?: StackActivityProgress) {
+    this._progress = type ?? StackActivityProgress.BAR;
   }
 
   /**
@@ -303,6 +320,14 @@ export class CliIoHost implements IIoHost {
       return this._internalIoHost.notify(msg);
     }
 
+    if (this.isStackActivity(msg)) {
+      if (!this.activityPrinter) {
+        this.activityPrinter = this.makeActivityPrinter();
+      }
+      this.activityPrinter.notify(msg);
+      return;
+    }
+
     if (levelPriority[msg.level] > levelPriority[this.logLevel]) {
       return;
     }
@@ -315,6 +340,17 @@ export class CliIoHost implements IIoHost {
     const output = this.formatMessage(msg);
     const stream = this.selectStream(msg.level);
     stream.write(output);
+  }
+
+  /**
+   * Detect stack activity messages so they can be send to the printer.
+   */
+  private isStackActivity(msg: IoMessage<any>) {
+    return [
+      'CDK_TOOLKIT_I5501',
+      'CDK_TOOLKIT_I5502',
+      'CDK_TOOLKIT_I5503',
+    ].includes(msg.code);
   }
 
   /**
@@ -423,6 +459,29 @@ export class CliIoHost implements IIoHost {
     const pad = (n: number): string => n.toString().padStart(2, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
+
+  private makeActivityPrinter() {
+    const props: ActivityPrinterProps = {
+      stream: this.selectStream('info'),
+    };
+
+    // if log level is tracing or debug, we default to the full history printer
+    const verboseLogging = levelPriority[this.logLevel] > levelPriority.info;
+
+    // On Windows we cannot use fancy output
+    const isWindows = process.platform === 'win32';
+
+    // On some CI systems (such as CircleCI) output still reports as a TTY so we also
+    // need an individual check for whether we're running on CI.
+    // see: https://discuss.circleci.com/t/circleci-terminal-is-a-tty-but-term-is-not-set/9965
+    const fancyOutputAvailable = !isWindows && this.isTTY && !this.isCI;
+
+    if (fancyOutputAvailable && !verboseLogging && this._progress === StackActivityProgress.BAR) {
+      return new CurrentActivityPrinter(props);
+    }
+
+    return new HistoryActivityPrinter(props);
+  }
 }
 
 /**
@@ -474,3 +533,4 @@ const styleMap: Record<IoMessageLevel, (str: string) => string> = {
 export function isCI(): boolean {
   return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
 }
+

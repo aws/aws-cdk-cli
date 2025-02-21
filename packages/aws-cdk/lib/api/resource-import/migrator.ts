@@ -67,7 +67,6 @@ export class ResourceMigrator {
       roleArn: options.roleArn,
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
-      progress: options.progress,
       rollback: options.rollback,
     });
 

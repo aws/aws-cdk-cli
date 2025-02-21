@@ -25,10 +25,10 @@ import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
-import { StackActivityProgress } from '../api/stack-events';
 import { tagsForStack, type Tag } from '../api/tags';
 import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, type WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
+import { StackActivityProgress } from '../commands/deploy';
 import {
   generateCdkApp,
   generateStack,
@@ -453,7 +453,6 @@ export class CdkToolkit {
             force: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
-            progress,
             ci: options.ci,
             rollback,
             hotswap: options.hotswap,
@@ -578,6 +577,7 @@ export class CdkToolkit {
     if (concurrency > 1 && options.progress && options.progress != StackActivityProgress.EVENTS) {
       warning('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
     }
+    this.ioHost.setActivityProgressType(progress);
 
     const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
       stack,
@@ -805,12 +805,12 @@ export class CdkToolkit {
     // Import the resources according to the given mapping
     info('%s: importing resources into stack...', chalk.bold(stack.displayName));
     const tags = tagsForStack(stack);
+    this.ioHost.setActivityProgressType(options.progress);
     await resourceImporter.importResourcesFromMap(actualImport, {
       roleArn: options.roleArn,
       tags,
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
-      progress: options.progress,
       rollback: options.rollback,
     });
 

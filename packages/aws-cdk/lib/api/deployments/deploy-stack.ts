@@ -36,7 +36,7 @@ import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
 import type { EnvironmentResources } from '../environment';
 import { CfnEvaluationException } from '../evaluate-cloudformation-template';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
-import { StackActivityMonitor, type StackActivityProgress } from '../stack-events';
+import { StackActivityMonitor } from '../stack-events';
 import { StringWithoutPlaceholders } from '../util/placeholders';
 import { type TemplateBodyParameter, makeBodyParameter } from '../util/template-body-parameter';
 
@@ -152,14 +152,6 @@ export interface DeployStackOptions {
    * @default false
    */
   readonly usePreviousParameters?: boolean;
-
-  /**
-   * Display mode for stack deployment progress.
-   *
-   * @default StackActivityProgress.Bar stack events will be displayed for
-   *   the resource currently being deployed.
-   */
-  readonly progress?: StackActivityProgress;
 
   /**
    * Deploy even if the deployed template is identical to the one we are about to deploy.
@@ -612,14 +604,16 @@ class FullCloudFormationDeployment {
   }
 
   private async monitorDeployment(startTime: Date, expectedChanges: number | undefined): Promise<SuccessfulDeployStackResult> {
-    const monitor = this.options.quiet
-      ? undefined
-      : StackActivityMonitor.withDefaultPrinter(this.cfn, this.stackName, this.stackArtifact, {
-        resourcesTotal: expectedChanges,
-        progress: this.options.progress,
-        changeSetCreationTime: startTime,
-        ci: this.options.ci,
-      }).start();
+    const monitor = new StackActivityMonitor({
+      cfn: this.cfn,
+      stack: this.stackArtifact,
+      stackName: this.stackName,
+      resourcesTotal: expectedChanges,
+      ioHost: this.ioHost,
+      action: this.action,
+      changeSetCreationTime: startTime,
+    });
+    await monitor.start();
 
     let finalState = this.cloudFormationStack;
     try {
@@ -631,9 +625,9 @@ class FullCloudFormationDeployment {
       }
       finalState = successStack;
     } catch (e: any) {
-      throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor?.errors));
+      throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
     } finally {
-      await monitor?.stop();
+      await monitor.stop();
     }
     debug(this.action, format('Stack %s has completed updating', this.stackName));
     return {
@@ -696,11 +690,14 @@ export async function destroyStack(options: DestroyStackOptions, { ioHost, actio
   if (!currentStack.exists) {
     return;
   }
-  const monitor = options.quiet
-    ? undefined
-    : StackActivityMonitor.withDefaultPrinter(cfn, deployName, options.stack, {
-      ci: options.ci,
-    }).start();
+  const monitor = new StackActivityMonitor({
+    cfn,
+    stack: options.stack,
+    stackName: deployName,
+    ioHost,
+    action,
+  });
+  await monitor.start();
 
   try {
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
@@ -709,7 +706,7 @@ export async function destroyStack(options: DestroyStackOptions, { ioHost, actio
       throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
     }
   } catch (e: any) {
-    throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor?.errors));
+    throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
   } finally {
     if (monitor) {
       await monitor.stop();

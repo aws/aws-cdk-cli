@@ -31,7 +31,7 @@ import { formatErrorMessage } from '../../util/format-error';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
-import { StackActivityMonitor, StackActivityProgress, StackEventPoller, RollbackChoice } from '../stack-events';
+import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 import { makeBodyParameter } from '../util/template-body-parameter';
@@ -134,14 +134,6 @@ export interface DeployStackOptions {
    * @default true
    */
   readonly usePreviousParameters?: boolean;
-
-  /**
-   * Display mode for stack deployment progress.
-   *
-   * @default - StackActivityProgress.Bar - stack events will be displayed for
-   *   the resource currently being deployed.
-   */
-  readonly progress?: StackActivityProgress;
 
   /**
    * Whether we are on a CI system
@@ -254,14 +246,6 @@ export interface RollbackStackOptions {
    * @default - No orphaning
    */
   readonly orphanLogicalIds?: string[];
-
-  /**
-   * Display mode for stack deployment progress.
-   *
-   * @default - StackActivityProgress.Bar - stack events will be displayed for
-   *   the resource currently being deployed.
-   */
-  readonly progress?: StackActivityProgress;
 
   /**
    * Whether to validate the version of the bootstrap stack permissions
@@ -474,7 +458,6 @@ export class Deployments {
       force: options.force,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
-      progress: options.progress,
       ci: options.ci,
       rollback: options.rollback,
       hotswap: options.hotswap,
@@ -565,11 +548,14 @@ export class Deployments {
           throw new ToolkitError(`Unexpected rollback choice: ${cloudFormationStack.stackStatus.rollbackChoice}`);
       }
 
-      const monitor = options.quiet
-        ? undefined
-        : StackActivityMonitor.withDefaultPrinter(cfn, deployName, options.stack, {
-          ci: options.ci,
-        }).start();
+      const monitor = new StackActivityMonitor({
+        cfn,
+        stack: options.stack,
+        stackName: deployName,
+        ioHost: this.ioHost,
+        action: this.action,
+      });
+      await monitor.start();
 
       let stackErrorMessage: string | undefined = undefined;
       let finalStackState = cloudFormationStack;
@@ -582,14 +568,14 @@ export class Deployments {
         }
         finalStackState = successStack;
 
-        const errors = monitor?.errors?.join(', ');
+        const errors = monitor.errors.join(', ');
         if (errors) {
           stackErrorMessage = errors;
         }
       } catch (e: any) {
-        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor?.errors);
+        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors);
       } finally {
-        await monitor?.stop();
+        await monitor.stop();
       }
 
       if (finalStackState.stackStatus.isRollbackSuccess || !stackErrorMessage) {

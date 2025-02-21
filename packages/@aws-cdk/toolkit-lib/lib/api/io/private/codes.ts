@@ -27,9 +27,13 @@ export const CODES = {
   CDK_TOOLKIT_I5031: 'Informs about any log groups that are traced as part of the deployment',
   CDK_TOOLKIT_I5050: 'Confirm rollback during deployment',
   CDK_TOOLKIT_I5060: 'Confirm deploy security sensitive changes',
+  CDK_TOOLKIT_I5501: 'Stack Monitoring Start',
+  CDK_TOOLKIT_I5502: 'Stack Monitoring Activity event',
+  CDK_TOOLKIT_I5503: 'Stack Monitoring End',
   CDK_TOOLKIT_I5900: 'Deployment results on success',
 
   CDK_TOOLKIT_E5001: 'No stacks found',
+  CDK_TOOLKIT_E5500: 'Stack Monitoring error',
 
   // 6: Rollback
   CDK_TOOLKIT_I6000: 'Provides rollback times',
