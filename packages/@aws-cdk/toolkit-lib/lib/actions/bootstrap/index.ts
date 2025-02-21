@@ -4,10 +4,15 @@ import { Tag } from '../../api/aws-cdk';
  * Options for Bootstrap
  */
 export interface BootstrapOptions {
+  
+  /**
+   * Bootstrap environment parameters for CloudFormation used when deploying the bootstrap stack
+   * @default BootstrapEnvironmentParameters.onlyExisting()
+   */
   readonly parameters?: BootstrapEnvironmentParameters;
 
   /**
-   * The source of the bootstrap stack
+   * The template source of the bootstrap stack
    *
    * @default BootstrapSource.default()
    */
@@ -139,34 +144,36 @@ export interface BootstrapParameterValues {
  */
 export class BootstrapEnvironmentParameters {
   /**
-   * Use default values for all parameters
+   * Use only existing parameters on the stack.
    */
-  static default() {
-    return new BootstrapEnvironmentParameters();
-  }
-
+    public static onlyExisting() {
+      return new BootstrapEnvironmentParameters({}, true);
+    }
+  
   /**
-   * Use custom parameters and fall back to default values
+   * Use exactly these parameters and remove any other existing parameters from the stack.
    */
-  static custom(params: BootstrapParameterValues) {
-    return new BootstrapEnvironmentParameters(params);
-  }
-
+    public static exactly(params: BootstrapParameterValues) {
+      return new BootstrapEnvironmentParameters(params, false);
+    }
+  
+    /**
+     * Define additional parameters for the stack, while keeping existing parameters for unspecified values.
+     */
+    public static withExisting(params: BootstrapParameterValues) {
+      return new BootstrapEnvironmentParameters(params, true);
+    }
+  
   /**
    * The parameters as a Map for easy access and manipulation
    */
-  private readonly parameters?: BootstrapParameterValues;
+  public readonly parameters?: BootstrapParameterValues;
+  public readonly keepExistingParameters: boolean;
 
-  private constructor(params?: BootstrapParameterValues) {
+
+  private constructor(params?: BootstrapParameterValues, usePreviousParameters = true) {
+    this.keepExistingParameters = usePreviousParameters;
     this.parameters = params;
-  }
-
-  /**
-   * Render the parameters as a BootstrappingParameterValues object
-   * @returns A BootstrappingParameterValues object
-   */
-  public render(): BootstrapParameterValues {
-    return this.parameters ?? {};
   }
 }
 

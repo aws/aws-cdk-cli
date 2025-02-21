@@ -10,7 +10,7 @@ import {
 import { bold } from 'chalk';
 import { BootstrapSource } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-cdk';
-import { Toolkit } from '../../lib/toolkit';
+import { BootstrapEnvironments, Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {
   MockSdkProvider,
@@ -80,11 +80,8 @@ function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]):
 
 async function runBootstrap(options?: { environments?: string[]; source?: BootstrapSource }) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
-  return toolkit.bootstrap({
-    // if environment strings are not provided, get the environments from the cloud assembly
-    ...(options?.environments?.length ? { environments: options.environments } : { cloudAssembly: cx }),
-    ...(options?.source && { source: options.source } ),
-  });
+  const bootstrapEnvs = options?.environments?.length ? BootstrapEnvironments.fromList(options.environments) : BootstrapEnvironments.fromCloudAssemblySource(cx);
+  return toolkit.bootstrap(bootstrapEnvs, { source: options?.source });
 }
 
 function expectSuccessfulBootstrap() {

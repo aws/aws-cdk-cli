@@ -4,8 +4,8 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
-import { BootstrapOptions, BootstrapEnvironmentParameters, BootstrapSource } from '../actions/bootstrap';
 import { environmentsFromDescriptors } from '../actions/bootstrap/private';
+import { BootstrapOptions, BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -108,9 +108,10 @@ async function assemblyFromSource(assemblySource: ICloudAssemblySource, cache: b
 /**
  * Helper class to manage bootstrap environments
  */
-class BootstrapEnvironments {
+export class BootstrapEnvironments {
   /**
    * Create from a list of environment descriptors
+   * List of strings like `['aws://012345678912/us-east-1', 'aws://234567890123/eu-west-1']`
    */
   static fromList(environments: string[]): BootstrapEnvironments {
     return new BootstrapEnvironments(environmentsFromDescriptors(environments));
@@ -210,25 +211,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(options: BootstrapOptions & {
-    environments?: string[];
-    cloudAssembly?: ICloudAssemblySource;
-  }): Promise<void> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<void> {
     const ioHost = withAction(this.ioHost, 'bootstrap');
-
-    const bootstrapEnvs = options.environments
-      ? BootstrapEnvironments.fromList(options.environments)
-      : options.cloudAssembly
-        ? BootstrapEnvironments.fromCloudAssemblySource(options.cloudAssembly)
-        : undefined;
-
-    if (!bootstrapEnvs) {
-      throw new ToolkitError('Either environments or cloudAssembly must be provided');
-    }
-
-    const bootstrapEnvironments = await bootstrapEnvs.getEnvironments();
+    const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
-    const parameters = options.parameters ?? BootstrapEnvironmentParameters.default();
+    const parameters = options.parameters;
     const bootstrapper = new Bootstrapper(source.render(), { ioHost, action: 'bootstrap' });
     const sdkProvider = await this.sdkProvider('bootstrap');
     const limit = pLimit(20);
@@ -247,7 +234,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             ...options,
             toolkitStackName,
             source: source.render(),
-            parameters: parameters.render(),
+            parameters: parameters?.parameters,
+            usePreviousParameters: parameters?.keepExistingParameters
           },
         );
         const message = bootstrapResult.noOp
