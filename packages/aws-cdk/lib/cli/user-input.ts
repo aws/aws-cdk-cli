@@ -117,7 +117,7 @@ export interface UserInput {
   /**
    * Check your set-up for potential problems
    */
-  readonly doctor?: DoctorOptions;
+  readonly doctor?: {};
 }
 
 /**
@@ -1324,12 +1324,4 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
-}
-
-/**
- * Check your set-up for potential problems
- *
- * @struct
- */
-export interface DoctorOptions {
 }
