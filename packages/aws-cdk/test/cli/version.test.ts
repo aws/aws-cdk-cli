@@ -18,6 +18,7 @@ function tmpfile(): string {
 }
 
 beforeEach(() => {
+  jest.spyOn(npm, 'getLatestVersionFromNpm').mockRejectedValue(new Error('expected version cache to be used, but call to npm was attempted'));
   process.chdir(os.tmpdir()); // Need a chdir because in the workspace 'npm view' will take a long time
 });
 
@@ -53,6 +54,7 @@ test('Skip version check if cache has not expired', async () => {
 
 test('Return later version when exists & skip recent re-check', async () => {
   const cache = new VersionCheckTTL(tmpfile(), 100);
+  jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
   const result = await latestVersionIfHigher('0.0.0', cache);
   expect(result).not.toBeNull();
   expect((result as string).length).toBeGreaterThan(0);
@@ -63,6 +65,7 @@ test('Return later version when exists & skip recent re-check', async () => {
 
 test('Return null if version is higher than npm', async () => {
   const cache = new VersionCheckTTL(tmpfile(), 100);
+  jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
   const result = await latestVersionIfHigher('100.100.100', cache);
   expect(result).toBeNull();
 });
@@ -104,7 +107,7 @@ describe('version message', () => {
   test('Prints a message when a new version is available', async () => {
     // Given the current version is 1.0.0 and the latest version is 1.1.0
     const currentVersion = '1.0.0';
-    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValue('1.1.0');
+    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
     const printSpy = jest.spyOn(logging, 'info');
 
     // When displayVersionMessage is called
@@ -117,7 +120,7 @@ describe('version message', () => {
   test('Includes major upgrade documentation when available', async() => {
     // Given the current version is 1.0.0 and the latest version is 2.0.0
     const currentVersion = '1.0.0';
-    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValue('2.0.0');
+    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('2.0.0');
     const printSpy = jest.spyOn(logging, 'info');
 
     // When displayVersionMessage is called
@@ -130,7 +133,7 @@ describe('version message', () => {
   test('Does not include major upgrade documentation when unavailable', async() => {
     // Given current version is 99.0.0 and the latest version is 100.0.0
     const currentVersion = '99.0.0';
-    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValue('100.0.0');
+    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('100.0.0');
     const printSpy = jest.spyOn(logging, 'info');
 
     // When displayVersionMessage is called
