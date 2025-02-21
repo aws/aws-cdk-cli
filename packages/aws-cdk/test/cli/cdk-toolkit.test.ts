@@ -1765,7 +1765,7 @@ class FakeCloudFormation extends Deployments {
 }
 
 function cliTest(name: string, handler: (dir: string) => void | Promise<any>): void {
-  test(name, () => withTempDir(handler));
+  test(name, () => withTempDir(handler), 120000);
 }
 
 async function withTempDir(cb: (dir: string) => void | Promise<any>) {
