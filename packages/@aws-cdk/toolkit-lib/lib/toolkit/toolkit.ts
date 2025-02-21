@@ -4,7 +4,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
-import { BootstrapOptions, BootstrappingParameters, BootstrapSource } from '../actions/bootstrap';
+import { BootstrapOptions, BootstrapEnvironmentParameters, BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { environmentsFromDescriptors } from '../actions/bootstrap/private';
@@ -227,7 +227,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const bootstrapEnvironments = await bootstrapEnvs.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
-    const parameters = options.parameters ?? BootstrappingParameters.default();
+    const parameters = options.parameters ?? BootstrapEnvironmentParameters.default();
     const bootstrapper = new Bootstrapper(source.render(), { ioHost, action: 'bootstrap' });
     const sdkProvider = await this.sdkProvider('bootstrap');
     const limit = pLimit(20);
