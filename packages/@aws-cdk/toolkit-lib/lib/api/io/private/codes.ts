@@ -30,6 +30,7 @@ export const CODES = {
   CDK_TOOLKIT_I5900: 'Deployment results on success',
 
   CDK_TOOLKIT_E5001: 'No stacks found',
+  CDK_TOOLKIT_E5002: 'Stack monitoring error',
 
   // 6: Rollback
   CDK_TOOLKIT_I6000: 'Provides rollback times',
