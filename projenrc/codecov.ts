@@ -24,7 +24,7 @@ export class CodeCovWorkflow extends Component {
     });
 
     this.workflow.addJob('collect', {
-      runsOn: ['ubuntu-latest'],
+      runsOn: ['aws-cdk_ubuntu-latest_4-core'],
       permissions: { idToken: JobPermission.WRITE },
       if: props.restrictToRepos.map(r => `github.repository == '${r}'`).join(' || '),
       steps: [
