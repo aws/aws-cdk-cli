@@ -25,10 +25,10 @@ import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
-import { StackActivityProgress } from '../api/stack-events';
 import { tagsForStack, type Tag } from '../api/tags';
 import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, type WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
+import { StackActivityProgress } from '../commands/deploy';
 import {
   generateCdkApp,
   generateStack,
@@ -453,8 +453,6 @@ export class CdkToolkit {
             force: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
-            progress,
-            ci: options.ci,
             rollback,
             hotswap: options.hotswap,
             hotswapPropertyOverrides: hotswapPropertyOverrides,
@@ -574,9 +572,14 @@ export class CdkToolkit {
     const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
     const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
     const concurrency = options.concurrency || 1;
-    const progress = concurrency > 1 ? StackActivityProgress.EVENTS : options.progress;
-    if (concurrency > 1 && options.progress && options.progress != StackActivityProgress.EVENTS) {
-      warning('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
+    if (concurrency > 1) {
+      // always force "events" progress output when we have concurrency
+      this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+
+      // ...but only warn if the user explicitly requested "bar" progress
+      if (options.progress && options.progress != StackActivityProgress.EVENTS) {
+        warning('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
+      }
     }
 
     const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
@@ -810,7 +813,6 @@ export class CdkToolkit {
       tags,
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
-      progress: options.progress,
       rollback: options.rollback,
     });
 
