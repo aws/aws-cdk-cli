@@ -253,7 +253,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
 
-        console.log(result(chalk.green('\n' + message), 'CDK_TOOLKIT_I9900', { environment }));
         await ioHost.notify(result(chalk.green('\n' + message), 'CDK_TOOLKIT_I9900', { environment }));
         await bootstrapTimer.endAs(ioHost, 'bootstrap');
       } catch (e) {
