@@ -614,7 +614,7 @@ class FullCloudFormationDeployment {
   private async monitorDeployment(startTime: Date, expectedChanges: number | undefined): Promise<SuccessfulDeployStackResult> {
     const monitor = this.options.quiet
       ? undefined
-      : StackActivityMonitor.withDefaultPrinter(this.cfn, this.stackName, this.stackArtifact, {
+      : await StackActivityMonitor.withDefaultPrinter(this.cfn, { ioHost: this.ioHost, action: this.action }, this.stackName, this.stackArtifact, {
         resourcesTotal: expectedChanges,
         progress: this.options.progress,
         changeSetCreationTime: startTime,
@@ -698,7 +698,7 @@ export async function destroyStack(options: DestroyStackOptions, { ioHost, actio
   }
   const monitor = options.quiet
     ? undefined
-    : StackActivityMonitor.withDefaultPrinter(cfn, deployName, options.stack, {
+    : await StackActivityMonitor.withDefaultPrinter(cfn, { ioHost, action }, deployName, options.stack, {
       ci: options.ci,
     }).start();
 

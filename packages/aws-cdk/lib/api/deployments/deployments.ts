@@ -567,7 +567,7 @@ export class Deployments {
 
       const monitor = options.quiet
         ? undefined
-        : StackActivityMonitor.withDefaultPrinter(cfn, deployName, options.stack, {
+        : await StackActivityMonitor.withDefaultPrinter(cfn, { ioHost: this.ioHost, action: this.action }, deployName, options.stack, {
           ci: options.ci,
         }).start();
 

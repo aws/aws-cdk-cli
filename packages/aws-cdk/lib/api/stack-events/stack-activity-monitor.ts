@@ -3,10 +3,10 @@ import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-as
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { ResourceEvent, StackEventPoller } from './stack-event-poller';
-import { error, info } from '../../logging';
-import { CliIoHost, IoMessageLevel } from '../../toolkit/cli-io-host';
+import { CliIoHost, IoMessageLevel, IoMessaging } from '../../toolkit/cli-io-host';
 import type { ICloudFormationClient } from '../aws-auth';
 import { RewritableBlock } from './display';
+import { error, info } from '../../cli/messages';
 
 export interface StackActivity extends ResourceEvent {
   readonly metadata?: ResourceMetadata;
@@ -90,6 +90,7 @@ export class StackActivityMonitor {
    */
   public static withDefaultPrinter(
     cfn: ICloudFormationClient,
+    { ioHost, action }: IoMessaging,
     stackName: string,
     stackArtifact: CloudFormationStackArtifact,
     options: WithDefaultPrinterProps = {},
@@ -100,6 +101,8 @@ export class StackActivityMonitor {
       resourceTypeColumnWidth: calcMaxResourceTypeLength(stackArtifact.template),
       resourcesTotal: options.resourcesTotal,
       stream,
+      ioHost,
+      action,
     };
 
     const isWindows = process.platform === 'win32';
@@ -115,7 +118,7 @@ export class StackActivityMonitor {
         ? new CurrentActivityPrinter(props)
         : new HistoryActivityPrinter(props);
 
-    return new StackActivityMonitor(cfn, stackName, printer, stackArtifact, options.changeSetCreationTime);
+    return new StackActivityMonitor(cfn, ioHost, action, stackName, printer, stackArtifact, options.changeSetCreationTime);
   }
 
   /**
@@ -139,6 +142,8 @@ export class StackActivityMonitor {
 
   constructor(
     cfn: ICloudFormationClient,
+    private readonly ioHost: IoMessaging['ioHost'],
+    private readonly action: IoMessaging['action'],
     private readonly stackName: string,
     private readonly printer: IActivityPrinter,
     private readonly stack?: CloudFormationStackArtifact,
@@ -150,9 +155,9 @@ export class StackActivityMonitor {
     });
   }
 
-  public start() {
+  public async start() {
     this.active = true;
-    this.printer.start();
+    await this.printer.start();
     this.scheduleNextTick();
     return this;
   }
@@ -168,7 +173,7 @@ export class StackActivityMonitor {
     // up not printing the failure reason to users.
     await this.finalPollToEnd();
 
-    this.printer.stop();
+    await this.printer.stop();
   }
 
   private scheduleNextTick() {
@@ -194,9 +199,9 @@ export class StackActivityMonitor {
         return;
       }
 
-      this.printer.print();
+      await this.printer.print();
     } catch (e) {
-      error('Error occurred while monitoring stack: %s', e);
+      await this.ioHost.notify(error(this.action, util.format('Error occurred while monitoring stack: %s', e), 'CDK_TOOLKIT_E5002'));
     }
     this.scheduleNextTick();
   }
@@ -237,7 +242,7 @@ export class StackActivityMonitor {
 
     for (const activity of activities) {
       this.checkForErrors(activity);
-      this.printer.addActivity(activity);
+      await this.printer.addActivity(activity);
     }
   }
 
@@ -321,15 +326,25 @@ interface PrinterProps {
    * Stream to write to
    */
   readonly stream: NodeJS.WriteStream;
+
+  /**
+   * The IoHost used for messaging
+   */
+  readonly ioHost: IoMessaging['ioHost'];
+
+  /**
+   * The current action.
+   */
+  readonly action: IoMessaging['action'];
 }
 
 export interface IActivityPrinter {
   readonly updateSleep: number;
 
-  addActivity(activity: StackActivity): void;
-  print(): void;
-  start(): void;
-  stop(): void;
+  addActivity(activity: StackActivity): Promise<void>;
+  print(): Promise<void>;
+  start(): Promise<void>;
+  stop(): Promise<void>;
 }
 
 abstract class ActivityPrinterBase implements IActivityPrinter {
@@ -370,6 +385,9 @@ abstract class ActivityPrinterBase implements IActivityPrinter {
 
   protected hookFailureMap = new Map<string, Map<string, string>>();
 
+  protected ioHost: IoMessaging['ioHost'];
+  protected action: IoMessaging['action'];
+
   constructor(protected readonly props: PrinterProps) {
     // +1 because the stack also emits a "COMPLETE" event at the end, and that wasn't
     // counted yet. This makes it line up with the amount of events we expect.
@@ -377,6 +395,9 @@ abstract class ActivityPrinterBase implements IActivityPrinter {
 
     // How many digits does this number take to represent?
     this.resourceDigits = this.resourcesTotal ? Math.ceil(Math.log10(this.resourcesTotal)) : 0;
+
+    this.ioHost = props.ioHost;
+    this.action = props.action;
   }
 
   public failureReason(activity: StackActivity) {
@@ -394,7 +415,7 @@ abstract class ActivityPrinterBase implements IActivityPrinter {
     return resourceStatusReason;
   }
 
-  public addActivity(activity: StackActivity) {
+  public async addActivity(activity: StackActivity) {
     const status = activity.event.ResourceStatus;
     const hookStatus = activity.event.HookStatus;
     const hookType = activity.event.HookType;
@@ -458,13 +479,13 @@ abstract class ActivityPrinterBase implements IActivityPrinter {
     }
   }
 
-  public abstract print(): void;
+  public abstract print(): Promise<void>;
 
-  public start() {
+  public async start() {
     // Empty on purpose
   }
 
-  public stop() {
+  public async stop() {
     // Empty on purpose
   }
 }
@@ -494,36 +515,36 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
     super(props);
   }
 
-  public addActivity(activity: StackActivity) {
-    super.addActivity(activity);
+  public async addActivity(activity: StackActivity) {
+    await super.addActivity(activity);
     this.printable.push(activity);
-    this.print();
+    await this.print();
   }
 
-  public print() {
+  public async print() {
     for (const activity of this.printable) {
-      this.printOne(activity);
+      await this.printOne(activity);
     }
     this.printable.splice(0, this.printable.length);
-    this.printInProgress();
+    await this.printInProgress();
   }
 
-  public stop() {
+  public async stop() {
     // Print failures at the end
     if (this.failures.length > 0) {
-      info('\nFailed resources:');
+      await this.ioHost.notify(info(this.action, '\nFailed resources:'));
       for (const failure of this.failures) {
         // Root stack failures are not interesting
         if (failure.isStackEvent) {
           continue;
         }
 
-        this.printOne(failure, false);
+        await this.printOne(failure, false);
       }
     }
   }
 
-  private printOne(activity: StackActivity, progress?: boolean) {
+  private async printOne(activity: StackActivity, progress?: boolean) {
     const event = activity.event;
     const color = colorFromStatusResult(event.ResourceStatus);
     let reasonColor = chalk.cyan;
@@ -545,7 +566,8 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
 
     const logicalId = resourceName !== event.LogicalResourceId ? `(${event.LogicalResourceId}) ` : '';
 
-    info(
+    await this.ioHost.notify(info(
+      this.action,
       util.format(
         '%s | %s%s | %s | %s | %s %s%s%s',
         event.StackName,
@@ -558,7 +580,7 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
         reasonColor(chalk.bold(event.ResourceStatusReason ? event.ResourceStatusReason : '')),
         reasonColor(stackTrace),
       ),
-    );
+    ));
 
     this.lastPrintTime = Date.now();
   }
@@ -582,19 +604,20 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
   /**
    * If some resources are taking a while to create, notify the user about what's currently in progress
    */
-  private printInProgress() {
+  private async printInProgress() {
     if (Date.now() < this.lastPrintTime + this.inProgressDelay) {
       return;
     }
 
     if (Object.keys(this.resourcesInProgress).length > 0) {
-      info(
+      await this.ioHost.notify(info(
+        this.action,
         util.format(
           '%s Currently in progress: %s',
           this.progress(),
           chalk.bold(Object.keys(this.resourcesInProgress).join(', ')),
         ),
-      );
+      ));
     }
 
     // We cheat a bit here. To prevent printInProgress() from repeatedly triggering,
@@ -634,7 +657,7 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
     this.block = new RewritableBlock(this.stream);
   }
 
-  public print(): void {
+  public async print(): Promise<void> {
     const lines = [];
 
     // Add a progress bar at the top
@@ -672,14 +695,14 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
     this.block.displayLines(lines);
   }
 
-  public start() {
+  public async start() {
     // Need to prevent the waiter from printing 'stack not stable' every 5 seconds, it messes
     // with the output calculations.
     this.oldLogThreshold = CliIoHost.instance().logLevel;
     CliIoHost.instance().logLevel = 'info';
   }
 
-  public stop() {
+  public async stop() {
     CliIoHost.instance().logLevel = this.oldLogThreshold;
 
     // Print failures at the end
