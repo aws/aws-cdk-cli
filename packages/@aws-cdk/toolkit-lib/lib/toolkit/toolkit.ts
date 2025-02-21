@@ -518,7 +518,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       stack,
       ...stack.dependencies.filter(cxapi.AssetManifestArtifact.isAssetManifestArtifact),
     ]);
-    const workGraph = new WorkGraphBuilder(prebuildAssets).build(stacksAndTheirAssetManifests);
+    const workGraph = new WorkGraphBuilder({ ioHost, action }, prebuildAssets).build(stacksAndTheirAssetManifests);
 
     // Unless we are running with '--force', skip already published assets
     if (!options.force) {
