@@ -34,7 +34,7 @@ export class AdcPublishing extends Component {
       permissions: {
         contents: JobPermission.WRITE,
       },
-      if: `\${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}`,
+      if: `\${{ needs.release.outputs.latest_commit == github.sha }}`,
       steps: [
         {
           uses: 'actions/setup-node@v4',

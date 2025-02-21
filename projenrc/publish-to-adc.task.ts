@@ -20,8 +20,7 @@ async function main() {
   const buckets = TARGET_BUCKETS.split(/\s+|,+/).filter(x => x);
 
   const root = 'dist/standalone';
-
-  const standaloneFiles = await glob('**/*', { cwd: root });
+  const filesToPublish = ['aws-cdk-cli.zip'];
 
   const credentials = fromTemporaryCredentials({
     masterCredentials: fromNodeProviderChain(),
@@ -42,7 +41,7 @@ async function main() {
     // eslint-disable-next-line no-console
     console.log(`::add-mask::${bucket}`);
 
-    for (const file of standaloneFiles) {
+    for (const file of filesToPublish) {
       const upload = new Upload({
         client: s3,
         params: {
