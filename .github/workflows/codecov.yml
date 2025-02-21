@@ -10,7 +10,7 @@ on:
       - main
 jobs:
   collect:
-    runs-on: ubuntu-latest
+    runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
       id-token: write
     if: github.repository == 'aws/aws-cdk-cli'
