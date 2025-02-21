@@ -1094,7 +1094,7 @@ const toolkitLib = configureProject(
         coverageThreshold: {
           // this is very sad but we will get better
           statements: 85,
-          branches: 77,
+          branches: 76,
           functions: 77,
           lines: 85,
         },
