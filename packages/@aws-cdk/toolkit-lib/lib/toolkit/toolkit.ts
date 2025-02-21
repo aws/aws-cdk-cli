@@ -88,6 +88,56 @@ export interface ToolkitOptions {
 }
 
 /**
+ * Creates a Toolkit internal CloudAssembly from a CloudAssemblySource.
+ * @param assemblySource the source for the cloud assembly
+ * @param cache if the assembly should be cached, default: `true`
+ * @returns the CloudAssembly object
+ */
+async function assemblyFromSource(assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {
+  if (assemblySource instanceof StackAssembly) {
+    return assemblySource;
+  }
+
+  if (cache) {
+    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce());
+  }
+
+  return new StackAssembly(await assemblySource.produce());
+}
+
+/**
+ * Helper class to manage bootstrap environments
+ */
+class BootstrapEnvironments {
+  /**
+   * Create from a list of environment descriptors
+   */
+  static fromList(environments: string[]): BootstrapEnvironments {
+    return new BootstrapEnvironments(environmentsFromDescriptors(environments));
+  }
+
+  /**
+   * Create from a cloud assembly source
+   */
+  static fromCloudAssemblySource(cx: ICloudAssemblySource): BootstrapEnvironments {
+    return new BootstrapEnvironments(async () => {
+      const assembly = await assemblyFromSource(cx);
+      const stackCollection = assembly.selectStacksV2(ALL_STACKS);
+      return stackCollection.stackArtifacts.map(stack => stack.environment);
+    });
+  }
+
+  private constructor(private readonly envProvider: cxapi.Environment[] | (() => Promise<cxapi.Environment[]>)) {}
+
+  async getEnvironments(): Promise<cxapi.Environment[]> {
+    if (Array.isArray(this.envProvider)) {
+      return this.envProvider;
+    }
+    return this.envProvider();
+  }
+}
+
+/**
  * The AWS CDK Programmatic Toolkit
  */
 export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposable {
@@ -159,25 +209,26 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(cx: ICloudAssemblySource, environments: string[], options: BootstrapOptions = {}): Promise<void> {
+  public async bootstrap(options: BootstrapOptions & {
+    environments?: string[];
+    cloudAssembly?: ICloudAssemblySource;
+  }): Promise<void> {
     const ioHost = withAction(this.ioHost, 'bootstrap');
 
-    let bootstrapEnvironments;
-    if (environments.length) {
-      bootstrapEnvironments = environmentsFromDescriptors(environments);
-    } else {
-      // select all environments we can find, from stacks being bootstrapped
-      const assembly = await this.assemblyFromSource(cx);
-      const stackCollection = assembly.selectStacksV2(ALL_STACKS);
-      bootstrapEnvironments = stackCollection.stackArtifacts.map(stack => stack.environment);
+    const bootstrapEnvs = options.environments 
+      ? BootstrapEnvironments.fromList(options.environments)
+      : options.cloudAssembly 
+        ? BootstrapEnvironments.fromCloudAssemblySource(options.cloudAssembly)
+        : undefined;
+
+    if (!bootstrapEnvs) {
+      throw new ToolkitError('Either environments or cloudAssembly must be provided');
     }
 
+    const bootstrapEnvironments = await bootstrapEnvs.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
-
     const parameters = options.parameters ?? BootstrappingParameters.default();
-
     const bootstrapper = new Bootstrapper(source.render(), { ioHost, action: 'bootstrap' });
-
     const sdkProvider = await this.sdkProvider('bootstrap');
     const limit = pLimit(20);
 
@@ -218,7 +269,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<ICloudAssemblySource> {
     const ioHost = withAction(this.ioHost, 'synth');
     const synthTimer = Timer.start();
-    const assembly = await this.assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(cx);
     const stacks = assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHost);
@@ -263,7 +314,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   public async list(cx: ICloudAssemblySource, options: ListOptions = {}): Promise<StackDetails[]> {
     const ioHost = withAction(this.ioHost, 'list');
     const synthTimer = Timer.start();
-    const assembly = await this.assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(cx);
     const stackCollection = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     await synthTimer.endAs(ioHost, 'synth');
 
@@ -281,7 +332,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<boolean> {
     const ioHost = withAction(this.ioHost, 'diff');
-    const assembly = await this.assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(cx);
     const stacks = await assembly.selectStacksV2(options.stacks);
     await this.validateStacksMetadata(stacks, ioHost);
     // temporary
@@ -295,7 +346,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Deploys the selected stacks into an AWS account
    */
   public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<void> {
-    const assembly = await this.assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(cx);
     return this._deploy(assembly, 'deploy', options);
   }
 
@@ -604,7 +655,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Implies hotswap deployments.
    */
   public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<void> {
-    const assembly = await this.assemblyFromSource(cx, false);
+    const assembly = await assemblyFromSource(cx, false);
     const ioHost = withAction(this.ioHost, 'watch');
     const rootDir = options.watchDir ?? process.cwd();
     await ioHost.notify(debug(`root directory used for 'watch' is: ${rootDir}`));
@@ -706,7 +757,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Rolls back the selected stacks.
    */
   public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<void> {
-    const assembly = await this.assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(cx);
     return this._rollback(assembly, 'rollback', options);
   }
 
@@ -760,7 +811,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Destroys the selected Stacks.
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<void> {
-    const assembly = await this.assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(cx);
     return this._destroy(assembly, 'destroy', options);
   }
 
@@ -823,24 +874,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       message: `[${level} at ${msg.id}] ${msg.entry.data}`,
       data: msg,
     }));
-  }
-
-  /**
-   * Creates a Toolkit internal CloudAssembly from a CloudAssemblySource.
-   * @param assemblySource the source for the cloud assembly
-   * @param cache if the assembly should be cached, default: `true`
-   * @returns the CloudAssembly object
-   */
-  private async assemblyFromSource(assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {
-    if (assemblySource instanceof StackAssembly) {
-      return assemblySource;
-    }
-
-    if (cache) {
-      return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce());
-    }
-
-    return new StackAssembly(await assemblySource.produce());
   }
 
   /**

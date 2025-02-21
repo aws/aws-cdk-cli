@@ -9,7 +9,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
 import { BootstrapSource } from '../../lib/actions/bootstrap';
-import { SdkProvider, rootDir } from '../../lib/api/aws-cdk';
+import { SdkProvider } from '../../lib/api/aws-cdk';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {
@@ -18,6 +18,7 @@ import {
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
+  rootDir,
 } from '../util/aws-cdk';
 
 const ioHost = new TestIoHost();
@@ -79,7 +80,11 @@ function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]):
 
 async function runBootstrap(options?: { environments?: string[]; source?: BootstrapSource }) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
-  return toolkit.bootstrap(cx, options?.environments ?? [], { source: options?.source });
+  return toolkit.bootstrap({
+    // if environment strings are not provided, get the environments from the cloud assembly
+    ...(options?.environments?.length ? { environments: options.environments } : { cloudAssembly: cx }),
+    ...(options?.source && { source: options.source } )
+  });
 }
 
 function expectSuccessfulBootstrap() {

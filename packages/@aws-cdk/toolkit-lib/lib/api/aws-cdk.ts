@@ -30,7 +30,6 @@ export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/util/rwlock';
 
 // @todo Not yet API probably should be
 export { loadTree, some } from '../../../../aws-cdk/lib/tree';
-export { rootDir } from '../../../../aws-cdk/lib/util/directories';
 
 // @todo Cloud Assembly and Executable - this is a messy API right now
 export { CloudAssembly, sanitizePatterns, type StackDetails, StackCollection, ExtendedStackSelection } from '../../../../aws-cdk/lib/api/cxapp/cloud-assembly';

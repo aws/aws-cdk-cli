@@ -10,3 +10,5 @@ export {
   setDefaultSTSMocks,
   restoreSdkMocksToDefault,
 } from '../../../../aws-cdk/test/util/mock-sdk';
+
+export { rootDir } from '../../../../aws-cdk/lib/util/directories';
