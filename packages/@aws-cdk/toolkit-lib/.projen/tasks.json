@@ -129,9 +129,6 @@
           "exec": "node build-tools/bundle.mjs"
         },
         {
-          "exec": "mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/custom-bootstrap-template.yaml ./lib/api/bootstrap/"
-        },
-        {
           "exec": "node ./lib/index.js >/dev/null 2>/dev/null </dev/null"
         },
         {

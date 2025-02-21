@@ -18,9 +18,11 @@ await Promise.all([
   copyFromCli(['lib', 'index_bg.wasm']),
 ]);
 
-// # Copy all resources that aws_cdk/generate.sh produced, and some othersCall the generator for the
-// cp -R $aws_cdk/lib/init-templates ./lib/
-// mkdir -p ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/custom-bootstrap-template.yaml ./lib/api/bootstrap/
+await fs.ensureDir('lib/api/bootstrap');
+await Promise.all([
+  copyFromCli(['lib', 'api', 'bootstrap', 'bootstrap-template.yaml'], ['lib', 'api', 'bootstrap', 'bootstrap-template.yaml']),
+  copyFromCli(['lib', 'api', 'bootstrap', 'custom-bootstrap-template.yaml'], ['lib', 'api', 'bootstrap', 'custom-bootstrap-template.yaml'])
+]);
 
 await esbuild.build({
   entryPoints: ['lib/api/aws-cdk.ts'],

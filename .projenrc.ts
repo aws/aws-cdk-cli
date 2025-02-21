@@ -982,7 +982,6 @@ new JsiiBuild(cliLib, {
 
 // clilib needs to bundle some resources, same as the CLI
 cliLib.postCompileTask.exec('node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
-cliLib.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/custom-bootstrap-template.yaml ./lib/api/bootstrap/');
 for (const resourceCommand of includeCliResourcesCommands) {
   cliLib.postCompileTask.exec(resourceCommand);
 }
@@ -1139,8 +1138,6 @@ toolkitLib.package.addField('exports', {
 });
 
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
-// Copy bootstrap template from aws-cdk
-toolkitLib.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/custom-bootstrap-template.yaml ./lib/api/bootstrap/');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
