@@ -10,9 +10,10 @@ on:
       - main
 jobs:
   collect:
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
-    if: github.repository == 'aws-cdk-cli/aws-cdk-cli'
+    if: github.repository == 'aws/aws-cdk-cli'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

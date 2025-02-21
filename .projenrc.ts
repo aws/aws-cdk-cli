@@ -1280,7 +1280,7 @@ new CdkCliIntegTestsWorkflow(repo, {
 });
 
 new CodeCovWorkflow(repo, {
-  restrictToRepos: ['aws-cdk-cli/aws-cdk-cli'],
+  restrictToRepos: ['aws/aws-cdk-cli'],
   packages: [cli.name],
 });
 
