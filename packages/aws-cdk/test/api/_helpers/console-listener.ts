@@ -50,10 +50,10 @@ class ConsoleListener {
     return (res as Inspector);
   }
 
-  inspectSync(fn: (output: Output) => void): Output {
+  async inspectSync(fn: (output: Output) => Promise<void>): Promise<Output> {
     const inspect = this.inspect();
     try {
-      fn(inspect.output);
+      await fn(inspect.output);
     } finally {
       inspect.restore();
     }

@@ -242,7 +242,7 @@ export class StackActivityMonitor {
 
     for (const activity of activities) {
       this.checkForErrors(activity);
-      await this.printer.addActivity(activity);
+      this.printer.addActivity(activity);
     }
   }
 
@@ -341,7 +341,14 @@ interface PrinterProps {
 export interface IActivityPrinter {
   readonly updateSleep: number;
 
-  addActivity(activity: StackActivity): Promise<void>;
+  /**
+   * Synchronously adds an activity to the print log
+   */
+  addActivity(activity: StackActivity): void;
+
+  /**
+   *
+   */
   print(): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -415,7 +422,7 @@ abstract class ActivityPrinterBase implements IActivityPrinter {
     return resourceStatusReason;
   }
 
-  public async addActivity(activity: StackActivity) {
+  public addActivity(activity: StackActivity) {
     const status = activity.event.ResourceStatus;
     const hookStatus = activity.event.HookStatus;
     const hookType = activity.event.HookType;
@@ -515,10 +522,9 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
     super(props);
   }
 
-  public async addActivity(activity: StackActivity) {
-    await super.addActivity(activity);
+  public addActivity(activity: StackActivity) {
+    super.addActivity(activity);
     this.printable.push(activity);
-    await this.print();
   }
 
   public async print() {
@@ -530,6 +536,7 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
   }
 
   public async stop() {
+    await this.print();
     // Print failures at the end
     if (this.failures.length > 0) {
       await this.ioHost.notify(info(this.action, '\nFailed resources:'));
@@ -671,7 +678,7 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
     }
 
     // Normally we'd only print "resources in progress", but it's also useful
-    // to keep an eye on the failures and know about the specific errors asquickly
+    // to keep an eye on the failures and know about the specific errors as quickly
     // as possible (while the stack is still rolling back), so add those in.
     const toPrint: StackActivity[] = [...this.failures, ...Object.values(this.resourcesInProgress)];
     toPrint.sort((a, b) => a.event.Timestamp!.getTime() - b.event.Timestamp!.getTime());
@@ -703,6 +710,7 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
   }
 
   public async stop() {
+    await this.print();
     CliIoHost.instance().logLevel = this.oldLogThreshold;
 
     // Print failures at the end

@@ -3,10 +3,14 @@ import * as chalk from 'chalk';
 import { stderr } from '../_helpers/console-listener';
 import { HistoryActivityPrinter } from '../../../lib/api/stack-events';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
+import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 
 let TIMESTAMP: number;
 let HUMAN_TIME: string;
+let mockMsg: IoMessaging = {
+  ioHost: CliIoHost.instance(),
+  action: 'deploy'
+};
 
 beforeAll(() => {
   TIMESTAMP = new Date().getTime();
@@ -14,14 +18,15 @@ beforeAll(() => {
   CliIoHost.instance().isCI = false;
 });
 
-test('prints 0/4 progress report, when addActivity is called with an "IN_PROGRESS" ResourceStatus', () => {
+test('prints 0/4 progress report, when addActivity is called with an "IN_PROGRESS" ResourceStatus', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 3,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -34,6 +39,7 @@ test('prints 0/4 progress report, when addActivity is called with an "IN_PROGRES
       },
       parentStackLogicalIds: [],
     });
+    await historyActivityPrinter.stop();
   });
 
   expect(output[0].trim()).toStrictEqual(
@@ -41,14 +47,15 @@ test('prints 0/4 progress report, when addActivity is called with an "IN_PROGRES
   );
 });
 
-test('prints 1/4 progress report, when addActivity is called with an "UPDATE_COMPLETE" ResourceStatus', () => {
+test('prints 1/4 progress report, when addActivity is called with an "UPDATE_COMPLETE" ResourceStatus', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 3,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -68,14 +75,15 @@ test('prints 1/4 progress report, when addActivity is called with an "UPDATE_COM
   );
 });
 
-test('prints 1/4 progress report, when addActivity is called with an "UPDATE_COMPLETE" ResourceStatus', () => {
+test('prints 1/4 progress report, when addActivity is called with an "UPDATE_COMPLETE" ResourceStatus', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 3,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -95,14 +103,15 @@ test('prints 1/4 progress report, when addActivity is called with an "UPDATE_COM
   );
 });
 
-test('prints 1/4 progress report, when addActivity is called with an "ROLLBACK_COMPLETE" ResourceStatus', () => {
+test('prints 1/4 progress report, when addActivity is called with an "ROLLBACK_COMPLETE" ResourceStatus', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 3,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -122,14 +131,15 @@ test('prints 1/4 progress report, when addActivity is called with an "ROLLBACK_C
   );
 });
 
-test('prints 0/4 progress report, when addActivity is called with an "UPDATE_FAILED" ResourceStatus', () => {
+test('prints 0/4 progress report, when addActivity is called with an "UPDATE_FAILED" ResourceStatus', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 3,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -142,6 +152,7 @@ test('prints 0/4 progress report, when addActivity is called with an "UPDATE_FAI
       },
       parentStackLogicalIds: [],
     });
+    await historyActivityPrinter.stop();
   });
 
   expect(output[0].trim()).toStrictEqual(
@@ -149,14 +160,15 @@ test('prints 0/4 progress report, when addActivity is called with an "UPDATE_FAI
   );
 });
 
-test('does not print "Failed Resources:" list, when all deployments are successful', () => {
+test('does not print "Failed Resources:" list, when all deployments are successful', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 1,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -193,7 +205,7 @@ test('does not print "Failed Resources:" list, when all deployments are successf
       },
       parentStackLogicalIds: [],
     });
-    historyActivityPrinter.stop();
+    await historyActivityPrinter.stop();
   });
 
   expect(output.length).toStrictEqual(3);
@@ -208,14 +220,15 @@ test('does not print "Failed Resources:" list, when all deployments are successf
   );
 });
 
-test('prints "Failed Resources:" list, when at least one deployment fails', () => {
+test('prints "Failed Resources:" list, when at least one deployment fails', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 1,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -240,7 +253,7 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
       },
       parentStackLogicalIds: [],
     });
-    historyActivityPrinter.stop();
+    await historyActivityPrinter.stop();
   });
 
   expect(output.length).toStrictEqual(4);
@@ -256,14 +269,15 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
   );
 });
 
-test('print failed resources because of hook failures', () => {
+test('print failed resources because of hook failures', async () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     resourceTypeColumnWidth: 23,
     resourcesTotal: 1,
     stream: process.stderr,
+    ...mockMsg,
   });
 
-  const output = stderr.inspectSync(() => {
+  const output = await stderr.inspectSync(async () => {
     historyActivityPrinter.addActivity({
       event: {
         LogicalResourceId: 'stack1',
@@ -292,7 +306,7 @@ test('print failed resources because of hook failures', () => {
       },
       parentStackLogicalIds: [],
     });
-    historyActivityPrinter.stop();
+    await historyActivityPrinter.stop();
   });
 
   expect(output.length).toStrictEqual(4);
