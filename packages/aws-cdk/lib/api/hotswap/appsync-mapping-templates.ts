@@ -1,6 +1,7 @@
 import type {
   GetSchemaCreationStatusCommandOutput,
   GetSchemaCreationStatusCommandInput,
+  FunctionConfiguration,
 } from '@aws-sdk/client-appsync';
 import {
   type ChangeHotswapResult,
@@ -55,6 +56,8 @@ export async function isHotswappableAppSyncChange(
     } else {
       physicalName = arn;
     }
+    let hasListedAppSyncFunctions = false;
+    const functions: FunctionConfiguration[] = [];
     ret.push({
       hotswappable: true,
       resourceType: change.newValue.Type,
@@ -116,7 +119,10 @@ export async function isHotswappableAppSyncChange(
             delete sdkRequestObject.runtime;
           }
 
-          const functions = await sdk.appsync().listFunctions({ apiId: sdkRequestObject.apiId });
+          if (!hasListedAppSyncFunctions) {
+            functions.push(...await sdk.appsync().listFunctions({ apiId: sdkRequestObject.apiId }));
+            hasListedAppSyncFunctions = true;
+          }
           const { functionId } = functions.find((fn) => fn.name === physicalName) ?? {};
           // Updating multiple functions at the same time or along with graphql schema results in `ConcurrentModificationException`
           await exponentialBackOffRetry(
