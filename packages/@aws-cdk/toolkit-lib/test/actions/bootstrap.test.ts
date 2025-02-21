@@ -83,7 +83,7 @@ async function runBootstrap(options?: { environments?: string[]; source?: Bootst
   return toolkit.bootstrap({
     // if environment strings are not provided, get the environments from the cloud assembly
     ...(options?.environments?.length ? { environments: options.environments } : { cloudAssembly: cx }),
-    ...(options?.source && { source: options.source } )
+    ...(options?.source && { source: options.source } ),
   });
 }
 
@@ -144,8 +144,8 @@ describe('bootstrap', () => {
           environment: {
             name: 'aws://123456789012/us-east-1',
             account: '123456789012',
-            region: 'us-east-1'
-          }
+            region: 'us-east-1',
+          },
         }),
       }));
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -155,8 +155,8 @@ describe('bootstrap', () => {
           environment: {
             name: 'aws://210987654321/eu-west-1',
             account: '210987654321',
-            region: 'eu-west-1'
-          }
+            region: 'eu-west-1',
+          },
         }),
       }));
     });

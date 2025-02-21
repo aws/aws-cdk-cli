@@ -5,9 +5,9 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
 import { BootstrapOptions, BootstrapEnvironmentParameters, BootstrapSource } from '../actions/bootstrap';
+import { environmentsFromDescriptors } from '../actions/bootstrap/private';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
-import { environmentsFromDescriptors } from '../actions/bootstrap/private';
 import { type DestroyOptions } from '../actions/destroy';
 import { type DiffOptions } from '../actions/diff';
 import { diffRequiresApproval } from '../actions/diff/private';
@@ -127,7 +127,8 @@ class BootstrapEnvironments {
     });
   }
 
-  private constructor(private readonly envProvider: cxapi.Environment[] | (() => Promise<cxapi.Environment[]>)) {}
+  private constructor(private readonly envProvider: cxapi.Environment[] | (() => Promise<cxapi.Environment[]>)) {
+  }
 
   async getEnvironments(): Promise<cxapi.Environment[]> {
     if (Array.isArray(this.envProvider)) {
@@ -215,9 +216,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   }): Promise<void> {
     const ioHost = withAction(this.ioHost, 'bootstrap');
 
-    const bootstrapEnvs = options.environments 
+    const bootstrapEnvs = options.environments
       ? BootstrapEnvironments.fromList(options.environments)
-      : options.cloudAssembly 
+      : options.cloudAssembly
         ? BootstrapEnvironments.fromCloudAssemblySource(options.cloudAssembly)
         : undefined;
 
