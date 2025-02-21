@@ -7,6 +7,7 @@ import { ToolkitServices } from './private';
 import { BootstrapOptions, BootstrappingParameters, BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
+import { environmentsFromDescriptors } from '../actions/bootstrap/private';
 import { type DestroyOptions } from '../actions/destroy';
 import { type DiffOptions } from '../actions/diff';
 import { diffRequiresApproval } from '../actions/diff/private';
@@ -22,7 +23,6 @@ import { ToolkitError } from '../api/errors';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
 import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace } from '../api/io/private';
 import { pLimit } from '../util/concurrency';
-import { environmentsFromDescriptors } from '../util/environments';
 
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.
@@ -159,33 +159,30 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(cx: ICloudAssemblySource, userEnvironmentSpecs: string[], options: BootstrapOptions = {}): Promise<void> {
+  public async bootstrap(cx: ICloudAssemblySource, environments: string[], options: BootstrapOptions = {}): Promise<void> {
     const ioHost = withAction(this.ioHost, 'bootstrap');
-    const assembly = await this.assemblyFromSource(cx);
 
-    let environments;
-    if (userEnvironmentSpecs.length) {
-      environments = environmentsFromDescriptors(userEnvironmentSpecs);
+    let bootstrapEnvironments;
+    if (environments.length) {
+      bootstrapEnvironments = environmentsFromDescriptors(environments);
     } else {
       // select all environments we can find, from stacks being bootstrapped
-      const stackCollection = assembly.selectStacksV2({
-        patterns: ['**'],
-        strategy: StackSelectionStrategy.ALL_STACKS,
-      });
-      environments = stackCollection.stackArtifacts.map(stack => stack.environment);
+      const assembly = await this.assemblyFromSource(cx);
+      const stackCollection = assembly.selectStacksV2(ALL_STACKS);
+      bootstrapEnvironments = stackCollection.stackArtifacts.map(stack => stack.environment);
     }
 
     const source = options.source ?? BootstrapSource.default();
 
     const parameters = options.parameters ?? BootstrappingParameters.default();
 
-    const bootstrapper = new Bootstrapper(source.render(), { ioHost: withAction(this.ioHost, 'bootstrap'), action: 'bootstrap' });
+    const bootstrapper = new Bootstrapper(source.render(), { ioHost, action: 'bootstrap' });
 
     const sdkProvider = await this.sdkProvider('bootstrap');
     const limit = pLimit(20);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    await Promise.all(environments.map((environment: cxapi.Environment) => limit(async () => {
+    await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment) => limit(async () => {
       await ioHost.notify(info(`${chalk.bold(environment.name)}: bootstrapping...`));
       const bootstrapTimer = Timer.start();
 
@@ -205,15 +202,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
 
-        await ioHost.notify(success('\n' + message));
+        console.log(result(chalk.green('\n' + message), 'CDK_TOOLKIT_I9900', { environment }));
+        await ioHost.notify(result(chalk.green('\n' + message), 'CDK_TOOLKIT_I9900', { environment }));
         await bootstrapTimer.endAs(ioHost, 'bootstrap');
       } catch (e) {
-        await ioHost.notify({
-          time: new Date(),
-          level: 'error',
-          code: 'CDK_TOOLKIT_E9900',
-          message: `\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`,
-        });
+        await ioHost.notify(error(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, 'CDK_TOOLKIT_E9900'));
         throw e;
       }
     })));

@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import {
   CreateChangeSetCommand,
   DeleteChangeSetCommand,
@@ -8,17 +9,15 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
 import { BootstrapSource } from '../../lib/actions/bootstrap';
+import { SdkProvider, rootDir } from '../../lib/api/aws-cdk';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {
   MockSdkProvider,
   MockSdk,
-  SdkProvider,
   mockCloudFormationClient,
-  path,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-  rootDir,
 } from '../util/aws-cdk';
 
 const ioHost = new TestIoHost();
@@ -134,7 +133,26 @@ describe('bootstrap', () => {
         message: expect.stringContaining(`${bold('aws://210987654321/eu-west-1')}: bootstrapping...`),
       }));
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I9900',
         message: expect.stringContaining('✅'),
+        data: expect.objectContaining({
+          environment: {
+            name: 'aws://123456789012/us-east-1',
+            account: '123456789012',
+            region: 'us-east-1'
+          }
+        }),
+      }));
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I9900',
+        message: expect.stringContaining('✅'),
+        data: expect.objectContaining({
+          environment: {
+            name: 'aws://210987654321/eu-west-1',
+            account: '210987654321',
+            region: 'eu-west-1'
+          }
+        }),
       }));
     });
 

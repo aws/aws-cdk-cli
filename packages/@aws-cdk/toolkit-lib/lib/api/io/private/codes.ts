@@ -47,6 +47,7 @@ export const CODES = {
   // 9: Bootstrap
   CDK_TOOLKIT_I9000: 'Provides bootstrap times',
   CDK_TOOLKIT_E9900: 'Bootstrap failed',
+  CDK_TOOLKIT_I9900: 'Bootstrap results on success',
 
   // Assembly codes
   CDK_ASSEMBLY_I0042: 'Writing updated context',
