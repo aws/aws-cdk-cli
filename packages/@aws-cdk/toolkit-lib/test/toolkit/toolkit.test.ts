@@ -7,7 +7,7 @@
 
 import * as chalk from 'chalk';
 import { Toolkit } from '../../lib';
-import { TestIoHost } from '../_helpers';
+import { TestCloudAssemblySource, TestIoHost } from '../_helpers';
 
 describe('message formatting', () => {
   test('emojis can be stripped from message', async () => {
@@ -67,6 +67,72 @@ describe('message formatting', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I0000',
       message: 'test message',
+    }));
+  });
+});
+
+describe('metadata message formatting', () => {
+  test('converts object data to string for log message types', async () => {
+    const ioHost = new TestIoHost();
+    const toolkit = new Toolkit({ ioHost });
+
+    const source = new TestCloudAssemblySource({
+      stacks: [{
+        stackName: 'test-stack',
+        metadata: {
+          'test-stack': [{
+            type: 'aws:cdk:warning',
+            data: { 'Fn::Join': ['','test'], 'Ref': 'someRef' } as any
+          }]
+        }
+      }]
+    });
+
+    await toolkit.synth(source);
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warn',
+      message: expect.stringContaining('{"Fn::Join":["","test"],"Ref":"someRef"}'),
+      data: {
+        entry: {
+          type: 'aws:cdk:warning',
+          data: { 'Fn::Join': ['','test'], 'Ref': 'someRef' }
+        },
+        id: 'test-stack',
+        level: 'warning'
+      }
+    }));
+  });
+
+  test('keeps non-object data as-is for log message types', async () => {
+    const ioHost = new TestIoHost();
+    const toolkit = new Toolkit({ ioHost });
+
+    const source = new TestCloudAssemblySource({
+      stacks: [{
+        stackName: 'test-stack',
+        metadata: {
+          'test-stack': [{
+            type: 'aws:cdk:info',
+            data: 'simple string message'
+          }]
+        }
+      }]
+    });
+
+    await toolkit.synth(source);
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      message: expect.stringContaining('simple string message'),
+      data: {
+        entry: {
+          type: 'aws:cdk:info',
+          data: 'simple string message'
+        },
+        id: 'test-stack',
+        level: 'info'
+      }
     }));
   });
 });
