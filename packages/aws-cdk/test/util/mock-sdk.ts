@@ -78,7 +78,6 @@ export const restoreSdkMocksToDefault = () => {
   mockS3Client.onAnyCommand().resolves({});
   mockSecretsManagerClient.onAnyCommand().resolves({});
   mockSSMClient.onAnyCommand().resolves({});
-  mockSSMClient.onAnyCommand().resolves({});
 };
 
 /**

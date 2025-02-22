@@ -985,7 +985,6 @@ new JsiiBuild(cliLib, {
 
 // clilib needs to bundle some resources, same as the CLI
 cliLib.postCompileTask.exec('node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
-cliLib.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
 for (const resourceCommand of includeCliResourcesCommands) {
   cliLib.postCompileTask.exec(resourceCommand);
 }
@@ -1152,6 +1151,7 @@ toolkitLib.npmignore?.addPatterns(
   '!build-info.json',
   '!db.json.gz',
   '!lib/api/bootstrap/bootstrap-template.yaml',
+  '!lib/api/bootstrap/custom-bootstrap-template.yaml',
   '*.d.ts',
   '*.d.ts.map',
   '!lib/*.js',

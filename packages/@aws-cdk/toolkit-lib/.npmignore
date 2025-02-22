@@ -22,6 +22,7 @@ tsconfig.tsbuildinfo
 !build-info.json
 !db.json.gz
 !lib/api/bootstrap/bootstrap-template.yaml
+!lib/api/bootstrap/custom-bootstrap-template.yaml
 *.d.ts
 *.d.ts.map
 !lib/*.js
