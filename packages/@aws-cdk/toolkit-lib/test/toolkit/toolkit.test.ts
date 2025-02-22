@@ -88,9 +88,9 @@ describe('metadata message formatting', () => {
                 [
                   'stackId: ',
                   {
-                    'Ref': "AWS::StackId"
-                  }
-                ]
+                    Ref: 'AWS::StackId',
+                  },
+                ],
               ],
             } as any,
           }],
@@ -106,11 +106,11 @@ describe('metadata message formatting', () => {
       data: {
         entry: {
           type: 'aws:cdk:warning',
-          data: { 'Fn::Join': ['', ['stackId: ', { 'Ref': 'AWS::StackId' }]] }
+          data: { 'Fn::Join': ['', ['stackId: ', { Ref: 'AWS::StackId' }]] },
         },
         id: 'test-stack',
-        level: 'warning'
-      }
+        level: 'warning',
+      },
     }));
   });
 
@@ -124,10 +124,10 @@ describe('metadata message formatting', () => {
         metadata: {
           'test-stack': [{
             type: 'aws:cdk:info',
-            data: 'simple string message'
-          }]
-        }
-      }]
+            data: 'simple string message',
+          }],
+        },
+      }],
     });
 
     await toolkit.synth(source);
@@ -138,11 +138,11 @@ describe('metadata message formatting', () => {
       data: {
         entry: {
           type: 'aws:cdk:info',
-          data: 'simple string message'
+          data: 'simple string message',
         },
         id: 'test-stack',
-        level: 'info'
-      }
+        level: 'info',
+      },
     }));
   });
 });
