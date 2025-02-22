@@ -766,7 +766,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         ? JSON.stringify(msg.entry.data)
         : msg.entry.data;
 
-      ioHost.notify({
+      await ioHost.notify({
         time: new Date(),
         level,
         code: code(level),
