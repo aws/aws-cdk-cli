@@ -280,9 +280,7 @@ beforeEach(() => {
 
   // Set consistent mocks
   mockEcr.on(GetAuthorizationTokenCommand).resolves({
-    authorizationData: [
-      { authorizationToken: 'dXNlcjpwYXNz', proxyEndpoint: 'https://proxy.com/' },
-    ],
+    authorizationData: [{ authorizationToken: 'dXNlcjpwYXNz', proxyEndpoint: 'https://proxy.com/' }],
   });
 });
 
@@ -312,14 +310,10 @@ test('logging in twice for two repository domains (containing account id & regio
 
   const responses: GetAuthorizationTokenResponse[] = [
     {
-      authorizationData: [
-        { authorizationToken: 'dXNlcjpwYXNz', proxyEndpoint: 'https://12345.proxy.com/' },
-      ],
+      authorizationData: [{ authorizationToken: 'dXNlcjpwYXNz', proxyEndpoint: 'https://12345.proxy.com/' }],
     },
     {
-      authorizationData: [
-        { authorizationToken: 'dXNlcjpwYXNz', proxyEndpoint: 'https://12346.proxy.com/' },
-      ],
+      authorizationData: [{ authorizationToken: 'dXNlcjpwYXNz', proxyEndpoint: 'https://12346.proxy.com/' }],
     },
   ];
 
@@ -331,14 +325,7 @@ test('logging in twice for two repository domains (containing account id & regio
 
   const expectAllSpawns = mockSpawn(
     {
-      commandLine: [
-        'docker',
-        'login',
-        '--username',
-        'user',
-        '--password-stdin',
-        'https://12345.proxy.com/',
-      ],
+      commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', '12345.proxy.com'],
     },
     { commandLine: ['docker', 'inspect', 'cdkasset-theasset1'], exitCode: 1 },
     {
@@ -350,14 +337,7 @@ test('logging in twice for two repository domains (containing account id & regio
     },
     { commandLine: ['docker', 'push', '12345.amazonaws.com/repo:theAsset1'] },
     {
-      commandLine: [
-        'docker',
-        'login',
-        '--username',
-        'user',
-        '--password-stdin',
-        'https://12346.proxy.com/',
-      ],
+      commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', '12346.proxy.com'],
     },
     { commandLine: ['docker', 'inspect', 'cdkasset-theasset2'], exitCode: 1 },
     {
@@ -421,14 +401,7 @@ describe('with a complete manifest', () => {
   test('upload docker image if not uploaded yet but exists locally', async () => {
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'] },
       { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo:abcdef'] },
@@ -444,14 +417,7 @@ describe('with a complete manifest', () => {
   test('build and upload docker image if not exists anywhere', async () => {
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
@@ -476,14 +442,7 @@ describe('with a complete manifest', () => {
 
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
@@ -508,26 +467,11 @@ describe('with a complete manifest', () => {
 
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
-        commandLine: [
-          'docker',
-          'build',
-          '--tag',
-          'cdkasset-theasset',
-          '--platform',
-          'linux/arm64',
-          '.',
-        ],
+        commandLine: ['docker', 'build', '--tag', 'cdkasset-theasset', '--platform', 'linux/arm64', '.'],
         cwd: defaultNetworkDockerpath,
       },
       { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo:nopqr'] },
@@ -546,14 +490,7 @@ describe('with a complete manifest', () => {
 
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
@@ -586,14 +523,7 @@ describe('with a complete manifest', () => {
 
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
@@ -618,14 +548,7 @@ describe('with a complete manifest', () => {
 
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
@@ -662,14 +585,7 @@ describe('with a complete manifest', () => {
 
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
       {
@@ -705,14 +621,7 @@ describe('external assets', () => {
   test('upload externally generated Docker image', async () => {
     const expectAllSpawns = mockSpawn(
       {
-        commandLine: [
-          'docker',
-          'login',
-          '--username',
-          'user',
-          '--password-stdin',
-          'https://proxy.com/',
-        ],
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
       },
       { commandLine: ['sometool'], stdout: externalTag, cwd: '/external/cdk.out' },
       { commandLine: ['docker', 'tag', externalTag, '12345.amazonaws.com/repo:ghijkl'] },
@@ -754,9 +663,7 @@ test('correctly identify Docker directory if path is absolute', async () => {
 
 test('when external credentials are present, explicit Docker config directories are used', async () => {
   // Setup -- Mock that we have CDK credentials, and mock fs operations.
-  jest
-    .spyOn(dockercreds, 'cdkCredentialsConfig')
-    .mockReturnValue({ version: '0.1', domainCredentials: {} });
+  jest.spyOn(dockercreds, 'cdkCredentialsConfig').mockReturnValue({ version: '0.1', domainCredentials: {} });
   jest.spyOn(fs, 'mkdtempSync').mockImplementationOnce(() => '/tmp/mockedTempDir');
   jest.spyOn(fs, 'writeFileSync').mockImplementation(jest.fn());
 
@@ -769,15 +676,7 @@ test('when external credentials are present, explicit Docker config directories 
       exitCode: 1,
     },
     {
-      commandLine: [
-        'docker',
-        '--config',
-        '/tmp/mockedTempDir',
-        'build',
-        '--tag',
-        'cdkasset-theasset',
-        '.',
-      ],
+      commandLine: ['docker', '--config', '/tmp/mockedTempDir', 'build', '--tag', 'cdkasset-theasset', '.'],
       cwd: absoluteDockerPath,
     },
     {
@@ -808,14 +707,7 @@ test('logging in only once for two assets', async () => {
 
   const expectAllSpawns = mockSpawn(
     {
-      commandLine: [
-        'docker',
-        'login',
-        '--username',
-        'user',
-        '--password-stdin',
-        'https://proxy.com/',
-      ],
+      commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
     },
     { commandLine: ['docker', 'inspect', 'cdkasset-theasset1'], exitCode: 1 },
     {
@@ -849,14 +741,7 @@ test('building only', async () => {
 
   const expectAllSpawns = mockSpawn(
     {
-      commandLine: [
-        'docker',
-        'login',
-        '--username',
-        'user',
-        '--password-stdin',
-        'https://proxy.com/',
-      ],
+      commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
     },
     { commandLine: ['docker', 'inspect', 'cdkasset-theasset1'], exitCode: 1 },
     {
@@ -888,14 +773,7 @@ test('publishing only', async () => {
 
   const expectAllSpawns = mockSpawn(
     {
-      commandLine: [
-        'docker',
-        'login',
-        '--username',
-        'user',
-        '--password-stdin',
-        'https://proxy.com/',
-      ],
+      commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
     },
     { commandLine: ['docker', 'push', '12345.amazonaws.com/aws-cdk/assets:theAsset1'] },
     { commandLine: ['docker', 'push', '12345.amazonaws.com/aws-cdk/assets:theAsset2'] },
@@ -917,14 +795,7 @@ test('overriding the docker command', async () => {
 
   const expectAllSpawns = mockSpawn(
     {
-      commandLine: [
-        'custom',
-        'login',
-        '--username',
-        'user',
-        '--password-stdin',
-        'https://proxy.com/',
-      ],
+      commandLine: ['custom', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
     },
     { commandLine: ['custom', 'inspect', 'cdkasset-theasset'] },
     { commandLine: ['custom', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo:abcdef'] },

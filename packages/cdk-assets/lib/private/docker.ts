@@ -144,7 +144,7 @@ export class Docker {
 
     // Use --password-stdin otherwise docker will complain. Loudly.
     await this.execute(
-      ['login', '--username', credentials.username, '--password-stdin', credentials.endpoint],
+      ['login', '--username', credentials.username, '--password-stdin', credentials.endpoint.replace(/^https?:\/\/|\/$/g, '')],
       {
         input: credentials.password,
 
