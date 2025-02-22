@@ -757,13 +757,23 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         default: return 'CDK_ASSEMBLY_I9999';
       }
     };
-    await stacks.validateMetadata(this.props.assemblyFailureAt, async (level, msg) => ioHost.notify({
-      time: new Date(),
-      level,
-      code: code(level),
-      message: `[${level} at ${msg.id}] ${msg.entry.data}`,
-      data: msg,
-    }));
+
+    await stacks.validateMetadata(this.props.assemblyFailureAt, async (level, msg) => {
+      // Data comes from Annotations and the data can be of object type containing 'Fn::Join' or 'Ref' when tokens are included in Annotations.
+      // Therefore, we use JSON.stringify to convert it to a string when the data is of object type.
+      // see: https://github.com/aws/aws-cdk/issues/33527
+      const data = msg.entry.data !== null && typeof msg.entry.data === 'object'
+        ? JSON.stringify(msg.entry.data)
+        : msg.entry.data;
+
+      await ioHost.notify({
+        time: new Date(),
+        level,
+        code: code(level),
+        message: `[${level} at ${msg.id}] ${data}`,
+        data: msg,
+      });
+    });
   }
 
   /**
