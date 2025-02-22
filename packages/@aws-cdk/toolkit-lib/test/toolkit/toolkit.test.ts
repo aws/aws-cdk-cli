@@ -82,21 +82,31 @@ describe('metadata message formatting', () => {
         metadata: {
           'test-stack': [{
             type: 'aws:cdk:warning',
-            data: { 'Fn::Join': ['','test'], 'Ref': 'someRef' } as any
-          }]
-        }
-      }]
+            data: {
+              'Fn::Join': [
+                '',
+                [
+                  'stackId: ',
+                  {
+                    'Ref': "AWS::StackId"
+                  }
+                ]
+              ],
+            } as any,
+          }],
+        },
+      }],
     });
 
     await toolkit.synth(source);
 
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       level: 'warn',
-      message: expect.stringContaining('{"Fn::Join":["","test"],"Ref":"someRef"}'),
+      message: expect.stringContaining('{"Fn::Join":["",["stackId: ",{"Ref":"AWS::StackId"}]]}'),
       data: {
         entry: {
           type: 'aws:cdk:warning',
-          data: { 'Fn::Join': ['','test'], 'Ref': 'someRef' }
+          data: { 'Fn::Join': ['', ['stackId: ', { 'Ref': 'AWS::StackId' }]] }
         },
         id: 'test-stack',
         level: 'warning'
