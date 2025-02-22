@@ -762,7 +762,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       // Data comes from Annotations and the data can be of object type containing 'Fn::Join' or 'Ref' when tokens are included in Annotations.
       // Therefore, we use JSON.stringify to convert it to a string when the data is of object type.
       // see: https://github.com/aws/aws-cdk/issues/33527
-      const data = typeof msg.entry.data === 'object' && msg.entry.data !== null
+      const data = msg.entry.data !== null && typeof msg.entry.data === 'object'
         ? JSON.stringify(msg.entry.data)
         : msg.entry.data;
 
