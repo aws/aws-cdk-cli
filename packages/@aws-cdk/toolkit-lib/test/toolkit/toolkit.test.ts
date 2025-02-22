@@ -72,7 +72,7 @@ describe('message formatting', () => {
 });
 
 describe('metadata message formatting', () => {
-  test('converts object data to string for log message types', async () => {
+  test('converts object data for log message to string', async () => {
     const ioHost = new TestIoHost();
     const toolkit = new Toolkit({ ioHost });
 
@@ -104,7 +104,7 @@ describe('metadata message formatting', () => {
     }));
   });
 
-  test('keeps non-object data as-is for log message types', async () => {
+  test('keeps non-object data for log message as-is', async () => {
     const ioHost = new TestIoHost();
     const toolkit = new Toolkit({ ioHost });
 
