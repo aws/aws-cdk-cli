@@ -4,8 +4,8 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
-import { environmentsFromDescriptors } from '../actions/bootstrap/private';
 import { BootstrapOptions, BootstrapSource } from '../actions/bootstrap';
+import { environmentsFromDescriptors } from '../actions/bootstrap/private';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -235,7 +235,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             toolkitStackName,
             source: source.render(),
             parameters: parameters?.parameters,
-            usePreviousParameters: parameters?.keepExistingParameters
+            usePreviousParameters: parameters?.keepExistingParameters,
           },
         );
         const message = bootstrapResult.noOp

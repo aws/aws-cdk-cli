@@ -4,7 +4,7 @@ import { Tag } from '../../api/aws-cdk';
  * Options for Bootstrap
  */
 export interface BootstrapOptions {
-  
+
   /**
    * Bootstrap environment parameters for CloudFormation used when deploying the bootstrap stack
    * @default BootstrapEnvironmentParameters.onlyExisting()
@@ -146,30 +146,29 @@ export class BootstrapEnvironmentParameters {
   /**
    * Use only existing parameters on the stack.
    */
-    public static onlyExisting() {
-      return new BootstrapEnvironmentParameters({}, true);
-    }
-  
+  public static onlyExisting() {
+    return new BootstrapEnvironmentParameters({}, true);
+  }
+
   /**
    * Use exactly these parameters and remove any other existing parameters from the stack.
    */
-    public static exactly(params: BootstrapParameterValues) {
-      return new BootstrapEnvironmentParameters(params, false);
-    }
-  
-    /**
-     * Define additional parameters for the stack, while keeping existing parameters for unspecified values.
-     */
-    public static withExisting(params: BootstrapParameterValues) {
-      return new BootstrapEnvironmentParameters(params, true);
-    }
-  
+  public static exactly(params: BootstrapParameterValues) {
+    return new BootstrapEnvironmentParameters(params, false);
+  }
+
+  /**
+   * Define additional parameters for the stack, while keeping existing parameters for unspecified values.
+   */
+  public static withExisting(params: BootstrapParameterValues) {
+    return new BootstrapEnvironmentParameters(params, true);
+  }
+
   /**
    * The parameters as a Map for easy access and manipulation
    */
   public readonly parameters?: BootstrapParameterValues;
   public readonly keepExistingParameters: boolean;
-
 
   private constructor(params?: BootstrapParameterValues, usePreviousParameters = true) {
     this.keepExistingParameters = usePreviousParameters;
