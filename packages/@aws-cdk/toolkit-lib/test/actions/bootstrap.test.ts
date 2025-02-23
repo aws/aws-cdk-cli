@@ -80,7 +80,8 @@ function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]):
 
 async function runBootstrap(options?: { environments?: string[]; source?: BootstrapSource }) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
-  const bootstrapEnvs = options?.environments?.length ? BootstrapEnvironments.fromList(options.environments) : BootstrapEnvironments.fromCloudAssemblySource(cx);
+  const bootstrapEnvs = options?.environments?.length ?
+    BootstrapEnvironments.fromList(options.environments) : BootstrapEnvironments.fromCloudAssemblySource(cx);
   return toolkit.bootstrap(bootstrapEnvs, { source: options?.source });
 }
 
