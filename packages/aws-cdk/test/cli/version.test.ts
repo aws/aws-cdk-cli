@@ -1,15 +1,16 @@
 /* eslint-disable import/order */
-import * as path from 'path';
-import { setTimeout as _setTimeout } from 'timers';
-import { promisify } from 'util';
 import * as fs from 'fs-extra';
 import * as os from 'os';
+import * as path from 'path';
 import * as sinon from 'sinon';
-import * as logging from '../../lib/logging';
+import { setTimeout as _setTimeout } from 'timers';
+import { promisify } from 'util';
 import * as npm from '../../lib/cli/util/npm';
-import { latestVersionIfHigher, VersionCheckTTL, displayVersionMessage, isDeveloperBuild } from '../../lib/cli/version';
+import { displayVersionMessage, isDeveloperBuild, latestVersionIfHigher, VersionCheckTTL } from '../../lib/cli/version';
+import * as logging from '../../lib/logging';
 
 jest.setTimeout(10_000);
+
 
 const setTimeout = promisify(_setTimeout);
 
@@ -142,6 +143,20 @@ describe('version message', () => {
     // Then no upgrade documentation is printed
     expect(printSpy).toHaveBeenCalledWith(expect.stringContaining('100.0.0'));
     expect(printSpy).not.toHaveBeenCalledWith(expect.stringContaining('Information about upgrading from 99.x to 100.x'));
+  });
+
+  test('Prints a message when a deprecated version is used', async () => {
+    // Given the current version is 1.0.0 and the latest version is 1.1.0
+    const currentVersion = '1.0.0';
+    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
+    jest.spyOn(npm, 'checkIfDeprecated').mockResolvedValueOnce('aws-cdk@1.0.0 has been deprecated.');
+    const printSpy = jest.spyOn(logging, 'info');
+
+    // When displayVersionMessage is called
+    await displayVersionMessage(currentVersion, new VersionCheckTTL(tmpfile(), 0));
+
+    // Then the deprecated version message is printed
+    expect(printSpy).toHaveBeenCalledWith(expect.stringContaining('You are using deprecated version(aws-cdk@1.0.0):'));
   });
 });
 
