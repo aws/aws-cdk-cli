@@ -82,10 +82,10 @@ export interface StackSelector {
   patterns?: string[];
 
   /**
-   * Extend the selection to upstream/downstream stacks.
-   * @default ExtendedStackSelection.None only select the specified/matched stacks
+   * Expand the selection to upstream/downstream stacks.
+   * @default ExpandStackSelection.None only select the specified/matched stacks
    */
-  extend?: ExpandStackSelection;
+  expand?: ExpandStackSelection;
 
   /**
    * By default, we throw an exception if the assembly contains no stacks.

@@ -27,7 +27,7 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
       throw new ToolkitError('This app contains no stacks');
     }
 
-    const extend = convertExtend(selector.extend);
+    const extend = expandToExtendEnum(selector.expand);
     const patterns = sanitizePatterns(selector.patterns ?? []);
 
     switch (selector.strategy) {
@@ -94,7 +94,7 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
   }
 }
 
-function convertExtend(extend?: ExpandStackSelection): CliExtendedStackSelection | undefined {
+function expandToExtendEnum(extend?: ExpandStackSelection): CliExtendedStackSelection | undefined {
   switch (extend) {
     case ExpandStackSelection.DOWNSTREAM:
       return CliExtendedStackSelection.Downstream;
