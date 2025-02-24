@@ -3,21 +3,21 @@
 version: 2
 updates:
   - package-ecosystem: pip
-    directory: /
+    directory: /packages/aws-cdk/lib/init-templates
     schedule:
       interval: weekly
     labels:
       - auto-approve
     open-pull-requests-limit: 5
   - package-ecosystem: maven
-    directory: /
+    directory: /packages/aws-cdk/lib/init-templates
     schedule:
       interval: weekly
     labels:
       - auto-approve
     open-pull-requests-limit: 5
   - package-ecosystem: nuget
-    directory: /
+    directory: /packages/aws-cdk/lib/init-templates
     schedule:
       interval: weekly
     labels:
