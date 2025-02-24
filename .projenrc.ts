@@ -1196,6 +1196,7 @@ toolkitLib.addTask('docs', {
 });
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
+  receiveArgs: true,
 });
 
 //////////////////////////////////////////////////////////////////////
