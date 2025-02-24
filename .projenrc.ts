@@ -1148,7 +1148,6 @@ toolkitLib.npmignore?.addPatterns(
   'build-tools',
   'docs',
   'typedoc.json',
-  '*.d.ts',
   '*.d.ts.map',
   // Explicitly allow all required files
   '!build-info.json',
