@@ -1006,9 +1006,7 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
 
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
+    ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
