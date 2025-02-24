@@ -14,5 +14,5 @@ npm pkg set dependencies.@aws-cdk/cloud-assembly-schema=$version
 npm pkg set dependencies.@aws-cdk/cloudformation-diff=$version
 npm pack --pack-destination dist/js
 npm pkg set version=$reset
-npm pkg set dependencies.@aws-cdk/cloudformation-diff=^$reset``
-npm pkg set dependencies.@aws-cdk/cloud-assembly-schema=^$reset``
+npm pkg set dependencies.@aws-cdk/cloudformation-diff=^$reset
+npm pkg set dependencies.@aws-cdk/cloud-assembly-schema=^$reset
