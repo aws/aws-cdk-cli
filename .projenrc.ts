@@ -1244,7 +1244,7 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     version: 2,
     updates: ['pip', 'maven', 'nuget'].map((pkgEco) => ({
       'package-ecosystem': pkgEco,
-      'directory': '/',
+      'directory': '/packages/aws-cdk/lib/init-templates',
       'schedule': { interval: 'weekly' },
       'labels': ['auto-approve'],
       'open-pull-requests-limit': 5,
