@@ -2,11 +2,11 @@ import * as path from 'path';
 import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
+import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
+import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
-import { CodeCovWorkflow } from './projenrc/codecov';
-import { AdcPublishing } from './projenrc/adc-publishing';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`

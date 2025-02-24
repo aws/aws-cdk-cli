@@ -1,6 +1,6 @@
-import { Monorepo } from "cdklabs-projen-project-types/lib/yarn";
-import { Component } from "projen";
-import { JobPermission } from "projen/lib/github/workflows-model";
+import { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
+import { Component } from 'projen';
+import { JobPermission } from 'projen/lib/github/workflows-model';
 
 /**
  * Record publishing timestamp to SSM
@@ -20,13 +20,13 @@ export class RecordPublishingTimestamp extends Component {
 
     releaseWf.addJob('record_timestamp', {
       name: 'aws-cdk: Record publishing timestamp',
-      environment: 'releasing',  // <-- this has the configuration
+      environment: 'releasing', // <-- this has the configuration
       needs: ['release'],
       runsOn: ['ubuntu-latest'],
       permissions: {
         contents: JobPermission.WRITE,
       },
-      if: `\${{ needs.release.outputs.latest_commit == github.sha }}`,
+      if: '${{ needs.release.outputs.latest_commit == github.sha }}',
       steps: [
         {
           name: 'Download build artifacts',
