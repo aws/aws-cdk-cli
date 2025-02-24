@@ -6,6 +6,7 @@ import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { AdcPublishing } from './projenrc/adc-publishing';
+import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -188,6 +189,7 @@ const repoProject = new yarn.Monorepo({
       schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKLY,
     },
   },
+  dependabot: false,
 
   githubOptions: {
     mergify: false,
@@ -217,6 +219,7 @@ const repoProject = new yarn.Monorepo({
 });
 
 new AdcPublishing(repoProject);
+new RecordPublishingTimestamp(repoProject);
 
 // Eslint for projen config
 // @ts-ignore
