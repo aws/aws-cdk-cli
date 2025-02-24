@@ -8,6 +8,7 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
+import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -1127,6 +1128,13 @@ const toolkitLib = configureProject(
   }),
 );
 
+new S3DocsPublishing(toolkitLib, {
+  docsStream: 'toolkit-lib',
+  artifactPath: 'docs.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+});
+
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': ['error'],
@@ -1195,9 +1203,19 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-toolkitLib.addTask('docs', {
+const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
+  receiveArgs: true,
 });
+toolkitLib.packageTask.spawn(toolkitLibDocs, {
+  // the nested directory is important
+  // the zip file needs to have this structure when created
+  args: ['--out dist/docs/cdk/api/toolkit-lib'],
+});
+toolkitLib.packageTask.exec('zip -r ../docs.zip cdk ', {
+  cwd: 'dist/docs',
+});
+
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
   receiveArgs: true,
