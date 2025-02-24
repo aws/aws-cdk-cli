@@ -189,8 +189,7 @@ const repoProject = new yarn.Monorepo({
       schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKLY,
     },
   },
-  dependabot: false,
-
+  
   githubOptions: {
     mergify: false,
     mergeQueue: true,
