@@ -13,8 +13,11 @@ const AREA_PARAMS = [
   { area: 'cdk-assets', keywords: ['assets', 'cdk-assets'], labels: ['cdk-assets']},
 ]
 
+/**
+ * See https://github.com/aws-github-ops/aws-issue-triage-manager
+ */
 interface TriageManagerOptions {
-  target: 'pull-requests' | 'issues';
+  target: 'pull-requests' | 'issues' | 'both';
   excludedExpressions?: string[];
   includedExpressions?: string[];
   includedLabels?: string[];
@@ -40,8 +43,8 @@ function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
     ],
     ...(triageManagerOptions.needEnvs ? {env: {
       AREA_PARAMS: JSON.stringify(AREA_PARAMS),
-      AREA_AFFIXES: `{'prefixes':${JSON.stringify(AREA_AFFIXES)}}`,
-      OSDS_DEVS: `{'assignees':${JSON.stringify(OSDS_DEVS)}}`,
+      AREA_AFFIXES: `{"prefixes":${JSON.stringify(AREA_AFFIXES)}}`,
+      OSDS_DEVS: `{"assignees":${JSON.stringify(OSDS_DEVS)}}`,
     }} : {}),
   };
 
