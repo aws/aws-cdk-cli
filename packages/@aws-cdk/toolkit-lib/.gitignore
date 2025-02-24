@@ -42,6 +42,8 @@ jspm_packages/
 /lib/**/*.d.ts.map
 /dist/
 !/.eslintrc.json
+/dist/changelog.md
+/dist/version.txt
 !/.eslintrc.js
 db.json.gz
 .init-version.json

@@ -146,10 +146,9 @@ function jestOptionsForProject(options: pj.javascript.JestOptions): pj.javascrip
 function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
   return pj.ReleasableCommits.featuresAndFixes([
     '.',
-    ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`))
+    ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`)),
   ].join(' '));
 }
-
 
 const repoProject = new yarn.Monorepo({
   projenrcTs: true,
@@ -225,8 +224,6 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
-new AdcPublishing(repoProject);
-
 // Eslint for projen config
 // @ts-ignore
 repoProject.eslint = new pj.javascript.Eslint(repoProject, {
@@ -236,6 +233,12 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   fileExtensions: ['.ts', '.tsx'],
   lintProjenRc: false,
 });
+// always lint projen files as part of the build
+if (repoProject.eslint?.eslintTask) {
+  repoProject.tasks.tryFind('build')?.spawn(repoProject.eslint?.eslintTask);
+}
+
+new AdcPublishing(repoProject);
 
 const repo = configureProject(repoProject);
 
@@ -1016,9 +1019,7 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
 
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
+    ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
