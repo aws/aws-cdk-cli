@@ -44,6 +44,9 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },
+  "engines": {
+    "node": ">= 14.15.0"
+  },
   "main": "lib/index.js",
   "license": "Apache-2.0",
   "publishConfig": {

@@ -25,6 +25,7 @@ const TYPESCRIPT_VERSION = '5.6';
  * and 30 is not stable yet.
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
+  x.package.addEngine('node', '>= 14.15.0');
   x.addDevDeps(
     '@typescript-eslint/eslint-plugin@^8',
     '@typescript-eslint/parser@^8',
