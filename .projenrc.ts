@@ -146,10 +146,9 @@ function jestOptionsForProject(options: pj.javascript.JestOptions): pj.javascrip
 function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
   return pj.ReleasableCommits.featuresAndFixes([
     '.',
-    ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`))
+    ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`)),
   ].join(' '));
 }
-
 
 const repoProject = new yarn.Monorepo({
   projenrcTs: true,
