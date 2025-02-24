@@ -8,7 +8,7 @@ import {
   Stack,
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
-import { BootstrapSource } from '../../lib/actions/bootstrap';
+import { BootstrapEnvironmentParameters, BootstrapSource } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-cdk';
 import { BootstrapEnvironments, Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
@@ -78,11 +78,18 @@ function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]):
   } as Stack;
 }
 
-async function runBootstrap(options?: { environments?: string[]; source?: BootstrapSource }) {
+async function runBootstrap(options?: {
+  environments?: string[],
+  source?: BootstrapSource,
+  parameters?: BootstrapEnvironmentParameters
+}) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
   const bootstrapEnvs = options?.environments?.length ?
     BootstrapEnvironments.fromList(options.environments) : BootstrapEnvironments.fromCloudAssemblySource(cx);
-  return toolkit.bootstrap(bootstrapEnvs, { source: options?.source });
+  return toolkit.bootstrap(bootstrapEnvs, { 
+    source: options?.source,
+    parameters: options?.parameters,
+  });
 }
 
 function expectSuccessfulBootstrap() {
@@ -199,6 +206,174 @@ describe('bootstrap', () => {
       // WHEN/THEN
       await expect(runBootstrap({ environments: ['invalid-format'] }))
         .rejects.toThrow('Expected environment name in format \'aws://<account>/<region>\', got: invalid-format');
+    });
+  });
+
+  describe('bootstrap parameters', () => {
+    test('bootstrap with default parameters', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      // WHEN
+      await runBootstrap();
+
+      // THEN
+      const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
+      expect(createChangeSetCalls.length).toBeGreaterThan(0);
+      const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
+      // Default parameters should include standard bootstrap parameters
+      expect(new Set(parameters)).toEqual(new Set([
+        {
+          ParameterKey: 'TrustedAccounts',
+          ParameterValue: '',
+        },
+        {
+          ParameterKey: 'TrustedAccountsForLookup',
+          ParameterValue: '',
+        },
+        {
+          ParameterKey: 'CloudFormationExecutionPolicies',
+          ParameterValue: '',
+        },
+        {
+          ParameterKey: 'FileAssetsBucketKmsKeyId',
+          ParameterValue: 'AWS_MANAGED_KEY',
+        },
+        {
+          ParameterKey: 'PublicAccessBlockConfiguration',
+          ParameterValue: 'true',
+        },
+      ]));
+      expectSuccessfulBootstrap();
+    });
+
+    test('bootstrap with exact parameters', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'CUSTOM_BUCKET' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'CUSTOM_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      const customParams = {
+        bucketName: 'custom-bucket',
+        qualifier: 'test',
+        publicAccessBlockConfiguration: false,
+      };
+
+      // WHEN
+      await runBootstrap({
+        parameters: BootstrapEnvironmentParameters.exactly(customParams),
+      });
+
+      // THEN
+      const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
+      expect(createChangeSetCalls.length).toBeGreaterThan(0);
+      const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
+      // For exact parameters, we should see our custom values
+      expect(parameters).toContainEqual({
+        ParameterKey: 'FileAssetsBucketName',
+        ParameterValue: 'custom-bucket',
+      });
+      expect(parameters).toContainEqual({
+        ParameterKey: 'Qualifier',
+        ParameterValue: 'test',
+      });
+      expect(parameters).toContainEqual({
+        ParameterKey: 'PublicAccessBlockConfiguration',
+        ParameterValue: 'false',
+      });
+      expectSuccessfulBootstrap();
+    });
+
+    test('bootstrap with additional parameters', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'EXISTING_BUCKET' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'EXISTING_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      const additionalParams = {
+        qualifier: 'additional',
+        trustedAccounts: ['123456789012'],
+        cloudFormationExecutionPolicies: ['arn:aws:iam::aws:policy/AdministratorAccess'],
+      };
+
+      // WHEN
+      await runBootstrap({
+        parameters: BootstrapEnvironmentParameters.withExisting(additionalParams),
+      });
+
+      // THEN
+      const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
+      expect(createChangeSetCalls.length).toBeGreaterThan(0);
+      const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
+      // For additional parameters, we should see our new values merged with defaults
+      expect(parameters).toContainEqual({
+        ParameterKey: 'Qualifier',
+        ParameterValue: 'additional',
+      });
+      expect(parameters).toContainEqual({
+        ParameterKey: 'TrustedAccounts',
+        ParameterValue: '123456789012',
+      });
+      expect(parameters).toContainEqual({
+        ParameterKey: 'CloudFormationExecutionPolicies',
+        ParameterValue: 'arn:aws:iam::aws:policy/AdministratorAccess',
+      });
+      expectSuccessfulBootstrap();
+    });
+
+    test('bootstrap with only existing parameters', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'EXISTING_BUCKET' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'EXISTING_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      // WHEN
+      await runBootstrap({
+        parameters: BootstrapEnvironmentParameters.onlyExisting(),
+      });
+
+      // THEN
+      const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
+      expect(createChangeSetCalls.length).toBeGreaterThan(0);
+      const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
+      // When using only existing parameters, we should get the default set
+      expect(new Set(parameters)).toEqual(new Set([
+        {
+          ParameterKey: 'TrustedAccounts',
+          ParameterValue: '',
+        },
+        {
+          ParameterKey: 'TrustedAccountsForLookup',
+          ParameterValue: '',
+        },
+        {
+          ParameterKey: 'CloudFormationExecutionPolicies',
+          ParameterValue: '',
+        },
+        {
+          ParameterKey: 'FileAssetsBucketKmsKeyId',
+          ParameterValue: 'AWS_MANAGED_KEY',
+        },
+        {
+          ParameterKey: 'PublicAccessBlockConfiguration',
+          ParameterValue: 'true',
+        },
+      ]));
+      expectSuccessfulBootstrap();
     });
   });
 
