@@ -1,4 +1,4 @@
-import { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from "../api/aws-cdk";
+import { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
 export interface AssemblyData {
   assemblyDirectory: string;
@@ -6,7 +6,8 @@ export interface AssemblyData {
   stackIds: string[];
 }
 
-export interface SuccessfulDeployStackResult extends _SuccessfulDeployStackResult {}
+export interface SuccessfulDeployStackResult extends _SuccessfulDeployStackResult {
+}
 
 export interface StackData extends AssemblyData {
   stack: {
@@ -19,5 +20,5 @@ export interface StackData extends AssemblyData {
 }
 
 export interface Duration {
-  duration: number,
+  duration: number;
 }

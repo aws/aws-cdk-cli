@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
-import type { IoMessageCodeCategory, IoMessageLevel } from '../io-message';
-import { CodeInfo, CODES } from './codes';
+import type { IoMessageCode, IoMessageLevel } from '../io-message';
+import { CodeInfo } from './codes';
 import type { ActionLessMessage, ActionLessRequest, IoMessageCodeCategory, Optional, SimplifiedMessage } from './types';
 
 /**
@@ -26,8 +26,12 @@ export function defaultMessageCode(level: IoMessageLevel, category: IoMessageCod
   const levelIndicator = level === 'error' ? 'E' :
     level === 'warn' ? 'W' :
       'I';
-  const code = `CDK_${category}_${levelIndicator}0000` as keyof typeof CODES;
-  return CODES[code];
+  const code = `CDK_${category}_${levelIndicator}0000` as IoMessageCode;
+  return {
+    code,
+    description: `Generic ${level} message for CDK_${category}`,
+    level,
+  };
 }
 
 /**

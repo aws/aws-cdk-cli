@@ -8,7 +8,7 @@
 | CDK_TOOLKIT_I2901 | Provides details on the selected stacks and their dependencies | result | n/a |
 | CDK_TOOLKIT_E3900 | Resource import failed | error | n/a |
 | CDK_TOOLKIT_I5000 | Provides deployment times | info | n/a |
-| CDK_TOOLKIT_I5001 | Provides total time in deploy action, including synth and rollback | info | n/a |
+| CDK_TOOLKIT_I5001 | Provides total time in deploy action, including synth and rollback | info | [Duration](docs/interfaces/Duration.html) |
 | CDK_TOOLKIT_I5002 | Provides time for resource migration | info | n/a |
 | CDK_TOOLKIT_I5031 | Informs about any log groups that are traced as part of the deployment | info | n/a |
 | CDK_TOOLKIT_I5050 | Confirm rollback during deployment | info | n/a |
