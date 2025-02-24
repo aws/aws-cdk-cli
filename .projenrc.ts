@@ -8,6 +8,7 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
+import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -224,6 +225,9 @@ const repoProject = new yarn.Monorepo({
     ],
   },
 });
+
+new AdcPublishing(repoProject);
+new RecordPublishingTimestamp(repoProject);
 
 // Eslint for projen config
 // @ts-ignore
@@ -1020,9 +1024,7 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
 
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
+    ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
@@ -1199,6 +1201,7 @@ toolkitLib.addTask('docs', {
 });
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
+  receiveArgs: true,
 });
 
 //////////////////////////////////////////////////////////////////////
