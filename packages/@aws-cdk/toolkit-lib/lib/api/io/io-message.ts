@@ -7,25 +7,13 @@ import { ToolkitAction } from '../../toolkit';
 export type IoMessageLevel = 'error'| 'result' | 'warn' | 'info' | 'debug' | 'trace';
 
 /**
- * Valid reporting categories for messages.
- */
-export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS' | 'ASSEMBLY';
-
-/**
- * Code level matching the reporting level.
- */
-export type IoCodeLevel = 'E' | 'W' | 'I';
-
-/**
- * A message code at a specific level
- */
-export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
-
-/**
  * A valid message code
  */
-export type IoMessageCode = IoMessageSpecificCode<IoCodeLevel>;
+export type IoMessageCode = `CDK_${string}_${'E' | 'W' | 'I'}${number}${number}${number}${number}`;
 
+/**
+ * An IO message emitted.
+ */
 export interface IoMessage<T> {
   /**
    * The time the message was emitted.
@@ -78,36 +66,3 @@ export interface IoRequest<T, U> extends IoMessage<T> {
    */
   readonly defaultResponse: U;
 }
-
-/**
- * Keep this list ordered from most to least verbose.
- * Every level "includes" all of the levels below it.
- * This is used to compare levels of messages to determine what should be logged.
- */
-const levels = [
-  'trace',
-  'debug',
-  'info',
-  'warn',
-  'result',
-  'error',
-] as const;
-
-// compare levels helper
-// helper to convert the array into a map with numbers
-const orderedLevels: Record<typeof levels[number], number> = Object.fromEntries(Object.entries(levels).map(a => a.reverse()));
-function compareFn(a: IoMessageLevel, b: IoMessageLevel): number {
-  return orderedLevels[a] - orderedLevels[b];
-}
-
-/**
- * Determines if a message is relevant for the given log level.
- *
- * @param msg The message to compare.
- * @param level The level to compare against.
- * @returns true if the message is relevant for the given level.
- */
-export function isMessageRelevantForLevel(msg: { level: IoMessageLevel}, level: IoMessageLevel): boolean {
-  return compareFn(msg.level, level) >= 0;
-}
-
