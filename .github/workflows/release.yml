@@ -859,6 +859,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
           role-session-name: releasing@aws-cdk-cli
           output-credentials: true
+          mask-aws-account-id: true
       - name: Publish artifacts
         env:
           PUBLISHING_ROLE_ARN: ${{ vars.PUBLISHING_ROLE_ARN }}
@@ -890,6 +891,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
           role-session-name: releasing@aws-cdk-cli
           output-credentials: true
+          mask-aws-account-id: true
       - name: Publish artifacts
         run: |-
           aws ssm put-parameter --name "/published/cdk/cli/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
