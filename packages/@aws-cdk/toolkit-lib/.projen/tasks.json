@@ -87,7 +87,8 @@
       "name": "docs",
       "steps": [
         {
-          "exec": "typedoc lib/index.ts"
+          "exec": "typedoc lib/index.ts",
+          "receiveArgs": true
         }
       ]
     },
@@ -149,6 +150,16 @@
         },
         {
           "exec": "npm pack --pack-destination dist/js"
+        },
+        {
+          "spawn": "docs",
+          "args": [
+            "--out dist/docs/cdk/api/toolkit-lib"
+          ]
+        },
+        {
+          "exec": "zip -r ../docs.zip cdk ",
+          "cwd": "dist/docs"
         }
       ]
     },

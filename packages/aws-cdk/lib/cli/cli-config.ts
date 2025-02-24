@@ -98,7 +98,7 @@ export async function makeConfig(): Promise<CliConfig> {
         },
       },
       gc: {
-        description: 'Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/README.md#cdk-gc',
+        description: 'Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc',
         arg: {
           name: 'ENVIRONMENTS',
           variadic: true,
