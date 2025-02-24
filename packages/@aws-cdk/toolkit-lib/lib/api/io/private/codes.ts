@@ -1,10 +1,34 @@
 import { IoMessageCode, IoMessageLevel } from '../io-message';
 
+/**
+ * Information for each IO Message Code.
+ */
 export interface CodeInfo {
+  /**
+   * The message code.
+   */
   code: IoMessageCode;
+
+  /**
+   * A brief description of the meaning of this IO Message.
+   */
   description: string;
+
+  /**
+   * The message level
+   */
   level: IoMessageLevel;
-  interface?: any;
+
+  /**
+   * The name of the payload interface, if applicable.
+   * Some Io Messages include a payload, with a specific interface. The name of
+   * the interface is specified here so that it can be linked with the message
+   * when documentation is generated.
+   *
+   * The interface _must_ be exposed directly from toolkit-lib, so that it will
+   * have a documentation page generated (that can be linked to).
+   */
+  interface?: string;
 }
 
 function codeInfo(info: CodeInfo): CodeInfo {

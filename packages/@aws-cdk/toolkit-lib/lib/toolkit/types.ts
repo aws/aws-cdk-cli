@@ -1,24 +1,78 @@
 import { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
+/**
+ * Assembly data returned in the payload of an IO Message.
+ */
 export interface AssemblyData {
-  assemblyDirectory: string;
-  stacksCount: number;
-  stackIds: string[];
+  /**
+   * The path to the assembly directory
+   */
+  readonly assemblyDirectory: string;
+
+  /**
+   * The number of stacks actioned on
+   */
+  readonly stacksCount: number;
+
+  /**
+   * The stack IDs
+   */
+  readonly stackIds: string[];
 }
 
+/**
+ * A successful deploy stack result. Intentionally exposed in toolkit-lib so documentation
+ * can be generated from this interface.
+ */
 export interface SuccessfulDeployStackResult extends _SuccessfulDeployStackResult {
 }
 
-export interface StackData extends AssemblyData {
-  stack: {
-    stackName: string;
-    hierarchicalId: string;
-    template: any;
-    stringifiedJson: string;
-    stringifiedYaml: string;
-  };
+/**
+ * Stack data returned in the payload of an IO Message.
+ */
+export interface StackData {
+  /**
+   * The stack name
+   */
+  readonly stackName: string;
+
+  /**
+   * The stack ID
+   */
+  readonly hierarchicalId: string;
+
+  /**
+   * The stack template
+   */
+  readonly template: any;
+
+  /**
+   * The stack template converted to JSON format
+   */
+  readonly stringifiedJson: string;
+
+  /**
+   * The stack template converted to YAML format
+   */
+  readonly stringifiedYaml: string;
 }
 
+/**
+ * Stack data returned in the payload of an IO Message.
+ */
+export interface StackAndAssemblyData extends AssemblyData {
+  /**
+   * Stack Data
+   */
+  readonly stack: StackData;
+}
+
+/**
+ * Duration information returned in the payload of an IO Message.
+ */
 export interface Duration {
-  duration: number;
+  /**
+   * The duration of the action.
+   */
+  readonly duration: number;
 }

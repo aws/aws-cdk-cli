@@ -4,7 +4,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { ToolkitServices } from './private';
-import { AssemblyData, StackData } from './types';
+import { AssemblyData, StackAndAssemblyData } from './types';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -187,7 +187,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stringifiedJson: serializeStructure(obscuredTemplate, true),
           stringifiedYaml: serializeStructure(obscuredTemplate, false),
         },
-      } as StackData));
+      } as StackAndAssemblyData));
     } else {
       // not outputting template to stdout, let's explain things to the user a little bit...
       await ioHost.notify(result(chalk.green(message), CODES.CDK_TOOLKIT_I1902, assemblyData));
