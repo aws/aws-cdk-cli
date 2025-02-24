@@ -503,9 +503,7 @@ const cdkBuildTools = configureProject(
 // This should be deprecated, but only after the move
 const cliPluginContract = configureProject(
   new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
+    ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/cli-plugin-contract',
     description: 'Contract between the CLI and authentication plugins, for the exchange of AWS credentials',
