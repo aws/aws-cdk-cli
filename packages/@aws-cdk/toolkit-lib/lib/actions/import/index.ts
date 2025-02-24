@@ -1,4 +1,4 @@
-import type { BaseDeployOptions } from '../deploy';
+import type { BaseDeployOptions } from '../deploy/private';
 
 export interface ImportOptions extends Omit<BaseDeployOptions, 'reuseAssets' | 'hotswap'> {
   /**

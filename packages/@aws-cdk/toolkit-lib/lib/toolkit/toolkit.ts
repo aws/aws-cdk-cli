@@ -7,16 +7,16 @@ import { ToolkitServices } from './private';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
-import { type DiffOptions } from '../actions/diff';
 import { diffRequiresApproval } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import { patternsArrayForWatch, WatchOptions } from '../actions/watch';
-import { type SdkOptions } from '../api/aws-auth';
+import { WatchOptions } from '../actions/watch';
+import { patternsArrayForWatch } from '../actions/watch/private';
+import { type SdkConfig } from '../api/aws-auth';
 import { DEFAULT_TOOLKIT_STACK_NAME, SdkProvider, SuccessfulDeployStackResult, StackCollection, Deployments, HotswapMode, StackActivityProgress, ResourceMigrator, obscureTemplate, serializeStructure, tagsForStack, CliIoHost, validateSnsTopicArn, Concurrency, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, formatErrorMessage, CloudWatchLogEventMonitor, findCloudWatchLogGroups, formatTime, StackDetails } from '../api/aws-cdk';
-import { CachedCloudAssemblySource, IdentityCloudAssemblySource, StackAssembly, ICloudAssemblySource, StackSelectionStrategy } from '../api/cloud-assembly';
-import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
+import { ICloudAssemblySource, StackSelectionStrategy } from '../api/cloud-assembly';
+import { ALL_STACKS, CachedCloudAssemblySource, CloudAssemblySourceBuilder, IdentityCloudAssemblySource, StackAssembly } from '../api/cloud-assembly/private';
 import { ToolkitError } from '../api/errors';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
 import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace } from '../api/io/private';
@@ -67,7 +67,7 @@ export interface ToolkitOptions {
   /**
    * Configuration options for the SDK.
    */
-  sdkOptions?: SdkOptions;
+  sdkConfig?: SdkConfig;
 
   /**
    * Name of the toolkit stack to be used.
@@ -135,7 +135,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // @todo this needs to be different instance per action
     if (!this._sdkProvider) {
       this._sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
-        ...this.props.sdkOptions,
+        ...this.props.sdkConfig,
         logger: asSdkLogger(this.ioHost, action),
       });
     }
@@ -213,21 +213,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     await ioHost.notify(result(message, 'CDK_TOOLKIT_I2901', { stacks }));
     return stacks;
-  }
-
-  /**
-   * Diff Action
-   *
-   * Compares the specified stack with the deployed stack or a local template file and returns a structured diff.
-   */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<boolean> {
-    const ioHost = withAction(this.ioHost, 'diff');
-    const assembly = await this.assemblyFromSource(cx);
-    const stacks = await assembly.selectStacksV2(options.stacks);
-    await this.validateStacksMetadata(stacks, ioHost);
-    // temporary
-    // eslint-disable-next-line @cdklabs/no-throw-default-error
-    throw new Error('Not implemented yet');
   }
 
   /**
@@ -333,7 +318,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         if (diffRequiresApproval(currentTemplate, stack, requireApproval)) {
           const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
           const question = `${motivation}\nDo you wish to deploy these changes`;
-          // @todo reintroduce concurrency and corked logging in CliHost
           const confirmed = await ioHost.requestResponse(confirm('CDK_TOOLKIT_I5060', question, motivation, true, concurrency));
           if (!confirmed) {
             throw new ToolkitError('Aborted by user');

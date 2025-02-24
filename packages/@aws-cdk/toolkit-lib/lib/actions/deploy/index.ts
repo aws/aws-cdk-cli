@@ -1,5 +1,5 @@
-import { StackActivityProgress } from '../../api/aws-cdk';
-import type { StackSelector } from '../../api/cloud-assembly';
+import type { BaseDeployOptions } from './private/deploy-options';
+import type { StackActivityProgress, Tag } from '../../api/aws-cdk';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
@@ -48,14 +48,18 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
-export interface Tag {
-  readonly Key: string;
-  readonly Value: string;
-}
-
 export enum RequireApproval {
+  /**
+   * Never require any security approvals
+   */
   NEVER = 'never',
+  /**
+   * Any security changes require an approval
+   */
   ANY_CHANGE = 'any-change',
+  /**
+   * Require approval only for changes that are access broadening
+   */
   BROADENING = 'broadening',
 }
 
@@ -107,74 +111,6 @@ export class StackParameters {
   }
 }
 
-export interface BaseDeployOptions {
-  /**
-   * Criteria for selecting stacks to deploy
-   *
-   * @default - all stacks
-   */
-  readonly stacks?: StackSelector;
-
-  /**
-   * Role to pass to CloudFormation for deployment
-   */
-  readonly roleArn?: string;
-
-  /**
-   * @TODO can this be part of `DeploymentMethod`
-   *
-   * Always deploy, even if templates are identical.
-   *
-   * @default false
-   * @deprecated
-   */
-  readonly force?: boolean;
-
-  /**
-   * Deployment method
-   */
-  readonly deploymentMethod?: DeploymentMethod;
-
-  /**
-   * @TODO can this be part of `DeploymentMethod`
-   *
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - no hotswap
-   */
-  readonly hotswap?: HotswapMode;
-
-  /**
-   * Rollback failed deployments
-   *
-   * @default true
-   */
-  readonly rollback?: boolean;
-
-  /**
-   * Reuse the assets with the given asset IDs
-   */
-  readonly reuseAssets?: string[];
-
-  /**
-   * Maximum number of simultaneous deployments (dependency permitting) to execute.
-   * The default is '1', which executes all deployments serially.
-   *
-   * @default 1
-   */
-  readonly concurrency?: number;
-
-  /**
-   * Whether to send logs from all CloudWatch log groups in the template
-   * to the IoHost
-   *
-   * @default - false
-   */
-  readonly traceLogs?: boolean;
-}
-
 export interface DeployOptions extends BaseDeployOptions {
   /**
    * ARNs of SNS topics that CloudFormation will notify with stack related events
@@ -182,9 +118,11 @@ export interface DeployOptions extends BaseDeployOptions {
   readonly notificationArns?: string[];
 
   /**
-   * What kind of security changes require approval
+   * Require a confirmation for security relevant changes before continuing with the deployment
    *
    * @default RequireApproval.NEVER
+   * @deprecated in future a message containing the full diff will be emitted and a response requested.
+   * Approval workflows should be implemented in the `IIoHost`.
    */
   readonly requireApproval?: RequireApproval;
 

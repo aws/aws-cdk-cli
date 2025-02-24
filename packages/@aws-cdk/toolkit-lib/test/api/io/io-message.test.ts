@@ -1,4 +1,4 @@
-import { isMessageRelevantForLevel } from '../../../lib/api/io/io-message';
+import { isMessageRelevantForLevel } from '../../../lib/api/io/private/level-priority';
 
 describe('IoMessageLevel', () => {
   test.each`

@@ -1,9 +1,9 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import { major } from 'semver';
-import { CloudAssembly, sanitizePatterns, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../aws-cdk';
-import { ExtendedStackSelection, StackSelectionStrategy, StackSelector } from './stack-selector';
-import { ICloudAssemblySource } from './types';
-import { ToolkitError } from '../errors';
+import { CloudAssembly, sanitizePatterns, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../aws-cdk';
+import { ToolkitError } from '../../errors';
+import { ExpandStackSelection, StackSelectionStrategy, StackSelector } from '../stack-selector';
+import { ICloudAssemblySource } from '../types';
 
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
@@ -94,13 +94,13 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
   }
 }
 
-function convertExtend(extend?: ExtendedStackSelection): CliExtendedStackSelection | undefined {
+function convertExtend(extend?: ExpandStackSelection): CliExtendedStackSelection | undefined {
   switch (extend) {
-    case ExtendedStackSelection.DOWNSTREAM:
+    case ExpandStackSelection.DOWNSTREAM:
       return CliExtendedStackSelection.Downstream;
-    case ExtendedStackSelection.UPSTREAM:
+    case ExpandStackSelection.UPSTREAM:
       return CliExtendedStackSelection.Upstream;
-    case ExtendedStackSelection.NONE:
+    case ExpandStackSelection.NONE:
       return CliExtendedStackSelection.None;
     default:
       return undefined;
