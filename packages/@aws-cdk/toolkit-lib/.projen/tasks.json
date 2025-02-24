@@ -180,7 +180,8 @@
       "name": "publish-local",
       "steps": [
         {
-          "exec": "./build-tools/package.sh"
+          "exec": "./build-tools/package.sh",
+          "receiveArgs": true
         }
       ]
     },
