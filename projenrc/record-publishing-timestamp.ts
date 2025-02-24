@@ -51,6 +51,7 @@ export class RecordPublishingTimestamp extends Component {
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
             'role-session-name': 'releasing@aws-cdk-cli',
             'output-credentials': true,
+            'mask-aws-account-id': true,
           },
         },
         {
