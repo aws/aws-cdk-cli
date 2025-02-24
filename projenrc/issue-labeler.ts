@@ -1,17 +1,17 @@
-import { Component, github } from "projen";
-import { JobPermission } from "projen/lib/github/workflows-model";
-import { TypeScriptProject } from "projen/lib/typescript";
+import { Component, github } from 'projen';
+import { JobPermission } from 'projen/lib/github/workflows-model';
+import { TypeScriptProject } from 'projen/lib/typescript';
 
 const OSDS_DEVS = ['ashishdhingra', 'khushail', 'hunhsieh'];
 const AREA_AFFIXES = ['@aws-cdk/'];
 const AREA_PARAMS = [
-  { area: '@aws-cdk/cli-lib-alpha', keywords: ['cli', 'cli-lib', 'cli-lib-alpha'], labels: ['@aws-cdk/cli-lib-alpha']},
-  { area: '@aws-cdk/cloud-assembly-schema', keywords: ['cloud-assembly', 'schema'], labels: ['@aws-cdk/cloud-assembly-schema']},
-  { area: '@aws-cdk/cloudformation-diff', keywords: ['diff', 'cloudformation'], labels: ['@aws-cdk/cloudformation-diff']},
-  { area: '@aws-cdk/toolkit-lib', keywords: ['toolkit', 'programmtic toolkit', 'toolkit-lib'], labels: ['@aws-cdk/toolkit-lib']},
-  { area: 'aws-cdk', keywords: ['aws-cdk', 'cli', 'cdk cli'], labels: ['aws-cdk']},
-  { area: 'cdk-assets', keywords: ['assets', 'cdk-assets'], labels: ['cdk-assets']},
-]
+  { area: '@aws-cdk/cli-lib-alpha', keywords: ['cli', 'cli-lib', 'cli-lib-alpha'], labels: ['@aws-cdk/cli-lib-alpha'] },
+  { area: '@aws-cdk/cloud-assembly-schema', keywords: ['cloud-assembly', 'schema'], labels: ['@aws-cdk/cloud-assembly-schema'] },
+  { area: '@aws-cdk/cloudformation-diff', keywords: ['diff', 'cloudformation'], labels: ['@aws-cdk/cloudformation-diff'] },
+  { area: '@aws-cdk/toolkit-lib', keywords: ['toolkit', 'programmtic toolkit', 'toolkit-lib'], labels: ['@aws-cdk/toolkit-lib'] },
+  { area: 'aws-cdk', keywords: ['aws-cdk', 'cli', 'cdk cli'], labels: ['aws-cdk'] },
+  { area: 'cdk-assets', keywords: ['assets', 'cdk-assets'], labels: ['cdk-assets'] },
+];
 
 /**
  * See https://github.com/aws-github-ops/aws-issue-triage-manager
@@ -41,13 +41,14 @@ function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
         with: triageManagerOptions,
       },
     ],
-    ...(triageManagerOptions.needEnvs ? {env: {
-      AREA_PARAMS: JSON.stringify(AREA_PARAMS),
-      AREA_AFFIXES: `{"prefixes":${JSON.stringify(AREA_AFFIXES)}}`,
-      OSDS_DEVS: `{"assignees":${JSON.stringify(OSDS_DEVS)}}`,
-    }} : {}),
+    ...(triageManagerOptions.needEnvs ? {
+      env: {
+        AREA_PARAMS: JSON.stringify(AREA_PARAMS),
+        AREA_AFFIXES: `{"prefixes":${JSON.stringify(AREA_AFFIXES)}}`,
+        OSDS_DEVS: `{"assignees":${JSON.stringify(OSDS_DEVS)}}`,
+      },
+    } : {}),
   };
-
 }
 
 export class IssueLabeler extends Component {
