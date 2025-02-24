@@ -19,10 +19,10 @@ tsconfig.tsbuildinfo
 /.eslintrc.json
 .eslintrc.js
 *.ts
+!*.d.ts
 build-tools
 docs
 typedoc.json
-*.d.ts
 *.d.ts.map
 !build-info.json
 !db.json.gz
