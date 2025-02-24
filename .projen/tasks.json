@@ -10,6 +10,9 @@
           "exec": "yarn workspaces run build"
         },
         {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+        },
+        {
           "spawn": "eslint"
         },
         {
