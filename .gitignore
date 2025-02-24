@@ -48,5 +48,6 @@ jspm_packages/
 !/.github/dependabot.yml
 !/.github/workflows/integ.yml
 !/.github/workflows/codecov.yml
+!/.github/workflows/issue-label-assign.yml
 !/.projenrc.ts
 !/.github/workflows/release.yml
