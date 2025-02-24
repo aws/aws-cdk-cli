@@ -17,7 +17,7 @@ export { Bootstrapper } from './api/bootstrap';
 export { CloudExecutable } from './api/cxapp/cloud-executable';
 export { execProgram } from './api/cxapp/exec';
 export { RequireApproval } from './diff';
-export { leftPad } from './api/util/string-manipulation';
+export { leftPad } from './util/string-manipulation';
 export { formatAsBanner } from './cli/util/console-formatters';
 export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
 export { aliases, command, describe } from './commands/docs';

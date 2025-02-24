@@ -1,5 +1,6 @@
-import { WorkGraph } from '../lib/util/work-graph';
-import { AssetBuildNode, AssetPublishNode, DeploymentState, StackNode } from '../lib/util/work-graph-types';
+import { WorkGraph, DeploymentState } from '../../../lib/api/work-graph';
+import type { AssetBuildNode, AssetPublishNode, StackNode } from '../../../lib/api/work-graph';
+import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 
 const DUMMY: any = 'DUMMY';
 
@@ -8,6 +9,11 @@ const sleep = async (duration: number) => new Promise<void>((resolve) => setTime
 // Not great to have actual sleeps in the tests, but they mostly just exist to give the async workflow
 // a chance to start new tasks.
 const SLOW = 200;
+
+let mockMsg: IoMessaging = {
+  ioHost: CliIoHost.instance(),
+  action: 'deploy'
+}
 
 /**
  * Repurposing unused stack attributes to create specific test scenarios
@@ -243,7 +249,7 @@ describe('WorkGraph', () => {
       expected: ['c-build', 'c-publish', 'A', 'b-build', 'b-publish', 'B'],
     },
   ])('Success - Concurrency: $concurrency - $scenario', async ({ concurrency, expected, toDeploy }) => {
-    const graph = new WorkGraph();
+    const graph = new WorkGraph({}, mockMsg);
     addTestArtifactsToGraph(toDeploy, graph);
 
     await graph.doParallel(concurrency, callbacks);
@@ -252,7 +258,7 @@ describe('WorkGraph', () => {
   });
 
   test('can remove unnecessary assets', async () => {
-    const graph = new WorkGraph();
+    const graph = new WorkGraph({}, mockMsg);
     addTestArtifactsToGraph([
       { id: 'a', type: 'asset' },
       { id: 'b', type: 'asset' },
@@ -375,7 +381,7 @@ describe('WorkGraph', () => {
       expected: ['b-build', 'C'],
     },
   ])('Failure - Concurrency: $concurrency - $scenario', async ({ concurrency, expectedError, toDeploy, expected }) => {
-    const graph = new WorkGraph();
+    const graph = new WorkGraph({}, mockMsg);
     addTestArtifactsToGraph(toDeploy, graph);
 
     await expect(graph.doParallel(concurrency, callbacks)).rejects.toThrow(expectedError);
@@ -411,7 +417,7 @@ describe('WorkGraph', () => {
       expectedError: 'B -> C -> D -> B',
     },
   ])('Failure - Graph Circular Dependencies - $scenario', async ({ toDeploy, expectedError }) => {
-    const graph = new WorkGraph();
+    const graph = new WorkGraph({}, mockMsg);
     addTestArtifactsToGraph(toDeploy, graph);
 
     await expect(graph.doParallel(1, callbacks)).rejects.toThrow(new RegExp(`Unable to make progress.*${expectedError}`));

@@ -14,7 +14,7 @@ import { ToolkitError } from './toolkit/error';
 import { loadTreeFromDir, some } from './tree';
 import { flatMap } from './util';
 import { cdkCacheDir } from './util/directories';
-import { formatErrorMessage } from './util/error';
+import { formatErrorMessage } from './util/format-error';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 

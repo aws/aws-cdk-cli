@@ -1,5 +1,5 @@
 /* eslint-disable import/order */
-import { validateSnsTopicArn } from '../../lib/util/validate-notification-arn';
+import { validateSnsTopicArn } from '../../lib/util/cloudformation';
 
 describe('validate sns arns', () => {
   test('empty string', () => {

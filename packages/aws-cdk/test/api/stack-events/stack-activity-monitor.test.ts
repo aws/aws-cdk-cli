@@ -1,9 +1,9 @@
 /* eslint-disable import/order */
 import * as chalk from 'chalk';
-import { stderr } from './console-listener';
-import { HistoryActivityPrinter } from '../../lib/api/util/cloudformation/stack-activity-monitor';
+import { stderr } from '../_helpers/console-listener';
+import { HistoryActivityPrinter } from '../../../lib/api/stack-events';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
-import { CliIoHost } from '../../lib/toolkit/cli-io-host';
+import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
 
 let TIMESTAMP: number;
 let HUMAN_TIME: string;

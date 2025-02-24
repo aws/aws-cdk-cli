@@ -27,7 +27,7 @@ import {
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
 } from '../../util/mock-sdk';
-import { FakeCloudformationStack } from '../fake-cloudformation-stack';
+import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');

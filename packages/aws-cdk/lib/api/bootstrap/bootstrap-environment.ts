@@ -5,10 +5,10 @@ import type { BootstrapEnvironmentOptions, BootstrappingParameters } from './boo
 import { BootstrapStack, bootstrapVersionFromTemplate } from './deploy-bootstrap';
 import { legacyBootstrapTemplate } from './legacy-template';
 import { warn } from '../../cli/messages';
-import { loadStructuredFile, serializeStructure } from '../../serialize';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { rootDir } from '../../util/directories';
+import { loadStructuredFile, serializeStructure } from '../../util/serialize';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { Mode } from '../plugin/mode';
