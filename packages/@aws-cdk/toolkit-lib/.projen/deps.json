@@ -56,6 +56,11 @@
       "type": "build"
     },
     {
+      "name": "commit-and-tag-version",
+      "version": "^12",
+      "type": "build"
+    },
+    {
       "name": "constructs",
       "version": "^10.0.0",
       "type": "build"
@@ -100,6 +105,10 @@
     {
       "name": "jest-junit",
       "version": "^16",
+      "type": "build"
+    },
+    {
+      "name": "license-checker",
       "type": "build"
     },
     {

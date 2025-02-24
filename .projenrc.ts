@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
@@ -142,6 +143,13 @@ function jestOptionsForProject(options: pj.javascript.JestOptions): pj.javascrip
   };
 }
 
+function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
+  return pj.ReleasableCommits.featuresAndFixes([
+    '.',
+    ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`)),
+  ].join(' '));
+}
+
 const repoProject = new yarn.Monorepo({
   projenrcTs: true,
   name: 'aws-cdk-cli',
@@ -216,8 +224,6 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
-new AdcPublishing(repoProject);
-
 // Eslint for projen config
 // @ts-ignore
 repoProject.eslint = new pj.javascript.Eslint(repoProject, {
@@ -227,6 +233,12 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   fileExtensions: ['.ts', '.tsx'],
   lintProjenRc: false,
 });
+// always lint projen files as part of the build
+if (repoProject.eslint?.eslintTask) {
+  repoProject.tasks.tryFind('build')?.spawn(repoProject.eslint?.eslintTask);
+}
+
+new AdcPublishing(repoProject);
 
 const repo = configureProject(repoProject);
 
@@ -791,6 +803,8 @@ const cli = configureProject(
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+
+    releasableCommits: transitiveFeaturesAndFixes('aws-cdk', [cloudAssemblySchema.name, cloudFormationDiff.name]),
   }),
 );
 
@@ -923,8 +937,7 @@ const cliLib = configureProject(
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
-    // Watch 2 directories at once
-    releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
+    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cli-lib-alpha', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1006,9 +1019,7 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
 
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
+    ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
@@ -1081,7 +1092,7 @@ const toolkitLib = configureProject(
       'typedoc',
     ],
     // Watch 2 directories at once
-    releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
+    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/toolkit-lib', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1200,8 +1211,7 @@ const cdkCliWrapper = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
-    // Watch 2 directories at once
-    releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../../${cli.name}`),
+    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-cli-wrapper', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1231,8 +1241,7 @@ const cdkAliasPackage = configureProject(
     srcdir: 'lib',
     deps: [cli],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
-    // Watch 2 directories at once
-    releasableCommits: pj.ReleasableCommits.featuresAndFixes(`. ../${cli.name}`),
+    releasableCommits: transitiveFeaturesAndFixes('cdk', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
   }),
 );
 void cdkAliasPackage;

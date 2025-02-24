@@ -471,10 +471,10 @@ export class JsiiBuild extends pj.Component {
     target: JsiiPacmakTarget,
     packTask: pj.Task,
   ): {
-    publishTools: Tools;
-    bootstrapSteps: Array<Step>;
-    packagingSteps: Array<Step>;
-  } {
+      publishTools: Tools;
+      bootstrapSteps: Array<Step>;
+      packagingSteps: Array<Step>;
+    } {
     const bootstrapSteps: Array<Step> = [];
     const packagingSteps: Array<Step> = [];
 
