@@ -48,7 +48,7 @@ For instructions, see [Configure your CDK Toolkit instance](#configure-your-cdk-
 
 A _Cloud Assembly_ represents the AWS CloudFormation templates and deployment artifacts that are produced from a CDK app.
 With the CDK, the Cloud Assembly is generated during synthesis and is what gets deployed to provision your infrastructure.
-The CDK Toolkit create a _Cloud Assembly_ from a _Cloud Assembly Source_.
+The CDK Toolkit creates a _Cloud Assembly_ from a _Cloud Assembly Source_.
 
 The _Cloud Assembly Source_ is a fundamental CDK Toolkit component that defines instructions for creating a _Cloud Assembly_ from your app.
 For example, CDK apps may need to be synthesized multiple times with additional context values before they are ready.
@@ -99,7 +99,7 @@ You can configure and customize the CDK Toolkit further for your needs:
 
 ## Actions
 
-The CDK Toolkit Library provides a programmatic interfaces for the following lifecycle actions.
+The CDK Toolkit Library provides programmatic interfaces for the following lifecycle actions.
 Support for further actions will be extended over time.
 
 ### synth
@@ -226,7 +226,7 @@ For each message or request, the Toolkit calls either the `notify` or `requestRe
 
 #### Customizing the IoHost
 
-You can configure a custom `IoHost` to control teh flow of information and integrate them into your workflows and automation.
+You can configure a custom `IoHost` to control the flow of information and integrate them into your workflows and automation.
 The following is an example implementation that simply logs all message objects to stdout:
 
 ```ts
