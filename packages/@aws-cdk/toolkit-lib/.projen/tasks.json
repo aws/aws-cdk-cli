@@ -64,7 +64,7 @@
       "name": "docs",
       "steps": [
         {
-          "exec": "typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal"
+          "exec": "typedoc lib/index.ts"
         }
       ]
     },

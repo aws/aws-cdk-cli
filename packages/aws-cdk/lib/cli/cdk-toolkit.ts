@@ -27,7 +27,7 @@ import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { StackActivityProgress } from '../api/stack-events';
 import { tagsForStack, type Tag } from '../api/tags';
-import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, WorkGraph } from '../api/work-graph';
+import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, type WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import {
   generateCdkApp,
@@ -133,12 +133,12 @@ export enum AssetBuildTime {
    * This is intended for expensive Docker image builds; so that if the Docker image build
    * fails, no stacks are unnecessarily deployed (with the attendant wait time).
    */
-  ALL_BEFORE_DEPLOY,
+  ALL_BEFORE_DEPLOY = 'all-before-deploy',
 
   /**
    * Build assets just-in-time, before publishing
    */
-  JUST_IN_TIME,
+  JUST_IN_TIME = 'just-in-time',
 }
 
 /**
@@ -583,7 +583,10 @@ export class CdkToolkit {
       stack,
       ...stack.dependencies.filter(cxapi.AssetManifestArtifact.isAssetManifestArtifact),
     ]);
-    const workGraph = new WorkGraphBuilder(prebuildAssets).build(stacksAndTheirAssetManifests);
+    const workGraph = new WorkGraphBuilder({
+      ioHost: this.ioHost,
+      action: 'deploy',
+    }, prebuildAssets).build(stacksAndTheirAssetManifests);
 
     // Unless we are running with '--force', skip already published assets
     if (!options.force) {

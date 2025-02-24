@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import type { IoMessageCodeCategory, IoMessageLevel } from '../io-message';
 import { CodeInfo, CODES } from './codes';
-import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage } from './types';
+import type { ActionLessMessage, ActionLessRequest, IoMessageCodeCategory, Optional, SimplifiedMessage } from './types';
 
 /**
  * Internal helper that processes log inputs into a consistent format.

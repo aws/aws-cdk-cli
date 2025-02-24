@@ -25,7 +25,7 @@ export abstract class CloudAssemblySourceBuilder {
    */
   public async fromAssemblyBuilder(
     builder: AssemblyBuilder,
-    props: CdkAppSourceProps = {},
+    props: AssemblySourceProps = {},
   ): Promise<ICloudAssemblySource> {
     const services = await this.sourceBuilderServices();
     const context = new Context({ bag: new Settings(props.context ?? {}) });
@@ -88,7 +88,7 @@ export abstract class CloudAssemblySourceBuilder {
    * @param props additional configuration properties
    * @returns the CloudAssembly source
    */
-  public async fromCdkApp(app: string, props: CdkAppSourceProps = {}): Promise<ICloudAssemblySource> {
+  public async fromCdkApp(app: string, props: AssemblySourceProps = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
     // @todo this definitely needs to read files from the CWD
     const context = new Context({ bag: new Settings(props.context ?? {}) });
