@@ -1,5 +1,5 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import { ICloudAssemblySource } from './types';
+import { ICloudAssemblySource } from '../types';
 
 /**
  * A CloudAssemblySource that is representing a already existing and produced CloudAssembly.
