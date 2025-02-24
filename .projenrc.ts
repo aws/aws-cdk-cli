@@ -1146,6 +1146,7 @@ toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/nul
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
+  'assets',
   'build-tools',
   'docs',
   'typedoc.json',
