@@ -1,11 +1,11 @@
 import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
+import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
+import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
-import { CodeCovWorkflow } from './projenrc/codecov';
-import { AdcPublishing } from './projenrc/adc-publishing';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -1148,13 +1148,16 @@ toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/nul
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
+  'build-tools',
+  'docs',
+  'typedoc.json',
+  '*.d.ts.map',
   // Explicitly allow all required files
   '!build-info.json',
   '!db.json.gz',
   '!lib/api/bootstrap/bootstrap-template.yaml',
-  '*.d.ts',
-  '*.d.ts.map',
   '!lib/*.js',
+  '!lib/*.d.ts',
   '!LICENSE',
   '!NOTICE',
   '!THIRD_PARTY_LICENSES',
@@ -1179,7 +1182,7 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
 }
 
 toolkitLib.addTask('docs', {
-  exec: 'typedoc lib/index.ts --excludeExternals --excludePrivate --excludeProtected --excludeInternal',
+  exec: 'typedoc lib/index.ts',
 });
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',

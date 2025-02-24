@@ -1,8 +1,8 @@
 import * as util from 'node:util';
 import type { Logger } from '@smithy/types';
-import type { IoMessage, IoMessageCodeCategory, IoMessageLevel, IoRequest } from '../io-message';
+import type { IoMessage, IoMessageLevel, IoRequest } from '../io-message';
 import { debug, error, info, defaultMessageCode, trace, warn } from './messages';
-import type { ActionAwareIoHost } from './types';
+import type { ActionAwareIoHost, IoMessageCodeCategory } from './types';
 import type { ToolkitAction } from '../../../toolkit';
 import { formatSdkLoggerContent } from '../../aws-cdk';
 import type { IIoHost } from '../io-host';

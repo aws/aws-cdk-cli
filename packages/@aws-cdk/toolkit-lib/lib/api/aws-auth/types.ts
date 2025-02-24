@@ -2,20 +2,13 @@
 /**
  * Options for the default SDK provider
  */
-export interface SdkOptions {
+export interface SdkConfig {
   /**
    * Profile to read from ~/.aws
    *
    * @default - No profile
    */
   readonly profile?: string;
-
-  /**
-   * Proxy address to use
-   *
-   * @default No proxy
-   */
-  readonly region?: string;
 
   /**
    * HTTP options for SDK
