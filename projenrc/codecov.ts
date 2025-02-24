@@ -1,6 +1,6 @@
-import { Component, github } from "projen";
-import { JobPermission } from "projen/lib/github/workflows-model";
-import { TypeScriptProject } from "projen/lib/typescript";
+import { Component, github } from 'projen';
+import { JobPermission } from 'projen/lib/github/workflows-model';
+import { TypeScriptProject } from 'projen/lib/typescript';
 
 export interface CodeCovWorkflowProps {
   readonly restrictToRepos: string[];
@@ -52,7 +52,7 @@ export class CodeCovWorkflow extends Component {
             files: props.packages.map(p => `packages/${p}/coverage/cobertura-coverage.xml`).join(','),
             fail_ci_if_error: true,
             flags: 'suite.unit',
-            use_oidc: true
+            use_oidc: true,
           },
         },
       ],

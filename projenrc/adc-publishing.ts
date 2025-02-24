@@ -1,6 +1,6 @@
-import { Monorepo } from "cdklabs-projen-project-types/lib/yarn";
-import { Component, github } from "projen";
-import { JobPermission } from "projen/lib/github/workflows-model";
+import { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
+import { Component, github } from 'projen';
+import { JobPermission } from 'projen/lib/github/workflows-model';
 
 export class AdcPublishing extends Component {
   constructor(private readonly project_: Monorepo) {
@@ -22,19 +22,19 @@ export class AdcPublishing extends Component {
       with: {
         name: 'standalone_build-artifact',
         path: 'dist/standalone',
-        overwrite: true
+        overwrite: true,
       },
     });
 
     releaseWf.addJob('standalone_release_adc', {
       name: 'standalone: publish to ADC',
-      environment: 'releasing',  // <-- this has the configuration
+      environment: 'releasing', // <-- this has the configuration
       needs: ['release'],
       runsOn: ['ubuntu-latest'],
       permissions: {
         contents: JobPermission.WRITE,
       },
-      if: `\${{ needs.release.outputs.latest_commit == github.sha }}`,
+      if: '${{ needs.release.outputs.latest_commit == github.sha }}',
       steps: [
         {
           uses: 'actions/setup-node@v4',
