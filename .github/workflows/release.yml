@@ -128,6 +128,13 @@ jobs:
           name: cdk_build-artifact
           path: packages/cdk/dist
           overwrite: true
+      - name: "standalone: Upload artifact"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: standalone_build-artifact
+          path: dist/standalone
+          overwrite: true
   aws-cdk-cloud-assembly-schema_release_github:
     name: "@aws-cdk/cloud-assembly-schema: Publish to GitHub Releases"
     needs:
@@ -401,6 +408,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
     steps:
@@ -419,6 +427,7 @@ jobs:
         env:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
   cdk-assets_release_github:
@@ -453,6 +462,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
@@ -471,6 +481,7 @@ jobs:
         env:
           NPM_DIST_TAG: v3-latest
           NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
   aws-cdk_release_github:
@@ -505,6 +516,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
@@ -523,6 +535,7 @@ jobs:
         env:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
   aws-cdk-cli-lib-alpha_release_github:
@@ -798,6 +811,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
@@ -816,5 +830,37 @@ jobs:
         env:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
+  standalone_release_adc:
+    name: "standalone: publish to ADC"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: releasing
+    if: ${{ needs.release.outputs.latest_commit == github.sha }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: standalone_build-artifact
+          path: dist/standalone
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 14400
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
+          role-session-name: releasing@aws-cdk-cli
+          output-credentials: true
+      - name: Publish artifacts
+        env:
+          PUBLISHING_ROLE_ARN: ${{ vars.PUBLISHING_ROLE_ARN }}
+          TARGET_BUCKETS: ${{ vars.TARGET_BUCKETS }}
+        run: npx tsx projenrc/publish-to-adc.task.ts

@@ -5,7 +5,7 @@ import { CfnEvaluationException } from '../../../lib/api/evaluate-cloudformation
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { MockSdk, mockCloudFormationClient, mockLambdaClient, mockStepFunctionsClient } from '../../util/mock-sdk';
 import { silentTest } from '../../util/silent';
-import * as setup from '../hotswap/hotswap-test-setup';
+import * as setup from '../_helpers/hotswap-test-setup';
 
 jest.mock('@aws-sdk/client-lambda', () => {
   const original = jest.requireActual('@aws-sdk/client-lambda');

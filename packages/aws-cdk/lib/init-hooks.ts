@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { shell } from './os';
 import { ToolkitError } from './toolkit/error';
-import { formatErrorMessage } from './util/error';
+import { formatErrorMessage } from './util/format-error';
 
 export type SubstitutePlaceholders = (...fileNames: string[]) => Promise<void>;
 

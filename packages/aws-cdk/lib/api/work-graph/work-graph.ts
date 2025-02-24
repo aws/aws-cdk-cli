@@ -1,18 +1,30 @@
-import { parallelPromises } from './parallel';
 import { WorkNode, DeploymentState, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
-import { debug, trace } from '../logging';
-import { ToolkitError } from '../toolkit/error';
+import { debug, trace } from '../../cli/messages';
+import { IoMessaging } from '../../toolkit/cli-io-host';
+import { ToolkitError } from '../../toolkit/error';
+import { parallelPromises } from '../../util/parallel';
 
 export type Concurrency = number | Record<WorkNode['type'], number>;
+
+export interface WorkGraphProps {
+  ioHost: IoMessaging['ioHost'];
+  action: IoMessaging['action'];
+}
 
 export class WorkGraph {
   public readonly nodes: Record<string, WorkNode>;
   private readonly readyPool: Array<WorkNode> = [];
   private readonly lazyDependencies = new Map<string, string[]>();
+  private readonly ioHost: IoMessaging['ioHost'];
+  private readonly action: IoMessaging['action'];
+
   public error?: Error;
 
-  public constructor(nodes: Record<string, WorkNode> = {}) {
+  public constructor(nodes: Record<string, WorkNode>, props: WorkGraphProps) {
     this.nodes = { ...nodes };
+
+    this.ioHost = props.ioHost;
+    this.action = props.action;
   }
 
   public addNodes(...nodes: WorkNode[]) {
@@ -118,8 +130,8 @@ export class WorkGraph {
   /**
    * Return the set of unblocked nodes
    */
-  public ready(): ReadonlyArray<WorkNode> {
-    this.updateReadyPool();
+  public async ready(): Promise<ReadonlyArray<WorkNode>> {
+    await this.updateReadyPool();
     return this.readyPool;
   }
 
@@ -149,28 +161,30 @@ export class WorkGraph {
       start();
 
       function start() {
-        graph.updateReadyPool();
+        graph.updateReadyPool().then(() => {
+          for (let i = 0; i < graph.readyPool.length; ) {
+            const node = graph.readyPool[i];
 
-        for (let i = 0; i < graph.readyPool.length; ) {
-          const node = graph.readyPool[i];
+            if (active[node.type] < max[node.type] && totalActive() < totalMax) {
+              graph.readyPool.splice(i, 1);
+              startOne(node);
+            } else {
+              i += 1;
+            }
+          }
 
-          if (active[node.type] < max[node.type] && totalActive() < totalMax) {
-            graph.readyPool.splice(i, 1);
-            startOne(node);
-          } else {
-            i += 1;
+          if (totalActive() === 0) {
+            if (graph.done()) {
+              ok();
+            }
+            // wait for other active deploys to finish before failing
+            if (graph.hasFailed()) {
+              fail(graph.error);
+            }
           }
-        }
-
-        if (totalActive() === 0) {
-          if (graph.done()) {
-            ok();
-          }
-          // wait for other active deploys to finish before failing
-          if (graph.hasFailed()) {
-            fail(graph.error);
-          }
-        }
+        }).catch((e) => {
+          fail(e);
+        });
       }
 
       function startOne(x: WorkNode) {
@@ -252,7 +266,7 @@ export class WorkGraph {
    * Do this in parallel, because there may be a lot of assets in an application (seen in practice: >100 assets)
    */
   public async removeUnnecessaryAssets(isUnnecessary: (x: AssetPublishNode) => Promise<boolean>) {
-    debug('Checking for previously published assets');
+    await this.ioHost.notify(debug(this.action, 'Checking for previously published assets'));
 
     const publishes = this.nodesOfType('asset-publish');
 
@@ -265,7 +279,7 @@ export class WorkGraph {
       this.removeNode(assetNode);
     }
 
-    debug(`${publishes.length} total assets, ${publishes.length - alreadyPublished.length} still need to be published`);
+    await this.ioHost.notify(debug(this.action, `${publishes.length} total assets, ${publishes.length - alreadyPublished.length} still need to be published`));
 
     // Now also remove any asset build steps that don't have any dependencies on them anymore
     const unusedBuilds = this.nodesOfType('asset-build').filter(build => this.dependees(build).length === 0);
@@ -274,7 +288,7 @@ export class WorkGraph {
     }
   }
 
-  private updateReadyPool() {
+  private async updateReadyPool() {
     const activeCount = Object.values(this.nodes).filter((x) => x.deploymentState === DeploymentState.DEPLOYING).length;
     const pendingCount = Object.values(this.nodes).filter((x) => x.deploymentState === DeploymentState.PENDING).length;
 
@@ -296,7 +310,7 @@ export class WorkGraph {
 
     if (this.readyPool.length === 0 && activeCount === 0 && pendingCount > 0) {
       const cycle = this.findCycle() ?? ['No cycle found!'];
-      trace(`Cycle ${cycle.join(' -> ')} in graph ${this}`);
+      await this.ioHost.notify(trace(this.action, `Cycle ${cycle.join(' -> ')} in graph ${this}`));
       throw new ToolkitError(`Unable to make progress anymore, dependency cycle between remaining artifacts: ${cycle.join(' -> ')} (run with -vv for full graph)`);
     }
   }

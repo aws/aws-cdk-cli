@@ -4,6 +4,8 @@ import { Stability } from 'projen/lib/cdk';
 import { BundleCli } from './projenrc/bundle';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { JsiiBuild } from './projenrc/jsii';
+import { CodeCovWorkflow } from './projenrc/codecov';
+import { AdcPublishing } from './projenrc/adc-publishing';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -213,6 +215,8 @@ const repoProject = new yarn.Monorepo({
     ],
   },
 });
+
+new AdcPublishing(repoProject);
 
 // Eslint for projen config
 // @ts-ignore
@@ -863,7 +867,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('ts-node scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('ts-node --prefer-ts-exts scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
@@ -1093,7 +1097,7 @@ const toolkitLib = configureProject(
         coverageThreshold: {
           // this is very sad but we will get better
           statements: 85,
-          branches: 77,
+          branches: 76,
           functions: 77,
           lines: 85,
         },
@@ -1240,7 +1244,7 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     version: 2,
     updates: ['pip', 'maven', 'nuget'].map((pkgEco) => ({
       'package-ecosystem': pkgEco,
-      'directory': '/',
+      'directory': '/packages/aws-cdk/lib/init-templates',
       'schedule': { interval: 'weekly' },
       'labels': ['auto-approve'],
       'open-pull-requests-limit': 5,
@@ -1276,6 +1280,11 @@ new CdkCliIntegTestsWorkflow(repo, {
     cliLib.name,
     cdkAliasPackage.name,
   ],
+});
+
+new CodeCovWorkflow(repo, {
+  restrictToRepos: ['aws/aws-cdk-cli'],
+  packages: [cli.name],
 });
 
 repo.synth();

@@ -1,6 +1,6 @@
 import * as fs from 'fs-extra';
-import { formatBytes } from './util/bytes';
-import * as yaml_cfn from './util/yaml-cfn';
+import { formatBytes } from './bytes';
+import * as yaml_cfn from './yaml-cfn';
 
 /**
  * Stringify to YAML

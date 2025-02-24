@@ -46,7 +46,7 @@ Here are the packages in this repository. See the README of each package for mor
 
 | Package | Description | Published? | Maintained? |
 |---------|-------------|------------|-------------|
-| [aws-cdk](./packages/aws-cdk/) | The CDK Toolkit CLI, main CLI interface to CDK projects. | Yes |
+| [aws-cdk](./packages/aws-cdk/) | The CDK Toolkit CLI, main CLI interface to CDK projects. | Yes | Yes |
 | [cdk](./packages/cdk/) | An alias for `aws-cdk` so you can run `npx cdk` even if it's not installed. | Yes | Yes |
 | [cdk-assets v3](./packages/cdk-assets/) | CLI component handling asset uploads, also used as a CLI in [CDK Pipelines](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.pipelines-readme.html) | Yes | Yes |
 | [@aws-cdk/cloud-assembly-schema](./packages/@aws-cdk//cloud-assembly-schema/) | The contract between the CDK construct library and the CDK toolkit | Yes | Yes |
