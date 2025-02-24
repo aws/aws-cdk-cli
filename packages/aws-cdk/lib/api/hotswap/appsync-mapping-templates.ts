@@ -15,6 +15,8 @@ import type { SDK } from '../aws-auth';
 
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
+type ApiId = string;
+
 export async function isHotswappableAppSyncChange(
   logicalId: string,
   change: HotswappableChangeCandidate,
@@ -56,8 +58,7 @@ export async function isHotswappableAppSyncChange(
     } else {
       physicalName = arn;
     }
-    let hasListedAppSyncFunctions = false;
-    const functions: FunctionConfiguration[] = [];
+    const functions: Record<ApiId, FunctionConfiguration[]> = {};
     ret.push({
       hotswappable: true,
       resourceType: change.newValue.Type,
@@ -119,11 +120,10 @@ export async function isHotswappableAppSyncChange(
             delete sdkRequestObject.runtime;
           }
 
-          if (!hasListedAppSyncFunctions) {
-            functions.push(...await sdk.appsync().listFunctions({ apiId: sdkRequestObject.apiId }));
-            hasListedAppSyncFunctions = true;
+          if (!functions.hasOwnProperty(sdkRequestObject.apiId)) {
+            functions[sdkRequestObject.apiId] = await sdk.appsync().listFunctions({ apiId: sdkRequestObject.apiId });
           }
-          const { functionId } = functions.find((fn) => fn.name === physicalName) ?? {};
+          const { functionId } = functions[sdkRequestObject.apiId].find((fn) => fn.name === physicalName) ?? {};
           // Updating multiple functions at the same time or along with graphql schema results in `ConcurrentModificationException`
           await exponentialBackOffRetry(
             () =>
