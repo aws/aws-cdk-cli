@@ -216,8 +216,6 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
-new AdcPublishing(repoProject);
-
 // Eslint for projen config
 // @ts-ignore
 repoProject.eslint = new pj.javascript.Eslint(repoProject, {
@@ -227,6 +225,12 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   fileExtensions: ['.ts', '.tsx'],
   lintProjenRc: false,
 });
+// always lint projen files as part of the build
+if (repoProject.eslint?.eslintTask) {
+  repoProject.tasks.tryFind('build')?.spawn(repoProject.eslint?.eslintTask);
+}
+
+new AdcPublishing(repoProject);
 
 const repo = configureProject(repoProject);
 
