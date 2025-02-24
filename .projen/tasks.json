@@ -132,6 +132,9 @@
         },
         {
           "exec": "git diff --ignore-space-at-eol --exit-code"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         }
       ]
     },

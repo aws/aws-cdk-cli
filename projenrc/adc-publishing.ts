@@ -5,11 +5,13 @@ import { JobPermission } from 'projen/lib/github/workflows-model';
 export class AdcPublishing extends Component {
   constructor(private readonly project_: Monorepo) {
     super(project_);
-
-    this.project.tasks.tryFind('build')?.exec('tsx projenrc/build-standalone-zip.task.ts');
   }
 
   public preSynthesize() {
+    for (const taskName of ['build', 'release']) {
+      this.project.tasks.tryFind(taskName)?.exec('tsx projenrc/build-standalone-zip.task.ts');
+    }
+
     const releaseWf = this.project_.github?.tryFindWorkflow('release');
     if (!releaseWf) {
       throw new Error('Could not find release workflow');
