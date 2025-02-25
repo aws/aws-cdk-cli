@@ -49,7 +49,7 @@ export class Timer {
   }
 }
 
-function timerMessageProps(type: 'synth' | 'deploy' | 'rollback'| 'destroy'): {
+function timerMessageProps(type: 'synth' | 'deploy' | 'rollback'| 'destroy' | 'bootstrap'): {
   code: CodeInfo;
   text: string;
 } {

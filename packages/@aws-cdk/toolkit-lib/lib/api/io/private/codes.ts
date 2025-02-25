@@ -164,9 +164,18 @@ export const CODES = {
   }),
 
   // 9: Bootstrap
-  CDK_TOOLKIT_I9000: 'Provides bootstrap times',
-  CDK_TOOLKIT_E9900: 'Bootstrap failed',
-  CDK_TOOLKIT_I9900: 'Bootstrap results on success',
+  CDK_TOOLKIT_I9000: codeInfo({ code: 'CDK_TOOLKIT_I9000',
+    description: 'Provides bootstrap times',
+    level: 'info',
+  }),
+  CDK_TOOLKIT_I9900: codeInfo({ code: 'CDK_TOOLKIT_I9900',
+    description: 'Bootstrap results on success',
+    level: 'info',
+  }),
+  CDK_TOOLKIT_E9900: codeInfo({ code: 'CDK_TOOLKIT_E9900',
+    description: 'Bootstrap failed',
+    level: 'error',
+  }),
 
   // Assembly codes
   CDK_ASSEMBLY_I0042: codeInfo({
