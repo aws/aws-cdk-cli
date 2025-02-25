@@ -11,8 +11,7 @@ import type { Context } from './api/context';
 import { versionNumber } from './cli/version';
 import { debug, info, warning, error } from './logging';
 import { ToolkitError } from './toolkit/error';
-import { loadTreeFromDir, some } from './tree';
-import { flatMap } from './util';
+import { ConstructTreeNode, loadTreeFromDir } from './tree';
 import { cdkCacheDir } from './util/directories';
 import { formatErrorMessage } from './util/format-error';
 
@@ -86,18 +85,18 @@ export interface NoticesFilterFilterOptions {
 
 export abstract class NoticesFilter {
   public static filter(options: NoticesFilterFilterOptions): FilteredNotice[] {
-    const components = NoticesFilter.matchableComponents(options);
-
-    return [
-      ...NoticesFilter.findForFrameworkVersion(options.data, options.outDir),
-      ...NoticesFilter.findForNamedComponents(options.data, components),
+    const components = [
+      ...NoticesFilter.constructTreeComponents(options.outDir),
+      ...NoticesFilter.otherComponents(options),
     ];
+
+    return NoticesFilter.findForNamedComponents(options.data, components);
   }
 
   /**
    * From a set of input options, return the notices components we are searching for
    */
-  private static matchableComponents(options: NoticesFilterFilterOptions): ActualComponent[] {
+  private static otherComponents(options: NoticesFilterFilterOptions): ActualComponent[] {
     return [
       // CLI
       {
@@ -136,26 +135,35 @@ export abstract class NoticesFilter {
    */
   private static findForNamedComponents(data: Notice[], actualComponents: ActualComponent[]): FilteredNotice[] {
     return data.flatMap(notice => {
-      const foundAffected = actualComponents.filter(actual => notice.components.some(affected =>
-        NoticesFilter.componentNameMatches(affected, actual)
-        && semver.satisfies(actual.version, affected.version)));
+      const ors = this.resolveAliases(normalizeComponents(notice.components));
 
-      if (foundAffected.length === 0) {
-        return [];
+      // Find the first set of the disjunctions of which all components match against the actual components.
+      // Return the actual components we found so that we can inject their dynamic values. A single filter
+      // component can match more than one actual component
+      for (const ands of ors) {
+        const matched = ands.map(affected => actualComponents.filter(actual =>
+          NoticesFilter.componentNameMatches(affected, actual) && semver.satisfies(actual.version, affected.version)));
+
+        // For every clause in the filter we matched one or more components
+        if (matched.every(xs => xs.length > 0)) {
+          const ret = new FilteredNotice(notice);
+          NoticesFilter.addDynamicValues(matched.flatMap(x => x), ret);
+          return [ret];
+        }
       }
 
-      const ret = new FilteredNotice(notice);
-      NoticesFilter.addDynamicValues(foundAffected, ret);
-      return ret;
+      return [];
     });
   }
 
   /**
    * Whether the given "affected component" name applies to the given actual component name.
+   *
+   * The name matches if the name is exactly the same, or the name in the notice
+   * is a prefix of the node name when the query ends in '.'.
    */
-  private static componentNameMatches(affected: Component, actual: ActualComponent): boolean {
-    // Currently only strict equality. Could do prefix or wildcard matches here in the future.
-    return actual.name === affected.name;
+  private static componentNameMatches(pattern: Component, actual: ActualComponent): boolean {
+    return pattern.name.endsWith('.') ? actual.name.startsWith(pattern.name) : pattern.name === actual.name;
   }
 
   /**
@@ -178,63 +186,50 @@ export abstract class NoticesFilter {
   }
 
   /**
-   * Search for parts of framework constructs we found
+   * Treat 'framework' as an alias for either `aws-cdk-lib.` or `@aws-cdk/core.`.
    *
-   * This does not use the normal component finding mechanism because its logic is a bit
-   * more elaborate (for example, it does prefix matching).
+   * Because it's EITHER `aws-cdk-lib` or `@aws-cdk/core`, we need to add multiple
+   * arrays at the top level.
    */
-  private static findForFrameworkVersion(data: Notice[], outDir: string): FilteredNotice[] {
-    const tree = loadTreeFromDir(outDir);
-    return flatMap(data, notice => {
-      //  A match happens when:
-      //
-      //  1. The version of the node matches the version in the notice, interpreted
-      //  as a semver range.
-      //
-      //  AND
-      //
-      //  2. The name in the notice is a prefix of the node name when the query ends in '.',
-      //  or the two names are exactly the same, otherwise.
-
-      const matched = some(tree, node => {
-        return this.resolveAliases(notice.components).some(component =>
-          compareNames(component.name, node.constructInfo?.fqn) &&
-          compareVersions(component.version, node.constructInfo?.version));
-      });
-
-      if (!matched) {
-        return [];
+  private static resolveAliases(ors: Component[][]): Component[][] {
+    return ors.flatMap(ands => {
+      const hasFramework = ands.find(c => c.name === 'framework');
+      if (!hasFramework) {
+        return [ands];
       }
 
-      return [new FilteredNotice(notice)];
-
-      function compareNames(pattern: string, target: string | undefined): boolean {
-        if (target == null) {
-          return false;
-        }
-        return pattern.endsWith('.') ? target.startsWith(pattern) : pattern === target;
-      }
-
-      function compareVersions(pattern: string, target: string | undefined): boolean {
-        return semver.satisfies(target ?? '', pattern);
-      }
+      return [
+        ands.map(c => c.name === 'framework' ? { ...c, name: '@aws-cdk/core.' } : c),
+        ands.map(c => c.name === 'framework' ? { ...c, name: 'aws-cdk-lib.' } : c),
+      ];
     });
   }
 
-  private static resolveAliases(components: Component[]): Component[] {
-    return flatMap(components, component => {
-      if (component.name === 'framework') {
-        return [{
-          name: '@aws-cdk/core.',
-          version: component.version,
-        }, {
-          name: 'aws-cdk-lib.',
-          version: component.version,
-        }];
-      } else {
-        return [component];
+  /**
+   * Load the construct tree from the given directory and return its components
+   */
+  private static constructTreeComponents(manifestDir: string): ActualComponent[] {
+    const tree = loadTreeFromDir(manifestDir);
+    if (!tree) {
+      return [];
+    }
+
+    const ret: ActualComponent[] = [];
+    recurse(tree);
+    return ret;
+
+    function recurse(x: ConstructTreeNode) {
+      if (x.constructInfo?.fqn && x.constructInfo?.version) {
+        ret.push({
+          name: x.constructInfo?.fqn,
+          version: x.constructInfo?.version
+        });
       }
-    });
+
+      for (const child of Object.values(x.children ?? {})) {
+        recurse(child);
+      }
+    }
   }
 }
 
@@ -415,9 +410,31 @@ export interface Notice {
   title: string;
   issueNumber: number;
   overview: string;
-  components: Component[];
+  /**
+   * A set of affected components
+   *
+   * The canonical form of a list of components is in Disjunctive Normal Form
+   * (i.e., an OR of ANDs). This is the form when the list of components is a
+   * doubly nested array: the notice matches if all components of at least one
+   * of the top-level array matches.
+   *
+   * If the `components` is a single-level array, it is evaluated as an OR; it
+   * matches if any of the components matches.
+   */
+  components: Component[] | Component[][];
   schemaVersion: string;
   severity?: string;
+}
+
+/**
+ * Normalizes the given components structure into DNF form
+ */
+function normalizeComponents(xs: Component[] | Component[][]): Component[][] {
+  return xs.map(x => Array.isArray(x) ? x : [x]);
+}
+
+function renderConjunction(xs: Component[]): string {
+  return xs.map(c => `${c.name}: ${c.version}`).join(' AND ');
 }
 
 /**
@@ -435,7 +452,7 @@ export class FilteredNotice {
   }
 
   public format(): string {
-    const componentsValue = this.notice.components.map(c => `${c.name}: ${c.version}`).join(', ');
+    const componentsValue = normalizeComponents(this.notice.components).map(renderConjunction).join(', ');
     return this.resolveDynamicValues([
       `${this.notice.issueNumber}\t${this.notice.title}`,
       this.formatOverview(),
