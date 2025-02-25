@@ -61,7 +61,7 @@ export class S3DocsPublishing extends Component {
           name: 'Download build artifacts',
           uses: 'actions/download-artifact@v4',
           with: {
-            name: `${this.project.name}_build-artifact`,
+            name: `${safeName}_build-artifact`,
             path: 'dist',
           },
         },

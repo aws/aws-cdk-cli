@@ -1055,7 +1055,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: "@aws-cdk/toolkit-lib_build-artifact"
+          name: aws-cdk-toolkit-lib_build-artifact
           path: dist
       - name: Authenticate Via OIDC Role
         id: creds
