@@ -171,6 +171,9 @@
       "description": "Runs after successful compilation",
       "steps": [
         {
+          "exec": "ts-node scripts/gen-code-registry.ts"
+        },
+        {
           "exec": "node build-tools/bundle.mjs"
         },
         {
