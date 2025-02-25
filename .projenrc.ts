@@ -61,6 +61,9 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   // As a rule we don't include .ts sources in the NPM package
   x.npmignore?.addPatterns('*.ts', '!*.d.ts');
 
+  // Never include the build-tools directory
+  x.npmignore?.addPatterns('build-tools');
+
   return x;
 }
 
@@ -77,7 +80,6 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   'index_bg.wasm',
   'build-info.json',
   '.recommended-feature-flags.json',
-  '!lib/init-templates/**',
 ];
 
 // Specifically this and not ^ because when the SDK version updates there is a
@@ -835,7 +837,10 @@ cli.npmignore?.addPatterns(
   'generate.sh',
 );
 
-cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
+cli.gitignore.addPatterns(
+  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  '!lib/init-templates/**',
+);
 
 // People should not have imported from the `aws-cdk` package, but they have in the past.
 // We have identified all locations that are currently used, are maintaining a backwards compat
@@ -962,10 +967,16 @@ const cliLib = configureProject(
 );
 
 // Do include all .ts files inside init-templates
-cliLib.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+cliLib.npmignore?.addPatterns(
+  '!lib/init-templates/**/*.ts',
+  '!lib/api/bootstrap/bootstrap-template.yaml',
+);
 
 cliLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'lib/**/*.yaml',
+  'lib/**/*.yml',
+  'lib/init-templates/**',
   'cdk.out',
 );
 
@@ -1171,13 +1182,13 @@ toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/nul
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
   'assets',
-  'build-tools',
   'docs',
   'typedoc.json',
   '*.d.ts.map',
   // Explicitly allow all required files
   '!build-info.json',
   '!db.json.gz',
+  '!lib/init-templates/**/*.ts',
   '!lib/api/bootstrap/bootstrap-template.yaml',
   '!lib/*.js',
   '!lib/*.d.ts',
@@ -1192,7 +1203,9 @@ toolkitLib.gitignore.addPatterns(
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
+  'lib/**/*.yml',
   'lib/**/*.js.map',
+  'lib/init-templates/**',
   '!test/_fixtures/**/app.js',
   '!test/_fixtures/**/cdk.out',
 );
@@ -1204,18 +1217,19 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
+// Ad a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
 });
-toolkitLib.packageTask.spawn(toolkitLibDocs, {
-  // the nested directory is important
-  // the zip file needs to have this structure when created
-  args: ['--out dist/docs/cdk/api/toolkit-lib'],
-});
-toolkitLib.packageTask.exec('zip -r ../docs.zip cdk ', {
-  cwd: 'dist/docs',
-});
+
+// When packaging, output the docs into a specific nested directory
+// This is required because the zip file needs to have this structure when created
+toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
+// The docs build needs the version in a specific file at the nested root
+toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
+// Zip the whole thing up, again paths are important here to get the desired folder structure
+toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
 
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',

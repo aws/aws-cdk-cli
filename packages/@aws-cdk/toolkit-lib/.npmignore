@@ -22,13 +22,14 @@ tsconfig.tsbuildinfo
 .eslintrc.js
 *.ts
 !*.d.ts
-assets
 build-tools
+assets
 docs
 typedoc.json
 *.d.ts.map
 !build-info.json
 !db.json.gz
+!lib/init-templates/**/*.ts
 !lib/api/bootstrap/bootstrap-template.yaml
 !lib/*.js
 !lib/*.d.ts
