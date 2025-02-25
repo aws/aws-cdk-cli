@@ -4,7 +4,6 @@ import { RequireApproval } from '../../deploy';
 
 /**
  * Return whether the diff has security-impacting changes that need confirmation.
- * We will return the 
  * 
  * RequireApproval.BROADENING is returned if there is a broadening change. This
  * means that we will request response if the IoHost specifies RequireApproval.BROADENING
@@ -12,7 +11,7 @@ import { RequireApproval } from '../../deploy';
  * RequireApproval.ANY_CHANGE is returned if there is a non-broadening change
  * in the template. This will request response if the IoHost specifies
  * RequireApproval.ANY_CHANGE only.
- * REequireApproval.NEVER is returned if there are no security-impacting changes. This
+ * RequireApproval.NEVER is returned if there are no security-impacting changes. This
  * means that we wil never request response regardless of IoHost settings.
  */
 export function determineApprovalLevel(

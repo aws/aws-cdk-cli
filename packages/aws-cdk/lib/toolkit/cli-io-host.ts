@@ -64,6 +64,12 @@ export interface IoRequest<T, U> extends IoMessage<T> {
    */
   readonly defaultResponse: U;
 
+  /**
+   * A level that governs when we request the response, and when we
+   * can just take the default response.
+   *
+   * @default RequireApproval.BROADENING
+   */
   readonly requireApproval?: RequireApproval;
 }
 
