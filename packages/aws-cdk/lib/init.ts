@@ -490,18 +490,18 @@ interface Versions {
  * This has been built into the CLI at build time.
  */
 async function loadInitVersions(): Promise<Versions> {
-  const recommendedFlagsFile = path.join(__dirname, './init-templates/.init-version.json');
-  const contents = JSON.parse(await fs.readFile(recommendedFlagsFile, { encoding: 'utf-8' }));
+  const initVersionFile = path.join(__dirname, './init-templates/.init-version.json');
+  const contents = JSON.parse(await fs.readFile(initVersionFile, { encoding: 'utf-8' }));
 
   const ret = {
-    'aws-cdk-lib': contents['aws-cdk-lib'],
+    'aws-cdk-lib': process.env.CDK_INIT_LIB_VERSION ?? contents['aws-cdk-lib'],
     'constructs': contents.constructs,
     'aws-cdk': versionNumber(),
   };
   for (const [key, value] of Object.entries(ret)) {
     /* istanbul ignore next */
     if (!value) {
-      throw new ToolkitError(`Missing init version from ${recommendedFlagsFile}: ${key}`);
+      throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
     }
   }
 
