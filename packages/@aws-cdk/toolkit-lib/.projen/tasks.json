@@ -158,7 +158,10 @@
           ]
         },
         {
-          "exec": "zip -r ../docs.zip cdk ",
+          "exec": "(cat dist/version.txt || echo \"latest\") > dist/docs/cdk/api/toolkit-lib/VERSION"
+        },
+        {
+          "exec": "zip -r ../docs.zip cdk",
           "cwd": "dist/docs"
         }
       ]
