@@ -19,6 +19,7 @@ tsconfig.tsbuildinfo
 .eslintrc.js
 *.ts
 !*.d.ts
+build-tools
 /.gitattributes
 /.projenrc.ts
 /projenrc

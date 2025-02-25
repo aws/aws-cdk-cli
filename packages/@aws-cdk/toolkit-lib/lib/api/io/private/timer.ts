@@ -1,4 +1,4 @@
-import { VALID_CODE } from './codes';
+import { CodeInfo, CODES } from './codes';
 import { info } from './messages';
 import { ActionAwareIoHost } from './types';
 import { formatTime } from '../../aws-cdk';
@@ -49,15 +49,15 @@ export class Timer {
   }
 }
 
-function timerMessageProps(type: 'synth' | 'deploy' | 'rollback'| 'destroy' | 'bootstrap'): {
-  code: VALID_CODE;
+function timerMessageProps(type: 'synth' | 'deploy' | 'rollback'| 'destroy'): {
+  code: CodeInfo;
   text: string;
 } {
   switch (type) {
-    case 'synth': return { code: 'CDK_TOOLKIT_I1000', text: 'Synthesis' };
-    case 'deploy': return { code: 'CDK_TOOLKIT_I5000', text: 'Deployment' };
-    case 'rollback': return { code: 'CDK_TOOLKIT_I6000', text: 'Rollback' };
-    case 'destroy': return { code: 'CDK_TOOLKIT_I7000', text: 'Destroy' };
-    case 'bootstrap': return { code: 'CDK_TOOLKIT_I9000', text: 'Bootstrap' };
+    case 'synth': return { code: CODES.CDK_TOOLKIT_I1000, text: 'Synthesis' };
+    case 'deploy': return { code: CODES.CDK_TOOLKIT_I5000, text: 'Deployment' };
+    case 'rollback': return { code: CODES.CDK_TOOLKIT_I6000, text: 'Rollback' };
+    case 'destroy': return { code: CODES.CDK_TOOLKIT_I7000, text: 'Destroy' };
+    case 'bootstrap': return { code: CODES.CDK_TOOLKIT_I9000, text: 'Bootstrap' };
   }
 }

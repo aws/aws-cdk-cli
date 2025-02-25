@@ -182,10 +182,12 @@
     },
     {
       "name": "@aws-sdk/credential-providers",
+      "version": "3.741",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/lib-storage",
+      "version": "3.741",
       "type": "runtime"
     },
     {

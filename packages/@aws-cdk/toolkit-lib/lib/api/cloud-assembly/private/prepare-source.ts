@@ -7,7 +7,7 @@ import { lte } from 'semver';
 import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, splitBySize, versionNumber } from '../../../api/aws-cdk';
 import { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../errors';
-import { ActionAwareIoHost, asLogger, error } from '../../io/private';
+import { ActionAwareIoHost, asLogger, CODES, error } from '../../io/private';
 import type { AppSynthOptions } from '../source-builder';
 
 export { guessExecutable } from '../../../api/aws-cdk';
@@ -160,7 +160,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionA
       // this means the CLI version is too old.
       // we instruct the user to upgrade.
       const message = 'This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application. Please upgrade to the latest version.';
-      await ioHost.notify(error(message, 'CDK_ASSEMBLY_E1111', { error: err.message }));
+      await ioHost.notify(error(message, CODES.CDK_ASSEMBLY_E1111, { error: err.message }));
       throw new ToolkitError(`${message}\n(${err.message}`);
     }
     throw err;
