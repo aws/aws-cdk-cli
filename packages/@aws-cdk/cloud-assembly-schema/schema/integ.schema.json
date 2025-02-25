@@ -167,7 +167,7 @@
                     }
                 },
                 "requireApproval": {
-                    "description": "What kind of security changes require approval (Default RequireApproval.Never)",
+                    "description": "What kind of security changes require approval (Default RequireApproval.NEVER)",
                     "enum": [
                         "any-change",
                         "broadening",
