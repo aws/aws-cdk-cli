@@ -6,7 +6,8 @@ import { ContextProviderError } from '../toolkit/error';
 import { findJsonValue, getResultObj } from '../util/json';
 
 export class CcApiContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {}
+  constructor(private readonly aws: SdkProvider) {
+  }
 
   /**
    * This returns a data object with the value from CloudControl API result.
@@ -14,9 +15,6 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    * args.exactIdentifier -  use CC API getResource.
    * args.propertyMatch - use CCP API listResources to get resources and propertyMatch to search through the list.
    * args.propertiesToReturn - Properties from CC API to return.
-   *
-   * @param args
-   * @returns
    */
   public async getValue(args: CcApiContextQuery) {
     const cloudControl = (await initContextProviderSdk(this.aws, args)).cloudControl();
@@ -48,12 +46,6 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    *
    * If the exactIdentifier is not found, then an empty map is returned.
    * If the resource is found, then a map of the identifier to a map of property values is returned.
-   *
-   * @param cc - CC API client
-   * @param typeName
-   * @param exactIdentifier
-   * @param propertiesToReturn
-   * @returns resultObject - resultObject.results contains a list of the propObjects.
    */
   private async getResource(
     cc: ICloudControlClient,
@@ -87,12 +79,6 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    *
    * Since exactIdentifier is not specified, propertyMatch must be specified.
    * This returns an object where the ids are object keys and values are objects with keys of args.propertiesToReturn.
-   *
-   * @param cc
-   * @param typeName
-   * @param propertyMatch
-   * @param propertiesToReturn
-   * @returns resultObject - resultObject.results contains a list of the propObjects.
    */
   private async listResources(
     cc: ICloudControlClient,

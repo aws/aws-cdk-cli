@@ -12,15 +12,14 @@
  * propertiesToReturn = ['key1', 'key2.foo'];
  *
  * The returned object is:
+ *
+ * ```
  * {
  *   key1: 'abc',
  *   'key2.foo': 'qwerty',
  *   Identifier: identifier
  * }
- * @param propsObject
- * @param identifier
- * @param propertiesToReturn
- * @returns
+ * ```
  */
 export function getResultObj(jsonObject: any, identifier: string, propertiesToReturn: string[]): {[key: string]: any} {
   const propsObj = {};
@@ -51,9 +50,6 @@ export function getResultObj(jsonObject: any, identifier: string, propertiesToRe
  * }
  *
  * If the path is not found, an Error will be thrown stating which token is missing.
- *
- * @param jsonObject
- * @param path
  */
 export function findJsonValue(jsonObject: any, path: string): any {
   const paths = path.split('.');
