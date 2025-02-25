@@ -84,32 +84,105 @@ export interface NoticesFilterFilterOptions {
   readonly bootstrappedEnvironments: BootstrappedEnvironment[];
 }
 
-export class NoticesFilter {
+export abstract class NoticesFilter {
   public static filter(options: NoticesFilterFilterOptions): FilteredNotice[] {
+    const components = NoticesFilter.matchableComponents(options);
+
     return [
-      ...this.findForCliVersion(options.data, options.cliVersion),
-      ...this.findForFrameworkVersion(options.data, options.outDir),
-      ...this.findForBootstrapVersion(options.data, options.bootstrappedEnvironments),
+      ...NoticesFilter.findForFrameworkVersion(options.data, options.outDir),
+      ...NoticesFilter.findForNamedComponents(options.data, components),
     ];
   }
 
-  private static findForCliVersion(data: Notice[], cliVersion: string): FilteredNotice[] {
-    return flatMap(data, notice => {
-      const affectedComponent = notice.components.find(component => component.name === 'cli');
-      const affectedRange = affectedComponent?.version;
+  /**
+   * From a set of input options, return the notices components we are searching for
+   */
+  private static matchableComponents(options: NoticesFilterFilterOptions): ActualComponent[] {
+    return [
+      // CLI
+      {
+        name: 'cli',
+        version: options.cliVersion,
+      },
 
-      if (affectedRange == null) {
+      // Node version
+      {
+        name: 'node',
+        version: process.version.replace(/^v/, ''), // remove the 'v' prefix.
+        dynamicName: 'node',
+      },
+
+      // Bootstrap environments
+      ...options.bootstrappedEnvironments.flatMap(env => {
+        const semverBootstrapVersion = semver.coerce(env.bootstrapStackVersion);
+        if (!semverBootstrapVersion) {
+          // we don't throw because notices should never crash the cli.
+          warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
+          return [];
+        }
+
+        return [{
+          name: 'bootstrap',
+          version: `${semverBootstrapVersion}`,
+          dynamicName: 'ENVIRONMENTS',
+          dynamicValue: env.environment.name,
+        }];
+      }),
+    ];
+  }
+
+  /**
+   * Based on a set of component names, find all notices that match one of the given components
+   */
+  private static findForNamedComponents(data: Notice[], actualComponents: ActualComponent[]): FilteredNotice[] {
+    return data.flatMap(notice => {
+      const foundAffected = actualComponents.filter(actual => notice.components.some(affected =>
+        NoticesFilter.componentNameMatches(affected, actual)
+        && semver.satisfies(actual.version, affected.version)));
+
+      if (foundAffected.length === 0) {
         return [];
       }
 
-      if (!semver.satisfies(cliVersion, affectedRange)) {
-        return [];
-      }
-
-      return [new FilteredNotice(notice)];
+      const ret = new FilteredNotice(notice);
+      NoticesFilter.addDynamicValues(foundAffected, ret);
+      return ret;
     });
   }
 
+  /**
+   * Whether the given "affected component" name applies to the given actual component name.
+   */
+  private static componentNameMatches(affected: Component, actual: ActualComponent): boolean {
+    // Currently only strict equality. Could do prefix or wildcard matches here in the future.
+    return actual.name === affected.name;
+  }
+
+  /**
+   * Adds dynamic values from the given ActualComponents
+   *
+   * If there are multiple components with the same dynamic name, they are joined
+   * by a comma.
+   */
+  private static addDynamicValues(comps: ActualComponent[], notice: FilteredNotice) {
+    const dynamicValues: Record<string, string[]> = {};
+    for (const comp of comps) {
+      if (comp.dynamicName) {
+        dynamicValues[comp.dynamicName] = dynamicValues[comp.dynamicName] ?? [];
+        dynamicValues[comp.dynamicName].push(comp.dynamicValue ?? comp.version);
+      }
+    }
+    for (const [key, values] of Object.entries(dynamicValues)) {
+      notice.addDynamicValue(key, values.join(','));
+    }
+  }
+
+  /**
+   * Search for parts of framework constructs we found
+   *
+   * This does not use the normal component finding mechanism because its logic is a bit
+   * more elaborate (for example, it does prefix matching).
+   */
   private static findForFrameworkVersion(data: Notice[], outDir: string): FilteredNotice[] {
     const tree = loadTreeFromDir(outDir);
     return flatMap(data, notice => {
@@ -148,37 +221,6 @@ export class NoticesFilter {
     });
   }
 
-  private static findForBootstrapVersion(data: Notice[], bootstrappedEnvironments: BootstrappedEnvironment[]): FilteredNotice[] {
-    return flatMap(data, notice => {
-      const affectedComponent = notice.components.find(component => component.name === 'bootstrap');
-      const affectedRange = affectedComponent?.version;
-
-      if (affectedRange == null) {
-        return [];
-      }
-
-      const affected = bootstrappedEnvironments.filter(i => {
-        const semverBootstrapVersion = semver.coerce(i.bootstrapStackVersion);
-        if (!semverBootstrapVersion) {
-          // we don't throw because notices should never crash the cli.
-          warning(`While filtering notices, could not coerce bootstrap version '${i.bootstrapStackVersion}' into semver`);
-          return false;
-        }
-
-        return semver.satisfies(semverBootstrapVersion, affectedRange);
-      });
-
-      if (affected.length === 0) {
-        return [];
-      }
-
-      const filtered = new FilteredNotice(notice);
-      filtered.addDynamicValue('ENVIRONMENTS', affected.map(s => s.environment.name).join(','));
-
-      return [filtered];
-    });
-  }
-
   private static resolveAliases(components: Component[]): Component[] {
     return flatMap(components, component => {
       if (component.name === 'framework') {
@@ -194,6 +236,41 @@ export class NoticesFilter {
       }
     });
   }
+}
+
+interface ActualComponent {
+  /**
+   * Name of the component
+   */
+  readonly name: string;
+
+  /**
+   * Version of the component
+   */
+  readonly version: string;
+
+  /**
+   * If matched, under what name should it be added to the set of dynamic values
+   *
+   * These will be used to substitute placeholders in the message string, where
+   * placeholders look like `{resolve:XYZ}`.
+   *
+   * If there is more than one component with the same dynamic name, they are
+   * joined by ','.
+   *
+   * @default - Don't add to the set of dynamic values.
+   */
+  readonly dynamicName?: string;
+
+  /**
+   * If matched, what we should put in the set of dynamic values insstead of the version.
+   *
+   * Only used if `dynamicName` is set; by default we will add the actual version
+   * of the component.
+   *
+   * @default - The version.
+   */
+  readonly dynamicValue?: string;
 }
 
 /**
@@ -327,6 +404,10 @@ export class Notices {
 
 export interface Component {
   name: string;
+
+  /**
+   * The range of affected versions
+   */
   version: string;
 }
 

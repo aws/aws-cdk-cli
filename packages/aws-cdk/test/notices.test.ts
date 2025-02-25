@@ -21,7 +21,7 @@ import { Context } from '../lib/api/context';
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
   issueNumber: 16600,
-  overview: 'FilePublishingRoleDefaultPolicy has too many permissions',
+  overview: 'FilePublishingRoleDefaultPolicy has too many permissions in {resolve:ENVIRONMENTS}',
   components: [{
     name: 'bootstrap',
     version: '<25',
@@ -281,12 +281,14 @@ describe(NoticesFilter, () => {
         },
       ];
 
-      expect(NoticesFilter.filter({
+      const filtered = NoticesFilter.filter({
         data: [BASIC_BOOTSTRAP_NOTICE],
         cliVersion,
         outDir,
         bootstrappedEnvironments: bootstrappedEnvironments,
-      }).map(f => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
+      });
+      expect(filtered.map(f => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
+      expect(filtered.map(f => f.format()).join('\n')).toContain('env1,env2');
     });
 
     test('ignores invalid bootstrap versions', () => {
@@ -300,6 +302,48 @@ describe(NoticesFilter, () => {
         outDir,
         bootstrappedEnvironments: [{ bootstrapStackVersion: NaN, environment: { account: 'account', region: 'region', name: 'env' } }],
       }).map(f => f.notice)).toEqual([]);
+    });
+
+    test('node version', () => {
+      // can match node version
+      const outDir = path.join(__dirname, 'cloud-assembly-trees', 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = NoticesFilter.filter({
+        data: [
+          {
+            title: 'matchme',
+            overview: 'You are running {resolve:node}',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: [
+              {
+                name: 'node',
+                version: '>= 14.x',
+              },
+            ]
+          },
+          {
+            title: 'dontmatchme',
+            overview: 'dontmatchme',
+            issueNumber: 2,
+            schemaVersion: '1',
+            components: [
+              {
+                name: 'node',
+                version: '>= 999.x',
+              },
+            ]
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      expect(filtered.map(f => f.notice.title)).toEqual(['matchme']);
+      const nodeVersion = process.version.replace(/^v/, '');
+      expect(filtered.map(f => f.format()).join('\n')).toContain(`You are running ${nodeVersion}`);
     });
   });
 });
