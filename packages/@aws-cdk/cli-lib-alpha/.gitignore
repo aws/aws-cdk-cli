@@ -49,7 +49,9 @@ db.json.gz
 index_bg.wasm
 build-info.json
 .recommended-feature-flags.json
-!lib/init-templates/**
+lib/**/*.yaml
+lib/**/*.yml
+lib/init-templates/**
 cdk.out
 .jsii
 tsconfig.json

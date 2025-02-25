@@ -1,35 +1,25 @@
 import { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
-import { Component, github } from 'projen';
+import { Component } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 
-export class AdcPublishing extends Component {
+/**
+ * Record publishing timestamp to SSM
+ */
+export class RecordPublishingTimestamp extends Component {
   constructor(private readonly project_: Monorepo) {
     super(project_);
   }
 
   public preSynthesize() {
-    for (const taskName of ['build', 'release']) {
-      this.project.tasks.tryFind(taskName)?.exec('tsx projenrc/build-standalone-zip.task.ts');
-    }
+    const ssmPrefix = '/published/cdk/cli';
 
     const releaseWf = this.project_.github?.tryFindWorkflow('release');
     if (!releaseWf) {
       throw new Error('Could not find release workflow');
     }
 
-    (releaseWf.getJob('release') as github.workflows.Job).steps.push({
-      name: 'standalone: Upload artifact',
-      if: '${{ steps.git_remote.outputs.latest_commit == github.sha }}',
-      uses: 'actions/upload-artifact@v4.4.0',
-      with: {
-        name: 'standalone_build-artifact',
-        path: 'dist/standalone',
-        overwrite: true,
-      },
-    });
-
-    releaseWf.addJob('standalone_release_adc', {
-      name: 'standalone: publish to ADC',
+    releaseWf.addJob('record_timestamp', {
+      name: 'aws-cdk: Record publishing timestamp',
       environment: 'releasing', // <-- this has the configuration
       needs: ['release'],
       runsOn: ['ubuntu-latest'],
@@ -39,18 +29,17 @@ export class AdcPublishing extends Component {
       if: '${{ needs.release.outputs.latest_commit == github.sha }}',
       steps: [
         {
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': 'lts/*',
-          },
-        },
-        {
           name: 'Download build artifacts',
           uses: 'actions/download-artifact@v4',
           with: {
-            name: 'standalone_build-artifact',
-            path: 'dist/standalone',
+            name: 'aws-cdk_build-artifact',
+            path: 'dist',
           },
+        },
+        {
+          name: 'Read version from build artifacts',
+          id: 'aws-cdk-version',
+          run: 'echo "version=$(cat dist/version.txt)" >> $GITHUB_OUTPUT',
         },
         {
           name: 'Authenticate Via OIDC Role',
@@ -67,13 +56,13 @@ export class AdcPublishing extends Component {
         },
         {
           name: 'Publish artifacts',
-          env: {
-            PUBLISHING_ROLE_ARN: '${{ vars.PUBLISHING_ROLE_ARN }}',
-            TARGET_BUCKETS: '${{ vars.TARGET_BUCKETS }}',
-          },
-          run: 'npx tsx projenrc/publish-to-adc.task.ts',
+          run: [
+            `aws ssm put-parameter --name "${ssmPrefix}/version" --type "String" --value "\${{ steps.aws-cdk-version.outputs.version }}" --overwrite`,
+            `aws ssm put-parameter --name "${ssmPrefix}/timestamp" --type "String" --value "$(date +%s)" --overwrite`,
+          ].join('\n'),
         },
       ],
     });
   }
 }
+

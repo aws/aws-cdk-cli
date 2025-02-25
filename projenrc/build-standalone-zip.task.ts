@@ -7,7 +7,6 @@ import { glob } from 'glob';
 async function main() {
   const outdir = await fs.mkdtemp(path.join(os.tmpdir(), 'bundling'));
   try {
-
     const pkgs = ['aws-cdk'];
     // this is a build task, so we are safe either way
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism

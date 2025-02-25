@@ -22,4 +22,5 @@ tsconfig.tsbuildinfo
 .eslintrc.js
 *.ts
 !*.d.ts
+build-tools
 /.gitattributes
