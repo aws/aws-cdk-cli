@@ -2,6 +2,7 @@ import * as chalk from 'chalk';
 import type { IoMessageCode, IoMessageLevel } from '../io-message';
 import { CodeInfo } from './codes';
 import type { ActionLessMessage, ActionLessRequest, IoMessageCodeCategory, Optional, SimplifiedMessage } from './types';
+import { RequireApproval } from '../../../actions';
 
 /**
  * Internal helper that processes log inputs into a consistent format.
@@ -43,22 +44,33 @@ export const confirm = (
   motivation: string,
   defaultResponse: boolean,
   concurrency?: number,
+  requireApproval?: RequireApproval,
 ): ActionLessRequest<{
   motivation: string;
   concurrency?: number;
 }, boolean> => {
-  return prompt(code, `${chalk.cyan(question)} (y/n)?`, defaultResponse, {
-    motivation,
-    concurrency,
-  });
+  return prompt(
+    code,
+    `${chalk.cyan(question)} (y/n)?`,
+    defaultResponse,
+    { motivation, concurrency },
+    requireApproval,
+  );
 };
 
 /**
  * Prompt for a response from the IoHost.
  */
-export const prompt = <T, U>(code: CodeInfo, message: string, defaultResponse: U, payload?: T): ActionLessRequest<T, U> => {
+export const prompt = <T, U>(
+  code: CodeInfo,
+  message: string,
+  defaultResponse: U,
+  payload?: T,
+  requireApproval?: RequireApproval,
+): ActionLessRequest<T, U> => {
   return {
     defaultResponse,
+    requireApproval,
     ...formatMessage({
       level: code.level,
       code: code.code,

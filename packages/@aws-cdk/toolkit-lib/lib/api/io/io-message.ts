@@ -1,3 +1,4 @@
+import { RequireApproval } from '../../actions';
 import { ToolkitAction } from '../../toolkit';
 
 /**
@@ -65,4 +66,10 @@ export interface IoRequest<T, U> extends IoMessage<T> {
    * The default response that will be used if no data is returned.
    */
   readonly defaultResponse: U;
+
+  /**
+   * 
+   * @default RequireApproval.ANY_CHANGE
+   */
+  readonly requireApproval?: RequireApproval;
 }

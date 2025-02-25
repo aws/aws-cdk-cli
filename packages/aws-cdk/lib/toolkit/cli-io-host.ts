@@ -2,6 +2,7 @@ import * as util from 'node:util';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';
@@ -62,6 +63,8 @@ export interface IoRequest<T, U> extends IoMessage<T> {
    * The default response that will be used if no data is returned.
    */
   readonly defaultResponse: U;
+
+  readonly requireApproval?: RequireApproval;
 }
 
 export type IoMessageLevel = 'error' | 'result' | 'warn' | 'info' | 'debug' | 'trace';
@@ -159,6 +162,13 @@ export interface CliIoHostProps {
    * @default - determined from the environment, specifically based on `process.env.CI`
    */
   readonly isCI?: boolean;
+
+  /**
+   * In what scenarios should the CliIoHost ask for approval
+   *
+   * @default RequireApproval.BROADENING
+   */
+  readonly requireApproval?: RequireApproval;
 }
 
 /**
@@ -186,6 +196,7 @@ export class CliIoHost implements IIoHost {
   private _isTTY: boolean;
   private _logLevel: IoMessageLevel;
   private _internalIoHost?: IIoHost;
+  private _requireApproval: RequireApproval;
 
   // Corked Logging
   private corkedCounter = 0;
@@ -196,6 +207,7 @@ export class CliIoHost implements IIoHost {
     this._isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this._logLevel = props.logLevel ?? 'info';
     this._isCI = props.isCI ?? isCI();
+    this._requireApproval = props.requireApproval ?? RequireApproval.BROADENING;
   }
 
   /**
@@ -237,6 +249,20 @@ export class CliIoHost implements IIoHost {
    */
   public set isTTY(value: boolean) {
     this._isTTY = value;
+  }
+
+  /**
+   * Return the conditions for requiring approval in this CliIoHost.
+   */
+  public get requireApproval() {
+    return this._requireApproval;
+  }
+
+  /**
+   * Set the conditions for requiring approval in this CliIoHost.
+   */
+  public set requireApproval(approval: RequireApproval) {
+    this._requireApproval = approval;
   }
 
   /**
@@ -356,6 +382,12 @@ export class CliIoHost implements IIoHost {
       return msg.defaultResponse;
     }
 
+    // If the request comes with a approval level and the IoHost is allowed to accept the default
+    // we can skip prompting the user
+    if (!this.shouldRequireApproval(msg.requireApproval)) {
+      return msg.defaultResponse;
+    }
+
     const response = await this.withCorkedLogging(async (): Promise<string | number | true> => {
       // prepare prompt data
       // @todo this format is not defined anywhere, probably should be
@@ -422,6 +454,27 @@ export class CliIoHost implements IIoHost {
   private formatTime(d: Date): string {
     const pad = (n: number): string => n.toString().padStart(2, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  /**
+   * Return true we need to request approval from the user.
+   */
+  private shouldRequireApproval(approval?: RequireApproval): boolean {
+    // no given approval level means we don't need to request approval
+    if (approval === undefined) {
+      return false;
+    }
+
+    switch (this._requireApproval) {
+      case RequireApproval.NEVER:
+        // never request approval
+        return false;
+      case RequireApproval.BROADENING:
+        return approval === RequireApproval.BROADENING;
+      case RequireApproval.ANYCHANGE:
+        // request approval for BROADENING and ANYCHANGE
+        return approval !== RequireApproval.NEVER;
+    }
   }
 }
 
