@@ -222,7 +222,7 @@ export abstract class NoticesFilter {
       if (x.constructInfo?.fqn && x.constructInfo?.version) {
         ret.push({
           name: x.constructInfo?.fqn,
-          version: x.constructInfo?.version
+          version: x.constructInfo?.version,
         });
       }
 
