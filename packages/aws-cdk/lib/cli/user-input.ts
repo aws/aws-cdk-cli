@@ -41,7 +41,7 @@ export interface UserInput {
   readonly bootstrap?: BootstrapOptions;
 
   /**
-   * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/README.md#cdk-gc
+   * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc
    */
   readonly gc?: GcOptions;
 
@@ -117,7 +117,7 @@ export interface UserInput {
   /**
    * Check your set-up for potential problems
    */
-  readonly doctor?: DoctorOptions;
+  readonly doctor?: {};
 }
 
 /**
@@ -529,7 +529,7 @@ export interface BootstrapOptions {
 }
 
 /**
- * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/README.md#cdk-gc
+ * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc
  *
  * @struct
  */
@@ -1324,12 +1324,4 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
-}
-
-/**
- * Check your set-up for potential problems
- *
- * @struct
- */
-export interface DoctorOptions {
 }

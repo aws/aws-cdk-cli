@@ -1,23 +1,26 @@
 import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
 
-export interface AppProps {
+/**
+ * Properties the builder function receives.
+ */
+export interface AssemblyBuilderProps {
   /**
    * The output directory into which to the builder app will emit synthesized artifacts.
    */
   readonly outdir?: string;
 
   /**
-   * The context provided tp the builder app to synthesize the Cloud Assembly.
+   * The context provided tp the builder app to synthesize the Cloud Assembly, including looked-up context.
    */
   readonly context?: { [key: string]: any };
 }
 
-export type AssemblyBuilder = (props: AppProps) => Promise<cxschema.ICloudAssembly>;
+export type AssemblyBuilder = (props: AssemblyBuilderProps) => Promise<cxschema.ICloudAssembly>;
 
 /**
  * Configuration for creating a CLI from an AWS CDK App directory
  */
-export interface CdkAppSourceProps {
+export interface AssemblySourceProps {
   /**
    * Execute the application in this working directory.
    *

@@ -65,46 +65,53 @@ export async function renderUserInputType(config: CliConfig): Promise<string> {
 
   // add command-specific options
   for (const [commandName, command] of Object.entries(config.commands)) {
-    const commandType = new StructType(scope, {
-      export: true,
-      name: `${kebabToPascal(commandName)}Options`,
-      docs: {
-        summary: command.description,
-        remarks: command.aliases ? `aliases: ${command.aliases.join(' ')}` : undefined,
-      },
-    });
+    let commandType: Type = Type.anonymousInterface([]);
+    const commandOptions = Object.entries(command.options ?? {});
 
-    // add command level options
-    for (const [optionName, option] of Object.entries(command.options ?? {})) {
-      commandType.addProperty({
-        name: kebabToCamelCase(optionName),
-        type: convertType(option.type, option.count),
+    // if we have something to add to an interface
+    if (command.arg || commandOptions.length) {
+      const commandStruct = new StructType(scope, {
+        export: true,
+        name: `${kebabToPascal(commandName)}Options`,
         docs: {
+          summary: command.description,
+          remarks: command.aliases ? `aliases: ${command.aliases.join(' ')}` : undefined,
+        },
+      });
+      commandType = Type.fromName(scope, commandStruct.name);
+
+      // add command level options
+      for (const [optionName, option] of commandOptions) {
+        commandStruct.addProperty({
+          name: kebabToCamelCase(optionName),
+          type: convertType(option.type, option.count),
+          docs: {
           // Notification Arns is a special property where undefined and [] mean different things
-          default: optionName === 'notification-arns' ? 'undefined' : normalizeDefault(option.default),
-          summary: option.desc,
-          deprecated: option.deprecated ? String(option.deprecated) : undefined,
-          remarks: option.alias ? `aliases: ${Array.isArray(option.alias) ? option.alias.join(' ') : option.alias}` : undefined,
-        },
-        optional: true,
-      });
-    }
+            default: optionName === 'notification-arns' ? 'undefined' : normalizeDefault(option.default),
+            summary: option.desc,
+            deprecated: option.deprecated ? String(option.deprecated) : undefined,
+            remarks: option.alias ? `aliases: ${Array.isArray(option.alias) ? option.alias.join(' ') : option.alias}` : undefined,
+          },
+          optional: true,
+        });
+      }
 
-    // add positional argument associated with the command
-    if (command.arg) {
-      commandType.addProperty({
-        name: command.arg.name,
-        type: command.arg.variadic ? Type.arrayOf(Type.STRING) : Type.STRING,
-        docs: {
-          summary: `Positional argument for ${commandName}`,
-        },
-        optional: true,
-      });
+      // add positional argument associated with the command
+      if (command.arg) {
+        commandStruct.addProperty({
+          name: command.arg.name,
+          type: command.arg.variadic ? Type.arrayOf(Type.STRING) : Type.STRING,
+          docs: {
+            summary: `Positional argument for ${commandName}`,
+          },
+          optional: true,
+        });
+      }
     }
 
     userInputType.addProperty({
       name: kebabToCamelCase(commandName),
-      type: Type.fromName(scope, commandType.name),
+      type: commandType,
       docs: {
         summary: command.description,
         remarks: command.aliases ? `aliases: ${command.aliases.join(' ')}` : undefined,

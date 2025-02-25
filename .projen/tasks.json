@@ -8,6 +8,15 @@
         },
         {
           "exec": "yarn workspaces run build"
+        },
+        {
+          "spawn": "eslint"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         }
       ]
     },
@@ -126,6 +135,12 @@
         },
         {
           "exec": "git diff --ignore-space-at-eol --exit-code"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         }
       ]
     },

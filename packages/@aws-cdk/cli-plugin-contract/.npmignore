@@ -17,7 +17,10 @@ dist
 /.projenrc.js
 tsconfig.tsbuildinfo
 /.eslintrc.json
+/dist/changelog.md
+/dist/version.txt
 .eslintrc.js
 *.ts
 !*.d.ts
+build-tools
 /.gitattributes

@@ -1,4 +1,5 @@
-import { IIoHost, IoMessage, IoMessageLevel, IoRequest, isMessageRelevantForLevel } from '../../lib';
+import { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib';
+import { isMessageRelevantForLevel } from '../../lib/api/io/private/level-priority';
 
 /**
  * A test implementation of IIoHost that does nothing but can by spied on.

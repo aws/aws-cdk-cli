@@ -5,12 +5,12 @@ export { formatSdkLoggerContent, SdkProvider } from '../../../../aws-cdk/lib/api
 export { Context, PROJECT_CONTEXT } from '../../../../aws-cdk/lib/api/context';
 export { Deployments, type SuccessfulDeployStackResult } from '../../../../aws-cdk/lib/api/deployments';
 export { Settings } from '../../../../aws-cdk/lib/api/settings';
-export { tagsForStack } from '../../../../aws-cdk/lib/api/tags';
+export { tagsForStack, Tag } from '../../../../aws-cdk/lib/api/tags';
 export { DEFAULT_TOOLKIT_STACK_NAME } from '../../../../aws-cdk/lib/api/toolkit-info';
 export { ResourceMigrator } from '../../../../aws-cdk/lib/api/resource-import';
 export { StackActivityProgress } from '../../../../aws-cdk/lib/api/stack-events';
 export { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../../../../aws-cdk/lib/api/logs';
-export { WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
+export { type WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
 
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';

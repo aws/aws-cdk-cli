@@ -7,8 +7,14 @@ import { CloudAssemblyBuilder } from '@aws-cdk/cx-api';
 import { expect } from '@jest/globals';
 import { WorkGraph, WorkGraphBuilder } from '../../../lib/api/work-graph';
 import type { AssetBuildNode, AssetPublishNode, StackNode, WorkNode } from '../../../lib/api/work-graph';
+import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 
 let rootBuilder: CloudAssemblyBuilder;
+let mockMsg: IoMessaging = {
+  ioHost: CliIoHost.instance(),
+  action: 'deploy'
+};
+
 beforeEach(() => {
   rootBuilder = new CloudAssemblyBuilder();
 });
@@ -44,7 +50,7 @@ describe('with some stacks and assets', () => {
   });
 
   test('stack depends on the asset publishing step', () => {
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
 
     expect(assertableNode(graph.node('stack2'))).toEqual(expect.objectContaining({
       type: 'stack',
@@ -53,7 +59,7 @@ describe('with some stacks and assets', () => {
   });
 
   test('asset publishing step depends on asset building step', () => {
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
 
     expect(graph.node('publish-F1-add54bdbcb')).toEqual(expect.objectContaining({
       type: 'asset-publish',
@@ -62,7 +68,7 @@ describe('with some stacks and assets', () => {
   });
 
   test('with prebuild off, asset building inherits dependencies from their parent stack', () => {
-    const graph = new WorkGraphBuilder(false).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, false).build(assembly.artifacts);
 
     expect(graph.node('build-F1-a533139934')).toEqual(expect.objectContaining({
       type: 'asset-build',
@@ -71,7 +77,7 @@ describe('with some stacks and assets', () => {
   });
 
   test('with prebuild on, assets only have their own dependencies', () => {
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
 
     expect(graph.node('build-F1-a533139934')).toEqual(expect.objectContaining({
       type: 'asset-build',
@@ -90,8 +96,8 @@ test('tree metadata is ignored', async () => {
 
   const assembly = rootBuilder.buildAssembly();
 
-  const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
-  expect(graph.ready().length).toEqual(0);
+  const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
+  expect((await graph.ready()).length).toEqual(0);
 });
 
 test('can handle nested assemblies', async () => {
@@ -103,7 +109,7 @@ test('can handle nested assemblies', async () => {
   const assembly = rootBuilder.buildAssembly();
 
   let workDone = 0;
-  const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+  const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
 
   await graph.doParallel(10, {
     deployStack: async () => { workDone += 1; },
@@ -126,8 +132,8 @@ test('dependencies on unselected artifacts are silently ignored', async () => {
   });
 
   const asm = rootBuilder.buildAssembly();
-  const graph = new WorkGraphBuilder(true).build([asm.getStackArtifact('stackB')]);
-  expect(graph.ready()[0]).toEqual(expect.objectContaining({
+  const graph = new WorkGraphBuilder(mockMsg, true).build([asm.getStackArtifact('stackB')]);
+  expect((await graph.ready())[0]).toEqual(expect.objectContaining({
     id: 'stackB',
     dependencies: new Set(),
   }));
@@ -162,7 +168,7 @@ describe('tests that use assets', () => {
 
     const assembly = rootBuilder.buildAssembly();
 
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
     const traversal = await traverseAndRecord(graph);
 
     expect(traversal).toEqual([
@@ -184,7 +190,7 @@ describe('tests that use assets', () => {
     addAssets(rootBuilder, 'StackC.assets', { files });
 
     const assembly = rootBuilder.buildAssembly();
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
 
     // THEN
     expect(graph.findCycle()).toBeUndefined();
@@ -224,7 +230,7 @@ describe('tests that use assets', () => {
 
     const assembly = rootBuilder.buildAssembly();
 
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
     const traversal = await traverseAndRecord(graph);
 
     expect(traversal).toEqual([
@@ -270,7 +276,7 @@ describe('tests that use assets', () => {
 
     const assembly = rootBuilder.buildAssembly();
 
-    const graph = new WorkGraphBuilder(true).build(assembly.artifacts);
+    const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
     const traversal = await traverseAndRecord(graph);
 
     expect(traversal).toEqual([
