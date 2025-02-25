@@ -421,7 +421,7 @@ export interface Notice {
    * If the `components` is a single-level array, it is evaluated as an OR; it
    * matches if any of the components matches.
    */
-  components: Component[] | Component[][];
+  components: Array<Component | Component[]>;
   schemaVersion: string;
   severity?: string;
 }
@@ -429,7 +429,7 @@ export interface Notice {
 /**
  * Normalizes the given components structure into DNF form
  */
-function normalizeComponents(xs: Component[] | Component[][]): Component[][] {
+function normalizeComponents(xs: Array<Component | Component[]>): Component[][] {
   return xs.map(x => Array.isArray(x) ? x : [x]);
 }
 
