@@ -179,7 +179,7 @@ const repoProject = new yarn.Monorepo({
 
   workflowNodeVersion: 'lts/*',
   workflowRunsOn,
-  gitignore: ['.DS_Store'],
+  gitignore: ['.DS_Store', '.tools'],
 
   autoApproveUpgrades: true,
   autoApproveOptions: {
