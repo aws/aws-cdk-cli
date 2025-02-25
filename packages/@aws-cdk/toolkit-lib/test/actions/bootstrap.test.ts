@@ -20,7 +20,6 @@ import {
   setDefaultSTSMocks,
   rootDir,
 } from '../util/aws-cdk';
-import { CODES } from '../../lib/api/io/private';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -144,7 +143,7 @@ describe('bootstrap', () => {
         message: expect.stringContaining(`${bold('aws://210987654321/eu-west-1')}: bootstrapping...`),
       }));
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-        code: CODES.CDK_TOOLKIT_I9900,
+        code: 'CDK_TOOLKIT_I9900',
         message: expect.stringContaining('✅'),
         data: expect.objectContaining({
           environment: {
@@ -155,7 +154,7 @@ describe('bootstrap', () => {
         }),
       }));
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-        code: CODES.CDK_TOOLKIT_I9900,
+        code: 'CDK_TOOLKIT_I9900',
         message: expect.stringContaining('✅'),
         data: expect.objectContaining({
           environment: {

@@ -22,6 +22,9 @@
 | CDK_TOOLKIT_I7010 | Confirm destroy stacks | info | n/a |
 | CDK_TOOLKIT_E7010 | Action was aborted due to negative confirmation of request | error | n/a |
 | CDK_TOOLKIT_E7900 | Stack deletion failed | error | n/a |
+| CDK_TOOLKIT_I9000 | Provides bootstrap times | info | n/a |
+| CDK_TOOLKIT_I9900 | Bootstrap results on success | info | n/a |
+| CDK_TOOLKIT_E9900 | Bootstrap failed | error | n/a |
 | CDK_ASSEMBLY_I0042 | Writing updated context | debug | n/a |
 | CDK_ASSEMBLY_I0241 | Fetching missing context | debug | n/a |
 | CDK_ASSEMBLY_I1000 | Cloud assembly output starts | debug | n/a |
