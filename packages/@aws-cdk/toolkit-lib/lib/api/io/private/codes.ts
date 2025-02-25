@@ -164,15 +164,18 @@ export const CODES = {
   }),
 
   // 9: Bootstrap
-  CDK_TOOLKIT_I9000: codeInfo({ code: 'CDK_TOOLKIT_I9000',
+  CDK_TOOLKIT_I9000: codeInfo({
+    code: 'CDK_TOOLKIT_I9000',
     description: 'Provides bootstrap times',
     level: 'info',
   }),
-  CDK_TOOLKIT_I9900: codeInfo({ code: 'CDK_TOOLKIT_I9900',
+  CDK_TOOLKIT_I9900: codeInfo({
+    code: 'CDK_TOOLKIT_I9900',
     description: 'Bootstrap results on success',
     level: 'info',
   }),
-  CDK_TOOLKIT_E9900: codeInfo({ code: 'CDK_TOOLKIT_E9900',
+  CDK_TOOLKIT_E9900: codeInfo({
+    code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',
     level: 'error',
   }),
