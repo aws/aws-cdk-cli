@@ -986,6 +986,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha }}
     steps:
@@ -1018,6 +1019,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha }}
     steps:
