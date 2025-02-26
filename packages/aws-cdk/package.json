@@ -90,6 +90,7 @@
     "@aws-cdk/cx-api": "^2.180.0",
     "@aws-cdk/region-info": "^2.180.0",
     "@aws-sdk/client-appsync": "3.741",
+    "@aws-sdk/client-cloudcontrol": "3.741",
     "@aws-sdk/client-cloudformation": "3.741",
     "@aws-sdk/client-cloudwatch-logs": "3.741",
     "@aws-sdk/client-codebuild": "3.741",
@@ -112,13 +113,13 @@
     "@aws-sdk/middleware-endpoint": "^3.374.0",
     "@aws-sdk/util-retry": "^3.374.0",
     "@aws-sdk/util-waiter": "^3.374.0",
-    "@jsii/check-node": "^1.107.0",
-    "@smithy/middleware-endpoint": "^4.0.5",
+    "@jsii/check-node": "^1.108.0",
+    "@smithy/middleware-endpoint": "^4.0.6",
     "@smithy/property-provider": "^4.0.1",
     "@smithy/shared-ini-file-loader": "^4.0.1",
     "@smithy/types": "^4.1.0",
     "@smithy/util-retry": "^4.0.1",
-    "@smithy/util-stream": "^4.1.1",
+    "@smithy/util-stream": "^4.1.2",
     "@smithy/util-waiter": "^4.0.2",
     "archiver": "^7.0.1",
     "camelcase": "^6",
@@ -148,7 +149,7 @@
     "cdk"
   ],
   "engines": {
-    "node": ">= 16.0.0"
+    "node": ">= 14.15.0"
   },
   "main": "lib/index.js",
   "license": "Apache-2.0",

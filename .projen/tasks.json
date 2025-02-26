@@ -10,10 +10,10 @@
           "exec": "yarn workspaces run build"
         },
         {
-          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+          "spawn": "eslint"
         },
         {
-          "spawn": "eslint"
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         },
         {
           "spawn": "git-secrets-scan"
@@ -146,6 +146,12 @@
         },
         {
           "exec": "git diff --ignore-space-at-eol --exit-code"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         }
       ]
     },

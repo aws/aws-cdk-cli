@@ -49,11 +49,12 @@ db.json.gz
 .init-version.json
 index_bg.wasm
 .recommended-feature-flags.json
-!lib/init-templates/**
 docs
 build-info.json
 lib/**/*.wasm
 lib/**/*.yaml
+lib/**/*.yml
 lib/**/*.js.map
+lib/init-templates/**
 !test/_fixtures/**/app.js
 !test/_fixtures/**/cdk.out

@@ -62,12 +62,12 @@ import * as core from 'aws-cdk-lib/core';
 declare const cdk: Toolkit;
 
 const cx = cdk.fromAssemblyBuilder(async () => {
-    const app = new core.App();
+  const app = new core.App();
 
-    // Define your stacks here
-    new MyStack(app, 'MyStack');
+  // Define your stacks here
+  new MyStack(app, 'MyStack');
 
-    return app.synth();
+  return app.synth();
 });
 ```
 
@@ -82,11 +82,11 @@ The following is a basic example that creates a deployment of the `MyStack` stac
 declare const cdk: Toolkit;
 declare const cx: ICloudAssemblySource;
 
-await toolkit.deploy(cloudAssembly, {
-    stacks: {
-        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH,
-        patterns: ["MyStack"],
-    },
+await cdk.deploy(cx, {
+  stacks: {
+    strategy: StackSelectionStrategy.PATTERN_MUST_MATCH,
+    patterns: ["MyStack"],
+  },
 });
 ```
 
@@ -231,9 +231,9 @@ The following is an example implementation that simply logs all message objects 
 
 ```ts
 const toolkit = new toolkitLib.Toolkit({
-   ioHost: {
+  ioHost: {
     notify: async function (msg) {
-        console.log(msg);
+      console.log(msg);
     },
     requestResponse: async function (msg) {
       console.log(msg);
@@ -322,12 +322,12 @@ Alternatively a inline `AssemblyBuilder` function can be used to build a CDK app
 declare const cdk: Toolkit;
 
 const cx = cdk.fromAssemblyBuilder(async () => {
-    const app = new core.App();
+  const app = new core.App();
 
-    // Define your stacks here
-    new MyStack(app, 'MyStack');
+  // Define your stacks here
+  new MyStack(app, 'MyStack');
 
-    return app.synth();
+  return app.synth();
 });
 ```
 
@@ -403,7 +403,7 @@ declare const cx: ICloudAssemblySource;
 try {
   // Attempt a CDK Toolkit operation
   const deployment = await cdk.deploy(cloudAssembly, {
-      stacks: ['MyStack']
+    stacks: ['MyStack']
   });
 
 } catch (error) {
@@ -425,8 +425,8 @@ try {
     console.error('Generic Toolkit error:', error.message);
 
   } else {
-      // Handle unexpected errors
-      console.error('Unexpected error:', error);
+    // Handle unexpected errors
+    console.error('Unexpected error:', error);
   }
 }
 ```
