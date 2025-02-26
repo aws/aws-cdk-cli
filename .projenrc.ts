@@ -711,6 +711,7 @@ const cli = configureProject(
         `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1049,6 +1050,7 @@ const toolkitLib = configureProject(
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1174,6 +1176,7 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
+toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
