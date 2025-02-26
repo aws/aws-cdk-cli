@@ -24,27 +24,14 @@ jobs:
       - name: Triage Manager
         uses: aws-github-ops/aws-issue-triage-manager@main
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           target: issues
-          excludedExpressions:
-            - CDK CLI Version
-            - TypeScript
-            - Java
-            - Python
-            - Go
-          includedLabels:
-            - needs-triage
-          excludedLabels:
-            - p1
-            - p2
-            - p0
-            - effort-small
-            - effort-medium
-            - effort-large
-            - guidance
-          defaultArea: ${{ env.OSDS_DEVS }}
+          excluded-expressions: "[CDK CLI Version|TypeScript|Java|Python|Go]"
+          included-labels: "[needs-triage]"
+          excluded-labels: "[p1|p2|p0|effort-small|effort-medium|effort-large|guidance]"
+          default-area: ${{ env.OSDS_DEVS }}
           parameters: ${{ env.AREA_PARAMS }}
           affixes: ${{ env.AREA_AFFIXES }}
-          needEnvs: true
   Triage Pull Requests:
     name: Triage Manager
     runs-on: aws-cdk_ubuntu-latest_4-core
@@ -55,7 +42,8 @@ jobs:
       - name: Triage Manager
         uses: aws-github-ops/aws-issue-triage-manager@main
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           target: pull-requests
-          areaIsKeyword: true
-          defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}'
+          default-area: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}'
           parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]'
+          area-is-keyword: true

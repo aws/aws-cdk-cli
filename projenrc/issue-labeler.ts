@@ -19,7 +19,6 @@ const AREA_PARAMS = [
 interface TriageManagerOptions {
   target: 'pull-requests' | 'issues' | 'both';
   excludedExpressions?: string[];
-  includedExpressions?: string[];
   includedLabels?: string[];
   excludedLabels?: string[];
   defaultArea?: string;
@@ -27,6 +26,10 @@ interface TriageManagerOptions {
   affixes?: string;
   areaIsKeyword?: boolean;
   needEnvs?: boolean;
+}
+
+function stringifyList(list: string[]) {
+  return `[${list.join('|')}]`;
 }
 
 function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
@@ -38,7 +41,17 @@ function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
       {
         name: 'Triage Manager',
         uses: 'aws-github-ops/aws-issue-triage-manager@main',
-        with: triageManagerOptions,
+        with: {
+          'github-token': "${{ secrets.GITHUB_TOKEN }}",
+          target: triageManagerOptions.target,
+          'excluded-expressions': triageManagerOptions.excludedExpressions ? stringifyList(triageManagerOptions.excludedExpressions) : undefined,
+          'included-labels': triageManagerOptions.includedLabels ? stringifyList(triageManagerOptions.includedLabels) : undefined,
+          'excluded-labels': triageManagerOptions.excludedLabels ? stringifyList(triageManagerOptions.excludedLabels) : undefined,
+          'default-area': triageManagerOptions.defaultArea,
+          parameters: triageManagerOptions.parameters,
+          affixes: triageManagerOptions.affixes,
+          'area-is-keyword': triageManagerOptions.areaIsKeyword,
+        },
       },
     ],
     ...(triageManagerOptions.needEnvs ? {
