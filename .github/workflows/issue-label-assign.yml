@@ -42,7 +42,7 @@ jobs:
       - name: Triage Manager
         uses: aws-github-ops/aws-issue-triage-manager@main
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PROJEN_GITHUB_TOKEN }}
           target: pull-requests
           default-area: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}'
           parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]'

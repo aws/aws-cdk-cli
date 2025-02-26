@@ -13,6 +13,11 @@ const AREA_PARAMS = [
   { area: 'cdk-assets', keywords: ['assets', 'cdk-assets'], labels: ['cdk-assets'] },
 ];
 
+enum GitHubToken {
+  GITHUB_TOKEN = 'secrets.GITHUB_TOKEN',
+  PROJEN_GITHUB_TOKEN = 'secrets.PROJEN_GITHUB_TOKEN',
+}
+
 /**
  * See https://github.com/aws-github-ops/aws-issue-triage-manager
  */
@@ -25,7 +30,15 @@ interface TriageManagerOptions {
   parameters?: string;
   affixes?: string;
   areaIsKeyword?: boolean;
+  /**
+   * Whether or not the env variables are needed for the job.
+   * Workflow-level env variables are not configurable via Projen
+   */
   needEnvs?: boolean;
+  /**
+   * @default GitHubToken.GITHUB_TOKEN
+   */
+  githubToken?: GitHubToken;
 }
 
 function stringifyList(list: string[]) {
@@ -42,7 +55,7 @@ function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
         name: 'Triage Manager',
         uses: 'aws-github-ops/aws-issue-triage-manager@main',
         with: {
-          'github-token': "${{ secrets.GITHUB_TOKEN }}",
+          'github-token': `\${{ ${triageManagerOptions.githubToken ?? 'secrets.GITHUB_TOKEN'} }}`,
           target: triageManagerOptions.target,
           'excluded-expressions': triageManagerOptions.excludedExpressions ? stringifyList(triageManagerOptions.excludedExpressions) : undefined,
           'included-labels': triageManagerOptions.includedLabels ? stringifyList(triageManagerOptions.includedLabels) : undefined,
@@ -95,6 +108,7 @@ export class IssueLabeler extends Component {
       areaIsKeyword: true,
       defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}',
       parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]',
+      githubToken: GitHubToken.PROJEN_GITHUB_TOKEN,
     }));
   }
 }
