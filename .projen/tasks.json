@@ -13,10 +13,10 @@
           "spawn": "eslint"
         },
         {
-          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+          "spawn": "git-secrets-scan"
         },
         {
-          "spawn": "git-secrets-scan"
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         },
         {
           "exec": "tsx projenrc/build-standalone-zip.task.ts"
