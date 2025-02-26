@@ -4,9 +4,6 @@
       "name": "build",
       "steps": [
         {
-          "spawn": "git-secrets-scan"
-        },
-        {
           "spawn": "default"
         },
         {
@@ -17,6 +14,9 @@
         },
         {
           "spawn": "eslint"
+        },
+        {
+          "spawn": "git-secrets-scan"
         },
         {
           "exec": "tsx projenrc/build-standalone-zip.task.ts"

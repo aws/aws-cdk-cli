@@ -253,7 +253,7 @@ const gitSecretsScan = repoProject.addTask('git-secrets-scan', {
   ],
 });
 
-repoProject.tasks.tryFind('build')?.prependSpawn(gitSecretsScan);
+repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 new AdcPublishing(repoProject);
 
