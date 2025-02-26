@@ -86,7 +86,7 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
 // high chance that our manually copied enums are no longer compatible.
 //
 // FIXME: Sort that out after we've moved.
-const CLI_SDK_V3_RANGE = '3.741';
+const CLI_SDK_V3_RANGE = '3.750';
 
 /**
  * Shared jest config

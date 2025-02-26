@@ -398,6 +398,17 @@ export async function makeConfig(): Promise<CliConfig> {
       doctor: {
         description: 'Check your set-up for potential problems',
       },
+      refactor: {
+        // TODO Write a better desription
+        description: 'Refactor stacks',
+        options: {
+          'dry-run': {
+            type: 'boolean',
+            desc: 'Print the changes that would be made, but do not apply them',
+            default: false,
+          },
+        },
+      },
     },
   };
 }

@@ -260,6 +260,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName: toolkitStackName,
         });
 
+      case 'refactor':
+        ioHost.currentAction = 'refactor';
+        return cli.refactor({
+          dryRun: args.dryRun,
+        });
+
       case 'bootstrap':
         ioHost.currentAction = 'bootstrap';
         const source: BootstrapSource = determineBootstrapVersion(args);
@@ -585,3 +591,5 @@ export function cli(args: string[] = process.argv.slice(2)) {
       process.exitCode = 1;
     });
 }
+
+cli();

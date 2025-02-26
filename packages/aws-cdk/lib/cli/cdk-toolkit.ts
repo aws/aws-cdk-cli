@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { format } from 'util';
+import { formatTable } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -24,6 +25,7 @@ import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
+import { AmbiguityError, detectLocationChanges } from '../api/refactoring';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { StackActivityProgress } from '../api/stack-events';
 import { tagsForStack, type Tag } from '../api/tags';
@@ -57,6 +59,7 @@ import { validateSnsTopicArn } from '../util/cloudformation';
 import { formatErrorMessage } from '../util/format-error';
 import { deserializeStructure, obscureTemplate, serializeStructure } from '../util/serialize';
 import { formatTime } from '../util/string-manipulation';
+import { ResourceLocation } from '@aws-sdk/client-cloudformation';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -1139,6 +1142,59 @@ export class CdkToolkit {
     }
   }
 
+  public async refactor(options: RefactorOptions): Promise<number> {
+    // TODO Clean this up
+
+    if (!options.dryRun) {
+      // TODO use ioHost
+      console.log('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+      return 0;
+    }
+
+    const stacks = await this.selectStacksForList([]);
+
+    function renderLocation(loc: ResourceLocation) {
+      return `${loc.StackName}.${loc.LogicalResourceId}`;
+    }
+
+    try {
+      const mappings = await detectLocationChanges(stacks.stackArtifacts, this.props.sdkProvider);
+
+      if (mappings.length > 0) {
+        const header = [['Resource Type', 'Old Logical ID', 'New Logical ID']];
+        const rows = mappings.map(m => ([
+          m.type,
+          `${m.Source?.StackName}.${m.Source?.LogicalResourceId}`,
+          `${m.Destination?.StackName}.${m.Destination?.LogicalResourceId}`,
+        ]));
+        // TODO Add more information to the output
+        // TODO Use ioHost
+        console.log(formatTable(header.concat(rows), undefined));
+      }
+    } catch (e) {
+      if (e instanceof AmbiguityError) {
+        const foo = (locs: ResourceLocation[]) => locs.map(renderLocation).join('\n');
+        function renderRemoval(pair: [ResourceLocation[], ResourceLocation[]]) {
+          return ['-', foo(pair[0])];
+        }
+        function renderAddition(pair: [ResourceLocation[], ResourceLocation[]]) {
+          return ['+', foo(pair[1])];
+        }
+        const tables = e.pairs.map(p => formatTable([
+          ['', 'Resource'],
+          renderRemoval(p),
+          renderAddition(p),
+        ], undefined));
+
+        // TODO Add more information to the output
+        // TODO Use ioHost
+        console.log(tables.join('\n\n'));
+      }
+    }
+
+    return 0;
+  }
+
   private async selectStacksForList(patterns: string[]) {
     const assembly = await this.assembly();
     const stacks = await assembly.selectStacks({ patterns }, { defaultBehavior: DefaultSelection.AllStacks });
@@ -1824,6 +1880,10 @@ export interface MigrateOptions {
    * @default false
    */
   readonly compress?: boolean;
+}
+
+export interface RefactorOptions {
+  readonly dryRun: boolean;
 }
 
 function buildParameterMap(

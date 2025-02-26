@@ -834,6 +834,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('refactor', 'Refactor stacks', (yargs: Argv) =>
+      yargs.option('dry-run', {
+        default: false,
+        type: 'boolean',
+        desc: 'Print the changes that would be made, but do not apply them',
+      }),
+    )
     .version(helpers.cliVersion())
     .demandCommand(1, '')
     .recommendCommands()

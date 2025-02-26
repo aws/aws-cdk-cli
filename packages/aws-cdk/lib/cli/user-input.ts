@@ -118,6 +118,11 @@ export interface UserInput {
    * Check your set-up for potential problems
    */
   readonly doctor?: {};
+
+  /**
+   * Refactor stacks
+   */
+  readonly refactor?: RefactorOptions;
 }
 
 /**
@@ -1324,4 +1329,18 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Refactor stacks
+ *
+ * @struct
+ */
+export interface RefactorOptions {
+  /**
+   * Print the changes that would be made, but do not apply them
+   *
+   * @default - false
+   */
+  readonly dryRun?: boolean;
 }
