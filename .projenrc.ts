@@ -1050,6 +1050,7 @@ const toolkitLib = configureProject(
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
