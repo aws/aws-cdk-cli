@@ -29,30 +29,30 @@ export interface ConstructTreeNode {
 /**
  * Whether the provided predicate is true for at least one element in the construct (sub-)tree.
  */
-export function some(node: ConstructTreeNode, predicate: (n: ConstructTreeNode) => boolean): boolean {
+export function some(node: ConstructTreeNode | undefined, predicate: (n: ConstructTreeNode) => boolean): boolean {
   return node != null && (predicate(node) || findInChildren());
 
   function findInChildren(): boolean {
-    return Object.values(node.children ?? {}).some(child => some(child, predicate));
+    return Object.values(node?.children ?? {}).some(child => some(child, predicate));
   }
 }
 
-export function loadTree(assembly: CloudAssembly) {
+export function loadTree(assembly: CloudAssembly): ConstructTreeNode | undefined {
   try {
     const outdir = assembly.directory;
     const fileName = assembly.tree()?.file;
     return fileName ? fs.readJSONSync(path.join(outdir, fileName)).tree : {};
   } catch (e) {
     trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
-    return {};
+    return undefined;
   }
 }
 
-export function loadTreeFromDir(outdir: string) {
+export function loadTreeFromDir(outdir: string): ConstructTreeNode | undefined {
   try {
     return fs.readJSONSync(path.join(outdir, 'tree.json')).tree;
   } catch (e) {
     trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
-    return {};
+    return undefined;
   }
 }

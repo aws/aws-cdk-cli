@@ -311,7 +311,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     )
     .command(
       'gc [ENVIRONMENTS..]',
-      'Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/README.md#cdk-gc',
+      'Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc',
       (yargs: Argv) =>
         yargs
           .option('action', {

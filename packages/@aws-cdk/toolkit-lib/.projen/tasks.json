@@ -87,7 +87,8 @@
       "name": "docs",
       "steps": [
         {
-          "exec": "typedoc lib/index.ts"
+          "exec": "typedoc lib/index.ts",
+          "receiveArgs": true
         }
       ]
     },
@@ -149,6 +150,19 @@
         },
         {
           "exec": "npm pack --pack-destination dist/js"
+        },
+        {
+          "spawn": "docs",
+          "args": [
+            "--out dist/docs/cdk/api/toolkit-lib"
+          ]
+        },
+        {
+          "exec": "(cat dist/version.txt || echo \"latest\") > dist/docs/cdk/api/toolkit-lib/VERSION"
+        },
+        {
+          "exec": "zip -r ../docs.zip cdk",
+          "cwd": "dist/docs"
         }
       ]
     },
@@ -156,6 +170,9 @@
       "name": "post-compile",
       "description": "Runs after successful compilation",
       "steps": [
+        {
+          "exec": "ts-node scripts/gen-code-registry.ts"
+        },
         {
           "exec": "node build-tools/bundle.mjs"
         },

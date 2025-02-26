@@ -13,6 +13,7 @@ import {
   FilteredNotice,
   WebsiteNoticeDataSource,
   BootstrappedEnvironment,
+  Component,
 } from '../lib/notices';
 import * as version from '../lib/cli/version';
 import { Settings } from '../lib/api/settings';
@@ -21,7 +22,7 @@ import { Context } from '../lib/api/context';
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
   issueNumber: 16600,
-  overview: 'FilePublishingRoleDefaultPolicy has too many permissions',
+  overview: 'FilePublishingRoleDefaultPolicy has too many permissions in {resolve:ENVIRONMENTS}',
   components: [{
     name: 'bootstrap',
     version: '<25',
@@ -281,12 +282,14 @@ describe(NoticesFilter, () => {
         },
       ];
 
-      expect(NoticesFilter.filter({
+      const filtered = NoticesFilter.filter({
         data: [BASIC_BOOTSTRAP_NOTICE],
         cliVersion,
         outDir,
         bootstrappedEnvironments: bootstrappedEnvironments,
-      }).map(f => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
+      });
+      expect(filtered.map(f => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
+      expect(filtered.map(f => f.format()).join('\n')).toContain('env1,env2');
     });
 
     test('ignores invalid bootstrap versions', () => {
@@ -301,8 +304,119 @@ describe(NoticesFilter, () => {
         bootstrappedEnvironments: [{ bootstrapStackVersion: NaN, environment: { account: 'account', region: 'region', name: 'env' } }],
       }).map(f => f.notice)).toEqual([]);
     });
+
+    test('node version', () => {
+      // can match node version
+      const outDir = path.join(__dirname, 'cloud-assembly-trees', 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = NoticesFilter.filter({
+        data: [
+          {
+            title: 'matchme',
+            overview: 'You are running {resolve:node}',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: [
+              {
+                name: 'node',
+                version: '>= 14.x',
+              },
+            ]
+          },
+          {
+            title: 'dontmatchme',
+            overview: 'dontmatchme',
+            issueNumber: 2,
+            schemaVersion: '1',
+            components: [
+              {
+                name: 'node',
+                version: '>= 999.x',
+              },
+            ]
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      expect(filtered.map(f => f.notice.title)).toEqual(['matchme']);
+      const nodeVersion = process.version.replace(/^v/, '');
+      expect(filtered.map(f => f.format()).join('\n')).toContain(`You are running ${nodeVersion}`);
+    });
+
+    test.each([
+      // No components => doesnt match
+      [
+        [],
+        false,
+      ],
+      // Multiple single-level components => treated as an OR, one of them is fine
+      [
+        [['cli 1.0.0'], ['node >=999.x']],
+        true,
+      ],
+      // OR of ANDS, all must match
+      [
+        [['cli 1.0.0', 'node >=999.x']],
+        false,
+      ],
+      [
+        [['cli 1.0.0', 'node >=14.x']],
+        true,
+      ],
+      [
+        [['cli 1.0.0', 'node >=14.x'], ['cli >999.0.0']],
+        true,
+      ],
+      // Can combine matching against a construct and e.g. node version in the same query
+      [
+        [['aws-cdk-lib.App ^2', 'node >=14.x']],
+        true,
+      ],
+    ])('disjunctive normal form: %j => %p', (components: string[][], shouldMatch) => {
+      // can match node version
+      const outDir = path.join(__dirname, 'cloud-assembly-trees', 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      // WHEN
+      const filtered = NoticesFilter.filter({
+        data: [
+          {
+            title: 'match',
+            overview: 'match',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: components.map(ands => ands.map(parseTestComponent)),
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      // THEN
+      expect(filtered.map(f => f.notice.title)).toEqual(shouldMatch ? ['match'] : []);
+    });
   });
 });
+
+/**
+ * Parse a test component from a string into a Component object. Just because this is easier to read in tests.
+ */
+function parseTestComponent(x: string): Component {
+  const parts = x.split(' ');
+  if (parts.length !== 2) {
+    throw new Error(`Invalid test component: ${x} (must use exactly 1 space)`);
+  }
+  return {
+    name: parts[0],
+    version: parts[1],
+  };
+}
+
 
 describe(WebsiteNoticeDataSource, () => {
   const dataSource = new WebsiteNoticeDataSource();

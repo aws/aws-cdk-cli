@@ -22,6 +22,7 @@ tsconfig.tsbuildinfo
 .eslintrc.js
 *.ts
 !*.d.ts
+build-tools
 !lib/init-templates/**/*.ts
 images/
 CONTRIBUTING.md

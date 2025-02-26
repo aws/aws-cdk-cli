@@ -25,6 +25,7 @@ export class RecordPublishingTimestamp extends Component {
       runsOn: ['ubuntu-latest'],
       permissions: {
         contents: JobPermission.WRITE,
+        idToken: JobPermission.WRITE,
       },
       if: '${{ needs.release.outputs.latest_commit == github.sha }}',
       steps: [

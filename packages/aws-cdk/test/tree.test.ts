@@ -105,11 +105,11 @@ describe('some', () => {
 describe('loadTreeFromDir', () => {
   test('can find tree', () => {
     const tree = loadTreeFromDir(path.join(__dirname, 'cloud-assembly-trees', 'built-with-1_144_0'));
-    expect(tree.id).toEqual('App');
+    expect(tree?.id).toEqual('App');
   });
 
   test('cannot find tree', () => {
     const tree = loadTreeFromDir(path.join(__dirname, 'cloud-assembly-trees', 'foo'));
-    expect(tree).toEqual({});
+    expect(tree).toEqual(undefined);
   });
 });
