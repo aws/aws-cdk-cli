@@ -39,6 +39,21 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 
 This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
+## Global Options
+
+### `unstable`
+
+The `--unstable` flag indicates that the scope and API of a feature might still change.
+Otherwise the feature is generally production ready and fully supported. For example,
+`cdk gc` is gated behind an `--unstable` flag:
+
+```bash
+cdk gc --unstable=gc
+```
+
+The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
+is aware of the caveats in place for the feature.
+
 ## Commands
 
 ### `cdk docs`
