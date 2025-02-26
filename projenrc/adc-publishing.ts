@@ -59,9 +59,8 @@ export class AdcPublishing extends Component {
           uses: 'aws-actions/configure-aws-credentials@v4',
           with: {
             'aws-region': 'us-east-1',
-            'role-duration-seconds': 14400,
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-            'role-session-name': 'releasing@aws-cdk-cli',
+            'role-session-name': 'standalone-release@aws-cdk-cli',
             'output-credentials': true,
             'mask-aws-account-id': true,
           },
