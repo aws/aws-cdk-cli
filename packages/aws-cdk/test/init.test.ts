@@ -18,20 +18,16 @@ describe('constructs version', () => {
   });
 
   cliTest('can override requested version with environment variable', async (workDir) => {
-    process.env.CDK_INIT_LIB_VERSION = '2.100';
-    try {
-      await cliInit({
-        type: 'lib',
-        language: 'typescript',
-        workDir,
-      });
+    await cliInit({
+      type: 'lib',
+      language: 'typescript',
+      workDir,
+      cdkVersion: '2.100',
+    });
 
-      // Check that package.json and lib/ got created in the current directory
-      const pj = JSON.parse(await fs.readFile(path.join(workDir, 'package.json'), 'utf-8'));
-      expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
-    } finally {
-      delete process.env.CDK_INIT_LIB_VERSION;
-    }
+    // Check that package.json and lib/ got created in the current directory
+    const pj = JSON.parse(await fs.readFile(path.join(workDir, 'package.json'), 'utf-8'));
+    expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
   });
 
   cliTest('asking for a nonexistent template fails', async (workDir) => {

@@ -24,6 +24,11 @@ export interface CliInitOptions {
   readonly workDir?: string;
   readonly stackName?: string;
   readonly migrate?: boolean;
+
+  /**
+   * Override the built-in CDK version
+   */
+  readonly cdkVersion?: string;
 }
 
 /**
@@ -64,6 +69,7 @@ export async function cliInit(options: CliInitOptions) {
     workDir,
     options.stackName,
     options.migrate,
+    options.cdkVersion,
   );
 }
 
@@ -116,7 +122,7 @@ export class InitTemplate {
    * @param language    the language to instantiate this template with
    * @param targetDirectory the directory where the template is to be instantiated into
    */
-  public async install(language: string, targetDirectory: string, stackName?: string) {
+  public async install(language: string, targetDirectory: string, stackName?: string, cdkVersion?: string) {
     if (this.languages.indexOf(language) === -1) {
       error(
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
@@ -130,6 +136,10 @@ export class InitTemplate {
       stackName,
       versions: await loadInitVersions(),
     };
+
+    if (cdkVersion) {
+      projectInfo.versions['aws-cdk-lib'] = cdkVersion;
+    }
 
     const sourceDirectory = path.join(this.basePath, language);
 
@@ -323,10 +333,11 @@ async function initializeProject(
   workDir: string,
   stackName?: string,
   migrate?: boolean,
+  cdkVersion?: string,
 ) {
   await assertIsEmptyDirectory(workDir);
   info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
-  await template.install(language, workDir, stackName);
+  await template.install(language, workDir, stackName, cdkVersion);
   if (migrate) {
     await template.addMigrateContext(workDir);
   }
@@ -494,7 +505,7 @@ async function loadInitVersions(): Promise<Versions> {
   const contents = JSON.parse(await fs.readFile(initVersionFile, { encoding: 'utf-8' }));
 
   const ret = {
-    'aws-cdk-lib': process.env.CDK_INIT_LIB_VERSION ?? contents['aws-cdk-lib'],
+    'aws-cdk-lib': contents['aws-cdk-lib'],
     'constructs': contents.constructs,
     'aws-cdk': versionNumber(),
   };
