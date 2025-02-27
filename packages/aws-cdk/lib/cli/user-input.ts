@@ -1185,9 +1185,11 @@ export interface InitOptions {
   /**
    * The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.
    *
+   * aliases: V
+   *
    * @default - undefined
    */
-  readonly cdkVersion?: string;
+  readonly libVersion?: string;
 
   /**
    * Positional argument for init

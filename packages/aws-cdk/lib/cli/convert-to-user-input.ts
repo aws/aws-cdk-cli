@@ -213,7 +213,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         language: args.language,
         list: args.list,
         generateOnly: args.generateOnly,
-        cdkVersion: args.cdkVersion,
+        libVersion: args.libVersion,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -409,7 +409,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     language: config.init?.language,
     list: config.init?.list,
     generateOnly: config.init?.generateOnly,
-    cdkVersion: config.init?.cdkVersion,
+    libVersion: config.init?.libVersion,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,

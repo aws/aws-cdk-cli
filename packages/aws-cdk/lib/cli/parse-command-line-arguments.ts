@@ -745,9 +745,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project',
         })
-        .option('cdk-version', {
+        .option('lib-version', {
           default: undefined,
           type: 'string',
+          alias: 'V',
           desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
         }),
     )
