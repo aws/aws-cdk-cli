@@ -990,6 +990,8 @@ jobs:
     environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
@@ -1003,9 +1005,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-duration-seconds: 14400
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: releasing@aws-cdk-cli
+          role-session-name: standalone-release@aws-cdk-cli
           output-credentials: true
           mask-aws-account-id: true
       - name: Publish artifacts
@@ -1036,10 +1037,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-duration-seconds: 14400
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: releasing@aws-cdk-cli
-          output-credentials: true
+          role-session-name: publish-timestamps@aws-cdk-cli
           mask-aws-account-id: true
       - name: Publish artifacts
         run: |-
@@ -1064,17 +1063,17 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-duration-seconds: 14400
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: releasing@aws-cdk-cli
+          role-session-name: s3-docs-publishing@aws-cdk-cli
+          mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-duration-seconds: 14400
           role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
-          role-session-name: s3publishing@aws-cdk-cli
+          role-session-name: s3-docs-publishing@aws-cdk-cli
+          mask-aws-account-id: true
           role-chaining: true
       - name: Publish docs
         env:

@@ -32,6 +32,7 @@ jspm_packages/
 .yarn-integrity
 .cache
 .DS_Store
+.tools
 !/.github/workflows/build.yml
 !/.github/workflows/upgrade.yml
 !/.github/pull_request_template.md
