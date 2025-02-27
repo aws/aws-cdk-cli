@@ -183,7 +183,7 @@ const repoProject = new yarn.Monorepo({
 
   workflowNodeVersion: 'lts/*',
   workflowRunsOn,
-  gitignore: ['.DS_Store'],
+  gitignore: ['.DS_Store', '.tools'],
 
   autoApproveUpgrades: true,
   autoApproveOptions: {
@@ -215,6 +215,7 @@ const repoProject = new yarn.Monorepo({
       },
     },
   },
+
   buildWorkflowOptions: {
     preBuildSteps: [
       // Need this for the init tests
@@ -241,10 +242,22 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   fileExtensions: ['.ts', '.tsx'],
   lintProjenRc: false,
 });
+
 // always lint projen files as part of the build
 if (repoProject.eslint?.eslintTask) {
   repoProject.tasks.tryFind('build')?.spawn(repoProject.eslint?.eslintTask);
 }
+
+// always scan for git secrets before building
+const gitSecretsScan = repoProject.addTask('git-secrets-scan', {
+  steps: [
+    {
+      exec: '/bin/bash ./projenrc/git-secrets-scan.sh',
+    },
+  ],
+});
+
+repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 new AdcPublishing(repoProject);
 
@@ -711,6 +724,7 @@ const cli = configureProject(
         `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1049,6 +1063,7 @@ const toolkitLib = configureProject(
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1174,6 +1189,7 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
+toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1217,18 +1233,19 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
+// Ad a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
 });
-toolkitLib.packageTask.spawn(toolkitLibDocs, {
-  // the nested directory is important
-  // the zip file needs to have this structure when created
-  args: ['--out dist/docs/cdk/api/toolkit-lib'],
-});
-toolkitLib.packageTask.exec('zip -r ../docs.zip cdk ', {
-  cwd: 'dist/docs',
-});
+
+// When packaging, output the docs into a specific nested directory
+// This is required because the zip file needs to have this structure when created
+toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
+// The docs build needs the version in a specific file at the nested root
+toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
+// Zip the whole thing up, again paths are important here to get the desired folder structure
+toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
 
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',

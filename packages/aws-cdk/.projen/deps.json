@@ -229,6 +229,11 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-cloudcontrol",
+      "version": "3.741",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-cloudformation",
       "version": "3.741",
       "type": "runtime"
