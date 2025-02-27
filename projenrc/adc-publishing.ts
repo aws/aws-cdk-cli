@@ -39,6 +39,7 @@ export class AdcPublishing extends Component {
       },
       if: '${{ needs.release.outputs.latest_commit == github.sha }}',
       steps: [
+        github.WorkflowSteps.checkout(),
         {
           uses: 'actions/setup-node@v4',
           with: {
