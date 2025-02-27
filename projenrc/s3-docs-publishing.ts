@@ -71,9 +71,9 @@ export class S3DocsPublishing extends Component {
           uses: 'aws-actions/configure-aws-credentials@v4',
           with: {
             'aws-region': 'us-east-1',
-            'role-duration-seconds': 14400,
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-            'role-session-name': 'releasing@aws-cdk-cli',
+            'role-session-name': 's3-docs-publishing@aws-cdk-cli',
+            'mask-aws-account-id': true,
           },
         },
         {
@@ -82,9 +82,9 @@ export class S3DocsPublishing extends Component {
           uses: 'aws-actions/configure-aws-credentials@v4',
           with: {
             'aws-region': 'us-east-1',
-            'role-duration-seconds': 14400,
             'role-to-assume': this.props.roleToAssume,
-            'role-session-name': 's3publishing@aws-cdk-cli',
+            'role-session-name': 's3-docs-publishing@aws-cdk-cli',
+            'mask-aws-account-id': true,
             'role-chaining': true,
           },
         },
