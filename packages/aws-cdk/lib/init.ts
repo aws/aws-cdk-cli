@@ -28,7 +28,7 @@ export interface CliInitOptions {
   /**
    * Override the built-in CDK version
    */
-  readonly cdkVersion?: string;
+  readonly libVersion?: string;
 }
 
 /**
@@ -69,7 +69,7 @@ export async function cliInit(options: CliInitOptions) {
     workDir,
     options.stackName,
     options.migrate,
-    options.cdkVersion,
+    options.libVersion,
   );
 }
 
@@ -122,7 +122,7 @@ export class InitTemplate {
    * @param language    the language to instantiate this template with
    * @param targetDirectory the directory where the template is to be instantiated into
    */
-  public async install(language: string, targetDirectory: string, stackName?: string, cdkVersion?: string) {
+  public async install(language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
     if (this.languages.indexOf(language) === -1) {
       error(
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
@@ -137,8 +137,8 @@ export class InitTemplate {
       versions: await loadInitVersions(),
     };
 
-    if (cdkVersion) {
-      projectInfo.versions['aws-cdk-lib'] = cdkVersion;
+    if (libVersion) {
+      projectInfo.versions['aws-cdk-lib'] = libVersion;
     }
 
     const sourceDirectory = path.join(this.basePath, language);

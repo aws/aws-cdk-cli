@@ -22,7 +22,7 @@ describe('constructs version', () => {
       type: 'lib',
       language: 'typescript',
       workDir,
-      cdkVersion: '2.100',
+      libVersion: '2.100',
     });
 
     // Check that package.json and lib/ got created in the current directory
