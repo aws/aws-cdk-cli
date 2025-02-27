@@ -592,4 +592,3 @@ export function cli(args: string[] = process.argv.slice(2)) {
     });
 }
 
-cli();

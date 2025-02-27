@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { format } from 'util';
-import { formatTable } from '@aws-cdk/cloudformation-diff';
+import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -10,7 +10,7 @@ import * as uuid from 'uuid';
 import { Configuration, PROJECT_CONFIG } from './user-configuration';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import { SdkProvider } from '../api/aws-auth';
-import { Bootstrapper, BootstrapEnvironmentOptions } from '../api/bootstrap';
+import { BootstrapEnvironmentOptions, Bootstrapper } from '../api/bootstrap';
 import {
   CloudAssembly,
   DefaultSelection,
@@ -20,38 +20,49 @@ import {
 } from '../api/cxapp/cloud-assembly';
 import { CloudExecutable } from '../api/cxapp/cloud-executable';
 import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
-import { type Deployments, DeploymentMethod, SuccessfulDeployStackResult, createDiffChangeSet } from '../api/deployments';
+import {
+  createDiffChangeSet,
+  DeploymentMethod,
+  type Deployments,
+  SuccessfulDeployStackResult,
+} from '../api/deployments';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
-import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
+import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap/common';
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
-import { AmbiguityError, detectLocationChanges } from '../api/refactoring';
-import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
+import { AmbiguityError, computeRefactoring } from '../api/refactoring';
+import { removeNonImportResources, ResourceImporter, ResourceMigrator } from '../api/resource-import';
 import { StackActivityProgress } from '../api/stack-events';
-import { tagsForStack, type Tag } from '../api/tags';
-import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, type WorkGraph } from '../api/work-graph';
+import { type Tag, tagsForStack } from '../api/tags';
+import {
+  type AssetBuildNode,
+  type AssetPublishNode,
+  type Concurrency,
+  type StackNode,
+  type WorkGraph,
+} from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import {
+  appendWarningsToReadme,
+  buildCfnClient,
+  buildGenertedTemplateOutput,
+  CfnTemplateGeneratorProvider,
+  FromScan,
   generateCdkApp,
   generateStack,
+  generateTemplate,
+  GenerateTemplateOutput,
+  isThereAWarning,
+  parseSourceOptions,
   readFromPath,
   readFromStack,
   setEnvironment,
-  parseSourceOptions,
-  generateTemplate,
-  FromScan,
   TemplateSourceOptions,
-  GenerateTemplateOutput,
-  CfnTemplateGeneratorProvider,
   writeMigrateJsonFile,
-  buildGenertedTemplateOutput,
-  appendWarningsToReadme,
-  isThereAWarning,
-  buildCfnClient,
 } from '../commands/migrate';
 import { printSecurityDiff, printStackDiff, RequireApproval } from '../diff';
 import { listStacks } from '../list-stacks';
-import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
+import { debug, error, highlight, info, result as logResult, success, warning } from '../logging';
 import { CliIoHost } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
 import { numberFromBool, partition } from '../util';
@@ -59,7 +70,6 @@ import { validateSnsTopicArn } from '../util/cloudformation';
 import { formatErrorMessage } from '../util/format-error';
 import { deserializeStructure, obscureTemplate, serializeStructure } from '../util/serialize';
 import { formatTime } from '../util/string-manipulation';
-import { ResourceLocation } from '@aws-sdk/client-cloudformation';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -1143,55 +1153,22 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    // TODO Clean this up
-
     if (!options.dryRun) {
-      // TODO use ioHost
-      console.log('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-      return 0;
+      info('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+      return 1;
     }
 
     const stacks = await this.selectStacksForList([]);
-
-    function renderLocation(loc: ResourceLocation) {
-      return `${loc.StackName}.${loc.LogicalResourceId}`;
-    }
-
     try {
-      const mappings = await detectLocationChanges(stacks.stackArtifacts, this.props.sdkProvider);
-
-      if (mappings.length > 0) {
-        const header = [['Resource Type', 'Old Logical ID', 'New Logical ID']];
-        const rows = mappings.map(m => ([
-          m.type,
-          `${m.Source?.StackName}.${m.Source?.LogicalResourceId}`,
-          `${m.Destination?.StackName}.${m.Destination?.LogicalResourceId}`,
-        ]));
-        // TODO Add more information to the output
-        // TODO Use ioHost
-        console.log(formatTable(header.concat(rows), undefined));
-      }
+      const mappings = await computeRefactoring(stacks.stackArtifacts, this.props.sdkProvider);
+      formatTypedMappings(process.stdout, mappings);
     } catch (e) {
       if (e instanceof AmbiguityError) {
-        const foo = (locs: ResourceLocation[]) => locs.map(renderLocation).join('\n');
-        function renderRemoval(pair: [ResourceLocation[], ResourceLocation[]]) {
-          return ['-', foo(pair[0])];
-        }
-        function renderAddition(pair: [ResourceLocation[], ResourceLocation[]]) {
-          return ['+', foo(pair[1])];
-        }
-        const tables = e.pairs.map(p => formatTable([
-          ['', 'Resource'],
-          renderRemoval(p),
-          renderAddition(p),
-        ], undefined));
-
-        // TODO Add more information to the output
-        // TODO Use ioHost
-        console.log(tables.join('\n\n'));
+        formatAmbiguousMappings(process.stdout, e.pairs);
+        return 1;
       }
+      throw e;
     }
-
     return 0;
   }
 
@@ -1301,7 +1278,9 @@ export class CdkToolkit {
 
     // Could have been a glob so check that we evaluated to exactly one
     if (stacks.stackCount > 1) {
-      throw new ToolkitError(`This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
+      throw new ToolkitError(
+        `This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`,
+      );
     }
 
     return assembly.stackById(stacks.firstStack.id);
@@ -1348,11 +1327,13 @@ export class CdkToolkit {
    * Remove the asset publishing and building from the work graph for assets that are already in place
    */
   private async removePublishedAssets(graph: WorkGraph, options: DeployOptions) {
-    await graph.removeUnnecessaryAssets(assetNode => this.props.deployments.isSingleAssetPublished(assetNode.assetManifest, assetNode.asset, {
-      stack: assetNode.parentStack,
-      roleArn: options.roleArn,
-      stackName: assetNode.parentStack.stackName,
-    }));
+    await graph.removeUnnecessaryAssets((assetNode) =>
+      this.props.deployments.isSingleAssetPublished(assetNode.assetManifest, assetNode.asset, {
+        stack: assetNode.parentStack,
+        roleArn: options.roleArn,
+        stackName: assetNode.parentStack.stackName,
+      }),
+    );
   }
 }
 
@@ -1919,21 +1900,20 @@ function buildParameterMap(
  * Automatically fail the confirmation in case we're in a situation where the confirmation
  * cannot be interactively obtained from a human at the keyboard.
  */
-async function askUserConfirmation(
-  ioHost: CliIoHost,
-  concurrency: number,
-  motivation: string,
-  question: string,
-) {
+async function askUserConfirmation(ioHost: CliIoHost, concurrency: number, motivation: string, question: string) {
   await ioHost.withCorkedLogging(async () => {
     // only talk to user if STDIN is a terminal (otherwise, fail)
     if (!TESTING && !process.stdin.isTTY) {
-      throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
+      throw new ToolkitError(
+        `${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`,
+      );
     }
 
     // only talk to user if concurrency is 1 (otherwise, fail)
     if (concurrency > 1) {
-      throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+      throw new ToolkitError(
+        `${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`,
+      );
     }
 
     const confirmed = await promptly.confirm(`${chalk.cyan(question)} (y/n)?`);
@@ -1946,7 +1926,9 @@ async function askUserConfirmation(
 /**
  * Logger for processing stack metadata
  */
-function stackMetadataLogger(verbose?: boolean): (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> {
+function stackMetadataLogger(
+  verbose?: boolean,
+): (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> {
   const makeLogger = (level: string): [logger: (m: string) => void, prefix: string] => {
     switch (level) {
       case 'error':

@@ -1,14 +1,8 @@
 import * as crypto from 'crypto';
 import { createHash } from 'node:crypto';
-import { BootstrapRole } from '@aws-cdk/cloud-assembly-schema';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
-import {
-  ListStacksCommandOutput,
-  ResourceLocation,
-  ResourceMapping,
-  StackSummary,
-} from '@aws-sdk/client-cloudformation';
+import { ResourceLocation, ResourceMapping, StackSummary } from '@aws-sdk/client-cloudformation';
 import { deserialize } from '../../util';
 import { SdkProvider } from '../aws-auth';
 import { Mode } from '../plugin';
@@ -146,7 +140,11 @@ function index(stack: CloudFormationStack): [string, ResourceLocation][] {
   });
 }
 
-export async function detectLocationChanges(stacks: CloudFormationStackArtifact[], sdkProvider: SdkProvider): Promise<TypedMapping[]> {
+// TODO rename this function
+export async function computeRefactoring(
+  stacks: CloudFormationStackArtifact[],
+  sdkProvider: SdkProvider,
+): Promise<TypedMapping[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
   // Group stacks by environment
@@ -157,8 +155,7 @@ export async function detectLocationChanges(stacks: CloudFormationStackArtifact[
       stackGroups.get(key)![1].push(stack);
     } else {
       // The first time we see an environment, we need to fetch all stacks deployed to it.
-      // TODO This lookup role is not being resolved correctly.
-      const before = await getDeployedStacks(sdkProvider, environment, stack.lookupRole);
+      const before = await getDeployedStacks(sdkProvider, environment);
       stackGroups.set(key, [before, [stack]]);
     }
   }
@@ -173,18 +170,24 @@ export async function detectLocationChanges(stacks: CloudFormationStackArtifact[
 async function getDeployedStacks(
   sdkProvider: SdkProvider,
   environment: cxapi.Environment,
-  lookupRole?: BootstrapRole,
 ): Promise<CloudFormationStack[]> {
-  const cfn = (
-    await sdkProvider.forEnvironment(environment, Mode.ForReading, {
-      assumeRoleArn: lookupRole?.arn,
-    })
-  ).sdk.cloudFormation();
+  const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
+  const summaries: StackSummary[] = [];
+  await paginateSdkCall(async (nextToken) => {
+    const output = await cfn.listStacks({
+      // TODO check if this is the right set of statuses
+      StackStatusFilter: [
+        'CREATE_COMPLETE',
+        'UPDATE_COMPLETE',
+        'UPDATE_ROLLBACK_COMPLETE',
+        'IMPORT_COMPLETE',
+        'ROLLBACK_COMPLETE',
+      ],
+      NextToken: nextToken,
+    });
 
-  // TODO Paginate
-  const listCommandOutput: ListStacksCommandOutput = await cfn.listStacks({
-    // TODO check if this is the right set of statuses
-    StackStatusFilter: ['CREATE_COMPLETE', 'UPDATE_COMPLETE'],
+    summaries.push(...(output.StackSummaries ?? []));
+    return output.NextToken;
   });
 
   const normalize = async (summary: StackSummary) => {
@@ -198,7 +201,7 @@ async function getDeployedStacks(
   };
 
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  return Promise.all((listCommandOutput.StackSummaries ?? []).map(normalize));
+  return Promise.all(summaries.map(normalize));
 }
 
 /**
@@ -284,10 +287,12 @@ function hashObject(obj: any): string {
       } else if (Array.isArray(value)) {
         value.forEach(addToHash);
       } else {
-        Object.keys(value).sort().forEach(key => {
-          hash.update(key);
-          addToHash(value[key]);
-        });
+        Object.keys(value)
+          .sort()
+          .forEach((key) => {
+            hash.update(key);
+            addToHash(value[key]);
+          });
       }
     } else {
       hash.update(typeof value + value.toString());
@@ -328,4 +333,16 @@ function stripConstructPath(resource: any): any {
   const copy = JSON.parse(JSON.stringify(resource));
   delete copy.Metadata['aws:cdk:path'];
   return copy;
+}
+
+// TODO deduplicate
+async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | undefined>) {
+  let finished = false;
+  let nextToken: string | undefined;
+  while (!finished) {
+    nextToken = await cb(nextToken);
+    if (nextToken === undefined) {
+      finished = true;
+    }
+  }
 }
