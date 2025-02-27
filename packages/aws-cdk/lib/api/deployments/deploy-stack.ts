@@ -426,9 +426,9 @@ class FullCloudFormationDeployment {
     await this.updateTerminationProtection();
 
     if (changeSetHasNoChanges(changeSetDescription)) {
-      debug(this.action, format('No changes are to be performed on %s.', this.stackName));
+      await this.ioHost.notify(debug(this.action, format('No changes are to be performed on %s.', this.stackName)));
       if (execute) {
-        debug(this.action, format('Deleting empty change set %s', changeSetDescription.ChangeSetId));
+        await this.ioHost.notify(debug(this.action, format('Deleting empty change set %s', changeSetDescription.ChangeSetId)));
         await this.cfn.deleteChangeSet({
           StackName: this.stackName,
           ChangeSetName: changeSetName,
@@ -457,10 +457,10 @@ class FullCloudFormationDeployment {
     }
 
     if (!execute) {
-      info(this.action, format(
+      await this.ioHost.notify(info(this.action, format(
         'Changeset %s created and waiting in review for manual execution (--no-execute)',
         changeSetDescription.ChangeSetId,
-      ));
+      )));
       return {
         type: 'did-deploy-stack',
         noOp: false,

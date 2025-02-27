@@ -11,6 +11,7 @@
 /.github/workflows/build.yml linguist-generated
 /.github/workflows/codecov.yml linguist-generated
 /.github/workflows/integ.yml linguist-generated
+/.github/workflows/issue-label-assign.yml linguist-generated
 /.github/workflows/pull-request-lint.yml linguist-generated
 /.github/workflows/release.yml linguist-generated
 /.github/workflows/upgrade.yml linguist-generated

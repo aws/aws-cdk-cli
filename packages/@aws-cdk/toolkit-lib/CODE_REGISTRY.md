@@ -3,17 +3,17 @@
 | Code | Description | Level | Data Interface |
 |------|-------------|-------|----------------|
 | CDK_TOOLKIT_I1000 | Provides synthesis times. | info | n/a |
-| CDK_TOOLKIT_I1901 | Provides stack data | result | [StackData](docs/interfaces/StackData.html) |
-| CDK_TOOLKIT_I1902 | Successfully deployed stacks | result | [AssemblyData](docs/interfaces/AssemblyData.html) |
+| CDK_TOOLKIT_I1901 | Provides stack data | result | [StackData](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/StackData.html) |
+| CDK_TOOLKIT_I1902 | Successfully deployed stacks | result | [AssemblyData](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/AssemblyData.html) |
 | CDK_TOOLKIT_I2901 | Provides details on the selected stacks and their dependencies | result | n/a |
 | CDK_TOOLKIT_E3900 | Resource import failed | error | n/a |
 | CDK_TOOLKIT_I5000 | Provides deployment times | info | n/a |
-| CDK_TOOLKIT_I5001 | Provides total time in deploy action, including synth and rollback | info | [Duration](docs/interfaces/Duration.html) |
+| CDK_TOOLKIT_I5001 | Provides total time in deploy action, including synth and rollback | info | [Duration](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/Duration.html) |
 | CDK_TOOLKIT_I5002 | Provides time for resource migration | info | n/a |
 | CDK_TOOLKIT_I5031 | Informs about any log groups that are traced as part of the deployment | info | n/a |
 | CDK_TOOLKIT_I5050 | Confirm rollback during deployment | info | n/a |
 | CDK_TOOLKIT_I5060 | Confirm deploy security sensitive changes | info | n/a |
-| CDK_TOOLKIT_I5900 | Deployment results on success | result | [SuccessfulDeployStackResult](docs/interfaces/SuccessfulDeployStackResult.html) |
+| CDK_TOOLKIT_I5900 | Deployment results on success | result | [SuccessfulDeployStackResult](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/SuccessfulDeployStackResult.html) |
 | CDK_TOOLKIT_E5001 | No stacks found | error | n/a |
 | CDK_TOOLKIT_I6000 | Provides rollback times | info | n/a |
 | CDK_TOOLKIT_E6001 | No stacks found | error | n/a |

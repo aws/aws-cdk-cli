@@ -6,6 +6,7 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
+import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
@@ -183,7 +184,7 @@ const repoProject = new yarn.Monorepo({
 
   workflowNodeVersion: 'lts/*',
   workflowRunsOn,
-  gitignore: ['.DS_Store'],
+  gitignore: ['.DS_Store', '.tools'],
 
   autoApproveUpgrades: true,
   autoApproveOptions: {
@@ -215,6 +216,7 @@ const repoProject = new yarn.Monorepo({
       },
     },
   },
+
   buildWorkflowOptions: {
     preBuildSteps: [
       // Need this for the init tests
@@ -241,10 +243,22 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   fileExtensions: ['.ts', '.tsx'],
   lintProjenRc: false,
 });
+
 // always lint projen files as part of the build
 if (repoProject.eslint?.eslintTask) {
   repoProject.tasks.tryFind('build')?.spawn(repoProject.eslint?.eslintTask);
 }
+
+// always scan for git secrets before building
+const gitSecretsScan = repoProject.addTask('git-secrets-scan', {
+  steps: [
+    {
+      exec: '/bin/bash ./projenrc/git-secrets-scan.sh',
+    },
+  ],
+});
+
+repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 new AdcPublishing(repoProject);
 
@@ -711,6 +725,7 @@ const cli = configureProject(
         `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1049,6 +1064,7 @@ const toolkitLib = configureProject(
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1336,5 +1352,7 @@ new CodeCovWorkflow(repo, {
   restrictToRepos: ['aws/aws-cdk-cli'],
   packages: [cli.name],
 });
+
+new IssueLabeler(repo);
 
 repo.synth();

@@ -11,6 +11,7 @@
     "compile": "npx projen compile",
     "default": "npx projen default",
     "eslint": "npx projen eslint",
+    "git-secrets-scan": "npx projen git-secrets-scan",
     "package": "npx projen package",
     "post-upgrade": "npx projen post-upgrade",
     "release": "npx projen release",
