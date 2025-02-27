@@ -480,6 +480,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             language,
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
+            libVersion: args.libVersion,
           });
         }
       case 'migrate':
