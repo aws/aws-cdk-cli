@@ -93,7 +93,7 @@ export class IssueLabeler extends Component {
       issues: { types: ['opened', 'edited'] },
     });
 
-    this.workflow.addJob('Triage Issues', triageManagerJob({
+    this.workflow.addJob('Triage-Issues', triageManagerJob({
       target: 'issues',
       excludedExpressions: ['CDK CLI Version', 'TypeScript', 'Java', 'Python', 'Go'],
       includedLabels: ['needs-triage'],
@@ -103,7 +103,7 @@ export class IssueLabeler extends Component {
       affixes: '${{ env.AREA_AFFIXES }}',
       needEnvs: true,
     }));
-    this.workflow.addJob('Triage Pull Requests', triageManagerJob({
+    this.workflow.addJob('Triage-Pull-Requests', triageManagerJob({
       target: 'pull-requests',
       areaIsKeyword: true,
       defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}',

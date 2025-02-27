@@ -10,7 +10,7 @@ on:
       - opened
       - edited
 jobs:
-  Triage Issues:
+  Triage-Issues:
     name: Triage Manager
     runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
@@ -32,7 +32,7 @@ jobs:
           default-area: ${{ env.OSDS_DEVS }}
           parameters: ${{ env.AREA_PARAMS }}
           affixes: ${{ env.AREA_AFFIXES }}
-  Triage Pull Requests:
+  Triage-Pull-Requests:
     name: Triage Manager
     runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
