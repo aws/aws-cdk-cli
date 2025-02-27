@@ -41,7 +41,7 @@ export interface UserInput {
   readonly bootstrap?: BootstrapOptions;
 
   /**
-   * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/README.md#cdk-gc
+   * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc
    */
   readonly gc?: GcOptions;
 
@@ -529,7 +529,7 @@ export interface BootstrapOptions {
 }
 
 /**
- * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/README.md#cdk-gc
+ * Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc
  *
  * @struct
  */
@@ -1181,6 +1181,15 @@ export interface InitOptions {
    * @default - false
    */
   readonly generateOnly?: boolean;
+
+  /**
+   * The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.
+   *
+   * aliases: V
+   *
+   * @default - undefined
+   */
+  readonly libVersion?: string;
 
   /**
    * Positional argument for init

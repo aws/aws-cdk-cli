@@ -6,7 +6,10 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
+import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
+import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
+import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -25,6 +28,7 @@ const TYPESCRIPT_VERSION = '5.6';
  * and 30 is not stable yet.
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
+  x.package.addEngine('node', '>= 14.15.0');
   x.addDevDeps(
     '@typescript-eslint/eslint-plugin@^8',
     '@typescript-eslint/parser@^8',
@@ -58,6 +62,9 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   // As a rule we don't include .ts sources in the NPM package
   x.npmignore?.addPatterns('*.ts', '!*.d.ts');
 
+  // Never include the build-tools directory
+  x.npmignore?.addPatterns('build-tools');
+
   return x;
 }
 
@@ -74,7 +81,6 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   'index_bg.wasm',
   'build-info.json',
   '.recommended-feature-flags.json',
-  '!lib/init-templates/**',
 ];
 
 // Specifically this and not ^ because when the SDK version updates there is a
@@ -162,8 +168,8 @@ const repoProject = new yarn.Monorepo({
     'glob',
     'semver',
     `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-    '@aws-sdk/credential-providers',
-    '@aws-sdk/lib-storage',
+    `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+    `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
   ],
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {
@@ -178,7 +184,7 @@ const repoProject = new yarn.Monorepo({
 
   workflowNodeVersion: 'lts/*',
   workflowRunsOn,
-  gitignore: ['.DS_Store'],
+  gitignore: ['.DS_Store', '.tools'],
 
   autoApproveUpgrades: true,
   autoApproveOptions: {
@@ -210,6 +216,7 @@ const repoProject = new yarn.Monorepo({
       },
     },
   },
+
   buildWorkflowOptions: {
     preBuildSteps: [
       // Need this for the init tests
@@ -224,6 +231,9 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+new AdcPublishing(repoProject);
+new RecordPublishingTimestamp(repoProject);
+
 // Eslint for projen config
 // @ts-ignore
 repoProject.eslint = new pj.javascript.Eslint(repoProject, {
@@ -233,10 +243,22 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   fileExtensions: ['.ts', '.tsx'],
   lintProjenRc: false,
 });
+
 // always lint projen files as part of the build
 if (repoProject.eslint?.eslintTask) {
   repoProject.tasks.tryFind('build')?.spawn(repoProject.eslint?.eslintTask);
 }
+
+// always scan for git secrets before building
+const gitSecretsScan = repoProject.addTask('git-secrets-scan', {
+  steps: [
+    {
+      exec: '/bin/bash ./projenrc/git-secrets-scan.sh',
+    },
+  ],
+});
+
+repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 new AdcPublishing(repoProject);
 
@@ -552,8 +574,8 @@ const cdkAssets = configureProject(
         `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-        '@aws-sdk/credential-providers',
-        '@aws-sdk/lib-storage',
+        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
         '@smithy/config-resolver',
         '@smithy/node-config-provider',
       ],
@@ -703,6 +725,7 @@ const cli = configureProject(
         `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+        `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
         `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -829,7 +852,10 @@ cli.npmignore?.addPatterns(
   'generate.sh',
 );
 
-cli.gitignore.addPatterns(...ADDITIONAL_CLI_IGNORE_PATTERNS);
+cli.gitignore.addPatterns(
+  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  '!lib/init-templates/**',
+);
 
 // People should not have imported from the `aws-cdk` package, but they have in the past.
 // We have identified all locations that are currently used, are maintaining a backwards compat
@@ -956,10 +982,16 @@ const cliLib = configureProject(
 );
 
 // Do include all .ts files inside init-templates
-cliLib.npmignore?.addPatterns('!lib/init-templates/**/*.ts');
+cliLib.npmignore?.addPatterns(
+  '!lib/init-templates/**/*.ts',
+  '!lib/api/bootstrap/bootstrap-template.yaml',
+);
 
 cliLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'lib/**/*.yaml',
+  'lib/**/*.yml',
+  'lib/init-templates/**',
   'cdk.out',
 );
 
@@ -1032,6 +1064,7 @@ const toolkitLib = configureProject(
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1123,6 +1156,13 @@ const toolkitLib = configureProject(
   }),
 );
 
+new S3DocsPublishing(toolkitLib, {
+  docsStream: 'toolkit-lib',
+  artifactPath: 'docs.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+});
+
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': ['error'],
@@ -1150,6 +1190,7 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
+toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1158,13 +1199,13 @@ toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/nul
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
   'assets',
-  'build-tools',
   'docs',
   'typedoc.json',
   '*.d.ts.map',
   // Explicitly allow all required files
   '!build-info.json',
   '!db.json.gz',
+  '!lib/init-templates/**/*.ts',
   '!lib/api/bootstrap/bootstrap-template.yaml',
   '!lib/*.js',
   '!lib/*.d.ts',
@@ -1179,7 +1220,9 @@ toolkitLib.gitignore.addPatterns(
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
+  'lib/**/*.yml',
   'lib/**/*.js.map',
+  'lib/init-templates/**',
   '!test/_fixtures/**/app.js',
   '!test/_fixtures/**/cdk.out',
 );
@@ -1191,11 +1234,23 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-toolkitLib.addTask('docs', {
+// Ad a command for the docs
+const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
+  receiveArgs: true,
 });
+
+// When packaging, output the docs into a specific nested directory
+// This is required because the zip file needs to have this structure when created
+toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
+// The docs build needs the version in a specific file at the nested root
+toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
+// Zip the whole thing up, again paths are important here to get the desired folder structure
+toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
+
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
+  receiveArgs: true,
 });
 
 //////////////////////////////////////////////////////////////////////
@@ -1297,5 +1352,7 @@ new CodeCovWorkflow(repo, {
   restrictToRepos: ['aws/aws-cdk-cli'],
   packages: [cli.name],
 });
+
+new IssueLabeler(repo);
 
 repo.synth();

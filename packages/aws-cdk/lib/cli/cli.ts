@@ -62,6 +62,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     isTTY: process.stdout.isTTY,
     isCI: Boolean(argv.ci),
     currentAction: cmd,
+    stackProgress: argv.progress,
   }, true);
 
   // Debug should always imply tracing
@@ -480,6 +481,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             language,
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
+            libVersion: args.libVersion,
           });
         }
       case 'migrate':

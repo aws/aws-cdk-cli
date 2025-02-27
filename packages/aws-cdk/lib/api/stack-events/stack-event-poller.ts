@@ -32,7 +32,14 @@ export interface StackEventPollerProps {
 }
 
 export interface ResourceEvent {
+  /**
+   * The Stack Event as received from CloudFormation
+   */
   readonly event: StackEvent;
+
+  /**
+   * IDs of parent stacks of the resource, in case of resources in nested stacks
+   */
   readonly parentStackLogicalIds: string[];
 
   /**

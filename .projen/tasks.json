@@ -13,6 +13,12 @@
           "spawn": "eslint"
         },
         {
+          "spawn": "git-secrets-scan"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+        },
+        {
           "exec": "tsx projenrc/build-standalone-zip.task.ts"
         }
       ]
@@ -80,6 +86,14 @@
         }
       ]
     },
+    "git-secrets-scan": {
+      "name": "git-secrets-scan",
+      "steps": [
+        {
+          "exec": "/bin/bash ./projenrc/git-secrets-scan.sh"
+        }
+      ]
+    },
     "install": {
       "name": "install",
       "description": "Install project dependencies and update lockfile (non-frozen)",
@@ -132,6 +146,12 @@
         },
         {
           "exec": "git diff --ignore-space-at-eol --exit-code"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
+        },
+        {
+          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         }
       ]
     },

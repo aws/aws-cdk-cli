@@ -1,14 +1,14 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import type { ICloudAssemblySource } from '../';
+import type { AssemblySourceProps, ICloudAssemblySource } from '../';
 import { ContextAwareCloudAssembly, ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
 import { ToolkitServices } from '../../../toolkit/private';
 import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
 import { ToolkitError } from '../../errors';
-import { debug, error, info } from '../../io/private';
-import { AssemblyBuilder, AssemblySourceProps } from '../source-builder';
+import { CODES, debug, error, info } from '../../io/private';
+import { AssemblyBuilder } from '../source-builder';
 
 export abstract class CloudAssemblySourceBuilder {
   /**
@@ -126,10 +126,10 @@ export abstract class CloudAssemblySourceBuilder {
                 eventPublisher: async (type, line) => {
                   switch (type) {
                     case 'data_stdout':
-                      await services.ioHost.notify(info(line, 'CDK_ASSEMBLY_I1001'));
+                      await services.ioHost.notify(info(line, CODES.CDK_ASSEMBLY_I1001));
                       break;
                     case 'data_stderr':
-                      await services.ioHost.notify(error(line, 'CDK_ASSEMBLY_E1002'));
+                      await services.ioHost.notify(error(line, CODES.CDK_ASSEMBLY_E1002));
                       break;
                   }
                 },

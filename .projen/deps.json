@@ -7,10 +7,12 @@
     },
     {
       "name": "@aws-sdk/credential-providers",
+      "version": "3.741",
       "type": "build"
     },
     {
       "name": "@aws-sdk/lib-storage",
+      "version": "3.741",
       "type": "build"
     },
     {
