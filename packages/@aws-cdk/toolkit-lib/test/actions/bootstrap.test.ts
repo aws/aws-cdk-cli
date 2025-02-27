@@ -405,7 +405,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await runBootstrap({
-        source: BootstrapSource.customTemplate(path.join(rootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml')),
+        source: BootstrapSource.customTemplate(path.join('test', 'api', 'bootstrap', 'custom-bootstrap-template.yaml')),
       });
 
       // THEN

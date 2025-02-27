@@ -1191,7 +1191,6 @@ toolkitLib.npmignore?.addPatterns(
   '!db.json.gz',
   '!lib/init-templates/**/*.ts',
   '!lib/api/bootstrap/bootstrap-template.yaml',
-  '!lib/api/bootstrap/custom-bootstrap-template.yaml',
   '!lib/*.js',
   '!lib/*.d.ts',
   '!LICENSE',

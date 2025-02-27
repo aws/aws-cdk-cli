@@ -21,7 +21,6 @@ await Promise.all([
 await fs.ensureDir('lib/api/bootstrap');
 await Promise.all([
   copyFromCli(['lib', 'api', 'bootstrap', 'bootstrap-template.yaml'], ['lib', 'api', 'bootstrap', 'bootstrap-template.yaml']),
-  copyFromCli(['lib', 'api', 'bootstrap', 'custom-bootstrap-template.yaml'], ['lib', 'api', 'bootstrap', 'custom-bootstrap-template.yaml'])
 ]);
 
 await esbuild.build({
