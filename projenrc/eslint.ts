@@ -165,6 +165,9 @@ export const ESLINT_RULES = {
     ],
   }],
 
+  // Unbound methods are a JavaScript footgun
+  '@typescript-eslint/unbound-method': 'error',
+
   // Overrides for plugin:jest/recommended
   'jest/expect-expect': 'off',
   'jest/no-conditional-expect': 'off',

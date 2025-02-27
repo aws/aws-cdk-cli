@@ -19,7 +19,7 @@ function codesToMarkdownTable(codes: Record<string, CodeInfo>, mdPrefix?: string
 }
 
 function linkInterface(interfaceName: string) {
-  const docSite = 'docs/interfaces/';
+  const docSite = 'https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/';
   return `[${interfaceName}](${docSite}${interfaceName}.html)`;
 }
 

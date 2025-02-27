@@ -109,6 +109,26 @@ export const CODES = {
     description: 'Confirm deploy security sensitive changes',
     level: 'info',
   }),
+
+  CDK_TOOLKIT_I5501: codeInfo({
+    code: 'CDK_TOOLKIT_I5501',
+    description: 'Stack Monitoring: Start monitoring of a single stack',
+    level: 'info',
+    interface: 'StackMonitoringControlEvent',
+  }),
+  CDK_TOOLKIT_I5502: codeInfo({
+    code: 'CDK_TOOLKIT_I5502',
+    description: 'Stack Monitoring: Activity event for a single stack',
+    level: 'info',
+    interface: 'StackActivity',
+  }),
+  CDK_TOOLKIT_I5503: codeInfo({
+    code: 'CDK_TOOLKIT_I5503',
+    description: 'Stack Monitoring: Finished monitoring of a single stack',
+    level: 'info',
+    interface: 'StackMonitoringControlEvent',
+  }),
+
   CDK_TOOLKIT_I5900: codeInfo({
     code: 'CDK_TOOLKIT_I5900',
     description: 'Deployment results on success',
@@ -120,6 +140,12 @@ export const CODES = {
     code: 'CDK_TOOLKIT_E5001',
     description: 'No stacks found',
     level: 'error',
+  }),
+  CDK_TOOLKIT_E5500: codeInfo({
+    code: 'CDK_TOOLKIT_E5500',
+    description: 'Stack Monitoring error',
+    level: 'error',
+    interface: 'ErrorPayload',
   }),
 
   // 6: Rollback

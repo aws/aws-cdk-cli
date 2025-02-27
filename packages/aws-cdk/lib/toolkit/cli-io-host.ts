@@ -3,6 +3,8 @@ import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import { ActivityPrinterProps, CurrentActivityPrinter, HistoryActivityPrinter, IActivityPrinter } from '../cli/activity-printer';
+import { StackActivityProgress } from '../commands/deploy';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';
@@ -175,6 +177,13 @@ export interface CliIoHostProps {
    * @default RequireApproval.BROADENING
    */
   readonly requireApproval?: RequireApproval;
+
+  /*
+   * The initial Toolkit action the hosts starts with.
+   *
+   * @default StackActivityProgress.BAR
+   */
+  readonly stackProgress?: StackActivityProgress;
 }
 
 /**
@@ -203,6 +212,10 @@ export class CliIoHost implements IIoHost {
   private _logLevel: IoMessageLevel;
   private _internalIoHost?: IIoHost;
   private _requireApproval: RequireApproval;
+  private _progress: StackActivityProgress = StackActivityProgress.BAR;
+
+  // Stack Activity Printer
+  private activityPrinter?: IActivityPrinter;
 
   // Corked Logging
   private corkedCounter = 0;
@@ -214,6 +227,8 @@ export class CliIoHost implements IIoHost {
     this._logLevel = props.logLevel ?? 'info';
     this._isCI = props.isCI ?? isCI();
     this._requireApproval = props.requireApproval ?? RequireApproval.BROADENING;
+
+    this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
   }
 
   /**
@@ -223,6 +238,49 @@ export class CliIoHost implements IIoHost {
     if (ioHost !== this) {
       this._internalIoHost = ioHost;
     }
+  }
+
+  /**
+   * Update the stackProgress preference.
+   */
+  public set stackProgress(type: StackActivityProgress) {
+    this._progress = type;
+  }
+
+  /**
+   * Gets the stackProgress value.
+   *
+   * This takes into account other state of the ioHost,
+   * like if isTTY and isCI.
+   */
+  public get stackProgress(): StackActivityProgress {
+    // We can always use EVENTS
+    if (this._progress === StackActivityProgress.EVENTS) {
+      return this._progress;
+    }
+
+    // if log level is tracing or debug, we default to the full history printer
+    const verboseLogging = levelPriority[this.logLevel] > levelPriority.info;
+    if (verboseLogging) {
+      return StackActivityProgress.EVENTS;
+    }
+
+    // On Windows we cannot use fancy output
+    const isWindows = process.platform === 'win32';
+    if (isWindows) {
+      return StackActivityProgress.EVENTS;
+    }
+
+    // On some CI systems (such as CircleCI) output still reports as a TTY so we also
+    // need an individual check for whether we're running on CI.
+    // see: https://discuss.circleci.com/t/circleci-terminal-is-a-tty-but-term-is-not-set/9965
+    const fancyOutputAvailable = this.isTTY && !this.isCI;
+    if (!fancyOutputAvailable) {
+      return StackActivityProgress.EVENTS;
+    }
+
+    // Use the user preference
+    return this._progress;
   }
 
   /**
@@ -335,6 +393,14 @@ export class CliIoHost implements IIoHost {
       return this._internalIoHost.notify(msg);
     }
 
+    if (this.isStackActivity(msg)) {
+      if (!this.activityPrinter) {
+        this.activityPrinter = this.makeActivityPrinter();
+      }
+      await this.activityPrinter.notify(msg);
+      return;
+    }
+
     if (levelPriority[msg.level] > levelPriority[this.logLevel]) {
       return;
     }
@@ -347,6 +413,17 @@ export class CliIoHost implements IIoHost {
     const output = this.formatMessage(msg);
     const stream = this.selectStream(msg.level);
     stream.write(output);
+  }
+
+  /**
+   * Detect stack activity messages so they can be send to the printer.
+   */
+  private isStackActivity(msg: IoMessage<any>) {
+    return [
+      'CDK_TOOLKIT_I5501',
+      'CDK_TOOLKIT_I5502',
+      'CDK_TOOLKIT_I5503',
+    ].includes(msg.code);
   }
 
   /**
@@ -482,6 +559,22 @@ export class CliIoHost implements IIoHost {
         return approval !== RequireApproval.NEVER;
     }
   }
+
+  /*
+   * Get an instance of the ActivityPrinter
+   */
+  private makeActivityPrinter() {
+    const props: ActivityPrinterProps = {
+      stream: this.selectStream('info'),
+    };
+
+    switch (this.stackProgress) {
+      case StackActivityProgress.EVENTS:
+        return new HistoryActivityPrinter(props);
+      case StackActivityProgress.BAR:
+        return new CurrentActivityPrinter(props);
+    }
+  }
 }
 
 /**
@@ -533,3 +626,4 @@ const styleMap: Record<IoMessageLevel, (str: string) => string> = {
 export function isCI(): boolean {
   return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
 }
+

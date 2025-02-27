@@ -177,8 +177,8 @@ export class WorkGraphBuilder {
 
 function stacksFromAssets(artifacts: cxapi.CloudArtifact[]) {
   const ret = new Map<cxapi.AssetManifestArtifact, cxapi.CloudFormationStackArtifact>();
-  for (const stack of artifacts.filter(cxapi.CloudFormationStackArtifact.isCloudFormationStackArtifact)) {
-    const assetArtifacts = stack.dependencies.filter(cxapi.AssetManifestArtifact.isAssetManifestArtifact);
+  for (const stack of artifacts.filter(x => cxapi.CloudFormationStackArtifact.isCloudFormationStackArtifact(x))) {
+    const assetArtifacts = stack.dependencies.filter((x) => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x));
     for (const art of assetArtifacts) {
       ret.set(art, stack);
     }
@@ -188,5 +188,5 @@ function stacksFromAssets(artifacts: cxapi.CloudArtifact[]) {
 }
 
 function onlyStacks(artifacts: cxapi.CloudArtifact[]) {
-  return artifacts.filter(cxapi.CloudFormationStackArtifact.isCloudFormationStackArtifact);
+  return artifacts.filter(x => cxapi.CloudFormationStackArtifact.isCloudFormationStackArtifact(x));
 }
