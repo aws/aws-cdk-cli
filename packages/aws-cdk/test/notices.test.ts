@@ -131,6 +131,19 @@ const NOTICE_FOR_APIGATEWAYV2 = {
   schemaVersion: '1',
 };
 
+const NOTICES_FOR_IDENTITY_POOL = {
+  title: 'Regression on module foobar',
+  issueNumber: 1234,
+  overview: 'Some bug description',
+  components: [
+    {
+      name: "@aws-cdk/aws-cognito-identitypool-alpha.IdentityPool",
+      version: ">=2.74.0-alpha.0 <2.179.0-alpha.0"
+    }
+  ],
+  schemaVersion: '1',
+}
+
 const NOTICE_FOR_APIGATEWAY = {
   title: 'Regression on module foobar',
   issueNumber: 1234,
@@ -245,6 +258,14 @@ describe(NoticesFilter, () => {
 
       // construct-level match
       expect(NoticesFilter.filter({ data: [NOTICE_FOR_APIGATEWAYV2_CFN_STAGE], cliVersion, bootstrappedEnvironments: [], outDir: path.join(__dirname, 'cloud-assembly-trees', 'experimental-module') }).map(f => f.notice)).toEqual([NOTICE_FOR_APIGATEWAYV2_CFN_STAGE]);
+    });
+
+    test('module with pre-release version', () => {
+      // doesn't matter for this test because our data only has framework notices
+      const cliVersion = '1.0.0';
+
+      // module-level match
+      expect(NoticesFilter.filter({ data: [NOTICES_FOR_IDENTITY_POOL], cliVersion, bootstrappedEnvironments: [], outDir: path.join(__dirname, 'cloud-assembly-trees', 'experimental-module-pre-release-semver')}).map(f => f.notice)).toEqual([NOTICES_FOR_IDENTITY_POOL]);
     });
 
     test('bootstrap', () => {
