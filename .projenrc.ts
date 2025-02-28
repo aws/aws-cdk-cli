@@ -10,6 +10,7 @@ import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { PrLabeler } from './projenrc/pr-labeler';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -1407,5 +1408,6 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new PrLabeler(repo);
 
 repo.synth();
