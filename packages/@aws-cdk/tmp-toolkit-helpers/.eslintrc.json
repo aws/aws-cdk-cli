@@ -40,8 +40,11 @@
     }
   },
   "ignorePatterns": [
-    "lib/init-templates/*/typescript/*/*.template.ts",
+    "*.js",
     "*.d.ts",
+    "node_modules/",
+    "*.generated.ts",
+    "coverage",
     "*.generated.ts"
   ],
   "rules": {
@@ -315,36 +318,7 @@
     "jest/no-focused-tests": "error",
     "prettier/prettier": [
       "off"
-    ],
-    "@cdklabs/no-throw-default-error": [
-      "error"
-    ],
-    "import/no-restricted-paths": [
-      "error",
-      {
-        "zones": [
-          {
-            "target": "./",
-            "from": "../../aws-cdk",
-            "message": "All `aws-cdk` code must be used via lib/api/aws-cdk.ts"
-          },
-          {
-            "target": "./",
-            "from": "../tmp-toolkit-helpers",
-            "message": "All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts"
-          }
-        ]
-      }
     ]
   },
-  "overrides": [
-    {
-      "files": [
-        "./test/**"
-      ],
-      "rules": {
-        "@cdklabs/no-throw-default-error": "off"
-      }
-    }
-  ]
+  "overrides": []
 }
