@@ -383,7 +383,7 @@ describe('CliIoHost', () => {
 
     describe('requireApproval', () => {
       test('require approval by default', async () => {
-        const response = await ioHost.requestResponse({
+        const response = await requestResponse('y', {
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -392,7 +392,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStderr).toHaveBeenCalledWith('test message\n');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
 
@@ -407,13 +407,13 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStderr).not.toHaveBeenCalledWith('test message\n');
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
 
       test('broadening - require approval on broadening changes', async () => {
         ioHost.requireApproval = RequireApproval.BROADENING;
-        const response = await ioHost.requestResponse({
+        const response = await requestResponse('y', {
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -425,11 +425,11 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStderr).toHaveBeenCalledWith('test message\n');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
 
-      test('broadening - do notrequire approval on non-broadening changes', async () => {
+      test('broadening - do not require approval on non-broadening changes', async () => {
         ioHost.requireApproval = RequireApproval.BROADENING;
         const response = await ioHost.requestResponse({
           time: new Date(),
@@ -443,7 +443,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStderr).not.toHaveBeenCalledWith('test message\n');
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
     });
