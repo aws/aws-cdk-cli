@@ -627,7 +627,6 @@ const cdkAssets = configureProject(
       },
     ],
     npmDistTag: 'v3-latest',
-    prerelease: 'rc',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
