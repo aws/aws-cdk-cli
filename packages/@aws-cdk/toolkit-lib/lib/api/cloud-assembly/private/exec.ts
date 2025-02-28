@@ -1,6 +1,6 @@
 import * as child_process from 'node:child_process';
 import * as split2 from 'split2';
-import { ToolkitError } from '../../errors';
+import { ToolkitError } from '../../shared-public';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 

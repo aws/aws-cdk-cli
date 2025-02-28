@@ -13,6 +13,10 @@
       "type": "build"
     },
     {
+      "name": "@aws-cdk/tmp-toolkit-helpers",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/user-input-gen",
       "type": "build"
     },

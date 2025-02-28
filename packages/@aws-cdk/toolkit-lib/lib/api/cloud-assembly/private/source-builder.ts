@@ -6,8 +6,8 @@ import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
 import { ToolkitServices } from '../../../toolkit/private';
 import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
-import { ToolkitError } from '../../errors';
 import { CODES, debug, error, info } from '../../io/private';
+import { ToolkitError } from '../../shared-public';
 import { AssemblyBuilder } from '../source-builder';
 
 export abstract class CloudAssemblySourceBuilder {

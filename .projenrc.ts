@@ -152,6 +152,21 @@ function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
   ].join(' '));
 }
 
+/**
+ * Returns all packages that are considered part of the toolkit,
+ * as relative paths from the provided package.
+ */
+function transitiveToolkitPackages(thisPkg: string) {
+  const toolkitPackages = [
+    'aws-cdk',
+    '@aws-cdk/tmp-toolkit-helpers',
+    '@aws-cdk/cloud-assembly-schema',
+    '@aws-cdk/cloudformation-diff',
+  ];
+
+  return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg));
+}
+
 const repoProject = new yarn.Monorepo({
   projenrcTs: true,
   name: 'aws-cdk-cli',
@@ -160,7 +175,7 @@ const repoProject = new yarn.Monorepo({
 
   defaultReleaseBranch: 'main',
   devDeps: [
-    'cdklabs-projen-project-types@^0.1.220',
+    'cdklabs-projen-project-types',
     'glob',
     'semver',
     `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
@@ -623,7 +638,6 @@ const cdkAssets = configureProject(
       },
     ],
     npmDistTag: 'v3-latest',
-    prerelease: 'rc',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -665,6 +679,38 @@ cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
 
 //////////////////////////////////////////////////////////////////////
 
+const tmpToolkitHelpers = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/tmp-toolkit-helpers',
+    description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
+    deps: [],
+    devDeps: [
+      cdkBuildTools,
+    ],
+    tsconfig: {
+      compilerOptions: {
+        target: 'es2022',
+        lib: ['es2022', 'esnext.disposable'],
+        module: 'NodeNext',
+        esModuleInterop: false,
+      },
+    },
+  }),
+);
+
+// Prevent imports of private API surface
+tmpToolkitHelpers.package.addField('exports', {
+  '.': './lib/index.js',
+  './package.json': './package.json',
+  './api': './lib/api/index.js',
+});
+
+//////////////////////////////////////////////////////////////////////
+
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
 
 const cli = configureProject(
@@ -680,6 +726,7 @@ const cli = configureProject(
       cdkBuildTools,
       yargsGen,
       cliPluginContract,
+      tmpToolkitHelpers,
       '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
@@ -823,7 +870,7 @@ const cli = configureProject(
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
 
-    releasableCommits: transitiveFeaturesAndFixes('aws-cdk', [cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
 
@@ -959,7 +1006,7 @@ const cliLib = configureProject(
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cli-lib-alpha', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1115,13 +1162,14 @@ const toolkitLib = configureProject(
       '@types/fs-extra',
       '@types/split2',
       cli,
+      tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'esbuild',
       'typedoc',
     ],
     // Watch 2 directories at once
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/toolkit-lib', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1167,6 +1215,11 @@ toolkitLib.eslint?.addRules({
       target: './',
       from: '../../aws-cdk',
       message: 'All `aws-cdk` code must be used via lib/api/aws-cdk.ts',
+    },
+    {
+      target: './',
+      from: '../tmp-toolkit-helpers',
+      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
     }],
   }],
 });
@@ -1262,7 +1315,7 @@ const cdkCliWrapper = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-cli-wrapper', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1292,7 +1345,7 @@ const cdkAliasPackage = configureProject(
     srcdir: 'lib',
     deps: [cli],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
-    releasableCommits: transitiveFeaturesAndFixes('cdk', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('cdk'),
   }),
 );
 void cdkAliasPackage;
@@ -1324,11 +1377,11 @@ const APPROVAL_ENVIRONMENT = 'integ-approval';
 const TEST_ENVIRONMENT = 'run-tests';
 
 new CdkCliIntegTestsWorkflow(repo, {
+  sourceRepo: 'aws/aws-cdk-cli',
   approvalEnvironment: APPROVAL_ENVIRONMENT,
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
-  expectNewCliLibVersion: true,
 
   localPackages: [
     // CloudAssemblySchema is not in this list because in the way we're doing
