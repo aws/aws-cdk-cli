@@ -1,6 +1,7 @@
 import { PassThrough } from 'stream';
 import * as chalk from 'chalk';
 import { CliIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/toolkit/cli-io-host';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 
 let passThrough: PassThrough;
 
@@ -24,6 +25,7 @@ describe('CliIoHost', () => {
     ioHost.isTTY = process.stdout.isTTY ?? false;
     ioHost.isCI = false;
     ioHost.currentAction = 'synth';
+    ioHost.requireApproval = RequireApproval.ANYCHANGE;
     (process as any).stdin = passThrough = new PassThrough();
 
     defaultMessage = {
@@ -376,6 +378,73 @@ describe('CliIoHost', () => {
 
         expect(mockStderr).toHaveBeenCalledWith('test message\n');
         expect(response).toEqual([1, 2, 3]);
+      });
+    });
+
+    describe('requireApproval', () => {
+      test('require approval by default', async () => {
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        });
+
+        expect(mockStderr).toHaveBeenCalledWith('test message\n');
+        expect(response).toEqual(true);
+      });
+
+      test('never require approval', async () => {
+        ioHost.requireApproval = RequireApproval.NEVER;
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        });
+
+        expect(mockStderr).not.toHaveBeenCalledWith('test message\n');
+        expect(response).toEqual(true);
+      });
+
+      test('broadening - require approval on broadening changes', async () => {
+        ioHost.requireApproval = RequireApproval.BROADENING;
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'broadening',
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStderr).toHaveBeenCalledWith('test message\n');
+        expect(response).toEqual(true);
+      });
+
+      test('broadening - do notrequire approval on non-broadening changes', async () => {
+        ioHost.requireApproval = RequireApproval.BROADENING;
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'non-broadening',
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStderr).not.toHaveBeenCalledWith('test message\n');
+        expect(response).toEqual(true);
       });
     });
   });
