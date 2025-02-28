@@ -53,10 +53,9 @@ describe('deploy', () => {
 
   test('request response when require approval is set', async () => {
     // WHEN
+    ioHost.requireApproval = RequireApproval.ANY_CHANGE;
     const cx = await builderFixture(toolkit, 'stack-with-role');
-    await toolkit.deploy(cx, {
-      requireApproval: RequireApproval.ANY_CHANGE,
-    });
+    await toolkit.deploy(cx);
 
     // THEN
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({

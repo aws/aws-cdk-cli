@@ -10,7 +10,7 @@ export class TestIoHost implements IIoHost {
   public readonly notifySpy: jest.Mock<any, any, any>;
   public readonly requestSpy: jest.Mock<any, any, any>;
 
-  public requireApproval: RequireApproval;
+  public requireApproval: RequireApproval = RequireApproval.NEVER;
   
   constructor(public level: IoMessageLevel = 'info') {
     this.notifySpy = jest.fn();
@@ -24,9 +24,23 @@ export class TestIoHost implements IIoHost {
   }
 
   public async requestResponse<T, U>(msg: IoRequest<T, U>): Promise<U> {
-    if (isMessageRelevantForLevel(msg, this.level)) {
+    if (isMessageRelevantForLevel(msg, this.level) && this.needsApproval(msg)) {
       this.requestSpy(msg);
     }
     return msg.defaultResponse;
+  }
+
+  private needsApproval(msg: IoRequest<any, any>): boolean {
+    console.log(JSON.stringify(msg.data));
+    switch (this.requireApproval) {
+      case RequireApproval.NEVER:
+        return false;
+      case RequireApproval.ANY_CHANGE:
+        return true;
+      case RequireApproval.BROADENING:
+        return msg.data?.permissionChangeType === 'broadening';
+      default:
+        return true;
+    }
   }
 }

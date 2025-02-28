@@ -1,4 +1,3 @@
-import { RequireApproval } from '../../actions';
 import { ToolkitAction } from '../../toolkit';
 
 /**
