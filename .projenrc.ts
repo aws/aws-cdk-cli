@@ -164,7 +164,7 @@ const repoProject = new yarn.Monorepo({
 
   defaultReleaseBranch: 'main',
   devDeps: [
-    'cdklabs-projen-project-types@^0.1.220',
+    'cdklabs-projen-project-types',
     'glob',
     'semver',
     `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
