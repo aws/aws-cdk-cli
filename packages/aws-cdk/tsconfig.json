@@ -61,6 +61,9 @@
     },
     {
       "path": "../@aws-cdk/cli-plugin-contract"
+    },
+    {
+      "path": "../@aws-cdk/tmp-toolkit-helpers"
     }
   ]
 }

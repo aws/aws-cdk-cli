@@ -33,7 +33,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts copyVersion:../../packages/aws-cdk/package.json",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../aws-cdk ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../aws-cdk ../@aws-cdk/tmp-toolkit-helpers ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff"
       },
       "steps": [
         {
@@ -192,7 +192,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts copyVersion:../../packages/aws-cdk/package.json",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../aws-cdk ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../aws-cdk ../@aws-cdk/tmp-toolkit-helpers ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff"
       },
       "steps": [
         {
