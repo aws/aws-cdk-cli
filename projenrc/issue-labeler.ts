@@ -1,6 +1,7 @@
 import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 import { TypeScriptProject } from 'projen/lib/typescript';
+import { GitHubToken, stringifyList } from './util';
 
 const OSDS_DEVS = ['ashishdhingra', 'khushail', 'hunhsieh'];
 const AREA_AFFIXES = ['@aws-cdk/'];
@@ -12,11 +13,6 @@ const AREA_PARAMS = [
   { area: 'aws-cdk', keywords: ['aws-cdk', 'cli', 'cdk cli'], labels: ['aws-cdk'] },
   { area: 'cdk-assets', keywords: ['assets', 'cdk-assets'], labels: ['cdk-assets'] },
 ];
-
-enum GitHubToken {
-  GITHUB_TOKEN = 'secrets.GITHUB_TOKEN',
-  PROJEN_GITHUB_TOKEN = 'secrets.PROJEN_GITHUB_TOKEN',
-}
 
 /**
  * See https://github.com/aws-github-ops/aws-issue-triage-manager
@@ -39,10 +35,6 @@ interface TriageManagerOptions {
    * @default GitHubToken.GITHUB_TOKEN
    */
   githubToken?: GitHubToken;
-}
-
-function stringifyList(list: string[]) {
-  return `[${list.join('|')}]`;
 }
 
 function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
