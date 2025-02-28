@@ -66,12 +66,4 @@ export interface IoRequest<T, U> extends IoMessage<T> {
    * The default response that will be used if no data is returned.
    */
   readonly defaultResponse: U;
-
-  /**
-   * A level that governs when we request the response, and when we
-   * can just take the default response.
-   *
-   * @default RequireApproval.ANY_CHANGE
-   */
-  readonly requireApproval?: RequireApproval;
 }

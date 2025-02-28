@@ -504,7 +504,7 @@ export class CliIoHost implements IIoHost {
 
       // Special approval prompt
       // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
-      // If it does not, return the default response. We only check messages with codes that we are aware
+      // If it does not, return success (true). We only check messages with codes that we are aware
       // are requires approval codes.
       if (this.requiresApproval(msg) && this.skipApprovalStep(msg)) {
         return true;
@@ -557,7 +557,7 @@ export class CliIoHost implements IIoHost {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
-  /*
+  /**
    * Get an instance of the ActivityPrinter
    */
   private makeActivityPrinter() {
