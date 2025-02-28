@@ -316,7 +316,14 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const permissionChangeType = determinePermissionType(currentTemplate, stack);
       const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
       const question = `${motivation}\nDo you wish to deploy these changes`;
-      const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5060, question, motivation, true, concurrency, permissionChangeType));
+      const confirmed = await ioHost.requestResponse(confirm(
+        CODES.CDK_TOOLKIT_I5060,
+        question,
+        motivation,
+        true,
+        concurrency,
+        permissionChangeType,
+      ));
       if (!confirmed) {
         throw new ToolkitError('Aborted by user');
       }
