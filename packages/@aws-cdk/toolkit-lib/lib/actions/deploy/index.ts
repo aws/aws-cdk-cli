@@ -1,5 +1,5 @@
 import type { BaseDeployOptions } from './private/deploy-options';
-import type { StackActivityProgress, Tag } from '../../api/aws-cdk';
+import type { Tag } from '../../api/aws-cdk';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
@@ -164,16 +164,16 @@ export interface DeployOptions extends BaseDeployOptions {
   /**
    * Change stack watcher output to CI mode.
    *
-   * @deprecated Implement in IoHost instead
+   * @deprecated has no functionality, please implement in your IoHost
    */
   readonly ci?: boolean;
 
   /**
    * Display mode for stack deployment progress.
    *
-   * @deprecated Implement in IoHost instead
+   * @deprecated has no functionality, please implement in your IoHost
    */
-  readonly progress?: StackActivityProgress;
+  readonly progress?: any;
 
   /**
    * Represents configuration property overrides for hotswap deployments.

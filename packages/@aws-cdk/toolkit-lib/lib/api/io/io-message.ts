@@ -7,7 +7,7 @@ import { ToolkitAction } from '../../toolkit';
 export type IoMessageLevel = 'error'| 'result' | 'warn' | 'info' | 'debug' | 'trace';
 
 /**
- * A valid message code
+ * A valid message code. See https://github.com/aws/aws-cdk-cli/blob/main/packages/%40aws-cdk/toolkit-lib/CODE_REGISTRY.md
  */
 export type IoMessageCode = `CDK_${string}_${'E' | 'W' | 'I'}${number}${number}${number}${number}`;
 

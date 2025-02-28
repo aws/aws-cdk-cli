@@ -1,4 +1,4 @@
-/* eslint-disable import/no-extraneous-dependencies */
+/* eslint-disable import/no-extraneous-dependencies,@typescript-eslint/unbound-method */
 /**
  * A Jest environment that buffers outputs to `console.log()` and only shows it for failing tests.
  */

@@ -15,7 +15,7 @@ import { type SynthOptions } from '../actions/synth';
 import { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
-import { DEFAULT_TOOLKIT_STACK_NAME, SdkProvider, SuccessfulDeployStackResult, StackCollection, Deployments, HotswapMode, StackActivityProgress, ResourceMigrator, obscureTemplate, serializeStructure, tagsForStack, CliIoHost, validateSnsTopicArn, Concurrency, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, formatErrorMessage, CloudWatchLogEventMonitor, findCloudWatchLogGroups, formatTime, StackDetails } from '../api/aws-cdk';
+import { DEFAULT_TOOLKIT_STACK_NAME, SdkProvider, SuccessfulDeployStackResult, StackCollection, Deployments, HotswapMode, ResourceMigrator, obscureTemplate, serializeStructure, tagsForStack, CliIoHost, validateSnsTopicArn, Concurrency, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, formatErrorMessage, CloudWatchLogEventMonitor, findCloudWatchLogGroups, formatTime, StackDetails } from '../api/aws-cdk';
 import { ICloudAssemblySource, StackSelectionStrategy } from '../api/cloud-assembly';
 import { ALL_STACKS, CachedCloudAssemblySource, CloudAssemblySourceBuilder, IdentityCloudAssemblySource, StackAssembly } from '../api/cloud-assembly/private';
 import { ToolkitError } from '../api/errors';
@@ -375,8 +375,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             force: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.parameters?.keepExistingParameters,
-            progress,
-            ci: options.ci,
             rollback,
             hotswap: hotswapMode,
             extraUserAgent: options.extraUserAgent,
@@ -494,14 +492,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
     const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
     const concurrency = options.concurrency || 1;
-    const progress = concurrency > 1 ? StackActivityProgress.EVENTS : options.progress;
-    if (concurrency > 1 && options.progress && options.progress != StackActivityProgress.EVENTS) {
-      await ioHost.notify(warn('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".'));
-    }
 
     const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
       stack,
-      ...stack.dependencies.filter(cxapi.AssetManifestArtifact.isAssetManifestArtifact),
+      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
     ]);
     const workGraph = new WorkGraphBuilder({ ioHost, action }, prebuildAssets).build(stacksAndTheirAssetManifests);
 

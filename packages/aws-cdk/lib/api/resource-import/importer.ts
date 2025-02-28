@@ -9,7 +9,6 @@ import { error, info, warn } from '../../cli/messages';
 import { IIoHost, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { assertIsSuccessfulDeployStackResult, type Deployments, DeploymentMethod, ResourceIdentifierProperties, ResourcesToImport } from '../deployments';
-import type { StackActivityProgress } from '../stack-events';
 import type { Tag } from '../tags';
 
 export interface ResourceImporterProps {
@@ -48,14 +47,6 @@ export interface ImportDeploymentOptions {
    * @default true
    */
   readonly usePreviousParameters?: boolean;
-
-  /**
-   * Display mode for stack deployment progress.
-   *
-   * @default - StackActivityProgress.Bar - stack events will be displayed for
-   *   the resource currently being deployed.
-   */
-  readonly progress?: StackActivityProgress;
 
   /**
    * Rollback failed deployments

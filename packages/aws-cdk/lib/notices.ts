@@ -142,7 +142,7 @@ export abstract class NoticesFilter {
       // component can match more than one actual component
       for (const ands of ors) {
         const matched = ands.map(affected => actualComponents.filter(actual =>
-          NoticesFilter.componentNameMatches(affected, actual) && semver.satisfies(actual.version, affected.version)));
+          NoticesFilter.componentNameMatches(affected, actual) && semver.satisfies(actual.version, affected.version, { includePrerelease: true })));
 
         // For every clause in the filter we matched one or more components
         if (matched.every(xs => xs.length > 0)) {

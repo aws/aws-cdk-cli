@@ -76,3 +76,13 @@ export interface Duration {
    */
   readonly duration: number;
 }
+
+/**
+ * Generic payload of error IoMessages that pass on an instance of `Error`
+ */
+export interface ErrorPayload {
+  /**
+   * The error that occurred
+   */
+  readonly error: Error;
+}
