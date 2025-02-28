@@ -31,9 +31,9 @@ export class TestIoHost implements IIoHost {
   }
 
   private needsApproval(msg: IoRequest<any, any>): boolean {
-    // These codes require approval
+    // Return true if the code is unrelated to approval
     if (!['CDK_TOOLKIT_I5060'].includes(msg.code)) { 
-      return false;
+      return true;
     }
     switch (this.requireApproval) {
       case RequireApproval.NEVER:

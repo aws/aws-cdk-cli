@@ -69,9 +69,7 @@ describe('deploy', () => {
   test('skips response by default', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
-    await toolkit.deploy(cx, {
-      requireApproval: RequireApproval.NEVER,
-    });
+    await toolkit.deploy(cx);
 
     // THEN
     expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
