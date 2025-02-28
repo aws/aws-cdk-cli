@@ -634,7 +634,7 @@ export class Deployments {
     const publisher = this.cachedPublisher(assetManifest, resolvedEnvironment, options.stackName);
     await publisher.buildEntry(asset);
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to build asset ${asset.id}`);
+      throw new ToolkitError(`Failed to build asset ${asset.displayName(false)}`);
     }
   }
 
@@ -652,7 +652,7 @@ export class Deployments {
     const publisher = this.cachedPublisher(assetManifest, stackEnv, options.stackName);
     await publisher.publishEntry(asset, { allowCrossAccount: await this.allowCrossAccountAssetPublishingForEnv(options.stack) });
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to publish asset ${asset.id}`);
+      throw new ToolkitError(`Failed to publish asset ${asset.displayName(true)}`);
     }
   }
 

@@ -62,7 +62,7 @@ export class WorkGraphBuilder {
       const node: AssetBuildNode = {
         type: 'asset-build',
         id: buildId,
-        note: assetId,
+        note: asset.displayName(false),
         dependencies: new Set([
           ...this.stackArtifactIds(assetManifestArtifact.dependencies),
           // If we disable prebuild, then assets inherit (stack) dependencies from their parent stack
@@ -83,7 +83,7 @@ export class WorkGraphBuilder {
       this.graph.addNodes({
         type: 'asset-publish',
         id: publishId,
-        note: `${asset.id}`,
+        note: asset.displayName(true),
         dependencies: new Set([
           buildId,
         ]),
