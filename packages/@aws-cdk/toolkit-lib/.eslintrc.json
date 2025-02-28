@@ -326,6 +326,11 @@
             "target": "./",
             "from": "../../aws-cdk",
             "message": "All `aws-cdk` code must be used via lib/api/aws-cdk.ts"
+          },
+          {
+            "target": "./",
+            "from": "../tmp-toolkit-helpers",
+            "message": "All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts"
           }
         ]
       }

@@ -1,6 +1,6 @@
 import { DescribeChangeSetOutput, fullDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
-import { ToolkitError } from '../../../api/errors';
+import { ToolkitError } from '../../../api/shared-public';
 import { RequireApproval } from '../../deploy';
 
 /**
