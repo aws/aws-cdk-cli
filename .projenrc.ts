@@ -164,7 +164,7 @@ const repoProject = new yarn.Monorepo({
 
   defaultReleaseBranch: 'main',
   devDeps: [
-    'cdklabs-projen-project-types@^0.1.220',
+    'cdklabs-projen-project-types',
     'glob',
     'semver',
     `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
@@ -627,7 +627,6 @@ const cdkAssets = configureProject(
       },
     ],
     npmDistTag: 'v3-latest',
-    prerelease: 'rc',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -1328,11 +1327,11 @@ const APPROVAL_ENVIRONMENT = 'integ-approval';
 const TEST_ENVIRONMENT = 'run-tests';
 
 new CdkCliIntegTestsWorkflow(repo, {
+  sourceRepo: 'aws/aws-cdk-cli',
   approvalEnvironment: APPROVAL_ENVIRONMENT,
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
-  expectNewCliLibVersion: true,
 
   localPackages: [
     // CloudAssemblySchema is not in this list because in the way we're doing

@@ -188,6 +188,22 @@ test('looks up RDS instance using CC API listResources - nested prop', async () 
   expect(results.length).toEqual(1);
 });
 
+test('looks up RDS instance using CC API listResources - error in CC API', async () => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).rejects('No data found');
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::RDS::DBInstance',
+      propertyMatch: { 'Endpoint.Port': '5432' },
+      propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+    }),
+  ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}.'); // THEN
+});
+
 test('error by specifying both exactIdentifier and propertyMatch', async () => {
   // GIVEN
   mockCloudControlClient.on(GetResourceCommand).resolves({
