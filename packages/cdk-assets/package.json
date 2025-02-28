@@ -54,7 +54,7 @@
     "commit-and-tag-version": "^12",
     "constructs": "^10.0.0",
     "eslint": "^9",
-    "eslint-config-prettier": "^10.0.1",
+    "eslint-config-prettier": "^10.0.2",
     "eslint-import-resolver-typescript": "^3.8.3",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jest": "^28.11.0",
@@ -74,7 +74,7 @@
   },
   "dependencies": {
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
-    "@aws-cdk/cx-api": "^2.180.0",
+    "@aws-cdk/cx-api": "^2.181.1",
     "@aws-sdk/client-ecr": "3.741",
     "@aws-sdk/client-s3": "3.741",
     "@aws-sdk/client-secrets-manager": "3.741",
