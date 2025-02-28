@@ -22,7 +22,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          fetch-depth: 0
+      - name: Fetch tags from origin repo
+        run: |-
+          git remote add upstream https://github.com/aws/aws-cdk-cli.git
+          git fetch upstream 'refs/tags/*:refs/tags/*'
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
