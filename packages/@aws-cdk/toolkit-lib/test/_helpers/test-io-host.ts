@@ -1,14 +1,17 @@
-import { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib';
+import { IIoHost, IoMessage, IoMessageLevel, IoRequest, RequireApproval } from '../../lib';
 import { isMessageRelevantForLevel } from '../../lib/api/io/private/level-priority';
 
 /**
  * A test implementation of IIoHost that does nothing but can by spied on.
- * Optional set a level to filter out all irrelevant messages.
+ * Optionally set a level to filter out all irrelevant messages.
+ * Optionally set a approval level. 
  */
 export class TestIoHost implements IIoHost {
   public readonly notifySpy: jest.Mock<any, any, any>;
   public readonly requestSpy: jest.Mock<any, any, any>;
 
+  public requireApproval: RequireApproval;
+  
   constructor(public level: IoMessageLevel = 'info') {
     this.notifySpy = jest.fn();
     this.requestSpy = jest.fn();

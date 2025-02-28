@@ -1,32 +1,22 @@
 import { DescribeChangeSetOutput, fullDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
-import { RequireApproval } from '../../deploy';
 
 /**
  * Return whether the diff has security-impacting changes that need confirmation.
- * 
- * RequireApproval.BROADENING is returned if there is a broadening change. This
- * means that we will request response if the IoHost specifies RequireApproval.BROADENING
- * OR RequireApproval.ANY_CHANGE.
- * RequireApproval.ANY_CHANGE is returned if there is a non-broadening change
- * in the template. This will request response if the IoHost specifies
- * RequireApproval.ANY_CHANGE only.
- * RequireApproval.NEVER is returned if there are no security-impacting changes. This
- * means that we wil never request response regardless of IoHost settings.
  */
-export function determineApprovalLevel(
+export function determinePermissionType(
   oldTemplate: any,
   newTemplate: cxapi.CloudFormationStackArtifact,
   changeSet?: DescribeChangeSetOutput,
-): RequireApproval {
+): 'non-broadening' | 'broadening' | 'none' {
   // @todo return a printable version of the full diff.
   const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);
 
-  if (diff.permissionsAnyChanges) {
-    return RequireApproval.ANY_CHANGE;
-  } else if (diff.permissionsBroadened) {
-    return RequireApproval.BROADENING;
+  if (diff.permissionsBroadened) {
+    return 'broadening';
+  } else if (diff.permissionsAnyChanges) {
+    return 'non-broadening';
   } else {
-    return RequireApproval.NEVER;
+    return 'none';
   }
 }

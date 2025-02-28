@@ -65,14 +65,6 @@ export interface IoRequest<T, U> extends IoMessage<T> {
    * The default response that will be used if no data is returned.
    */
   readonly defaultResponse: U;
-
-  /**
-   * A level that governs when we request the response, and when we
-   * can just take the default response.
-   *
-   * @default RequireApproval.BROADENING
-   */
-  readonly requireApproval?: RequireApproval;
 }
 
 export type IoMessageLevel = 'error' | 'result' | 'warn' | 'info' | 'debug' | 'trace';
@@ -427,6 +419,30 @@ export class CliIoHost implements IIoHost {
   }
 
   /**
+   * Detect special messages encode information about whether or not
+   * they require approval
+   */
+  private requiresApproval(msg: IoRequest<any, any>): boolean {
+    return [
+      'CDK_TOOLKIT_I5060',
+    ].includes(msg.code);
+  }
+
+  private skipApprovalStep(msg: IoRequest<any, any>): boolean {
+    switch(this.requireApproval) {
+      // Never require approval
+      case RequireApproval.NEVER:
+        return true;
+      // Always require approval
+      case RequireApproval.ANYCHANGE:
+        return false;
+      // Require approval if changes include broadening permissions
+      case RequireApproval.BROADENING:
+        return ['none', 'non-broadening'].includes(msg.data?.permissionChangeType);
+    }
+  }
+
+  /**
    * Determines the output stream, based on message level and configuration.
    */
   private selectStream(level: IoMessageLevel) {
@@ -465,12 +481,6 @@ export class CliIoHost implements IIoHost {
       return msg.defaultResponse;
     }
 
-    // If the request comes with a approval level and the IoHost is allowed to accept the default
-    // we can skip prompting the user
-    if (!this.shouldRequireApproval(msg.requireApproval)) {
-      return msg.defaultResponse;
-    }
-
     const response = await this.withCorkedLogging(async (): Promise<string | number | true> => {
       // prepare prompt data
       // @todo this format is not defined anywhere, probably should be
@@ -490,6 +500,14 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+      }
+
+      // Special approval prompt
+      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
+      // If it does not, return the default response. We only check messages with codes that we are aware
+      // are requires approval codes.
+      if (this.requiresApproval(msg) && this.skipApprovalStep(msg)) {
+        return true;
       }
 
       // Basic confirmation prompt
@@ -537,27 +555,6 @@ export class CliIoHost implements IIoHost {
   private formatTime(d: Date): string {
     const pad = (n: number): string => n.toString().padStart(2, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  }
-
-  /**
-   * Return true we need to request approval from the user.
-   */
-  private shouldRequireApproval(approval?: RequireApproval): boolean {
-    // no given approval level means we don't need to request approval
-    if (approval === undefined) {
-      return false;
-    }
-
-    switch (this._requireApproval) {
-      case RequireApproval.NEVER:
-        // never request approval
-        return false;
-      case RequireApproval.BROADENING:
-        return approval === RequireApproval.BROADENING;
-      case RequireApproval.ANYCHANGE:
-        // request approval for BROADENING and ANYCHANGE
-        return approval !== RequireApproval.NEVER;
-    }
   }
 
   /*

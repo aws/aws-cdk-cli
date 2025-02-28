@@ -8,7 +8,7 @@ import { AssemblyData, StackAndAssemblyData } from './types';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
-import { determineApprovalLevel } from '../actions/diff/private';
+import { determinePermissionType } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
@@ -246,8 +246,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     await migrator.tryMigrateResources(stackCollection, options);
 
-    const requireApproval = options.requireApproval ?? RequireApproval.NEVER;
-
     const parameterMap = buildParameterMap(options.parameters?.parameters);
 
     const hotswapMode = options.hotswap ?? HotswapMode.FULL_DEPLOYMENT;
@@ -314,17 +312,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         return;
       }
 
-      /**
-       * broadening -> print if broadening or any change
-       * any change -> print if any change
-       * never -> never print
-       */
-
       const currentTemplate = await deployments.readCurrentTemplate(stack);
-      const approvalLevel = determineApprovalLevel(currentTemplate, stack);
+      const permissionChangeType = determinePermissionType(currentTemplate, stack);
       const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
       const question = `${motivation}\nDo you wish to deploy these changes`;
-      const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5060, question, motivation, true, concurrency, approvalLevel));
+      const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5060, question, motivation, true, concurrency, permissionChangeType));
       if (!confirmed) {
         throw new ToolkitError('Aborted by user');
       }
