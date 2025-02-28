@@ -1328,11 +1328,11 @@ const APPROVAL_ENVIRONMENT = 'integ-approval';
 const TEST_ENVIRONMENT = 'run-tests';
 
 new CdkCliIntegTestsWorkflow(repo, {
+  sourceRepo: 'aws/aws-cdk-cli',
   approvalEnvironment: APPROVAL_ENVIRONMENT,
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
-  expectNewCliLibVersion: true,
 
   localPackages: [
     // CloudAssemblySchema is not in this list because in the way we're doing
