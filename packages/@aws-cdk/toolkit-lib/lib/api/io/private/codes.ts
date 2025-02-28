@@ -106,7 +106,7 @@ export const CODES = {
   }),
   CDK_TOOLKIT_I5060: codeInfo({
     code: 'CDK_TOOLKIT_I5060',
-    description: 'Confirm deploy security sensitive changes',
+    description: 'Confirm deploy security sensitive changes, depending on approval level',
     level: 'info',
   }),
 

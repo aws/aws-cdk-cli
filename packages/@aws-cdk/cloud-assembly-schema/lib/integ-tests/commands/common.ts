@@ -8,7 +8,7 @@ export enum RequireApproval {
   NEVER = 'never',
 
   /**
-   * Prompt for approval for any type  of change to the stack
+   * Prompt for approval for any type of change to the stack
    */
   ANYCHANGE = 'any-change',
 
