@@ -104,7 +104,7 @@ function expectSuccessfulBootstrap() {
 
 describe('bootstrap', () => {
   describe('with user-specified environments', () => {
-    let originalSdk = mockSdkProvider.forEnvironment;
+    const originalSdk = mockSdkProvider.forEnvironment.bind(mockSdkProvider);
     beforeEach(() => {
       const mockForEnvironment = jest.fn().mockImplementation(() => {
         return { sdk: new MockSdk() };
