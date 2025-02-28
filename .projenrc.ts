@@ -707,6 +707,13 @@ const tmpToolkitHelpers = configureProject(
   }),
 );
 
+// Prevent imports of private API surface
+tmpToolkitHelpers.package.addField('exports', {
+  '.': './lib/index.js',
+  './package.json': './package.json',
+  './api': './lib/api/index.js',
+});
+
 //////////////////////////////////////////////////////////////////////
 
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
@@ -1213,6 +1220,11 @@ toolkitLib.eslint?.addRules({
       target: './',
       from: '../../aws-cdk',
       message: 'All `aws-cdk` code must be used via lib/api/aws-cdk.ts',
+    },
+    {
+      target: './',
+      from: '../tmp-toolkit-helpers',
+      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
     }],
   }],
 });
