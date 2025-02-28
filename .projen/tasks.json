@@ -13,6 +13,9 @@
           "spawn": "eslint"
         },
         {
+          "spawn": "git-secrets-scan"
+        },
+        {
           "exec": "tsx projenrc/build-standalone-zip.task.ts"
         },
         {
@@ -80,6 +83,14 @@
         {
           "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ projenrc .projenrc.ts",
           "receiveArgs": true
+        }
+      ]
+    },
+    "git-secrets-scan": {
+      "name": "git-secrets-scan",
+      "steps": [
+        {
+          "exec": "/bin/bash ./projenrc/git-secrets-scan.sh"
         }
       ]
     },

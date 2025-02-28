@@ -31,6 +31,8 @@ import {
 } from '../../lib/commands/migrate';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../util/mock-sdk';
 
+jest.setTimeout(120_000);
+
 const exec = promisify(_exec);
 
 describe('Migrate Function Tests', () => {

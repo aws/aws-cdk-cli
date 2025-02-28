@@ -1,5 +1,5 @@
 /* eslint-disable import/order */
-import { RewritableBlock } from '../../../lib/api/stack-events/display';
+import { RewritableBlock } from '../../../lib/cli/activity-printer/display';
 import { stderr } from '../_helpers/console-listener';
 
 describe('Rewritable Block Tests', () => {

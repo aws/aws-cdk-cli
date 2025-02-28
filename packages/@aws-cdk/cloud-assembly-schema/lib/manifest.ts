@@ -259,7 +259,7 @@ export class Manifest {
    * Ideally, we would start writing the `camelCased` and translate to how CloudFormation expects it when needed. But this requires nasty
    * backwards-compatibility code and it just doesn't seem to be worth the effort.
    */
-  private static patchStackTagsOnRead(manifest: assembly.AssemblyManifest) {
+  private static patchStackTagsOnRead(this: void, manifest: assembly.AssemblyManifest) {
     return Manifest.replaceStackTags(manifest, (tags) =>
       tags.map((diskTag: any) => ({
         key: diskTag.Key,
@@ -273,6 +273,7 @@ export class Manifest {
    * should have dedicated properties preceding this (e.g `assumeRoleArn` and `assumeRoleExternalId`).
    */
   private static validateAssumeRoleAdditionalOptions(
+    this: void,
     instance: any,
     key: string,
     _schema: jsonschema.Schema,
@@ -301,7 +302,7 @@ export class Manifest {
    *
    * Translate stack tags metadata if it has the "right" casing.
    */
-  private static patchStackTagsOnWrite(manifest: assembly.AssemblyManifest) {
+  private static patchStackTagsOnWrite(this: void, manifest: assembly.AssemblyManifest) {
     return Manifest.replaceStackTags(manifest, (tags) =>
       tags.map(
         (memTag) =>
