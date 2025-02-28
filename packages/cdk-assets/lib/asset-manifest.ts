@@ -144,13 +144,13 @@ export class AssetManifest {
 }
 
 function makeEntries<A, B, C>(
-  assets: Record<string, { source: A; destinations: Record<string, B> }>,
-  ctor: new (id: DestinationIdentifier, source: A, destination: B) => C,
+  assets: Record<string, { source: A; displayName?: string; destinations: Record<string, B> }>,
+  ctor: new (id: DestinationIdentifier, displayName: string | undefined, source: A, destination: B) => C,
 ): C[] {
   const ret = new Array<C>();
   for (const [assetId, asset] of Object.entries(assets)) {
     for (const [destId, destination] of Object.entries(asset.destinations)) {
-      ret.push(new ctor(new DestinationIdentifier(assetId, destId), asset.source, destination));
+      ret.push(new ctor(new DestinationIdentifier(assetId, destId), asset.displayName, asset.source, destination));
     }
   }
   return ret;
@@ -183,6 +183,20 @@ export interface IManifestEntry {
    * Type-dependent destination data
    */
   readonly genericDestination: unknown;
+
+  /**
+   * Return a display name for this asset
+   *
+   * The `includeDestination` parameter controls whether or not to include the
+   * destination ID in the display name.
+   *
+   * - Pass `false` if you are displaying notifications about building the
+   *   asset, or if you are describing the work of building the asset and publishing
+   *   to all destinations at the same time.
+   * - Pass `true` if you are displaying notifications about publishing to a
+   *   specific destination.
+   */
+  displayName(includeDestination: boolean): string;
 }
 
 /**
@@ -196,6 +210,7 @@ export class FileManifestEntry implements IManifestEntry {
   constructor(
     /** Identifier for this asset */
     public readonly id: DestinationIdentifier,
+    private readonly _displayName: string | undefined,
     /** Source of the file asset */
     public readonly source: FileSource,
     /** Destination for the file asset */
@@ -203,6 +218,14 @@ export class FileManifestEntry implements IManifestEntry {
   ) {
     this.genericSource = source;
     this.genericDestination = destination;
+  }
+
+  public displayName(includeDestination: boolean): string {
+    if (includeDestination) {
+      return this._displayName ? `${this._displayName} (${this.id.destinationId})` : `${this.id}`;
+    } else {
+      return this._displayName ? this._displayName : this.id.assetId;
+    }
   }
 }
 
@@ -217,6 +240,7 @@ export class DockerImageManifestEntry implements IManifestEntry {
   constructor(
     /** Identifier for this asset */
     public readonly id: DestinationIdentifier,
+    private readonly _displayName: string | undefined,
     /** Source of the file asset */
     public readonly source: DockerImageSource,
     /** Destination for the file asset */
@@ -225,13 +249,28 @@ export class DockerImageManifestEntry implements IManifestEntry {
     this.genericSource = source;
     this.genericDestination = destination;
   }
+
+  public displayName(includeDestination: boolean): string {
+    if (includeDestination) {
+      return this._displayName ? `${this._displayName} (${this.id.destinationId})` : `${this.id}`;
+    } else {
+      return this._displayName ? this._displayName : this.id.assetId;
+    }
+  }
 }
 
 /**
  * Identify an asset destination in an asset manifest
  *
- * When stringified, this will be a combination of the source
- * and destination IDs.
+ * This class is used to identify both an asset to be built as well as a
+ * destination where an asset will be published. However, when reasoning about
+ * building assets the destination part can be ignored, because the same asset
+ * being sent to multiple destinations will only need to be built once and their
+ * assetIds are all the same.
+ *
+ * When stringified, this will be a combination of the source and destination
+ * IDs; if a string representation of the source is necessary, use `id.assetId`
+ * instead.
  */
 export class DestinationIdentifier {
   /**

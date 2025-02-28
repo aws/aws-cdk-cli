@@ -32,6 +32,10 @@
             "description": "A file asset",
             "type": "object",
             "properties": {
+                "displayName": {
+                    "description": "A display name for this asset (Default - The identifier will be used as the display name)",
+                    "type": "string"
+                },
                 "source": {
                     "$ref": "#/definitions/FileSource",
                     "description": "Source description for file assets"
@@ -113,12 +117,16 @@
             "description": "A file asset",
             "type": "object",
             "properties": {
+                "displayName": {
+                    "description": "A display name for this asset (Default - The identifier will be used as the display name)",
+                    "type": "string"
+                },
                 "source": {
                     "$ref": "#/definitions/DockerImageSource",
-                    "description": "Source description for file assets"
+                    "description": "Source description for container assets"
                 },
                 "destinations": {
-                    "description": "Destinations for this file asset",
+                    "description": "Destinations for this container asset",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/DockerImageDestination"

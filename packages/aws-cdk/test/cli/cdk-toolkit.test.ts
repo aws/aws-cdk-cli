@@ -656,6 +656,32 @@ describe('deploy', () => {
       });
     });
 
+    test('uses display names to reference assets', async () => {
+      // GIVEN
+      cloudExecutable = new MockCloudExecutable({
+        stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+      });
+      const toolkit = new CdkToolkit({
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: new FakeCloudFormation({}),
+      });
+      stderrMock.mockImplementation((...x) => {
+        console.error(...x);
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+        hotswap: HotswapMode.FULL_DEPLOYMENT,
+      });
+
+      // THEN
+      expect(stderrMock).toHaveBeenCalledWith(expect.stringContaining('Building Asset Display Name'));
+      expect(stderrMock).toHaveBeenCalledWith(expect.stringContaining('Publishing Asset Display Name (desto)'));
+    });
+
     test('with stacks all stacks specified as wildcard', async () => {
       // GIVEN
       const toolkit = defaultToolkitSetup();
@@ -1640,10 +1666,16 @@ class MockStack {
       version: Manifest.version(),
       files: {
         xyz: {
+          displayName: 'Asset Display Name',
           source: {
-            path: path.resolve(__dirname, '..', 'LICENSE'),
+            path: path.resolve(__dirname, '..', '..', 'LICENSE'),
           },
-          destinations: {},
+          destinations: {
+            desto: {
+              bucketName: 'some-bucket',
+              objectKey: 'some-key',
+            },
+          },
         },
       },
     },
