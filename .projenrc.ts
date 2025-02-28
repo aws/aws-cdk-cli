@@ -83,11 +83,7 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   '.recommended-feature-flags.json',
 ];
 
-// Specifically this and not ^ because when the SDK version updates there is a
-// high chance that our manually copied enums are no longer compatible.
-//
-// FIXME: Sort that out after we've moved.
-const CLI_SDK_V3_RANGE = '3.741';
+const CLI_SDK_V3_RANGE = '^3';
 
 /**
  * Shared jest config
