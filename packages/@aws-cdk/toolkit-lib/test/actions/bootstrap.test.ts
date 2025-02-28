@@ -132,7 +132,7 @@ describe('bootstrap', () => {
       setupMockCloudFormationClient(mockStack2);
 
       // WHEN
-      await runBootstrap({ environments: ['aws://123456789012/us-east-1', 'aws://210987654321/eu-west-1'] });
+      await runBootstrap({ environments: ['aws://123456789012/us-east-1', 'aws://234567890123/eu-west-1'] });
 
       // THEN
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -140,7 +140,7 @@ describe('bootstrap', () => {
       }));
 
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-        message: expect.stringContaining(`${bold('aws://210987654321/eu-west-1')}: bootstrapping...`),
+        message: expect.stringContaining(`${bold('aws://234567890123/eu-west-1')}: bootstrapping...`),
       }));
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         code: 'CDK_TOOLKIT_I9900',
@@ -158,8 +158,8 @@ describe('bootstrap', () => {
         message: expect.stringContaining('✅'),
         data: expect.objectContaining({
           environment: {
-            name: 'aws://210987654321/eu-west-1',
-            account: '210987654321',
+            name: 'aws://234567890123/eu-west-1',
+            account: '234567890123',
             region: 'eu-west-1',
           },
         }),
