@@ -29,7 +29,7 @@
     "@types/node": "^22.13.5",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "cdklabs-projen-project-types": "^0.1.220",
+    "cdklabs-projen-project-types": "^0.2.1",
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-import-resolver-typescript": "^3.8.3",
