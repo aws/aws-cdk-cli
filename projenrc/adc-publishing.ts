@@ -47,6 +47,10 @@ export class AdcPublishing extends Component {
           },
         },
         {
+          name: 'Install dependencies',
+          run: 'yarn install --check-files --frozen-lockfile',
+        },
+        {
           name: 'Download build artifacts',
           uses: 'actions/download-artifact@v4',
           with: {

@@ -50,5 +50,6 @@ jspm_packages/
 !/.github/workflows/integ.yml
 !/.github/workflows/codecov.yml
 !/.github/workflows/issue-label-assign.yml
+!/.github/workflows/pr-labeler.yml
 !/.projenrc.ts
 !/.github/workflows/release.yml

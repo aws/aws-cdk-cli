@@ -549,7 +549,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.sha }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF -p 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
   cdk-assets_release_npm:
     name: "cdk-assets: Publish to npm"
     needs: release
@@ -995,6 +995,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
+      - name: Install dependencies
+        run: yarn install --check-files --frozen-lockfile
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -1080,7 +1082,7 @@ jobs:
           BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
           DOCS_STREAM: toolkit-lib
         run: |-
-          ::add-mask::$BUCKET_NAME
+          echo ::add-mask::$BUCKET_NAME
           echo "S3_PATH=$DOCS_STREAM/aws-cdk-toolkit-lib-v$(cat dist/version.txt).zip" >> "$GITHUB_ENV"
           echo "S3_URI=s3://$BUCKET_NAME/$S3_PATH" >> "$GITHUB_ENV"
           echo "LATEST=latest-toolkit-lib" >> "$GITHUB_ENV"

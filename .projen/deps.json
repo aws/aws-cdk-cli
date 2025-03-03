@@ -2,17 +2,17 @@
   "dependencies": [
     {
       "name": "@aws-sdk/client-s3",
-      "version": "3.741",
+      "version": "^3",
       "type": "build"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "3.741",
+      "version": "^3",
       "type": "build"
     },
     {
       "name": "@aws-sdk/lib-storage",
-      "version": "3.741",
+      "version": "^3",
       "type": "build"
     },
     {
@@ -39,7 +39,6 @@
     },
     {
       "name": "cdklabs-projen-project-types",
-      "version": "^0.1.220",
       "type": "build"
     },
     {

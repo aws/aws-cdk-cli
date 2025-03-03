@@ -23,11 +23,14 @@ await Promise.all([
 // mkdir -p ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/
 
 await esbuild.build({
-  entryPoints: ['lib/api/aws-cdk.ts'],
+  outdir: 'lib/api',
+  entryPoints: [
+    'lib/api/aws-cdk.ts',
+    'lib/api/shared-public.ts', 
+  ],
   target: 'node18',
   platform: 'node',
   packages: 'external',
   sourcemap: true,
   bundle: true,
-  outfile: 'lib/api/aws-cdk.js',
 });

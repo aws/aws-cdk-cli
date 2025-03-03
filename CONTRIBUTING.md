@@ -57,11 +57,10 @@ Run the tests locally by doing the following:
 
 ```shell
 $ cd /path/to/aws-cdk-cli-testing/packages/@aws-cdk-testing/cli-integ
-$ bin/run-suite -s ../../../../aws-cdk-cli cli-integ-tests -f 2.179.0 -t 'TEST NAME'
+$ bin/run-suite -s ../../../../aws-cdk-cli cli-integ-tests -t 'TEST NAME'
 ```
 
-`-s` points to the root of the `aws-cdk-cli` repository, `-f` is the version of
-the framework to use for testing.
+`-s` points to the root of the `aws-cdk-cli` repository.
 
 ### Submitting a PR that involves changes to integration tests
 
