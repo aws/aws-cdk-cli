@@ -1,6 +1,6 @@
 import { exec as _exec } from 'child_process';
-import { promisify } from 'util';
 import * as semver from 'semver';
+import { promisify } from 'util';
 import { debug } from '../../logging';
 import { ToolkitError } from '../../toolkit/error';
 
@@ -18,4 +18,18 @@ export async function getLatestVersionFromNpm(): Promise<string> {
   }
 
   return latestVersion;
+}
+
+export async function checkIfDeprecated(version: string): Promise<string | null> {
+  try {
+    const { stdout, stderr } = await exec(`npm view aws-cdk@${version} deprecated --silent`, { timeout: 3000 });
+    if (stderr) {
+      debug(`The 'npm view aws-cdk@${version} deprecated --silent' command generated an error stream with content [${stderr.trim()}]`);
+    }
+
+    return stdout ? stdout.trim() : null;
+  } catch (err) {
+    debug(`Failed to check package deprecation status - ${err}`);
+    return null;
+  }
 }
