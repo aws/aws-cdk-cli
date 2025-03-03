@@ -12,18 +12,18 @@ export class InsertTaskStep extends Component {
   }
 
   preSynthesize() {
-    const releaseTask = this.project.tasks.tryFind(this.props.taskName);
-    if (!releaseTask) {
+    const task = this.project.tasks.tryFind(this.props.taskName);
+    if (!task) {
       throw new Error(`Did not find task ${this.props.taskName}`);
     }
 
     // Find the bump task, and do the CLI version copy straight after
-    const bumpIx = releaseTask.steps.findIndex(s => s.exec === this.props.beforeExec);
+    const bumpIx = task.steps.findIndex(s => s.exec === this.props.beforeExec);
     if (bumpIx === -1) {
       throw new Error(`Did not find step: ${this.props.beforeExec}`);
     }
 
     // Accessing internals like a dirty boi
-    (releaseTask as any)._steps.splice(bumpIx, 0, ...this.props.insertSteps);
+    (task as any)._steps.splice(bumpIx, 0, ...this.props.insertSteps);
   }
 }
