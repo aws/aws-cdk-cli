@@ -13,7 +13,15 @@ import * as integ from './integ-tests';
 // see exec.ts#createAssembly
 export const VERSION_MISMATCH: string = 'Cloud assembly schema version mismatch';
 
+/**
+ * CLI version is created at build and release time
+ *
+ * It needs to be .gitignore'd, otherwise the projen 'no uncommitted
+ * changes' self-check will fail, which means it needs to be generated
+ * at build time if it doesn't already exist.
+ */
 import CLI_VERSION = require('../cli-version.json');
+
 import ASSETS_SCHEMA = require('../schema/assets.schema.json');
 
 import ASSEMBLY_SCHEMA = require('../schema/cloud-assembly.schema.json');
@@ -24,14 +32,6 @@ import INTEG_SCHEMA = require('../schema/integ.schema.json');
  * Version is shared for both manifests
  */
 import SCHEMA_VERSION = require('../schema/version.json');
-
-/**
- * CLI version is created at build and release time
- *
- * It needs to be .gitignore'd, otherwise the projen 'no uncommitted
- * changes' self-check will fail, which means it needs to be generated
- * at build time if it doesn't already exist.
- */
 
 /**
  * Options for the loadManifest operation
