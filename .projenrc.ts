@@ -8,6 +8,7 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
+import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 
@@ -83,11 +84,7 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   '.recommended-feature-flags.json',
 ];
 
-// Specifically this and not ^ because when the SDK version updates there is a
-// high chance that our manually copied enums are no longer compatible.
-//
-// FIXME: Sort that out after we've moved.
-const CLI_SDK_V3_RANGE = '3.741';
+const CLI_SDK_V3_RANGE = '^3';
 
 /**
  * Shared jest config
@@ -154,6 +151,21 @@ function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
     '.',
     ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`)),
   ].join(' '));
+}
+
+/**
+ * Returns all packages that are considered part of the toolkit,
+ * as relative paths from the provided package.
+ */
+function transitiveToolkitPackages(thisPkg: string) {
+  const toolkitPackages = [
+    'aws-cdk',
+    '@aws-cdk/tmp-toolkit-helpers',
+    '@aws-cdk/cloud-assembly-schema',
+    '@aws-cdk/cloudformation-diff',
+  ];
+
+  return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg));
 }
 
 const repoProject = new yarn.Monorepo({
@@ -627,7 +639,6 @@ const cdkAssets = configureProject(
       },
     ],
     npmDistTag: 'v3-latest',
-    prerelease: 'rc',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -669,6 +680,38 @@ cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
 
 //////////////////////////////////////////////////////////////////////
 
+const tmpToolkitHelpers = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/tmp-toolkit-helpers',
+    description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
+    deps: [],
+    devDeps: [
+      cdkBuildTools,
+    ],
+    tsconfig: {
+      compilerOptions: {
+        target: 'es2022',
+        lib: ['es2022', 'esnext.disposable'],
+        module: 'NodeNext',
+        esModuleInterop: false,
+      },
+    },
+  }),
+);
+
+// Prevent imports of private API surface
+tmpToolkitHelpers.package.addField('exports', {
+  '.': './lib/index.js',
+  './package.json': './package.json',
+  './api': './lib/api/index.js',
+});
+
+//////////////////////////////////////////////////////////////////////
+
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
 
 const cli = configureProject(
@@ -684,6 +727,7 @@ const cli = configureProject(
       cdkBuildTools,
       yargsGen,
       cliPluginContract,
+      tmpToolkitHelpers,
       '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
@@ -827,7 +871,7 @@ const cli = configureProject(
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
 
-    releasableCommits: transitiveFeaturesAndFixes('aws-cdk', [cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
 
@@ -963,7 +1007,7 @@ const cliLib = configureProject(
     devDeps: ['aws-cdk-lib', cli, 'constructs'],
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cli-lib-alpha', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1119,13 +1163,14 @@ const toolkitLib = configureProject(
       '@types/fs-extra',
       '@types/split2',
       cli,
+      tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'esbuild',
       'typedoc',
     ],
     // Watch 2 directories at once
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/toolkit-lib', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1171,6 +1216,11 @@ toolkitLib.eslint?.addRules({
       target: './',
       from: '../../aws-cdk',
       message: 'All `aws-cdk` code must be used via lib/api/aws-cdk.ts',
+    },
+    {
+      target: './',
+      from: '../tmp-toolkit-helpers',
+      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
     }],
   }],
 });
@@ -1266,7 +1316,7 @@ const cdkCliWrapper = configureProject(
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-cli-wrapper', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1296,7 +1346,7 @@ const cdkAliasPackage = configureProject(
     srcdir: 'lib',
     deps: [cli],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
-    releasableCommits: transitiveFeaturesAndFixes('cdk', [cli.name, cloudAssemblySchema.name, cloudFormationDiff.name]),
+    releasableCommits: transitiveToolkitPackages('cdk'),
   }),
 );
 void cdkAliasPackage;
@@ -1354,5 +1404,6 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new PrLabeler(repo);
 
 repo.synth();

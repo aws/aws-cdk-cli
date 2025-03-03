@@ -2,8 +2,8 @@ import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitServices } from '../../../toolkit/private';
 import { type Context, contextproviders, PROJECT_CONTEXT } from '../../aws-cdk';
-import { ToolkitError } from '../../errors';
 import { ActionAwareIoHost, CODES, debug } from '../../io/private';
+import { ToolkitError } from '../../shared-public';
 import { ICloudAssemblySource } from '../types';
 
 export interface ContextAwareCloudAssemblyProps {

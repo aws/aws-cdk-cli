@@ -56,7 +56,7 @@ export interface DeployOptions extends DefaultCdkOptions {
   /**
    * What kind of security changes require approval
    *
-   * @default RequireApproval.Never
+   * @default RequireApproval.NEVER
    */
   readonly requireApproval?: RequireApproval;
 

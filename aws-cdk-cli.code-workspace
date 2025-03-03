@@ -27,6 +27,9 @@
       "path": "packages/@aws-cdk/node-bundle"
     },
     {
+      "path": "packages/@aws-cdk/tmp-toolkit-helpers"
+    },
+    {
       "path": "packages/@aws-cdk/toolkit-lib"
     },
     {

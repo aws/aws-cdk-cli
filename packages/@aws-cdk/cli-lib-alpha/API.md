@@ -1126,7 +1126,7 @@ public readonly requireApproval: RequireApproval;
 ```
 
 - *Type:* <a href="#@aws-cdk/cli-lib-alpha.RequireApproval">RequireApproval</a>
-- *Default:* RequireApproval.Never
+- *Default:* RequireApproval.NEVER
 
 What kind of security changes require approval.
 
