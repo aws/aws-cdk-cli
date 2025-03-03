@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { ToolkitError } from '../api/toolkit-error';
 
 /**
  * Return a location that will be used as the CDK home directory.
@@ -33,4 +34,31 @@ export function cdkHomeDir() {
 
 export function cdkCacheDir() {
   return path.join(cdkHomeDir(), 'cache');
+}
+
+/**
+ * From the start location, find the directory that contains the bundled package's package.json
+ *
+ * You must assume the caller of this function will be bundled and the package root dir
+ * is not going to be the same as the package the caller currently lives in.
+ */
+export function bundledPackageRootDir(start: string): string;
+export function bundledPackageRootDir(start: string, fail: true): string;
+export function bundledPackageRootDir(start: string, fail: false): string | undefined;
+export function bundledPackageRootDir(start: string, fail?: boolean) {
+  function _rootDir(dirname: string): string | undefined {
+    const manifestPath = path.join(dirname, 'package.json');
+    if (fs.existsSync(manifestPath)) {
+      return dirname;
+    }
+    if (path.dirname(dirname) === dirname) {
+      if (fail ?? true) {
+        throw new ToolkitError('Unable to find package manifest');
+      }
+      return undefined;
+    }
+    return _rootDir(path.dirname(dirname));
+  }
+
+  return _rootDir(start);
 }

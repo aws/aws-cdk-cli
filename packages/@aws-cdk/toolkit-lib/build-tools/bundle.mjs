@@ -16,11 +16,11 @@ await Promise.all([
   copyFromCli(['build-info.json']),
   copyFromCli(['/db.json.gz']),
   copyFromCli(['lib', 'index_bg.wasm']),
+  copyFromCli(['lib', 'api', 'bootstrap', 'bootstrap-template.yaml']),
 ]);
 
 // # Copy all resources that aws_cdk/generate.sh produced, and some othersCall the generator for the
 // cp -R $aws_cdk/lib/init-templates ./lib/
-// mkdir -p ./lib/api/bootstrap/ && cp $aws_cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/
 
 await esbuild.build({
   outdir: 'lib',

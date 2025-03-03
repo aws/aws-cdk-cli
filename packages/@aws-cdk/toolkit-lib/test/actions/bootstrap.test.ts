@@ -8,9 +8,9 @@ import {
   Stack,
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
-import { BootstrapEnvironmentParameters, BootstrapSource } from '../../lib/actions/bootstrap';
+import { BootstrapEnvironments, BootstrapOptions, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-cdk';
-import { BootstrapEnvironments, Toolkit } from '../../lib/toolkit';
+import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {
   MockSdkProvider,
@@ -18,7 +18,6 @@ import {
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-  rootDir,
 } from '../util/aws-cdk';
 
 const ioHost = new TestIoHost();
@@ -80,8 +79,8 @@ function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]):
 
 async function runBootstrap(options?: {
   environments?: string[];
-  source?: BootstrapSource;
-  parameters?: BootstrapEnvironmentParameters;
+  source?: BootstrapOptions['source'];
+  parameters?: BootstrapStackParameters;
 }) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
   const bootstrapEnvs = options?.environments?.length ?
@@ -269,7 +268,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await runBootstrap({
-        parameters: BootstrapEnvironmentParameters.exactly(customParams),
+        parameters: BootstrapStackParameters.exactly(customParams),
       });
 
       // THEN
@@ -309,7 +308,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await runBootstrap({
-        parameters: BootstrapEnvironmentParameters.withExisting(additionalParams),
+        parameters: BootstrapStackParameters.withExisting(additionalParams),
       });
 
       // THEN
@@ -343,7 +342,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await runBootstrap({
-        parameters: BootstrapEnvironmentParameters.onlyExisting(),
+        parameters: BootstrapStackParameters.onlyExisting(),
       });
 
       // THEN
@@ -405,7 +404,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await runBootstrap({
-        source: BootstrapSource.customTemplate(path.join('test', 'api', 'bootstrap', 'custom-bootstrap-template.yaml')),
+        source: BootstrapSource.customTemplate(path.join(__dirname, '_fixtures', 'custom-bootstrap-template.yaml')),
       });
 
       // THEN
@@ -423,7 +422,7 @@ describe('bootstrap', () => {
 
       // WHEN
       await expect(runBootstrap({
-        source: BootstrapSource.customTemplate(path.join(rootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml')),
+        source: BootstrapSource.customTemplate(path.join(__dirname, '_fixtures', 'invalid-bootstrap-template.yaml')),
       })).rejects.toThrow('Invalid template file');
 
       // THEN

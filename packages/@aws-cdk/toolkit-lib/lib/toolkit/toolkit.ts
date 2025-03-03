@@ -3,10 +3,9 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
-import { ToolkitServices } from './private';
+import { assemblyFromSource, ToolkitServices } from './private';
 import { AssemblyData, StackAndAssemblyData } from './types';
-import { BootstrapOptions, BootstrapSource } from '../actions/bootstrap';
-import { environmentsFromDescriptors } from '../actions/bootstrap/private';
+import { BootstrapEnvironments, BootstrapOptions, BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -19,12 +18,12 @@ import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, SuccessfulDeployStackResult, StackCollection, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, Concurrency, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, CloudWatchLogEventMonitor, findCloudWatchLogGroups, StackDetails } from '../api/aws-cdk';
 import { ICloudAssemblySource, StackSelectionStrategy } from '../api/cloud-assembly';
-import { ALL_STACKS, CachedCloudAssemblySource, CloudAssemblySourceBuilder, IdentityCloudAssemblySource, StackAssembly } from '../api/cloud-assembly/private';
+import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource, StackAssembly } from '../api/cloud-assembly/private';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
 import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace, CODES } from '../api/io/private';
-import { pLimit } from '../util/concurrency';
 import { ToolkitError } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
+import { pLimit } from '../util/concurrency';
 
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.
@@ -87,58 +86,6 @@ export interface ToolkitOptions {
    * @default "error"
    */
   assemblyFailureAt?: 'error' | 'warn' | 'none';
-}
-
-/**
- * Creates a Toolkit internal CloudAssembly from a CloudAssemblySource.
- * @param assemblySource the source for the cloud assembly
- * @param cache if the assembly should be cached, default: `true`
- * @returns the CloudAssembly object
- */
-async function assemblyFromSource(assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {
-  if (assemblySource instanceof StackAssembly) {
-    return assemblySource;
-  }
-
-  if (cache) {
-    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce());
-  }
-
-  return new StackAssembly(await assemblySource.produce());
-}
-
-/**
- * Helper class to manage bootstrap environments
- */
-export class BootstrapEnvironments {
-  /**
-   * Create from a list of environment descriptors
-   * List of strings like `['aws://012345678912/us-east-1', 'aws://234567890123/eu-west-1']`
-   */
-  static fromList(environments: string[]): BootstrapEnvironments {
-    return new BootstrapEnvironments(environmentsFromDescriptors(environments));
-  }
-
-  /**
-   * Create from a cloud assembly source
-   */
-  static fromCloudAssemblySource(cx: ICloudAssemblySource): BootstrapEnvironments {
-    return new BootstrapEnvironments(async () => {
-      const assembly = await assemblyFromSource(cx);
-      const stackCollection = assembly.selectStacksV2(ALL_STACKS);
-      return stackCollection.stackArtifacts.map(stack => stack.environment);
-    });
-  }
-
-  private constructor(private readonly envProvider: cxapi.Environment[] | (() => Promise<cxapi.Environment[]>)) {
-  }
-
-  async getEnvironments(): Promise<cxapi.Environment[]> {
-    if (Array.isArray(this.envProvider)) {
-      return this.envProvider;
-    }
-    return this.envProvider();
-  }
 }
 
 /**
@@ -218,7 +165,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
     const parameters = options.parameters;
-    const bootstrapper = new Bootstrapper(source.render(), { ioHost, action: 'bootstrap' });
+    const bootstrapper = new Bootstrapper(source, { ioHost, action: 'bootstrap' });
     const sdkProvider = await this.sdkProvider('bootstrap');
     const limit = pLimit(20);
 
@@ -228,14 +175,13 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const bootstrapTimer = Timer.start();
 
       try {
-        const { toolkitStackName } = this;
         const bootstrapResult = await bootstrapper.bootstrapEnvironment(
           environment,
           sdkProvider,
           {
             ...options,
-            toolkitStackName,
-            source: source.render(),
+            toolkitStackName: this.toolkitStackName,
+            source,
             parameters: parameters?.parameters,
             usePreviousParameters: parameters?.keepExistingParameters,
           },

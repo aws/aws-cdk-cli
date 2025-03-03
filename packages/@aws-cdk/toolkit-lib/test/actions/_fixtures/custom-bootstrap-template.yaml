@@ -31,9 +31,9 @@ Resources:
             NoncurrentVersionExpiration:
               NoncurrentDays: 90
       Tags:
-        - Key: 
+        - Key:
             Ref: CustomTagKey
-          Value: 
+          Value:
             Ref: CustomTagValue
 
   ContainerAssetsRepository:
@@ -44,9 +44,9 @@ Resources:
       ImageScanningConfiguration:
         ScanOnPush: true
       Tags:
-        - Key: 
+        - Key:
             Ref: CustomTagKey
-          Value: 
+          Value:
             Ref: CustomTagValue
 
   CloudFormationExecutionRole:
@@ -64,9 +64,9 @@ Resources:
       RoleName:
         Fn::Sub: cdk-${Qualifier}-cfn-exec-role-${AWS::AccountId}-${AWS::Region}
       Tags:
-        - Key: 
+        - Key:
             Ref: CustomTagKey
-          Value: 
+          Value:
             Ref: CustomTagValue
 
   CdkBootstrapVersion:
