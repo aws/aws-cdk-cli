@@ -3,7 +3,7 @@ import { debug, warn } from '../../cli/messages';
 import { Notices } from '../../notices';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth';
 import { type EcrRepositoryInfo, ToolkitInfo } from '../toolkit-info';
 

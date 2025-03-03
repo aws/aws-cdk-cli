@@ -4,7 +4,7 @@ import { WorkGraph } from './work-graph';
 import { DeploymentState, AssetBuildNode, WorkNode } from './work-graph-types';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { contentHashAny } from '../../util/content-hash';
+import { contentHashAny } from '../../util';
 
 export class WorkGraphBuilder {
   /**

@@ -4,7 +4,7 @@ import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smit
 import { credentialsAboutToExpire, makeCachingProvider } from './provider-caching';
 import { debug, warning } from '../../logging';
 import { AuthenticationError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import { Mode } from '../plugin/mode';
 import { PluginHost } from '../plugin/plugin';
 

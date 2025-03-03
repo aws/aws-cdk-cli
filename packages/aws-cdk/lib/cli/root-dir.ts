@@ -9,10 +9,10 @@ import { ToolkitError } from '../toolkit/error';
  * released and `__dirname` will refer to a different location in the `.ts` form
  * as it will in the final executing form.
  */
-export function rootDir(): string;
-export function rootDir(fail: true): string;
-export function rootDir(fail: false): string | undefined;
-export function rootDir(fail?: boolean) {
+export function cliRootDir(): string;
+export function cliRootDir(fail: true): string;
+export function cliRootDir(fail: false): string | undefined;
+export function cliRootDir(fail?: boolean) {
   function _rootDir(dirname: string): string | undefined {
     const manifestPath = path.join(dirname, 'package.json');
     if (fs.existsSync(manifestPath)) {

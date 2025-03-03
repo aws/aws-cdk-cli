@@ -23,7 +23,7 @@ import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/deployments';
 import { ToolkitError } from '../toolkit/error';
-import { zipDirectory } from '../util/archive';
+import { zipDirectory } from '../util';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');
 /** The list of languages supported by the built-in noctilucent binary. */

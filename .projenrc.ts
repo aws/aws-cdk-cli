@@ -717,6 +717,7 @@ tmpToolkitHelpers.package.addField('exports', {
   '.': './lib/index.js',
   './package.json': './package.json',
   './api': './lib/api/index.js',
+  './util': './lib/util/index.js',
 });
 
 //////////////////////////////////////////////////////////////////////
@@ -1254,6 +1255,8 @@ toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(

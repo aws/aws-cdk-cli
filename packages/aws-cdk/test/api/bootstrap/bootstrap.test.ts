@@ -12,7 +12,7 @@ import {
 import { parse } from 'yaml';
 import { Bootstrapper } from '../../../lib/api/bootstrap';
 import { legacyBootstrapTemplate } from '../../../lib/api/bootstrap/legacy-template';
-import { deserializeStructure, serializeStructure, toYAML } from '../../../lib/util/serialize';
+import { deserializeStructure, serializeStructure, toYAML } from '../../../lib/util';
 import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
 
