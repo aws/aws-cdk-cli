@@ -1,5 +1,4 @@
-/* eslint-disable import/order */
-import { flatMap, flatten, partition } from '../../lib/util';
+import { flatMap, flatten, partition } from '../../src/util';
 
 test('flatten combines arrays', () => {
   const output = flatten([

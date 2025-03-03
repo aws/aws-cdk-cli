@@ -688,9 +688,18 @@ const tmpToolkitHelpers = configureProject(
     parent: repo,
     name: '@aws-cdk/tmp-toolkit-helpers',
     description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
-    deps: [],
     devDeps: [
       cdkBuildTools,
+      '@types/archiver',
+      '@types/glob',
+      '@types/semver',
+      'fast-check',
+    ],
+    deps: [
+      'archiver',
+      'glob',
+      'semver',
+      'yaml@^1',
     ],
     tsconfig: {
       compilerOptions: {

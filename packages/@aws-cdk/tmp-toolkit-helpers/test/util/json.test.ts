@@ -1,4 +1,4 @@
-import { findJsonValue, getResultObj } from '../../lib/util/json';
+import { findJsonValue, getResultObj } from '../../src/util/json';
 
 const jsonObj = {
   DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:test-instance-1',
