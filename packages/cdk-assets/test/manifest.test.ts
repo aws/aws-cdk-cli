@@ -60,21 +60,25 @@ test('.entries() iterates over all destinations', () => {
   expect(manifest.entries).toEqual([
     new FileManifestEntry(
       new DestinationIdentifier('asset1', 'dest1'),
+      undefined,
       { path: 'S1' },
       { bucketName: 'D1', objectKey: 'X' },
     ),
     new FileManifestEntry(
       new DestinationIdentifier('asset1', 'dest2'),
+      undefined,
       { path: 'S1' },
       { bucketName: 'D2', objectKey: 'X' },
     ),
     new DockerImageManifestEntry(
       new DestinationIdentifier('asset2', 'dest1'),
+      undefined,
       { directory: 'S2' },
       { repositoryName: 'D3', imageTag: 'X' },
     ),
     new DockerImageManifestEntry(
       new DestinationIdentifier('asset2', 'dest2'),
+      undefined,
       { directory: 'S2' },
       { repositoryName: 'D4', imageTag: 'X' },
     ),
@@ -134,6 +138,20 @@ test('parse ASSET:* the same as ASSET and ASSET:', () => {
 
 test('parse *:DEST the same as :DEST', () => {
   expect(DestinationPattern.parse('*:a')).toEqual(DestinationPattern.parse(':a'));
+});
+
+test.each([
+  ['Display Name', false, 'Display Name'],
+  ['Display Name', true, 'Display Name (dest2)'],
+  [undefined, false, 'asset1'],
+  [undefined, true, 'asset1:dest2'],
+])('with displayName %p and including destination %p => %p', (displayName, includeDestination, expected) => {
+  expect(new FileManifestEntry(
+    new DestinationIdentifier('asset1', 'dest2'),
+    displayName,
+    { path: 'S1' },
+    { bucketName: 'D2', objectKey: 'X' },
+  ).displayName(includeDestination)).toEqual(expected);
 });
 
 function f(obj: unknown, ...keys: string[]): any {

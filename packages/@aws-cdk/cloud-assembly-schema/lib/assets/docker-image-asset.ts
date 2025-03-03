@@ -5,12 +5,19 @@ import { AwsDestination } from './aws-destination';
  */
 export interface DockerImageAsset {
   /**
-   * Source description for file assets
+   * A display name for this asset
+   *
+   * @default - The identifier will be used as the display name
+   */
+  readonly displayName?: string;
+
+  /**
+   * Source description for container assets
    */
   readonly source: DockerImageSource;
 
   /**
-   * Destinations for this file asset
+   * Destinations for this container asset
    */
   readonly destinations: { [id: string]: DockerImageDestination };
 }
