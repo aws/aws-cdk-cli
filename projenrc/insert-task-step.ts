@@ -1,4 +1,4 @@
-import { Component, Project, TaskStep } from "projen";
+import { Component, Project, TaskStep } from 'projen';
 
 export interface InsertTaskStepProps {
   readonly taskName: string;
@@ -9,7 +9,6 @@ export interface InsertTaskStepProps {
 export class InsertTaskStep extends Component {
   constructor(project: Project, private props: InsertTaskStepProps) {
     super(project);
-
   }
 
   preSynthesize() {
@@ -19,7 +18,7 @@ export class InsertTaskStep extends Component {
     }
 
     // Find the bump task, and do the CLI version copy straight after
-    const bumpIx = releaseTask.steps.findIndex(s => s.exec === this.props.beforeExec)
+    const bumpIx = releaseTask.steps.findIndex(s => s.exec === this.props.beforeExec);
     if (bumpIx === -1) {
       throw new Error(`Did not find step: ${this.props.beforeExec}`);
     }

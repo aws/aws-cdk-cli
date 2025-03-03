@@ -230,6 +230,9 @@
         },
         {
           "exec": "tsx projenrc/update.ts"
+        },
+        {
+          "exec": "[[ -f cli-version.json ]] || echo '{ \"version\": \"\" }' > cli-version.json"
         }
       ]
     },

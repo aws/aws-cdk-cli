@@ -6,11 +6,11 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
+import { InsertTaskStep } from './projenrc/insert-task-step';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
-import { InsertTaskStep } from './projenrc/insert-task-step';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -377,7 +377,7 @@ new JsiiBuild(cloudAssemblySchema, {
 
   // This file will be generated at release time. It needs to be gitignored or it will
   // fail projen's "no tamper" check, which means it must also be generated every build time.
-  cloudAssemblySchema.preCompileTask.exec('[[ -f cli-version.json ]] || echo \'{}\' > cli-version.json');
+  cloudAssemblySchema.preCompileTask.exec('[[ -f cli-version.json ]] || echo \'{ "version": "" }\' > cli-version.json');
   cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
 
   cloudAssemblySchema.addPackageIgnore('*.ts');

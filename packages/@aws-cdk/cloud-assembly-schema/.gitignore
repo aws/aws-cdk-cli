@@ -46,3 +46,4 @@ jspm_packages/
 !/.eslintrc.js
 .jsii
 tsconfig.json
+cli-version.json

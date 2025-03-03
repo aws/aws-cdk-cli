@@ -13,6 +13,7 @@ import * as integ from './integ-tests';
 // see exec.ts#createAssembly
 export const VERSION_MISMATCH: string = 'Cloud assembly schema version mismatch';
 
+import CLI_VERSION = require('../cli-version.json');
 import ASSETS_SCHEMA = require('../schema/assets.schema.json');
 
 import ASSEMBLY_SCHEMA = require('../schema/cloud-assembly.schema.json');
@@ -31,7 +32,6 @@ import SCHEMA_VERSION = require('../schema/version.json');
  * changes' self-check will fail, which means it needs to be generated
  * at build time if it doesn't already exist.
  */
-import CLI_VERSION = require('../cli-version.json');
 
 /**
  * Options for the loadManifest operation
@@ -157,7 +157,6 @@ export class Manifest {
     const version = CLI_VERSION.version;
     return version ? version : undefined;
   }
-
 
   /**
    * Deprecated
