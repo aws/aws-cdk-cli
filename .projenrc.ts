@@ -10,6 +10,7 @@ import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { InsertTaskStep } from './projenrc/insert-task-step';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -374,10 +375,23 @@ new JsiiBuild(cloudAssemblySchema, {
 (() => {
   cloudAssemblySchema.preCompileTask.exec('tsx projenrc/update.ts');
 
+  // This file will be generated at release time. It needs to be gitignored or it will
+  // fail projen's "no tamper" check, which means it must also be generated every build time.
+  cloudAssemblySchema.preCompileTask.exec('[[ -f cli-version.json ]] || echo \'{}\' > cli-version.json');
+  cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
+
   cloudAssemblySchema.addPackageIgnore('*.ts');
   cloudAssemblySchema.addPackageIgnore('!*.d.ts');
   cloudAssemblySchema.addPackageIgnore('** /scripts');
 })();
+
+new InsertTaskStep(repo, {
+  taskName: 'release',
+  insertSteps: [
+    { exec: 'ts-node projenrc/copy-cli-version-to-assembly.task.ts' },
+  ],
+  beforeExec: 'yarn workspaces run build',
+});
 
 //////////////////////////////////////////////////////////////////////
 

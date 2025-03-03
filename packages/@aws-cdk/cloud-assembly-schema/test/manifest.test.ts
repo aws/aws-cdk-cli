@@ -37,6 +37,32 @@ test('manifest save', () => {
   });
 });
 
+test('manifest contains minimum CLI version', () => {
+  const outdir = fs.mkdtempSync(path.join(os.tmpdir(), 'schema-tests'));
+  const manifestFile = path.join(outdir, 'manifest.json');
+
+  // This relies on the fact that the cli JSON version file is `require()`d,
+  // and that the 'require' below will find the same object in the module cache.
+  const cliVersionFile = require(`${__dirname}/../cli-version.json`);
+  cliVersionFile.version = '9.9.9';
+  try {
+    const assemblyManifest: AssemblyManifest = {
+      version: 'version',
+      runtime: {
+        libraries: { lib1: '1.2.3' },
+      },
+    };
+
+    Manifest.saveAssemblyManifest(assemblyManifest, manifestFile);
+
+    const saved = JSON.parse(fs.readFileSync(manifestFile, { encoding: 'utf-8' }));
+
+    expect(saved.minimumCliVersion).toEqual('9.9.9');
+  } finally {
+    cliVersionFile.version = '';
+  }
+});
+
 test('assumeRoleAdditionalOptions.RoleArn is validated in stack artifact', () => {
   expect(() => {
     Manifest.saveAssemblyManifest(

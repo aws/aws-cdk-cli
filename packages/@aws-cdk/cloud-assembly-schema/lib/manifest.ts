@@ -25,6 +25,15 @@ import INTEG_SCHEMA = require('../schema/integ.schema.json');
 import SCHEMA_VERSION = require('../schema/version.json');
 
 /**
+ * CLI version is created at build and release time
+ *
+ * It needs to be .gitignore'd, otherwise the projen 'no uncommitted
+ * changes' self-check will fail, which means it needs to be generated
+ * at build time if it doesn't already exist.
+ */
+import CLI_VERSION = require('../cli-version.json');
+
+/**
  * Options for the loadManifest operation
  */
 export interface LoadManifestOptions {
@@ -142,6 +151,15 @@ export class Manifest {
   }
 
   /**
+   * Return the CLI version that supports this Cloud Assembly Schema version
+   */
+  public static cliVersion(): string | undefined {
+    const version = CLI_VERSION.version;
+    return version ? version : undefined;
+  }
+
+
+  /**
    * Deprecated
    * @deprecated use `saveAssemblyManifest()`
    */
@@ -216,7 +234,11 @@ export class Manifest {
     schema: jsonschema.Schema,
     preprocess?: (obj: any) => any,
   ) {
-    let withVersion = { ...manifest, version: Manifest.version() };
+    let withVersion = {
+      ...manifest,
+      version: Manifest.version(),
+      minimumCliVersion: Manifest.cliVersion(),
+    } satisfies assembly.AssemblyManifest;
     Manifest.validate(withVersion, schema);
     if (preprocess) {
       withVersion = preprocess(withVersion);
