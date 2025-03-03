@@ -23,6 +23,7 @@ export class InsertTaskStep extends Component {
       throw new Error(`Did not find step: ${this.props.beforeExec}`);
     }
 
-    releaseTask.steps.splice(bumpIx, 0, ...this.props.insertSteps);
+    // Accessing internals like a dirty boi
+    (releaseTask as any)._steps.splice(bumpIx, 0, ...this.props.insertSteps);
   }
 }

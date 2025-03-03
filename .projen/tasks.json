@@ -139,6 +139,9 @@
           "exec": "yarn workspaces run bump"
         },
         {
+          "exec": "ts-node projenrc/copy-cli-version-to-assembly.task.ts"
+        },
+        {
           "exec": "yarn workspaces run build"
         },
         {

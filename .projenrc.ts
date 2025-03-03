@@ -385,7 +385,7 @@ new JsiiBuild(cloudAssemblySchema, {
   cloudAssemblySchema.addPackageIgnore('** /scripts');
 })();
 
-new InsertTaskStep(repo, {
+new InsertTaskStep(repoProject, {
   taskName: 'release',
   insertSteps: [
     { exec: 'ts-node projenrc/copy-cli-version-to-assembly.task.ts' },
