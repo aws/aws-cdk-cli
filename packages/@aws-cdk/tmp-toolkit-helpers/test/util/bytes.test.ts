@@ -1,4 +1,4 @@
-import { formatBytes } from '../../lib/util/bytes';
+import { formatBytes } from '../../src/util/bytes';
 
 test.each([
   [0, '0 Bytes'],

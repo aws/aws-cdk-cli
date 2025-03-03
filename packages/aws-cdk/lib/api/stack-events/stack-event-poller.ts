@@ -1,5 +1,5 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
 
 export interface StackEventPollerProps {

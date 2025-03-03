@@ -15,13 +15,6 @@ export { Bootstrapper } from '../../../../aws-cdk/lib/api/bootstrap';
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
 
-// utils
-export { formatTime } from '../../../../aws-cdk/lib/util/string-manipulation';
-export { formatErrorMessage } from '../../../../aws-cdk/lib/util/format-error';
-export { obscureTemplate, serializeStructure } from '../../../../aws-cdk/lib/util/serialize';
-export { validateSnsTopicArn } from '../../../../aws-cdk/lib/util/cloudformation';
-export { splitBySize } from '../../../../aws-cdk/lib/util/objects';
-
 // @todo APIs not clean import
 export { HotswapMode } from '../../../../aws-cdk/lib/api/hotswap/common';
 export { HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap/common';

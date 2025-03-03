@@ -2,13 +2,12 @@ import * as childProcess from 'child_process';
 import * as path from 'path';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
+import { cliRootDir } from './cli/root-dir';
 import { versionNumber } from './cli/version';
 import { invokeBuiltinHooks } from './init-hooks';
 import { error, info, warning } from './logging';
 import { ToolkitError } from './toolkit/error';
-import { cdkHomeDir, rootDir } from './util/directories';
-import { formatErrorMessage } from './util/format-error';
-import { rangeFromSemver } from './util/version-range';
+import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from './util';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -268,7 +267,7 @@ interface ProjectInfo {
 export async function availableInitTemplates(): Promise<InitTemplate[]> {
   return new Promise(async (resolve) => {
     try {
-      const templatesDir = path.join(rootDir(), 'lib', 'init-templates');
+      const templatesDir = path.join(cliRootDir(), 'lib', 'init-templates');
       const templateNames = await listDirectory(templatesDir);
       const templates = new Array<InitTemplate>();
       for (const templateName of templateNames) {

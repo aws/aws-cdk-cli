@@ -1,5 +1,4 @@
-/* eslint-disable import/order */
-import { validateSnsTopicArn, stackEventHasErrorMessage, maxResourceTypeLength } from '../../lib/util/cloudformation';
+import { validateSnsTopicArn, stackEventHasErrorMessage, maxResourceTypeLength } from '../../src/util/cloudformation';
 
 describe('validateSnsTopicArn', () => {
   test('empty string', () => {
@@ -68,8 +67,8 @@ describe('maxResourceTypeLength', () => {
     const template = {
       Resources: {
         Resource1: { Type: 'AWS::S3::Bucket' },
-        Resource2: { Type: 'AWS::IAM::Role' }
-      }
+        Resource2: { Type: 'AWS::IAM::Role' },
+      },
     };
     expect(maxResourceTypeLength(template)).toBe('AWS::CloudFormation::Stack'.length);
   });
@@ -79,8 +78,8 @@ describe('maxResourceTypeLength', () => {
     const template = {
       Resources: {
         Resource1: { Type: 'AWS::S3::Bucket' },
-        Resource2: { Type: longType }
-      }
+        Resource2: { Type: longType },
+      },
     };
     expect(maxResourceTypeLength(template)).toBe(longType.length);
   });
@@ -89,8 +88,8 @@ describe('maxResourceTypeLength', () => {
     const template = {
       Resources: {
         Resource1: { Type: 'AWS::S3::Bucket' },
-        Resource2: {}
-      }
+        Resource2: {},
+      },
     };
     expect(maxResourceTypeLength(template)).toBe('AWS::CloudFormation::Stack'.length);
   });
@@ -98,8 +97,8 @@ describe('maxResourceTypeLength', () => {
   test('accepts custom startWidth', () => {
     const template = {
       Resources: {
-        Resource1: { Type: 'AWS::S3::Bucket' }
-      }
+        Resource1: { Type: 'AWS::S3::Bucket' },
+      },
     };
     expect(maxResourceTypeLength(template, 50)).toBe(50);
   });

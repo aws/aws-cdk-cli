@@ -3,7 +3,7 @@ import * as fs_path from 'path';
 import * as fs from 'fs-extra';
 import { warning } from '../logging';
 import { ToolkitError } from '../toolkit/error';
-import * as util from '../util/objects';
+import * as util from '../util';
 
 export type SettingsMap = { [key: string]: any };
 

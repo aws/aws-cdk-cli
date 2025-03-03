@@ -1,4 +1,4 @@
-import { formatErrorMessage } from '../../lib/util/format-error';
+import { formatErrorMessage } from '../../src/util/format-error';
 
 describe('formatErrorMessage', () => {
   test('should return the formatted message for a regular Error object', () => {

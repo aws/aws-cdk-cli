@@ -1,6 +1,5 @@
-/* eslint-disable import/order */
 import * as fc from 'fast-check';
-import { deepClone, deepGet, deepMerge, deepSet, splitBySize } from '../../lib/util';
+import { applyDefaults, deepClone, deepGet, deepMerge, deepSet, splitBySize } from '../../src/util';
 
 test('deepSet can set deeply', () => {
   const obj = {};
@@ -61,5 +60,16 @@ describe('splitBySize', () => {
     function merge(fst: any, snd: any) {
       return { ...(fst ?? {}), ...(snd ?? {}) };
     }
+  });
+});
+
+describe('applyDefaults', () => {
+  test('applyDefaults() works', () => {
+    const given = { a: 1 };
+    const defaults = { a: 2, b: 2 };
+
+    const output = applyDefaults(given, defaults);
+
+    expect(output).toEqual({ a: 1, b: 2 });
   });
 });

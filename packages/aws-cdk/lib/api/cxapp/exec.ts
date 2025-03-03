@@ -10,7 +10,7 @@ import { versionNumber } from '../../cli/version';
 import { debug, warning } from '../../logging';
 import { ToolkitError } from '../../toolkit/error';
 import { loadTree, some } from '../../tree';
-import { splitBySize } from '../../util/objects';
+import { splitBySize } from '../../util';
 import { SdkProvider } from '../aws-auth';
 import { Settings } from '../settings';
 import { RWLock, ILock } from '../util/rwlock';

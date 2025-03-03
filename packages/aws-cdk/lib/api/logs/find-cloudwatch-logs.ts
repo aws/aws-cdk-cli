@@ -2,7 +2,7 @@ import type { CloudFormationStackArtifact, Environment } from '@aws-cdk/cx-api';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { debug } from '../../logging';
 import { IoMessaging } from '../../toolkit/cli-io-host';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
 import { EnvironmentAccess } from '../environment';
 import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../evaluate-cloudformation-template';

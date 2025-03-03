@@ -31,7 +31,7 @@ import { tryHotswapDeployment } from './hotswap-deployments';
 import { debug, info, warn } from '../../cli/messages';
 import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
 import type { EnvironmentResources } from '../environment';
 import { CfnEvaluationException } from '../evaluate-cloudformation-template';

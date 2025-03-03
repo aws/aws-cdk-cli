@@ -5,10 +5,10 @@ import type { BootstrapEnvironmentOptions, BootstrappingParameters } from './boo
 import { BootstrapStack, bootstrapVersionFromTemplate } from './deploy-bootstrap';
 import { legacyBootstrapTemplate } from './legacy-template';
 import { warn } from '../../cli/messages';
+import { cliRootDir } from '../../cli/root-dir';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { rootDir } from '../../util/directories';
-import { loadStructuredFile, serializeStructure } from '../../util/serialize';
+import { loadStructuredFile, serializeStructure } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { Mode } from '../plugin/mode';
@@ -375,7 +375,7 @@ export class Bootstrapper {
       case 'custom':
         return loadStructuredFile(this.source.templateFile);
       case 'default':
-        return loadStructuredFile(path.join(rootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'));
+        return loadStructuredFile(path.join(cliRootDir(), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'));
       case 'legacy':
         return legacyBootstrapTemplate(params);
     }

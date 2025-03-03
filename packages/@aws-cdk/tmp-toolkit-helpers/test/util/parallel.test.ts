@@ -1,5 +1,5 @@
-import { parallelPromises } from '../../lib/util/parallel';
-import { sleep } from '../util';
+import { parallelPromises } from '../../src/util/parallel';
+import { sleep } from '../_helpers/sleep';
 
 test('parallelPromises', async () => {
   const N = 4;

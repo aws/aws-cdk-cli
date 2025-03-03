@@ -8,6 +8,7 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
+import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 
@@ -83,11 +84,7 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   '.recommended-feature-flags.json',
 ];
 
-// Specifically this and not ^ because when the SDK version updates there is a
-// high chance that our manually copied enums are no longer compatible.
-//
-// FIXME: Sort that out after we've moved.
-const CLI_SDK_V3_RANGE = '3.741';
+const CLI_SDK_V3_RANGE = '^3';
 
 /**
  * Shared jest config
@@ -691,9 +688,18 @@ const tmpToolkitHelpers = configureProject(
     parent: repo,
     name: '@aws-cdk/tmp-toolkit-helpers',
     description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
-    deps: [],
     devDeps: [
       cdkBuildTools,
+      '@types/archiver',
+      '@types/glob',
+      '@types/semver',
+      'fast-check',
+    ],
+    deps: [
+      'archiver',
+      'glob',
+      'semver',
+      'yaml@^1',
     ],
     tsconfig: {
       compilerOptions: {
@@ -711,6 +717,7 @@ tmpToolkitHelpers.package.addField('exports', {
   '.': './lib/index.js',
   './package.json': './package.json',
   './api': './lib/api/index.js',
+  './util': './lib/util/index.js',
 });
 
 //////////////////////////////////////////////////////////////////////
@@ -1248,6 +1255,8 @@ toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1407,5 +1416,6 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new PrLabeler(repo);
 
 repo.synth();

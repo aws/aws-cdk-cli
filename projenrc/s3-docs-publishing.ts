@@ -95,7 +95,7 @@ export class S3DocsPublishing extends Component {
             DOCS_STREAM: this.props.docsStream,
           },
           run: [
-            '::add-mask::$BUCKET_NAME', // always hide bucket name
+            'echo ::add-mask::$BUCKET_NAME', // always hide bucket name
 
             // setup paths
             `echo "S3_PATH=$DOCS_STREAM/${safeName}-v$(cat dist/version.txt).zip" >> "$GITHUB_ENV"`,

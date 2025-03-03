@@ -1,5 +1,4 @@
-/* eslint-disable import/order */
-import { deserializeStructure, toYAML } from '../../lib/util/serialize';
+import { deserializeStructure, toYAML } from '../../src/util/serialize';
 
 // Preferred quote of the YAML library
 const q = '"';

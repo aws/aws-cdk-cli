@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import * as fs from 'fs/promises';
 import { formatBytes } from './bytes';
 import * as yaml_cfn from './yaml-cfn';
 

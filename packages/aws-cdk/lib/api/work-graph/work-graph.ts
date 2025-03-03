@@ -2,7 +2,7 @@ import { WorkNode, DeploymentState, StackNode, AssetBuildNode, AssetPublishNode 
 import { debug, trace } from '../../cli/messages';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { parallelPromises } from '../../util/parallel';
+import { parallelPromises } from '../../util';
 
 export type Concurrency = number | Record<WorkNode['type'], number>;
 

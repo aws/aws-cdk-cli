@@ -27,7 +27,7 @@ import {
 import { debug, warn } from '../../cli/messages';
 import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';

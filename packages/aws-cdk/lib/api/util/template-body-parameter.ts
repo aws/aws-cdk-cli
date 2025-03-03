@@ -6,8 +6,7 @@ import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { debug, error } from '../../logging';
 import { ToolkitError } from '../../toolkit/error';
-import { contentHash } from '../../util/content-hash';
-import { toYAML } from '../../util/serialize';
+import { contentHash, toYAML } from '../../util';
 import { type AssetManifestBuilder } from '../deployments';
 import { EnvironmentResources } from '../environment';
 

@@ -1,4 +1,4 @@
-import { toYAML, obscureTemplate, replacerBufferWithInfo } from '../../lib/util/serialize';
+import { toYAML, obscureTemplate, replacerBufferWithInfo } from '../../src/util/serialize';
 
 describe(toYAML, () => {
   test('does not wrap lines', () => {

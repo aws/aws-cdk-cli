@@ -37,6 +37,7 @@ export type Branded<T, B> = T & Brand<B>;
  * values which are branded by construction (really just an elaborate
  * way to write 'as').
  */
+/* c8 ignore next 3 */
 export function createBranded<A extends Branded<any, any>>(value: TypeUnderlyingBrand<A>): A {
   return value as A;
 }

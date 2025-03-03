@@ -1,7 +1,7 @@
 import { CodeInfo, CODES } from './codes';
 import { info } from './messages';
 import { ActionAwareIoHost } from './types';
-import { formatTime } from '../../aws-cdk';
+import { formatTime } from '../../../private/util';
 
 /**
  * Helper class to measure the time of code.

@@ -1,5 +1,4 @@
-/* eslint-disable import/order */
-import { rangeFromSemver } from '../../lib/util/version-range';
+import { rangeFromSemver } from '../../src/util/version-range';
 
 describe('rangeFromSemver', () => {
   describe('bracket', () => {
