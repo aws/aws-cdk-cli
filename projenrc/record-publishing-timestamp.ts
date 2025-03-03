@@ -11,7 +11,7 @@ export class RecordPublishingTimestamp extends Component {
   }
 
   public preSynthesize() {
-    const ssmPrefix = '/published/cdk/cli';
+    const ssmPrefix = '/published/cdk/cli-npm';
 
     const releaseWf = this.project_.github?.tryFindWorkflow('release');
     if (!releaseWf) {

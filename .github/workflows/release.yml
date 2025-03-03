@@ -1044,8 +1044,8 @@ jobs:
           mask-aws-account-id: true
       - name: Publish artifacts
         run: |-
-          aws ssm put-parameter --name "/published/cdk/cli/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
-          aws ssm put-parameter --name "/published/cdk/cli/timestamp" --type "String" --value "$(date +%s)" --overwrite
+          aws ssm put-parameter --name "/published/cdk/cli-npm/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
+          aws ssm put-parameter --name "/published/cdk/cli-npm/timestamp" --type "String" --value "$(date +%s)" --overwrite
   aws-cdk-toolkit-lib_release_docs:
     name: "@aws-cdk/toolkit-lib: Publish docs to S3"
     needs: aws-cdk-toolkit-lib_release_npm
