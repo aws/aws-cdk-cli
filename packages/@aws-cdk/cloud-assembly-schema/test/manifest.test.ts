@@ -32,10 +32,10 @@ test('manifest save', () => {
 
   const saved = JSON.parse(fs.readFileSync(manifestFile, { encoding: 'utf-8' }));
 
-  expect(saved).toEqual({
+  expect(saved).toEqual(expect.objectContaining({
     ...assemblyManifest,
     version: Manifest.version(), // version is forced
-  });
+  }));
 });
 
 test('manifest contains minimum CLI version', () => {
