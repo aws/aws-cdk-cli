@@ -94,7 +94,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const shouldDisplayNotices = configuration.settings.get(['notices']);
   if (shouldDisplayNotices !== undefined) {
     // Notices either go to stderr, or nowhere
-    ioHost.noticesTarget = shouldDisplayNotices ? 'stderr' : 'drop';
+    ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   } else {
     // If the user didn't supply either `--notices` or `--no-notices`, we do
     // autodetection. The autodetection currently is: do write notices if we are
@@ -102,7 +102,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     // safe. We fail "closed"; that is, we decide to NOT print for unknown CI
     // systems, even though technically we maybe could.
     const safeToWriteToStdErr = !argv.ci || Boolean(ciSystemIsStdErrSafe());
-    ioHost.noticesTarget = safeToWriteToStdErr ? 'stderr' : 'drop';
+    ioHost.noticesDestination = safeToWriteToStdErr ? 'stderr' : 'drop';
   }
 
   const notices = Notices.create({
@@ -474,7 +474,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'notices';
         // If the user explicitly asks for notices, they are now the primary output
         // of the command and they should go to stdout.
-        ioHost.noticesTarget = 'stdout';
+        ioHost.noticesDestination = 'stdout';
 
         // This is a valid command, but we're postponing its execution because displaying
         // notices automatically happens after every command.

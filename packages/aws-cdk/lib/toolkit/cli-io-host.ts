@@ -200,7 +200,7 @@ export class CliIoHost implements IIoHost {
    * (Not a setter because there's no need for additional logic when this value
    * is changed yet)
    */
-  public noticesTarget: TargetStream = 'stderr';
+  public noticesDestination: TargetStream = 'stderr';
 
   // internal state for getters/setter
   private _currentAction: ToolkitAction;
@@ -412,7 +412,7 @@ export class CliIoHost implements IIoHost {
    */
   private selectStream(msg: IoMessage<any>): NodeJS.WriteStream | undefined {
     if (isNoticesMessage(msg)) {
-      return targetStreamObject(this.noticesTarget);
+      return targetStreamObject(this.noticesDestination);
     }
 
     return this.selectStreamFromLevel(msg.level);
