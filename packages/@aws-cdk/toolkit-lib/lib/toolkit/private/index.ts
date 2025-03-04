@@ -2,7 +2,7 @@
 import { SdkProvider } from '../../api/aws-cdk';
 import { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { CachedCloudAssemblySource, StackAssembly } from '../../api/cloud-assembly/private';
-import { ActionAwareIoHost } from '../../api/io/private';
+import { ActionAwareIoHost } from '../../api/shared-private';
 
 /**
  * Helper struct to pass internal services around.

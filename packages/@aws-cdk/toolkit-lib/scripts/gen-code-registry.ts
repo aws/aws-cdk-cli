@@ -1,7 +1,12 @@
 import * as fs from 'fs';
-import { CODES, CodeInfo } from '../lib/api/io/private/codes';
+import { CODES } from '../lib/api/io/private/codes';
 
-function codesToMarkdownTable(codes: Record<string, CodeInfo>, mdPrefix?: string, mdPostfix?: string) {
+function codesToMarkdownTable(codes: Record<string, {
+  code: string;
+  level: string;
+  description: string;
+  interface?: string; 
+}>, mdPrefix?: string, mdPostfix?: string) {
   let table = '| Code | Description | Level | Data Interface |\n';
   table += '|------|-------------|-------|----------------|\n';
   

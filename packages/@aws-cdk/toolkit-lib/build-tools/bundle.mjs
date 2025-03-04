@@ -48,7 +48,8 @@ await esbuild.build({
   outdir: 'lib',
   entryPoints: [
     'lib/api/aws-cdk.ts',
-    'lib/api/shared-public.ts',
+    'lib/api/shared-public.ts', 
+    'lib/api/shared-private.ts', 
     'lib/private/util.ts',
   ],
   target: 'node18',

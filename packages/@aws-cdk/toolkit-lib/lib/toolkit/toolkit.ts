@@ -4,7 +4,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import { assemblyFromSource, ToolkitServices } from './private';
-import { AssemblyData, StackAndAssemblyData } from './types';
+import { AssemblyData } from './types';
 import { BootstrapEnvironments, BootstrapOptions, BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
@@ -20,30 +20,11 @@ import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, SuccessfulDeploy
 import { ICloudAssemblySource, StackSelectionStrategy } from '../api/cloud-assembly';
 import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource, StackAssembly } from '../api/cloud-assembly/private';
 import { IIoHost, IoMessageCode, IoMessageLevel } from '../api/io';
-import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, ActionAwareIoHost, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace, CODES } from '../api/io/private';
-import { ToolkitError } from '../api/shared-public';
+import { asSdkLogger, withAction, Timer, confirm, error, info, success, warn, debug, result, withoutEmojis, withoutColor, withTrimmedWhitespace, CODES } from '../api/io/private';
+import { ActionAwareIoHost } from '../api/shared-private';
+import { ToolkitAction, ToolkitError } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
 import { pLimit } from '../util/concurrency';
-
-/**
- * The current action being performed by the CLI. 'none' represents the absence of an action.
- */
-export type ToolkitAction =
-| 'assembly'
-| 'bootstrap'
-| 'synth'
-| 'list'
-| 'diff'
-| 'deploy'
-| 'rollback'
-| 'watch'
-| 'destroy'
-| 'doctor'
-| 'gc'
-| 'import'
-| 'metadata'
-| 'init'
-| 'migrate';
 
 export interface ToolkitOptions {
   /**
@@ -223,7 +204,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const firstStack = stacks.firstStack!;
       const template = firstStack.template;
       const obscuredTemplate = obscureTemplate(template);
-      await ioHost.notify(result(message, CODES.CDK_TOOLKIT_I1901, {
+      await ioHost.notify(CODES.CDK_TOOLKIT_I1901.msg(message, {
         ...assemblyData,
         stack: {
           stackName: firstStack.stackName,
@@ -232,7 +213,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stringifiedJson: serializeStructure(obscuredTemplate, true),
           stringifiedYaml: serializeStructure(obscuredTemplate, false),
         },
-      } as StackAndAssemblyData));
+      }));
     } else {
       // not outputting template to stdout, let's explain things to the user a little bit...
       await ioHost.notify(result(chalk.green(message), CODES.CDK_TOOLKIT_I1902, assemblyData));
@@ -257,7 +238,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const stacks = stackCollection.withDependencies();
     const message = stacks.map(s => s.id).join('\n');
 
-    await ioHost.notify(result(message, CODES.CDK_TOOLKIT_I2901, { stacks }));
+    await ioHost.notify(CODES.CDK_TOOLKIT_I2901.msg(message, { stacks }));
     return stacks;
   }
 
@@ -283,6 +264,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     if (stackCollection.stackCount === 0) {
       await ioHost.notify(error('This app contains no stacks', CODES.CDK_TOOLKIT_E5001));
+      await ioHost.notify(CODES.CDK_TOOLKIT_E5001.msg('This app contains no stacks'));
       return;
     }
 

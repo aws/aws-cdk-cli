@@ -1,11 +1,10 @@
 import * as util from 'node:util';
 import type { Logger } from '@smithy/types';
-import type { IoMessage, IoMessageLevel, IoRequest } from '../io-message';
+import type { IoMessage, IoMessageLevel, IoRequest, IIoHost } from '../';
 import { debug, error, info, defaultMessageCode, trace, warn } from './messages';
-import type { ActionAwareIoHost, IoMessageCodeCategory } from './types';
-import type { ToolkitAction } from '../../../toolkit';
 import { formatSdkLoggerContent } from '../../aws-cdk';
-import type { IIoHost } from '../io-host';
+import type { ActionAwareIoHost, IoMessageCodeCategory } from '../../shared-private';
+import type { ToolkitAction } from '../../shared-public';
 
 /**
  * An IoHost wrapper that adds the given action to an actionless message before

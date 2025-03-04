@@ -6,7 +6,7 @@ import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
 import { ToolkitServices } from '../../../toolkit/private';
 import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
-import { CODES, debug, error, info } from '../../io/private';
+import { CODES, debug } from '../../io/private';
 import { ToolkitError } from '../../shared-public';
 import { AssemblyBuilder } from '../source-builder';
 
@@ -126,10 +126,10 @@ export abstract class CloudAssemblySourceBuilder {
                 eventPublisher: async (type, line) => {
                   switch (type) {
                     case 'data_stdout':
-                      await services.ioHost.notify(info(line, CODES.CDK_ASSEMBLY_I1001));
+                      await services.ioHost.notify(CODES.CDK_ASSEMBLY_I1001.msg(line));
                       break;
                     case 'data_stderr':
-                      await services.ioHost.notify(error(line, CODES.CDK_ASSEMBLY_E1002));
+                      await services.ioHost.notify(CODES.CDK_ASSEMBLY_E1002.msg(line));
                       break;
                   }
                 },

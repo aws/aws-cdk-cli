@@ -2,7 +2,8 @@ import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitServices } from '../../../toolkit/private';
 import { type Context, contextproviders, PROJECT_CONTEXT } from '../../aws-cdk';
-import { ActionAwareIoHost, CODES, debug } from '../../io/private';
+import { CODES, debug } from '../../io/private';
+import { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import { ICloudAssemblySource } from '../types';
 
@@ -82,7 +83,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
         previouslyMissingKeys = missingKeys;
 
         if (tryLookup) {
-          await this.ioHost.notify(debug('Some context information is missing. Fetching...', CODES.CDK_ASSEMBLY_I0241, {
+          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', {
             missingKeys: Array.from(missingKeys),
           }));
           await contextproviders.provideContextValues(
@@ -92,7 +93,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
           );
 
           // Cache the new context to disk
-          await this.ioHost.notify(debug(`Writing updated context to ${this.contextFile}...`, CODES.CDK_ASSEMBLY_I0042, {
+          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
             contextFile: this.contextFile,
             context: this.context.all,
           }));

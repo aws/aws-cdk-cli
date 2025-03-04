@@ -11,6 +11,7 @@ export { ResourceMigrator } from '../../../../aws-cdk/lib/api/resource-import';
 export { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../../../../aws-cdk/lib/api/logs';
 export { type WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
 export { Bootstrapper } from '../../../../aws-cdk/lib/api/bootstrap';
+export type { StackActivity, StackMonitoringControlEvent } from '../../../../aws-cdk/lib/api/stack-events';
 
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
