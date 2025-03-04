@@ -206,6 +206,28 @@ export const CODES = {
     level: 'error',
   }),
 
+  // Notices
+  CDK_TOOLKIT_I0100: codeInfo({
+    code: 'CDK_TOOLKIT_I0100',
+    description: 'Notices decoration (the header or footer of a list of notices)',
+    level: 'info',
+  }),
+  CDK_TOOLKIT_W0101: codeInfo({
+    code: 'CDK_TOOLKIT_W0101',
+    description: 'A notice that is marked as a warning',
+    level: 'warn',
+  }),
+  CDK_TOOLKIT_E0101: codeInfo({
+    code: 'CDK_TOOLKIT_E0101',
+    description: 'A notice that is marked as an error',
+    level: 'error',
+  }),
+  CDK_TOOLKIT_I0101: codeInfo({
+    code: 'CDK_TOOLKIT_I0101',
+    description: 'A notice that is marked as informational',
+    level: 'info',
+  }),
+
   // Assembly codes
   CDK_ASSEMBLY_I0042: codeInfo({
     code: 'CDK_ASSEMBLY_I0042',

@@ -37,13 +37,6 @@ export interface NoticesProps {
   readonly output?: string;
 
   /**
-   * Global CLI option for whether we show notices
-   *
-   * @default true
-   */
-  readonly shouldDisplay?: boolean;
-
-  /**
    * Options for the HTTP request
    */
   readonly httpOptions?: SdkHttpOptions;
@@ -298,7 +291,6 @@ export class Notices {
 
   private readonly context: Context;
   private readonly output: string;
-  private readonly shouldDisplay: boolean;
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly includeAcknowlegded: boolean;
   private readonly httpOptions: SdkHttpOptions;
@@ -313,7 +305,6 @@ export class Notices {
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
     this.includeAcknowlegded = props.includeAcknowledged ?? false;
     this.output = props.output ?? 'cdk.out';
-    this.shouldDisplay = props.shouldDisplay ?? true;
     this.httpOptions = props.httpOptions ?? {};
   }
 
@@ -339,10 +330,6 @@ export class Notices {
    * If context is configured to not display notices, this will no-op.
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    if (!this.shouldDisplay) {
-      return;
-    }
-
     try {
       const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.httpOptions);
       const dataSource = new CachedDataSource(CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
@@ -357,10 +344,6 @@ export class Notices {
    * Display the relevant notices (unless context dictates we shouldn't).
    */
   public display(options: NoticesPrintOptions = {}) {
-    if (!this.shouldDisplay) {
-      return;
-    }
-
     const filteredNotices = NoticesFilter.filter({
       data: Array.from(this.data),
       cliVersion: versionNumber(),
@@ -369,29 +352,39 @@ export class Notices {
     });
 
     if (filteredNotices.length > 0) {
-      info('');
-      info('NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)');
-      info('');
+      info({
+        code: 'CDK_TOOLKIT_I0100',
+        message: [
+          '',
+          'NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)',
+          '',
+        ].join('\n'),
+      });
       for (const filtered of filteredNotices) {
-        const formatted = filtered.format();
+        const formatted = filtered.format() + '\n';
         switch (filtered.notice.severity) {
           case 'warning':
-            warning(formatted);
+            warning({ code: 'CDK_TOOLKIT_W0101', message: formatted });
             break;
           case 'error':
-            error(formatted);
+            error({ code: 'CDK_TOOLKIT_E0101', message: formatted });
             break;
           default:
-            info(formatted);
+            info({ code: 'CDK_TOOLKIT_I0101', message: formatted });
+            break;
         }
-        info('');
       }
-      info(`If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`);
+      info({
+        code: 'CDK_TOOLKIT_I0100',
+        message: `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`
+      });
     }
 
     if (options.showTotal ?? false) {
-      info('');
-      info(`There are ${filteredNotices.length} unacknowledged notice(s).`);
+      info({
+        code: 'CDK_TOOLKIT_I0100',
+        message: `\nThere are ${filteredNotices.length} unacknowledged notice(s).`,
+      });
     }
   }
 }

@@ -2,6 +2,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import '@jsii/check-node/run';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 
@@ -90,10 +91,23 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await configuration.load();
 
+  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  if (shouldDisplayNotices !== undefined) {
+    // Notices either go to stderr, or nowhere
+    ioHost.noticesTarget = shouldDisplayNotices ? 'stderr' : 'drop';
+  } else {
+    // If the user didn't supply either `--notices` or `--no-notices`, we do
+    // autodetection. The autodetection currently is: do write notices if we are
+    // not on CI, or are on a CI system where we know that writing to stderr is
+    // safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+    // systems, even though technically we maybe could.
+    const safeToWriteToStdErr = !argv.ci || Boolean(ciSystemIsStdErrSafe());
+    ioHost.noticesTarget = safeToWriteToStdErr ? 'stderr' : 'drop';
+  }
+
   const notices = Notices.create({
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    shouldDisplay: configuration.settings.get(['notices']),
     includeAcknowledged: cmd === 'notices' ? !argv.unacknowledged : false,
     httpOptions: {
       proxyAddress: configuration.settings.get(['proxy']),
@@ -458,7 +472,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'notices':
         ioHost.currentAction = 'notices';
-        // This is a valid command, but we're postponing its execution
+        // If the user explicitly asks for notices, they are now the primary output
+        // of the command and they should go to stdout.
+        ioHost.noticesTarget = 'stdout';
+
+        // This is a valid command, but we're postponing its execution because displaying
+        // notices automatically happens after every command.
         return;
 
       case 'metadata':
