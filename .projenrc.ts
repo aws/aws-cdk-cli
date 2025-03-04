@@ -1174,6 +1174,7 @@ const toolkitLib = configureProject(
       tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
+      'dts-bundle-generator',
       'esbuild',
       'typedoc',
     ],

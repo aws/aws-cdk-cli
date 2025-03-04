@@ -5537,6 +5537,14 @@ dreamopt@~0.8.0:
   dependencies:
     wordwrap ">=0.0.2"
 
+dts-bundle-generator@^9.5.1:
+  version "9.5.1"
+  resolved "https://registry.yarnpkg.com/dts-bundle-generator/-/dts-bundle-generator-9.5.1.tgz#7eac7f47a2d5b51bdaf581843e7f969b88bfc225"
+  integrity sha512-DxpJOb2FNnEyOzMkG11sxO2dmxPjthoVWxfKqWYJ/bI/rT1rvTMktF5EKjAYrRZu6Z6t3NhOUZ0sZ5ZXevOfbA==
+  dependencies:
+    typescript ">=5.0.2"
+    yargs "^17.6.0"
+
 dunder-proto@^1.0.0, dunder-proto@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/dunder-proto/-/dunder-proto-1.0.1.tgz#d7ae667e1dc83482f8b70fd0f6eefc50da30f58a"
@@ -10318,7 +10326,7 @@ typescript@5.6, typescript@~5.6:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.6.3.tgz#5f3449e31c9d94febb17de03cc081dd56d81db5b"
   integrity sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==
 
-typescript@^5.7.3, typescript@^5.8.2:
+typescript@>=5.0.2, typescript@^5.7.3, typescript@^5.8.2:
   version "5.8.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.8.2.tgz#8170b3702f74b79db2e5a96207c15e65807999e4"
   integrity sha512-aJn6wq13/afZp/jT9QZmwEjDqqvSGp1VT5GVg+f/t6/oVyrgXM6BY1h9BRh/O5p3PlUPAe+WuiEZOmb/49RqoQ==
@@ -10739,7 +10747,7 @@ yargs@^16.0.0, yargs@^16.2.0:
     y18n "^5.0.5"
     yargs-parser "^20.2.2"
 
-yargs@^17.1.1, yargs@^17.3.1, yargs@^17.6.2, yargs@^17.7.2:
+yargs@^17.1.1, yargs@^17.3.1, yargs@^17.6.0, yargs@^17.6.2, yargs@^17.7.2:
   version "17.7.2"
   resolved "https://registry.yarnpkg.com/yargs/-/yargs-17.7.2.tgz#991df39aca675a192b816e1e0363f9d75d2aa269"
   integrity sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==

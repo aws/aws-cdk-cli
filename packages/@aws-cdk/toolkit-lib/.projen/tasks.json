@@ -51,7 +51,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/types,@stylistic/eslint-plugin,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,projen,ts-jest,typedoc,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,cdk-from-cfn,glob,json-diff,minimatch,promptly,proxy-agent,semver,split2,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/types,@stylistic/eslint-plugin,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,dts-bundle-generator,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,projen,ts-jest,typedoc,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,cdk-from-cfn,glob,json-diff,minimatch,promptly,proxy-agent,semver,split2,uuid"
         }
       ]
     },

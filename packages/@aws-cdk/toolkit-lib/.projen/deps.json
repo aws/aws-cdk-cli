@@ -70,6 +70,10 @@
       "type": "build"
     },
     {
+      "name": "dts-bundle-generator",
+      "type": "build"
+    },
+    {
       "name": "esbuild",
       "type": "build"
     },

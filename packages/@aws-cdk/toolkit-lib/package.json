@@ -49,6 +49,7 @@
     "aws-sdk-client-mock": "^4.1.0",
     "commit-and-tag-version": "^12",
     "constructs": "^10.0.0",
+    "dts-bundle-generator": "^9.5.1",
     "esbuild": "^0.25.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.0.2",
