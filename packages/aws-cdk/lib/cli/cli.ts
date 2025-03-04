@@ -106,6 +106,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }
 
   const notices = Notices.create({
+    ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
     includeAcknowledged: cmd === 'notices' ? !argv.unacknowledged : false,

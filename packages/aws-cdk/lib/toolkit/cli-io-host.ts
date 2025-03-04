@@ -6,7 +6,7 @@ import { ActivityPrinterProps, CurrentActivityPrinter, HistoryActivityPrinter, I
 import { StackActivityProgress } from '../commands/deploy';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
-export type IoCodeLevel = 'E' | 'W' | 'I';
+export type IoCodeLevel = 'E' | 'W' | 'I' | 'D';
 export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
 export type IoMessageCode = IoMessageSpecificCode<IoCodeLevel>;
 
@@ -114,7 +114,7 @@ export interface IIoHost {
    * Notifies the host of a message.
    * The caller waits until the notification completes.
    */
-  notify<T>(msg: IoMessage<T>): Promise<void>;
+  notify(msg: IoMessage<unknown>): Promise<void>;
 
   /**
    * Notifies the host of a message that requires a response.

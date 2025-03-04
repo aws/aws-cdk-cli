@@ -1,8 +1,10 @@
 import * as util from 'util';
 import * as chalk from 'chalk';
-import { IoMessageLevel, IoMessage, CliIoHost, IoMessageSpecificCode, IoMessageCode, IoMessageCodeCategory, IoCodeLevel } from './toolkit/cli-io-host';
+import { IoMessageLevel, IoMessage, CliIoHost, IoMessageSpecificCode, IoMessageCode, IoMessageCodeCategory, IoCodeLevel, IIoHost, ToolkitAction } from './toolkit/cli-io-host';
 
 /**
+ * Logs messages to the global CliIoHost
+ *
  * Internal helper that processes log inputs into a consistent format.
  * Handles string interpolation, format strings, and object parameter styles.
  * Applies optional styling and sends the message to the IoHost.
@@ -13,27 +15,8 @@ function formatMessageAndLog(
   style?: (str: string) => string,
   ...args: unknown[]
 ): void {
-  // Extract message and code from input, using new default code format
-  const { message, code = getDefaultCode(level) } = typeof input === 'object' ? input : { message: input };
-
-  // Format message if args are provided
-  const formattedMessage = args.length > 0
-    ? util.format(message, ...args)
-    : message;
-
-  // Apply style if provided
-  const finalMessage = style ? style(formattedMessage) : formattedMessage;
-
-  const ioHost = CliIoHost.instance();
-  const ioMessage: IoMessage<undefined> = {
-    time: new Date(),
-    action: ioHost.currentAction,
-    level,
-    message: finalMessage,
-    code,
-  };
-
-  void ioHost.notify(ioMessage);
+  const singletonHost = CliIoHost.instance();
+  new IoHostEmitter(singletonHost, singletonHost.currentAction).emit(level, input, style, ...args);
 }
 
 function getDefaultCode(level: IoMessageLevel, category: IoMessageCodeCategory = 'TOOLKIT'): IoMessageCode {
@@ -132,7 +115,7 @@ export const result = (input: LogInput<'I'>, ...args: unknown[]) => {
  * debug({ message: 'ratio: %d%%', code: 'CDK_TOOLKIT_I001' }, ratio) // specifies info code `CDK_TOOLKIT_I001`
  * ```
  */
-export const debug = (input: LogInput<'I'>, ...args: unknown[]) => {
+export const debug = (input: LogInput<'D'>, ...args: unknown[]) => {
   return formatMessageAndLog('debug', input, undefined, ...args);
 };
 
@@ -147,7 +130,7 @@ export const debug = (input: LogInput<'I'>, ...args: unknown[]) => {
  * trace({ message: 'method: %s', code: 'CDK_TOOLKIT_I001' }, name) // specifies info code `CDK_TOOLKIT_I001`
  * ```
  */
-export const trace = (input: LogInput<'I'>, ...args: unknown[]) => {
+export const trace = (input: LogInput<'D'>, ...args: unknown[]) => {
   return formatMessageAndLog('trace', input, undefined, ...args);
 };
 
@@ -180,3 +163,64 @@ export const success = (input: LogInput<'I'>, ...args: unknown[]) => {
 export const highlight = (input: LogInput<'I'>, ...args: unknown[]) => {
   return formatMessageAndLog('info', input, chalk.bold, ...args);
 };
+
+/**
+ * Helper class to emit messages to an IoHost
+ *
+ * Messages sent to the IoHost require the current action, so this class holds on
+ * to an IoHost and an action.
+ *
+ * It also contains convenience methods for the various log levels, same as the global
+ * ones but scoped to a particular `IoHost` instead of the global singleton one.
+ */
+export class IoHostEmitter {
+  constructor(private readonly ioHost: IIoHost, private readonly action: ToolkitAction) {
+  }
+
+  public error(input: LogInput<'E'>, ...args: unknown[]) {
+    this.emit('error', input, undefined, ...args);
+  }
+
+  public warning(input: LogInput<'W'>, ...args: unknown[]) {
+    this.emit('warn', input, undefined, ...args);
+  }
+
+  public info(input: LogInput<'I'>, ...args: unknown[]) {
+    this.emit('info', input, undefined, ...args);
+  }
+
+  public result(input: LogInput<'I'>, ...args: unknown[]) {
+    this.emit('result', input, undefined, ...args);
+  }
+
+  public debug(input: LogInput<'D'>, ...args: unknown[]) {
+    this.emit('debug', input, undefined, ...args);
+  }
+
+  public trace(input: LogInput<'D'>, ...args: unknown[]) {
+    this.emit('trace', input, undefined, ...args);
+  }
+
+  public emit(level: IoMessageLevel, input: LogInput<IoCodeLevel>, style?: (str: string) => string, ...args: unknown[]) {
+    // Extract message and code from input, using new default code format
+    const { message, code = getDefaultCode(level) } = typeof input === 'object' ? input : { message: input };
+
+    // Format message if args are provided
+    const formattedMessage = args.length > 0
+      ? util.format(message, ...args)
+      : message;
+
+    // Apply style if provided
+    const finalMessage = style ? style(formattedMessage) : formattedMessage;
+
+    const ioMessage: IoMessage<undefined> = {
+      time: new Date(),
+      action: this.action,
+      level,
+      message: finalMessage,
+      code,
+    };
+
+    void this.ioHost.notify(ioMessage);
+  }
+}
