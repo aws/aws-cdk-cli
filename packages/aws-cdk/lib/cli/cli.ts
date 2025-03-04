@@ -1,5 +1,4 @@
 import * as cxapi from '@aws-cdk/cx-api';
-import '@jsii/check-node/run';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { parseCommandLineArguments } from './parse-command-line-arguments';

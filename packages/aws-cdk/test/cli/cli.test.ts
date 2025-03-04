@@ -13,7 +13,6 @@ jest.mock('../../lib/logging', () => ({
 }));
 
 jest.mock('@aws-cdk/cx-api');
-jest.mock('@jsii/check-node/run');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));

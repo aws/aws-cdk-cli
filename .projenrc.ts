@@ -761,7 +761,6 @@ const cli = configureProject(
       cloudFormationDiff,
       cxApi,
       '@aws-cdk/region-info',
-      '@jsii/check-node',
       'archiver',
       ...CLI_SDK_VERSION === '2' ? [
         'aws-sdk',
@@ -1126,7 +1125,6 @@ const toolkitLib = configureProject(
       `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      '@jsii/check-node',
       '@smithy/middleware-endpoint',
       '@smithy/node-http-handler',
       '@smithy/property-provider',
