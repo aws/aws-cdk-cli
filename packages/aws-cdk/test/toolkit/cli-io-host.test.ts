@@ -97,6 +97,38 @@ describe('CliIoHost', () => {
     });
   });
 
+  describe('notices stream selection', () => {
+    const NOTICES_MSG: IoMessage<unknown> = {
+      time: new Date(),
+      level: 'info',
+      action: 'notices',
+      code: 'CDK_TOOLKIT_I0100',
+      message: 'MESSAGE',
+    };
+
+    test('can send notices to stdout', async () => {
+      ioHost.noticesDestination = 'stdout';
+      await ioHost.notify(NOTICES_MSG);
+      // THEN
+      expect(mockStdout).toHaveBeenCalledWith(expect.stringContaining('MESSAGE'));
+    });
+
+    test('can send notices to stderr', async () => {
+      ioHost.noticesDestination = 'stderr';
+      await ioHost.notify(NOTICES_MSG);
+      // THEN
+      expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('MESSAGE'));
+    });
+
+    test('can drop notices', async () => {
+      ioHost.noticesDestination = 'drop';
+      await ioHost.notify(NOTICES_MSG);
+      // THEN
+      expect(mockStdout).not.toHaveBeenCalled();
+      expect(mockStderr).not.toHaveBeenCalled();
+    });
+  });
+
   describe('message formatting', () => {
     beforeEach(() => {
       ioHost.isTTY = true;
