@@ -175,6 +175,7 @@ const repoProject = new yarn.Monorepo({
   repository: 'https://github.com/aws/aws-cdk-cli',
 
   defaultReleaseBranch: 'main',
+  typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
     'cdklabs-projen-project-types',
     'glob',
