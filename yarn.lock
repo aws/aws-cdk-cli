@@ -2460,7 +2460,7 @@
     chalk "^4.1.2"
     semver "^7.6.3"
 
-"@jsii/check-node@1.108.0", "@jsii/check-node@^1.108.0":
+"@jsii/check-node@1.108.0":
   version "1.108.0"
   resolved "https://registry.yarnpkg.com/@jsii/check-node/-/check-node-1.108.0.tgz#d223d97178c84ed470195d532364e59bd66be17b"
   integrity sha512-wa8AGH31Cl0x1jU/KtM6JB32IurBmK1YiX5ZnCndifRCehLnS8DmJCPYrzJbKD4xqmHigaq6696fAnM/L7qIsw==
