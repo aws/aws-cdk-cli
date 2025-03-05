@@ -66,6 +66,15 @@ function generic<T = never>(level: IoMessageLevel, details: CodeInfo): IoMessage
   };
 }
 
+/**
+ * A type that is impossible for a user to replicate
+ * This is used to ensure that results always have a proper type generic declared.
+ */
+declare const privateKey: unique symbol;
+export type ImpossibleType = {
+  readonly [privateKey]: typeof privateKey;
+};
+
 // Create `IoMessageMaker`s for a given level and type check that calls with payload are using the correct interface
 type CodeInfoMaybeInterface<T> = [T] extends [never] ? Omit<CodeInfo, 'interface'> : Required<CodeInfo>;
 
@@ -74,4 +83,4 @@ export const debug = <T = never>(details: CodeInfoMaybeInterface<T>) => generic<
 export const info = <T = never>(details: CodeInfoMaybeInterface<T>) => generic<T>('info', details);
 export const warn = <T = never>(details: CodeInfoMaybeInterface<T>) => generic<T>('warn', details);
 export const error = <T = never>(details: CodeInfoMaybeInterface<T>) => generic<T>('error', details);
-export const result = <T extends object>(details: Required<CodeInfo>) => generic<T extends object ? T : never>('result', details);
+export const result = <T extends object = ImpossibleType>(details: Required<CodeInfo>) => generic<T extends object ? T : never>('result', details);

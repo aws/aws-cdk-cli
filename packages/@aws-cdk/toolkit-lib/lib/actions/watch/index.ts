@@ -38,3 +38,32 @@ export interface WatchOptions extends BaseDeployOptions {
    */
   readonly outdir?: string;
 }
+
+/**
+ * The computed file watch settings
+ */
+export interface WatchSettings {
+  /**
+   * The directory observed for file changes
+   */
+  watchDir: string;
+  /**
+   * List of include patterns for watching files
+   */
+  includes: string[];
+  /**
+   * List of excludes patterns for watching files
+   */
+  excludes: string[];
+}
+
+export interface FileWatchEvent {
+  /**
+   * The change to the path
+   */
+  event: string;
+  /**
+   * The path that has an observed event
+   */
+  path?: string;
+}

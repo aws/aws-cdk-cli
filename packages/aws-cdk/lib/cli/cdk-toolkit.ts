@@ -857,7 +857,6 @@ export class CdkToolkit {
           stack,
           deployName: stack.stackName,
           roleArn: options.roleArn,
-          ci: options.ci,
         });
         success(`\n ✅  %s: ${action}ed`, chalk.blue(stack.displayName));
       } catch (e) {

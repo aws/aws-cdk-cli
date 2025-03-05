@@ -278,9 +278,6 @@ export interface DestroyStackOptions {
   stack: cxapi.CloudFormationStackArtifact;
   deployName?: string;
   roleArn?: string;
-  quiet?: boolean;
-  force?: boolean;
-  ci?: boolean;
 }
 
 export interface StackExistsOptions {
@@ -590,8 +587,6 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
-      quiet: options.quiet,
-      ci: options.ci,
     }, { ioHost: this.ioHost, action: this.action });
   }
 

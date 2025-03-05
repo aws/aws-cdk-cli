@@ -1,7 +1,7 @@
 /* eslint-disable import/no-restricted-paths */
 
 // APIs
-export { formatSdkLoggerContent, SdkProvider } from '../../../../aws-cdk/lib/api/aws-auth';
+export { SdkProvider } from '../../../../aws-cdk/lib/api/aws-auth';
 export { Context, PROJECT_CONTEXT } from '../../../../aws-cdk/lib/api/context';
 export { Deployments, type SuccessfulDeployStackResult } from '../../../../aws-cdk/lib/api/deployments';
 export { Settings } from '../../../../aws-cdk/lib/api/settings';
