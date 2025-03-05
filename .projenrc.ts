@@ -1295,7 +1295,7 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-// Ad a command for the docs
+// Add a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
