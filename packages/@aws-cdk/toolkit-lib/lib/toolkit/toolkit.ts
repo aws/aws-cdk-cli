@@ -20,7 +20,7 @@ import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, SuccessfulDeploy
 import { ICloudAssemblySource, StackSelectionStrategy } from '../api/cloud-assembly';
 import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource, StackAssembly } from '../api/cloud-assembly/private';
 import { IIoHost, IoMessageLevel } from '../api/io';
-import { Timer, confirm, CODES, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
+import { Timer, CODES, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { ActionAwareIoHost, withAction } from '../api/shared-private';
 import { ToolkitAction, ToolkitError } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
@@ -349,7 +349,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         if (diffRequiresApproval(currentTemplate, stack, requireApproval)) {
           const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
           const question = `${motivation}\nDo you wish to deploy these changes`;
-          const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5060, question, motivation, true, concurrency));
+          // const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5060, question, motivation, true, concurrency));
+          const confirmed = await ioHost.requestResponse(CODES.CDK_TOOLKIT_I5060.req(question, {
+            motivation,
+            concurrency,
+          }));
           if (!confirmed) {
             throw new ToolkitError('Aborted by user');
           }
@@ -428,7 +432,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               if (options.force) {
                 await ioHost.notify(CODES.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Rolling back first (--force).`));
               } else {
-                const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5050, question, motivation, true, concurrency));
+                const confirmed = await ioHost.requestResponse(CODES.CDK_TOOLKIT_I5050.req(question, {
+                  motivation,
+                  concurrency,
+                }));
                 if (!confirmed) {
                   throw new ToolkitError('Aborted by user');
                 }
@@ -453,7 +460,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               if (options.force) {
                 await ioHost.notify(CODES.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Proceeding with regular deployment (--force).`));
               } else {
-                const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I5050, question, motivation, true, concurrency));
+                const confirmed = await ioHost.requestResponse(CODES.CDK_TOOLKIT_I5050.req(question, {
+                  motivation,
+                  concurrency,
+                }));
                 if (!confirmed) {
                   throw new ToolkitError('Aborted by user');
                 }
@@ -746,7 +756,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const motivation = 'Destroying stacks is an irreversible action';
     const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
-    const confirmed = await ioHost.requestResponse(confirm(CODES.CDK_TOOLKIT_I7010, question, motivation, true));
+    const confirmed = await ioHost.requestResponse(CODES.CDK_TOOLKIT_I7010.req(question, { motivation }));
     if (!confirmed) {
       return ioHost.notify(CODES.CDK_TOOLKIT_E7010.msg('Aborted by user'));
     }
