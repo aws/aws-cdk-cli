@@ -4,9 +4,9 @@ import { promises as fs } from 'fs';
  * Copy the version from the CLI into the `@aws-cdk/cloud-assembly-schema` package at release time.
  */
 async function main() {
-  const cliVersion = JSON.parse(await fs.readFile('packages/aws-cdk/package.json', 'utf8')).version;
+  const cliVersion = JSON.parse(await fs.readFile(`${__dirname}/../packages/aws-cdk/package.json`, 'utf8')).version;
 
-  const cliVersionFile = 'packages/@aws-cdk/cloud-assembly-schema/cli-version.json';
+  const cliVersionFile = `${__dirname}/../packages/@aws-cdk/cloud-assembly-schema/cli-version.json`;
 
   // We write an empty string if we're in "development mode" to show that we don't really have a version.
   // It's not a missing field so that the `import` statement of that JSON file in TypeScript

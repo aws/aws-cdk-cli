@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@aws-cdk/cdk-build-tools": "^0.0.0",
-    "@aws-cdk/cli-plugin-contract": "^0.0.0",
+    "@aws-cdk/cli-plugin-contract": "^2.179.0",
     "@aws-cdk/node-bundle": "^0.0.0",
     "@aws-cdk/tmp-toolkit-helpers": "^0.0.0",
     "@aws-cdk/user-input-gen": "^0.0.0",
@@ -86,8 +86,8 @@
     "xml-js": "^1.6.11"
   },
   "dependencies": {
-    "@aws-cdk/cloud-assembly-schema": "^0.0.0",
-    "@aws-cdk/cloudformation-diff": "^0.0.0",
+    "@aws-cdk/cloud-assembly-schema": "^40.8.0",
+    "@aws-cdk/cloudformation-diff": "^2.179.0",
     "@aws-cdk/cx-api": "^2.180.0",
     "@aws-cdk/region-info": "^2.180.0",
     "@aws-sdk/client-appsync": "^3",
@@ -124,7 +124,7 @@
     "@smithy/util-waiter": "^4.0.2",
     "archiver": "^7.0.1",
     "camelcase": "^6",
-    "cdk-assets": "^0.0.0",
+    "cdk-assets": "^3.0.0",
     "cdk-from-cfn": "0.162.1",
     "chalk": "^4",
     "chokidar": "^3",
@@ -158,7 +158,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.0.0",
+  "version": "2.1002.1",
   "types": "lib/index.d.ts",
   "exports": {
     "./package.json": "./package.json",

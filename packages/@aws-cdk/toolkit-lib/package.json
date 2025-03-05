@@ -44,7 +44,7 @@
     "@types/split2": "^4.2.3",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "aws-cdk": "^0.0.0",
+    "aws-cdk": "^2.1002.1",
     "aws-cdk-lib": "^2.180.0",
     "aws-sdk-client-mock": "^4.1.0",
     "commit-and-tag-version": "^12",
@@ -67,8 +67,8 @@
     "typescript": "5.6"
   },
   "dependencies": {
-    "@aws-cdk/cloud-assembly-schema": "^0.0.0",
-    "@aws-cdk/cloudformation-diff": "^0.0.0",
+    "@aws-cdk/cloud-assembly-schema": "^40.8.0",
+    "@aws-cdk/cloudformation-diff": "^2.179.0",
     "@aws-cdk/cx-api": "^2.180.0",
     "@aws-cdk/region-info": "^2.180.0",
     "@aws-sdk/client-appsync": "^3",
@@ -102,7 +102,7 @@
     "@smithy/util-waiter": "^4.0.2",
     "archiver": "^7.0.1",
     "camelcase": "^6",
-    "cdk-assets": "^0.0.0",
+    "cdk-assets": "^3.0.0",
     "cdk-from-cfn": "^0.191.0",
     "chalk": "^4",
     "chokidar": "^3",
@@ -136,7 +136,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.0.0",
+  "version": "0.1.4",
   "types": "lib/index.d.ts",
   "exports": {
     ".": {

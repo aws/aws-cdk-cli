@@ -90,7 +90,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.0.0",
+  "version": "40.8.0",
   "types": "lib/index.d.ts",
   "stability": "stable",
   "jsii": {

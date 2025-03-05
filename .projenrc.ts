@@ -379,7 +379,7 @@ new JsiiBuild(cloudAssemblySchema, {
   //
   // Crucially, this must also run during release after bumping, but that is satisfied already
   // by making it part of preCompile, because that makes it run as part of projen build.
-  cloudAssemblySchema.preCompileTask.exec('tsx projenrc/copy-cli-version-to-assembly.task.ts');
+  cloudAssemblySchema.preCompileTask.exec('tsx ../../../projenrc/copy-cli-version-to-assembly.task.ts');
   cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
 
   cloudAssemblySchema.addPackageIgnore('*.ts');
