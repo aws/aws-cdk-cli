@@ -660,7 +660,7 @@ export class Deployments {
     await publisher.publishEntry(asset, {
       allowCrossAccount: await this.allowCrossAccountAssetPublishingForEnv(options.stack),
       force: options.forcePublish,
-     });
+    });
     if (publisher.hasFailures) {
       throw new ToolkitError(`Failed to publish asset ${asset.displayName(true)}`);
     }
