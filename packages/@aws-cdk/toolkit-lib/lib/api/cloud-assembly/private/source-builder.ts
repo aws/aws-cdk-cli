@@ -6,7 +6,7 @@ import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
 import { ToolkitServices } from '../../../toolkit/private';
 import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
-import { CODES, debug } from '../../io/private';
+import { CODES } from '../../io/private';
 import { ToolkitError } from '../../shared-public';
 import { AssemblyBuilder } from '../source-builder';
 
@@ -76,7 +76,7 @@ export abstract class CloudAssemblySourceBuilder {
       {
         produce: async () => {
           // @todo build
-          await services.ioHost.notify(debug('--app points to a cloud assembly, so we bypass synth'));
+          await services.ioHost.notify(CODES.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
           return assemblyFromDirectory(directory, services.ioHost);
         },
       },

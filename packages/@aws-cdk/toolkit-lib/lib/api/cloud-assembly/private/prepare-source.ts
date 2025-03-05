@@ -1,5 +1,6 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { format } from 'node:util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
@@ -7,7 +8,7 @@ import { lte } from 'semver';
 import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, versionNumber } from '../../../api/aws-cdk';
 import { splitBySize } from '../../../private/util';
 import { ToolkitServices } from '../../../toolkit/private';
-import { asLogger, CODES } from '../../io/private';
+import { CODES } from '../../io/private';
 import { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions } from '../source-builder';
@@ -37,7 +38,7 @@ export function determineOutputDirectory(outdir?: string) {
  * @param context The context key/value bash.
  */
 export async function prepareDefaultEnvironment(services: ToolkitServices, props: { outdir?: string } = {}): Promise<Env> {
-  const logFn = asLogger(services.ioHost, 'ASSEMBLY').debug;
+  const logFn = (msg: string, ...args: any) => services.ioHost.notify(CODES.CDK_ASSEMBLY_I0010.msg(format(msg, ...args)));
   const env = await oldPrepare(services.sdkProvider, logFn);
 
   if (props.outdir) {
@@ -130,7 +131,6 @@ export async function withContext<T>(
  * @param assembly the assembly to check
  */
 export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHost: ActionAwareIoHost): Promise<void> {
-  const logFn = asLogger(ioHost, 'ASSEMBLY').warn;
   const tree = loadTree(assembly);
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;
@@ -142,7 +142,7 @@ export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly,
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
   if (frameworkDoesNotSupportContextOverflow) {
-    await logFn('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.');
+    await ioHost.notify(CODES.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
   }
 }
 

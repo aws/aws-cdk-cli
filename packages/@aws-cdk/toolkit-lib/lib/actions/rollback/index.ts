@@ -1,3 +1,4 @@
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface RollbackOptions {
@@ -41,4 +42,21 @@ export interface RollbackOptions {
    * @default true
    */
   readonly validateBootstrapStackVersion?: boolean;
+}
+
+export interface StackRollbackProgress {
+  /**
+   * The total number of stacks being rolled back
+   */
+  total: number;
+  /**
+   * The count of the stack currently attempted to be rolled back
+   *
+   * This is counting value, not an identifier.
+   */
+  current: number;
+  /**
+   * The stack that's currently being rolled back
+   */
+  stack: CloudFormationStackArtifact;
 }
