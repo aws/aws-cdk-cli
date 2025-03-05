@@ -697,10 +697,13 @@ export class CdkToolkit {
     // --------------                --------  'cdk deploy' done  --------------  'cdk deploy' done  --------------
     let latch: 'pre-ready' | 'open' | 'deploying' | 'queued' = 'pre-ready';
 
-    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor() : undefined;
+    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({
+      action: 'watch',
+      ioHost: this.ioHost,
+    }) : undefined;
     const deployAndWatch = async () => {
       latch = 'deploying';
-      cloudWatchLogMonitor?.deactivate();
+      await cloudWatchLogMonitor?.deactivate();
 
       await this.invokeDeployFromWatch(options, cloudWatchLogMonitor);
 
@@ -714,7 +717,7 @@ export class CdkToolkit {
         await this.invokeDeployFromWatch(options, cloudWatchLogMonitor);
       }
       latch = 'open';
-      cloudWatchLogMonitor?.activate();
+      await cloudWatchLogMonitor?.activate();
     };
 
     chokidar

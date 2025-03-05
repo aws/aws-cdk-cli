@@ -1,39 +1,12 @@
 import * as util from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { info, error } from '../../logging';
+import * as uuid from 'uuid';
+import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
+import type { CloudWatchLogEvent } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { flatten } from '../../util';
 import type { SDK } from '../aws-auth';
-
-/**
- * After reading events from all CloudWatch log groups
- * how long should we wait to read more events.
- *
- * If there is some error with reading events (i.e. Throttle)
- * then this is also how long we wait until we try again
- */
-const SLEEP = 2_000;
-
-/**
- * Represents a CloudWatch Log Event that will be
- * printed to the terminal
- */
-interface CloudWatchLogEvent {
-  /**
-   * The log event message
-   */
-  readonly message: string;
-
-  /**
-   * The name of the log group
-   */
-  readonly logGroupName: string;
-
-  /**
-   * The time at which the event occurred
-   */
-  readonly timestamp: Date;
-}
 
 /**
  * Configuration tracking information on the log groups that are
@@ -54,6 +27,20 @@ interface LogGroupsAccessSettings {
   readonly logGroupsStartTimes: { [logGroupName: string]: number };
 }
 
+export interface CloudWatchLogEventMonitorProps {
+  /**
+   * The IoHost used for messaging
+   */
+  readonly ioHelper: IoHelper;
+
+  /**
+   * The time from which we start reading log messages
+   *
+   * @default - now
+   */
+  readonly startTime?: Date;
+}
+
 export class CloudWatchLogEventMonitor {
   /**
    * Determines which events not to display
@@ -65,18 +52,36 @@ export class CloudWatchLogEventMonitor {
    */
   private readonly envsLogGroupsAccessSettings = new Map<string, LogGroupsAccessSettings>();
 
-  private active = false;
+  /**
+   * After reading events from all CloudWatch log groups
+   * how long should we wait to read more events.
+   *
+   * If there is some error with reading events (i.e. Throttle)
+   * then this is also how long we wait until we try again
+   */
+  private readonly pollingInterval: number = 2_000;
 
-  constructor(startTime?: Date) {
-    this.startTime = startTime?.getTime() ?? Date.now();
+  public monitorId?: string;
+  private readonly ioHelper: IoHelper;
+
+  constructor(props: CloudWatchLogEventMonitorProps) {
+    this.startTime = props.startTime?.getTime() ?? Date.now();
+    this.ioHelper = props.ioHelper;
   }
 
   /**
    * resume reading/printing events
    */
-  public activate(): void {
-    this.active = true;
-    this.scheduleNextTick(0);
+  public async activate(): Promise<void> {
+    this.monitorId = uuid.v4();
+
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5032.msg('Start monitoring log groups', {
+      monitor: this.monitorId,
+      logGroupNames: this.logGroupNames(),
+    }));
+
+    await this.tick();
+    this.scheduleNextTick();
   }
 
   /**
@@ -88,9 +93,16 @@ export class CloudWatchLogEventMonitor {
    * Also resets the start time to be when the new deployment was triggered
    * and clears the list of tracked log groups
    */
-  public deactivate(): void {
-    this.active = false;
+  public async deactivate(): Promise<void> {
+    const oldMonitorId = this.monitorId!;
+    this.monitorId = undefined;
     this.startTime = Date.now();
+
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5034.msg('Stopped monitoring log groups', {
+      monitor: oldMonitorId,
+      logGroupNames: this.logGroupNames(),
+    }));
+
     this.envsLogGroupsAccessSettings.clear();
   }
 
@@ -119,27 +131,41 @@ export class CloudWatchLogEventMonitor {
     });
   }
 
-  private scheduleNextTick(sleep: number): void {
-    setTimeout(() => void this.tick(), sleep);
+  private logGroupNames(): string[] {
+    return Array.from(this.envsLogGroupsAccessSettings.values()).flatMap((settings) => Object.keys(settings.logGroupsStartTimes));
+  }
+
+  private scheduleNextTick(): void {
+    if (!this.monitorId) {
+      return;
+    }
+
+    setTimeout(() => void this.tick(), this.pollingInterval);
   }
 
   private async tick(): Promise<void> {
     // excluding from codecoverage because this
     // doesn't always run (depends on timing)
-    /* istanbul ignore next */
-    if (!this.active) {
+    /* c8 ignore next */
+    if (!this.monitorId) {
       return;
     }
+
     try {
       const events = flatten(await this.readNewEvents());
-      events.forEach((event) => {
-        this.print(event);
-      });
-    } catch (e) {
-      error('Error occurred while monitoring logs: %s', e);
+      for (const event of events) {
+        await this.print(event);
+      }
+
+      // We might have been stop()ped while the network call was in progress.
+      if (!this.monitorId) {
+        return;
+      }
+    } catch (e: any) {
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_E5035.msg('Error occurred while monitoring logs: %s', { error: e }));
     }
 
-    this.scheduleNextTick(SLEEP);
+    this.scheduleNextTick();
   }
 
   /**
@@ -161,15 +187,16 @@ export class CloudWatchLogEventMonitor {
   /**
    * Print out a cloudwatch event
    */
-  private print(event: CloudWatchLogEvent): void {
-    info(
+  private async print(event: CloudWatchLogEvent): Promise<void> {
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5033.msg(
       util.format(
         '[%s] %s %s',
         chalk.blue(event.logGroupName),
         chalk.yellow(event.timestamp.toLocaleTimeString()),
         event.message.trim(),
       ),
-    );
+      event,
+    ));
   }
 
   /**
