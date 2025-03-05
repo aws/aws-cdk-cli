@@ -377,12 +377,12 @@ new JsiiBuild(cloudAssemblySchema, {
 
   // This file will be generated at release time. It needs to be gitignored or it will
   // fail projen's "no tamper" check, which means it must also be generated every build time.
-  cloudAssemblySchema.preCompileTask.exec('[[ -f cli-version.json ]] || echo \'{ "version": "" }\' > cli-version.json');
+  cloudAssemblySchema.preCompileTask.exec('tsx projenrc/copy-cli-version-to-assembly.task.ts');
   cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
 
   cloudAssemblySchema.addPackageIgnore('*.ts');
   cloudAssemblySchema.addPackageIgnore('!*.d.ts');
-  cloudAssemblySchema.addPackageIgnore('** /scripts');
+  cloudAssemblySchema.addPackageIgnore('**/scripts');
 })();
 
 new InsertTaskStep(repoProject, {

@@ -6,9 +6,14 @@ import { promises as fs } from 'fs';
 async function main() {
   const cliVersion = JSON.parse(await fs.readFile('packages/aws-cdk/package.json', 'utf8')).version;
 
-  if (cliVersion !== '0.0.0') {
-    await fs.writeFile('packages/@aws-cdk/cloud-assembly-schema/cli-version.json', JSON.stringify({ version: cliVersion }), 'utf8');
-  }
+  const cliVersionFile = 'packages/@aws-cdk/cloud-assembly-schema/cli-version.json';
+
+  // We write an empty string if we're in "development mode" to show that we don't really have a version.
+  // It's not a missing field so that the `import` statement of that JSON file in TypeScript
+  // always knows the version field is there, and its value is a string.
+  const advertisedVersion = cliVersion !== '0.0.0' ? cliVersion : '';
+
+  await fs.writeFile(cliVersionFile, JSON.stringify({ version: advertisedVersion }), 'utf8');
 }
 
 main().catch(e => {
