@@ -276,7 +276,7 @@ interface PublishStackAssetsOptions extends AssetOptions {
   /**
    * Always publish, even if it already exists
    *
-   * @default False
+   * @default false
    */
   readonly forcePublish?: boolean;
 }
