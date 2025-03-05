@@ -7,27 +7,6 @@ import type { ActionAwareIoHost, IoMessageCodeCategory } from '../../shared-priv
 import type { ToolkitAction } from '../../shared-public';
 
 /**
- * An IoHost wrapper that adds the given action to an actionless message before
- * sending the message to the given IoHost
- */
-export function withAction(ioHost: IIoHost, action: ToolkitAction) {
-  return {
-    notify: async <T>(msg: Omit<IoMessage<T>, 'action'>) => {
-      await ioHost.notify({
-        ...msg,
-        action,
-      });
-    },
-    requestResponse: async <T, U>(msg: Omit<IoRequest<T, U>, 'action'>) => {
-      return ioHost.requestResponse({
-        ...msg,
-        action,
-      });
-    },
-  };
-}
-
-/**
  * An IoHost wrapper that strips out ANSI colors and styles from the message before
  * sending the message to the given IoHost
  */
