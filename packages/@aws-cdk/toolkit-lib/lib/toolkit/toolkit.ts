@@ -509,7 +509,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       } finally {
         if (options.traceLogs) {
           // deploy calls that originate from watch will come with their own cloudWatchLogMonitor
-          const cloudWatchLogMonitor = options.cloudWatchLogMonitor ?? new CloudWatchLogEventMonitor();
+          const cloudWatchLogMonitor = options.cloudWatchLogMonitor ?? new CloudWatchLogEventMonitor({ action, ioHost });
           const foundLogGroupsResult = await findCloudWatchLogGroups(await this.sdkProvider('deploy'), { ioHost, action }, stack);
           cloudWatchLogMonitor.addLogGroups(
             foundLogGroupsResult.env,
@@ -618,10 +618,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // --------------                --------  'cdk deploy' done  --------------  'cdk deploy' done  --------------
     let latch: 'pre-ready' | 'open' | 'deploying' | 'queued' = 'pre-ready';
 
-    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor() : undefined;
+    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({ ioHost, action: 'watch' }) : undefined;
     const deployAndWatch = async () => {
       latch = 'deploying';
-      cloudWatchLogMonitor?.deactivate();
+      await cloudWatchLogMonitor?.deactivate();
 
       await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
 
@@ -635,7 +635,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
       }
       latch = 'open';
-      cloudWatchLogMonitor?.activate();
+      await cloudWatchLogMonitor?.activate();
     };
 
     chokidar

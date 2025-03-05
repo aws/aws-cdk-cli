@@ -1,6 +1,6 @@
 import type { CloudFormationStackArtifact, Environment } from '@aws-cdk/cx-api';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import { debug } from '../../logging';
+import { debug } from '../../cli/messages';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
@@ -47,7 +47,7 @@ export async function findCloudWatchLogGroups(
   try {
     sdk = (await new EnvironmentAccess(sdkProvider, DEFAULT_TOOLKIT_STACK_NAME, msg).accessStackForLookup(stackArtifact)).sdk;
   } catch (e: any) {
-    debug(`Failed to access SDK environment: ${formatErrorMessage(e)}`);
+    await msg.ioHost.notify(debug(msg.action, `Failed to access SDK environment: ${formatErrorMessage(e)}`));
     sdk = (await sdkProvider.forEnvironment(resolvedEnv, Mode.ForReading)).sdk;
   }
 
