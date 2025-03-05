@@ -17,7 +17,7 @@ import { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
 import { replaceEnvPlaceholders } from '../api/util/placeholders';
 import { debug } from '../logging';
 import { ContextProviderError } from '../toolkit/error';
-import { formatErrorMessage } from '../util/format-error';
+import { formatErrorMessage } from '../util';
 
 export type ContextProviderFactory = ((sdk: SdkProvider) => ContextProviderPlugin);
 export type ProviderMap = {[name: string]: ContextProviderFactory};

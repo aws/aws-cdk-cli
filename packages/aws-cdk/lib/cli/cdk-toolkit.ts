@@ -52,11 +52,7 @@ import { listStacks } from '../list-stacks';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
 import { CliIoHost } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
-import { numberFromBool, partition } from '../util';
-import { validateSnsTopicArn } from '../util/cloudformation';
-import { formatErrorMessage } from '../util/format-error';
-import { deserializeStructure, obscureTemplate, serializeStructure } from '../util/serialize';
-import { formatTime } from '../util/string-manipulation';
+import { numberFromBool, partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -1,7 +1,7 @@
 
 import * as util from 'util';
 import { StackEvent } from '@aws-sdk/client-cloudformation';
-import { padLeft } from '../../util/string-manipulation';
+import { padLeft } from '../../util';
 
 export interface StackProgress {
   /**

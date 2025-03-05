@@ -1,5 +1,3 @@
-
-import '@jsii/check-node/run';
 import { DefaultSelection, ExtendedStackSelection, type StackDetails } from './api/cxapp/cloud-assembly';
 import { CdkToolkit } from './cli/cdk-toolkit';
 

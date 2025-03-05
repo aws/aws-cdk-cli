@@ -1,32 +1,10 @@
 import * as util from 'node:util';
 import type { Logger } from '@smithy/types';
-import type { IoMessage, IoMessageLevel, IoRequest } from '../io-message';
+import type { IoMessage, IoMessageLevel, IoRequest, IIoHost } from '../';
 import { debug, error, info, defaultMessageCode, trace, warn } from './messages';
-import type { ActionAwareIoHost, IoMessageCodeCategory } from './types';
-import type { ToolkitAction } from '../../../toolkit';
 import { formatSdkLoggerContent } from '../../aws-cdk';
-import type { IIoHost } from '../io-host';
-
-/**
- * An IoHost wrapper that adds the given action to an actionless message before
- * sending the message to the given IoHost
- */
-export function withAction(ioHost: IIoHost, action: ToolkitAction) {
-  return {
-    notify: async <T>(msg: Omit<IoMessage<T>, 'action'>) => {
-      await ioHost.notify({
-        ...msg,
-        action,
-      });
-    },
-    requestResponse: async <T, U>(msg: Omit<IoRequest<T, U>, 'action'>) => {
-      return ioHost.requestResponse({
-        ...msg,
-        action,
-      });
-    },
-  };
-}
+import type { ActionAwareIoHost, IoMessageCodeCategory } from '../../shared-private';
+import type { ToolkitAction } from '../../shared-public';
 
 /**
  * An IoHost wrapper that strips out ANSI colors and styles from the message before

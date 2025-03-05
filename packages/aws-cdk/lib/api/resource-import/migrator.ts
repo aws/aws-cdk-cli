@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import { ImportDeploymentOptions, ResourceImporter } from './importer';
 import { info } from '../../cli/messages';
 import type { IIoHost, ToolkitAction } from '../../toolkit/cli-io-host';
-import { formatTime } from '../../util/string-manipulation';
+import { formatTime } from '../../util';
 import { StackCollection } from '../cxapp/cloud-assembly';
 import type { Deployments, ResourcesToImport } from '../deployments';
 

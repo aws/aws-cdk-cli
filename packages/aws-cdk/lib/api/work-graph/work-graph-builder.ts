@@ -4,7 +4,7 @@ import { WorkGraph } from './work-graph';
 import { DeploymentState, AssetBuildNode, WorkNode } from './work-graph-types';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { contentHashAny } from '../../util/content-hash';
+import { contentHashAny } from '../../util';
 
 export class WorkGraphBuilder {
   /**
@@ -62,7 +62,7 @@ export class WorkGraphBuilder {
       const node: AssetBuildNode = {
         type: 'asset-build',
         id: buildId,
-        note: assetId,
+        note: asset.displayName(false),
         dependencies: new Set([
           ...this.stackArtifactIds(assetManifestArtifact.dependencies),
           // If we disable prebuild, then assets inherit (stack) dependencies from their parent stack
@@ -83,7 +83,7 @@ export class WorkGraphBuilder {
       this.graph.addNodes({
         type: 'asset-publish',
         id: publishId,
-        note: `${asset.id}`,
+        note: asset.displayName(true),
         dependencies: new Set([
           buildId,
         ]),

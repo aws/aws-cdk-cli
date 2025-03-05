@@ -1,7 +1,11 @@
 import * as chalk from 'chalk';
-import type { IoMessageCode, IoMessageLevel } from '../io-message';
-import { CodeInfo } from './codes';
-import type { ActionLessMessage, ActionLessRequest, IoMessageCodeCategory, Optional, SimplifiedMessage } from './types';
+import type { IoMessageCode, IoMessageLevel } from '../';
+import type { ActionLessMessage, ActionLessRequest, Optional, SimplifiedMessage, IoMessageCodeCategory } from '../../shared-private';
+
+interface CodeInfo {
+  code: IoMessageCode;
+  level: IoMessageLevel;
+}
 
 /**
  * Internal helper that processes log inputs into a consistent format.
@@ -29,7 +33,6 @@ export function defaultMessageCode(level: IoMessageLevel, category: IoMessageCod
   const code = `CDK_${category}_${levelIndicator}0000` as IoMessageCode;
   return {
     code,
-    description: `Generic ${level} message for CDK_${category}`,
     level,
   };
 }

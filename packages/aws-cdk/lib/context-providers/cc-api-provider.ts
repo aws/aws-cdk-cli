@@ -3,7 +3,7 @@ import { ICloudControlClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import { ContextProviderPlugin } from '../api/plugin';
 import { ContextProviderError } from '../toolkit/error';
-import { findJsonValue, getResultObj } from '../util/json';
+import { findJsonValue, getResultObj } from '../util';
 
 export class CcApiContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider) {

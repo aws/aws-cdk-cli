@@ -5,6 +5,13 @@ import { AwsDestination } from './aws-destination';
  */
 export interface FileAsset {
   /**
+   * A display name for this asset
+   *
+   * @default - The identifier will be used as the display name
+   */
+  readonly displayName?: string;
+
+  /**
    * Source description for file assets
    */
   readonly source: FileSource;

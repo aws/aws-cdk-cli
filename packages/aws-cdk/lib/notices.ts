@@ -12,8 +12,7 @@ import { versionNumber } from './cli/version';
 import { debug, info, warning, error } from './logging';
 import { ToolkitError } from './toolkit/error';
 import { ConstructTreeNode, loadTreeFromDir } from './tree';
-import { cdkCacheDir } from './util/directories';
-import { formatErrorMessage } from './util/format-error';
+import { cdkCacheDir, formatErrorMessage } from './util';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 

@@ -27,7 +27,7 @@ import {
 import { debug, warn } from '../../cli/messages';
 import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
@@ -634,7 +634,7 @@ export class Deployments {
     const publisher = this.cachedPublisher(assetManifest, resolvedEnvironment, options.stackName);
     await publisher.buildEntry(asset);
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to build asset ${asset.id}`);
+      throw new ToolkitError(`Failed to build asset ${asset.displayName(false)}`);
     }
   }
 
@@ -652,7 +652,7 @@ export class Deployments {
     const publisher = this.cachedPublisher(assetManifest, stackEnv, options.stackName);
     await publisher.publishEntry(asset, { allowCrossAccount: await this.allowCrossAccountAssetPublishingForEnv(options.stack) });
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to publish asset ${asset.id}`);
+      throw new ToolkitError(`Failed to publish asset ${asset.displayName(true)}`);
     }
   }
 

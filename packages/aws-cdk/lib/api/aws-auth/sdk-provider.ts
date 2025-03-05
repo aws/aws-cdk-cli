@@ -13,7 +13,7 @@ import { SDK } from './sdk';
 import { callTrace, traceMemberMethods } from './tracing';
 import { debug, warning } from '../../logging';
 import { AuthenticationError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import { Mode } from '../plugin/mode';
 
 export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>>;
