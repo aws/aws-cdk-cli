@@ -13,6 +13,13 @@ export interface PublishOptions {
    * @default true
    */
   readonly allowCrossAccount?: boolean;
+
+  /**
+   * Always upload, even if the target file already exists
+   *
+   * @default false
+   */
+  readonly force?: boolean;
 }
 
 /**

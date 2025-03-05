@@ -272,6 +272,13 @@ interface PublishStackAssetsOptions extends AssetOptions {
    * Stack name this asset is for
    */
   readonly stackName?: string;
+
+  /**
+   * Always publish, even if it already exists
+   *
+   * @default False
+   */
+  readonly forcePublish?: boolean;
 }
 
 export interface DestroyStackOptions {
@@ -650,7 +657,10 @@ export class Deployments {
 
     // No need to validate anymore, we already did that during build
     const publisher = this.cachedPublisher(assetManifest, stackEnv, options.stackName);
-    await publisher.publishEntry(asset, { allowCrossAccount: await this.allowCrossAccountAssetPublishingForEnv(options.stack) });
+    await publisher.publishEntry(asset, {
+      allowCrossAccount: await this.allowCrossAccountAssetPublishingForEnv(options.stack),
+      force: options.forcePublish,
+     });
     if (publisher.hasFailures) {
       throw new ToolkitError(`Failed to publish asset ${asset.displayName(true)}`);
     }
