@@ -18,12 +18,12 @@ export class InsertTaskStep extends Component {
     }
 
     // Find the bump task, and do the CLI version copy straight after
-    const bumpIx = task.steps.findIndex(s => s.exec === this.props.beforeExec);
-    if (bumpIx === -1) {
+    const stepIx = task.steps.findIndex(s => s.exec === this.props.beforeExec);
+    if (stepIx === -1) {
       throw new Error(`Did not find step: ${this.props.beforeExec}`);
     }
 
     // Accessing internals like a dirty boi
-    (task as any)._steps.splice(bumpIx, 0, ...this.props.insertSteps);
+    (task as any)._steps.splice(stepIx, 0, ...this.props.insertSteps);
   }
 }
