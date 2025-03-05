@@ -79,11 +79,11 @@ export const CODES = {
     code: 'CDK_TOOLKIT_I5002',
     description: 'Provides time for resource migration',
   }),
-  CDK_TOOLKIT_I5021: make.warn({
+  CDK_TOOLKIT_W5021: make.warn({
     code: 'CDK_TOOLKIT_W5021',
     description: 'Empty non-existent stack, deployment is skipped',
   }),
-  CDK_TOOLKIT_I5022: make.warn({
+  CDK_TOOLKIT_W5022: make.warn({
     code: 'CDK_TOOLKIT_W5022',
     description: 'Empty existing stack, stack will be destroyed',
   }),
