@@ -143,9 +143,7 @@ jobs:
           - init-typescript-lib
           - tool-integrations
   integ:
-    needs:
-      - prepare
-      - integ_matrix
+    needs: integ_matrix
     runs-on: aws-cdk_ubuntu-latest_4-core
     permissions: {}
     if: always()
@@ -153,5 +151,5 @@ jobs:
       - name: Integ test result
         run: echo ${{ needs.integ_matrix.result }}
       - name: Set status based on matrix job
-        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.prepare.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_matrix.result)) }}
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.integ_matrix.result) }}
         run: exit 1

@@ -6,11 +6,11 @@ import { GitHubToken, stringifyList } from './util';
 const OSDS_DEVS = ['ashishdhingra', 'khushail', 'hunhsieh'];
 const AREA_AFFIXES = ['@aws-cdk/'];
 const AREA_PARAMS = [
-  { area: '@aws-cdk/cli-lib-alpha', keywords: ['cli', 'cli-lib', 'cli-lib-alpha'], labels: ['@aws-cdk/cli-lib-alpha'] },
+  { area: '@aws-cdk/cli-lib-alpha', keywords: ['cli-lib', 'cli-lib-alpha'], labels: ['@aws-cdk/cli-lib-alpha'] },
   { area: '@aws-cdk/cloud-assembly-schema', keywords: ['cloud-assembly', 'schema'], labels: ['@aws-cdk/cloud-assembly-schema'] },
   { area: '@aws-cdk/cloudformation-diff', keywords: ['diff', 'cloudformation'], labels: ['@aws-cdk/cloudformation-diff'] },
   { area: '@aws-cdk/toolkit-lib', keywords: ['toolkit', 'programmtic toolkit', 'toolkit-lib'], labels: ['@aws-cdk/toolkit-lib'] },
-  { area: 'aws-cdk', keywords: ['aws-cdk', 'cli', 'cdk cli'], labels: ['aws-cdk'] },
+  { area: 'aws-cdk', keywords: ['aws-cdk', 'cli', 'cdk cli', 'cdk'], labels: ['aws-cdk'] },
   { area: 'cdk-assets', keywords: ['assets', 'cdk-assets'], labels: ['cdk-assets'] },
 ];
 
