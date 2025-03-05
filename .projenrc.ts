@@ -6,7 +6,6 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
-import { InsertTaskStep } from './projenrc/insert-task-step';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
@@ -377,6 +376,9 @@ new JsiiBuild(cloudAssemblySchema, {
 
   // This file will be generated at release time. It needs to be gitignored or it will
   // fail projen's "no tamper" check, which means it must also be generated every build time.
+  //
+  // Crucially, this must also run during release after bumping, but that is satisfied already
+  // by making it part of preCompile, because that makes it run as part of projen build.
   cloudAssemblySchema.preCompileTask.exec('tsx projenrc/copy-cli-version-to-assembly.task.ts');
   cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
 
@@ -384,14 +386,6 @@ new JsiiBuild(cloudAssemblySchema, {
   cloudAssemblySchema.addPackageIgnore('!*.d.ts');
   cloudAssemblySchema.addPackageIgnore('**/scripts');
 })();
-
-new InsertTaskStep(repoProject, {
-  taskName: 'release',
-  insertSteps: [
-    { exec: 'ts-node projenrc/copy-cli-version-to-assembly.task.ts' },
-  ],
-  beforeExec: 'yarn workspaces run build',
-});
 
 //////////////////////////////////////////////////////////////////////
 
