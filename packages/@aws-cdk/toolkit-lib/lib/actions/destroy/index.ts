@@ -14,7 +14,7 @@ export interface DestroyOptions {
   /**
    * Change stack watcher output to CI mode.
    *
-   * @deprecated Implement in IoHost instead
+   * @deprecated has no effect, please implement in IoHost instead
    */
   readonly ci?: boolean;
 }

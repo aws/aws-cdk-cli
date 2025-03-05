@@ -664,8 +664,6 @@ export interface DestroyStackOptions {
   sdk: SDK;
   roleArn?: string;
   deployName?: string;
-  quiet?: boolean;
-  ci?: boolean;
 }
 
 export async function destroyStack(options: DestroyStackOptions, { ioHost, action }: IoMessaging) {

@@ -738,7 +738,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
-            ci: options.ci,
           });
           await ioHost.notify(success(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`));
         } catch (e) {
