@@ -1,3 +1,4 @@
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface DestroyOptions {
@@ -17,4 +18,21 @@ export interface DestroyOptions {
    * @deprecated has no effect, please implement in IoHost instead
    */
   readonly ci?: boolean;
+}
+
+export interface StackDestroyProgress {
+  /**
+   * The total number of stacks being destroyed
+   */
+  total: number;
+  /**
+   * The count of the stack currently attempted to be destroyed
+   *
+   * This is counting value, not an identifier.
+   */
+  current: number;
+  /**
+   * The stack that's currently being destroyed
+   */
+  stack: CloudFormationStackArtifact;
 }
