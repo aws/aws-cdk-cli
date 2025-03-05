@@ -46,20 +46,28 @@ export const confirm = (
   motivation: string,
   defaultResponse: boolean,
   concurrency?: number,
+  permissionChangeType?: string,
 ): ActionLessRequest<{
   motivation: string;
   concurrency?: number;
 }, boolean> => {
-  return prompt(code, `${chalk.cyan(question)} (y/n)?`, defaultResponse, {
-    motivation,
-    concurrency,
-  });
+  return prompt(
+    code,
+    `${chalk.cyan(question)} (y/n)?`,
+    defaultResponse,
+    { motivation, concurrency, approvalLevel: permissionChangeType },
+  );
 };
 
 /**
  * Prompt for a response from the IoHost.
  */
-export const prompt = <T, U>(code: CodeInfo, message: string, defaultResponse: U, payload?: T): ActionLessRequest<T, U> => {
+export const prompt = <T, U>(
+  code: CodeInfo,
+  message: string,
+  defaultResponse: U,
+  payload?: T,
+): ActionLessRequest<T, U> => {
   return {
     defaultResponse,
     ...formatMessage({

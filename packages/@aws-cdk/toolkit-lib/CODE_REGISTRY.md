@@ -12,7 +12,7 @@
 | CDK_TOOLKIT_I5002 | Provides time for resource migration | info | n/a |
 | CDK_TOOLKIT_I5031 | Informs about any log groups that are traced as part of the deployment | info | n/a |
 | CDK_TOOLKIT_I5050 | Confirm rollback during deployment | info | n/a |
-| CDK_TOOLKIT_I5060 | Confirm deploy security sensitive changes | info | n/a |
+| CDK_TOOLKIT_I5060 | Confirm deploy security sensitive changes, depending on approval level | info | n/a |
 | CDK_TOOLKIT_I5501 | Stack Monitoring: Start monitoring of a single stack | info | [StackMonitoringControlEvent](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/StackMonitoringControlEvent.html) |
 | CDK_TOOLKIT_I5502 | Stack Monitoring: Activity event for a single stack | info | [StackActivity](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/StackActivity.html) |
 | CDK_TOOLKIT_I5503 | Stack Monitoring: Finished monitoring of a single stack | info | [StackMonitoringControlEvent](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/StackMonitoringControlEvent.html) |
