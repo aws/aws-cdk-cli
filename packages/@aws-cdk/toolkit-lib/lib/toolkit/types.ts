@@ -1,3 +1,4 @@
+import { PermissionChangeType } from '../actions/diff/private';
 import { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
 /**
@@ -113,5 +114,8 @@ export interface ConfirmationRequest {
  * what kind of change is being made.
  */
 export interface DeployConfirmationRequest extends ConfirmationRequest {
-  readonly permissionChangeType?: 'none' | 'non-broadening' | 'broadening';
+  /**
+   * The type of change being made to the IAM permissions.
+   */
+  readonly permissionChangeType?: PermissionChangeType;
 }
