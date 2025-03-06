@@ -1,4 +1,4 @@
-import { PermissionChangeType } from '../actions/diff/private';
+import type { PermissionChangeType } from '../actions/diff/private';
 import type { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
 /**
