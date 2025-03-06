@@ -46,24 +46,24 @@ export interface WatchSettings {
   /**
    * The directory observed for file changes
    */
-  watchDir: string;
+  readonly watchDir: string;
   /**
    * List of include patterns for watching files
    */
-  includes: string[];
+  readonly includes: string[];
   /**
    * List of excludes patterns for watching files
    */
-  excludes: string[];
+  readonly excludes: string[];
 }
 
 export interface FileWatchEvent {
   /**
    * The change to the path
    */
-  event: string;
+  readonly event: string;
   /**
    * The path that has an observed event
    */
-  path?: string;
+  readonly path?: string;
 }

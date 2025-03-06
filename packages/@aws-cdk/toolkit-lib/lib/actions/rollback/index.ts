@@ -48,15 +48,15 @@ export interface StackRollbackProgress {
   /**
    * The total number of stacks being rolled back
    */
-  total: number;
+  readonly total: number;
   /**
    * The count of the stack currently attempted to be rolled back
    *
    * This is counting value, not an identifier.
    */
-  current: number;
+  readonly current: number;
   /**
    * The stack that's currently being rolled back
    */
-  stack: CloudFormationStackArtifact;
+  readonly stack: CloudFormationStackArtifact;
 }

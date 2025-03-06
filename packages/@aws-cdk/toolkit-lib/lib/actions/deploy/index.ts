@@ -216,15 +216,15 @@ export interface StackDeployProgress {
   /**
    * The total number of stacks being deployed
    */
-  total: number;
+  readonly total: number;
   /**
    * The count of the stack currently attempted to be deployed
    *
    * This is counting value, not an identifier.
    */
-  current: number;
+  readonly current: number;
   /**
    * The stack that's currently being deployed
    */
-  stack: CloudFormationStackArtifact;
+  readonly stack: CloudFormationStackArtifact;
 }

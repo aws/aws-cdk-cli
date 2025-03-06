@@ -232,15 +232,15 @@ export interface BootstrapEnvironmentProgress {
   /**
    * The total number of environments being deployed
    */
-  total: number;
+  readonly total: number;
   /**
    * The count of the environment currently bootstrapped
    *
    * This is counting value, not an identifier.
    */
-  current: number;
+  readonly current: number;
   /**
    * The environment that's currently being bootstrapped
    */
-  environment: cxapi.Environment;
+  readonly environment: cxapi.Environment;
 }
