@@ -1,8 +1,8 @@
 import * as util from 'node:util';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
-import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ActivityPrinterProps, CurrentActivityPrinter, HistoryActivityPrinter, IActivityPrinter } from '../cli/activity-printer';
 import { StackActivityProgress } from '../commands/deploy';
 
@@ -429,7 +429,7 @@ export class CliIoHost implements IIoHost {
   }
 
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
-    switch(this.requireDeployApproval) {
+    switch (this.requireDeployApproval) {
       // Never require approval
       case RequireApproval.NEVER:
         return true;
