@@ -1,6 +1,8 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
+import type { ConfirmationRequest } from '../../toolkit/types';
+import type { PermissionChangeType } from '../diff/private/helpers';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
@@ -226,4 +228,15 @@ export interface StackDeployProgress {
    * The stack that's currently being deployed
    */
   readonly stack: CloudFormationStackArtifact;
+}
+
+/**
+ * Payload for a yes/no confirmation in deploy. Includes information on
+ * what kind of change is being made.
+ */
+export interface DeployConfirmationRequest extends ConfirmationRequest {
+  /**
+   * The type of change being made to the IAM permissions.
+   */
+  readonly permissionChangeType?: PermissionChangeType;
 }

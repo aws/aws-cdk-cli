@@ -1,4 +1,3 @@
-import type { PermissionChangeType } from '../actions/diff/private';
 import type { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
 /**
@@ -107,15 +106,4 @@ export interface ConfirmationRequest {
    * @default - no concurrency
    */
   readonly concurrency?: number;
-}
-
-/**
- * Payload for a yes/no confirmation in deploy. Includes information on
- * what kind of change is being made.
- */
-export interface DeployConfirmationRequest extends ConfirmationRequest {
-  /**
-   * The type of change being made to the IAM permissions.
-   */
-  readonly permissionChangeType?: PermissionChangeType;
 }

@@ -54,7 +54,9 @@ describe('deploy', () => {
 
   test('request response when require approval is set', async () => {
     // WHEN
+    // by default the test IoHost sets RequireApproval.NEVER, so we force approval with ANY_CHANGE
     ioHost.requireDeployApproval = RequireApproval.ANY_CHANGE;
+
     const cx = await builderFixture(toolkit, 'stack-with-role');
     await toolkit.deploy(cx);
 
@@ -64,6 +66,10 @@ describe('deploy', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I5060',
       message: expect.stringContaining('Do you wish to deploy these changes'),
+      data: expect.objectContaining({
+        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
+        permissionChangeType: 'broadening',
+      }),
     }));
   });
 

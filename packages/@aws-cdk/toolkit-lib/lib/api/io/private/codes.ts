@@ -1,12 +1,12 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { SdkTrace } from './sdk-logger';
 import type { BootstrapEnvironmentProgress } from '../../../actions/bootstrap';
-import type { StackDeployProgress } from '../../../actions/deploy';
+import type { DeployConfirmationRequest, StackDeployProgress } from '../../../actions/deploy';
 import type { StackDestroyProgress } from '../../../actions/destroy';
 import type { StackDetailsPayload } from '../../../actions/list';
 import type { StackRollbackProgress } from '../../../actions/rollback';
 import type { FileWatchEvent, WatchSettings } from '../../../actions/watch';
-import type { AssemblyData, ConfirmationRequest, DeployConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData, SuccessfulDeployStackResult } from '../../../toolkit/types';
+import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData, SuccessfulDeployStackResult } from '../../../toolkit/types';
 import type { StackActivity, StackMonitoringControlEvent } from '../../aws-cdk';
 import type { MissingContext, UpdatedContext } from '../../cloud-assembly/context';
 import * as make from '../../shared-private';
