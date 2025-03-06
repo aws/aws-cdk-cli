@@ -639,7 +639,6 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
-    npmDistTag: 'v3-latest',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -1250,7 +1249,7 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
-toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
+toolkitLib.postCompileTask.exec('ts-node --prefer-ts-exts scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1296,7 +1295,7 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-// Ad a command for the docs
+// Add a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,

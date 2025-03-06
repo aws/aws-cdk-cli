@@ -1,3 +1,4 @@
+import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
 
@@ -208,4 +209,21 @@ export interface HotswapProperties {
    * ECS specific hotswap property overrides
    */
   readonly ecs: EcsHotswapProperties;
+}
+
+export interface StackDeployProgress {
+  /**
+   * The total number of stacks being deployed
+   */
+  readonly total: number;
+  /**
+   * The count of the stack currently attempted to be deployed
+   *
+   * This is counting value, not an identifier.
+   */
+  readonly current: number;
+  /**
+   * The stack that's currently being deployed
+   */
+  readonly stack: CloudFormationStackArtifact;
 }

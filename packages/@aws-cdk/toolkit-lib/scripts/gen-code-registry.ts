@@ -11,7 +11,8 @@ function codesToMarkdownTable(codes: Record<string, {
   table += '|------|-------------|-------|----------------|\n';
   
   Object.entries(codes).forEach(([key, code]) => {
-    if (key !== code.code) {
+    // we allow DEFAULT_* as special case here
+    if (key !== code.code && !key.startsWith('DEFAULT_')) {
       throw new Error(`Code key ${key} does not match code.code ${code.code}. This is probably a typo.`);
     }
     table += `| ${code.code} | ${code.description} | ${code.level} | ${code.interface ? linkInterface(code.interface) : 'n/a'} |\n`;
