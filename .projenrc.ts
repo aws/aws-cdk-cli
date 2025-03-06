@@ -720,6 +720,11 @@ tmpToolkitHelpers.package.addField('exports', {
   './util': './lib/util/index.js',
 });
 
+tmpToolkitHelpers.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
+});
+
 //////////////////////////////////////////////////////////////////////
 
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
@@ -1219,7 +1224,8 @@ new S3DocsPublishing(toolkitLib, {
 
 // Eslint rules
 toolkitLib.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': ['error'],
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
   'import/no-restricted-paths': ['error', {
     zones: [{
       target: './',

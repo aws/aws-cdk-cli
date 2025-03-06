@@ -78,9 +78,7 @@
         }
       }
     ],
-    "import/no-duplicates": [
-      "error"
-    ],
+    "import/no-duplicates": "error",
     "no-shadow": [
       "off"
     ],
@@ -273,9 +271,6 @@
           "!punycode/"
         ]
       }
-    ],
-    "no-duplicate-imports": [
-      "error"
     ],
     "semi": [
       "error",
