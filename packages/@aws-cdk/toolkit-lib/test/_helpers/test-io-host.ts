@@ -4,14 +4,14 @@ import { isMessageRelevantForLevel } from '../../lib/api/io/private/level-priori
 /**
  * A test implementation of IIoHost that does nothing but can by spied on.
  * Optionally set a level to filter out all irrelevant messages.
- * Optionally set a approval level. 
+ * Optionally set a approval level.
  */
 export class TestIoHost implements IIoHost {
   public readonly notifySpy: jest.Mock<any, any, any>;
   public readonly requestSpy: jest.Mock<any, any, any>;
 
-  public requireApproval: RequireApproval = RequireApproval.NEVER;
-  
+  public requireDeployApproval = RequireApproval.NEVER;
+
   constructor(public level: IoMessageLevel = 'info') {
     this.notifySpy = jest.fn();
     this.requestSpy = jest.fn();
@@ -32,10 +32,11 @@ export class TestIoHost implements IIoHost {
 
   private needsApproval(msg: IoRequest<any, any>): boolean {
     // Return true if the code is unrelated to approval
-    if (!['CDK_TOOLKIT_I5060'].includes(msg.code)) { 
+    if (!['CDK_TOOLKIT_I5060'].includes(msg.code)) {
       return true;
     }
-    switch (this.requireApproval) {
+
+    switch (this.requireDeployApproval) {
       case RequireApproval.NEVER:
         return false;
       case RequireApproval.ANY_CHANGE:

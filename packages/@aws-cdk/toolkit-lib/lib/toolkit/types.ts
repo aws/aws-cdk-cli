@@ -108,6 +108,10 @@ export interface ConfirmationRequest {
   readonly concurrency?: number;
 }
 
+/**
+ * Payload for a yes/no confirmation in deploy. Includes information on
+ * what kind of change is being made.
+ */
 export interface DeployConfirmationRequest extends ConfirmationRequest {
-  readonly approvalLevel?: 'none' | 'non-broadening' | 'broadening';
+  readonly permissionChangeType?: 'none' | 'non-broadening' | 'broadening';
 }

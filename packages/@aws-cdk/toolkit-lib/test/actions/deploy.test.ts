@@ -33,6 +33,7 @@ jest.mock('../../lib/api/aws-cdk', () => {
 beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
+  ioHost.requireDeployApproval = RequireApproval.NEVER;
   jest.clearAllMocks();
   mockFindCloudWatchLogGroups.mockReturnValue({
     env: { name: 'Z', account: 'X', region: 'Y' },
@@ -53,7 +54,7 @@ describe('deploy', () => {
 
   test('request response when require approval is set', async () => {
     // WHEN
-    ioHost.requireApproval = RequireApproval.ANY_CHANGE;
+    ioHost.requireDeployApproval = RequireApproval.ANY_CHANGE;
     const cx = await builderFixture(toolkit, 'stack-with-role');
     await toolkit.deploy(cx);
 
