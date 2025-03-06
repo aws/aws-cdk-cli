@@ -260,7 +260,7 @@ export const CODES = {
   }),
 
   // Assembly codes
-  CDK_ASSEMBLY_I0010: make.debug<never>({
+  CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
     description: 'Generic environment preparation debug messages',
   }),
@@ -331,6 +331,6 @@ export const CODES = {
   CDK_SDK_I0100: make.trace<SdkTrace>({
     code: 'CDK_SDK_I0100',
     description: 'An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level.',
-    interface: 'UpdatedContext',
+    interface: 'SdkTrace',
   }),
 };

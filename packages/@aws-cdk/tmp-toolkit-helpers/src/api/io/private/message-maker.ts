@@ -90,7 +90,7 @@ interface RequestInfo<U> extends CodeInfo {
 }
 
 /**
- * An interface that can produce messages for a specific code.
+ * An interface that can produce requests for a specific code.
  */
 export interface IoRequestMaker<T, U> extends MessageInfo {
   /**
@@ -100,7 +100,7 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
 }
 
 /**
- * Produce an IoMessageMaker for the provided level and code info.
+ * Produce an IoRequestMaker for the provided level and request info.
  */
 function request<T = never, U = ImpossibleType>(level: IoMessageLevel, details: RequestInfo<U>): IoRequestMaker<T, U> {
   const maker = (text: string, data: T) => ({

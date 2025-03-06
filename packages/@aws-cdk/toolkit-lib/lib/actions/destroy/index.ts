@@ -24,15 +24,15 @@ export interface StackDestroyProgress {
   /**
    * The total number of stacks being destroyed
    */
-  total: number;
+  readonly total: number;
   /**
    * The count of the stack currently attempted to be destroyed
    *
    * This is counting value, not an identifier.
    */
-  current: number;
+  readonly current: number;
   /**
    * The stack that's currently being destroyed
    */
-  stack: CloudFormationStackArtifact;
+  readonly stack: CloudFormationStackArtifact;
 }
