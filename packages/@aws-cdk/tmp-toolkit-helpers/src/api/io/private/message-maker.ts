@@ -1,5 +1,5 @@
-import { IoMessageCode, IoMessageLevel } from '../io-message';
-import { ActionLessMessage, ActionLessRequest } from './action-aware';
+import type { IoMessageCode, IoMessageLevel } from '../io-message';
+import type { ActionLessMessage, ActionLessRequest } from './action-aware';
 
 /**
  * Information for each IO Message Code.

@@ -78,9 +78,7 @@
         }
       }
     ],
-    "import/no-duplicates": [
-      "error"
-    ],
+    "import/no-duplicates": "error",
     "no-shadow": [
       "off"
     ],
@@ -274,9 +272,6 @@
         ]
       }
     ],
-    "no-duplicate-imports": [
-      "error"
-    ],
     "semi": [
       "error",
       "always"
@@ -318,7 +313,9 @@
     "jest/no-focused-tests": "error",
     "prettier/prettier": [
       "off"
-    ]
+    ],
+    "@cdklabs/no-throw-default-error": "error",
+    "@typescript-eslint/consistent-type-imports": "error"
   },
   "overrides": []
 }

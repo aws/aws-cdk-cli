@@ -1,14 +1,15 @@
 import * as path from 'node:path';
+import type { Stack } from '@aws-sdk/client-cloudformation';
 import {
   CreateChangeSetCommand,
   DeleteChangeSetCommand,
   DescribeChangeSetCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
-  Stack,
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
-import { BootstrapEnvironments, BootstrapOptions, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
+import type { BootstrapOptions } from '../../lib/actions/bootstrap';
+import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-cdk';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';

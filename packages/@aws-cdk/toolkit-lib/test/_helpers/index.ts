@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { AssemblyDirectoryProps, Toolkit, ToolkitError } from '../../lib';
+import type { AssemblyDirectoryProps, Toolkit } from '../../lib';
+import { ToolkitError } from '../../lib';
 import { determineOutputDirectory } from '../../lib/api/cloud-assembly/private';
 
 export * from './test-io-host';

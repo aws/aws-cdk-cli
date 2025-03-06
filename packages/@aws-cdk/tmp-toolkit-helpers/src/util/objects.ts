@@ -1,4 +1,5 @@
-import { isArray, isObject, Obj } from './types';
+import type { Obj } from './types';
+import { isArray, isObject } from './types';
 import { ToolkitError } from '../api/toolkit-error';
 
 /**

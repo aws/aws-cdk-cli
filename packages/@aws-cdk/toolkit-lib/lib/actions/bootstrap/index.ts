@@ -1,4 +1,4 @@
-import * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import { environmentsFromDescriptors } from './private';
 import type { Tag } from '../../api/aws-cdk';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';

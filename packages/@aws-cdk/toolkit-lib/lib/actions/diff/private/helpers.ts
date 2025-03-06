@@ -1,5 +1,8 @@
-import { DescribeChangeSetOutput, fullDiff } from '@aws-cdk/cloudformation-diff';
-import * as cxapi from '@aws-cdk/cx-api';
+import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
+import { fullDiff } from '@aws-cdk/cloudformation-diff';
+import type * as cxapi from '@aws-cdk/cx-api';
+import { ToolkitError } from '../../../api/shared-public';
+import { RequireApproval } from '../../deploy';
 
 /**
  * Different types of permissioning changes in a diff

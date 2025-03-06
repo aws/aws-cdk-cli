@@ -1,5 +1,5 @@
 import { PermissionChangeType } from '../actions/diff/private';
-import { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
+import type { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
 /**
  * Assembly data returned in the payload of an IO Message.

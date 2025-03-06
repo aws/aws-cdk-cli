@@ -1,4 +1,4 @@
-import { IIoHost, IoMessage, IoMessageLevel, IoRequest, RequireApproval } from '../../lib';
+import type { IIoHost, IoMessage, IoMessageLevel, IoRequest, RequireApproval } from '../../lib';
 import { isMessageRelevantForLevel } from '../../lib/api/io/private/level-priority';
 
 /**

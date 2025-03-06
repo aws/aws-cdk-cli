@@ -1,4 +1,4 @@
-import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
 
