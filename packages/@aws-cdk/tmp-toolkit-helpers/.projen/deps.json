@@ -34,6 +34,10 @@
       "type": "build"
     },
     {
+      "name": "@types/uuid",
+      "type": "build"
+    },
+    {
       "name": "@typescript-eslint/eslint-plugin",
       "version": "^8",
       "type": "build"
@@ -118,6 +122,10 @@
     },
     {
       "name": "semver",
+      "type": "runtime"
+    },
+    {
+      "name": "uuid",
       "type": "runtime"
     },
     {

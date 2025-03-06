@@ -693,12 +693,14 @@ const tmpToolkitHelpers = configureProject(
       '@types/archiver',
       '@types/glob',
       '@types/semver',
+      '@types/uuid',
       'fast-check',
     ],
     deps: [
       'archiver',
       'glob',
       'semver',
+      'uuid',
       'yaml@^1',
     ],
     tsconfig: {
