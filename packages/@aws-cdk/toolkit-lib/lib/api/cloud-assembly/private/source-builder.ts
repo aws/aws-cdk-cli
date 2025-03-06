@@ -1,14 +1,16 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
-import { ContextAwareCloudAssembly, ContextAwareCloudAssemblyProps } from './context-aware-source';
+import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
+import { ContextAwareCloudAssembly } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
-import { ToolkitServices } from '../../../toolkit/private';
-import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
+import type { ToolkitServices } from '../../../toolkit/private';
+import type { ILock } from '../../aws-cdk';
+import { Context, RWLock, Settings } from '../../aws-cdk';
 import { CODES } from '../../io/private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
-import { AssemblyBuilder } from '../source-builder';
+import type { AssemblyBuilder } from '../source-builder';
 
 export abstract class CloudAssemblySourceBuilder {
   /**

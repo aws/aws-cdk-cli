@@ -1,7 +1,7 @@
 import { format } from 'util';
 import { CODES } from './codes';
 import { formatTime } from '../../../private/util';
-import { ActionAwareIoHost } from '../../shared-private';
+import type { ActionAwareIoHost } from '../../shared-private';
 
 /**
  * Helper class to measure the time of code.

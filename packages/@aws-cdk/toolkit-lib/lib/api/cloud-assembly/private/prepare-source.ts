@@ -7,9 +7,9 @@ import * as fs from 'fs-extra';
 import { lte } from 'semver';
 import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, versionNumber } from '../../../api/aws-cdk';
 import { splitBySize } from '../../../private/util';
-import { ToolkitServices } from '../../../toolkit/private';
+import type { ToolkitServices } from '../../../toolkit/private';
 import { CODES } from '../../io/private';
-import { ActionAwareIoHost } from '../../shared-private';
+import type { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 

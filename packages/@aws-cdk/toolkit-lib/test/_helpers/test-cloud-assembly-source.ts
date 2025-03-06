@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ArtifactType, ArtifactMetadataEntryType, AssetManifest, AssetMetadataEntry, AwsCloudFormationStackProperties, MetadataEntry, MissingContext } from '@aws-cdk/cloud-assembly-schema';
+import type { AssetManifest, AssetMetadataEntry, AwsCloudFormationStackProperties, MetadataEntry, MissingContext } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType, ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import { ICloudAssemblySource } from '../../lib';
+import type { ICloudAssemblySource } from '../../lib';
 
 const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 const SOME_RECENT_SCHEMA_VERSION = '30.0.0';

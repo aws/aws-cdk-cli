@@ -2,7 +2,8 @@ import { ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import { StackSelectionStrategy } from '../../lib';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost } from '../_helpers';
-import { TestCloudAssemblySource, TestStackArtifact } from '../_helpers/test-cloud-assembly-source';
+import type { TestStackArtifact } from '../_helpers/test-cloud-assembly-source';
+import { TestCloudAssemblySource } from '../_helpers/test-cloud-assembly-source';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
