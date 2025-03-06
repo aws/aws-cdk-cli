@@ -107,3 +107,7 @@ export interface ConfirmationRequest {
    */
   readonly concurrency?: number;
 }
+
+export interface DeployConfirmationRequest extends ConfirmationRequest {
+  readonly approvalLevel?: 'none' | 'non-broadening' | 'broadening';
+}

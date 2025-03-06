@@ -168,7 +168,7 @@ export interface CliIoHostProps {
    *
    * @default RequireApproval.BROADENING
    */
-  readonly requireApproval?: RequireApproval;
+  readonly requireDeployApproval?: RequireApproval;
 
   /*
    * The initial Toolkit action the hosts starts with.
@@ -203,7 +203,7 @@ export class CliIoHost implements IIoHost {
   private _isTTY: boolean;
   private _logLevel: IoMessageLevel;
   private _internalIoHost?: IIoHost;
-  private _requireApproval: RequireApproval;
+  private _requireDeployApproval: RequireApproval;
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -218,7 +218,7 @@ export class CliIoHost implements IIoHost {
     this._isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this._logLevel = props.logLevel ?? 'info';
     this._isCI = props.isCI ?? isCI();
-    this._requireApproval = props.requireApproval ?? RequireApproval.BROADENING;
+    this._requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
   }
@@ -310,15 +310,15 @@ export class CliIoHost implements IIoHost {
   /**
    * Return the conditions for requiring approval in this CliIoHost.
    */
-  public get requireApproval() {
-    return this._requireApproval;
+  public get requireDeployApproval() {
+    return this._requireDeployApproval;
   }
 
   /**
    * Set the conditions for requiring approval in this CliIoHost.
    */
-  public set requireApproval(approval: RequireApproval) {
-    this._requireApproval = approval;
+  public set requireDeployApproval(approval: RequireApproval) {
+    this._requireDeployApproval = approval;
   }
 
   /**
@@ -429,7 +429,7 @@ export class CliIoHost implements IIoHost {
   }
 
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
-    switch(this.requireApproval) {
+    switch(this.requireDeployApproval) {
       // Never require approval
       case RequireApproval.NEVER:
         return true;

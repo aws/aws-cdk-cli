@@ -6,7 +6,7 @@ import type { StackDestroyProgress } from '../../../actions/destroy';
 import type { StackDetailsPayload } from '../../../actions/list';
 import type { StackRollbackProgress } from '../../../actions/rollback';
 import type { FileWatchEvent, WatchSettings } from '../../../actions/watch';
-import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData, SuccessfulDeployStackResult } from '../../../toolkit/types';
+import type { AssemblyData, ConfirmationRequest, DeployConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData, SuccessfulDeployStackResult } from '../../../toolkit/types';
 import type { StackActivity, StackMonitoringControlEvent } from '../../aws-cdk';
 import type { MissingContext, UpdatedContext } from '../../cloud-assembly/context';
 import * as make from '../../shared-private';
@@ -96,10 +96,10 @@ export const CODES = {
     description: 'Confirm rollback during deployment',
     interface: 'ConfirmationRequest',
   }),
-  CDK_TOOLKIT_I5060: make.confirm<ConfirmationRequest>({
+  CDK_TOOLKIT_I5060: make.confirm<DeployConfirmationRequest>({
     code: 'CDK_TOOLKIT_I5060',
     description: 'Confirm deploy security sensitive changes',
-    interface: 'ConfirmationRequest',
+    interface: 'DeployConfirmationRequest',
   }),
 
   CDK_TOOLKIT_I5100: make.info<StackDeployProgress>({

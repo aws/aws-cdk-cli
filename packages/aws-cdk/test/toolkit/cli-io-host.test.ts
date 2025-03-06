@@ -25,7 +25,7 @@ describe('CliIoHost', () => {
     ioHost.isTTY = process.stdout.isTTY ?? false;
     ioHost.isCI = false;
     ioHost.currentAction = 'synth';
-    ioHost.requireApproval = RequireApproval.ANYCHANGE;
+    ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
     (process as any).stdin = passThrough = new PassThrough();
 
     defaultMessage = {
@@ -397,7 +397,7 @@ describe('CliIoHost', () => {
       });
 
       test('never require approval', async () => {
-        ioHost.requireApproval = RequireApproval.NEVER;
+        ioHost.requireDeployApproval = RequireApproval.NEVER;
         const response = await ioHost.requestResponse({
           time: new Date(),
           level: 'info',
@@ -412,7 +412,7 @@ describe('CliIoHost', () => {
       });
 
       test('broadening - require approval on broadening changes', async () => {
-        ioHost.requireApproval = RequireApproval.BROADENING;
+        ioHost.requireDeployApproval = RequireApproval.BROADENING;
         const response = await requestResponse('y', {
           time: new Date(),
           level: 'info',
@@ -430,7 +430,7 @@ describe('CliIoHost', () => {
       });
 
       test('broadening - do not require approval on non-broadening changes', async () => {
-        ioHost.requireApproval = RequireApproval.BROADENING;
+        ioHost.requireDeployApproval = RequireApproval.BROADENING;
         const response = await ioHost.requestResponse({
           time: new Date(),
           level: 'info',

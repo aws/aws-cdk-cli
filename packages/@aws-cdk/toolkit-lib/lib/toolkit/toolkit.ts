@@ -344,19 +344,17 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         return;
       }
 
-      if (requireApproval !== RequireApproval.NEVER) {
-        const currentTemplate = await deployments.readCurrentTemplate(stack);
-        if (diffRequiresApproval(currentTemplate, stack, requireApproval)) {
-          const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
-          const question = `${motivation}\nDo you wish to deploy these changes`;
-          const confirmed = await ioHost.requestResponse(CODES.CDK_TOOLKIT_I5060.req(question, {
-            motivation,
-            concurrency,
-          }));
-          if (!confirmed) {
-            throw new ToolkitError('Aborted by user');
-          }
-        }
+      const currentTemplate = await deployments.readCurrentTemplate(stack);
+      const permissionChangeType = determinePermissionType(currentTemplate, stack);
+      const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
+      const question = `${motivation}\nDo you wish to deploy these changes`;
+      const confirmed = await ioHost.requestResponse(CODES.CDK_TOOLKIT_I5060.req(question, {
+        motivation,
+        concurrency,
+        approvalLevel: permissionChangeType,
+      }));
+      if (!confirmed) {
+        throw new ToolkitError('Aborted by user');
       }
 
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)

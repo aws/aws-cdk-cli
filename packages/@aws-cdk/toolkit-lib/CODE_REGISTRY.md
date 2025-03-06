@@ -17,7 +17,7 @@
 | CDK_TOOLKIT_W5022 | Empty existing stack, stack will be destroyed | warn | n/a |
 | CDK_TOOLKIT_I5031 | Informs about any log groups that are traced as part of the deployment | info | n/a |
 | CDK_TOOLKIT_I5050 | Confirm rollback during deployment | info | [ConfirmationRequest](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/ConfirmationRequest.html) |
-| CDK_TOOLKIT_I5060 | Confirm deploy security sensitive changes | info | [ConfirmationRequest](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/ConfirmationRequest.html) |
+| CDK_TOOLKIT_I5060 | Confirm deploy security sensitive changes | info | [DeployConfirmationRequest](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/DeployConfirmationRequest.html) |
 | CDK_TOOLKIT_I5100 | Stack deploy progress | info | [StackDeployProgress](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/StackDeployProgress.html) |
 | CDK_TOOLKIT_I5310 | The computed settings used for file watching | debug | [WatchSettings](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/WatchSettings.html) |
 | CDK_TOOLKIT_I5311 | File watching started | info | [FileWatchEvent](https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/FileWatchEvent.html) |
