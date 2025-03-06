@@ -60,6 +60,7 @@ jest.setTimeout(30_000);
 import 'aws-sdk-client-mock';
 import * as os from 'os';
 import * as path from 'path';
+import * as cdkAssets from 'cdk-assets';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
@@ -680,6 +681,35 @@ describe('deploy', () => {
       // THEN
       expect(stderrMock).toHaveBeenCalledWith(expect.stringContaining('Building Asset Display Name'));
       expect(stderrMock).toHaveBeenCalledWith(expect.stringContaining('Publishing Asset Display Name (desto)'));
+    });
+
+    test('force flag is passed to asset publishing', async () => {
+      // GIVEN
+      cloudExecutable = new MockCloudExecutable({
+        stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+      });
+      const toolkit = new CdkToolkit({
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: new FakeCloudFormation({}),
+      });
+
+      const publishEntry = jest.spyOn(cdkAssets.AssetPublishing.prototype, 'publishEntry');
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        force: true,
+      });
+
+      // THEN
+      expect(publishEntry).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        force: true,
+      }));
+
+      publishEntry.mockRestore();
     });
 
     test('with stacks all stacks specified as wildcard', async () => {

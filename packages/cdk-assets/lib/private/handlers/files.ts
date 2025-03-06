@@ -112,7 +112,7 @@ export class FileAssetHandler implements IAssetHandler {
         break;
     }
 
-    if (await objectExists(s3, destination.bucketName, destination.objectKey)) {
+    if (!options.force && await objectExists(s3, destination.bucketName, destination.objectKey)) {
       this.host.emitMessage(EventType.FOUND, `Found ${s3Url}`);
       return;
     }

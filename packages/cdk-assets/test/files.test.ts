@@ -123,22 +123,26 @@ test('will only read bucketEncryption once even for multiple assets', async () =
   expect(s3).toHaveReceivedCommandTimes(GetBucketEncryptionCommand, 1);
 });
 
-test('Do nothing if file already exists', async () => {
+test.each([false, true])('file already exists with { force: %p }', async (force) => {
   const s3 = mockClient(S3Client);
 
   const pub = new AssetPublishing(AssetManifest.fromPath(mockfs.path('/simple/cdk.out')), { aws });
   s3.on(ListObjectsV2Command).resolves({ Contents: [{ Key: 'some_key' }] });
 
-  await pub.publish();
-
-  expect(s3).toHaveReceivedCommandWith(ListObjectsV2Command, {
-    Bucket: 'some_bucket',
-    Prefix: 'some_key',
-    MaxKeys: 1,
-  });
+  await pub.publish({ force });
 
   // Upload calls PutObjectCommand under the hood
-  expect(s3).not.toHaveReceivedCommand(PutObjectCommand);
+  if (force) {
+    expect(s3).toHaveReceivedCommand(PutObjectCommand);
+  } else {
+    expect(s3).toHaveReceivedCommandWith(ListObjectsV2Command, {
+      Bucket: 'some_bucket',
+      Prefix: 'some_key',
+      MaxKeys: 1,
+    });
+
+    expect(s3).not.toHaveReceivedCommand(PutObjectCommand);
+  }
 });
 
 test('tiny file does not count as cache hit', async () => {
