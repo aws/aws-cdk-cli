@@ -11,7 +11,7 @@ import { ToolkitServices } from '../../../toolkit/private';
 import { CODES } from '../../io/private';
 import { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
-import type { AppSynthOptions } from '../source-builder';
+import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
 export { guessExecutable } from '../../../api/aws-cdk';
 
@@ -149,9 +149,11 @@ export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly,
 /**
  * Safely create an assembly from a cloud assembly directory
  */
-export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionAwareIoHost) {
+export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionAwareIoHost, loadOptions: LoadAssemblyOptions = {}) {
   try {
     const assembly = new cxapi.CloudAssembly(assemblyDir, {
+      skipVersionCheck: !(loadOptions.checkVersion ?? true),
+      skipEnumCheck: !(loadOptions.checkEnums ?? true),
       // We sort as we deploy
       topoSort: false,
     });

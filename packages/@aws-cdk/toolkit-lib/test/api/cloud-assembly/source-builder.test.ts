@@ -96,4 +96,25 @@ describe('fromAssemblyDirectory', () => {
     // THEN
     expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
   });
+
+  test('validates manifest version', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future');
+
+    // THEN
+    await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
+  });
+
+  test('can disable manifest version validation', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future', {
+      loadAssemblyOptions: {
+        checkVersion: false,
+      },
+    });
+    const assembly = await cx.produce();
+
+    // THEN
+    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
+  });
 });

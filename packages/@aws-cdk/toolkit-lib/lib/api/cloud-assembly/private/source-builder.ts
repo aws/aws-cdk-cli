@@ -1,6 +1,6 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import type { AssemblySourceProps, ICloudAssemblySource } from '../';
+import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
 import { ContextAwareCloudAssembly, ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
@@ -52,7 +52,7 @@ export abstract class CloudAssemblySourceBuilder {
             return assembly;
           }
 
-          return new cxapi.CloudAssembly(assembly.directory);
+          return assemblyFromDirectory(assembly.directory, services.ioHost, props.loadAssemblyOptions);
         },
       },
       contextAssemblyProps,
@@ -64,7 +64,7 @@ export abstract class CloudAssemblySourceBuilder {
    * @param directory the directory of a already produced Cloud Assembly.
    * @returns the CloudAssembly source
    */
-  public async fromAssemblyDirectory(directory: string): Promise<ICloudAssemblySource> {
+  public async fromAssemblyDirectory(directory: string, props: AssemblyDirectoryProps = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
     const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
       services,
@@ -77,7 +77,7 @@ export abstract class CloudAssemblySourceBuilder {
         produce: async () => {
           // @todo build
           await services.ioHost.notify(CODES.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
-          return assemblyFromDirectory(directory, services.ioHost);
+          return assemblyFromDirectory(directory, services.ioHost, props.loadAssemblyOptions);
         },
       },
       contextAssemblyProps,
@@ -136,7 +136,7 @@ export abstract class CloudAssemblySourceBuilder {
                 extraEnv: envWithContext,
                 cwd: props.workingDirectory,
               });
-              return assemblyFromDirectory(outdir, services.ioHost);
+              return assemblyFromDirectory(outdir, services.ioHost, props.loadAssemblyOptions);
             });
           } finally {
             await lock?.release();
