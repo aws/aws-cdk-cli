@@ -7,7 +7,7 @@ import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecut
 import { ToolkitServices } from '../../../toolkit/private';
 import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
 import { CODES } from '../../io/private';
-import { ToolkitError } from '../../shared-public';
+import { ToolkitError, AssemblyError } from '../../shared-public';
 import { AssemblyBuilder } from '../source-builder';
 
 export abstract class CloudAssemblySourceBuilder {
@@ -42,10 +42,21 @@ export abstract class CloudAssemblySourceBuilder {
           const env = await prepareDefaultEnvironment(services, { outdir });
           const assembly = await changeDir(async () =>
             withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
-              withEnv(envWithContext, () => builder({
-                outdir,
-                context: ctx,
-              })),
+              withEnv(envWithContext, () => {
+                try {
+                  return builder({
+                    outdir,
+                    context: ctx,
+                  });
+                } catch (error: unknown) {
+                  // re-throw toolkit errors unchanged
+                  if (ToolkitError.isToolkitError(error)) {
+                    throw error;
+                  }
+                  // otherwise, wrap into an assembly error
+                  throw AssemblyError.withCause('Assembly builder failed', error);
+                }
+              }),
             ), props.workingDirectory);
 
           if (cxapi.CloudAssembly.isCloudAssembly(assembly)) {
