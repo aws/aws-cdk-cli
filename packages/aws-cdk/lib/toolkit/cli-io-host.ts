@@ -422,13 +422,12 @@ export class CliIoHost implements IIoHost {
    * Detect special messages encode information about whether or not
    * they require approval
    */
-  private requiresApproval(msg: IoRequest<any, any>): boolean {
-    return [
-      'CDK_TOOLKIT_I5060',
-    ].includes(msg.code);
-  }
-
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
+    const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
+    if (!approvalToolkitCodes.includes(msg.code)) {
+      false;
+    }
+
     switch (this.requireDeployApproval) {
       // Never require approval
       case RequireApproval.NEVER:
@@ -506,7 +505,7 @@ export class CliIoHost implements IIoHost {
       // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
       // If it does not, return success (true). We only check messages with codes that we are aware
       // are requires approval codes.
-      if (this.requiresApproval(msg) && this.skipApprovalStep(msg)) {
+      if (this.skipApprovalStep(msg)) {
         return true;
       }
 

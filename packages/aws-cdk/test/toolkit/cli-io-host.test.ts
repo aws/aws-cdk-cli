@@ -382,7 +382,7 @@ describe('CliIoHost', () => {
     });
 
     describe('requireApproval', () => {
-      test('require approval by default', async () => {
+      test('require approval by default - respond yes', async () => {
         const response = await requestResponse('y', {
           time: new Date(),
           level: 'info',
@@ -394,6 +394,17 @@ describe('CliIoHost', () => {
 
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
+      });
+
+      test('require approval by default - respond no', async () => {
+        expect(() => requestResponse('n', {
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        })).rejects.toThrow('Aborted by user');
       });
 
       test('never require approval', async () => {
