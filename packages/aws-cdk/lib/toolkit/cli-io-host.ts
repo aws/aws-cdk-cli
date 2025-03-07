@@ -7,7 +7,7 @@ import { ActivityPrinterProps, CurrentActivityPrinter, HistoryActivityPrinter, I
 import { StackActivityProgress } from '../commands/deploy';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
-export type IoCodeLevel = 'E' | 'W' | 'I';
+export type IoCodeLevel = 'E' | 'W' | 'I' | 'D';
 export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
 export type IoMessageCode = IoMessageSpecificCode<IoCodeLevel>;
 
@@ -115,7 +115,7 @@ export interface IIoHost {
    * Notifies the host of a message.
    * The caller waits until the notification completes.
    */
-  notify<T>(msg: IoMessage<T>): Promise<void>;
+  notify(msg: IoMessage<unknown>): Promise<void>;
 
   /**
    * Notifies the host of a message that requires a response.
@@ -179,6 +179,11 @@ export interface CliIoHostProps {
 }
 
 /**
+ * A type for configuring a target stream
+ */
+export type TargetStream = 'stdout' | 'stderr' | 'drop';
+
+/**
  * A simple IO host for the CLI that writes messages to the console.
  */
 export class CliIoHost implements IIoHost {
@@ -196,6 +201,14 @@ export class CliIoHost implements IIoHost {
    * Singleton instance of the CliIoHost
    */
   private static _instance: CliIoHost | undefined;
+
+  /**
+   * Configure the target stream for notices
+   *
+   * (Not a setter because there's no need for additional logic when this value
+   * is changed yet)
+   */
+  public noticesDestination: TargetStream = 'stderr';
 
   // internal state for getters/setter
   private _currentAction: ToolkitAction;
@@ -403,8 +416,8 @@ export class CliIoHost implements IIoHost {
     }
 
     const output = this.formatMessage(msg);
-    const stream = this.selectStream(msg.level);
-    stream.write(output);
+    const stream = this.selectStream(msg);
+    stream?.write(output);
   }
 
   /**
@@ -416,6 +429,17 @@ export class CliIoHost implements IIoHost {
       'CDK_TOOLKIT_I5502',
       'CDK_TOOLKIT_I5503',
     ].includes(msg.code);
+  }
+
+  /**
+   * Determines the output stream, based on message and configuration.
+   */
+  private selectStream(msg: IoMessage<any>): NodeJS.WriteStream | undefined {
+    if (isNoticesMessage(msg)) {
+      return targetStreamObject(this.noticesDestination);
+    }
+
+    return this.selectStreamFromLevel(msg.level);
   }
 
   /**
@@ -444,7 +468,7 @@ export class CliIoHost implements IIoHost {
   /**
    * Determines the output stream, based on message level and configuration.
    */
-  private selectStream(level: IoMessageLevel) {
+  private selectStreamFromLevel(level: IoMessageLevel): NodeJS.WriteStream {
     // The stream selection policy for the CLI is the following:
     //
     //   (1) Messages of level `result` always go to `stdout`
@@ -561,7 +585,7 @@ export class CliIoHost implements IIoHost {
    */
   private makeActivityPrinter() {
     const props: ActivityPrinterProps = {
-      stream: this.selectStream('info'),
+      stream: this.selectStreamFromLevel('info'),
     };
 
     switch (this.stackProgress) {
@@ -623,3 +647,22 @@ export function isCI(): boolean {
   return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
 }
 
+function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
+  switch (x) {
+    case 'stderr':
+      return process.stderr;
+    case 'stdout':
+      return process.stdout;
+    case 'drop':
+      return undefined;
+  }
+}
+
+function isNoticesMessage(msg: IoMessage<any>) {
+  return [
+    'CDK_TOOLKIT_I0100',
+    'CDK_TOOLKIT_W0101',
+    'CDK_TOOLKIT_E0101',
+    'CDK_TOOLKIT_I0101',
+  ].includes(msg.code);
+}
