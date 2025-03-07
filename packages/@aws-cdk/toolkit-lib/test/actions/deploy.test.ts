@@ -1,41 +1,40 @@
-let mockFindCloudWatchLogGroups = jest.fn();
-
 import { RequireApproval, StackParameters } from '../../lib';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
+import * as awsCdkApi from '../../lib/api/aws-cdk';
+import { DeployStackOptions, DeployStackResult } from '../../../../aws-cdk/lib/api/deployments';
 
-const sdk = new MockSdk();
-const ioHost = new TestIoHost();
-const toolkit = new Toolkit({ ioHost });
-const rollbackSpy = jest.spyOn(toolkit as any, '_rollback').mockResolvedValue({});
-
-let mockDeployStack = jest.fn().mockResolvedValue({
-  type: 'did-deploy-stack',
-  stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
-  outputs: {},
-  noOp: false,
-});
-
-jest.mock('../../lib/api/aws-cdk', () => {
-  return {
-    ...jest.requireActual('../../lib/api/aws-cdk'),
-    Deployments: jest.fn().mockImplementation(() => ({
-      deployStack: mockDeployStack,
-      resolveEnvironment: jest.fn().mockResolvedValue({}),
-      isSingleAssetPublished: jest.fn().mockResolvedValue(true),
-      readCurrentTemplate: jest.fn().mockResolvedValue({ Resources: {} }),
-    })),
-    findCloudWatchLogGroups: mockFindCloudWatchLogGroups,
-  };
-});
+let ioHost: TestIoHost;
+let toolkit: Toolkit;
+let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOptions]>;
 
 beforeEach(() => {
-  ioHost.notifySpy.mockClear();
-  ioHost.requestSpy.mockClear();
+  jest.restoreAllMocks();
+  ioHost = new TestIoHost();
   ioHost.requireDeployApproval = RequireApproval.NEVER;
-  jest.clearAllMocks();
-  mockFindCloudWatchLogGroups.mockReturnValue({
+
+  toolkit = new Toolkit({ ioHost });
+  const sdk = new MockSdk();
+
+  // Some default implementations
+  mockDeployStack = jest.spyOn(awsCdkApi.Deployments.prototype, 'deployStack').mockResolvedValue({
+    type: 'did-deploy-stack',
+    stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+    outputs: {},
+    noOp: false,
+  });
+  jest.spyOn(awsCdkApi.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
+    account: '11111111',
+    region: 'aq-south-1',
+    name: 'aws://11111111/aq-south-1',
+  });
+  jest.spyOn(awsCdkApi.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
+  jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(awsCdkApi.Deployments.prototype, 'buildSingleAsset').mockImplementation();
+  jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+
+  jest.spyOn(awsCdkApi, 'findCloudWatchLogGroups').mockResolvedValue({
     env: { name: 'Z', account: 'X', region: 'Y' },
     sdk,
     logGroupNames: ['/aws/lambda/lambda-function-name'],
@@ -198,6 +197,20 @@ describe('deploy', () => {
 
       successfulDeployment();
     });
+
+    test('force: true option is used for asset publishing', async () => {
+      const publishSingleAsset = jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+
+      const cx = await builderFixture(toolkit, 'stack-with-asset');
+      await toolkit.deploy(cx, {
+        force: true,
+      });
+
+      // THEN
+      expect(publishSingleAsset).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
+        forcePublish: true,
+      }));
+    });
   });
 
   describe('deployment results', () => {
@@ -211,22 +224,23 @@ describe('deploy', () => {
     });
 
     test('failpaused-need-rollback-first', async () => {
+      const rollbackSpy = jest.spyOn(toolkit as any, '_rollback').mockResolvedValue({});
+
       // GIVEN
-      mockDeployStack.mockImplementation((params) => {
+      mockDeployStack.mockImplementation(async (params) => {
         if (params.rollback === true) {
           return {
             type: 'did-deploy-stack',
             stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
             outputs: {},
             noOp: false,
-          };
+          } satisfies DeployStackResult;
         } else {
           return {
             type: 'failpaused-need-rollback-first',
-            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
-            outputs: {},
-            noOp: false,
-          };
+            reason: 'replacement',
+            status: 'asdf',
+          } satisfies DeployStackResult;
         }
       });
 
@@ -242,21 +256,18 @@ describe('deploy', () => {
 
     test('replacement-requires-rollback', async () => {
       // GIVEN
-      mockDeployStack.mockImplementation((params) => {
+      mockDeployStack.mockImplementation(async (params) => {
         if (params.rollback === true) {
           return {
             type: 'did-deploy-stack',
             stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
             outputs: {},
             noOp: false,
-          };
+          } satisfies DeployStackResult;
         } else {
           return {
             type: 'replacement-requires-rollback',
-            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
-            outputs: {},
-            noOp: false,
-          };
+          } satisfies DeployStackResult;;
         }
       });
 

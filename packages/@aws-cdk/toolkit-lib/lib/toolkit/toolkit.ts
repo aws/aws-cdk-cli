@@ -317,6 +317,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         stack: assetNode.parentStack,
         roleArn: options.roleArn,
         stackName: assetNode.parentStack.stackName,
+        forcePublish: options.force,
       });
     };
 
