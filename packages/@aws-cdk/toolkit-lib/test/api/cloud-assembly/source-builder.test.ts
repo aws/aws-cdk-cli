@@ -1,5 +1,9 @@
+import { ToolkitError } from '../../../lib';
 import { Toolkit } from '../../../lib/toolkit';
 import { appFixture, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
+
+// these tests often run a bit longer than the default
+jest.setTimeout(10_000);
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -29,6 +33,22 @@ describe('fromAssemblyBuilder', () => {
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
+  });
+
+  test('errors are wrapped as AssemblyError', async () => {
+    // GIVEN
+    const cx = await toolkit.fromAssemblyBuilder(() => {
+      throw new Error('a wild error appeared');
+    });
+
+    // WHEN
+    try {
+      await cx.produce();
+    } catch (err: any) {
+      // THEN
+      expect(ToolkitError.isAssemblyError(err)).toBe(true);
+      expect(err.cause?.message).toContain('a wild error appeared');
+    }
   });
 });
 
@@ -95,5 +115,26 @@ describe('fromAssemblyDirectory', () => {
 
     // THEN
     expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+  });
+
+  test('validates manifest version', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future');
+
+    // THEN
+    await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
+  });
+
+  test('can disable manifest version validation', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future', {
+      loadAssemblyOptions: {
+        checkVersion: false,
+      },
+    });
+    const assembly = await cx.produce();
+
+    // THEN
+    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
   });
 });

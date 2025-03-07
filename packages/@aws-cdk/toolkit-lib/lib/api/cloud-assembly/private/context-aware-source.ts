@@ -1,11 +1,11 @@
 import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
-import * as cxapi from '@aws-cdk/cx-api';
-import { ToolkitServices } from '../../../toolkit/private';
+import type * as cxapi from '@aws-cdk/cx-api';
+import type { ToolkitServices } from '../../../toolkit/private';
 import { type Context, contextproviders, PROJECT_CONTEXT } from '../../aws-cdk';
-import { CODES, debug } from '../../io/private';
-import { ActionAwareIoHost } from '../../shared-private';
+import { IO } from '../../io/private';
+import type { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
-import { ICloudAssemblySource } from '../types';
+import type { ICloudAssemblySource } from '../types';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -65,27 +65,26 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
       const assembly = await this.source.produce();
 
       if (assembly.manifest.missing && assembly.manifest.missing.length > 0) {
-        const missingKeys = missingContextKeys(assembly.manifest.missing);
+        const missingKeysSet = missingContextKeys(assembly.manifest.missing);
+        const missingKeys = Array.from(missingKeysSet);
 
         if (!this.canLookup) {
           throw new ToolkitError(
             'Context lookups have been disabled. '
             + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
-            + `Missing context keys: '${Array.from(missingKeys).join(', ')}'`);
+            + `Missing context keys: '${missingKeys.join(', ')}'`);
         }
 
         let tryLookup = true;
-        if (previouslyMissingKeys && equalSets(missingKeys, previouslyMissingKeys)) {
-          await this.ioHost.notify(debug('Not making progress trying to resolve environmental context. Giving up.'));
+        if (previouslyMissingKeys && equalSets(missingKeysSet, previouslyMissingKeys)) {
+          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0240.msg('Not making progress trying to resolve environmental context. Giving up.', { missingKeys }));
           tryLookup = false;
         }
 
-        previouslyMissingKeys = missingKeys;
+        previouslyMissingKeys = missingKeysSet;
 
         if (tryLookup) {
-          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', {
-            missingKeys: Array.from(missingKeys),
-          }));
+          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', { missingKeys }));
           await contextproviders.provideContextValues(
             assembly.manifest.missing,
             this.context,
@@ -93,7 +92,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
           );
 
           // Cache the new context to disk
-          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
+          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
             contextFile: this.contextFile,
             context: this.context.all,
           }));

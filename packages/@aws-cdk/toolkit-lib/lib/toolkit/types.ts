@@ -1,4 +1,4 @@
-import { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
+import type { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
 
 /**
  * Assembly data returned in the payload of an IO Message.
@@ -85,4 +85,25 @@ export interface ErrorPayload {
    * The error that occurred
    */
   readonly error: Error;
+}
+
+/**
+ * Generic payload of a simple yes/no question.
+ *
+ * The expectation is that 'yes' means moving on,
+ * and 'no' means aborting the current action.
+ */
+export interface ConfirmationRequest {
+  /**
+   * Some additional motivation for the confirmation that may be used as context for the user.
+   */
+  readonly motivation: string;
+  /**
+   * Number of on-going concurrent operations
+   * If more than one operations is on-going, a client might decide that asking the user
+   * for input is too complex, as the confirmation might not easily be attributed to a specific request.
+   *
+   * @default - no concurrency
+   */
+  readonly concurrency?: number;
 }

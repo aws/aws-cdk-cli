@@ -1,6 +1,6 @@
-import { IIoHost } from '../io-host';
-import { IoMessage, IoRequest } from '../io-message';
-import { ToolkitAction } from '../toolkit-action';
+import type { IIoHost } from '../io-host';
+import type { IoMessage, IoRequest } from '../io-message';
+import type { ToolkitAction } from '../toolkit-action';
 
 export type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 export type SimplifiedMessage<T> = Pick<IoMessage<T>, 'level' | 'code' | 'message' | 'data'>;

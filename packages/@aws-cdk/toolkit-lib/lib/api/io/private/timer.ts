@@ -1,7 +1,7 @@
 import { format } from 'util';
-import { CODES } from './codes';
+import { IO } from './messages';
 import { formatTime } from '../../../private/util';
-import { ActionAwareIoHost } from '../../shared-private';
+import type { ActionAwareIoHost } from '../../shared-private';
 
 /**
  * Helper class to measure the time of code.
@@ -52,10 +52,10 @@ function timerMessage(type: 'synth' | 'deploy' | 'rollback'| 'destroy' | 'bootst
   const payload = { duration: duration.asMs };
 
   switch (type) {
-    case 'synth': return CODES.CDK_TOOLKIT_I1000.msg(format(message, 'Synthesis'), payload);
-    case 'deploy': return CODES.CDK_TOOLKIT_I5000.msg(format(message, 'Deployment'), payload);
-    case 'rollback': return CODES.CDK_TOOLKIT_I6000.msg(format(message, 'Rollback'), payload);
-    case 'destroy': return CODES.CDK_TOOLKIT_I7000.msg(format(message, 'Destroy'), payload);
-    case 'bootstrap': return CODES.CDK_TOOLKIT_I9000.msg(format(message, 'Bootstrap'), payload);
+    case 'synth': return IO.CDK_TOOLKIT_I1000.msg(format(message, 'Synthesis'), payload);
+    case 'deploy': return IO.CDK_TOOLKIT_I5000.msg(format(message, 'Deployment'), payload);
+    case 'rollback': return IO.CDK_TOOLKIT_I6000.msg(format(message, 'Rollback'), payload);
+    case 'destroy': return IO.CDK_TOOLKIT_I7000.msg(format(message, 'Destroy'), payload);
+    case 'bootstrap': return IO.CDK_TOOLKIT_I9000.msg(format(message, 'Bootstrap'), payload);
   }
 }

@@ -33,6 +33,7 @@ jest.mock('../../lib/api/aws-cdk', () => {
 beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
+  ioHost.requireDeployApproval = RequireApproval.NEVER;
   jest.clearAllMocks();
   mockFindCloudWatchLogGroups.mockReturnValue({
     env: { name: 'Z', account: 'X', region: 'Y' },
@@ -51,12 +52,13 @@ describe('deploy', () => {
     successfulDeployment();
   });
 
-  test('request response when require approval is set', async () => {
+  test('request response when changes exceed require approval threshold', async () => {
     // WHEN
+    // this is the lowest threshold; always require approval
+    ioHost.requireDeployApproval = RequireApproval.ANY_CHANGE;
+
     const cx = await builderFixture(toolkit, 'stack-with-role');
-    await toolkit.deploy(cx, {
-      requireApproval: RequireApproval.ANY_CHANGE,
-    });
+    await toolkit.deploy(cx);
 
     // THEN
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -64,15 +66,20 @@ describe('deploy', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I5060',
       message: expect.stringContaining('Do you wish to deploy these changes'),
+      data: expect.objectContaining({
+        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
+        permissionChangeType: 'broadening',
+      }),
     }));
   });
 
-  test('skips response by default', async () => {
+  test('skips response when changes do not meet require approval threshold', async () => {
     // WHEN
+    // never require approval, so we expect the IoHost to skip
+    ioHost.requireDeployApproval = RequireApproval.NEVER;
+
     const cx = await builderFixture(toolkit, 'stack-with-role');
-    await toolkit.deploy(cx, {
-      requireApproval: RequireApproval.NEVER,
-    });
+    await toolkit.deploy(cx);
 
     // THEN
     expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -80,6 +87,10 @@ describe('deploy', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I5060',
       message: expect.stringContaining('Do you wish to deploy these changes'),
+      data: expect.objectContaining({
+        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
+        permissionChangeType: 'broadening',
+      }),
     }));
   });
 

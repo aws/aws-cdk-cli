@@ -572,7 +572,7 @@ jobs:
         continue-on-error: true
       - name: Release
         env:
-          NPM_DIST_TAG: v3-latest
+          NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -1086,7 +1086,7 @@ jobs:
           echo "S3_PATH=$DOCS_STREAM/aws-cdk-toolkit-lib-v$(cat dist/version.txt).zip" >> "$GITHUB_ENV"
           echo "S3_URI=s3://$BUCKET_NAME/$S3_PATH" >> "$GITHUB_ENV"
           echo "LATEST=latest-toolkit-lib" >> "$GITHUB_ENV"
-          echo $S3_PATH > $LATEST
+          echo "$S3_PATH" > "$LATEST"
           (! aws s3 ls --human-readable $S3_URI \
           && aws s3 cp --dryrun dist/docs.zip $S3_URI \
           && aws s3 cp --dryrun $LATEST s3://$BUCKET_NAME/$LATEST) \

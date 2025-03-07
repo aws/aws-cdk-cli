@@ -639,7 +639,6 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
-    npmDistTag: 'v3-latest',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -719,6 +718,11 @@ tmpToolkitHelpers.package.addField('exports', {
   './package.json': './package.json',
   './api': './lib/api/index.js',
   './util': './lib/util/index.js',
+});
+
+tmpToolkitHelpers.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
 });
 
 //////////////////////////////////////////////////////////////////////
@@ -1220,7 +1224,8 @@ new S3DocsPublishing(toolkitLib, {
 
 // Eslint rules
 toolkitLib.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': ['error'],
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
   'import/no-restricted-paths': ['error', {
     zones: [{
       target: './',
@@ -1250,7 +1255,7 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
-toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
+toolkitLib.postCompileTask.exec('ts-node --prefer-ts-exts scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1296,7 +1301,7 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-// Ad a command for the docs
+// Add a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
