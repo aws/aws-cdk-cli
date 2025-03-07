@@ -733,6 +733,8 @@ tmpToolkitHelpers.eslint?.addRules({
   '@typescript-eslint/consistent-type-imports': 'error',
 });
 
+tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
+
 //////////////////////////////////////////////////////////////////////
 
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);

@@ -3,127 +3,28 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
-import { ActivityPrinterProps, CurrentActivityPrinter, HistoryActivityPrinter, IActivityPrinter } from '../cli/activity-printer';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
+import { isMessageRelevantForLevel } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { ActivityPrinterProps, IActivityPrinter } from '../cli/activity-printer';
+import { CurrentActivityPrinter, HistoryActivityPrinter } from '../cli/activity-printer';
 import { StackActivityProgress } from '../commands/deploy';
 
-export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
-export type IoCodeLevel = 'E' | 'W' | 'I';
-export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
-export type IoMessageCode = IoMessageSpecificCode<IoCodeLevel>;
+export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
-/**
- * Basic message structure for toolkit notifications.
- * Messages are emitted by the toolkit and handled by the IoHost.
- */
-export interface IoMessage<T> {
-  /**
-   * The time the message was emitted.
-   */
-  readonly time: Date;
-
-  /**
-   * The log level of the message.
-   */
-  readonly level: IoMessageLevel;
-
-  /**
-   * The action that triggered the message.
-   */
-  readonly action: ToolkitAction;
-
-  /**
-   * A short message code uniquely identifying a message type using the format CDK_[CATEGORY]_[E/W/I][000-999].
-   *
-   * The level indicator follows these rules:
-   * - 'E' for error level messages
-   * - 'W' for warning level messages
-   * - 'I' for info/debug/trace level messages
-   *
-   * Codes ending in 000 are generic messages, while codes ending in 001-999 are specific to a particular message.
-   * The following are examples of valid and invalid message codes:
-   * ```ts
-   * 'CDK_ASSETS_I000'       // valid: generic assets info message
-   * 'CDK_TOOLKIT_E002'      // valid: specific toolkit error message
-   * 'CDK_SDK_W023'          // valid: specific sdk warning message
-   * ```
-   */
-  readonly code: IoMessageCode;
-
-  /**
-   * The message text.
-   */
-  readonly message: string;
-
-  /**
-   * The data attached to the message.
-   */
-  readonly data?: T;
-}
-
-export interface IoRequest<T, U> extends IoMessage<T> {
-  /**
-   * The default response that will be used if no data is returned.
-   */
-  readonly defaultResponse: U;
-}
-
-export type IoMessageLevel = 'error' | 'result' | 'warn' | 'info' | 'debug' | 'trace';
-
-export const levelPriority: Record<IoMessageLevel, number> = {
-  error: 0,
-  result: 1,
-  warn: 2,
-  info: 3,
-  debug: 4,
-  trace: 5,
-};
+type CliAction =
+| ToolkitAction
+| 'context'
+| 'docs'
+| 'notices'
+| 'version'
+| 'none';
 
 /**
  * Temporary helper to group required props for IoMessages
  */
 export interface IoMessaging {
   ioHost: IIoHost;
-  action: ToolkitAction;
-}
-
-/**
- * The current action being performed by the CLI. 'none' represents the absence of an action.
- */
-export type ToolkitAction =
-| 'assembly'
-| 'bootstrap'
-| 'synth'
-| 'list'
-| 'diff'
-| 'deploy'
-| 'rollback'
-| 'watch'
-| 'destroy'
-| 'context'
-| 'docs'
-| 'doctor'
-| 'gc'
-| 'import'
-| 'metadata'
-| 'notices'
-| 'init'
-| 'migrate'
-| 'version';
-
-export interface IIoHost {
-  /**
-   * Notifies the host of a message.
-   * The caller waits until the notification completes.
-   */
-  notify<T>(msg: IoMessage<T>): Promise<void>;
-
-  /**
-   * Notifies the host of a message that requires a response.
-   *
-   * If the host does not return a response the suggested
-   * default response from the input message will be used.
-   */
-  requestResponse<T, U>(msg: IoRequest<T, U>): Promise<U>;
+  action: CliAction;
 }
 
 export interface CliIoHostProps {
@@ -198,7 +99,7 @@ export class CliIoHost implements IIoHost {
   private static _instance: CliIoHost | undefined;
 
   // internal state for getters/setter
-  private _currentAction: ToolkitAction;
+  private _currentAction: CliAction;
   private _isCI: boolean;
   private _isTTY: boolean;
   private _logLevel: IoMessageLevel;
@@ -214,7 +115,7 @@ export class CliIoHost implements IIoHost {
   private readonly corkedLoggingBuffer: IoMessage<any>[] = [];
 
   private constructor(props: CliIoHostProps = {}) {
-    this._currentAction = props.currentAction ?? 'none' as ToolkitAction;
+    this._currentAction = props.currentAction ?? 'none';
     this._isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this._logLevel = props.logLevel ?? 'info';
     this._isCI = props.isCI ?? isCI();
@@ -251,8 +152,8 @@ export class CliIoHost implements IIoHost {
       return this._progress;
     }
 
-    // if log level is tracing or debug, we default to the full history printer
-    const verboseLogging = levelPriority[this.logLevel] > levelPriority.info;
+    // if a debug message (and thus any more verbose messages) are relevant to the current log level, we have verbose logging
+    const verboseLogging = isMessageRelevantForLevel({ level: 'debug' }, this.logLevel);
     if (verboseLogging) {
       return StackActivityProgress.EVENTS;
     }
@@ -278,7 +179,7 @@ export class CliIoHost implements IIoHost {
   /**
    * The current action being performed by the CLI.
    */
-  public get currentAction(): ToolkitAction {
+  public get currentAction(): CliAction {
     return this._currentAction;
   }
 
@@ -287,7 +188,7 @@ export class CliIoHost implements IIoHost {
    *
    * @param action The action being performed by the CLI.
    */
-  public set currentAction(action: ToolkitAction) {
+  public set currentAction(action: CliAction) {
     this._currentAction = action;
   }
 
@@ -393,7 +294,7 @@ export class CliIoHost implements IIoHost {
       return;
     }
 
-    if (levelPriority[msg.level] > levelPriority[this.logLevel]) {
+    if (!isMessageRelevantForLevel(msg, this.logLevel)) {
       return;
     }
 

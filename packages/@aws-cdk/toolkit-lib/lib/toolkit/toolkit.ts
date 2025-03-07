@@ -26,8 +26,8 @@ import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } from '../api/cloud-assembly/private';
 import type { IIoHost, IoMessageLevel } from '../api/io';
 import { Timer, IO, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
-import type { ActionAwareIoHost } from '../api/shared-private';
-import { withAction } from '../api/shared-private';
+import type { IoHelper } from '../api/shared-private';
+import { asIoHelper } from '../api/shared-private';
 import type { ToolkitAction } from '../api/shared-public';
 import { ToolkitError } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
@@ -130,7 +130,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     if (!this._sdkProvider) {
       this._sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
         ...this.props.sdkConfig,
-        logger: asSdkLogger(withAction(this.ioHost, action)),
+        logger: asSdkLogger(asIoHelper(this.ioHost, action)),
       });
     }
 
@@ -142,7 +142,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   protected override async sourceBuilderServices(): Promise<ToolkitServices> {
     return {
-      ioHost: withAction(this.ioHost, 'assembly'),
+      ioHost: asIoHelper(this.ioHost, 'assembly'),
       sdkProvider: await this.sdkProvider('assembly'),
     };
   }
@@ -151,7 +151,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Bootstrap Action
    */
   public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<void> {
-    const ioHost = withAction(this.ioHost, 'bootstrap');
+    const ioHost = asIoHelper(this.ioHost, 'bootstrap');
     const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
     const parameters = options.parameters;
@@ -197,7 +197,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Synth Action
    */
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<ICloudAssemblySource> {
-    const ioHost = withAction(this.ioHost, 'synth');
+    const ioHost = asIoHelper(this.ioHost, 'synth');
     const synthTimer = Timer.start();
     const assembly = await assemblyFromSource(cx);
     const stacks = assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
@@ -242,7 +242,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * List selected stacks and their dependencies
    */
   public async list(cx: ICloudAssemblySource, options: ListOptions = {}): Promise<StackDetails[]> {
-    const ioHost = withAction(this.ioHost, 'list');
+    const ioHost = asIoHelper(this.ioHost, 'list');
     const synthTimer = Timer.start();
     const assembly = await assemblyFromSource(cx);
     const stackCollection = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
@@ -269,7 +269,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Helper to allow deploy being called as part of the watch action.
    */
   private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}) {
-    const ioHost = withAction(this.ioHost, action);
+    const ioHost = asIoHelper(this.ioHost, action);
     const synthTimer = Timer.start();
     const stackCollection = assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     await this.validateStacksMetadata(stackCollection, ioHost);
@@ -572,7 +572,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<void> {
     const assembly = await assemblyFromSource(cx, false);
-    const ioHost = withAction(this.ioHost, 'watch');
+    const ioHost = asIoHelper(this.ioHost, 'watch');
     const rootDir = options.watchDir ?? process.cwd();
 
     if (options.include === undefined && options.exclude === undefined) {
@@ -695,7 +695,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Helper to allow rollback being called as part of the deploy or watch action.
    */
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<void> {
-    const ioHost = withAction(this.ioHost, action);
+    const ioHost = asIoHelper(this.ioHost, action);
     const synthTimer = Timer.start();
     const stacks = assembly.selectStacksV2(options.stacks);
     await this.validateStacksMetadata(stacks, ioHost);
@@ -753,7 +753,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Helper to allow destroy being called as part of the deploy action.
    */
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<void> {
-    const ioHost = withAction(this.ioHost, action);
+    const ioHost = asIoHelper(this.ioHost, action);
     const synthTimer = Timer.start();
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = await assembly.selectStacksV2(options.stacks).reversed();
@@ -795,7 +795,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacksMetadata(stacks: StackCollection, ioHost: ActionAwareIoHost) {
+  private async validateStacksMetadata(stacks: StackCollection, ioHost: IoHelper) {
     const builder = (level: IoMessageLevel) => {
       switch (level) {
         case 'error': return IO.CDK_ASSEMBLY_E9999;

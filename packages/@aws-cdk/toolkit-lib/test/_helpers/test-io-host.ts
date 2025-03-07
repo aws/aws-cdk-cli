@@ -1,6 +1,6 @@
 import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib';
 import { RequireApproval } from '../../lib';
-import { isMessageRelevantForLevel } from '../../lib/api/io/private/level-priority';
+import { isMessageRelevantForLevel } from '../../lib/api/shared-private';
 
 /**
  * A test implementation of IIoHost that does nothing but can by spied on.

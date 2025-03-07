@@ -9,7 +9,7 @@ import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailable
 import { splitBySize } from '../../../private/util';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import type { ActionAwareIoHost } from '../../shared-private';
+import type { IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
@@ -130,7 +130,7 @@ export async function withContext<T>(
  *
  * @param assembly the assembly to check
  */
-export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHost: ActionAwareIoHost): Promise<void> {
+export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHost: IoHelper): Promise<void> {
   const tree = loadTree(assembly);
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;
@@ -149,7 +149,7 @@ export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly,
 /**
  * Safely create an assembly from a cloud assembly directory
  */
-export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionAwareIoHost, loadOptions: LoadAssemblyOptions = {}) {
+export async function assemblyFromDirectory(assemblyDir: string, ioHost: IoHelper, loadOptions: LoadAssemblyOptions = {}) {
   try {
     const assembly = new cxapi.CloudAssembly(assemblyDir, {
       skipVersionCheck: !(loadOptions.checkVersion ?? true),

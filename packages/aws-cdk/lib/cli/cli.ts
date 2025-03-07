@@ -78,7 +78,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  debug('CDK toolkit version:', version.displayVersion());
+  debug('CDK Toolkit CLI version:', version.displayVersion());
   debug('Command line arguments:', argv);
 
   const configuration = new Configuration({

@@ -3,7 +3,7 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { type Context, contextproviders, PROJECT_CONTEXT } from '../../aws-cdk';
 import { IO } from '../../io/private';
-import type { ActionAwareIoHost } from '../../shared-private';
+import type { IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { ICloudAssemblySource } from '../types';
 
@@ -43,7 +43,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
   private canLookup: boolean;
   private context: Context;
   private contextFile: string;
-  private ioHost: ActionAwareIoHost;
+  private ioHost: IoHelper;
 
   constructor(private readonly source: ICloudAssemblySource, private readonly props: ContextAwareCloudAssemblyProps) {
     this.canLookup = props.lookups ?? true;

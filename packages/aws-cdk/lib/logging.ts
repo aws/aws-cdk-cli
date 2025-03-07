@@ -1,6 +1,10 @@
 import * as util from 'util';
 import * as chalk from 'chalk';
-import { IoMessageLevel, IoMessage, CliIoHost, IoMessageSpecificCode, IoMessageCode, IoMessageCodeCategory, IoCodeLevel } from './toolkit/cli-io-host';
+import { IoMessageLevel, IoMessage, CliIoHost, IoMessageCode } from './toolkit/cli-io-host';
+
+export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
+export type IoCodeLevel = 'E' | 'W' | 'I';
+export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
 
 /**
  * Internal helper that processes log inputs into a consistent format.
@@ -27,7 +31,7 @@ function formatMessageAndLog(
   const ioHost = CliIoHost.instance();
   const ioMessage: IoMessage<undefined> = {
     time: new Date(),
-    action: ioHost.currentAction,
+    action: ioHost.currentAction as any,
     level,
     message: finalMessage,
     code,

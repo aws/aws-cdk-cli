@@ -25,7 +25,7 @@ import {
   type RootTemplateWithNestedStacks,
 } from './nested-stack-helpers';
 import { debug, warn } from '../../cli/messages';
-import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
+import { IIoHost, IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
@@ -297,7 +297,7 @@ export interface DeploymentsProps {
   readonly sdkProvider: SdkProvider;
   readonly toolkitStackName?: string;
   readonly ioHost: IIoHost;
-  readonly action: ToolkitAction;
+  readonly action: IoMessaging['action'];
 }
 
 /**
@@ -333,7 +333,7 @@ export class Deployments {
   private _allowCrossAccountAssetPublishing: boolean | undefined;
 
   private readonly ioHost: IIoHost;
-  private readonly action: ToolkitAction;
+  private readonly action: IoMessaging['action'];
 
   constructor(private readonly props: DeploymentsProps) {
     this.assetSdkProvider = props.sdkProvider;

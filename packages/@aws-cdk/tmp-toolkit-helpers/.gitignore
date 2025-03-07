@@ -41,3 +41,4 @@ jspm_packages/
 /dist/
 !/.eslintrc.json
 !/.eslintrc.js
+test/**/*.map

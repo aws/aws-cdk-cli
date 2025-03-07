@@ -29,7 +29,7 @@ import { ChangeSetDeploymentMethod, DeploymentMethod } from './deployment-method
 import { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import { tryHotswapDeployment } from './hotswap-deployments';
 import { debug, info, warn } from '../../cli/messages';
-import { IIoHost, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
+import { IIoHost, IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
@@ -368,7 +368,7 @@ class FullCloudFormationDeployment {
     private readonly stackParams: ParameterValues,
     private readonly bodyParameter: TemplateBodyParameter,
     private readonly ioHost: IIoHost,
-    private readonly action: ToolkitAction,
+    private readonly action: IoMessaging['action'],
   ) {
     this.cfn = options.sdk.cloudFormation();
     this.stackName = options.deployName ?? stackArtifact.stackName;

@@ -3,7 +3,7 @@ import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { ImportDeploymentOptions, ResourceImporter } from './importer';
 import { info } from '../../cli/messages';
-import type { IIoHost, ToolkitAction } from '../../toolkit/cli-io-host';
+import type { IIoHost, IoMessaging } from '../../toolkit/cli-io-host';
 import { formatTime } from '../../util';
 import { StackCollection } from '../cxapp/cloud-assembly';
 import type { Deployments, ResourcesToImport } from '../deployments';
@@ -11,13 +11,13 @@ import type { Deployments, ResourcesToImport } from '../deployments';
 export interface ResourceMigratorProps {
   deployments: Deployments;
   ioHost: IIoHost;
-  action: ToolkitAction;
+  action: IoMessaging['action'];
 }
 
 export class ResourceMigrator {
   private readonly props: ResourceMigratorProps;
   private readonly ioHost: IIoHost;
-  private readonly action: ToolkitAction;
+  private readonly action: IoMessaging['action'];
 
   public constructor(props: ResourceMigratorProps) {
     this.props = props;
