@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@aws-cdk/cdk-build-tools": "^0.0.0",
-    "@aws-cdk/cli-plugin-contract": "^2.179.0",
+    "@aws-cdk/cli-plugin-contract": "^0.0.0",
     "@aws-cdk/node-bundle": "^0.0.0",
     "@aws-cdk/tmp-toolkit-helpers": "^0.0.0",
     "@aws-cdk/user-input-gen": "^0.0.0",
@@ -123,7 +123,7 @@
     "@smithy/util-waiter": "^4.0.2",
     "archiver": "^7.0.1",
     "camelcase": "^6",
-    "cdk-assets": "^3.0.0",
+    "cdk-assets": "^0.0.0",
     "cdk-from-cfn": "0.162.1",
     "chalk": "^4",
     "chokidar": "^3",
