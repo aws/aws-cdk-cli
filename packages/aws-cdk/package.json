@@ -157,7 +157,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "2.1002.1",
+  "version": "0.0.0",
   "types": "lib/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
