@@ -5,7 +5,6 @@ import { ICloudFormationClient, SuccessfulDeployStackResult } from '../../../lib
 import { CloudFormationStack, Template } from '../../../lib/api/deployments';
 import * as deployments from '../../../lib/api/deployments/hotswap-deployments';
 import { HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
-import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 import { testStack, TestStackArtifact } from '../../util';
 import {
   mockCloudFormationClient,
@@ -15,6 +14,8 @@ import {
   setDefaultSTSMocks,
 } from '../../util/mock-sdk';
 import { FakeCloudformationStack } from './fake-cloudformation-stack';
+import { TestIoHost } from '../../_helpers/test-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const STACK_NAME = 'withouterrors';
 export const STACK_ID = 'stackId';
@@ -24,11 +25,7 @@ let currentCfnStack: FakeCloudformationStack;
 const currentCfnStackResources: StackResourceSummary[] = [];
 let stackTemplates: { [stackName: string]: any };
 let currentNestedCfnStackResources: { [stackName: string]: StackResourceSummary[] };
-
-let mockMsg: IoMessaging = {
-  ioHost: CliIoHost.instance(),
-  action: 'deploy',
-};
+let ioHost = new TestIoHost();
 
 export function setupHotswapTests(): HotswapMockSdkProvider {
   restoreSdkMocksToDefault();
@@ -149,6 +146,6 @@ export class HotswapMockSdkProvider extends MockSdkProvider {
     hotswapPropertyOverrides?: HotswapPropertyOverrides,
   ): Promise<SuccessfulDeployStackResult | undefined> {
     let hotswapProps = hotswapPropertyOverrides || new HotswapPropertyOverrides();
-    return deployments.tryHotswapDeployment(this, mockMsg, assetParams, currentCfnStack, stackArtifact, hotswapMode, hotswapProps);
+    return deployments.tryHotswapDeployment(this, asIoHelper(ioHost, 'deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode, hotswapProps);
   }
 }

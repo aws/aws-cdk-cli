@@ -6,8 +6,9 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
 import { StackActivityMonitor } from '../../../lib/api/stack-events';
-import { IIoHost } from '../../../lib/toolkit/cli-io-host';
 import { testStack } from '../../util';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
 
 let sdk: MockSdk;
 let monitor: StackActivityMonitor;
@@ -20,8 +21,7 @@ beforeEach(async () => {
 
   monitor = await new StackActivityMonitor({
     cfn: sdk.cloudFormation(),
-    ioHost,
-    action: 'deploy',
+    ioHelper: asIoHelper(ioHost, 'deploy'),
     stack: testStack({
       stackName: 'StackName',
     }),

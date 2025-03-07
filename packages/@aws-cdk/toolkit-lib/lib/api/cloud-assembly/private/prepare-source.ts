@@ -38,7 +38,7 @@ export function determineOutputDirectory(outdir?: string) {
  * @param context The context key/value bash.
  */
 export async function prepareDefaultEnvironment(services: ToolkitServices, props: { outdir?: string } = {}): Promise<Env> {
-  const logFn = (msg: string, ...args: any) => services.ioHost.notify(IO.CDK_ASSEMBLY_I0010.msg(format(msg, ...args)));
+  const logFn = (msg: string, ...args: any) => services.ioHelper.notify(IO.CDK_ASSEMBLY_I0010.msg(format(msg, ...args)));
   const env = await oldPrepare(services.sdkProvider, logFn);
 
   if (props.outdir) {

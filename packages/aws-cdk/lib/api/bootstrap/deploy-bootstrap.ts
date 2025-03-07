@@ -10,8 +10,8 @@ import {
   BootstrapEnvironmentOptions,
   DEFAULT_BOOTSTRAP_VARIANT,
 } from './bootstrap-props';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { warn } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import type { SDK, SdkProvider } from '../aws-auth';
 import { assertIsSuccessfulDeployStackResult, SuccessfulDeployStackResult } from '../deployments';
 import { deployStack } from '../deployments/deploy-stack';
@@ -34,15 +34,15 @@ import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
  * current bootstrap stack and doing something intelligent).
  */
 export class BootstrapStack {
-  public static async lookup(sdkProvider: SdkProvider, environment: Environment, toolkitStackName: string, msg: IoMessaging) {
+  public static async lookup(sdkProvider: SdkProvider, environment: Environment, toolkitStackName: string, ioHelper: IoHelper) {
     toolkitStackName = toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
 
     const resolvedEnvironment = await sdkProvider.resolveEnvironment(environment);
     const sdk = (await sdkProvider.forEnvironment(resolvedEnvironment, Mode.ForWriting)).sdk;
 
-    const currentToolkitInfo = await ToolkitInfo.lookup(resolvedEnvironment, sdk, msg, toolkitStackName);
+    const currentToolkitInfo = await ToolkitInfo.lookup(resolvedEnvironment, sdk, ioHelper, toolkitStackName);
 
-    return new BootstrapStack(sdkProvider, sdk, resolvedEnvironment, toolkitStackName, currentToolkitInfo, msg);
+    return new BootstrapStack(sdkProvider, sdk, resolvedEnvironment, toolkitStackName, currentToolkitInfo, ioHelper);
   }
 
   protected constructor(
@@ -51,7 +51,7 @@ export class BootstrapStack {
     private readonly resolvedEnvironment: Environment,
     private readonly toolkitStackName: string,
     private readonly currentToolkitInfo: ToolkitInfo,
-    private readonly msg: IoMessaging,
+    private readonly ioHelper: IoHelper,
   ) {
   }
 
@@ -88,8 +88,7 @@ export class BootstrapStack {
       const currentVariant = this.currentToolkitInfo.variant;
       const newVariant = bootstrapVariantFromTemplate(template);
       if (currentVariant !== newVariant) {
-        await this.msg.ioHost.notify(warn(
-          this.msg.action,
+        await this.ioHelper.notify(warn(
           `Bootstrap stack already exists, containing '${currentVariant}'. Not overwriting it with a template containing '${newVariant}' (use --force if you intend to overwrite)`,
         ));
         return abortResponse;
@@ -99,15 +98,13 @@ export class BootstrapStack {
       const newVersion = bootstrapVersionFromTemplate(template);
       const currentVersion = this.currentToolkitInfo.version;
       if (newVersion < currentVersion) {
-        await this.msg.ioHost.notify(warn(
-          this.msg.action,
+        await this.ioHelper.notify(warn(
           `Bootstrap stack already at version ${currentVersion}. Not downgrading it to version ${newVersion} (use --force if you intend to downgrade)`,
         ));
         if (newVersion === 0) {
           // A downgrade with 0 as target version means we probably have a new-style bootstrap in the account,
           // and an old-style bootstrap as current target, which means the user probably forgot to put this flag in.
-          await this.msg.ioHost.notify(warn(
-            this.msg.action,
+          await this.ioHelper.notify(warn(
             "(Did you set the '@aws-cdk/core:newStyleStackSynthesis' feature flag in cdk.json?)",
           ));
         }
@@ -145,8 +142,8 @@ export class BootstrapStack {
       parameters,
       usePreviousParameters: options.usePreviousParameters ?? true,
       // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
-      envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.msg),
-    }, this.msg);
+      envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.ioHelper),
+    }, this.ioHelper);
 
     assertIsSuccessfulDeployStackResult(ret);
 

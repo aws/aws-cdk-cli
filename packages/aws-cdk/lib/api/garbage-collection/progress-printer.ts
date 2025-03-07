@@ -1,13 +1,11 @@
 import * as chalk from 'chalk';
 import { GcAsset as GCAsset } from './garbage-collector';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { info } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 
 export class ProgressPrinter {
-  private ioHost: IoMessaging['ioHost'];
-  private action: IoMessaging['action'];
-
+  private ioHelper: IoHelper;
   private totalAssets: number;
   private assetsScanned: number;
   private taggedAsset: number;
@@ -18,10 +16,8 @@ export class ProgressPrinter {
   private setInterval?: ReturnType<typeof setTimeout>;
   private isPaused: boolean;
 
-  constructor(msg: IoMessaging, totalAssets: number, interval?: number) {
-    this.ioHost = msg.ioHost;
-    this.action = msg.action;
-
+  constructor(ioHelper: IoHelper, totalAssets: number, interval?: number) {
+    this.ioHelper = ioHelper;
     this.totalAssets = totalAssets;
     this.assetsScanned = 0;
     this.taggedAsset = 0;
@@ -83,9 +79,9 @@ export class ProgressPrinter {
     const percentage = ((this.assetsScanned / this.totalAssets) * 100).toFixed(2);
     // print in MiB until we hit at least 1 GiB of data tagged/deleted
     if (Math.max(this.taggedAssetsSizeMb, this.deletedAssetsSizeMb) >= 1000) {
-      void this.ioHost.notify(info(this.action, chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${(this.taggedAssetsSizeMb / 1000).toFixed(2)} GiB) tagged, ${this.deletedAssets} assets (${(this.deletedAssetsSizeMb / 1000).toFixed(2)} GiB) deleted.`)));
+      void this.ioHelper.notify(info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${(this.taggedAssetsSizeMb / 1000).toFixed(2)} GiB) tagged, ${this.deletedAssets} assets (${(this.deletedAssetsSizeMb / 1000).toFixed(2)} GiB) deleted.`)));
     } else {
-      void this.ioHost.notify(info(this.action, chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${this.taggedAssetsSizeMb.toFixed(2)} MiB) tagged, ${this.deletedAssets} assets (${this.deletedAssetsSizeMb.toFixed(2)} MiB) deleted.`)));
+      void this.ioHelper.notify(info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${this.taggedAssetsSizeMb.toFixed(2)} MiB) tagged, ${this.deletedAssets} assets (${this.deletedAssetsSizeMb.toFixed(2)} MiB) deleted.`)));
     }
   }
 }

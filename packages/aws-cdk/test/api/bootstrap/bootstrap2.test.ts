@@ -10,16 +10,28 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault, setDefaultSTSMocks,
 } from '../../util/mock-sdk';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
+import { IIoHost } from '../../../lib/toolkit/cli-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const mockDeployStack = jest.spyOn(deployStack, 'deployStack');
 
 let bootstrapper: Bootstrapper;
 let stderrMock: jest.SpyInstance;
+let ioHost: IIoHost = {
+  notify: jest.fn().mockImplementation((msg) => {
+    process.stderr.write(msg.message + '\n');
+  }),
+  requestResponse: jest.fn().mockImplementation((msg) => {
+    process.stderr.write(msg.message + '\n');
+    return msg.defaultResponses
+  }),
+};
+let ioHelper = asIoHelper(ioHost, 'bootstrap');
 
 beforeEach(() => {
-  CliIoHost.instance().isCI = false;
-  bootstrapper = new Bootstrapper({ source: 'default' }, { ioHost: CliIoHost.instance(), action: 'bootstrap' });
+  jest.mocked(ioHost.notify).mockClear();
+  jest.mocked(ioHost.requestResponse).mockClear();
+  bootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
   stderrMock = jest.spyOn(process.stderr, 'write').mockImplementation(() => {
     return true;
   });

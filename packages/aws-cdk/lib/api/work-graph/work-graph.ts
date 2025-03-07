@@ -1,30 +1,22 @@
 import { WorkNode, DeploymentState, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, trace } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { parallelPromises } from '../../util';
 
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
-export interface WorkGraphProps {
-  ioHost: IoMessaging['ioHost'];
-  action: IoMessaging['action'];
-}
-
 export class WorkGraph {
   public readonly nodes: Record<string, WorkNode>;
   private readonly readyPool: Array<WorkNode> = [];
   private readonly lazyDependencies = new Map<string, string[]>();
-  private readonly ioHost: IoMessaging['ioHost'];
-  private readonly action: IoMessaging['action'];
+  private readonly ioHelper: IoHelper;
 
   public error?: Error;
 
-  public constructor(nodes: Record<string, WorkNode>, props: WorkGraphProps) {
+  public constructor(nodes: Record<string, WorkNode>, ioHelper: IoHelper) {
     this.nodes = { ...nodes };
-
-    this.ioHost = props.ioHost;
-    this.action = props.action;
+    this.ioHelper = ioHelper;
   }
 
   public addNodes(...nodes: WorkNode[]) {
@@ -266,7 +258,7 @@ export class WorkGraph {
    * Do this in parallel, because there may be a lot of assets in an application (seen in practice: >100 assets)
    */
   public async removeUnnecessaryAssets(isUnnecessary: (x: AssetPublishNode) => Promise<boolean>) {
-    await this.ioHost.notify(debug(this.action, 'Checking for previously published assets'));
+    await this.ioHelper.notify(debug('Checking for previously published assets'));
 
     const publishes = this.nodesOfType('asset-publish');
 
@@ -279,7 +271,7 @@ export class WorkGraph {
       this.removeNode(assetNode);
     }
 
-    await this.ioHost.notify(debug(this.action, `${publishes.length} total assets, ${publishes.length - alreadyPublished.length} still need to be published`));
+    await this.ioHelper.notify(debug(`${publishes.length} total assets, ${publishes.length - alreadyPublished.length} still need to be published`));
 
     // Now also remove any asset build steps that don't have any dependencies on them anymore
     const unusedBuilds = this.nodesOfType('asset-build').filter(build => this.dependees(build).length === 0);
@@ -310,7 +302,7 @@ export class WorkGraph {
 
     if (this.readyPool.length === 0 && activeCount === 0 && pendingCount > 0) {
       const cycle = this.findCycle() ?? ['No cycle found!'];
-      await this.ioHost.notify(trace(this.action, `Cycle ${cycle.join(' -> ')} in graph ${this}`));
+      await this.ioHelper.notify(trace(`Cycle ${cycle.join(' -> ')} in graph ${this}`));
       throw new ToolkitError(`Unable to make progress anymore, dependency cycle between remaining artifacts: ${cycle.join(' -> ')} (run with -vv for full graph)`);
     }
   }

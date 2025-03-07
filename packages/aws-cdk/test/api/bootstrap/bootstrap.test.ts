@@ -13,8 +13,9 @@ import { parse } from 'yaml';
 import { Bootstrapper } from '../../../lib/api/bootstrap';
 import { legacyBootstrapTemplate } from '../../../lib/api/bootstrap/legacy-template';
 import { deserializeStructure, serializeStructure, toYAML } from '../../../lib/util';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
+import { TestIoHost } from '../../_helpers/test-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const env = {
   account: '123456789012',
@@ -31,9 +32,12 @@ jest.mock('../../../lib/api/deployments/checks', () => ({
 let sdk: MockSdkProvider;
 let changeSetTemplate: any | undefined;
 let bootstrapper: Bootstrapper;
+let ioHost = new TestIoHost();
+let ioHelper = asIoHelper(ioHost, 'bootstrap');
+
 beforeEach(() => {
   sdk = new MockSdkProvider();
-  bootstrapper = new Bootstrapper({ source: 'legacy' }, { ioHost: CliIoHost.instance(), action: 'bootstrap' });
+  bootstrapper = new Bootstrapper({ source: 'legacy' }, ioHelper);
   mockCloudFormationClient.reset();
   restoreSdkMocksToDefault();
   // First two calls, no stacks exist (first is for version checking, second is in deploy-stack.ts)

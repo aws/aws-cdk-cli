@@ -5,17 +5,15 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
-import { IoHelper, asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { error, info, warn } from '../../cli/messages';
-import type { IIoHost, IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { assertIsSuccessfulDeployStackResult, type Deployments, DeploymentMethod, ResourceIdentifierProperties, ResourcesToImport } from '../deployments';
 import type { Tag } from '../tags';
 
 export interface ResourceImporterProps {
   deployments: Deployments;
-  ioHost: IIoHost;
-  action: IoMessaging['action'];
+  ioHelper: IoHelper;
 }
 
 export interface ImportDeploymentOptions {
@@ -103,7 +101,7 @@ export class ResourceImporter {
 
   private readonly stack: cxapi.CloudFormationStackArtifact;
   private readonly cfn: Deployments;
-  private readonly ioHost: IoHelper;
+  private readonly ioHelper: IoHelper;
 
   constructor(
     stack: cxapi.CloudFormationStackArtifact,
@@ -111,7 +109,7 @@ export class ResourceImporter {
   ) {
     this.stack = stack;
     this.cfn = props.deployments;
-    this.ioHost = asIoHelper(props.ioHost, props.action as any);
+    this.ioHelper = props.ioHelper;
   }
 
   /**
@@ -145,19 +143,19 @@ export class ResourceImporter {
       const descr = this.describeResource(resource.logicalId);
       const idProps = contents[resource.logicalId];
       if (idProps) {
-        await this.ioHost.notify(info(this.ioHost.action, format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps)))));
+        await this.ioHelper.notify(info(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps)))));
 
         ret.importResources.push(resource);
         ret.resourceMap[resource.logicalId] = idProps;
         delete contents[resource.logicalId];
       } else {
-        await this.ioHost.notify(info(this.ioHost.action, format('%s: skipping', chalk.blue(descr))));
+        await this.ioHelper.notify(info(format('%s: skipping', chalk.blue(descr))));
       }
     }
 
     const unknown = Object.keys(contents);
     if (unknown.length > 0) {
-      await this.ioHost.notify(warn(this.ioHost.action, `Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`));
+      await this.ioHelper.notify(warn(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`));
     }
 
     return ret;
@@ -207,9 +205,9 @@ export class ResourceImporter {
         ? ' ✅  %s (no changes)'
         : ' ✅  %s';
 
-      await this.ioHost.notify(info(this.ioHost.action, '\n' + chalk.green(format(message, this.stack.displayName))));
+      await this.ioHelper.notify(info('\n' + chalk.green(format(message, this.stack.displayName))));
     } catch (e) {
-      await this.ioHost.notify(error(this.ioHost.action, format('\n ❌  %s failed: %s', chalk.bold(this.stack.displayName), e), 'CDK_TOOLKIT_E3900'));
+      await this.ioHelper.notify(error(format('\n ❌  %s failed: %s', chalk.bold(this.stack.displayName), e), 'CDK_TOOLKIT_E3900'));
       throw e;
     }
   }
@@ -238,7 +236,7 @@ export class ResourceImporter {
       const offendingResources = nonAdditions.map(([logId, _]) => this.describeResource(logId));
 
       if (allowNonAdditions) {
-        await this.ioHost.notify(warn(this.ioHost.action, `Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`));
+        await this.ioHelper.notify(warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`));
       } else {
         throw new ToolkitError('No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
           `to existing resources, before attempting an import. Updated/deleted resources: ${offendingResources.join(', ')} (--force to override)`);
@@ -326,7 +324,7 @@ export class ResourceImporter {
     // Skip resources that do not support importing
     const resourceType = chg.resourceDiff.newResourceType;
     if (resourceType === undefined || !(resourceType in resourceIdentifiers)) {
-      await this.ioHost.notify(warn(this.ioHost.action, `${resourceName}: unsupported resource type ${resourceType}, skipping import.`));
+      await this.ioHelper.notify(warn(`${resourceName}: unsupported resource type ${resourceType}, skipping import.`));
       return undefined;
     }
 
@@ -352,7 +350,7 @@ export class ResourceImporter {
 
     // If we got here and the user rejected any available identifiers, then apparently they don't want the resource at all
     if (satisfiedPropSets.length > 0) {
-      await this.ioHost.notify(info(this.ioHost.action, chalk.grey(`Skipping import of ${resourceName}`)));
+      await this.ioHelper.notify(info(chalk.grey(`Skipping import of ${resourceName}`)));
       return undefined;
     }
 
@@ -370,7 +368,7 @@ export class ResourceImporter {
 
     // Do the input loop here
     if (preamble) {
-      await this.ioHost.notify(info(this.ioHost.action, preamble));
+      await this.ioHelper.notify(info(preamble));
     }
     for (const idProps of idPropSets) {
       const input: Record<string, string> = {};
@@ -405,7 +403,7 @@ export class ResourceImporter {
       }
     }
 
-    await this.ioHost.notify(info(this.ioHost.action, chalk.grey(`Skipping import of ${resourceName}`)));
+    await this.ioHelper.notify(info(chalk.grey(`Skipping import of ${resourceName}`)));
     return undefined;
   }
 

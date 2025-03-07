@@ -21,7 +21,6 @@ import { deployStack, DeployStackOptions } from '../../../lib/api/deployments/de
 import { tryHotswapDeployment } from '../../../lib/api/deployments/hotswap-deployments';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../util';
 import {
   mockCloudFormationClient,
@@ -30,11 +29,14 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault,
 } from '../../util/mock-sdk';
+import { TestIoHost } from '../../_helpers/test-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
-const mockMsg: IoMessaging = { ioHost: CliIoHost.instance(), action: 'deploy' };
+let ioHost = new TestIoHost();
+let ioHelper = asIoHelper(ioHost, 'deploy');
 
 function testDeployStack(options: DeployStackOptions) {
-  return deployStack(options, mockMsg);
+  return deployStack(options, ioHelper);
 }
 
 jest.mock('../../../lib/api/deployments/hotswap-deployments');
@@ -118,7 +120,7 @@ function standardDeployStackArguments(): DeployStackOptions {
     sdk,
     sdkProvider,
     resolvedEnvironment,
-    envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, mockMsg),
+    envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
   };
 }
 
@@ -389,35 +391,6 @@ test('reuse previous parameters if requested', async () => {
       { ParameterKey: 'OtherParameter', ParameterValue: 'SomeValue' },
     ],
   } as CreateChangeSetCommandInput);
-});
-
-describe('ci=true', () => {
-  let stderrMock: jest.SpyInstance;
-  let stdoutMock: jest.SpyInstance;
-  beforeEach(() => {
-    CliIoHost.instance().isCI = true;
-    jest.resetAllMocks();
-    stderrMock = jest.spyOn(process.stderr, 'write').mockImplementation(() => {
-      return true;
-    });
-    stdoutMock = jest.spyOn(process.stdout, 'write').mockImplementation(() => {
-      return true;
-    });
-  });
-  afterEach(() => {
-    CliIoHost.instance().isCI = false;
-  });
-  test('output written to stdout', async () => {
-    // GIVEN
-
-    await testDeployStack({
-      ...standardDeployStackArguments(),
-    });
-
-    // THEN
-    expect(stderrMock.mock.calls).toEqual([]);
-    expect(stdoutMock.mock.calls).not.toEqual([]);
-  });
 });
 
 test('do not reuse previous parameters if not requested', async () => {
@@ -759,7 +732,7 @@ test('deploy not skipped if template did not change but tags changed', async () 
         Value: 'NewValue',
       },
     ],
-    envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, mockMsg),
+    envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
   });
 
   // THEN

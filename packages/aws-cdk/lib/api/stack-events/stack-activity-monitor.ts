@@ -6,10 +6,10 @@ import { StackEvent } from '@aws-sdk/client-cloudformation';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
 import { debug, error, info } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { stackEventHasErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
 import { StackProgress, StackProgressMonitor } from './stack-progress-monitor';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 /**
  * Payload when stack monitoring is starting or stopping for a given stack deployment.
@@ -77,14 +77,9 @@ export interface StackActivityMonitorProps {
   readonly cfn: ICloudFormationClient;
 
   /**
-   * The IoHost used for messaging
+   * The IoHelper used for messaging
    */
-  readonly ioHost: IoMessaging['ioHost'];
-
-  /**
-   * The current ToolkitAction
-   */
-  readonly action: IoMessaging['action'];
+  readonly ioHelper: IoHelper;
 
   /**
    * The stack artifact that is getting deployed
@@ -156,23 +151,20 @@ export class StackActivityMonitor {
    */
   private readPromise?: Promise<any>;
 
-  private readonly ioHost: IoMessaging['ioHost'];
-  private readonly action: IoMessaging['action'];
+  private readonly ioHelper: IoHelper;
   private readonly stackName: string;
   private readonly stack: CloudFormationStackArtifact;
 
   constructor({
     cfn,
-    ioHost,
-    action,
+    ioHelper,
     stack,
     stackName,
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
   }: StackActivityMonitorProps) {
-    this.ioHost = ioHost;
-    this.action = action;
+    this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackName = stackName;
 
@@ -186,7 +178,7 @@ export class StackActivityMonitor {
 
   public async start() {
     this.monitorId = uuid.v4();
-    await this.ioHost.notify(debug(this.action, `Deploying ${this.stackName}`, 'CDK_TOOLKIT_I5501', {
+    await this.ioHelper.notify(debug(`Deploying ${this.stackName}`, 'CDK_TOOLKIT_I5501', {
       deployment: this.monitorId,
       stack: this.stack,
       stackName: this.stackName,
@@ -208,7 +200,7 @@ export class StackActivityMonitor {
     // up not printing the failure reason to users.
     await this.finalPollToEnd(oldMonitorId);
 
-    await this.ioHost.notify(debug(this.action, `Completed ${this.stackName}`, 'CDK_TOOLKIT_I5503', {
+    await this.ioHelper.notify(debug(`Completed ${this.stackName}`, 'CDK_TOOLKIT_I5503', {
       deployment: oldMonitorId,
       stack: this.stack,
       stackName: this.stackName,
@@ -239,8 +231,7 @@ export class StackActivityMonitor {
         return;
       }
     } catch (e) {
-      await this.ioHost.notify(error(
-        this.action,
+      await this.ioHelper.notify(error(
         util.format('Error occurred while monitoring stack: %s', e),
         'CDK_TOOLKIT_E5500',
         { error: e },
@@ -289,7 +280,7 @@ export class StackActivityMonitor {
       };
 
       this.checkForErrors(activity);
-      await this.ioHost.notify(info(this.action, this.formatActivity(activity, true), 'CDK_TOOLKIT_I5502', activity));
+      await this.ioHelper.notify(info(this.formatActivity(activity, true), 'CDK_TOOLKIT_I5502', activity));
     }
   }
 

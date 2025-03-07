@@ -9,7 +9,7 @@ import type { IoHelper } from '../../api/shared-private';
  */
 export interface ToolkitServices {
   sdkProvider: SdkProvider;
-  ioHost: IoHelper;
+  ioHelper: IoHelper;
 }
 
 /**

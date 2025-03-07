@@ -2,27 +2,24 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { ImportDeploymentOptions, ResourceImporter } from './importer';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { info } from '../../cli/messages';
-import type { IIoHost, IoMessaging } from '../../toolkit/cli-io-host';
 import { formatTime } from '../../util';
 import { StackCollection } from '../cxapp/cloud-assembly';
 import type { Deployments, ResourcesToImport } from '../deployments';
 
 export interface ResourceMigratorProps {
   deployments: Deployments;
-  ioHost: IIoHost;
-  action: IoMessaging['action'];
+  ioHelper: IoHelper;
 }
 
 export class ResourceMigrator {
   private readonly props: ResourceMigratorProps;
-  private readonly ioHost: IIoHost;
-  private readonly action: IoMessaging['action'];
+  private readonly ioHelper: IoHelper;
 
   public constructor(props: ResourceMigratorProps) {
     this.props = props;
-    this.ioHost = props.ioHost;
-    this.action = props.action;
+    this.ioHelper = props.ioHelper;
   }
 
   /**
@@ -35,19 +32,18 @@ export class ResourceMigrator {
     const stack = stacks.stackArtifacts[0];
     const migrateDeployment = new ResourceImporter(stack, {
       deployments: this.props.deployments,
-      ioHost: this.ioHost,
-      action: this.action,
+      ioHelper: this.ioHelper,
     });
     const resourcesToImport = await this.tryGetResources(await migrateDeployment.resolveEnvironment());
 
     if (resourcesToImport) {
-      await this.ioHost.notify(info(this.action, `${chalk.bold(stack.displayName)}: creating stack for resource migration...`));
-      await this.ioHost.notify(info(this.action, `${chalk.bold(stack.displayName)}: importing resources into stack...`));
+      await this.ioHelper.notify(info(`${chalk.bold(stack.displayName)}: creating stack for resource migration...`));
+      await this.ioHelper.notify(info(`${chalk.bold(stack.displayName)}: importing resources into stack...`));
 
       await this.performResourceMigration(migrateDeployment, resourcesToImport, options);
 
       fs.rmSync('migrate.json');
-      await this.ioHost.notify(info(this.action, `${chalk.bold(stack.displayName)}: applying CDKMetadata and Outputs to stack (if applicable)...`));
+      await this.ioHelper.notify(info(`${chalk.bold(stack.displayName)}: applying CDKMetadata and Outputs to stack (if applicable)...`));
     }
   }
 
@@ -71,7 +67,7 @@ export class ResourceMigrator {
     });
 
     elapsedDeployTime = new Date().getTime() - startDeployTime;
-    await this.ioHost.notify(info(this.action, `'\n✨  Resource migration time: ${formatTime(elapsedDeployTime)}s\n'`, 'CDK_TOOLKIT_I5002', {
+    await this.ioHelper.notify(info(`'\n✨  Resource migration time: ${formatTime(elapsedDeployTime)}s\n'`, 'CDK_TOOLKIT_I5002', {
       duration: elapsedDeployTime,
     }));
   }

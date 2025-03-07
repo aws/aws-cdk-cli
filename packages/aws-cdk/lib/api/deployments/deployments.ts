@@ -24,8 +24,8 @@ import {
   loadCurrentTemplateWithNestedStacks,
   type RootTemplateWithNestedStacks,
 } from './nested-stack-helpers';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, warn } from '../../cli/messages';
-import { IIoHost, IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
@@ -296,8 +296,7 @@ export interface StackExistsOptions {
 export interface DeploymentsProps {
   readonly sdkProvider: SdkProvider;
   readonly toolkitStackName?: string;
-  readonly ioHost: IIoHost;
-  readonly action: IoMessaging['action'];
+  readonly ioHelper: IoHelper;
 }
 
 /**
@@ -332,18 +331,16 @@ export class Deployments {
 
   private _allowCrossAccountAssetPublishing: boolean | undefined;
 
-  private readonly ioHost: IIoHost;
-  private readonly action: IoMessaging['action'];
+  private readonly ioHelper: IoHelper;
 
   constructor(private readonly props: DeploymentsProps) {
     this.assetSdkProvider = props.sdkProvider;
     this.deployStackSdkProvider = props.sdkProvider;
-    this.ioHost = props.ioHost;
-    this.action = props.action;
+    this.ioHelper = props.ioHelper;
     this.envs = new EnvironmentAccess(
       props.sdkProvider,
       props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME,
-      { ioHost: this.ioHost, action: this.action },
+      this.ioHelper,
     );
   }
 
@@ -363,7 +360,7 @@ export class Deployments {
   }
 
   public async readCurrentTemplate(stackArtifact: cxapi.CloudFormationStackArtifact): Promise<Template> {
-    await this.ioHost.notify(debug(this.action, `Reading existing template for stack ${stackArtifact.displayName}.`));
+    await this.ioHelper.notify(debug(`Reading existing template for stack ${stackArtifact.displayName}.`));
     const env = await this.envs.accessStackForLookupBestEffort(stackArtifact);
     return loadCurrentTemplate(stackArtifact, env.sdk);
   }
@@ -371,7 +368,7 @@ export class Deployments {
   public async resourceIdentifierSummaries(
     stackArtifact: cxapi.CloudFormationStackArtifact,
   ): Promise<ResourceIdentifierSummaries> {
-    await this.ioHost.notify(debug(this.action, `Retrieving template summary for stack ${stackArtifact.displayName}.`));
+    await this.ioHelper.notify(debug(`Retrieving template summary for stack ${stackArtifact.displayName}.`));
     // Currently, needs to use `deploy-role` since it may need to read templates in the staging
     // bucket which have been encrypted with a KMS key (and lookup-role may not read encrypted things)
     const env = await this.envs.accessStackForReadOnlyStackOperations(stackArtifact);
@@ -401,7 +398,7 @@ export class Deployments {
 
     const response = await cfn.getTemplateSummary(cfnParam);
     if (!response.ResourceIdentifierSummaries) {
-      await this.ioHost.notify(debug(this.action, 'GetTemplateSummary API call did not return "ResourceIdentifierSummaries"'));
+      await this.ioHelper.notify(debug('GetTemplateSummary API call did not return "ResourceIdentifierSummaries"'));
     }
     return response.ResourceIdentifierSummaries ?? [];
   }
@@ -454,7 +451,7 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
-    }, { ioHost: this.ioHost, action: this.action });
+    }, this.ioHelper);
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
@@ -486,11 +483,11 @@ export class Deployments {
 
       switch (cloudFormationStack.stackStatus.rollbackChoice) {
         case RollbackChoice.NONE:
-          await this.ioHost.notify(warn(this.action, `Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`));
+          await this.ioHelper.notify(warn(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`));
           return { notInRollbackableState: true };
 
         case RollbackChoice.START_ROLLBACK:
-          await this.ioHost.notify(debug(this.action, `Initiating rollback of stack ${deployName}`));
+          await this.ioHelper.notify(debug(`Initiating rollback of stack ${deployName}`));
           await cfn.rollbackStack({
             StackName: deployName,
             RoleARN: executionRoleArn,
@@ -516,7 +513,7 @@ export class Deployments {
           }
 
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
-          await this.ioHost.notify(warn(this.action, `Continuing rollback of stack ${deployName}${skipDescription}`));
+          await this.ioHelper.notify(warn(`Continuing rollback of stack ${deployName}${skipDescription}`));
           await cfn.continueUpdateRollback({
             StackName: deployName,
             ClientRequestToken: randomUUID(),
@@ -526,8 +523,7 @@ export class Deployments {
           break;
 
         case RollbackChoice.ROLLBACK_FAILED:
-          await this.ioHost.notify(warn(
-            this.action,
+          await this.ioHelper.notify(warn(
             `Stack ${deployName} failed creation and rollback. This state cannot be rolled back. You can recreate this stack by running 'cdk deploy'.`,
           ));
           return { notInRollbackableState: true };
@@ -540,15 +536,14 @@ export class Deployments {
         cfn,
         stack: options.stack,
         stackName: deployName,
-        ioHost: this.ioHost,
-        action: this.action,
+        ioHelper: this.ioHelper,
       });
       await monitor.start();
 
       let stackErrorMessage: string | undefined = undefined;
       let finalStackState = cloudFormationStack;
       try {
-        const successStack = await stabilizeStack(cfn, { ioHost: this.ioHost, action: this.action }, deployName);
+        const successStack = await stabilizeStack(cfn, this.ioHelper, deployName);
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
@@ -594,7 +589,7 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
-    }, { ioHost: this.ioHost, action: this.action });
+    }, this.ioHelper);
   }
 
   public async stackExists(options: StackExistsOptions): Promise<boolean> {
@@ -664,10 +659,7 @@ export class Deployments {
   private async allowCrossAccountAssetPublishingForEnv(stack: cxapi.CloudFormationStackArtifact): Promise<boolean> {
     if (this._allowCrossAccountAssetPublishing === undefined) {
       const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
-      this._allowCrossAccountAssetPublishing = await determineAllowCrossAccountAssetPublishing(env.sdk, {
-        ioHost: this.ioHost,
-        action: this.action,
-      }, this.props.toolkitStackName);
+      this._allowCrossAccountAssetPublishing = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
     }
     return this._allowCrossAccountAssetPublishing;
   }
@@ -713,7 +705,7 @@ export class Deployments {
       // The AssetPublishing class takes care of role assuming etc, so it's okay to
       // give it a direct `SdkProvider`.
       aws: new PublishingAws(this.assetSdkProvider, env),
-      progressListener: new ParallelSafeAssetProgress(prefix, { ioHost: this.ioHost, action: this.action }),
+      progressListener: new ParallelSafeAssetProgress(prefix, this.ioHelper),
     });
     this.publisherCache.set(assetManifest, publisher);
     return publisher;
@@ -726,8 +718,8 @@ export class Deployments {
 class ParallelSafeAssetProgress extends BasePublishProgressListener {
   private readonly prefix: string;
 
-  constructor(prefix: string, { ioHost, action }: IoMessaging) {
-    super({ ioHost, action });
+  constructor(prefix: string, ioHelper: IoHelper) {
+    super(ioHelper);
     this.prefix = prefix;
   }
 

@@ -1,20 +1,19 @@
 import { inspect, format } from 'util';
 import { Logger } from '@smithy/types';
-import type { IIoHost } from '../../toolkit/cli-io-host';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { replacerBufferWithInfo } from '../../util';
 
 export class SdkToCliLogger implements Logger {
-  private readonly ioHost: IIoHost;
+  private readonly ioHelper: IoHelper;
 
-  public constructor(ioHost: IIoHost) {
-    this.ioHost = ioHost;
+  public constructor(ioHelper: IoHelper) {
+    this.ioHelper = ioHelper;
   }
 
   private notify(level: 'debug' | 'info' | 'warn' | 'error', ...content: any[]) {
-    void this.ioHost.notify({
+    void this.ioHelper.notify({
       time: new Date(),
       level: 'trace', // always log all SDK logs at trace level, no matter what level they are coming from the SDK
-      action: 'none' as any,
       code: 'CDK_SDK_I0000',
       message: format('[SDK %s] %s', level, formatSdkLoggerContent(content)),
     });

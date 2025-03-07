@@ -1,6 +1,6 @@
 import { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { ICloudFormationClient } from '../aws-auth';
 
@@ -37,7 +37,7 @@ async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | unde
  * - stacks in DELETE_COMPLETE or DELETE_IN_PROGRESS stage
  * - stacks that are using a different bootstrap qualifier
  */
-async function fetchAllStackTemplates(cfn: ICloudFormationClient, { ioHost, action }: IoMessaging, qualifier?: string) {
+async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHelper, qualifier?: string) {
   const stackNames: string[] = [];
   await paginateSdkCall(async (nextToken) => {
     const stacks = await cfn.listStacks({ NextToken: nextToken });
@@ -53,7 +53,7 @@ async function fetchAllStackTemplates(cfn: ICloudFormationClient, { ioHost, acti
     return stacks.NextToken;
   });
 
-  await ioHost.notify(debug(action, `Parsing through ${stackNames.length} stacks`));
+  await ioHelper.notify(debug(`Parsing through ${stackNames.length} stacks`));
 
   const templates: string[] = [];
   for (const stack of stackNames) {
@@ -74,7 +74,7 @@ async function fetchAllStackTemplates(cfn: ICloudFormationClient, { ioHost, acti
     }
   }
 
-  await ioHost.notify(debug(action, 'Done parsing through stacks'));
+  await ioHelper.notify(debug('Done parsing through stacks'));
 
   return templates;
 }
@@ -98,9 +98,9 @@ function bootstrapFilter(parameters?: ParameterDeclaration[], qualifier?: string
           splitBootstrapVersion[2] != qualifier);
 }
 
-export async function refreshStacks(cfn: ICloudFormationClient, { ioHost, action }: IoMessaging, activeAssets: ActiveAssetCache, qualifier?: string) {
+export async function refreshStacks(cfn: ICloudFormationClient, ioHelper: IoHelper, activeAssets: ActiveAssetCache, qualifier?: string) {
   try {
-    const stacks = await fetchAllStackTemplates(cfn, { ioHost, action }, qualifier);
+    const stacks = await fetchAllStackTemplates(cfn, ioHelper, qualifier);
     for (const stack of stacks) {
       activeAssets.rememberStack(stack);
     }
@@ -121,7 +121,7 @@ export interface BackgroundStackRefreshProps {
   /**
    * Used to send messages.
    */
-  readonly msg: IoMessaging;
+  readonly ioHelper: IoHelper;
 
   /**
    * Active Asset storage
@@ -155,7 +155,7 @@ export class BackgroundStackRefresh {
   private async refresh() {
     const startTime = Date.now();
 
-    await refreshStacks(this.props.cfn, this.props.msg, this.props.activeAssets, this.props.qualifier);
+    await refreshStacks(this.props.cfn, this.props.ioHelper, this.props.activeAssets, this.props.qualifier);
     this.justRefreshedStacks();
 
     // If the last invocation of refreshStacks takes <5 minutes, the next invocation starts 5 minutes after the last one started.

@@ -7,6 +7,7 @@ import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
 import { Configuration, PROJECT_CONFIG } from './user-configuration';
+import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import { SdkProvider } from '../api/aws-auth';
 import { Bootstrapper, BootstrapEnvironmentOptions } from '../api/bootstrap';
@@ -203,8 +204,7 @@ export class CdkToolkit {
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
-          ioHost: this.ioHost,
-          action: 'diff',
+          ioHelper: asIoHelper(this.ioHost, 'diff'),
         });
         const resourcesToImport = await migrator.tryGetResources(await this.props.deployments.resolveEnvironment(stack));
         if (resourcesToImport) {
@@ -232,7 +232,7 @@ export class CdkToolkit {
           }
 
           if (stackExists) {
-            changeSet = await createDiffChangeSet({ ioHost: this.ioHost, action: 'diff' }, {
+            changeSet = await createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
               stack,
               uuid: uuid.v4(),
               deployments: this.props.deployments,
@@ -304,8 +304,7 @@ export class CdkToolkit {
 
     const migrator = new ResourceMigrator({
       deployments: this.props.deployments,
-      ioHost: this.ioHost,
-      action: 'deploy',
+      ioHelper: asIoHelper(this.ioHost, 'deploy'),
     });
     await migrator.tryMigrateResources(stackCollection, {
       toolkitStackName: this.toolkitStackName,
@@ -544,7 +543,7 @@ export class CdkToolkit {
         );
       } finally {
         if (options.cloudWatchLogMonitor) {
-          const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, { ioHost: this.ioHost, action: 'deploy' }, stack);
+          const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
           options.cloudWatchLogMonitor.addLogGroups(
             foundLogGroupsResult.env,
             foundLogGroupsResult.sdk,
@@ -582,10 +581,10 @@ export class CdkToolkit {
       stack,
       ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
     ]);
-    const workGraph = new WorkGraphBuilder({
-      ioHost: this.ioHost,
-      action: 'deploy',
-    }, prebuildAssets).build(stacksAndTheirAssetManifests);
+    const workGraph = new WorkGraphBuilder(
+      asIoHelper(this.ioHost, 'deploy'),
+      prebuildAssets,
+    ).build(stacksAndTheirAssetManifests);
 
     // Unless we are running with '--force', skip already published assets
     if (!options.force) {
@@ -767,8 +766,7 @@ export class CdkToolkit {
 
     const resourceImporter = new ResourceImporter(stack, {
       deployments: this.props.deployments,
-      ioHost: this.ioHost,
-      action: 'import',
+      ioHelper: asIoHelper(this.ioHost, 'import'),
     });
     const { additions, hasNonAdditions } = await resourceImporter.discoverImportableResources(options.force);
     if (additions.length === 0) {
@@ -961,7 +959,7 @@ export class CdkToolkit {
     userEnvironmentSpecs: string[],
     options: BootstrapEnvironmentOptions,
   ): Promise<void> {
-    const bootstrapper = new Bootstrapper(options.source, { ioHost: this.ioHost, action: 'bootstrap' });
+    const bootstrapper = new Bootstrapper(options.source, asIoHelper(this.ioHost, 'bootstrap'));
     // If there is an '--app' argument and an environment looks like a glob, we
     // select the environments from the app. Otherwise, use what the user said.
 
@@ -996,10 +994,7 @@ export class CdkToolkit {
       success(' ⏳  Garbage Collecting environment %s...', chalk.blue(environment.name));
       const gc = new GarbageCollector({
         sdkProvider: this.props.sdkProvider,
-        msg: {
-          ioHost: this.ioHost,
-          action: 'gc',
-        },
+        ioHelper: asIoHelper(this.ioHost, 'gc'),
         resolvedEnvironment: environment,
         bootstrapStackName: options.bootstrapStackName,
         rollbackBufferDays: options.rollbackBufferDays,

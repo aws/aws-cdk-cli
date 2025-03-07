@@ -11,8 +11,8 @@ import {
   REPOSITORY_NAME_OUTPUT,
 } from './bootstrap/bootstrap-props';
 import { type CloudFormationStack, stabilizeStack } from './deployments/cloudformation';
+import { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../cli/messages';
-import { IoMessaging } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
 
 export const DEFAULT_TOOLKIT_STACK_NAME = 'CDKToolkit';
@@ -48,16 +48,15 @@ export abstract class ToolkitInfo {
   public static async lookup(
     environment: cxapi.Environment,
     sdk: SDK,
-    { ioHost, action }: IoMessaging,
+    ioHelper: IoHelper,
     stackName: string | undefined,
   ): Promise<ToolkitInfo> {
     const cfn = sdk.cloudFormation();
     stackName = ToolkitInfo.determineName(stackName);
     try {
-      const stack = await stabilizeStack(cfn, { ioHost, action }, stackName);
+      const stack = await stabilizeStack(cfn, ioHelper, stackName);
       if (!stack) {
-        await ioHost.notify(debug(
-          action,
+        await ioHelper.notify(debug(
           format(
             "The environment %s doesn't have the CDK toolkit stack (%s) installed. Use %s to setup your environment for use with the toolkit.",
             environment.name,
@@ -69,8 +68,7 @@ export abstract class ToolkitInfo {
       }
       if (stack.stackStatus.isCreationFailure) {
         // Treat a "failed to create" bootstrap stack as an absent one.
-        await ioHost.notify(debug(
-          action,
+        await ioHelper.notify(debug(
           format(
             'The environment %s has a CDK toolkit stack (%s) that failed to create. Use %s to try provisioning it again.',
             environment.name,

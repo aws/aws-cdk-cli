@@ -13,8 +13,9 @@ import {
   type ISecretsManagerClient,
 } from 'cdk-assets';
 import type { SDK } from '..';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatMessage } from '../../cli/messages';
-import { IIoHost, IoMessageLevel, IoMessaging } from '../../toolkit/cli-io-host';
+import type { IoMessageLevel } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import type { SdkProvider } from '../aws-auth';
 import { Mode } from '../plugin';
@@ -43,7 +44,7 @@ export async function publishAssets(
   sdk: SdkProvider,
   targetEnv: Environment,
   options: PublishAssetsOptions,
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
 ) {
   // This shouldn't really happen (it's a programming error), but we don't have
   // the types here to guide us. Do an runtime validation to be super super sure.
@@ -58,7 +59,7 @@ export async function publishAssets(
 
   const publisher = new AssetPublishing(manifest, {
     aws: new PublishingAws(sdk, targetEnv),
-    progressListener: new PublishingProgressListener({ ioHost, action }),
+    progressListener: new PublishingProgressListener(ioHelper),
     throwOnError: false,
     publishInParallel: options.parallel ?? true,
     buildAssets: true,
@@ -183,12 +184,10 @@ export const EVENT_TO_LEVEL: Record<EventType, IoMessageLevel | false> = {
 };
 
 export abstract class BasePublishProgressListener implements IPublishProgressListener {
-  protected readonly ioHost: IIoHost;
-  protected readonly action: IoMessaging['action'];
+  protected readonly ioHelper: IoHelper;
 
-  constructor({ ioHost, action }: IoMessaging) {
-    this.ioHost = ioHost;
-    this.action = action;
+  constructor(ioHelper: IoHelper) {
+    this.ioHelper = ioHelper;
   }
 
   protected abstract getMessage(type: EventType, event: IPublishProgress): string;
@@ -196,10 +195,9 @@ export abstract class BasePublishProgressListener implements IPublishProgressLis
   public onPublishEvent(type: EventType, event: IPublishProgress): void {
     const level = EVENT_TO_LEVEL[type];
     if (level) {
-      void this.ioHost.notify(
+      void this.ioHelper.notify(
         formatMessage({
           level,
-          action: this.action,
           message: this.getMessage(type, event),
         }),
       );

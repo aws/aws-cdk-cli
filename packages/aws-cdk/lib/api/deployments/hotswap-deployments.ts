@@ -32,7 +32,7 @@ import {
 import { isHotswappableStateMachineChange } from '../hotswap/stepfunctions-state-machines';
 import { Mode } from '../plugin';
 import { SuccessfulDeployStackResult } from './deployment-result';
-import { IoMessaging } from '../../toolkit/cli-io-host';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -85,7 +85,7 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
  */
 export async function tryHotswapDeployment(
   sdkProvider: SdkProvider,
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   assetParams: { [key: string]: string },
   cloudFormationStack: CloudFormationStack,
   stackArtifact: cxapi.CloudFormationStackArtifact,
@@ -118,7 +118,7 @@ export async function tryHotswapDeployment(
     currentTemplate.nestedStacks, hotswapPropertyOverrides,
   );
 
-  await logNonHotswappableChanges({ ioHost, action }, nonHotswappableChanges, hotswapMode);
+  await logNonHotswappableChanges(ioHelper, nonHotswappableChanges, hotswapMode);
 
   // preserve classic hotswap behavior
   if (hotswapMode === HotswapMode.FALL_BACK) {
@@ -128,7 +128,7 @@ export async function tryHotswapDeployment(
   }
 
   // apply the short-circuitable changes
-  await applyAllHotswappableChanges(sdk, { ioHost, action }, hotswappableChanges);
+  await applyAllHotswappableChanges(sdk, ioHelper, hotswappableChanges);
 
   return {
     type: 'did-deploy-stack',
@@ -402,24 +402,24 @@ function isCandidateForHotswapping(
   };
 }
 
-async function applyAllHotswappableChanges(sdk: SDK, { ioHost, action }: IoMessaging, hotswappableChanges: HotswappableChange[]): Promise<void[]> {
+async function applyAllHotswappableChanges(sdk: SDK, ioHelper: IoHelper, hotswappableChanges: HotswappableChange[]): Promise<void[]> {
   if (hotswappableChanges.length > 0) {
-    await ioHost.notify(info(action, `\n${ICON} hotswapping resources:`));
+    await ioHelper.notify(info(`\n${ICON} hotswapping resources:`));
   }
   const limit = pLimit(10);
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(hotswappableChanges.map(hotswapOperation => limit(() => {
-    return applyHotswappableChange(sdk, { ioHost, action }, hotswapOperation);
+    return applyHotswappableChange(sdk, ioHelper, hotswapOperation);
   })));
 }
 
-async function applyHotswappableChange(sdk: SDK, { ioHost, action }: IoMessaging, hotswapOperation: HotswappableChange): Promise<void> {
+async function applyHotswappableChange(sdk: SDK, ioHelper: IoHelper, hotswapOperation: HotswappableChange): Promise<void> {
   // note the type of service that was successfully hotswapped in the User-Agent
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);
 
   for (const name of hotswapOperation.resourceNames) {
-    await ioHost.notify(info(action, format(`   ${ICON} %s`, chalk.bold(name))));
+    await ioHelper.notify(info(format(`   ${ICON} %s`, chalk.bold(name))));
   }
 
   // if the SDK call fails, an error will be thrown by the SDK
@@ -437,7 +437,7 @@ async function applyHotswappableChange(sdk: SDK, { ioHost, action }: IoMessaging
   }
 
   for (const name of hotswapOperation.resourceNames) {
-    await ioHost.notify(info(action, format(`${ICON} %s %s`, chalk.bold(name), chalk.green('hotswapped!'))));
+    await ioHelper.notify(info(format(`${ICON} %s %s`, chalk.bold(name), chalk.green('hotswapped!'))));
   }
 
   sdk.removeCustomUserAgent(customUserAgent);
@@ -462,7 +462,7 @@ function formatWaiterErrorResult(result: WaiterResult) {
 }
 
 async function logNonHotswappableChanges(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   nonHotswappableChanges: NonHotswappableChange[],
   hotswapMode: HotswapMode,
 ): Promise<void> {
@@ -512,5 +512,5 @@ async function logNonHotswappableChanges(
   }
   messages.push(''); // newline
 
-  await ioHost.notify(info(action, messages.join('\n')));
+  await ioHelper.notify(info(messages.join('\n')));
 }

@@ -6,20 +6,25 @@ import { AssetManifestBuilder } from '../../../lib/api/deployments';
 import { EnvironmentResources, EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import { MockSdk } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
+import { TestIoHost } from '../../_helpers/test-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let assets: AssetManifestBuilder;
 let envRegistry: EnvironmentResourcesRegistry;
 let envResources: EnvironmentResources;
 let toolkitMock: ReturnType<typeof MockToolkitInfo.setup>;
-let mockMsg: IoMessaging = { ioHost: CliIoHost.instance(), action: 'deploy' };
+let ioHost = new TestIoHost();
+let ioHelper = asIoHelper(ioHost, 'deploy');
 
 beforeEach(() => {
+  ioHost.notifySpy.mockClear();
+  ioHost.requestSpy.mockClear();
+
   assets = new AssetManifestBuilder();
   envRegistry = new EnvironmentResourcesRegistry();
 
   const sdk = new MockSdk();
-  envResources = envRegistry.for({ account: '11111111', region: 'us-nowhere', name: 'aws://11111111/us-nowhere' }, sdk, mockMsg);
+  envResources = envRegistry.for({ account: '11111111', region: 'us-nowhere', name: 'aws://11111111/us-nowhere' }, sdk, ioHelper);
   toolkitMock = MockToolkitInfo.setup();
 });
 
@@ -44,7 +49,7 @@ describe('file assets', () => {
     ]);
 
     // WHEN
-    const params = await addMetadataAssetsToManifest(mockMsg, stack, assets, envResources);
+    const params = await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources);
 
     // THEN
     expect(params).toEqual({
@@ -83,7 +88,7 @@ describe('file assets', () => {
     ]);
 
     // WHEN
-    await addMetadataAssetsToManifest(mockMsg, stack, assets, envResources);
+    await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources);
 
     // THEN
     expect(assets.toManifest('.').entries).toEqual([
@@ -111,7 +116,7 @@ describe('file assets', () => {
     ]);
 
     // WHEN
-    const params = await addMetadataAssetsToManifest(mockMsg, stack, assets, envResources, ['SomeStackSomeResource4567']);
+    const params = await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources, ['SomeStackSomeResource4567']);
 
     // THEN
     expect(params).toEqual({
@@ -137,7 +142,7 @@ describe('docker assets', () => {
       mockFn(envResources.prepareEcrRepository).mockResolvedValue({ repositoryUri: 'docker.uri' });
 
       // WHEN
-      const params = await addMetadataAssetsToManifest(mockMsg, stack, assets, envResources);
+      const params = await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources);
 
       // THEN
       expect(envResources.prepareEcrRepository).toHaveBeenCalledWith('cdk/stack-construct-abc123');
@@ -170,7 +175,7 @@ describe('docker assets', () => {
       },
     ]);
 
-    await expect(addMetadataAssetsToManifest(mockMsg, stack, assets, envResources)).rejects.toThrow('Invalid Docker image asset');
+    await expect(addMetadataAssetsToManifest(ioHelper, stack, assets, envResources)).rejects.toThrow('Invalid Docker image asset');
   });
 
   test('no parameter and repo/tag name (new)', async () => {
@@ -189,7 +194,7 @@ describe('docker assets', () => {
       mockFn(envResources.prepareEcrRepository).mockResolvedValue({ repositoryUri: 'docker.uri' });
 
       // WHEN
-      const params = await addMetadataAssetsToManifest(mockMsg, stack, assets, envResources);
+      const params = await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources);
 
       // THEN
       expect(envResources.prepareEcrRepository).toHaveBeenCalledWith('reponame');
@@ -222,7 +227,7 @@ describe('docker assets', () => {
     ]);
 
     // WHEN
-    const params = await addMetadataAssetsToManifest(mockMsg, stack, assets, envResources, ['SomeStackSomeResource4567']);
+    const params = await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources, ['SomeStackSomeResource4567']);
 
     // THEN
     expect(params).toEqual({

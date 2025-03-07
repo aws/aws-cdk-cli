@@ -21,6 +21,7 @@ import {
   BackgroundStackRefreshProps,
 } from '../../../lib/api/garbage-collection/stack-refresh';
 import { ProgressPrinter } from '../../../lib/api/garbage-collection/progress-printer';
+import { TestIoHost } from '../../_helpers/test-io-host';
 import {
   BatchDeleteImageCommand,
   BatchGetImageCommand,
@@ -28,7 +29,7 @@ import {
   ListImagesCommand,
   PutImageCommand,
 } from '@aws-sdk/client-ecr';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let garbageCollector: GarbageCollector;
 
@@ -36,10 +37,14 @@ let stderrMock: jest.SpyInstance;
 const cfnClient = mockCloudFormationClient;
 const s3Client = mockS3Client;
 const ecrClient = mockECRClient;
+const ioHost = new TestIoHost();
 
 const DAY = 24 * 60 * 60 * 1000; // Number of milliseconds in a day
 
 beforeEach(() => {
+  ioHost.notifySpy.mockClear();
+  ioHost.requestSpy.mockClear();
+
   // By default, we'll return a non-found toolkit info
   jest.spyOn(ToolkitInfo, 'lookup').mockResolvedValue(ToolkitInfo.bootstrapStackNotFoundInfo('GarbageStack'));
 
@@ -69,10 +74,7 @@ function gc(props: {
 }): GarbageCollector {
   return new GarbageCollector({
     sdkProvider: new MockSdkProvider(),
-    msg: {
-      ioHost: CliIoHost.instance(),
-      action: 'gc',
-    },
+    ioHelper: asIoHelper(ioHost, 'gc'),
     action: props.action,
     resolvedEnvironment: {
       account: '123456789012',
@@ -891,7 +893,7 @@ describe('Garbage Collection with large # of objects', () => {
 
     // add every 5th asset hash to the mock template body: 8000 assets are isolated
     const mockTemplateBody = [];
-    for (let i = 0; i < keyCount; i+=5) {
+    for (let i = 0; i < keyCount; i += 5) {
       mockTemplateBody.push(`asset${i}hash`);
     }
     cfnClient.on(GetTemplateCommand).resolves({
@@ -934,10 +936,7 @@ describe('BackgroundStackRefresh', () => {
 
     refreshProps = {
       cfn: foo.cloudFormation(),
-      msg: {
-        ioHost: CliIoHost.instance(),
-        action: 'gc',
-      },
+      ioHelper: asIoHelper(ioHost, 'gc'),
       activeAssets: new ActiveAssetCache(),
     };
 
@@ -1022,10 +1021,7 @@ describe('ProgressPrinter', () => {
     setInterval = jest.spyOn(global, 'setInterval');
     clearInterval = jest.spyOn(global, 'clearInterval');
 
-    progressPrinter = new ProgressPrinter({
-      ioHost: CliIoHost.instance(),
-      action: 'gc',
-    }, 0, 1000);
+    progressPrinter = new ProgressPrinter(asIoHelper(ioHost, 'gc'), 0, 1000);
   });
 
   afterEach(() => {

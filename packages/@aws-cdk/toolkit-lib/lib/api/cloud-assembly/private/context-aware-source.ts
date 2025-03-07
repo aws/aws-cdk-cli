@@ -43,13 +43,13 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
   private canLookup: boolean;
   private context: Context;
   private contextFile: string;
-  private ioHost: IoHelper;
+  private ioHelper: IoHelper;
 
   constructor(private readonly source: ICloudAssemblySource, private readonly props: ContextAwareCloudAssemblyProps) {
     this.canLookup = props.lookups ?? true;
     this.context = props.context;
     this.contextFile = props.contextFile ?? PROJECT_CONTEXT; // @todo new feature not needed right now
-    this.ioHost = props.services.ioHost;
+    this.ioHelper = props.services.ioHelper;
   }
 
   /**
@@ -77,14 +77,14 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
 
         let tryLookup = true;
         if (previouslyMissingKeys && equalSets(missingKeysSet, previouslyMissingKeys)) {
-          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0240.msg('Not making progress trying to resolve environmental context. Giving up.', { missingKeys }));
+          await this.ioHelper.notify(IO.CDK_ASSEMBLY_I0240.msg('Not making progress trying to resolve environmental context. Giving up.', { missingKeys }));
           tryLookup = false;
         }
 
         previouslyMissingKeys = missingKeysSet;
 
         if (tryLookup) {
-          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', { missingKeys }));
+          await this.ioHelper.notify(IO.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', { missingKeys }));
           await contextproviders.provideContextValues(
             assembly.manifest.missing,
             this.context,
@@ -92,7 +92,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
           );
 
           // Cache the new context to disk
-          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
+          await this.ioHelper.notify(IO.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
             contextFile: this.contextFile,
             context: this.context.all,
           }));

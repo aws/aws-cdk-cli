@@ -19,14 +19,6 @@ type CliAction =
 | 'version'
 | 'none';
 
-/**
- * Temporary helper to group required props for IoMessages
- */
-export interface IoMessaging {
-  ioHost: IIoHost;
-  action: CliAction;
-}
-
 export interface CliIoHostProps {
   /**
    * The initial Toolkit action the hosts starts with.

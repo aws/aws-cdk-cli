@@ -13,8 +13,8 @@ import {
 import { AssetManifest, FileManifestEntry } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
@@ -288,12 +288,12 @@ async function waitFor<T>(
  */
 export async function waitForChangeSet(
   cfn: ICloudFormationClient,
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
   { fetchAll }: { fetchAll: boolean },
 ): Promise<DescribeChangeSetCommandOutput> {
-  await ioHost.notify(debug(action, format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName)));
+  await ioHelper.notify(debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName)));
   const ret = await waitFor(async () => {
     const description = await describeChangeSet(cfn, stackName, changeSetName, {
       fetchAll,
@@ -301,7 +301,7 @@ export async function waitForChangeSet(
     // The following doesn't use a switch because tsc will not allow fall-through, UNLESS it is allows
     // EVERYWHERE that uses this library directly or indirectly, which is undesirable.
     if (description.Status === 'CREATE_PENDING' || description.Status === 'CREATE_IN_PROGRESS') {
-      await ioHost.notify(debug(action, format('Changeset %s on stack %s is still creating', changeSetName, stackName)));
+      await ioHelper.notify(debug(format('Changeset %s on stack %s is still creating', changeSetName, stackName)));
       return undefined;
     }
 
@@ -350,7 +350,7 @@ export type CreateChangeSetOptions = {
  * Create a changeset for a diff operation
  */
 export async function createDiffChangeSet(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
   // `options.stack` has been modified to include any nested stack templates directly inline with its own template, under a special `NestedTemplate` property.
@@ -358,13 +358,13 @@ export async function createDiffChangeSet(
   // This causes CreateChangeSet to fail with `Template Error: Fn::Equals cannot be partially collapsed`.
   for (const resource of Object.values(options.stack.template.Resources ?? {})) {
     if ((resource as any).Type === 'AWS::CloudFormation::Stack') {
-      await ioHost.notify(debug(action, 'This stack contains one or more nested stacks, falling back to template-only diff...'));
+      await ioHelper.notify(debug('This stack contains one or more nested stacks, falling back to template-only diff...'));
 
       return undefined;
     }
   }
 
-  return uploadBodyParameterAndCreateChangeSet({ ioHost, action }, options);
+  return uploadBodyParameterAndCreateChangeSet(ioHelper, options);
 }
 
 /**
@@ -394,7 +394,7 @@ function templatesFromAssetManifestArtifact(
 }
 
 async function uploadBodyParameterAndCreateChangeSet(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
   try {
@@ -415,7 +415,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
     );
 
-    return await createChangeSet({ ioHost, action }, {
+    return await createChangeSet(ioHelper, {
       cfn,
       changeSetName: 'cdk-diff-change-set',
       stack: options.stack,
@@ -428,7 +428,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       role: executionRoleArn,
     });
   } catch (e: any) {
-    await ioHost.notify(debug(action, e));
+    await ioHelper.notify(debug(e));
     options.stream.write(
       'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
     );
@@ -465,12 +465,12 @@ export async function uploadStackTemplateAssets(stack: cxapi.CloudFormationStack
 }
 
 export async function createChangeSet(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   options: CreateChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput> {
-  await cleanupOldChangeset(options.cfn, { ioHost, action }, options.changeSetName, options.stack.stackName);
+  await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
 
-  await ioHost.notify(debug(action, `Attempting to create ChangeSet with name ${options.changeSetName} for stack ${options.stack.stackName}`));
+  await ioHelper.notify(debug(`Attempting to create ChangeSet with name ${options.changeSetName} for stack ${options.stack.stackName}`));
 
   const templateParams = TemplateParameters.fromTemplate(options.stack.template);
   const stackParams = templateParams.supplyAll(options.parameters);
@@ -490,12 +490,12 @@ export async function createChangeSet(
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
   });
 
-  await ioHost.notify(debug(action, format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id)));
+  await ioHelper.notify(debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id)));
   // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-  const createdChangeSet = await waitForChangeSet(options.cfn, { ioHost, action }, options.stack.stackName, options.changeSetName, {
+  const createdChangeSet = await waitForChangeSet(options.cfn, ioHelper, options.stack.stackName, options.changeSetName, {
     fetchAll: options.willExecute,
   });
-  await cleanupOldChangeset(options.cfn, { ioHost, action }, options.changeSetName, options.stack.stackName);
+  await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
 
   return createdChangeSet;
 }
@@ -509,13 +509,13 @@ function toCfnTags(tags: { [id: string]: string }): Tag[] {
 
 async function cleanupOldChangeset(
   cfn: ICloudFormationClient,
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   changeSetName: string,
   stackName: string,
 ) {
   // Delete any existing change sets generated by CDK since change set names must be unique.
   // The delete request is successful as long as the stack exists (even if the change set does not exist).
-  await ioHost.notify(debug(action, `Removing existing change set with name ${changeSetName} if it exists`));
+  await ioHelper.notify(debug(`Removing existing change set with name ${changeSetName} if it exists`));
   await cfn.deleteChangeSet({
     StackName: stackName,
     ChangeSetName: changeSetName,
@@ -556,10 +556,10 @@ export function changeSetHasNoChanges(description: DescribeChangeSetCommandOutpu
  */
 export async function waitForStackDelete(
   cfn: ICloudFormationClient,
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   stackName: string,
 ): Promise<CloudFormationStack | undefined> {
-  const stack = await stabilizeStack(cfn, { ioHost, action }, stackName);
+  const stack = await stabilizeStack(cfn, ioHelper, stackName);
   if (!stack) {
     return undefined;
   }
@@ -588,10 +588,10 @@ export async function waitForStackDelete(
  */
 export async function waitForStackDeploy(
   cfn: ICloudFormationClient,
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   stackName: string,
 ): Promise<CloudFormationStack | undefined> {
-  const stack = await stabilizeStack(cfn, { ioHost, action }, stackName);
+  const stack = await stabilizeStack(cfn, ioHelper, stackName);
   if (!stack) {
     return undefined;
   }
@@ -614,18 +614,19 @@ export async function waitForStackDeploy(
  */
 export async function stabilizeStack(
   cfn: ICloudFormationClient,
-  { ioHost, action }: IoMessaging, stackName: string,
+  ioHelper: IoHelper,
+  stackName: string,
 ) {
-  await ioHost.notify(debug(action, format('Waiting for stack %s to finish creating or updating...', stackName)));
+  await ioHelper.notify(debug(format('Waiting for stack %s to finish creating or updating...', stackName)));
   return waitFor(async () => {
     const stack = await CloudFormationStack.lookup(cfn, stackName);
     if (!stack.exists) {
-      await ioHost.notify(debug(action, format('Stack %s does not exist', stackName)));
+      await ioHelper.notify(debug(format('Stack %s does not exist', stackName)));
       return null;
     }
     const status = stack.stackStatus;
     if (status.isInProgress) {
-      await ioHost.notify(debug(action, format('Stack %s has an ongoing operation in progress and is not stable (%s)', stackName, status)));
+      await ioHelper.notify(debug(format('Stack %s has an ongoing operation in progress and is not stable (%s)', stackName, status)));
       return undefined;
     } else if (status.isReviewInProgress) {
       // This may happen if a stack creation operation is interrupted before the ChangeSet execution starts. Recovering
@@ -634,7 +635,7 @@ export async function stabilizeStack(
       // "forever" we proceed as if the stack was existing and stable. If there is a concurrent operation that just
       // hasn't finished proceeding just yet, either this operation or the concurrent one may fail due to the other one
       // having made progress. Which is fine. I guess.
-      await ioHost.notify(debug(action, format('Stack %s is in REVIEW_IN_PROGRESS state. Considering this is a stable status (%s)', stackName, status)));
+      await ioHelper.notify(debug(format('Stack %s is in REVIEW_IN_PROGRESS state. Considering this is a stable status (%s)', stackName, status)));
     }
 
     return stack;

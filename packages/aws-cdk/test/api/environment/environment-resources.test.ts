@@ -4,14 +4,17 @@ import { Context } from '../../../lib/api/context';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import * as version from '../../../lib/cli/version';
 import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
-import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
+import { TestIoHost } from '../../_helpers/test-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let mockSdk: MockSdk;
 let envRegistry: EnvironmentResourcesRegistry;
 let toolkitMock: ReturnType<typeof MockToolkitInfo.setup>;
-let mockMsg: IoMessaging = { ioHost: CliIoHost.instance(), action: 'deploy' };
+
+let ioHost = new TestIoHost();
+let ioHelper = asIoHelper(ioHost, 'deploy');
 
 beforeEach(() => {
   mockSdk = new MockSdk();
@@ -35,7 +38,7 @@ function envResources() {
       name: 'aws://11111111/us-nowhere',
     },
     mockSdk,
-    mockMsg,
+    ioHelper,
   );
 }
 

@@ -1,8 +1,8 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import { SDK } from '../aws-auth';
 import { EnvironmentResources, EnvironmentResourcesRegistry } from './environment-resources';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { warn } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
@@ -21,13 +21,11 @@ import { replaceEnvPlaceholders, StringWithoutPlaceholders } from '../util/place
 export class EnvironmentAccess {
   private readonly sdkCache = new Map<string, SdkForEnvironment>();
   private readonly environmentResources: EnvironmentResourcesRegistry;
-  private readonly ioHost: IoMessaging['ioHost'];
-  private readonly action: IoMessaging['action'];
+  private readonly ioHelper: IoHelper;
 
-  constructor(private readonly sdkProvider: SdkProvider, toolkitStackName: string, { ioHost, action }: IoMessaging) {
+  constructor(private readonly sdkProvider: SdkProvider, toolkitStackName: string, ioHelper: IoHelper) {
     this.environmentResources = new EnvironmentResourcesRegistry(toolkitStackName);
-    this.ioHost = ioHost;
-    this.action = action;
+    this.ioHelper = ioHelper;
   }
 
   /**
@@ -113,7 +111,7 @@ export class EnvironmentAccess {
     }
     if (lookupEnv.isFallbackCredentials) {
       const arn = await lookupEnv.replacePlaceholders(stack.lookupRole?.arn);
-      await this.ioHost.notify(warn(this.action, `Lookup role ${arn} was not assumed. Proceeding with default credentials.`));
+      await this.ioHelper.notify(warn(`Lookup role ${arn} was not assumed. Proceeding with default credentials.`));
     }
     return lookupEnv;
   }
@@ -137,7 +135,7 @@ export class EnvironmentAccess {
     try {
       return await this.accessStackForLookup(stack);
     } catch (e: any) {
-      await this.ioHost.notify(warn(this.action, `${formatErrorMessage(e)}`));
+      await this.ioHelper.notify(warn(`${formatErrorMessage(e)}`));
     }
     return this.accessStackForStackOperations(stack, Mode.ForReading);
   }
@@ -187,7 +185,7 @@ export class EnvironmentAccess {
     return {
       sdk: stackSdk.sdk,
       resolvedEnvironment,
-      resources: this.environmentResources.for(resolvedEnvironment, stackSdk.sdk, { ioHost: this.ioHost, action: this.action }),
+      resources: this.environmentResources.for(resolvedEnvironment, stackSdk.sdk, this.ioHelper),
       // If we asked for a role, did not successfully assume it, and yet got here without an exception: that
       // means we must have fallback credentials.
       isFallbackCredentials: !stackSdk.didAssumeRole && !!assumeRoleArn,

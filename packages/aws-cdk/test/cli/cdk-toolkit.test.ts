@@ -18,8 +18,8 @@ const fakeChokidarWatcherOn = {
   },
 
   get fileEventCallback(): (
-  event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir',
-  path: string,
+    event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir',
+    path: string,
   ) => Promise<void> {
     expect(mockChokidarWatcherOn.mock.calls.length).toBeGreaterThanOrEqual(2);
     const secondCall = mockChokidarWatcherOn.mock.calls[1];
@@ -96,6 +96,7 @@ import {
   mockSSMClient,
   restoreSdkMocksToDefault,
 } from '../util/mock-sdk';
+import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 markTesting();
 
@@ -103,6 +104,8 @@ const defaultBootstrapSource: BootstrapSource = { source: 'default' };
 const bootstrapEnvironmentMock = jest.spyOn(Bootstrapper.prototype, 'bootstrapEnvironment');
 let cloudExecutable: MockCloudExecutable;
 let stderrMock: jest.SpyInstance;
+let ioHelper = asIoHelper(CliIoHost.instance(), 'deploy');
+
 beforeEach(() => {
   jest.resetAllMocks();
   restoreSdkMocksToDefault();
@@ -224,8 +227,7 @@ describe('readCurrentTemplate', () => {
       sdkProvider: mockCloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: mockCloudExecutable.sdkProvider,
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -265,8 +267,7 @@ describe('readCurrentTemplate', () => {
       sdkProvider: mockCloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: mockCloudExecutable.sdkProvider,
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -331,8 +332,7 @@ describe('readCurrentTemplate', () => {
       sdkProvider: mockCloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: mockCloudExecutable.sdkProvider,
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -388,8 +388,7 @@ describe('readCurrentTemplate', () => {
       sdkProvider: mockCloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: mockCloudExecutable.sdkProvider,
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -445,8 +444,7 @@ describe('readCurrentTemplate', () => {
       sdkProvider: mockCloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: mockCloudExecutable.sdkProvider,
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -499,8 +497,7 @@ describe('readCurrentTemplate', () => {
       sdkProvider: mockCloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: mockCloudExecutable.sdkProvider,
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -1038,7 +1035,7 @@ describe('watch', () => {
       });
     }).rejects.toThrow(
       "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-        'Make sure to add a "watch" key to your cdk.json',
+      'Make sure to add a "watch" key to your cdk.json',
     );
   });
 
@@ -1336,8 +1333,7 @@ describe('synth', () => {
         cloudExecutable: mockCloudExecutable,
         deployments: new Deployments({
           sdkProvider: mockSdkProvider,
-          ioHost: CliIoHost.instance(),
-          action: 'deploy',
+          ioHelper: asIoHelper(CliIoHost.instance(), 'deploy'),
         }),
         sdkProvider: mockSdkProvider,
         configuration: mockCloudExecutable.configuration,
@@ -1539,8 +1535,7 @@ describe('synth', () => {
       sdkProvider: cloudExecutable.sdkProvider,
       deployments: new Deployments({
         sdkProvider: new MockSdkProvider(),
-        ioHost: CliIoHost.instance(),
-        action: 'deploy',
+        ioHelper,
       }),
     });
 
@@ -1566,8 +1561,7 @@ describe('synth', () => {
 
     const deployments = new Deployments({
       sdkProvider: new MockSdkProvider(),
-      ioHost: CliIoHost.instance(),
-      action: 'deploy',
+      ioHelper,
     });
 
     // Rollback might be called -- just don't do anything.
@@ -1751,8 +1745,7 @@ class FakeCloudFormation extends Deployments {
   ) {
     super({
       sdkProvider: new MockSdkProvider(),
-      ioHost: CliIoHost.instance(),
-      action: 'deploy',
+      ioHelper,
     });
 
     for (const [stackName, tags] of Object.entries(expectedTags)) {

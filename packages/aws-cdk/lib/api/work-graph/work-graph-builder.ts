@@ -2,7 +2,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { AssetManifest, type IManifestEntry } from 'cdk-assets';
 import { WorkGraph } from './work-graph';
 import { DeploymentState, AssetBuildNode, WorkNode } from './work-graph-types';
-import { IoMessaging } from '../../toolkit/cli-io-host';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { ToolkitError } from '../../toolkit/error';
 import { contentHashAny } from '../../util';
 
@@ -22,17 +22,15 @@ export class WorkGraphBuilder {
     'stack': 5,
   };
   private readonly graph: WorkGraph;
-  private readonly ioHost: IoMessaging['ioHost'];
-  private readonly action: IoMessaging['action'];
+  private readonly ioHelper: IoHelper;
 
   constructor(
-    { ioHost, action }: IoMessaging,
+    ioHelper: IoHelper,
     private readonly prebuildAssets: boolean,
     private readonly idPrefix = '',
   ) {
-    this.graph = new WorkGraph({}, { ioHost, action });
-    this.ioHost = ioHost;
-    this.action = action;
+    this.graph = new WorkGraph({}, ioHelper);
+    this.ioHelper = ioHelper;
   }
 
   private addStack(artifact: cxapi.CloudFormationStackArtifact) {
@@ -130,7 +128,7 @@ export class WorkGraphBuilder {
       } else if (cxapi.NestedCloudAssemblyArtifact.isNestedCloudAssemblyArtifact(artifact)) {
         const assembly = new cxapi.CloudAssembly(artifact.fullPath, { topoSort: false });
         const nestedGraph = new WorkGraphBuilder(
-          { ioHost: this.ioHost, action: this.action },
+          this.ioHelper,
           this.prebuildAssets,
           `${this.idPrefix}${artifact.id}.`,
         ).build(assembly.artifacts);

@@ -4,8 +4,8 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
+import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
-import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import { EnvironmentResources } from '../environment';
 import { ToolkitInfo } from '../toolkit-info';
@@ -17,7 +17,7 @@ import { ToolkitInfo } from '../toolkit-info';
  * pass Asset coordinates.
  */
 export async function addMetadataAssetsToManifest(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   stack: cxapi.CloudFormationStackArtifact,
   assetManifest: AssetManifestBuilder,
   envResources: EnvironmentResources,
@@ -44,16 +44,16 @@ export async function addMetadataAssetsToManifest(
     const reuseAsset = reuse.indexOf(asset.id) > -1;
 
     if (reuseAsset) {
-      await ioHost.notify(debug(action, `Reusing asset ${asset.id}: ${JSON.stringify(asset)}`));
+      await ioHelper.notify(debug(`Reusing asset ${asset.id}: ${JSON.stringify(asset)}`));
       continue;
     }
 
-    await ioHost.notify(debug(action, `Preparing asset ${asset.id}: ${JSON.stringify(asset)}`));
+    await ioHelper.notify(debug(`Preparing asset ${asset.id}: ${JSON.stringify(asset)}`));
     if (!stack.assembly) {
       throw new ToolkitError('Unexpected: stack assembly is required in order to find assets in assembly directory');
     }
 
-    Object.assign(params, await prepareAsset({ ioHost, action }, asset, assetManifest, envResources, toolkitInfo));
+    Object.assign(params, await prepareAsset(ioHelper, asset, assetManifest, envResources, toolkitInfo));
   }
 
   return params;
@@ -61,7 +61,7 @@ export async function addMetadataAssetsToManifest(
 
 // eslint-disable-next-line max-len
 async function prepareAsset(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   asset: cxschema.AssetMetadataEntry,
   assetManifest: AssetManifestBuilder,
   envResources: EnvironmentResources,
@@ -71,7 +71,7 @@ async function prepareAsset(
     case 'zip':
     case 'file':
       return prepareFileAsset(
-        { ioHost, action },
+        ioHelper,
         asset,
         assetManifest,
         toolkitInfo,
@@ -85,7 +85,7 @@ async function prepareAsset(
 }
 
 async function prepareFileAsset(
-  { ioHost, action }: IoMessaging,
+  ioHelper: IoHelper,
   asset: cxschema.FileAssetMetadataEntry,
   assetManifest: AssetManifestBuilder,
   toolkitInfo: ToolkitInfo,
@@ -98,7 +98,7 @@ async function prepareFileAsset(
   const key = `${s3Prefix}${baseName}`;
   const s3url = `s3://${toolkitInfo.bucketName}/${key}`;
 
-  await ioHost.notify(debug(action, `Storing asset ${asset.path} at ${s3url}`));
+  await ioHelper.notify(debug(`Storing asset ${asset.path} at ${s3url}`));
 
   assetManifest.addFileAsset(asset.sourceHash, {
     path: asset.path,
