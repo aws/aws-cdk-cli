@@ -336,11 +336,11 @@ export class StackCollection {
     }
 
     if (errors && failAt != 'none') {
-      throw new AssemblyError('Found errors');
+      throw AssemblyError.withStacks('Found errors', this.stackArtifacts);
     }
 
     if (warnings && failAt === 'warn') {
-      throw new AssemblyError('Found warnings (--strict mode)');
+      throw AssemblyError.withStacks('Found warnings (--strict mode)', this.stackArtifacts);
     }
   }
 }

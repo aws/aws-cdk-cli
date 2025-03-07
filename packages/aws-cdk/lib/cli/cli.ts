@@ -1,5 +1,4 @@
 import * as cxapi from '@aws-cdk/cx-api';
-import '@jsii/check-node/run';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
@@ -444,7 +443,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           exclusively: args.exclusively,
           force: args.force,
           roleArn: args.roleArn,
-          ci: args.ci,
         });
 
       case 'gc':

@@ -1,4 +1,5 @@
 import * as util from 'node:util';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
@@ -163,6 +164,13 @@ export interface CliIoHostProps {
   readonly isCI?: boolean;
 
   /**
+   * In what scenarios should the CliIoHost ask for approval
+   *
+   * @default RequireApproval.BROADENING
+   */
+  readonly requireDeployApproval?: RequireApproval;
+
+  /*
    * The initial Toolkit action the hosts starts with.
    *
    * @default StackActivityProgress.BAR
@@ -208,6 +216,7 @@ export class CliIoHost implements IIoHost {
   private _isTTY: boolean;
   private _logLevel: IoMessageLevel;
   private _internalIoHost?: IIoHost;
+  private _requireDeployApproval: RequireApproval;
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -222,6 +231,7 @@ export class CliIoHost implements IIoHost {
     this._isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this._logLevel = props.logLevel ?? 'info';
     this._isCI = props.isCI ?? isCI();
+    this._requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
   }
@@ -308,6 +318,20 @@ export class CliIoHost implements IIoHost {
    */
   public set isTTY(value: boolean) {
     this._isTTY = value;
+  }
+
+  /**
+   * Return the conditions for requiring approval in this CliIoHost.
+   */
+  public get requireDeployApproval() {
+    return this._requireDeployApproval;
+  }
+
+  /**
+   * Set the conditions for requiring approval in this CliIoHost.
+   */
+  public set requireDeployApproval(approval: RequireApproval) {
+    this._requireDeployApproval = approval;
   }
 
   /**
@@ -419,6 +443,29 @@ export class CliIoHost implements IIoHost {
   }
 
   /**
+   * Detect special messages encode information about whether or not
+   * they require approval
+   */
+  private skipApprovalStep(msg: IoRequest<any, any>): boolean {
+    const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
+    if (!approvalToolkitCodes.includes(msg.code)) {
+      false;
+    }
+
+    switch (this.requireDeployApproval) {
+      // Never require approval
+      case RequireApproval.NEVER:
+        return true;
+      // Always require approval
+      case RequireApproval.ANYCHANGE:
+        return false;
+      // Require approval if changes include broadening permissions
+      case RequireApproval.BROADENING:
+        return ['none', 'non-broadening'].includes(msg.data?.permissionChangeType);
+    }
+  }
+
+  /**
    * Determines the output stream, based on message level and configuration.
    */
   private selectStreamFromLevel(level: IoMessageLevel): NodeJS.WriteStream {
@@ -476,6 +523,14 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+      }
+
+      // Special approval prompt
+      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
+      // If it does not, return success (true). We only check messages with codes that we are aware
+      // are requires approval codes.
+      if (this.skipApprovalStep(msg)) {
+        return true;
       }
 
       // Basic confirmation prompt

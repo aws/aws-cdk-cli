@@ -1,8 +1,8 @@
 
-import { SdkProvider } from '../../api/aws-cdk';
-import { ICloudAssemblySource } from '../../api/cloud-assembly';
+import type { SdkProvider } from '../../api/aws-cdk';
+import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { CachedCloudAssemblySource, StackAssembly } from '../../api/cloud-assembly/private';
-import { ActionAwareIoHost } from '../../api/io/private';
+import type { ActionAwareIoHost } from '../../api/shared-private';
 
 /**
  * Helper struct to pass internal services around.

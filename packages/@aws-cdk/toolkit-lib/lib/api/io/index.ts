@@ -1,2 +1,1 @@
-export * from './io-host';
-export * from './io-message';
+export type { IoMessageLevel, IoMessageCode, IIoHost, IoMessage, IoRequest } from '../shared-public';

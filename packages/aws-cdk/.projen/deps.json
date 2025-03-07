@@ -345,10 +345,6 @@
       "type": "runtime"
     },
     {
-      "name": "@jsii/check-node",
-      "type": "runtime"
-    },
-    {
       "name": "@smithy/middleware-endpoint",
       "type": "runtime"
     },

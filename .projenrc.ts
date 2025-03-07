@@ -175,6 +175,7 @@ const repoProject = new yarn.Monorepo({
   repository: 'https://github.com/aws/aws-cdk-cli',
 
   defaultReleaseBranch: 'main',
+  typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
     'cdklabs-projen-project-types',
     'glob',
@@ -375,9 +376,17 @@ new JsiiBuild(cloudAssemblySchema, {
 (() => {
   cloudAssemblySchema.preCompileTask.exec('tsx projenrc/update.ts');
 
+  // This file will be generated at release time. It needs to be gitignored or it will
+  // fail projen's "no tamper" check, which means it must also be generated every build time.
+  //
+  // Crucially, this must also run during release after bumping, but that is satisfied already
+  // by making it part of preCompile, because that makes it run as part of projen build.
+  cloudAssemblySchema.preCompileTask.exec('tsx ../../../projenrc/copy-cli-version-to-assembly.task.ts');
+  cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
+
   cloudAssemblySchema.addPackageIgnore('*.ts');
   cloudAssemblySchema.addPackageIgnore('!*.d.ts');
-  cloudAssemblySchema.addPackageIgnore('** /scripts');
+  cloudAssemblySchema.addPackageIgnore('**/scripts');
 })();
 
 //////////////////////////////////////////////////////////////////////
@@ -638,7 +647,6 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
-    npmDistTag: 'v3-latest',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -720,6 +728,11 @@ tmpToolkitHelpers.package.addField('exports', {
   './util': './lib/util/index.js',
 });
 
+tmpToolkitHelpers.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
+});
+
 //////////////////////////////////////////////////////////////////////
 
 let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
@@ -771,7 +784,6 @@ const cli = configureProject(
       cloudFormationDiff,
       cxApi,
       '@aws-cdk/region-info',
-      '@jsii/check-node',
       'archiver',
       ...CLI_SDK_VERSION === '2' ? [
         'aws-sdk',
@@ -1136,7 +1148,6 @@ const toolkitLib = configureProject(
       `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      '@jsii/check-node',
       '@smithy/middleware-endpoint',
       '@smithy/node-http-handler',
       '@smithy/property-provider',
@@ -1176,6 +1187,7 @@ const toolkitLib = configureProject(
       tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
+      'dts-bundle-generator',
       'esbuild',
       'typedoc',
     ],
@@ -1220,7 +1232,8 @@ new S3DocsPublishing(toolkitLib, {
 
 // Eslint rules
 toolkitLib.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': ['error'],
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
   'import/no-restricted-paths': ['error', {
     zones: [{
       target: './',
@@ -1250,7 +1263,7 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
-toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
+toolkitLib.postCompileTask.exec('ts-node --prefer-ts-exts scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1296,7 +1309,7 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-// Ad a command for the docs
+// Add a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,

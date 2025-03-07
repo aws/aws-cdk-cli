@@ -1,4 +1,4 @@
-import { ToolkitAction } from '../../toolkit';
+import type { ToolkitAction } from './toolkit-action';
 
 /**
  * The reporting level of the message.
@@ -7,7 +7,7 @@ import { ToolkitAction } from '../../toolkit';
 export type IoMessageLevel = 'error'| 'result' | 'warn' | 'info' | 'debug' | 'trace';
 
 /**
- * A valid message code. See https://github.com/aws/aws-cdk-cli/blob/main/packages/%40aws-cdk/toolkit-lib/CODE_REGISTRY.md
+ * A valid message code.
  */
 export type IoMessageCode = `CDK_${string}_${'E' | 'W' | 'I'}${number}${number}${number}${number}`;
 
@@ -21,7 +21,10 @@ export interface IoMessage<T> {
   readonly time: Date;
 
   /**
-   * The log level of the message.
+   * The recommended log level of the message.
+   *
+   * This is an indicative level and should not be used to explicitly match messages, instead match the `code`.
+   * The level of a message may change without notice.
    */
   readonly level: IoMessageLevel;
 
@@ -45,6 +48,8 @@ export interface IoMessage<T> {
    * 'CDK_TOOLKIT_E0002'      // valid: specific toolkit error message
    * 'CDK_SDK_W0023'          // valid: specific sdk warning message
    * ```
+   *
+   * @see https://github.com/aws/aws-cdk-cli/blob/main/packages/%40aws-cdk/toolkit-lib/CODE_REGISTRY.md
    */
   readonly code: IoMessageCode;
 
@@ -60,6 +65,9 @@ export interface IoMessage<T> {
   readonly data?: T;
 }
 
+/**
+ * An IO request emitted.
+ */
 export interface IoRequest<T, U> extends IoMessage<T> {
   /**
    * The default response that will be used if no data is returned.

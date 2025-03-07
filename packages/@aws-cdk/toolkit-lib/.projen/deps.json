@@ -70,6 +70,10 @@
       "type": "build"
     },
     {
+      "name": "dts-bundle-generator",
+      "type": "build"
+    },
+    {
       "name": "esbuild",
       "type": "build"
     },
@@ -256,10 +260,6 @@
     {
       "name": "@aws-sdk/lib-storage",
       "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@jsii/check-node",
       "type": "runtime"
     },
     {

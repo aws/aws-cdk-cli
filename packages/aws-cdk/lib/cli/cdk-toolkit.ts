@@ -382,7 +382,6 @@ export class CdkToolkit {
             force: true,
             roleArn: options.roleArn,
             fromDeploy: true,
-            ci: options.ci,
           });
         }
         return;
@@ -857,7 +856,6 @@ export class CdkToolkit {
           stack,
           deployName: stack.stackName,
           roleArn: options.roleArn,
-          ci: options.ci,
         });
         success(`\n ✅  %s: ${action}ed`, chalk.blue(stack.displayName));
       } catch (e) {
@@ -1699,13 +1697,6 @@ export interface DestroyOptions {
    * Whether the destroy request came from a deploy.
    */
   fromDeploy?: boolean;
-
-  /**
-   * Whether we are on a CI system
-   *
-   * @default false
-   */
-  readonly ci?: boolean;
 }
 
 /**

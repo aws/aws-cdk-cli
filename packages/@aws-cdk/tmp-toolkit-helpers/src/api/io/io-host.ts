@@ -1,4 +1,4 @@
-import { IoMessage, IoRequest } from './io-message';
+import type { IoMessage, IoRequest } from './io-message';
 
 export interface IIoHost {
   /**

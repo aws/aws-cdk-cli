@@ -230,6 +230,9 @@
         },
         {
           "exec": "tsx projenrc/update.ts"
+        },
+        {
+          "exec": "tsx ../../../projenrc/copy-cli-version-to-assembly.task.ts"
         }
       ]
     },

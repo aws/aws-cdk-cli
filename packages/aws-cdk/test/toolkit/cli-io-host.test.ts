@@ -1,6 +1,7 @@
 import { PassThrough } from 'stream';
 import * as chalk from 'chalk';
 import { CliIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/toolkit/cli-io-host';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 
 let passThrough: PassThrough;
 
@@ -24,6 +25,7 @@ describe('CliIoHost', () => {
     ioHost.isTTY = process.stdout.isTTY ?? false;
     ioHost.isCI = false;
     ioHost.currentAction = 'synth';
+    ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
     (process as any).stdin = passThrough = new PassThrough();
 
     defaultMessage = {
@@ -408,6 +410,84 @@ describe('CliIoHost', () => {
 
         expect(mockStderr).toHaveBeenCalledWith('test message\n');
         expect(response).toEqual([1, 2, 3]);
+      });
+    });
+
+    describe('requireApproval', () => {
+      test('require approval by default - respond yes', async () => {
+        const response = await requestResponse('y', {
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toEqual(true);
+      });
+
+      test('require approval by default - respond no', async () => {
+        expect(() => requestResponse('n', {
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        })).rejects.toThrow('Aborted by user');
+      });
+
+      test('never require approval', async () => {
+        ioHost.requireDeployApproval = RequireApproval.NEVER;
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toEqual(true);
+      });
+
+      test('broadening - require approval on broadening changes', async () => {
+        ioHost.requireDeployApproval = RequireApproval.BROADENING;
+        const response = await requestResponse('y', {
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'broadening',
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toEqual(true);
+      });
+
+      test('broadening - do not require approval on non-broadening changes', async () => {
+        ioHost.requireDeployApproval = RequireApproval.BROADENING;
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'non-broadening',
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toEqual(true);
       });
     });
   });

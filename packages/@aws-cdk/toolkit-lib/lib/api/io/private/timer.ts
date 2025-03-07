@@ -1,7 +1,7 @@
-import { CodeInfo, CODES } from './codes';
-import { info } from './messages';
-import { ActionAwareIoHost } from './types';
+import { format } from 'util';
+import { IO } from './messages';
 import { formatTime } from '../../../private/util';
+import type { ActionAwareIoHost } from '../../shared-private';
 
 /**
  * Helper class to measure the time of code.
@@ -39,25 +39,23 @@ export class Timer {
    */
   public async endAs(ioHost: ActionAwareIoHost, type: 'synth' | 'deploy' | 'rollback' | 'destroy' | 'bootstrap') {
     const duration = this.end();
-    const { code, text } = timerMessageProps(type);
-
-    await ioHost.notify(info(`\n✨  ${text} time: ${duration.asSec}s\n`, code, {
-      duration: duration.asMs,
-    }));
-
+    await ioHost.notify(timerMessage(type, duration));
     return duration;
   }
 }
 
-function timerMessageProps(type: 'synth' | 'deploy' | 'rollback'| 'destroy' | 'bootstrap'): {
-  code: CodeInfo;
-  text: string;
-} {
+function timerMessage(type: 'synth' | 'deploy' | 'rollback'| 'destroy' | 'bootstrap', duration: {
+  asMs: number;
+  asSec: number;
+}) {
+  const message = `\n✨  %s time: ${duration.asSec}s\n`;
+  const payload = { duration: duration.asMs };
+
   switch (type) {
-    case 'synth': return { code: CODES.CDK_TOOLKIT_I1000, text: 'Synthesis' };
-    case 'deploy': return { code: CODES.CDK_TOOLKIT_I5000, text: 'Deployment' };
-    case 'rollback': return { code: CODES.CDK_TOOLKIT_I6000, text: 'Rollback' };
-    case 'destroy': return { code: CODES.CDK_TOOLKIT_I7000, text: 'Destroy' };
-    case 'bootstrap': return { code: CODES.CDK_TOOLKIT_I9000, text: 'Bootstrap' };
+    case 'synth': return IO.CDK_TOOLKIT_I1000.msg(format(message, 'Synthesis'), payload);
+    case 'deploy': return IO.CDK_TOOLKIT_I5000.msg(format(message, 'Deployment'), payload);
+    case 'rollback': return IO.CDK_TOOLKIT_I6000.msg(format(message, 'Rollback'), payload);
+    case 'destroy': return IO.CDK_TOOLKIT_I7000.msg(format(message, 'Destroy'), payload);
+    case 'bootstrap': return IO.CDK_TOOLKIT_I9000.msg(format(message, 'Bootstrap'), payload);
   }
 }
