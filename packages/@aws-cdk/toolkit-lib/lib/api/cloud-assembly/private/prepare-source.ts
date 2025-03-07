@@ -1,14 +1,17 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { format } from 'node:util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, splitBySize, versionNumber } from '../../../api/aws-cdk';
-import { ToolkitServices } from '../../../toolkit/private';
-import { ActionAwareIoHost, asLogger, CODES, error } from '../../io/private';
+import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, versionNumber } from '../../../api/aws-cdk';
+import { splitBySize } from '../../../private/util';
+import type { ToolkitServices } from '../../../toolkit/private';
+import { CODES } from '../../io/private';
+import type { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
-import type { AppSynthOptions } from '../source-builder';
+import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
 export { guessExecutable } from '../../../api/aws-cdk';
 
@@ -35,7 +38,7 @@ export function determineOutputDirectory(outdir?: string) {
  * @param context The context key/value bash.
  */
 export async function prepareDefaultEnvironment(services: ToolkitServices, props: { outdir?: string } = {}): Promise<Env> {
-  const logFn = asLogger(services.ioHost, 'ASSEMBLY').debug;
+  const logFn = (msg: string, ...args: any) => services.ioHost.notify(CODES.CDK_ASSEMBLY_I0010.msg(format(msg, ...args)));
   const env = await oldPrepare(services.sdkProvider, logFn);
 
   if (props.outdir) {
@@ -128,7 +131,6 @@ export async function withContext<T>(
  * @param assembly the assembly to check
  */
 export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHost: ActionAwareIoHost): Promise<void> {
-  const logFn = asLogger(ioHost, 'ASSEMBLY').warn;
   const tree = loadTree(assembly);
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;
@@ -140,16 +142,18 @@ export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly,
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
   if (frameworkDoesNotSupportContextOverflow) {
-    await logFn('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.');
+    await ioHost.notify(CODES.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
   }
 }
 
 /**
  * Safely create an assembly from a cloud assembly directory
  */
-export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionAwareIoHost) {
+export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionAwareIoHost, loadOptions: LoadAssemblyOptions = {}) {
   try {
     const assembly = new cxapi.CloudAssembly(assemblyDir, {
+      skipVersionCheck: !(loadOptions.checkVersion ?? true),
+      skipEnumCheck: !(loadOptions.checkEnums ?? true),
       // We sort as we deploy
       topoSort: false,
     });
@@ -160,7 +164,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionA
       // this means the CLI version is too old.
       // we instruct the user to upgrade.
       const message = 'This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application. Please upgrade to the latest version.';
-      await ioHost.notify(error(message, CODES.CDK_ASSEMBLY_E1111, { error: err.message }));
+      await ioHost.notify(CODES.CDK_ASSEMBLY_E1111.msg(message, { error: err }));
       throw new ToolkitError(`${message}\n(${err.message}`);
     }
     throw err;

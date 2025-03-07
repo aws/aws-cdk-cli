@@ -1,14 +1,16 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import type { AssemblySourceProps, ICloudAssemblySource } from '../';
-import { ContextAwareCloudAssembly, ContextAwareCloudAssemblyProps } from './context-aware-source';
+import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
+import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
+import { ContextAwareCloudAssembly } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
-import { ToolkitServices } from '../../../toolkit/private';
-import { Context, ILock, RWLock, Settings } from '../../aws-cdk';
-import { CODES, debug, error, info } from '../../io/private';
-import { ToolkitError } from '../../shared-public';
-import { AssemblyBuilder } from '../source-builder';
+import type { ToolkitServices } from '../../../toolkit/private';
+import type { ILock } from '../../aws-cdk';
+import { Context, RWLock, Settings } from '../../aws-cdk';
+import { CODES } from '../../io/private';
+import { ToolkitError, AssemblyError } from '../../shared-public';
+import type { AssemblyBuilder } from '../source-builder';
 
 export abstract class CloudAssemblySourceBuilder {
   /**
@@ -42,17 +44,28 @@ export abstract class CloudAssemblySourceBuilder {
           const env = await prepareDefaultEnvironment(services, { outdir });
           const assembly = await changeDir(async () =>
             withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
-              withEnv(envWithContext, () => builder({
-                outdir,
-                context: ctx,
-              })),
+              withEnv(envWithContext, () => {
+                try {
+                  return builder({
+                    outdir,
+                    context: ctx,
+                  });
+                } catch (error: unknown) {
+                  // re-throw toolkit errors unchanged
+                  if (ToolkitError.isToolkitError(error)) {
+                    throw error;
+                  }
+                  // otherwise, wrap into an assembly error
+                  throw AssemblyError.withCause('Assembly builder failed', error);
+                }
+              }),
             ), props.workingDirectory);
 
           if (cxapi.CloudAssembly.isCloudAssembly(assembly)) {
             return assembly;
           }
 
-          return new cxapi.CloudAssembly(assembly.directory);
+          return assemblyFromDirectory(assembly.directory, services.ioHost, props.loadAssemblyOptions);
         },
       },
       contextAssemblyProps,
@@ -64,7 +77,7 @@ export abstract class CloudAssemblySourceBuilder {
    * @param directory the directory of a already produced Cloud Assembly.
    * @returns the CloudAssembly source
    */
-  public async fromAssemblyDirectory(directory: string): Promise<ICloudAssemblySource> {
+  public async fromAssemblyDirectory(directory: string, props: AssemblyDirectoryProps = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
     const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
       services,
@@ -76,8 +89,8 @@ export abstract class CloudAssemblySourceBuilder {
       {
         produce: async () => {
           // @todo build
-          await services.ioHost.notify(debug('--app points to a cloud assembly, so we bypass synth'));
-          return assemblyFromDirectory(directory, services.ioHost);
+          await services.ioHost.notify(CODES.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
+          return assemblyFromDirectory(directory, services.ioHost, props.loadAssemblyOptions);
         },
       },
       contextAssemblyProps,
@@ -126,17 +139,17 @@ export abstract class CloudAssemblySourceBuilder {
                 eventPublisher: async (type, line) => {
                   switch (type) {
                     case 'data_stdout':
-                      await services.ioHost.notify(info(line, CODES.CDK_ASSEMBLY_I1001));
+                      await services.ioHost.notify(CODES.CDK_ASSEMBLY_I1001.msg(line));
                       break;
                     case 'data_stderr':
-                      await services.ioHost.notify(error(line, CODES.CDK_ASSEMBLY_E1002));
+                      await services.ioHost.notify(CODES.CDK_ASSEMBLY_E1002.msg(line));
                       break;
                   }
                 },
                 extraEnv: envWithContext,
                 cwd: props.workingDirectory,
               });
-              return assemblyFromDirectory(outdir, services.ioHost);
+              return assemblyFromDirectory(outdir, services.ioHost, props.loadAssemblyOptions);
             });
           } finally {
             await lock?.release();

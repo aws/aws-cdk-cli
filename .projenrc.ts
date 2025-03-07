@@ -8,6 +8,7 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
+import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 
@@ -174,6 +175,7 @@ const repoProject = new yarn.Monorepo({
   repository: 'https://github.com/aws/aws-cdk-cli',
 
   defaultReleaseBranch: 'main',
+  typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
     'cdklabs-projen-project-types',
     'glob',
@@ -645,7 +647,6 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
-    npmDistTag: 'v3-latest',
     majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
@@ -695,9 +696,18 @@ const tmpToolkitHelpers = configureProject(
     parent: repo,
     name: '@aws-cdk/tmp-toolkit-helpers',
     description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
-    deps: [],
     devDeps: [
       cdkBuildTools,
+      '@types/archiver',
+      '@types/glob',
+      '@types/semver',
+      'fast-check',
+    ],
+    deps: [
+      'archiver',
+      'glob',
+      'semver',
+      'yaml@^1',
     ],
     tsconfig: {
       compilerOptions: {
@@ -715,6 +725,12 @@ tmpToolkitHelpers.package.addField('exports', {
   '.': './lib/index.js',
   './package.json': './package.json',
   './api': './lib/api/index.js',
+  './util': './lib/util/index.js',
+});
+
+tmpToolkitHelpers.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
 });
 
 //////////////////////////////////////////////////////////////////////
@@ -768,7 +784,6 @@ const cli = configureProject(
       cloudFormationDiff,
       cxApi,
       '@aws-cdk/region-info',
-      '@jsii/check-node',
       'archiver',
       ...CLI_SDK_VERSION === '2' ? [
         'aws-sdk',
@@ -1133,7 +1148,6 @@ const toolkitLib = configureProject(
       `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      '@jsii/check-node',
       '@smithy/middleware-endpoint',
       '@smithy/node-http-handler',
       '@smithy/property-provider',
@@ -1173,6 +1187,7 @@ const toolkitLib = configureProject(
       tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
+      'dts-bundle-generator',
       'esbuild',
       'typedoc',
     ],
@@ -1217,7 +1232,8 @@ new S3DocsPublishing(toolkitLib, {
 
 // Eslint rules
 toolkitLib.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': ['error'],
+  '@cdklabs/no-throw-default-error': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
   'import/no-restricted-paths': ['error', {
     zones: [{
       target: './',
@@ -1247,11 +1263,13 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
-toolkitLib.postCompileTask.exec('ts-node scripts/gen-code-registry.ts');
+toolkitLib.postCompileTask.exec('ts-node --prefer-ts-exts scripts/gen-code-registry.ts');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1291,7 +1309,7 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
   }
 }
 
-// Ad a command for the docs
+// Add a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
@@ -1411,5 +1429,6 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new PrLabeler(repo);
 
 repo.synth();

@@ -1,7 +1,9 @@
-const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit.ToolkitError');
-const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit.AuthenticationError');
-const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit.AssemblyError');
-const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit.ContextProviderError');
+import type * as cxapi from '@aws-cdk/cx-api';
+
+const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
+const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');
+const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
+const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 
 /**
  * Represents a general toolkit error in the AWS CDK Toolkit.
@@ -40,12 +42,18 @@ export class ToolkitError extends Error {
    */
   public readonly type: string;
 
+  /**
+   * Denotes the source of the error as the toolkit.
+   */
+  public readonly source: 'toolkit' | 'user';
+
   constructor(message: string, type: string = 'toolkit') {
     super(message);
     Object.setPrototypeOf(this, ToolkitError.prototype);
     Object.defineProperty(this, TOOLKIT_ERROR_SYMBOL, { value: true });
     this.name = new.target.name;
     this.type = type;
+    this.source = 'toolkit';
   }
 }
 
@@ -53,6 +61,11 @@ export class ToolkitError extends Error {
  * Represents an authentication-specific error in the AWS CDK Toolkit.
  */
 export class AuthenticationError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
   constructor(message: string) {
     super(message, 'authentication');
     Object.setPrototypeOf(this, AuthenticationError.prototype);
@@ -61,13 +74,49 @@ export class AuthenticationError extends ToolkitError {
 }
 
 /**
- * Represents an authentication-specific error in the AWS CDK Toolkit.
+ * Represents an error causes by cloud assembly synthesis
+ *
+ * This includes errors thrown during app execution, as well as failing annotations.
  */
 export class AssemblyError extends ToolkitError {
-  constructor(message: string) {
+  /**
+   * An AssemblyError with an original error as cause
+   */
+  public static withCause(message: string, error: unknown): AssemblyError {
+    return new AssemblyError(message, undefined, error);
+  }
+
+  /**
+   * An AssemblyError with a list of stacks as cause
+   */
+  public static withStacks(message: string, stacks?: cxapi.CloudFormationStackArtifact[]): AssemblyError {
+    return new AssemblyError(message, stacks);
+  }
+
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  /**
+   * The stacks that caused the error, if available
+   *
+   * The `messages` property of each `cxapi.CloudFormationStackArtifact` will contain the respective errors.
+   * Absence indicates synthesis didn't fully complete.
+   */
+  public readonly stacks?: cxapi.CloudFormationStackArtifact[];
+
+  /**
+   * The specific original cause of the error, if available
+   */
+  public readonly cause?: unknown;
+
+  private constructor(message: string, stacks?: cxapi.CloudFormationStackArtifact[], cause?: unknown) {
     super(message, 'assembly');
     Object.setPrototypeOf(this, AssemblyError.prototype);
     Object.defineProperty(this, ASSEMBLY_ERROR_SYMBOL, { value: true });
+    this.stacks = stacks;
+    this.cause = cause;
   }
 }
 
@@ -75,6 +124,11 @@ export class AssemblyError extends ToolkitError {
  * Represents an error originating from a Context Provider
  */
 export class ContextProviderError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
   constructor(message: string) {
     super(message, 'context-provider');
     Object.setPrototypeOf(this, ContextProviderError.prototype);

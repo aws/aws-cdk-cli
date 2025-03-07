@@ -1,3 +1,4 @@
+export * from './bootstrap';
 export * from './deploy';
 export * from './destroy';
 export * from './list';

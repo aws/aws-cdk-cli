@@ -153,7 +153,7 @@ export class AssetPublishing implements IPublishProgress {
    */
   public async buildEntry(asset: IManifestEntry) {
     try {
-      if (this.progressEvent(EventType.START, `Building ${asset.id}`)) {
+      if (this.progressEvent(EventType.START, `Building ${asset.displayName(false)}`)) {
         return false;
       }
 
@@ -165,7 +165,7 @@ export class AssetPublishing implements IPublishProgress {
       }
 
       this.completedOperations++;
-      if (this.progressEvent(EventType.SUCCESS, `Built ${asset.id}`)) {
+      if (this.progressEvent(EventType.SUCCESS, `Built ${asset.displayName(false)}`)) {
         return false;
       }
     } catch (e: any) {
@@ -184,7 +184,7 @@ export class AssetPublishing implements IPublishProgress {
    */
   public async publishEntry(asset: IManifestEntry, options: PublishOptions = {}) {
     try {
-      if (this.progressEvent(EventType.START, `Publishing ${asset.id}`)) {
+      if (this.progressEvent(EventType.START, `Publishing ${asset.displayName(true)}`)) {
         return false;
       }
 
@@ -196,7 +196,7 @@ export class AssetPublishing implements IPublishProgress {
       }
 
       this.completedOperations++;
-      if (this.progressEvent(EventType.SUCCESS, `Published ${asset.id}`)) {
+      if (this.progressEvent(EventType.SUCCESS, `Published ${asset.displayName(true)}`)) {
         return false;
       }
     } catch (e: any) {
@@ -225,7 +225,7 @@ export class AssetPublishing implements IPublishProgress {
    */
   private async publishAsset(asset: IManifestEntry, options: PublishOptions = {}) {
     try {
-      if (this.progressEvent(EventType.START, `Publishing ${asset.id}`)) {
+      if (this.progressEvent(EventType.START, `Publishing ${asset.displayName(true)}`)) {
         return false;
       }
 
@@ -244,7 +244,7 @@ export class AssetPublishing implements IPublishProgress {
       }
 
       this.completedOperations++;
-      if (this.progressEvent(EventType.SUCCESS, `Published ${asset.id}`)) {
+      if (this.progressEvent(EventType.SUCCESS, `Published ${asset.displayName(true)}`)) {
         return false;
       }
     } catch (e: any) {

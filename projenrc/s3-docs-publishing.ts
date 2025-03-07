@@ -95,7 +95,7 @@ export class S3DocsPublishing extends Component {
             DOCS_STREAM: this.props.docsStream,
           },
           run: [
-            '::add-mask::$BUCKET_NAME', // always hide bucket name
+            'echo ::add-mask::$BUCKET_NAME', // always hide bucket name
 
             // setup paths
             `echo "S3_PATH=$DOCS_STREAM/${safeName}-v$(cat dist/version.txt).zip" >> "$GITHUB_ENV"`,
@@ -103,7 +103,7 @@ export class S3DocsPublishing extends Component {
             `echo "LATEST=latest-${this.props.docsStream}" >> "$GITHUB_ENV"`,
 
             // create the latest marker
-            'echo $S3_PATH > $LATEST',
+            'echo "$S3_PATH" > "$LATEST"',
 
             // check if the target file already exists and upload
             '(! aws s3 ls --human-readable $S3_URI \\',

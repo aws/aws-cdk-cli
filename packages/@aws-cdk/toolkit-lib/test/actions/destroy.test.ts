@@ -57,12 +57,12 @@ describe('destroy', () => {
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'destroy',
-      level: 'info',
+      level: 'result',
       message: expect.stringContaining(`${chalk.blue('Stack2')}${chalk.green(': destroyed')}`),
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'destroy',
-      level: 'info',
+      level: 'result',
       message: expect.stringContaining(`${chalk.blue('Stack1')}${chalk.green(': destroyed')}`),
     }));
   });
@@ -91,7 +91,11 @@ describe('destroy', () => {
 function successfulDestroy() {
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     action: 'destroy',
-    level: 'info',
+    level: 'result',
+    code: 'CDK_TOOLKIT_I7900',
     message: expect.stringContaining('destroyed'),
+    data: expect.objectContaining({
+      displayName: expect.any(String),
+    }),
   }));
 }

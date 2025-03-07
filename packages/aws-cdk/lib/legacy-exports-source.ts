@@ -5,26 +5,23 @@
 
 // Note: All type exports are in `legacy-exports.ts`
 export * from './legacy-logging-source';
-export { deepClone, flatten, ifDefined, isArray, isEmpty, numberFromBool, partition } from './util';
+export { deepClone, flatten, ifDefined, isArray, isEmpty, numberFromBool, partition, padLeft as leftPad, contentHash, deepMerge } from './util';
 export { deployStack } from './api/deployments/deploy-stack';
 export { cli, exec } from './cli/cli';
 export { SdkProvider } from './api/aws-auth';
 export { PluginHost } from './api/plugin';
-export { contentHash } from './util/content-hash';
 export { Command, Configuration, PROJECT_CONTEXT } from './cli/user-configuration';
 export { Settings } from './api/settings';
 export { Bootstrapper } from './api/bootstrap';
 export { CloudExecutable } from './api/cxapp/cloud-executable';
 export { execProgram } from './api/cxapp/exec';
 export { RequireApproval } from './diff';
-export { padLeft as leftPad } from './util/string-manipulation';
 export { formatAsBanner } from './cli/util/console-formatters';
 export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
 export { aliases, command, describe } from './commands/docs';
 export { lowerCaseFirstCharacter } from './api/hotswap/common';
-export { deepMerge } from './util/objects';
 export { Deployments } from './api/deployments';
-export { rootDir } from './util/directories';
+export { cliRootDir as rootDir } from './cli/root-dir';
 export { latestVersionIfHigher, versionNumber } from './cli/version';
 export { availableInitTemplates } from './init';
 export { cached } from './api/aws-auth/cached';

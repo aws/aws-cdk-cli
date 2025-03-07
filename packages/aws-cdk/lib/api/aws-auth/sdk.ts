@@ -330,7 +330,7 @@ import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
 import { debug } from '../../logging';
 import { AuthenticationError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 
 export interface S3ClientOptions {
   /**

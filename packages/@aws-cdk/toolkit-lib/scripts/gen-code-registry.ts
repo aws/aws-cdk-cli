@@ -1,12 +1,18 @@
 import * as fs from 'fs';
-import { CODES, CodeInfo } from '../lib/api/io/private/codes';
+import { CODES } from '../lib/api/io/private/codes';
 
-function codesToMarkdownTable(codes: Record<string, CodeInfo>, mdPrefix?: string, mdPostfix?: string) {
+function codesToMarkdownTable(codes: Record<string, {
+  code: string;
+  level: string;
+  description: string;
+  interface?: string; 
+}>, mdPrefix?: string, mdPostfix?: string) {
   let table = '| Code | Description | Level | Data Interface |\n';
   table += '|------|-------------|-------|----------------|\n';
   
   Object.entries(codes).forEach(([key, code]) => {
-    if (key !== code.code) {
+    // we allow DEFAULT_* as special case here
+    if (key !== code.code && !key.startsWith('DEFAULT_')) {
       throw new Error(`Code key ${key} does not match code.code ${code.code}. This is probably a typo.`);
     }
     table += `| ${code.code} | ${code.description} | ${code.level} | ${code.interface ? linkInterface(code.interface) : 'n/a'} |\n`;

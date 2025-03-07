@@ -1,5 +1,5 @@
-import { CloudAssembly } from '@aws-cdk/cx-api';
-import { ICloudAssemblySource } from '../types';
+import type { CloudAssembly } from '@aws-cdk/cx-api';
+import type { ICloudAssemblySource } from '../types';
 
 /**
  * A CloudAssemblySource that is caching its result once produced.

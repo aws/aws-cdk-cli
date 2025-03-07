@@ -4,7 +4,7 @@ import { EnvironmentResources, EnvironmentResourcesRegistry } from './environmen
 import { warn } from '../../cli/messages';
 import { IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
-import { formatErrorMessage } from '../../util/format-error';
+import { formatErrorMessage } from '../../util';
 import { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
 import { Mode } from '../plugin/mode';
 import { replaceEnvPlaceholders, StringWithoutPlaceholders } from '../util/placeholders';

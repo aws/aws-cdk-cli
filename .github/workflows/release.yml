@@ -572,7 +572,7 @@ jobs:
         continue-on-error: true
       - name: Release
         env:
-          NPM_DIST_TAG: v3-latest
+          NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -995,6 +995,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
+      - name: Install dependencies
+        run: yarn install --check-files --frozen-lockfile
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -1042,8 +1044,8 @@ jobs:
           mask-aws-account-id: true
       - name: Publish artifacts
         run: |-
-          aws ssm put-parameter --name "/published/cdk/cli/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
-          aws ssm put-parameter --name "/published/cdk/cli/timestamp" --type "String" --value "$(date +%s)" --overwrite
+          aws ssm put-parameter --name "/published/cdk/cli-npm/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
+          aws ssm put-parameter --name "/published/cdk/cli-npm/timestamp" --type "String" --value "$(date +%s)" --overwrite
   aws-cdk-toolkit-lib_release_docs:
     name: "@aws-cdk/toolkit-lib: Publish docs to S3"
     needs: aws-cdk-toolkit-lib_release_npm
@@ -1080,11 +1082,11 @@ jobs:
           BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
           DOCS_STREAM: toolkit-lib
         run: |-
-          ::add-mask::$BUCKET_NAME
+          echo ::add-mask::$BUCKET_NAME
           echo "S3_PATH=$DOCS_STREAM/aws-cdk-toolkit-lib-v$(cat dist/version.txt).zip" >> "$GITHUB_ENV"
           echo "S3_URI=s3://$BUCKET_NAME/$S3_PATH" >> "$GITHUB_ENV"
           echo "LATEST=latest-toolkit-lib" >> "$GITHUB_ENV"
-          echo $S3_PATH > $LATEST
+          echo "$S3_PATH" > "$LATEST"
           (! aws s3 ls --human-readable $S3_URI \
           && aws s3 cp --dryrun dist/docs.zip $S3_URI \
           && aws s3 cp --dryrun $LATEST s3://$BUCKET_NAME/$LATEST) \

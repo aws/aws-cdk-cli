@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import { Account } from './sdk-provider';
 import { debug } from '../../logging';
-import { cdkCacheDir } from '../../util/directories';
+import { cdkCacheDir } from '../../util';
 
 /**
  * Disk cache which maps access key IDs to account IDs.

@@ -1,4 +1,4 @@
-import { IoMessageLevel } from '../io-message';
+import type { IoMessageLevel } from '../';
 
 /**
  * Keep this list ordered from most to least verbose.
