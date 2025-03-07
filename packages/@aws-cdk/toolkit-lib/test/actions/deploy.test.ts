@@ -1,6 +1,6 @@
 import { RequireApproval, StackParameters } from '../../lib';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
-import { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
+import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
