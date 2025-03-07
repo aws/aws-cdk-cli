@@ -3,7 +3,7 @@ import { inspect } from 'util';
 import type { Logger } from '@smithy/types';
 import { IO } from './messages';
 import { replacerBufferWithInfo } from '../../../private/util';
-import type { ActionAwareIoHost } from '../../shared-private';
+import type { IoHelper } from '../../shared-private';
 
 /**
  * An SDK logging trace.
@@ -27,7 +27,7 @@ export interface SdkTrace {
   readonly content: any;
 }
 
-export function asSdkLogger(ioHost: ActionAwareIoHost): Logger {
+export function asSdkLogger(ioHost: IoHelper): Logger {
   return new class implements Logger {
     // This is too much detail for our logs
     public trace(..._content: any[]) {

@@ -14,7 +14,7 @@ import {
 } from 'cdk-assets';
 import type { SDK } from '..';
 import { formatMessage } from '../../cli/messages';
-import { IIoHost, IoMessageLevel, IoMessaging, ToolkitAction } from '../../toolkit/cli-io-host';
+import { IIoHost, IoMessageLevel, IoMessaging } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
 import type { SdkProvider } from '../aws-auth';
 import { Mode } from '../plugin';
@@ -184,7 +184,7 @@ export const EVENT_TO_LEVEL: Record<EventType, IoMessageLevel | false> = {
 
 export abstract class BasePublishProgressListener implements IPublishProgressListener {
   protected readonly ioHost: IIoHost;
-  protected readonly action: ToolkitAction;
+  protected readonly action: IoMessaging['action'];
 
   constructor({ ioHost, action }: IoMessaging) {
     this.ioHost = ioHost;

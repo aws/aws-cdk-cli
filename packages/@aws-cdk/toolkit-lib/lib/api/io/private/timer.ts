@@ -1,7 +1,7 @@
 import { format } from 'util';
 import { IO } from './messages';
 import { formatTime } from '../../../private/util';
-import type { ActionAwareIoHost } from '../../shared-private';
+import type { IoHelper } from '../../shared-private';
 
 /**
  * Helper class to measure the time of code.
@@ -37,7 +37,7 @@ export class Timer {
    * Ends the current timer as a specified timing and notifies the IoHost.
    * @returns the elapsed time
    */
-  public async endAs(ioHost: ActionAwareIoHost, type: 'synth' | 'deploy' | 'rollback' | 'destroy' | 'bootstrap') {
+  public async endAs(ioHost: IoHelper, type: 'synth' | 'deploy' | 'rollback' | 'destroy' | 'bootstrap') {
     const duration = this.end();
     await ioHost.notify(timerMessage(type, duration));
     return duration;

@@ -2,10 +2,11 @@
 // The CLI cannot depend on the toolkit yet, because the toolkit currently depends on the CLI.
 // Once we have complete the repo split, we will create a temporary, private library package
 // for all code that is shared between CLI and toolkit. This is where this file will then live.
-import { IoMessage, IoMessageCode, IoMessageCodeCategory, IoMessageLevel, ToolkitAction } from '../toolkit/cli-io-host';
+import type { IoMessageCodeCategory } from '../logging';
+import type { IoMessage, IoMessageCode, IoMessageLevel, IoMessaging } from '../toolkit/cli-io-host';
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
-type SimplifiedMessage<T> = Omit<IoMessage<T>, 'time'>;
+type SimplifiedMessage<T> = Omit<IoMessage<T>, 'time' | 'action'> & { action: IoMessaging['action'] };
 
 /**
  * Internal helper that processes log inputs into a consistent format.
@@ -16,7 +17,7 @@ export function formatMessage<T>(msg: Optional<SimplifiedMessage<T>, 'code'>, ca
   return {
     time: new Date(),
     level: msg.level,
-    action: msg.action,
+    action: msg.action as any,
     code: msg.code ?? defaultMessageCode(msg.level, category),
     message: msg.message,
     data: msg.data,
@@ -38,7 +39,7 @@ function defaultMessageCode(level: IoMessageLevel, category: IoMessageCodeCatego
  * Creates an error level message.
  * Errors must always have a unique code.
  */
-export const error = <T>(action: ToolkitAction, message: string, code: IoMessageCode, payload?: T) => {
+export const error = <T>(action: IoMessaging['action'], message: string, code: IoMessageCode, payload?: T) => {
   return formatMessage({
     level: 'error',
     action,
@@ -55,7 +56,7 @@ export const error = <T>(action: ToolkitAction, message: string, code: IoMessage
  * However actions that operate on Cloud Assemblies might include a result per Stack.
  * Unlike other messages, results must always have a code and a payload.
  */
-export const result = <T>(action: ToolkitAction, message: string, code: IoMessageCode, payload: T) => {
+export const result = <T>(action: IoMessaging['action'], message: string, code: IoMessageCode, payload: T) => {
   return formatMessage({
     level: 'result',
     action,
@@ -68,7 +69,7 @@ export const result = <T>(action: ToolkitAction, message: string, code: IoMessag
 /**
  * Creates a warning level message.
  */
-export const warn = <T>(action: ToolkitAction, message: string, code?: IoMessageCode, payload?: T) => {
+export const warn = <T>(action: IoMessaging['action'], message: string, code?: IoMessageCode, payload?: T) => {
   return formatMessage({
     level: 'warn',
     action,
@@ -81,7 +82,7 @@ export const warn = <T>(action: ToolkitAction, message: string, code?: IoMessage
 /**
  * Creates an info level message.
  */
-export const info = <T>(action: ToolkitAction, message: string, code?: IoMessageCode, payload?: T) => {
+export const info = <T>(action: IoMessaging['action'], message: string, code?: IoMessageCode, payload?: T) => {
   return formatMessage({
     level: 'info',
     action,
@@ -94,7 +95,7 @@ export const info = <T>(action: ToolkitAction, message: string, code?: IoMessage
 /**
  * Creates a debug level message.
  */
-export const debug = <T>(action: ToolkitAction, message: string, code?: IoMessageCode, payload?: T) => {
+export const debug = <T>(action: IoMessaging['action'], message: string, code?: IoMessageCode, payload?: T) => {
   return formatMessage({
     level: 'debug',
     action,
@@ -107,7 +108,7 @@ export const debug = <T>(action: ToolkitAction, message: string, code?: IoMessag
 /**
  * Creates a trace level message.
  */
-export const trace = <T>(action: ToolkitAction, message: string, code?: IoMessageCode, payload?: T) => {
+export const trace = <T>(action: IoMessaging['action'], message: string, code?: IoMessageCode, payload?: T) => {
   return formatMessage({
     level: 'trace',
     action,
