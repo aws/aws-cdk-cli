@@ -17,7 +17,7 @@ import * as make from '../../shared-private';
  * - X000-X009 are reserved for timings
  * - X900-X999 are reserved for results
  */
-export const CODES = {
+export const IO = {
   // Defaults
   DEFAULT_TOOLKIT_INFO: make.info({
     code: 'CDK_TOOLKIT_I0000',

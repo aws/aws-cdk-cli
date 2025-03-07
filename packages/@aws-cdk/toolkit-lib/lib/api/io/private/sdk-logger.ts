@@ -1,7 +1,7 @@
 
 import { inspect } from 'util';
 import type { Logger } from '@smithy/types';
-import { CODES } from './codes';
+import { IO } from './messages';
 import { replacerBufferWithInfo } from '../../../private/util';
 import type { ActionAwareIoHost } from '../../shared-private';
 
@@ -63,14 +63,14 @@ export function asSdkLogger(ioHost: ActionAwareIoHost): Logger {
      * ```
      */
     public info(...content: any[]) {
-      void ioHost.notify(CODES.CDK_SDK_I0100.msg(`[sdk info] ${formatSdkLoggerContent(content)}`, {
+      void ioHost.notify(IO.CDK_SDK_I0100.msg(`[sdk info] ${formatSdkLoggerContent(content)}`, {
         sdkLevel: 'info',
         content,
       }));
     }
 
     public warn(...content: any[]) {
-      void ioHost.notify(CODES.CDK_SDK_I0100.msg(`[sdk warn] ${formatSdkLoggerContent(content)}`, {
+      void ioHost.notify(IO.CDK_SDK_I0100.msg(`[sdk warn] ${formatSdkLoggerContent(content)}`, {
         sdkLevel: 'warn',
         content,
       }));
@@ -98,7 +98,7 @@ export function asSdkLogger(ioHost: ActionAwareIoHost): Logger {
      * ```
      */
     public error(...content: any[]) {
-      void ioHost.notify(CODES.CDK_SDK_I0100.msg(`[sdk error] ${formatSdkLoggerContent(content)}`, {
+      void ioHost.notify(IO.CDK_SDK_I0100.msg(`[sdk error] ${formatSdkLoggerContent(content)}`, {
         sdkLevel: 'error',
         content,
       }));

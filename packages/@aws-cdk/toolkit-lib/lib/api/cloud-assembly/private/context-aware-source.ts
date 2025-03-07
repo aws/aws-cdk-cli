@@ -2,7 +2,7 @@ import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { type Context, contextproviders, PROJECT_CONTEXT } from '../../aws-cdk';
-import { CODES } from '../../io/private';
+import { IO } from '../../io/private';
 import type { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { ICloudAssemblySource } from '../types';
@@ -77,14 +77,14 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
 
         let tryLookup = true;
         if (previouslyMissingKeys && equalSets(missingKeysSet, previouslyMissingKeys)) {
-          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0240.msg('Not making progress trying to resolve environmental context. Giving up.', { missingKeys }));
+          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0240.msg('Not making progress trying to resolve environmental context. Giving up.', { missingKeys }));
           tryLookup = false;
         }
 
         previouslyMissingKeys = missingKeysSet;
 
         if (tryLookup) {
-          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', { missingKeys }));
+          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', { missingKeys }));
           await contextproviders.provideContextValues(
             assembly.manifest.missing,
             this.context,
@@ -92,7 +92,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
           );
 
           // Cache the new context to disk
-          await this.ioHost.notify(CODES.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
+          await this.ioHost.notify(IO.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
             contextFile: this.contextFile,
             context: this.context.all,
           }));

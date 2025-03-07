@@ -8,7 +8,7 @@ import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecut
 import type { ToolkitServices } from '../../../toolkit/private';
 import type { ILock } from '../../aws-cdk';
 import { Context, RWLock, Settings } from '../../aws-cdk';
-import { CODES } from '../../io/private';
+import { IO } from '../../io/private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
 import type { AssemblyBuilder } from '../source-builder';
 
@@ -89,7 +89,7 @@ export abstract class CloudAssemblySourceBuilder {
       {
         produce: async () => {
           // @todo build
-          await services.ioHost.notify(CODES.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
+          await services.ioHost.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
           return assemblyFromDirectory(directory, services.ioHost, props.loadAssemblyOptions);
         },
       },
@@ -139,10 +139,10 @@ export abstract class CloudAssemblySourceBuilder {
                 eventPublisher: async (type, line) => {
                   switch (type) {
                     case 'data_stdout':
-                      await services.ioHost.notify(CODES.CDK_ASSEMBLY_I1001.msg(line));
+                      await services.ioHost.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
                       break;
                     case 'data_stderr':
-                      await services.ioHost.notify(CODES.CDK_ASSEMBLY_E1002.msg(line));
+                      await services.ioHost.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
                       break;
                   }
                 },

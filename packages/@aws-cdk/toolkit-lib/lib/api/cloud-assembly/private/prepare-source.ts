@@ -8,7 +8,7 @@ import { lte } from 'semver';
 import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, versionNumber } from '../../../api/aws-cdk';
 import { splitBySize } from '../../../private/util';
 import type { ToolkitServices } from '../../../toolkit/private';
-import { CODES } from '../../io/private';
+import { IO } from '../../io/private';
 import type { ActionAwareIoHost } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
@@ -38,7 +38,7 @@ export function determineOutputDirectory(outdir?: string) {
  * @param context The context key/value bash.
  */
 export async function prepareDefaultEnvironment(services: ToolkitServices, props: { outdir?: string } = {}): Promise<Env> {
-  const logFn = (msg: string, ...args: any) => services.ioHost.notify(CODES.CDK_ASSEMBLY_I0010.msg(format(msg, ...args)));
+  const logFn = (msg: string, ...args: any) => services.ioHost.notify(IO.CDK_ASSEMBLY_I0010.msg(format(msg, ...args)));
   const env = await oldPrepare(services.sdkProvider, logFn);
 
   if (props.outdir) {
@@ -142,7 +142,7 @@ export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly,
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
   if (frameworkDoesNotSupportContextOverflow) {
-    await ioHost.notify(CODES.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
+    await ioHost.notify(IO.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
   }
 }
 
@@ -164,7 +164,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHost: ActionA
       // this means the CLI version is too old.
       // we instruct the user to upgrade.
       const message = 'This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application. Please upgrade to the latest version.';
-      await ioHost.notify(CODES.CDK_ASSEMBLY_E1111.msg(message, { error: err }));
+      await ioHost.notify(IO.CDK_ASSEMBLY_E1111.msg(message, { error: err }));
       throw new ToolkitError(`${message}\n(${err.message}`);
     }
     throw err;

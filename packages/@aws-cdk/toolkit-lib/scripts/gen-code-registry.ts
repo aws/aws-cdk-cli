@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { CODES } from '../lib/api/io/private/codes';
+import { IO } from '../lib/api/io/private/messages';
 
 function codesToMarkdownTable(codes: Record<string, {
   code: string;
@@ -30,6 +30,6 @@ function linkInterface(interfaceName: string) {
 }
 
 fs.writeFileSync('CODE_REGISTRY.md', codesToMarkdownTable(
-  CODES,
+  IO,
   '## Toolkit Code Registry',
 ));
