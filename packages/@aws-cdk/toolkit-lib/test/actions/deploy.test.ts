@@ -1,9 +1,9 @@
 import { RequireApproval, StackParameters } from '../../lib';
+import * as awsCdkApi from '../../lib/api/aws-cdk';
+import { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
-import * as awsCdkApi from '../../lib/api/aws-cdk';
-import { DeployStackOptions, DeployStackResult } from '../../../../aws-cdk/lib/api/deployments';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -267,7 +267,7 @@ describe('deploy', () => {
         } else {
           return {
             type: 'replacement-requires-rollback',
-          } satisfies DeployStackResult;;
+          } satisfies DeployStackResult;
         }
       });
 
