@@ -78,8 +78,6 @@ export interface ToolkitOptions {
 
 /**
  * The AWS CDK Programmatic Toolkit
- *
- * @document ../../CODE_REGISTRY.md
  */
 export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposable {
   /**

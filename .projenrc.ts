@@ -1265,7 +1265,8 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
-toolkitLib.postCompileTask.exec('ts-node --prefer-ts-exts scripts/gen-code-registry.ts');
+const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-code-registry.ts' });
+toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1277,6 +1278,7 @@ toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/nu
 toolkitLib.npmignore?.addPatterns(
   'assets',
   'docs',
+  'docs_html',
   'typedoc.json',
   '*.d.ts.map',
   // Explicitly allow all required files
@@ -1293,7 +1295,7 @@ toolkitLib.npmignore?.addPatterns(
 
 toolkitLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
-  'docs',
+  'docs_html',
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
