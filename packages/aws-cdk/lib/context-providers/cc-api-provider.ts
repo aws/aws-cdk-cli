@@ -33,10 +33,10 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
 
     if (args.exactIdentifier) {
       // use getResource to get the exact indentifier
-      return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn);
+      return this.getResource(cc, args);
     } else {
       // use listResource
-      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn);
+      return this.listResources(cc, args);
     }
   }
 
@@ -49,26 +49,30 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    */
   private async getResource(
     cc: ICloudControlClient,
-    typeName: string,
-    exactIdentifier: string,
-    propertiesToReturn: string[],
+    args: CcApiContextQuery,
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
     try {
       const result = await cc.getResource({
-        TypeName: typeName,
-        Identifier: exactIdentifier,
+        TypeName: args.typeName,
+        Identifier: args.exactIdentifier,
       });
       const id = result.ResourceDescription?.Identifier ?? '';
       if (id !== '') {
         const propsObject = JSON.parse(result.ResourceDescription?.Properties ?? '');
-        const propsObj = getResultObj(propsObject, result.ResourceDescription?.Identifier!, propertiesToReturn);
+        const propsObj = getResultObj(propsObject, result.ResourceDescription?.Identifier!, args.propertiesToReturn);
         resultObjs.push(propsObj);
       } else {
-        throw new ContextProviderError(`Could not get resource ${exactIdentifier}.`);
+        throw new ContextProviderError(`Could not get resource ${args.exactIdentifier}.`);
       }
     } catch (err) {
-      throw new ContextProviderError(`Encountered CC API error while getting resource ${exactIdentifier}. Error: ${err}`);
+      const dummyValue = this.tryGetDummyValue(args);
+      if (dummyValue) {
+        const propsObj = getResultObj(dummyValue, 'dummy-id', args.propertiesToReturn);
+        resultObjs.push(propsObj);
+        return resultObjs;
+      }
+      throw new ContextProviderError(`Encountered CC API error while getting resource ${args.exactIdentifier}. Error: ${err}`);
     }
     return resultObjs;
   }
@@ -82,22 +86,20 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    */
   private async listResources(
     cc: ICloudControlClient,
-    typeName: string,
-    propertyMatch: Record<string, unknown>,
-    propertiesToReturn: string[],
+    args: CcApiContextQuery,
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
 
     try {
       const result = await cc.listResources({
-        TypeName: typeName,
+        TypeName: args.typeName,
       });
       result.ResourceDescriptions?.forEach((resource) => {
         const id = resource.Identifier ?? '';
         if (id !== '') {
           const propsObject = JSON.parse(resource.Properties ?? '');
 
-          const filters = Object.entries(propertyMatch);
+          const filters = Object.entries(args.propertyMatch!);
           let match = false;
           if (filters) {
             match = filters.every((record, _index, _arr) => {
@@ -114,14 +116,34 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
           }
 
           if (match) {
-            const propsObj = getResultObj(propsObject, resource.Identifier!, propertiesToReturn);
+            const propsObj = getResultObj(propsObject, resource.Identifier!, args.propertiesToReturn);
             resultObjs.push(propsObj);
           }
         }
       });
     } catch (err) {
-      throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. Error: ${err}`);
+      const dummyValue = this.tryGetDummyValue(args);
+      if (dummyValue) {
+        const propsObj = getResultObj(dummyValue, 'dummy-id', args.propertiesToReturn);
+        resultObjs.push(propsObj);
+        return resultObjs;
+      }
+      throw new ContextProviderError(`Could not get resources ${JSON.stringify(args.propertyMatch)}. Error: ${err}`);
     }
     return resultObjs;
+  }
+
+  private tryGetDummyValue(args: CcApiContextQuery): Record<string, any> | undefined {
+    if (!('ignoreErrorOnMissingContext' in args) || !args.ignoreErrorOnMissingContext) {
+      return undefined;
+    }
+    if (!('dummyValue' in args) || !Array.isArray(args.dummyValue) || args.dummyValue.length === 0) {
+      return undefined;
+    }
+    const dummyValue = args.dummyValue[0];
+    if (typeof dummyValue !== 'object' || dummyValue === null) {
+      return undefined;
+    }
+    return dummyValue;
   }
 }
