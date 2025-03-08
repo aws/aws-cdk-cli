@@ -1,6 +1,7 @@
 import { GetResourceCommand, ListResourcesCommand } from '@aws-sdk/client-cloudcontrol';
 import { CcApiContextProviderPlugin } from '../../lib/context-providers/cc-api-provider';
 import { mockCloudControlClient, MockSdkProvider, restoreSdkMocksToDefault } from '../util/mock-sdk';
+import { CcApiContextQuery } from '@aws-cdk/cloud-assembly-schema';
 
 let provider: CcApiContextProviderPlugin;
 
@@ -240,4 +241,190 @@ test('error by specifying neither exactIdentifier or propertyMatch', async () =>
     }),
   ).rejects.toThrow('Neither exactIdentifier nor propertyMatch is specified. Failed to find resources using CC API for type AWS::RDS::DBInstance.'); // THEN
 });
+
+describe('dummy value', () => {
+  test('returns dummy value when CC API getResource fails', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN
+    const results = await provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::RDS::DBInstance',
+      exactIdentifier: 'bad-identifier',
+      propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+      ignoreErrorOnMissingContext: true,
+      dummyValue: [
+        {
+          DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+          StorageEncrypted: 'true',
+        },
+      ],
+    } as TestQueryWithDummy);
+
+    // THEN
+    expect(results.length).toEqual(1);
+    expect(results[0]).toEqual({
+      DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+      StorageEncrypted: 'true',
+      Identifier: 'dummy-id',
+    });
+  });
+
+  test('returns dummy value when CC API listResources fails', async () => {
+    // GIVEN
+    mockCloudControlClient.on(ListResourcesCommand).rejects('No data found');
+
+    // WHEN
+    const results = await provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::RDS::DBInstance',
+      propertyMatch: { 'StorageEncrypted': 'true' },
+      propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+      ignoreErrorOnMissingContext: true,
+      dummyValue: [
+        {
+          DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+          StorageEncrypted: 'true',
+        },
+      ],
+    } as TestQueryWithDummy);
+
+    // THEN
+    expect(results.length).toEqual(1);
+    expect(results[0]).toEqual({
+      DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+      StorageEncrypted: 'true',
+      Identifier: 'dummy-id',
+    });
+  });
+
+  test('throws error when CC API fails and ignoreErrorOnMissingContext is not provided', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        account: '123456789012',
+        region: 'us-east-1',
+        typeName: 'AWS::RDS::DBInstance',
+        exactIdentifier: 'bad-identifier',
+        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+        dummyValue: [
+          {
+            DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+            StorageEncrypted: 'true',
+          },
+        ],
+      } as TestQueryWithDummy),
+    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  });
+
+  test('throws error when CC API fails and ignoreErrorOnMissingContext is false', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        account: '123456789012',
+        region: 'us-east-1',
+        typeName: 'AWS::RDS::DBInstance',
+        exactIdentifier: 'bad-identifier',
+        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+        ignoreErrorOnMissingContext: false,
+        dummyValue: [
+          {
+            DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+            StorageEncrypted: 'true',
+          },
+        ],
+      } as TestQueryWithDummy),
+    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  });
+
+  test('throws error when CC API fails and dummyValue is not provided', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        account: '123456789012',
+        region: 'us-east-1',
+        typeName: 'AWS::RDS::DBInstance',
+        exactIdentifier: 'bad-identifier',
+        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+        ignoreErrorOnMissingContext: true,
+      } as TestQueryWithDummy),
+    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  });
+
+  test('throws error when CC API fails and dummyValue is not an array', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        account: '123456789012',
+        region: 'us-east-1',
+        typeName: 'AWS::RDS::DBInstance',
+        exactIdentifier: 'bad-identifier',
+        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+        ignoreErrorOnMissingContext: true,
+        dummyValue: {
+          DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
+          StorageEncrypted: 'true',
+        },
+      } as TestQueryWithDummy),
+    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  });
+
+  test('throws error when CC API fails and dummyValue is an empty array', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        account: '123456789012',
+        region: 'us-east-1',
+        typeName: 'AWS::RDS::DBInstance',
+        exactIdentifier: 'bad-identifier',
+        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+        ignoreErrorOnMissingContext: true,
+        dummyValue: [],
+      } as TestQueryWithDummy),
+    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  });
+
+  test('throws error when CC API fails and dummyValue is not an object array', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        account: '123456789012',
+        region: 'us-east-1',
+        typeName: 'AWS::RDS::DBInstance',
+        exactIdentifier: 'bad-identifier',
+        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
+        ignoreErrorOnMissingContext: true,
+        dummyValue: [
+          'not an object',
+        ],
+      } as TestQueryWithDummy),
+    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  });
+});
 /* eslint-enable */
+
+interface TestQueryWithDummy extends CcApiContextQuery {
+  ignoreErrorOnMissingContext?: boolean;
+  dummyValue?: any;
+}
