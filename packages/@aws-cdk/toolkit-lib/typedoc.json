@@ -1,4 +1,11 @@
 {
+  "outputs": [
+    {
+      "name": "html",
+      "path": "./docs_html"
+    }
+  ],
+  "treatValidationWarningsAsErrors": true,
   "excludeExternals": true,
   "excludePrivate": true,
   "excludeProtected": true,
@@ -8,13 +15,19 @@
   "markdownLinkExternal": true,
   "groupOrder": ["Classes", "Interfaces", "Enumerations", "Type Aliases", "*"],
   "name": "AWS CDK Toolkit Library",
+  "projectDocuments": ["docs/*.md"],
   "includeVersion": true,
   "cacheBust": true,
+  "githubPages": false,
   "navigationLinks": {
     "Developer Guide": "https://docs.aws.amazon.com/cdk/latest/guide",
     "AWS Construct Library": "https://docs.aws.amazon.com/cdk/api/v2/",
     "GitHub": "https://github.com/aws/aws-cdk-cli"
   },
   "hideGenerator": true,
-  "customFooterHtml": "<div id=\"awsdocs-legal-zone-copyright\">&nbsp;<a href=\"https://aws.amazon.com/privacy\" target=\"_blank\">Privacy</a> | <a href=\"https://aws.amazon.com/terms/\" target=\"_blank\">Site terms</a> | <span class=\"copyright\">© 2025, Amazon Web Services, Inc. or its affiliates. All rights reserved.</span></div>"
+  "headings": {
+    "readme": false,
+    "document": false
+  },
+  "customFooterHtml": "<p id=\"awsdocs-legal-zone-copyright\">&nbsp;<a href=\"https://aws.amazon.com/privacy\" target=\"_blank\">Privacy</a> | <a href=\"https://aws.amazon.com/terms/\" target=\"_blank\">Site terms</a> | <span class=\"copyright\">© 2025, Amazon Web Services, Inc. or its affiliates. All rights reserved.</span></p>"
 }

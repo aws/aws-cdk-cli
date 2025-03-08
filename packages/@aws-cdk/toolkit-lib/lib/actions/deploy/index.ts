@@ -2,7 +2,9 @@ import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
 import type { ConfirmationRequest } from '../../toolkit/types';
-import type { PermissionChangeType } from '../diff/private/helpers';
+import type { PermissionChangeType } from '../diff';
+
+export type { StackMonitoringControlEvent, StackActivity } from '../../api/aws-cdk';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
@@ -51,6 +53,9 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
+/**
+ * @deprecated
+ */
 export enum RequireApproval {
   /**
    * Never require any security approvals
@@ -238,5 +243,5 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
   /**
    * The type of change being made to the IAM permissions.
    */
-  readonly permissionChangeType?: PermissionChangeType;
+  readonly permissionChangeType: PermissionChangeType;
 }

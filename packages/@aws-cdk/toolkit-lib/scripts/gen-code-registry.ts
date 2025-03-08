@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as util from 'util';
 import { IO } from '../lib/api/io/private/messages';
 
 function codesToMarkdownTable(codes: Record<string, {
@@ -15,7 +16,7 @@ function codesToMarkdownTable(codes: Record<string, {
     if (key !== code.code && !key.startsWith('DEFAULT_')) {
       throw new Error(`Code key ${key} does not match code.code ${code.code}. This is probably a typo.`);
     }
-    table += `| ${code.code} | ${code.description} | ${code.level} | ${code.interface ? linkInterface(code.interface) : 'n/a'} |\n`;
+    table += `| \`${code.code}\` | ${code.description} | \`${code.level}\` | ${code.interface ? linkInterface(code.interface) : 'n/a'} |\n`;
   });
 
   const prefix = mdPrefix ? `${mdPrefix}\n\n` : '';
@@ -24,12 +25,23 @@ function codesToMarkdownTable(codes: Record<string, {
   return prefix + table + postfix;
 }
 
-function linkInterface(interfaceName: string) {
-  const docSite = 'https://docs.aws.amazon.com/cdk/api/toolkit-lib/interfaces/';
-  return `[${interfaceName}](${docSite}${interfaceName}.html)`;
+function cxApiLink(interfaceName: string) {
+  const cxApi = 'https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.%s.html'
+  return util.format(cxApi, interfaceName.slice('cxapi.'.length));
 }
 
-fs.writeFileSync('CODE_REGISTRY.md', codesToMarkdownTable(
+function linkInterface(interfaceName: string) {
+  if (interfaceName.startsWith('cxapi.')) {
+    return `[${interfaceName}](${cxApiLink(interfaceName)})`;
+  }
+  return `{@link ${interfaceName}}`;
+}
+
+fs.writeFileSync('docs/message-registry.md', codesToMarkdownTable(
   IO,
-  '## Toolkit Code Registry',
+  `---
+title: IoMessages Registry
+group: Documents
+---
+# IoMessages Registry`,
 ));

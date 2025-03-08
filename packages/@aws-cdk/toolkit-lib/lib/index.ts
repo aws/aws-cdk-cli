@@ -1,3 +1,7 @@
+/**
+ * @module toolkit-lib
+ */
+
 // The main show
 export * from './toolkit';
 export * from './actions';
