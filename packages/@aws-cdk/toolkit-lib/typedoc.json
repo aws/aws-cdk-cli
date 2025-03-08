@@ -5,6 +5,7 @@
       "path": "./docs_html"
     }
   ],
+  "treatValidationWarningsAsErrors": true,
   "excludeExternals": true,
   "excludePrivate": true,
   "excludeProtected": true,

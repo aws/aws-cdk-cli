@@ -1,5 +1,5 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { SdkTrace } from './sdk-logger';
+import type { SdkTrace } from '../';
 import type { BootstrapEnvironmentProgress } from '../../../actions/bootstrap';
 import type { DeployConfirmationRequest, StackDeployProgress } from '../../../actions/deploy';
 import type { StackDestroyProgress } from '../../../actions/destroy';

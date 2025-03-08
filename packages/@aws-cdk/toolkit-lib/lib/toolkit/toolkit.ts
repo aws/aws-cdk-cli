@@ -357,7 +357,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
         motivation: deployMotivation,
         concurrency,
-        permissionChangeType: permissionChangeType,
+        permissionChangeType,
       }));
       if (!deployConfirmed) {
         throw new ToolkitError('Aborted by user');
