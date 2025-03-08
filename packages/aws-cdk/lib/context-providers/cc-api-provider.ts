@@ -66,7 +66,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         throw new ContextProviderError(`Could not get resource ${args.exactIdentifier}.`);
       }
     } catch (err) {
-      const dummyValue = this.tryGetDummyValue(args);
+      const dummyValue = this.getDummyValueIfErrorIgnored(args);
       if (dummyValue) {
         const propsObj = getResultObj(dummyValue, 'dummy-id', args.propertiesToReturn);
         resultObjs.push(propsObj);
@@ -122,7 +122,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         }
       });
     } catch (err) {
-      const dummyValue = this.tryGetDummyValue(args);
+      const dummyValue = this.getDummyValueIfErrorIgnored(args);
       if (dummyValue) {
         const propsObj = getResultObj(dummyValue, 'dummy-id', args.propertiesToReturn);
         resultObjs.push(propsObj);
@@ -133,7 +133,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     return resultObjs;
   }
 
-  private tryGetDummyValue(args: CcApiContextQuery): Record<string, any> | undefined {
+  private getDummyValueIfErrorIgnored(args: CcApiContextQuery): Record<string, any> | undefined {
     if (!('ignoreErrorOnMissingContext' in args) || !args.ignoreErrorOnMissingContext) {
       return undefined;
     }
