@@ -46,10 +46,6 @@
       "type": "build"
     },
     {
-      "name": "@types/glob",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
       "type": "build"
     },
@@ -72,14 +68,6 @@
     },
     {
       "name": "@types/sinon",
-      "type": "build"
-    },
-    {
-      "name": "@types/source-map-support",
-      "type": "build"
-    },
-    {
-      "name": "@types/uuid",
       "type": "build"
     },
     {
@@ -171,10 +159,6 @@
     },
     {
       "name": "madge",
-      "type": "build"
-    },
-    {
-      "name": "make-runnable",
       "type": "build"
     },
     {
@@ -415,10 +399,6 @@
       "type": "runtime"
     },
     {
-      "name": "json-diff",
-      "type": "runtime"
-    },
-    {
       "name": "minimatch",
       "type": "runtime"
     },
@@ -437,10 +417,6 @@
     },
     {
       "name": "semver",
-      "type": "runtime"
-    },
-    {
-      "name": "source-map-support",
       "type": "runtime"
     },
     {
