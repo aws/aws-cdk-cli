@@ -117,6 +117,10 @@
       "type": "runtime"
     },
     {
+      "name": "uuid",
+      "type": "runtime"
+    },
+    {
       "name": "yaml",
       "version": "^1",
       "type": "runtime"

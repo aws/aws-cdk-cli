@@ -6,6 +6,7 @@ export * from './sdk-trace';
 export * from './context';
 export * from './rollback';
 export * from './stack-activity';
+export * from './synth';
 export * from './types';
 export * from './progress';
 export * from './watch';
