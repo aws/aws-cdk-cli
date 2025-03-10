@@ -4,27 +4,30 @@
 // See https://github.com/aws/aws-cdk/pull/33021 for more information.
 
 // Note: All type exports are in `legacy-exports.ts`
-export * from './legacy-logging-source';
-export { deepClone, flatten, ifDefined, isArray, isEmpty, numberFromBool, partition, padLeft as leftPad, contentHash, deepMerge } from './util';
-export { deployStack } from './api/deployments/deploy-stack';
-export { cli, exec } from './cli/cli';
 export { SdkProvider } from './api/aws-auth';
-export { PluginHost } from './api/plugin';
-export { Command, Configuration, PROJECT_CONTEXT } from './cli/user-configuration';
-export { Settings } from './api/settings';
+export { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
+export { cached } from './api/aws-auth/cached';
+export { CredentialPlugins } from './api/aws-auth/credential-plugins';
+export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
 export { Bootstrapper } from './api/bootstrap';
 export { CloudExecutable } from './api/cxapp/cloud-executable';
 export { execProgram } from './api/cxapp/exec';
-export { RequireApproval } from './diff';
-export { formatAsBanner } from './cli/util/console-formatters';
-export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
-export { aliases, command, describe } from './commands/docs';
-export { lowerCaseFirstCharacter } from './api/hotswap/common';
 export { Deployments } from './api/deployments';
-export { cliRootDir as rootDir } from './cli/root-dir';
-export { latestVersionIfHigher, versionNumber } from './cli/version';
-export { availableInitTemplates } from './init';
-export { cached } from './api/aws-auth/cached';
+export { deployStack } from './api/deployments/deploy-stack';
 export { CfnEvaluationException } from './api/evaluate-cloudformation-template';
-export { CredentialPlugins } from './api/aws-auth/credential-plugins';
-export { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
+export { lowerCaseFirstCharacter } from './api/hotswap/common';
+export { PluginHost } from './api/plugin';
+export { Settings } from './api/settings';
+export { cli, exec } from './cli/cli';
+export { Command, Configuration, PROJECT_CONTEXT } from './cli/user-configuration';
+export { formatAsBanner } from './cli/util/console-formatters';
+export { getVersionMessages as latestVersionIfHigher, versionNumber } from './cli/version';
+export { aliases, command, describe } from './commands/docs';
+export { RequireApproval } from './diff';
+export { availableInitTemplates } from './init';
+export * from './legacy-logging-source';
+export { deepClone, flatten, ifDefined, isArray, isEmpty, numberFromBool, partition } from './util';
+export { contentHash } from './util/content-hash';
+export { cliRootDir as rootDir } from './cli/root-dir';
+export { deepMerge } from './util/objects';
+export { leftPad } from './util/string-manipulation';
