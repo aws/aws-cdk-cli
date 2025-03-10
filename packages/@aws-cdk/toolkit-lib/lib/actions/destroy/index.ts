@@ -20,7 +20,26 @@ export interface DestroyOptions {
   readonly ci?: boolean;
 }
 
+export interface StackDestroy {
+  /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+  /**
+   * The stacks that will be destroyed
+   */
+  readonly stacks: CloudFormationStackArtifact[];
+}
+
 export interface StackDestroyProgress {
+  /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
   /**
    * The total number of stacks being destroyed
    */

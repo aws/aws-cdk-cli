@@ -59,6 +59,7 @@
     "archiver": "^7.0.1",
     "glob": "^11.0.1",
     "semver": "^7.7.1",
+    "uuid": "^11.1.0",
     "yaml": "^1"
   },
   "keywords": [

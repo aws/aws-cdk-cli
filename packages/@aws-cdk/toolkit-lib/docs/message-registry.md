@@ -10,6 +10,7 @@ group: Documents
 | `CDK_TOOLKIT_I0000` | Default debug messages emitted from the Toolkit | `debug` | n/a |
 | `CDK_TOOLKIT_W0000` | Default warning messages emitted from the Toolkit | `warn` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
+| `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
@@ -23,6 +24,10 @@ group: Documents
 | `CDK_TOOLKIT_I5050` | Confirm rollback during deployment | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I5060` | Confirm deploy security sensitive changes | `info` | {@link DeployConfirmationRequest} |
 | `CDK_TOOLKIT_I5100` | Stack deploy progress | `info` | {@link StackDeployProgress} |
+| `CDK_TOOLKIT_I5210` | Started building a specific asset | `trace` | {@link BuildAsset} |
+| `CDK_TOOLKIT_I5211` | Building the asset has completed | `trace` | {@link Duration} |
+| `CDK_TOOLKIT_I5220` | Started publishing a specific asset | `trace` | {@link PublishAsset} |
+| `CDK_TOOLKIT_I5221` | Publishing the asset has completed | `trace` | {@link Duration} |
 | `CDK_TOOLKIT_I5310` | The computed settings used for file watching | `debug` | {@link WatchSettings} |
 | `CDK_TOOLKIT_I5311` | File watching started | `info` | {@link FileWatchEvent} |
 | `CDK_TOOLKIT_I5312` | File event detected, starting deployment | `info` | {@link FileWatchEvent} |
@@ -42,8 +47,10 @@ group: Documents
 | `CDK_TOOLKIT_E6001` | No stacks found | `error` | n/a |
 | `CDK_TOOLKIT_E6900` | Rollback failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I7000` | Provides destroy times | `info` | {@link Duration} |
+| `CDK_TOOLKIT_I7001` | Provides destroy time for a single stack | `trace` | {@link Duration} |
 | `CDK_TOOLKIT_I7010` | Confirm destroy stacks | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I7100` | Stack destroy progress | `info` | {@link StackDestroyProgress} |
+| `CDK_TOOLKIT_I7101` | Start stack destroying | `trace` | {@link StackDestroy} |
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |

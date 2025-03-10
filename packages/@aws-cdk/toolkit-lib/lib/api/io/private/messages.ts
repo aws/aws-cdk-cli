@@ -1,14 +1,16 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { SdkTrace } from '../';
 import type { BootstrapEnvironmentProgress } from '../../../actions/bootstrap';
-import type { DeployConfirmationRequest, StackDeployProgress } from '../../../actions/deploy';
-import type { StackDestroyProgress } from '../../../actions/destroy';
+import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress } from '../../../actions/deploy';
+import type { StackDestroy, StackDestroyProgress } from '../../../actions/destroy';
 import type { StackDetailsPayload } from '../../../actions/list';
 import type { StackRollbackProgress } from '../../../actions/rollback';
+import type { StackSelectionDetails } from '../../../actions/synth';
 import type { FileWatchEvent, WatchSettings } from '../../../actions/watch';
 import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData, SuccessfulDeployStackResult } from '../../../toolkit/types';
 import type { StackActivity, StackMonitoringControlEvent } from '../../aws-cdk';
 import type { MissingContext, UpdatedContext } from '../../cloud-assembly/context';
+import type { MarkerDefinition } from '../../shared-private';
 import * as make from '../../shared-private';
 
 /**
@@ -37,6 +39,11 @@ export const IO = {
     code: 'CDK_TOOLKIT_I1000',
     description: 'Provides synthesis times.',
     interface: 'Duration',
+  }),
+  CDK_TOOLKIT_I1001: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I1001',
+    description: 'Cloud Assembly synthesis is starting',
+    interface: 'StackSelectionDetails',
   }),
   CDK_TOOLKIT_I1901: make.result<StackAndAssemblyData>({
     code: 'CDK_TOOLKIT_I1901',
@@ -106,6 +113,29 @@ export const IO = {
     code: 'CDK_TOOLKIT_I5100',
     description: 'Stack deploy progress',
     interface: 'StackDeployProgress',
+  }),
+
+  // Assets
+  CDK_TOOLKIT_I5210: make.trace<BuildAsset>({
+    code: 'CDK_TOOLKIT_I5210',
+    description: 'Started building a specific asset',
+    interface: 'BuildAsset',
+  }),
+  CDK_TOOLKIT_I5211: make.trace<Duration>({
+    code: 'CDK_TOOLKIT_I5211',
+    description: 'Building the asset has completed',
+    interface: 'Duration',
+  }),
+
+  CDK_TOOLKIT_I5220: make.trace<PublishAsset>({
+    code: 'CDK_TOOLKIT_I5220',
+    description: 'Started publishing a specific asset',
+    interface: 'PublishAsset',
+  }),
+  CDK_TOOLKIT_I5221: make.trace<Duration>({
+    code: 'CDK_TOOLKIT_I5221',
+    description: 'Publishing the asset has completed',
+    interface: 'Duration',
   }),
 
   // Watch
@@ -209,6 +239,11 @@ export const IO = {
     description: 'Provides destroy times',
     interface: 'Duration',
   }),
+  CDK_TOOLKIT_I7001: make.trace<Duration>({
+    code: 'CDK_TOOLKIT_I7001',
+    description: 'Provides destroy time for a single stack',
+    interface: 'Duration',
+  }),
   CDK_TOOLKIT_I7010: make.confirm<ConfirmationRequest>({
     code: 'CDK_TOOLKIT_I7010',
     description: 'Confirm destroy stacks',
@@ -218,6 +253,11 @@ export const IO = {
     code: 'CDK_TOOLKIT_I7100',
     description: 'Stack destroy progress',
     interface: 'StackDestroyProgress',
+  }),
+  CDK_TOOLKIT_I7101: make.trace<StackDestroy>({
+    code: 'CDK_TOOLKIT_I7101',
+    description: 'Start stack destroying',
+    interface: 'StackDestroy',
   }),
 
   CDK_TOOLKIT_I7900: make.result<cxapi.CloudFormationStackArtifact>({
@@ -334,3 +374,48 @@ export const IO = {
     interface: 'SdkTrace',
   }),
 };
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+export const MARKER = {
+  SYNTH_ASSEMBLY: {
+    name: 'Synthesis',
+    start: IO.CDK_TOOLKIT_I1001,
+    end: IO.CDK_TOOLKIT_I1000,
+  },
+  DEPLOY_STACK: {
+    name: 'Deployment',
+    start: IO.CDK_TOOLKIT_I5100,
+    end: IO.CDK_TOOLKIT_I5000,
+  },
+  ROLLBACK_STACK: {
+    name: 'Rollback',
+    start: IO.CDK_TOOLKIT_I6100,
+    end: IO.CDK_TOOLKIT_I6000,
+  },
+  DESTROY_STACK: {
+    name: 'Destroy',
+    start: IO.CDK_TOOLKIT_I7100,
+    end: IO.CDK_TOOLKIT_I7001,
+  },
+  DESTROY_ACTION: {
+    name: 'Destroy',
+    start: IO.CDK_TOOLKIT_I7101,
+    end: IO.CDK_TOOLKIT_I7000,
+  },
+  BOOTSTRAP_SINGLE: {
+    name: 'Bootstrap',
+    start: IO.CDK_TOOLKIT_I9100,
+    end: IO.CDK_TOOLKIT_I9000,
+  },
+  BUILD_ASSET: {
+    name: 'Build Asset',
+    start: IO.CDK_TOOLKIT_I5210,
+    end: IO.CDK_TOOLKIT_I5211,
+  },
+  PUBLISH_ASSET: {
+    name: 'Publish Asset',
+    start: IO.CDK_TOOLKIT_I5220,
+    end: IO.CDK_TOOLKIT_I5221,
+  },
+} satisfies Record<string, MarkerDefinition<any, any>>;
