@@ -14,6 +14,7 @@ export type ActionLessRequest<T, U> = Omit<IoRequest<T, U>, 'action'>;
  */
 export interface IoHelper extends IIoHost {
   notify(msg: ActionLessMessage<unknown>): Promise<void>;
+  notify<T>(msg: ActionLessMessage<T>): Promise<void>;
   requestResponse<T, U>(msg: ActionLessRequest<T, U>): Promise<U>;
 }
 
