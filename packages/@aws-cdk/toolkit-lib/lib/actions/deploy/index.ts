@@ -1,4 +1,5 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { IManifestEntry } from 'cdk-assets';
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
 import type { ConfirmationRequest } from '../../toolkit/types';
@@ -220,6 +221,12 @@ export interface HotswapProperties {
 
 export interface StackDeployProgress {
   /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+  /**
    * The total number of stacks being deployed
    */
   readonly total: number;
@@ -244,4 +251,31 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
    * The type of change being made to the IAM permissions.
    */
   readonly permissionChangeType: PermissionChangeType;
+}
+
+export interface BuildAsset {
+  /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+  /**
+   * The asset that is build
+   */
+  readonly asset: IManifestEntry;
+}
+
+export interface PublishAsset {
+  /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+
+  /**
+   * The asset that is published
+   */
+  readonly asset: IManifestEntry;
 }

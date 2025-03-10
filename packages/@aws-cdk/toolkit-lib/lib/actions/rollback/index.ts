@@ -46,6 +46,12 @@ export interface RollbackOptions {
 
 export interface StackRollbackProgress {
   /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+  /**
    * The total number of stacks being rolled back
    */
   readonly total: number;
