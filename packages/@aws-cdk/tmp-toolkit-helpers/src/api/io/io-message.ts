@@ -62,7 +62,7 @@ export interface IoMessage<T> {
   /**
    * The data attached to the message.
    */
-  readonly data?: T;
+  readonly data: T;
 }
 
 /**

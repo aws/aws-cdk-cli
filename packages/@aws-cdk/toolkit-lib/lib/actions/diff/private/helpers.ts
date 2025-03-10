@@ -1,7 +1,7 @@
 import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import { fullDiff } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
-import { PermissionChangeType } from '..';
+import { PermissionChangeType } from '../../../api/shared-public';
 
 /**
  * Return whether the diff has security-impacting changes that need confirmation.

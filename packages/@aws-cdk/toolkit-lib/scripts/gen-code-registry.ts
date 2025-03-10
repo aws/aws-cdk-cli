@@ -1,16 +1,16 @@
 import * as fs from 'fs';
 import * as util from 'util';
-import { IO } from '../lib/api/io/private/messages';
+import { IO } from '../lib/api/shared-public';
 
 function codesToMarkdownTable(codes: Record<string, {
   code: string;
   level: string;
   description: string;
-  interface?: string; 
+  interface?: string;
 }>, mdPrefix?: string, mdPostfix?: string) {
   let table = '| Code | Description | Level | Data Interface |\n';
   table += '|------|-------------|-------|----------------|\n';
-  
+
   Object.entries(codes).forEach(([key, code]) => {
     // we allow DEFAULT_* as special case here
     if (key !== code.code && !key.startsWith('DEFAULT_')) {

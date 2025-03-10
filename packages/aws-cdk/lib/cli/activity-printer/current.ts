@@ -1,8 +1,8 @@
 import * as util from 'util';
+import type { StackActivity } from '@aws-cdk/tmp-toolkit-helpers';
 import * as chalk from 'chalk';
 import { ActivityPrinterBase, ActivityPrinterProps } from './base';
 import { RewritableBlock } from './display';
-import type { StackActivity } from '../../api/stack-events';
 import { padLeft, padRight, stackEventHasErrorMessage } from '../../util';
 
 /**

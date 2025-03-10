@@ -1,5 +1,6 @@
 import { inspect, format } from 'util';
 import { Logger } from '@smithy/types';
+import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/messages';
 import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { replacerBufferWithInfo } from '../../util';
 
@@ -11,12 +12,7 @@ export class SdkToCliLogger implements Logger {
   }
 
   private notify(level: 'debug' | 'info' | 'warn' | 'error', ...content: any[]) {
-    void this.ioHelper.notify({
-      time: new Date(),
-      level: 'trace', // always log all SDK logs at trace level, no matter what level they are coming from the SDK
-      code: 'CDK_SDK_I0000',
-      message: format('[SDK %s] %s', level, formatSdkLoggerContent(content)),
-    });
+    void this.ioHelper.notify(IO.CDK_SDK_I0000.msg(format('[SDK %s] %s', level, formatSdkLoggerContent(content))));
   }
 
   public trace(..._content: any[]) {

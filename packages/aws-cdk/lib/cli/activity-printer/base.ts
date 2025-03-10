@@ -1,6 +1,6 @@
 import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
-import type { StackActivity } from '../../api/stack-events';
-import { StackProgress } from '../../api/stack-events/stack-progress-monitor';
+import { type StackActivity, type StackProgress } from '@aws-cdk/tmp-toolkit-helpers';
+import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/messages';
 import { IoMessage } from '../../toolkit/cli-io-host';
 import { maxResourceTypeLength, stackEventHasErrorMessage } from '../../util';
 
@@ -52,14 +52,14 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
    * Receive a stack activity message
    */
   public notify(msg: IoMessage<unknown>): void {
-    switch (msg.code) {
-      case 'CDK_TOOLKIT_I5501':
-        this.start(msg.data as { stack: CloudFormationStackArtifact });
+    switch (true) {
+      case IO.CDK_TOOLKIT_I5501.is(msg):
+        this.start(msg.data);
         break;
-      case 'CDK_TOOLKIT_I5502':
-        this.activity(msg.data as StackActivity);
+      case IO.CDK_TOOLKIT_I5502.is(msg):
+        this.activity(msg.data);
         break;
-      case 'CDK_TOOLKIT_I5503':
+      case IO.CDK_TOOLKIT_I5503.is(msg):
         this.stop();
         break;
       default:

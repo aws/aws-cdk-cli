@@ -20,6 +20,7 @@ describe('message formatting', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I0000',
       time: new Date(),
+      data: undefined,
     });
 
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -40,6 +41,7 @@ describe('message formatting', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I0000',
       time: new Date(),
+      data: undefined,
     });
 
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -60,6 +62,7 @@ describe('message formatting', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I0000',
       time: new Date(),
+      data: undefined,
     });
 
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({

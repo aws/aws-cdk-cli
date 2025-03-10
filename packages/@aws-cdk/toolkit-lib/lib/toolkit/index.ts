@@ -1,2 +1,2 @@
 export * from './toolkit';
-export * from './types';
+export * from '../api/shared-public';

@@ -35,6 +35,7 @@ function formatMessageAndLog(
     level,
     message: finalMessage,
     code,
+    data: undefined,
   };
 
   void ioHost.notify(ioMessage);

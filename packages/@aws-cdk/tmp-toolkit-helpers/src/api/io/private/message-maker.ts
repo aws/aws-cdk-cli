@@ -1,4 +1,4 @@
-import type { IoMessageCode, IoMessageLevel } from '../io-message';
+import type { IoMessage, IoMessageCode, IoMessageLevel } from '../io-message';
 import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 
 /**
@@ -44,13 +44,18 @@ export interface IoMessageMaker<T> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
-  msg: [T] extends [never] ? (message: string) => ActionLessMessage<never> : (message: string, data: T) => ActionLessMessage<T>;
+  msg: [T] extends [AbsentData] ? (message: string) => ActionLessMessage<AbsentData> : (message: string, data: T) => ActionLessMessage<T>;
+
+  /**
+   * Returns whether the given `IoMessage` instance matches the current message definition
+   */
+  is(x: IoMessage<unknown>): x is IoMessage<T>;
 }
 
 /**
  * Produce an IoMessageMaker for the provided level and code info.
  */
-function message<T = never>(level: IoMessageLevel, details: CodeInfo): IoMessageMaker<T> {
+function message<T = AbsentData>(level: IoMessageLevel, details: CodeInfo): IoMessageMaker<T> {
   const maker = (text: string, data: T) => ({
     time: new Date(),
     level,
@@ -63,6 +68,7 @@ function message<T = never>(level: IoMessageLevel, details: CodeInfo): IoMessage
     ...details,
     level,
     msg: maker as any,
+    is: (m): m is IoMessage<T> => m.code === details.code,
   };
 }
 
@@ -76,14 +82,25 @@ export type ImpossibleType = {
 };
 
 // Create `IoMessageMaker`s for a given level and type check that calls with payload are using the correct interface
-type CodeInfoMaybeInterface<T> = [T] extends [never] ? Omit<CodeInfo, 'interface'> : Required<CodeInfo>;
+type CodeInfoMaybeInterface<T> = [T] extends [AbsentData] ? Omit<CodeInfo, 'interface'> : Required<CodeInfo>;
 
-export const trace = <T = never>(details: CodeInfoMaybeInterface<T>) => message<T>('trace', details);
-export const debug = <T = never>(details: CodeInfoMaybeInterface<T>) => message<T>('debug', details);
-export const info = <T = never>(details: CodeInfoMaybeInterface<T>) => message<T>('info', details);
-export const warn = <T = never>(details: CodeInfoMaybeInterface<T>) => message<T>('warn', details);
-export const error = <T = never>(details: CodeInfoMaybeInterface<T>) => message<T>('error', details);
-export const result = <T extends object = ImpossibleType>(details: Required<CodeInfo>) => message<T extends object ? T : never>('result', details);
+/**
+ * The type we use to represent an absent data field
+ *
+ * This is here to make it easy to change between `undefined`, `void`
+ * and `never`.
+ *
+ * Not a lot of difference between `undefined` and `void`, but `void`
+ * reads better.
+ */
+type AbsentData = void;
+
+export const trace = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('trace', details);
+export const debug = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('debug', details);
+export const info = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('info', details);
+export const warn = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('warn', details);
+export const error = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('error', details);
+export const result = <T extends object = ImpossibleType>(details: Required<CodeInfo>) => message<T extends object ? T : undefined>('result', details);
 
 interface RequestInfo<U> extends CodeInfo {
   readonly defaultResponse: U;
@@ -96,13 +113,13 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
-  req: [T] extends [never] ? (message: string) => ActionLessMessage<never> : (message: string, data: T) => ActionLessRequest<T, U>;
+  req: [T] extends [AbsentData] ? (message: string) => ActionLessMessage<AbsentData> : (message: string, data: T) => ActionLessRequest<T, U>;
 }
 
 /**
  * Produce an IoRequestMaker for the provided level and request info.
  */
-function request<T = never, U = ImpossibleType>(level: IoMessageLevel, details: RequestInfo<U>): IoRequestMaker<T, U> {
+function request<T = AbsentData, U = ImpossibleType>(level: IoMessageLevel, details: RequestInfo<U>): IoRequestMaker<T, U> {
   const maker = (text: string, data: T) => ({
     time: new Date(),
     level,

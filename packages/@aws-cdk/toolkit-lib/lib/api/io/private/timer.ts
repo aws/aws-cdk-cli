@@ -1,7 +1,7 @@
 import { format } from 'util';
-import { IO } from './messages';
 import { formatTime } from '../../../private/util';
 import type { IoHelper } from '../../shared-private';
+import { IO } from '../../shared-public';
 
 /**
  * Helper class to measure the time of code.
