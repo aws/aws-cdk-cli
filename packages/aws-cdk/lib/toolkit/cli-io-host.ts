@@ -90,13 +90,36 @@ export class CliIoHost implements IIoHost {
    */
   private static _instance: CliIoHost | undefined;
 
-  // internal state for getters/setter
-  private _currentAction: CliAction;
-  private _isCI: boolean;
-  private _isTTY: boolean;
-  private _logLevel: IoMessageLevel;
+  /**
+   * The current action being performed by the CLI.
+   */
+  public currentAction: CliAction;
+
+  /**
+   * Whether the CliIoHost is running in CI mode.
+   *
+   * In CI mode, all non-error output goes to stdout instead of stderr.
+   */
+  public isCI: boolean;
+
+  /**
+   * Whether the host can use interactions and message styling.
+   */
+  public isTTY: boolean;
+
+  /**
+   * The current threshold.
+   *
+   * Messages with a lower priority level will be ignored.
+   */
+  public logLevel: IoMessageLevel;
+
+  /**
+   * The conditions for requiring approval in this CliIoHost.
+   */
+  public requireDeployApproval: RequireApproval;
+
   private _internalIoHost?: IIoHost;
-  private _requireDeployApproval: RequireApproval;
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -107,11 +130,11 @@ export class CliIoHost implements IIoHost {
   private readonly corkedLoggingBuffer: IoMessage<any>[] = [];
 
   private constructor(props: CliIoHostProps = {}) {
-    this._currentAction = props.currentAction ?? 'none';
-    this._isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
-    this._logLevel = props.logLevel ?? 'info';
-    this._isCI = props.isCI ?? isCI();
-    this._requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
+    this.currentAction = props.currentAction ?? 'none';
+    this.isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
+    this.logLevel = props.logLevel ?? 'info';
+    this.isCI = props.isCI ?? isCI();
+    this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
   }
@@ -166,82 +189,6 @@ export class CliIoHost implements IIoHost {
 
     // Use the user preference
     return this._progress;
-  }
-
-  /**
-   * The current action being performed by the CLI.
-   */
-  public get currentAction(): CliAction {
-    return this._currentAction;
-  }
-
-  /**
-   * Sets the current action being performed by the CLI.
-   *
-   * @param action The action being performed by the CLI.
-   */
-  public set currentAction(action: CliAction) {
-    this._currentAction = action;
-  }
-
-  /**
-   * Whether the host can use interactions and message styling.
-   */
-  public get isTTY(): boolean {
-    return this._isTTY;
-  }
-
-  /**
-   * Set TTY mode, i.e can the host use interactions and message styling.
-   *
-   * @param value set TTY mode
-   */
-  public set isTTY(value: boolean) {
-    this._isTTY = value;
-  }
-
-  /**
-   * Return the conditions for requiring approval in this CliIoHost.
-   */
-  public get requireDeployApproval() {
-    return this._requireDeployApproval;
-  }
-
-  /**
-   * Set the conditions for requiring approval in this CliIoHost.
-   */
-  public set requireDeployApproval(approval: RequireApproval) {
-    this._requireDeployApproval = approval;
-  }
-
-  /**
-   * Whether the CliIoHost is running in CI mode. In CI mode, all non-error output goes to stdout instead of stderr.
-   */
-  public get isCI(): boolean {
-    return this._isCI;
-  }
-
-  /**
-   * Set the CI mode. In CI mode, all non-error output goes to stdout instead of stderr.
-   * @param value set the CI mode
-   */
-  public set isCI(value: boolean) {
-    this._isCI = value;
-  }
-
-  /**
-   * The current threshold. Messages with a lower priority level will be ignored.
-   */
-  public get logLevel(): IoMessageLevel {
-    return this._logLevel;
-  }
-
-  /**
-   * Sets the current threshold. Messages with a lower priority level will be ignored.
-   * @param level The new log level threshold
-   */
-  public set logLevel(level: IoMessageLevel) {
-    this._logLevel = level;
   }
 
   /**
@@ -431,7 +378,7 @@ export class CliIoHost implements IIoHost {
    */
   private formatMessage(msg: IoMessage<any>): string {
     // apply provided style or a default style if we're in TTY mode
-    let message_text = this._isTTY
+    let message_text = this.isTTY
       ? styleMap[msg.level](msg.message)
       : msg.message;
 
