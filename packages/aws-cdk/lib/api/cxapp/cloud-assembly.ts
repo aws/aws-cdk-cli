@@ -1,5 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cx-api';
+import { type StackDetails } from '@aws-cdk/tmp-toolkit-helpers';
 import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
 import * as semver from 'semver';
@@ -204,24 +205,6 @@ export class CloudAssembly {
     return new StackCollection(this, [this.assembly.getStackArtifact(stackId)]);
   }
 }
-
-/**
- * The dependencies of a stack.
- */
-export type StackDependency = {
-  id: string;
-  dependencies: StackDependency[];
-};
-
-/**
- * Details of a stack.
- */
-export type StackDetails = {
-  id: string;
-  name: string;
-  environment: cxapi.Environment;
-  dependencies: StackDependency[];
-};
 
 /**
  * A collection of stacks and related artifacts

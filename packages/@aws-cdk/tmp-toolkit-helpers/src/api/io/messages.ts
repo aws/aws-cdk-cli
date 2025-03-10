@@ -1,15 +1,15 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { SdkTrace } from '../';
-import type { BootstrapEnvironmentProgress } from '../../../actions/bootstrap';
-import type { DeployConfirmationRequest, StackDeployProgress } from '../../../actions/deploy';
-import type { StackDestroyProgress } from '../../../actions/destroy';
-import type { StackDetailsPayload } from '../../../actions/list';
-import type { StackRollbackProgress } from '../../../actions/rollback';
-import type { FileWatchEvent, WatchSettings } from '../../../actions/watch';
-import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData, SuccessfulDeployStackResult } from '../../../toolkit/types';
-import type { StackActivity, StackMonitoringControlEvent } from '../../aws-cdk';
-import type { MissingContext, UpdatedContext } from '../../cloud-assembly/context';
-import * as make from '../../shared-private';
+import type { BootstrapEnvironmentProgress } from './payloads/bootstrap-environment-progress';
+import type { MissingContext, UpdatedContext } from './payloads/context';
+import type { DeployConfirmationRequest, StackDeployProgress, SuccessfulDeployStackResult } from './payloads/deploy';
+import type { StackDestroyProgress } from './payloads/destroy';
+import type { StackDetailsPayload } from './payloads/list';
+import type { StackRollbackProgress } from './payloads/rollback';
+import type { SdkTrace } from './payloads/sdk-trace';
+import type { StackActivity, StackMonitoringControlEvent } from './payloads/stack-activity';
+import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData } from './payloads/types';
+import type { FileWatchEvent, WatchSettings } from './payloads/watch';
+import * as make from './private';
 
 /**
  * We have a rough system by which we assign message codes:
@@ -328,6 +328,10 @@ export const IO = {
   }),
 
   // SDK codes
+  CDK_SDK_I0000: make.trace({
+    code: 'CDK_SDK_I0000',
+    description: 'An SDK message.',
+  }),
   CDK_SDK_I0100: make.trace<SdkTrace>({
     code: 'CDK_SDK_I0100',
     description: 'An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level.',

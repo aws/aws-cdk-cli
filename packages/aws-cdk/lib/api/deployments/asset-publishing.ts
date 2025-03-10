@@ -199,6 +199,7 @@ export abstract class BasePublishProgressListener implements IPublishProgressLis
         formatMessage({
           level,
           message: this.getMessage(type, event),
+          data: undefined,
         }),
       );
     }

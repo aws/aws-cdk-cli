@@ -11,7 +11,6 @@ export { ResourceMigrator } from '../../../../aws-cdk/lib/api/resource-import';
 export { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../../../../aws-cdk/lib/api/logs';
 export { type WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
 export { Bootstrapper } from '../../../../aws-cdk/lib/api/bootstrap';
-export type { StackActivity, StackMonitoringControlEvent } from '../../../../aws-cdk/lib/api/stack-events';
 
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
@@ -25,7 +24,7 @@ export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/util/rwlock';
 export { loadTree, some } from '../../../../aws-cdk/lib/tree';
 
 // @todo Cloud Assembly and Executable - this is a messy API right now
-export { CloudAssembly, sanitizePatterns, type StackDetails, StackCollection, ExtendedStackSelection } from '../../../../aws-cdk/lib/api/cxapp/cloud-assembly';
+export { CloudAssembly, sanitizePatterns, StackCollection, ExtendedStackSelection } from '../../../../aws-cdk/lib/api/cxapp/cloud-assembly';
 export { prepareDefaultEnvironment, prepareContext, spaceAvailableForContext } from '../../../../aws-cdk/lib/api/cxapp/exec';
 export { guessExecutable } from '../../../../aws-cdk/lib/api/cxapp/exec';
 

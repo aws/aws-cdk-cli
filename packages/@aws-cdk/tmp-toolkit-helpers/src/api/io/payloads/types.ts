@@ -1,5 +1,3 @@
-import type { SuccessfulDeployStackResult as _SuccessfulDeployStackResult } from '../api/aws-cdk';
-
 /**
  * Assembly data returned in the payload of an IO Message.
  */
@@ -18,13 +16,6 @@ export interface AssemblyData {
    * The stack IDs
    */
   readonly stackIds: string[];
-}
-
-/**
- * A successful deploy stack result. Intentionally exposed in toolkit-lib so documentation
- * can be generated from this interface.
- */
-export interface SuccessfulDeployStackResult extends _SuccessfulDeployStackResult {
 }
 
 /**

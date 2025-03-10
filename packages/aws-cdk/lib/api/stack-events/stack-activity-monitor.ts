@@ -1,74 +1,15 @@
 
 import * as util from 'util';
-import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
-import { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { ResourceMetadata, StackActivity, StackMonitoringControlEvent } from '@aws-cdk/tmp-toolkit-helpers';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
 import { debug, error, info } from '../../cli/messages';
 import { stackEventHasErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
-import { StackProgress, StackProgressMonitor } from './stack-progress-monitor';
+import { StackProgressMonitor } from './stack-progress-monitor';
 import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-
-/**
- * Payload when stack monitoring is starting or stopping for a given stack deployment.
- */
-export interface StackMonitoringControlEvent {
-  /**
-   * A unique identifier for a specific stack deployment.
-   *
-   * Use this value to attribute stack activities received for concurrent deployments.
-   */
-  readonly deployment: string;
-
-  /**
-   * The stack artifact that is getting deployed
-   */
-  readonly stack: CloudFormationStackArtifact;
-
-  /**
-   * The name of the Stack that is getting deployed
-   */
-  readonly stackName: string;
-
-  /**
-   * Total number of resources taking part in this deployment
-   *
-   * The number might not always be known or accurate.
-   * Only use for informational purposes and handle the case when it's unavailable.
-   */
-  readonly resourcesTotal?: number;
-}
-
-export interface StackActivity {
-  /**
-   * A unique identifier for a specific stack deployment.
-   *
-   * Use this value to attribute stack activities received for concurrent deployments.
-   */
-  readonly deployment: string;
-
-  /**
-   * The Stack Event as received from CloudFormation
-   */
-  readonly event: StackEvent;
-
-  /**
-   * Additional resource metadata
-   */
-  readonly metadata?: ResourceMetadata;
-
-  /**
-   * The stack progress
-   */
-  readonly progress: StackProgress;
-}
-
-export interface ResourceMetadata {
-  entry: MetadataEntry;
-  constructPath: string;
-}
 
 export interface StackActivityMonitorProps {
   /**
