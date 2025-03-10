@@ -127,7 +127,7 @@ export class CliIoHost implements IIoHost {
 
   // Corked Logging
   private corkedCounter = 0;
-  private readonly corkedLoggingBuffer: IoMessage<any>[] = [];
+  private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
@@ -220,7 +220,7 @@ export class CliIoHost implements IIoHost {
    * Notifies the host of a message.
    * The caller waits until the notification completes.
    */
-  public async notify<T>(msg: IoMessage<T>): Promise<void> {
+  public async notify(msg: IoMessage<unknown>): Promise<void> {
     if (this._internalIoHost) {
       return this._internalIoHost.notify(msg);
     }
@@ -250,7 +250,7 @@ export class CliIoHost implements IIoHost {
   /**
    * Detect stack activity messages so they can be send to the printer.
    */
-  private isStackActivity(msg: IoMessage<any>) {
+  private isStackActivity(msg: IoMessage<unknown>) {
     return [
       'CDK_TOOLKIT_I5501',
       'CDK_TOOLKIT_I5502',
@@ -376,7 +376,7 @@ export class CliIoHost implements IIoHost {
   /**
    * Formats a message for console output with optional color support
    */
-  private formatMessage(msg: IoMessage<any>): string {
+  private formatMessage(msg: IoMessage<unknown>): string {
     // apply provided style or a default style if we're in TTY mode
     let message_text = this.isTTY
       ? styleMap[msg.level](msg.message)

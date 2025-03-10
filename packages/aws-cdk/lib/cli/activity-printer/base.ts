@@ -5,7 +5,7 @@ import { IoMessage } from '../../toolkit/cli-io-host';
 import { maxResourceTypeLength, stackEventHasErrorMessage } from '../../util';
 
 export interface IActivityPrinter {
-  notify<T>(msg: IoMessage<T>): void;
+  notify(msg: IoMessage<unknown>): void;
 }
 
 export interface ActivityPrinterProps {
@@ -51,10 +51,10 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
   /**
    * Receive a stack activity message
    */
-  public notify(msg: IoMessage<any>): void {
+  public notify(msg: IoMessage<unknown>): void {
     switch (msg.code) {
       case 'CDK_TOOLKIT_I5501':
-        this.start(msg.data);
+        this.start(msg.data as { stack: CloudFormationStackArtifact });
         break;
       case 'CDK_TOOLKIT_I5502':
         this.activity(msg.data as StackActivity);

@@ -15,7 +15,7 @@ export class TestIoHost implements IIoHost {
     this.requestSpy = jest.fn();
   }
 
-  public async notify<T>(msg: IoMessage<T>): Promise<void> {
+  public async notify(msg: IoMessage<unknown>): Promise<void> {
     if (isMessageRelevantForLevel(msg, this.level)) {
       this.notifySpy(msg);
     }
