@@ -705,6 +705,7 @@ const tmpToolkitHelpers = configureProject(
       'archiver',
       'glob',
       'semver',
+      'uuid',
       'yaml@^1',
     ],
     tsconfig: {

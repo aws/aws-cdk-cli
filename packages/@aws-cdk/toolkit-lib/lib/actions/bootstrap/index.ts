@@ -230,6 +230,12 @@ export class BootstrapSource {
 
 export interface BootstrapEnvironmentProgress {
   /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+  /**
    * The total number of environments being deployed
    */
   readonly total: number;

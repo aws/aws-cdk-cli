@@ -22,6 +22,12 @@ export interface DestroyOptions {
 
 export interface StackDestroyProgress {
   /**
+   * Uniquely identifies this marker amongst concurrent messages
+   *
+   * This is an otherwise meaningless identifier.
+   */
+  readonly marker: string;
+  /**
    * The total number of stacks being destroyed
    */
   readonly total: number;
