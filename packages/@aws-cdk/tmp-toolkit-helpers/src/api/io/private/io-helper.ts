@@ -13,7 +13,7 @@ export type ActionLessRequest<T, U> = Omit<IoRequest<T, U>, 'action'>;
  * Wraps a client provided IoHost and provides additional features & services to toolkit internal classes.
  */
 export interface IoHelper extends IIoHost {
-  notify(msg: ActionLessMessage<any>): Promise<void>;
+  notify(msg: ActionLessMessage<unkown>): Promise<void>;
   requestResponse<T, U>(msg: ActionLessRequest<T, U>): Promise<U>;
 }
 
