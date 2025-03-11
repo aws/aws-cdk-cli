@@ -3,6 +3,7 @@ import * as uuid from 'uuid';
 import type { ActionLessMessage, IoHelper } from './io-helper';
 import type { IoMessageMaker } from './message-maker';
 import { formatTime } from '../../../util';
+import type { Duration } from '../payloads/types';
 
 export interface SpanEnd {
   readonly duration: number;
@@ -55,7 +56,7 @@ type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 /**
  * Ending the span returns the observed duration
  */
-export interface Duration {
+interface ElapsedTime {
   readonly asMs: number;
   readonly asSec: number;
 }
@@ -64,10 +65,31 @@ export interface Duration {
  * A message span that can be ended and read times from
  */
 export interface IMessageSpan<E extends SpanEnd> {
-  time(): Duration;
-  end(payload: VoidWhenEmpty<Omit<E, keyof SpanEnd>>): Promise<Duration>;
-  end(payload: VoidWhenEmpty<Optional<E, keyof SpanEnd>>): Promise<Duration>;
-  end(message: string, payload: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<Duration>;
+  /**
+   * Get the time elapsed since the start
+   */
+  elapsedTime(): Promise<ElapsedTime>;
+  /**
+   * Sends a simple, generic message with the current timing
+   * For more complex intermediate messages, get the `elapsedTime` and use `notify`
+   */
+  timing(maker: IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime>;
+  /**
+   * Sends an arbitrary intermediate message as part of the span
+   */
+  notify(message: ActionLessMessage<unknown>): Promise<void>;
+  /**
+   * End the span with a payload
+   */
+  end(payload: VoidWhenEmpty<Omit<E, keyof SpanEnd>>): Promise<ElapsedTime>;
+  /**
+   * End the span with a payload, overwriting
+   */
+  end(payload: VoidWhenEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime>;
+  /**
+   * End the span with a message and payload
+   */
+  end(message: string, payload: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime>;
 }
 
 /**
@@ -108,6 +130,7 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
       startPayload,
     ));
 
+    const timingMsg = '\n✨  %s time: %ds\n';
     const time = () => {
       const elapsedTime = new Date().getTime() - startTime;
       return {
@@ -117,22 +140,36 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
     };
 
     return {
-      time(): Duration {
-        const elapsedTime = new Date().getTime() - startTime;
-        return {
-          asMs: elapsedTime,
-          asSec: formatTime(elapsedTime),
-        };
+      elapsedTime: async (msg?: ActionLessMessage<object>): Promise<ElapsedTime> => {
+        if (msg) {
+          await notify({
+            ...msg,
+            data: msg.data,
+          });
+        }
+        return time();
       },
 
-      end: async (a: any, b?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<Duration> => {
+      notify: async(msg: ActionLessMessage<unknown>): Promise<void> => {
+        await notify(msg);
+      },
+
+      timing: async(maker: IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime> => {
         const duration = time();
-        const endMsg = b ? a : `\n✨  %s time: ${duration.asSec}s\n`;
+        const endMsg = message ? message : timingMsg;
+        await notify(maker.msg(util.format(endMsg, this.definition.name, duration.asSec), {
+          duration: duration.asMs,
+        }));
+        return duration;
+      },
+
+      end: async (a: any, b?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> => {
+        const duration = time();
+        const endMsg = b ? a : timingMsg;
         const endPayload = b ?? a;
 
         await notify(this.definition.end.msg(
-          util.format(endMsg, this.definition.name), {
-            marker: spanId,
+          util.format(endMsg, this.definition.name, duration.asSec), {
             duration: duration.asMs,
             ...endPayload,
           } as E));

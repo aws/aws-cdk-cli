@@ -285,6 +285,7 @@ function successfulDeployment() {
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     action: 'deploy',
     level: 'info',
+    code: 'CDK_TOOLKIT_I5000',
     message: expect.stringContaining('Deployment time:'),
   }));
 }

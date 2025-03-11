@@ -497,7 +497,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           : ` ✅  ${stack.displayName}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green('\n' + message), deployResult));
-        deployDuration = await deploySpan.time();
+        deployDuration = await deploySpan.timing(IO.CDK_TOOLKIT_I5000);
 
         if (Object.keys(deployResult.outputs).length > 0) {
           const buffer = ['Outputs:'];
