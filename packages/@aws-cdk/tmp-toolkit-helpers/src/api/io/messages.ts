@@ -259,6 +259,24 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
+  // Notices
+  CDK_TOOLKIT_I0100: make.info({
+    code: 'CDK_TOOLKIT_I0100',
+    description: 'Notices decoration (the header or footer of a list of notices)',
+  }),
+  CDK_TOOLKIT_W0101: make.warn({
+    code: 'CDK_TOOLKIT_W0101',
+    description: 'A notice that is marked as a warning',
+  }),
+  CDK_TOOLKIT_E0101: make.error({
+    code: 'CDK_TOOLKIT_E0101',
+    description: 'A notice that is marked as an error',
+  }),
+  CDK_TOOLKIT_I0101: make.info({
+    code: 'CDK_TOOLKIT_I0101',
+    description: 'A notice that is marked as informational',
+  }),
+
   // Assembly codes
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',

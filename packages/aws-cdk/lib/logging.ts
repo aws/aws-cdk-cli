@@ -1,12 +1,15 @@
 import * as util from 'util';
 import * as chalk from 'chalk';
 import { IoMessageLevel, IoMessage, CliIoHost, IoMessageCode } from './toolkit/cli-io-host';
+import { asIoHelper, IoHelper } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';
 export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
 
 /**
+ * Logs messages to the global CliIoHost
+ *
  * Internal helper that processes log inputs into a consistent format.
  * Handles string interpolation, format strings, and object parameter styles.
  * Applies optional styling and sends the message to the IoHost.
@@ -17,28 +20,10 @@ function formatMessageAndLog(
   style?: (str: string) => string,
   ...args: unknown[]
 ): void {
-  // Extract message and code from input, using new default code format
-  const { message, code = getDefaultCode(level) } = typeof input === 'object' ? input : { message: input };
-
-  // Format message if args are provided
-  const formattedMessage = args.length > 0
-    ? util.format(message, ...args)
-    : message;
-
-  // Apply style if provided
-  const finalMessage = style ? style(formattedMessage) : formattedMessage;
-
-  const ioHost = CliIoHost.instance();
-  const ioMessage: IoMessage<undefined> = {
-    time: new Date(),
-    action: ioHost.currentAction as any,
-    level,
-    message: finalMessage,
-    code,
-    data: undefined,
-  };
-
-  void ioHost.notify(ioMessage);
+  const singletonHost = CliIoHost.instance();
+  // ALARM: forcing a CliAction into a ToolkitAction.
+  const helper = asIoHelper(singletonHost, singletonHost.currentAction as any);
+  new IoLogger(helper).emit(level, input, style, ...args);
 }
 
 function getDefaultCode(level: IoMessageLevel, category: IoMessageCodeCategory = 'TOOLKIT'): IoMessageCode {
@@ -185,3 +170,60 @@ export const success = (input: LogInput<'I'>, ...args: unknown[]) => {
 export const highlight = (input: LogInput<'I'>, ...args: unknown[]) => {
   return formatMessageAndLog('info', input, chalk.bold, ...args);
 };
+
+/**
+ * Helper class to emit standard log messages to an IoHost
+ *
+ * It wraps an `IoHelper`, and adds convenience methods for the various log
+ * levels, same as the global ones but scoped to a particular `IoHost` instead
+ * of the global singleton one.
+ */
+export class IoLogger {
+  constructor(private readonly ioHost: IoHelper) {
+  }
+
+  public error(input: LogInput<'E'>, ...args: unknown[]) {
+    this.emit('error', input, undefined, ...args);
+  }
+
+  public warning(input: LogInput<'W'>, ...args: unknown[]) {
+    this.emit('warn', input, undefined, ...args);
+  }
+
+  public info(input: LogInput<'I'>, ...args: unknown[]) {
+    this.emit('info', input, undefined, ...args);
+  }
+
+  public result(input: LogInput<'I'>, ...args: unknown[]) {
+    this.emit('result', input, undefined, ...args);
+  }
+
+  public debug(input: LogInput<'I'>, ...args: unknown[]) {
+    this.emit('debug', input, undefined, ...args);
+  }
+
+  public trace(input: LogInput<'I'>, ...args: unknown[]) {
+    this.emit('trace', input, undefined, ...args);
+  }
+
+  public emit(level: IoMessageLevel, input: LogInput<IoCodeLevel>, style?: (str: string) => string, ...args: unknown[]) {
+    // Extract message and code from input, using new default code format
+    const { message, code = getDefaultCode(level) } = typeof input === 'object' ? input : { message: input };
+
+    // Format message if args are provided
+    const formattedMessage = args.length > 0
+      ? util.format(message, ...args)
+      : message;
+
+    // Apply style if provided
+    const finalMessage = style ? style(formattedMessage) : formattedMessage;
+
+    void this.ioHost.notify({
+      time: new Date(),
+      level,
+      message: finalMessage,
+      code,
+      data: undefined,
+    });
+  }
+}

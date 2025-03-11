@@ -15,7 +15,7 @@ global.process = { ...process };
 describe('CliIoHost', () => {
   let mockStdout: jest.Mock;
   let mockStderr: jest.Mock;
-  let defaultMessage: IoMessage<unknown>;
+  let defaultMessage: Omit<IoMessage<unknown>, 'data'>;
 
   beforeEach(() => {
     mockStdout = jest.fn();
@@ -58,13 +58,13 @@ describe('CliIoHost', () => {
   describe('stream selection', () => {
     test('writes to stderr by default for non-error messages in non-CI mode', async () => {
       ioHost.isTTY = true;
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: new Date(),
         level: 'info',
         action: 'synth',
         code: 'CDK_TOOLKIT_I0001',
         message: 'test message',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.white('test message') + '\n');
       expect(mockStdout).not.toHaveBeenCalled();
@@ -72,13 +72,13 @@ describe('CliIoHost', () => {
 
     test('writes to stderr for error level with red color', async () => {
       ioHost.isTTY = true;
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: new Date(),
         level: 'error',
         action: 'synth',
         code: 'CDK_TOOLKIT_E0001',
         message: 'error message',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.red('error message') + '\n');
       expect(mockStdout).not.toHaveBeenCalled();
@@ -86,15 +86,47 @@ describe('CliIoHost', () => {
 
     test('writes to stdout for result level', async () => {
       ioHost.isTTY = true;
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: new Date(),
         level: 'result',
         action: 'synth',
         code: 'CDK_TOOLKIT_I0001',
         message: 'result message',
-      });
+      }));
 
       expect(mockStdout).toHaveBeenCalledWith(chalk.white('result message') + '\n');
+      expect(mockStderr).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('notices stream selection', () => {
+    const NOTICES_MSG: IoMessage<unknown> = plainMessage({
+      time: new Date(),
+      level: 'info',
+      action: 'doctor',
+      code: 'CDK_TOOLKIT_I0100',
+      message: 'MESSAGE',
+    });
+
+    test('can send notices to stdout', async () => {
+      ioHost.noticesDestination = 'stdout';
+      await ioHost.notify(NOTICES_MSG);
+      // THEN
+      expect(mockStdout).toHaveBeenCalledWith(expect.stringContaining('MESSAGE'));
+    });
+
+    test('can send notices to stderr', async () => {
+      ioHost.noticesDestination = 'stderr';
+      await ioHost.notify(NOTICES_MSG);
+      // THEN
+      expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('MESSAGE'));
+    });
+
+    test('can drop notices', async () => {
+      ioHost.noticesDestination = 'drop';
+      await ioHost.notify(NOTICES_MSG);
+      // THEN
+      expect(mockStdout).not.toHaveBeenCalled();
       expect(mockStderr).not.toHaveBeenCalled();
     });
   });
@@ -105,28 +137,28 @@ describe('CliIoHost', () => {
     });
 
     test('formats debug messages with timestamp', async () => {
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         ...defaultMessage,
         level: 'debug',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(`[12:00:00] ${chalk.gray('test message')}\n`);
     });
 
     test('formats trace messages with timestamp', async () => {
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         ...defaultMessage,
         level: 'trace',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(`[12:00:00] ${chalk.gray('test message')}\n`);
     });
 
     test('applies no styling when TTY is false', async () => {
       ioHost.isTTY = false;
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         ...defaultMessage,
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith('test message\n');
     });
@@ -146,10 +178,10 @@ describe('CliIoHost', () => {
       }
 
       // When
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         ...defaultMessage,
         level,
-      });
+      }));
 
       // Then
       expect(mockStderr).toHaveBeenCalledWith(expectedOutput);
@@ -171,26 +203,26 @@ describe('CliIoHost', () => {
     });
 
     test('writes to stdout in CI mode when level is not error', async () => {
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: new Date(),
         level: 'info',
         action: 'synth',
         code: 'CDK_TOOLKIT_W0001',
         message: 'ci message',
-      });
+      }));
 
       expect(mockStdout).toHaveBeenCalledWith(chalk.white('ci message') + '\n');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
     test('writes to stderr for error level in CI mode', async () => {
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: new Date(),
         level: 'error',
         action: 'synth',
         code: 'CDK_TOOLKIT_E0001',
         message: 'ci error message',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.red('ci error message') + '\n');
       expect(mockStdout).not.toHaveBeenCalled();
@@ -204,26 +236,26 @@ describe('CliIoHost', () => {
 
     test('includes timestamp for DEBUG level with gray color', async () => {
       const testDate = new Date('2024-01-01T12:34:56');
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: testDate,
         level: 'debug',
         action: 'synth',
         code: 'CDK_TOOLKIT_I0001',
         message: 'debug message',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(`[12:34:56] ${chalk.gray('debug message')}\n`);
     });
 
     test('excludes timestamp for other levels but includes color', async () => {
       const testDate = new Date('2024-01-01T12:34:56');
-      await ioHost.notify({
+      await ioHost.notify(plainMessage({
         time: testDate,
         level: 'info',
         action: 'synth',
         code: 'CDK_TOOLKIT_I0001',
         message: 'info message',
-      });
+      }));
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.white('info message') + '\n');
     });
@@ -251,28 +283,28 @@ describe('CliIoHost', () => {
 
     describe('boolean', () => {
       test('respond "yes" to a confirmation prompt', async () => {
-        const response = await requestResponse('y', {
+        const response = await requestResponse('y', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Continue?',
           defaultResponse: true,
-        });
+        }));
 
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
         expect(response).toBe(true);
       });
 
       test('respond "no" to a confirmation prompt', async () => {
-        await expect(() => requestResponse('n', {
+        await expect(() => requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Continue?',
           defaultResponse: true,
-        })).rejects.toThrow('Aborted by user');
+        }))).rejects.toThrow('Aborted by user');
 
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
       });
@@ -285,14 +317,14 @@ describe('CliIoHost', () => {
         // simulate the enter key
         ['\x0A', 'cat'],
       ])('receives %p and returns %p', async (input, expectedResponse) => {
-        const response = await requestResponse(input, {
+        const response = await requestResponse(input, plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Favorite animal',
           defaultResponse: 'cat',
-        });
+        }));
 
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Favorite animal') + ' (cat) ');
         expect(response).toBe(expectedResponse);
@@ -305,14 +337,14 @@ describe('CliIoHost', () => {
         // simulate the enter key
         ['\x0A', 1],
       ])('receives %p and return %p', async (input, expectedResponse) => {
-        const response = await requestResponse(input, {
+        const response = await requestResponse(input, plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'How many would you like?',
           defaultResponse: 1,
-        });
+        }));
 
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('How many would you like?') + ' (1) ');
         expect(response).toBe(expectedResponse);
@@ -321,14 +353,14 @@ describe('CliIoHost', () => {
 
     describe('non-promptable data', () => {
       test('logs messages and returns default unchanged', async () => {
-        const response = await ioHost.requestResponse({
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'test message',
           defaultResponse: [1, 2, 3],
-        });
+        }));
 
         expect(mockStderr).toHaveBeenCalledWith(chalk.white('test message') + '\n');
         expect(response).toEqual([1, 2, 3]);
@@ -342,14 +374,14 @@ describe('CliIoHost', () => {
       });
 
       test('fail for all prompts', async () => {
-        await expect(() => ioHost.requestResponse({
+        await expect(() => ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Continue?',
           defaultResponse: true,
-        })).rejects.toThrow('User input is needed');
+        }))).rejects.toThrow('User input is needed');
       });
 
       test('fail with specific motivation', async () => {
@@ -367,14 +399,14 @@ describe('CliIoHost', () => {
       });
 
       test('returns the default for non-promptable requests', async () => {
-        const response = await ioHost.requestResponse({
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'test message',
           defaultResponse: [1, 2, 3],
-        });
+        }));
 
         expect(mockStderr).toHaveBeenCalledWith('test message\n');
         expect(response).toEqual([1, 2, 3]);
@@ -383,40 +415,40 @@ describe('CliIoHost', () => {
 
     describe('requireApproval', () => {
       test('require approval by default - respond yes', async () => {
-        const response = await requestResponse('y', {
+        const response = await requestResponse('y', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
           defaultResponse: true,
-        });
+        }));
 
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
 
       test('require approval by default - respond no', async () => {
-        expect(() => requestResponse('n', {
+        expect(() => requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
           defaultResponse: true,
-        })).rejects.toThrow('Aborted by user');
+        }))).rejects.toThrow('Aborted by user');
       });
 
       test('never require approval', async () => {
         ioHost.requireDeployApproval = RequireApproval.NEVER;
-        const response = await ioHost.requestResponse({
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
           defaultResponse: true,
-        });
+        }));
 
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
@@ -468,4 +500,11 @@ async function requestResponse<DataType, ResponseType>(input: string, msg: IoReq
   const promise = ioHost.requestResponse(msg);
   passThrough.write(input + '\n');
   return promise;
+}
+
+function plainMessage<A extends Omit<IoMessage<unknown> | IoRequest<unknown, unknown>, 'data'>>(m: A): A & { data: void } {
+  return {
+    ...m,
+    data: undefined,
+  };
 }
