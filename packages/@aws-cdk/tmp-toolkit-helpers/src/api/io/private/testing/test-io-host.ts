@@ -4,9 +4,16 @@ import type { IoMessage, IoMessageLevel, IoRequest } from '../../io-message';
 import { isMessageRelevantForLevel } from '../level-priority';
 
 /**
- * A test implementation of IIoHost that does nothing but can by spied on.
- * Optionally set a level to filter out all irrelevant messages.
- * Optionally set a approval level.
+ * A test implementation of IIoHost that does nothing but can be spied on.
+ *
+ * Includes a level to filter out irrelevant messages, defaults to `info`.
+ *
+ * Optionally set an approval level for code `CDK_TOOLKIT_I5060`.
+ *
+ * # How to use
+ *
+ * Configure and reset the `notifySpy` and `requestSpy` members as you would any
+ * mock function.
  */
 export class TestIoHost implements IIoHost {
   public readonly notifySpy: jest.Mock<any, any, any>;

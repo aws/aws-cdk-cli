@@ -1,6 +1,21 @@
 import { IIoHost } from "../../io-host";
 import { IoMessage, IoMessageLevel, IoRequest } from "../../io-message";
 
+/**
+ * An implementation of `IIoHost` that records messages and lets you assert on what was logged
+ *
+ * It's like `TestIoHost`, but comes with a predefined implementation for `notify`
+ * that appends all messages to an in-memory array, and comes with a helper function
+ * `expectMessage()` to test for the existence of a function in that array.
+ *
+ * Has a public mock for `requestResponse` that you configure like any
+ * other mock function.
+ *
+ * # How to use
+ *
+ * Either create a new instance of this class for every test, or call `clear()`
+ * on it between runs.
+ */
 export class FakeIoHost implements IIoHost {
   public messages: Array<IoMessage<unknown>> = [];
   public requestResponse!: <T, U>(msg: IoRequest<T, U>) => Promise<U>;
