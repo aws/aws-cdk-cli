@@ -2,9 +2,8 @@ import * as util from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as uuid from 'uuid';
-import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
 import type { CloudWatchLogEvent } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO, IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { flatten } from '../../util';
 import type { SDK } from '../aws-auth';
 

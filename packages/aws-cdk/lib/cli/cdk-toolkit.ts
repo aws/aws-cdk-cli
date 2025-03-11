@@ -649,6 +649,7 @@ export class CdkToolkit {
 
   public async watch(options: WatchOptions) {
     const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
+    const ioHelper = asIoHelper(this.ioHost, 'watch');
     debug("root directory used for 'watch' is: %s", rootDir);
 
     const watchSettings: { include?: string | string[]; exclude: string | string[] } | undefined =
@@ -698,8 +699,7 @@ export class CdkToolkit {
     let latch: 'pre-ready' | 'open' | 'deploying' | 'queued' = 'pre-ready';
 
     const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({
-      action: 'watch',
-      ioHost: this.ioHost,
+      ioHelper,
     }) : undefined;
     const deployAndWatch = async () => {
       latch = 'deploying';

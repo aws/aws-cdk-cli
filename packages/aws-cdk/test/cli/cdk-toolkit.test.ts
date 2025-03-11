@@ -4,7 +4,7 @@ const fakeChokidarWatcher = {
   on: mockChokidarWatcherOn,
 };
 const fakeChokidarWatcherOn = {
-  get readyCallback(): () => void {
+  get readyCallback(): () => Promise<void> {
     expect(mockChokidarWatcherOn.mock.calls.length).toBeGreaterThanOrEqual(1);
     // The call to the first 'watcher.on()' in the production code is the one we actually want here.
     // This is a pretty fragile, but at least with this helper class,
@@ -1137,7 +1137,7 @@ describe('watch', () => {
       concurrency: 3,
       hotswap: HotswapMode.HOTSWAP_ONLY,
     });
-    fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.readyCallback();
 
     expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ concurrency: 3 }));
   });
@@ -1153,7 +1153,7 @@ describe('watch', () => {
         selector: { patterns: [] },
         hotswap: hotswapMode,
       });
-      fakeChokidarWatcherOn.readyCallback();
+      await fakeChokidarWatcherOn.readyCallback();
 
       expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: hotswapMode }));
     });
@@ -1169,7 +1169,7 @@ describe('watch', () => {
       selector: { patterns: [] },
       hotswap: HotswapMode.HOTSWAP_ONLY,
     });
-    fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.readyCallback();
 
     expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: HotswapMode.HOTSWAP_ONLY }));
   });
@@ -1184,7 +1184,7 @@ describe('watch', () => {
       selector: { patterns: [] },
       hotswap: HotswapMode.FALL_BACK,
     });
-    fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.readyCallback();
 
     expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: HotswapMode.FALL_BACK }));
   });
@@ -1199,7 +1199,7 @@ describe('watch', () => {
       selector: { patterns: [] },
       hotswap: HotswapMode.FULL_DEPLOYMENT,
     });
-    fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.readyCallback();
 
     expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: HotswapMode.FULL_DEPLOYMENT }));
   });
@@ -1226,11 +1226,11 @@ describe('watch', () => {
     });
 
     describe("when the 'ready' event has already fired", () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         // The ready callback triggers a deployment so each test
         // that uses this function will see 'cdkDeployMock' called
         // an additional time.
-        fakeChokidarWatcherOn.readyCallback();
+        await fakeChokidarWatcherOn.readyCallback();
       });
 
       test("an initial 'deploy' is triggered, without any file changes", async () => {
