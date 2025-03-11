@@ -7,7 +7,7 @@ import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
 import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { FakeIoHost } from '../../util/fake-io-host';
+import { FakeIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private/testing/fake-io-host';
 
 let mockSdk: MockSdk;
 let envRegistry: EnvironmentResourcesRegistry;

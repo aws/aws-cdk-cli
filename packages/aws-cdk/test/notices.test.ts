@@ -17,8 +17,7 @@ import {
 import * as version from '../lib/cli/version';
 import { Settings } from '../lib/api/settings';
 import { Context } from '../lib/api/context';
-import { FakeIoHost } from './util/fake-io-host';
-import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, FakeIoHost, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',

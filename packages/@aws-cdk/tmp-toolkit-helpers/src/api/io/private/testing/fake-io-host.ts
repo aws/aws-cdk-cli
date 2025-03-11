@@ -1,8 +1,9 @@
-import { IIoHost, IoMessage, IoMessageLevel, IoRequest } from "../../lib/toolkit/cli-io-host";
+import { IIoHost } from "../../io-host";
+import { IoMessage, IoMessageLevel, IoRequest } from "../../io-message";
 
 export class FakeIoHost implements IIoHost {
   public messages: Array<IoMessage<unknown>> = [];
-  public requestResponse: <T, U>(msg: IoRequest<T, U>) => Promise<U>;
+  public requestResponse!: <T, U>(msg: IoRequest<T, U>) => Promise<U>;
 
   constructor() {
     this.clear();
