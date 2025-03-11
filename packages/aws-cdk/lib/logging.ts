@@ -24,34 +24,14 @@ function formatMessageAndLog(
 
   if (typeof input === 'string') {
     const messages = new IoDefaultMessages(helper);
-    switch (level) {
-      case 'debug':
-        messages.debug(input, ...args);
-        break;
-      case 'error':
-        messages.error(input, ...args);
-        break;
-      case 'info':
-        messages.info(input, ...args);
-        break;
-      case 'trace':
-        messages.trace(input, ...args);
-        break;
-      case 'warn':
-        messages.warning(input, ...args);
-        break;
-      case 'result':
-        messages.info(input, ...args);
-        break;
-    }
+    messages[level](input, ...args);
   } else {
-    helper.notify({
+    void helper.notify({
       data: undefined,
       time: new Date(),
       level,
       ...input,
     });
-
   }
 }
 

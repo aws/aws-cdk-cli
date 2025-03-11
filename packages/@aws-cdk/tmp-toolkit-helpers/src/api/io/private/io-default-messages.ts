@@ -25,6 +25,10 @@ export class IoDefaultMessages implements IoHelper {
     this.emitMessage(IO.DEFAULT_TOOLKIT_ERROR, input, ...args);
   }
 
+  public warn(input: string, ...args: unknown[]) {
+    this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
+  }
+
   public warning(input: string, ...args: unknown[]) {
     this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
   }
@@ -39,6 +43,11 @@ export class IoDefaultMessages implements IoHelper {
 
   public trace(input: string, ...args: unknown[]) {
     this.emitMessage(IO.DEFAULT_TOOLKIT_TRACE, input, ...args);
+  }
+
+  public result(input: string, ...args: unknown[]) {
+    const message = args.length > 0 ? util.format(input, ...args) : input;
+    void this.ioHelper.notify(IO.DEFAULT_TOOLKIT_RESULT.msg(message, message));
   }
 
   private emitMessage(maker: IoMessageMaker<void>, input: string, ...args: unknown[]) {

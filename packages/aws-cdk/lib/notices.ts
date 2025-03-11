@@ -13,8 +13,8 @@ import { IIoHost } from './toolkit/cli-io-host';
 import { ToolkitError } from './toolkit/error';
 import { ConstructTreeNode, loadTreeFromDir } from './tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
-import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IO } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/messages';
+import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 
@@ -364,7 +364,7 @@ export class Notices {
     });
 
     if (filteredNotices.length > 0) {
-      this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg([
+      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg([
         '',
         'NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)',
         '',
@@ -373,23 +373,23 @@ export class Notices {
         const formatted = filtered.format() + '\n';
         switch (filtered.notice.severity) {
           case 'warning':
-            this.ioMessages.notify(IO.CDK_TOOLKIT_W0101.msg(formatted));
+            void this.ioMessages.notify(IO.CDK_TOOLKIT_W0101.msg(formatted));
             break;
           case 'error':
-            this.ioMessages.notify(IO.CDK_TOOLKIT_E0101.msg(formatted));
+            void this.ioMessages.notify(IO.CDK_TOOLKIT_E0101.msg(formatted));
             break;
           default:
-            this.ioMessages.notify(IO.CDK_TOOLKIT_I0101.msg(formatted));
+            void this.ioMessages.notify(IO.CDK_TOOLKIT_I0101.msg(formatted));
             break;
         }
       }
-      this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
         `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
       ));
     }
 
     if (options.showTotal ?? false) {
-      this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
         `\nThere are ${filteredNotices.length} unacknowledged notice(s).`,
       ));
     }

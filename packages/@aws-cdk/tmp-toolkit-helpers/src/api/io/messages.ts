@@ -39,6 +39,11 @@ export const IO = {
     code: 'CDK_TOOLKIT_I0000',
     description: 'Default trace messages emitted from the Toolkit',
   }),
+  DEFAULT_TOOLKIT_RESULT: make.result<string>({
+    code: 'CDK_TOOLKIT_I0000',
+    description: 'Default trace messages emitted from the Toolkit',
+    interface: 'string',
+  }),
 
   // 1: Synth
   CDK_TOOLKIT_I1000: make.info<Duration>({
