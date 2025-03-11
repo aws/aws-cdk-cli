@@ -1,6 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { MarkerDefinition } from './marker';
 import * as make from './message-maker';
+import type { SpanDefinition } from './span';
 import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
@@ -381,7 +381,7 @@ export const IO = {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-export const MARKER = {
+export const SPAN = {
   SYNTH_ASSEMBLY: {
     name: 'Synthesis',
     start: IO.CDK_TOOLKIT_I1001,
@@ -390,7 +390,7 @@ export const MARKER = {
   DEPLOY_STACK: {
     name: 'Deployment',
     start: IO.CDK_TOOLKIT_I5100,
-    end: IO.CDK_TOOLKIT_I5000,
+    end: IO.CDK_TOOLKIT_I5001,
   },
   ROLLBACK_STACK: {
     name: 'Rollback',
@@ -422,4 +422,4 @@ export const MARKER = {
     start: IO.CDK_TOOLKIT_I5220,
     end: IO.CDK_TOOLKIT_I5221,
   },
-} satisfies Record<string, MarkerDefinition<any, any>>;
+} satisfies Record<string, SpanDefinition<any, any>>;

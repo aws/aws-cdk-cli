@@ -1,8 +1,8 @@
 import type { IIoHost } from '../io-host';
 import type { IoMessage, IoRequest } from '../io-message';
 import type { ToolkitAction } from '../toolkit-action';
-import type { MarkerEnd, MarkerStart, MarkerDefinition } from './marker';
-import { Marker } from './marker';
+import type { SpanEnd, SpanDefinition } from './span';
+import { SpanMaker } from './span';
 
 export type ActionLessMessage<T> = Omit<IoMessage<T>, 'action'>;
 export type ActionLessRequest<T, U> = Omit<IoRequest<T, U>, 'action'>;
@@ -46,8 +46,8 @@ export class IoHelper implements IIoHost {
   /**
    * Create a new marker from a given registry entry
    */
-  public marker<S extends MarkerStart, E extends MarkerEnd>(type: MarkerDefinition<S, E>): Marker<S, E> {
-    return new Marker(this, type);
+  public span<S extends object, E extends SpanEnd>(definition: SpanDefinition<S, E>) {
+    return new SpanMaker(this, definition);
   }
 }
 

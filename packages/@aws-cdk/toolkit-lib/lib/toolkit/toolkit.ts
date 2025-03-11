@@ -24,7 +24,7 @@ import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } from '../api/cloud-assembly/private';
 import type { IIoHost, IoMessageLevel } from '../api/io';
-import { IO, MARKER, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
+import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
@@ -158,8 +158,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {
-      const bootstrapMarker = await ioHelper.marker(MARKER.BOOTSTRAP_SINGLE)
-        .start(`${chalk.bold(environment.name)}: bootstrapping...`, {
+      const bootstrapSpan = await ioHelper.span(SPAN.BOOTSTRAP_SINGLE)
+        .begin(`${chalk.bold(environment.name)}: bootstrapping...`, {
           total: bootstrapEnvironments.length,
           current: currentIdx+1,
           environment,
@@ -182,7 +182,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           : ` ✅  ${environment.name}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
-        await bootstrapMarker.end();
+        await bootstrapSpan.end();
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E9900.msg(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw e;
@@ -196,12 +196,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<ICloudAssemblySource> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
     const selectStacks = options.stacks ?? ALL_STACKS;
-    const synthMarker = await ioHelper.marker(MARKER.SYNTH_ASSEMBLY).start({ stacks: selectStacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     const assembly = await assemblyFromSource(cx);
     const stacks = assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
-    await synthMarker.end();
+    await synthSpan.end();
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -242,10 +242,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   public async list(cx: ICloudAssemblySource, options: ListOptions = {}): Promise<StackDetails[]> {
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = options.stacks ?? ALL_STACKS;
-    const synthMarker = await ioHelper.marker(MARKER.SYNTH_ASSEMBLY).start({ stacks: selectStacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     const assembly = await assemblyFromSource(cx);
     const stackCollection = await assembly.selectStacksV2(selectStacks);
-    await synthMarker.end();
+    await synthSpan.end();
 
     const stacks = stackCollection.withDependencies();
     const message = stacks.map(s => s.id).join('\n');
@@ -270,10 +270,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}) {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
-    const synthMarker = await ioHelper.marker(MARKER.SYNTH_ASSEMBLY).start({ stacks: selectStacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     const stackCollection = assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stackCollection, ioHelper);
-    const synthDuration = await synthMarker.end();
+    const synthDuration = await synthSpan.end();
 
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('This app contains no stacks'));
@@ -300,7 +300,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const outputsFile = options.outputsFile;
 
     const buildAsset = async (assetNode: AssetBuildNode) => {
-      const buildAssetMarker = await ioHelper.marker(MARKER.BUILD_ASSET).start({
+      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
         asset: assetNode.asset,
       });
       await deployments.buildSingleAsset(
@@ -313,11 +313,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stackName: assetNode.parentStack.stackName,
         },
       );
-      await buildAssetMarker.end();
+      await buildAssetSpan.end();
     };
 
     const publishAsset = async (assetNode: AssetPublishNode) => {
-      const publishAssetMarker = await ioHelper.marker(MARKER.PUBLISH_ASSET).start({
+      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
         asset: assetNode.asset,
       });
       await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
@@ -326,7 +326,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         stackName: assetNode.parentStack.stackName,
         forcePublish: options.force,
       });
-      await publishAssetMarker.end();
+      await publishAssetSpan.end();
     };
 
     const deployStack = async (stackNode: StackNode) => {
@@ -389,8 +389,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       }
 
       const stackIndex = stacks.indexOf(stack) + 1;
-      const deployMarker = await ioHelper.marker(MARKER.DEPLOY_STACK)
-        .start(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`, {
+      const deploySpan = await ioHelper.span(SPAN.DEPLOY_STACK)
+        .begin(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`, {
           total: stackCollection.stackCount,
           current: stackIndex,
           stack,
@@ -497,7 +497,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           : ` ✅  ${stack.displayName}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green('\n' + message), deployResult));
-        deployDuration = await deployMarker.end();
+        deployDuration = await deploySpan.time();
 
         if (Object.keys(deployResult.outputs).length > 0) {
           const buffer = ['Outputs:'];
@@ -541,10 +541,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         }
       }
       const duration = synthDuration.asMs + (deployDuration?.asMs ?? 0);
-      await ioHelper.notify(IO.CDK_TOOLKIT_I5001.msg(`\n✨  Total time: ${formatTime(duration)}s\n`, {
-        marker: deployDuration.marker,
-        duration,
-      }));
+      await deploySpan.end(`\n✨  Total time: ${formatTime(duration)}s\n`, { duration });
     };
 
     const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
@@ -707,10 +704,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthMarker = await ioHelper.marker(MARKER.SYNTH_ASSEMBLY).start({ stacks: options.stacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     const stacks = assembly.selectStacksV2(options.stacks);
     await this.validateStacksMetadata(stacks, ioHelper);
-    await synthMarker.end();
+    await synthSpan.end();
 
     if (stacks.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E6001.msg('No stacks selected'));
@@ -720,7 +717,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     let anyRollbackable = false;
 
     for (const [index, stack] of stacks.stackArtifacts.entries()) {
-      const rollbackMarker = await ioHelper.marker(MARKER.ROLLBACK_STACK).start(`Rolling back ${chalk.bold(stack.displayName)}`, {
+      const rollbackSpan = await ioHelper.span(SPAN.ROLLBACK_STACK).begin(`Rolling back ${chalk.bold(stack.displayName)}`, {
         total: stacks.stackCount,
         current: index + 1,
         stack,
@@ -738,7 +735,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         if (!stackResult.notInRollbackableState) {
           anyRollbackable = true;
         }
-        await rollbackMarker.end();
+        await rollbackSpan.end();
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
@@ -764,10 +761,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthMarker = await ioHelper.marker(MARKER.SYNTH_ASSEMBLY).start({ stacks: options.stacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = await assembly.selectStacksV2(options.stacks).reversed();
-    await synthMarker.end();
+    await synthSpan.end();
 
     const motivation = 'Destroying stacks is an irreversible action';
     const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
@@ -776,14 +773,14 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       return ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
     }
 
-    const destroyMarker = await ioHelper.marker(MARKER.DESTROY_ACTION).start({
+    const destroySpan = await ioHelper.span(SPAN.DESTROY_ACTION).begin({
       stacks: stacks.stackArtifacts,
     });
     try {
       for (const [index, stack] of stacks.stackArtifacts.entries()) {
         try {
-          const singleDestroyMarker = await ioHelper.marker(MARKER.DESTROY_STACK)
-            .start(chalk.green(`${chalk.blue(stack.displayName)}: destroying... [${index + 1}/${stacks.stackCount}]`), {
+          const singleDestroySpan = await ioHelper.span(SPAN.DESTROY_STACK)
+            .begin(chalk.green(`${chalk.blue(stack.displayName)}: destroying... [${index + 1}/${stacks.stackCount}]`), {
               total: stacks.stackCount,
               current: index + 1,
               stack,
@@ -795,14 +792,14 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             roleArn: options.roleArn,
           });
           await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
-          await singleDestroyMarker.end();
+          await singleDestroySpan.end();
         } catch (e: any) {
           await ioHelper.notify(IO.CDK_TOOLKIT_E7900.msg(`\n ❌  ${chalk.blue(stack.displayName)}: ${action} failed ${e}`, { error: e }));
           throw e;
         }
       }
     } finally {
-      await destroyMarker.end();
+      await destroySpan.end();
     }
   }
 

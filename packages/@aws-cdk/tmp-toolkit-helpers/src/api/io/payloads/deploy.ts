@@ -59,12 +59,6 @@ export interface ReplacementRequiresRollbackStackResult {
 
 export interface StackDeployProgress {
   /**
-   * Uniquely identifies this marker amongst concurrent messages
-   *
-   * This is an otherwise meaningless identifier.
-   */
-  readonly marker: string;
-  /**
    * The total number of stacks being deployed
    */
   readonly total: number;
@@ -93,24 +87,12 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
 
 export interface BuildAsset {
   /**
-   * Uniquely identifies this marker amongst concurrent messages
-   *
-   * This is an otherwise meaningless identifier.
-   */
-  readonly marker: string;
-  /**
    * The asset that is build
    */
   readonly asset: IManifestEntry;
 }
 
 export interface PublishAsset {
-  /**
-   * Uniquely identifies this marker amongst concurrent messages
-   *
-   * This is an otherwise meaningless identifier.
-   */
-  readonly marker: string;
 
   /**
    * The asset that is published

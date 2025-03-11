@@ -63,13 +63,6 @@ export interface StackAndAssemblyData extends AssemblyData {
  */
 export interface Duration {
   /**
-   * Uniquely identifies this marker amongst concurrent messages
-   *
-   * This is an otherwise meaningless identifier.
-   */
-  readonly marker: string;
-
-  /**
    * The duration of the action.
    */
   readonly duration: number;
