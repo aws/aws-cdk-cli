@@ -3,7 +3,7 @@ import { inspect } from 'util';
 import type { Logger } from '@smithy/types';
 import { replacerBufferWithInfo } from '../../../private/util';
 import type { IoHelper } from '../../shared-private';
-import { IO } from '../../shared-public';
+import { IO } from '../../shared-private';
 
 export function asSdkLogger(ioHost: IoHelper): Logger {
   return new class implements Logger {

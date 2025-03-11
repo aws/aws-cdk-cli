@@ -1,4 +1,3 @@
-
 /**
  * The computed file watch settings
  */

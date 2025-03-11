@@ -1,17 +1,17 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { BootstrapEnvironmentProgress } from './payloads/bootstrap-environment-progress';
-import type { MissingContext, UpdatedContext } from './payloads/context';
-import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from './payloads/deploy';
-import type { StackDestroy, StackDestroyProgress } from './payloads/destroy';
-import type { StackDetailsPayload } from './payloads/list';
-import type { StackRollbackProgress } from './payloads/rollback';
-import type { SdkTrace } from './payloads/sdk-trace';
-import type { StackActivity, StackMonitoringControlEvent } from './payloads/stack-activity';
-import type { StackSelectionDetails } from './payloads/synth';
-import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData } from './payloads/types';
-import type { FileWatchEvent, WatchSettings } from './payloads/watch';
-import type { MarkerDefinition } from './private/marker';
-import * as make from './private/message-maker';
+import type { MarkerDefinition } from './marker';
+import * as make from './message-maker';
+import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environment-progress';
+import type { MissingContext, UpdatedContext } from '../payloads/context';
+import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
+import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
+import type { StackDetailsPayload } from '../payloads/list';
+import type { StackRollbackProgress } from '../payloads/rollback';
+import type { SdkTrace } from '../payloads/sdk-trace';
+import type { StackActivity, StackMonitoringControlEvent } from '../payloads/stack-activity';
+import type { StackSelectionDetails } from '../payloads/synth';
+import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
+import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
 
 /**
  * We have a rough system by which we assign message codes:

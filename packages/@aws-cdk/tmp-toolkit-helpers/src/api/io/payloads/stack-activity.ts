@@ -1,5 +1,5 @@
-import { type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
-import { type CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { StackProgress } from './progress';
 
