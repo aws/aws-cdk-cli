@@ -47,7 +47,14 @@ export class IoDefaultMessages implements IoHelper {
 
   public result(input: string, ...args: unknown[]) {
     const message = args.length > 0 ? util.format(input, ...args) : input;
-    void this.ioHelper.notify(IO.DEFAULT_TOOLKIT_RESULT.msg(message, message));
+    // This is just the default "info" message but with a level of "result"
+    void this.ioHelper.notify({
+      time: new Date(),
+      code: IO.DEFAULT_TOOLKIT_INFO.code,
+      level: 'result',
+      message,
+      data: undefined,
+    });
   }
 
   private emitMessage(maker: IoMessageMaker<void>, input: string, ...args: unknown[]) {

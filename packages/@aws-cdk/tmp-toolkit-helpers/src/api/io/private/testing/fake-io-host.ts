@@ -1,5 +1,5 @@
-import { IIoHost } from "../../io-host";
-import { IoMessage, IoMessageLevel, IoRequest } from "../../io-message";
+import type { IIoHost } from '../../io-host';
+import type { IoMessage, IoMessageLevel, IoRequest } from '../../io-message';
 
 /**
  * An implementation of `IIoHost` that records messages and lets you assert on what was logged
@@ -33,7 +33,7 @@ export class FakeIoHost implements IIoHost {
     this.messages.push(msg);
   }
 
-  public expectMessage(m: { containing: string, level?: IoMessageLevel }) {
+  public expectMessage(m: { containing: string; level?: IoMessageLevel }) {
     expect(this.messages).toContainEqual(expect.objectContaining({
       ...m.level ? { level: m.level } : undefined,
       // Can be a partial string as well

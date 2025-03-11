@@ -100,7 +100,7 @@ export const debug = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => mes
 export const info = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('info', details);
 export const warn = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('warn', details);
 export const error = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('error', details);
-export const result = <T = ImpossibleType>(details: Required<CodeInfo>) => message<T>('result', details);
+export const result = <T extends object = ImpossibleType>(details: Required<CodeInfo>) => message<T>('result', details);
 
 interface RequestInfo<U> extends CodeInfo {
   readonly defaultResponse: U;

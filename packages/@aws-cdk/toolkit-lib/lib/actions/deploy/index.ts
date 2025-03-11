@@ -1,6 +1,6 @@
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
-import { RequireApproval } from '../../api/shared-public';
+import type { RequireApproval } from '../../api/shared-public';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
