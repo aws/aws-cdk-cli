@@ -45,14 +45,6 @@ type ForceEmpty<T> = T extends EmptyObject ? EmptyObject : T
  */
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
-// /**
-//  * A minimal interface that provides a single function to end the span
-//  */
-// interface CanEndSpan<E extends SpanEnd> {
-//   end(payload: VoidWhenEmpty<Optional<E, keyof SpanEnd>>): Promise<Duration>;
-//   end(message: string, payload: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<Duration>;
-// }
-
 /**
  * Ending the span returns the observed duration
  */
@@ -109,8 +101,8 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
   }
 
   /**
-   * Starts the span and notifies the IoHost.
-   * @returns an object that can end the span
+   * Starts the span and initially notifies the IoHost
+   * @returns a message span
    */
   public async begin(payload: VoidWhenEmpty<S>): Promise<IMessageSpan<E>>;
   public async begin(message: string, payload: S): Promise<IMessageSpan<E>>;
