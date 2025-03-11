@@ -6,8 +6,7 @@ import { AssetManifestBuilder } from '../../../lib/api/deployments';
 import { EnvironmentResources, EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import { MockSdk } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let assets: AssetManifestBuilder;
 let envRegistry: EnvironmentResourcesRegistry;

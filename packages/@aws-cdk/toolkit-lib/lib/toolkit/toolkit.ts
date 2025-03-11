@@ -7,7 +7,7 @@ import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { BootstrapEnvironments, BootstrapOptions } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
+import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import { determinePermissionType } from '../actions/diff/private';
@@ -28,7 +28,7 @@ import { Timer, IO, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitesp
 import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { ToolkitError } from '../api/shared-public';
+import { RequireApproval, ToolkitError } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
 import { pLimit } from '../util/concurrency';
 

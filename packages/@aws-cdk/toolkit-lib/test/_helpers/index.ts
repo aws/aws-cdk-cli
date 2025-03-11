@@ -4,7 +4,7 @@ import type { AssemblyDirectoryProps, Toolkit } from '../../lib';
 import { ToolkitError } from '../../lib';
 import { determineOutputDirectory } from '../../lib/api/cloud-assembly/private';
 
-export * from './test-io-host';
+export * from '../../lib/api/shared-private';
 export * from './test-cloud-assembly-source';
 
 function fixturePath(...parts: string[]): string {

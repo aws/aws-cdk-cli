@@ -9,7 +9,7 @@ import type { SdkTrace } from './payloads/sdk-trace';
 import type { StackActivity, StackMonitoringControlEvent } from './payloads/stack-activity';
 import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData } from './payloads/types';
 import type { FileWatchEvent, WatchSettings } from './payloads/watch';
-import * as make from './private';
+import * as make from './private/message-maker';
 
 /**
  * We have a rough system by which we assign message codes:

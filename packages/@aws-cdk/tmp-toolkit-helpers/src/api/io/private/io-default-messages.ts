@@ -1,6 +1,6 @@
 import * as util from 'util';
-import { ActionLessMessage, ActionLessRequest, IoHelper } from "./io-helper";
-import { IoMessageMaker } from './message-maker';
+import type { ActionLessMessage, ActionLessRequest, IoHelper } from './io-helper';
+import type { IoMessageMaker } from './message-maker';
 import { IO } from '../messages';
 
 /**
@@ -26,19 +26,19 @@ export class IoDefaultMessages implements IoHelper {
   }
 
   public warning(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, undefined, ...args);
+    this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
   }
 
   public info(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_INFO, input, undefined, ...args);
+    this.emitMessage(IO.DEFAULT_TOOLKIT_INFO, input, ...args);
   }
 
   public debug(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_DEBUG, input, undefined, ...args);
+    this.emitMessage(IO.DEFAULT_TOOLKIT_DEBUG, input, ...args);
   }
 
   public trace(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_TRACE, input, undefined, ...args);
+    this.emitMessage(IO.DEFAULT_TOOLKIT_TRACE, input, ...args);
   }
 
   private emitMessage(maker: IoMessageMaker<void>, input: string, ...args: unknown[]) {

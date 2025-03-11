@@ -6,8 +6,7 @@ import * as version from '../../../lib/cli/version';
 import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { FakeIoHost } from '../../util/fake-io-host';
 
 let mockSdk: MockSdk;

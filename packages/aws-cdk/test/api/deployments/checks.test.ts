@@ -1,8 +1,7 @@
 import { DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { determineAllowCrossAccountAssetPublishing, getBootstrapStackInfo } from '../../../lib/api/deployments/checks';
 import { mockCloudFormationClient, MockSdk } from '../../util/mock-sdk';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let ioHelper = asIoHelper(new TestIoHost(), 'deploy');
 

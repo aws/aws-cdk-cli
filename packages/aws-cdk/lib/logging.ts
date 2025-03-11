@@ -175,7 +175,7 @@ export const trace = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const success = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('info', input, chalk.green, ...args);
+  return formatMessageAndLog('info', chalkInput(input, chalk.green), ...args);
 };
 
 /**
@@ -190,5 +190,16 @@ export const success = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const highlight = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('info', input, chalk.bold, ...args);
+  return formatMessageAndLog('info', chalkInput(input, chalk.bold), ...args);
 };
+
+function chalkInput<A extends LogInput<any>>(i: A, style: (str: string) => string): A {
+  if (typeof i === 'string') {
+    return style(i) as A;
+  }
+
+  return {
+    ...i as any,
+    message: style(i.message),
+  };
+}

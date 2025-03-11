@@ -28,7 +28,7 @@ describe('corked logging', () => {
   test('buffers messages when corked', async () => {
     await ioHost.withCorkedLogging(async () => {
       info('message 1');
-      info({ message: 'message 2' });
+      info('message 2');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
@@ -40,9 +40,9 @@ describe('corked logging', () => {
     await ioHost.withCorkedLogging(async () => {
       info('outer 1');
       await ioHost.withCorkedLogging(async () => {
-        info({ message: 'inner' });
+        info('inner');
       });
-      info({ message: 'outer 2' });
+      info('outer 2');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
