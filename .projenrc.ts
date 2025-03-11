@@ -705,6 +705,7 @@ const tmpToolkitHelpers = configureProject(
       'archiver',
       'glob',
       'semver',
+      'uuid',
       'yaml@^1',
     ],
     tsconfig: {
@@ -1396,16 +1397,19 @@ new CdkCliIntegTestsWorkflow(repo, {
   testRunsOn: POWERFUL_RUNNER,
 
   localPackages: [
-    // CloudAssemblySchema is not in this list because in the way we're doing
-    // Verdaccio now, its 0.0.0 version will shadow the ACTUAL published version
-    // that aws-cdk-lib depends on, and so will not be found.
-    //
-    // Not sure if that will cause problems yet.
+    cloudAssemblySchema.name,
     cloudFormationDiff.name,
     cdkAssets.name,
     cli.name,
     cliLib.name,
     cdkAliasPackage.name,
+  ],
+
+  allowUpstreamVersions: [
+    // cloud-assembly-schema gets referenced under multiple versions
+    // - Candidate version for cdk-assets
+    // - Previously released version for aws-cdk-lib
+    cloudAssemblySchema.name,
   ],
 });
 

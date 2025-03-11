@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as util from 'util';
-import { IO } from '../lib/api/shared-public';
+import { IO } from '../lib/api/shared-private';
 
 function codesToMarkdownTable(codes: Record<string, {
   code: string;

@@ -1,5 +1,12 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 
+export interface StackDestroy {
+  /**
+   * The stacks that will be destroyed
+   */
+  readonly stacks: CloudFormationStackArtifact[];
+}
+
 export interface StackDestroyProgress {
   /**
    * The total number of stacks being destroyed

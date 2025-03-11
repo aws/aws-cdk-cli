@@ -30,10 +30,13 @@ const bundleDeclarations = async (entryPoints) => {
   return Promise.all(files);
 }
 
+// for the shared public API we also need to bundle the types
+const declarations = bundleDeclarations(['lib/api/shared-public.ts']);
+
 
 // This is a build script, we are fine
 // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-await Promise.all([
+const resources = Promise.all([
   copyFromCli(['build-info.json']),
   copyFromCli(['/db.json.gz']),
   copyFromCli(['lib', 'index_bg.wasm']),
@@ -44,7 +47,7 @@ await Promise.all([
 ]);
 
 // bundle entrypoints from the library packages
-await esbuild.build({
+const bundle = esbuild.build({
   outdir: 'lib',
   entryPoints: [
     'lib/api/aws-cdk.ts',
@@ -59,5 +62,9 @@ await esbuild.build({
   bundle: true,
 });
 
-// for the shared public API we also need to bundle the types
-await bundleDeclarations(['lib/api/shared-public.ts']);
+// Do all the work in parallel
+await Promise.all([
+  bundle,
+  resources,
+  declarations
+]);
