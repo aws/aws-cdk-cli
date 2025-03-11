@@ -17,9 +17,8 @@ import {
 import * as version from '../lib/cli/version';
 import { Settings } from '../lib/api/settings';
 import { Context } from '../lib/api/context';
-import { IoLogger } from '../lib/logging';
 import { FakeIoHost } from './util/fake-io-host';
-import { asIoHelper } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
@@ -169,7 +168,7 @@ const NOTICE_FOR_APIGATEWAYV2_CFN_STAGE = {
 };
 
 const ioHost = new FakeIoHost();
-const ioHostEmitter = new IoLogger(asIoHelper(ioHost, 'notices' as any));
+const ioHostEmitter = new IoDefaultMessages(asIoHelper(ioHost, 'notices' as any));
 const noticesFilter = new NoticesFilter(ioHostEmitter);
 
 beforeEach(() => {

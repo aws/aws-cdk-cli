@@ -9,12 +9,12 @@ import { SdkHttpOptions } from './api';
 import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
 import type { Context } from './api/context';
 import { versionNumber } from './cli/version';
-import { IoLogger } from './logging';
 import { IIoHost } from './toolkit/cli-io-host';
 import { ToolkitError } from './toolkit/error';
 import { ConstructTreeNode, loadTreeFromDir } from './tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
-import { asIoHelper } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/messages';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 
@@ -83,7 +83,7 @@ export interface NoticesFilterFilterOptions {
 }
 
 export class NoticesFilter {
-  constructor(private readonly ioHostEmitter: IoLogger) {
+  constructor(private readonly ioMessages: IoDefaultMessages) {
   }
 
   public filter(options: NoticesFilterFilterOptions): FilteredNotice[] {
@@ -118,7 +118,7 @@ export class NoticesFilter {
         const semverBootstrapVersion = semver.coerce(env.bootstrapStackVersion);
         if (!semverBootstrapVersion) {
           // we don't throw because notices should never crash the cli.
-          this.ioHostEmitter.warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
+          this.ioMessages.warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
           return [];
         }
 
@@ -304,7 +304,7 @@ export class Notices {
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly includeAcknowlegded: boolean;
   private readonly httpOptions: SdkHttpOptions;
-  private readonly ioHostEmitter: IoLogger;
+  private readonly ioMessages: IoDefaultMessages;
 
   private data: Set<Notice> = new Set();
 
@@ -317,7 +317,7 @@ export class Notices {
     this.includeAcknowlegded = props.includeAcknowledged ?? false;
     this.output = props.output ?? 'cdk.out';
     this.httpOptions = props.httpOptions ?? {};
-    this.ioHostEmitter = new IoLogger(asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */));
+    this.ioMessages = new IoDefaultMessages(asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */));
   }
 
   /**
@@ -343,12 +343,12 @@ export class Notices {
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
     try {
-      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHostEmitter, this.httpOptions);
-      const dataSource = new CachedDataSource(this.ioHostEmitter, CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
+      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioMessages, this.httpOptions);
+      const dataSource = new CachedDataSource(this.ioMessages, CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
       const notices = await dataSource.fetch();
       this.data = new Set(this.includeAcknowlegded ? notices : notices.filter(n => !this.acknowledgedIssueNumbers.has(n.issueNumber)));
     } catch (e: any) {
-      this.ioHostEmitter.debug(`Could not refresh notices: ${e}`);
+      this.ioMessages.debug(`Could not refresh notices: ${e}`);
     }
   }
 
@@ -356,7 +356,7 @@ export class Notices {
    * Display the relevant notices (unless context dictates we shouldn't).
    */
   public display(options: NoticesPrintOptions = {}) {
-    const filteredNotices = new NoticesFilter(this.ioHostEmitter).filter({
+    const filteredNotices = new NoticesFilter(this.ioMessages).filter({
       data: Array.from(this.data),
       cliVersion: versionNumber(),
       outDir: this.output,
@@ -364,39 +364,34 @@ export class Notices {
     });
 
     if (filteredNotices.length > 0) {
-      this.ioHostEmitter.info({
-        code: 'CDK_TOOLKIT_I0100',
-        message: [
-          '',
-          'NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)',
-          '',
-        ].join('\n'),
-      });
+      this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg([
+        '',
+        'NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)',
+        '',
+      ].join('\n')));
       for (const filtered of filteredNotices) {
         const formatted = filtered.format() + '\n';
         switch (filtered.notice.severity) {
           case 'warning':
-            this.ioHostEmitter.warning({ code: 'CDK_TOOLKIT_W0101', message: formatted });
+            this.ioMessages.notify(IO.CDK_TOOLKIT_W0101.msg(formatted));
             break;
           case 'error':
-            this.ioHostEmitter.error({ code: 'CDK_TOOLKIT_E0101', message: formatted });
+            this.ioMessages.notify(IO.CDK_TOOLKIT_E0101.msg(formatted));
             break;
           default:
-            this.ioHostEmitter.info({ code: 'CDK_TOOLKIT_I0101', message: formatted });
+            this.ioMessages.notify(IO.CDK_TOOLKIT_I0101.msg(formatted));
             break;
         }
       }
-      this.ioHostEmitter.info({
-        code: 'CDK_TOOLKIT_I0100',
-        message: `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
-      });
+      this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+        `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
+      ));
     }
 
     if (options.showTotal ?? false) {
-      this.ioHostEmitter.info({
-        code: 'CDK_TOOLKIT_I0100',
-        message: `\nThere are ${filteredNotices.length} unacknowledged notice(s).`,
-      });
+      this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+        `\nThere are ${filteredNotices.length} unacknowledged notice(s).`,
+      ));
     }
   }
 }
@@ -490,7 +485,7 @@ export interface NoticeDataSource {
 export class WebsiteNoticeDataSource implements NoticeDataSource {
   private readonly options: SdkHttpOptions;
 
-  constructor(private readonly ioHostEmitter: IoLogger, options: SdkHttpOptions = {}) {
+  constructor(private readonly ioMessages: IoDefaultMessages, options: SdkHttpOptions = {}) {
     this.options = options;
   }
 
@@ -527,7 +522,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
                   if (!data) {
                     throw new ToolkitError("'notices' key is missing");
                   }
-                  this.ioHostEmitter.debug('Notices refreshed');
+                  this.ioMessages.debug('Notices refreshed');
                   resolve(data ?? []);
                 } catch (e: any) {
                   reject(new ToolkitError(`Failed to parse notices: ${formatErrorMessage(e)}`));
@@ -558,7 +553,7 @@ const TIME_TO_LIVE_ERROR = 1 * 60 * 1000; // 1 minute
 
 export class CachedDataSource implements NoticeDataSource {
   constructor(
-    private readonly ioLogger: IoLogger,
+    private readonly ioMessages: IoDefaultMessages,
     private readonly fileName: string,
     private readonly dataSource: NoticeDataSource,
     private readonly skipCache?: boolean) {
@@ -574,7 +569,7 @@ export class CachedDataSource implements NoticeDataSource {
       await this.save(freshData);
       return freshData.notices;
     } else {
-      this.ioLogger.debug(`Reading cached notices from ${this.fileName}`);
+      this.ioMessages.debug(`Reading cached notices from ${this.fileName}`);
       return data;
     }
   }
@@ -586,7 +581,7 @@ export class CachedDataSource implements NoticeDataSource {
         notices: await this.dataSource.fetch(),
       };
     } catch (e) {
-      this.ioLogger.debug(`Could not refresh notices: ${e}`);
+      this.ioMessages.debug(`Could not refresh notices: ${e}`);
       return {
         expiration: Date.now() + TIME_TO_LIVE_ERROR,
         notices: [],
@@ -605,7 +600,7 @@ export class CachedDataSource implements NoticeDataSource {
         ? await fs.readJSON(this.fileName) as CachedNotices
         : defaultValue;
     } catch (e) {
-      this.ioLogger.debug(`Failed to load notices from cache: ${e}`);
+      this.ioMessages.debug(`Failed to load notices from cache: ${e}`);
       return defaultValue;
     }
   }
@@ -614,7 +609,7 @@ export class CachedDataSource implements NoticeDataSource {
     try {
       await fs.writeJSON(this.fileName, cached);
     } catch (e) {
-      this.ioLogger.debug(`Failed to store notices in the cache: ${e}`);
+      this.ioMessages.debug(`Failed to store notices in the cache: ${e}`);
     }
   }
 }
