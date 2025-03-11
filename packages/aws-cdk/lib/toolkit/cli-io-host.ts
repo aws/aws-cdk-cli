@@ -3,7 +3,7 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from './error';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
+import { IO, type IIoHost, type IoMessage, type IoMessageCode, type IoMessageLevel, type IoRequest, type ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
 import { isMessageRelevantForLevel } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { ActivityPrinterProps, IActivityPrinter } from '../cli/activity-printer';
 import { CurrentActivityPrinter, HistoryActivityPrinter } from '../cli/activity-printer';
@@ -498,11 +498,6 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
   }
 }
 
-function isNoticesMessage(msg: IoMessage<any>) {
-  return [
-    'CDK_TOOLKIT_I0100',
-    'CDK_TOOLKIT_W0101',
-    'CDK_TOOLKIT_E0101',
-    'CDK_TOOLKIT_I0101',
-  ].includes(msg.code);
+function isNoticesMessage(msg: IoMessage<unknown>) {
+  return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
