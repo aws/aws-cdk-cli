@@ -558,7 +558,7 @@ const TIME_TO_LIVE_ERROR = 1 * 60 * 1000; // 1 minute
 
 export class CachedDataSource implements NoticeDataSource {
   constructor(
-    private readonly ioHostEmitter: IoLogger,
+    private readonly ioLogger: IoLogger,
     private readonly fileName: string,
     private readonly dataSource: NoticeDataSource,
     private readonly skipCache?: boolean) {
@@ -574,7 +574,7 @@ export class CachedDataSource implements NoticeDataSource {
       await this.save(freshData);
       return freshData.notices;
     } else {
-      this.ioHostEmitter.debug(`Reading cached notices from ${this.fileName}`);
+      this.ioLogger.debug(`Reading cached notices from ${this.fileName}`);
       return data;
     }
   }
@@ -586,7 +586,7 @@ export class CachedDataSource implements NoticeDataSource {
         notices: await this.dataSource.fetch(),
       };
     } catch (e) {
-      this.ioHostEmitter.debug(`Could not refresh notices: ${e}`);
+      this.ioLogger.debug(`Could not refresh notices: ${e}`);
       return {
         expiration: Date.now() + TIME_TO_LIVE_ERROR,
         notices: [],
@@ -605,7 +605,7 @@ export class CachedDataSource implements NoticeDataSource {
         ? await fs.readJSON(this.fileName) as CachedNotices
         : defaultValue;
     } catch (e) {
-      this.ioHostEmitter.debug(`Failed to load notices from cache: ${e}`);
+      this.ioLogger.debug(`Failed to load notices from cache: ${e}`);
       return defaultValue;
     }
   }
@@ -614,7 +614,7 @@ export class CachedDataSource implements NoticeDataSource {
     try {
       await fs.writeJSON(this.fileName, cached);
     } catch (e) {
-      this.ioHostEmitter.debug(`Failed to store notices in the cache: ${e}`);
+      this.ioLogger.debug(`Failed to store notices in the cache: ${e}`);
     }
   }
 }
