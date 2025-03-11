@@ -1,6 +1,7 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 
@@ -29,7 +30,6 @@ import { Notices } from '../notices';
 import { Command, Configuration } from './user-configuration';
 import { IoMessageLevel, CliIoHost } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
-import { ciSystemIsStdErrSafe } from './ci-systems';
 
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
