@@ -1036,7 +1036,7 @@
                     "type": "string"
                 },
                 "propertyMatch": {
-                    "description": "This indicates the property to search for.\nIf both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.\nSpecifying propertyMatch will return 0 or more results.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
+                    "description": "This indicates the property to search for.\nSpecifying propertyMatch will return 0 or more results.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
                     "$ref": "#/definitions/Record<string,unknown>"
                 },
                 "propertiesToReturn": {

@@ -374,7 +374,6 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
 
   /**
    * This indicates the property to search for.
-   * If both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.
    * Specifying propertyMatch will return 0 or more results.
    * Either exactIdentifier or propertyMatch should be specified.
    * @default - None
