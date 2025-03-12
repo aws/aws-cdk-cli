@@ -1046,6 +1046,14 @@
                         "type": "string"
                     }
                 },
+                "dummyValue": {
+                    "description": "The value to return if the context value was not found. (Default - None)"
+                },
+                "ignoreErrorOnMissingContext": {
+                    "description": "When True, the context provider don't throw an error and return the dummyValue if the resource was not found.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "account": {
                     "description": "Query account",
                     "type": "string"

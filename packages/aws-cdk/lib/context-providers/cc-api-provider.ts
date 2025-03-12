@@ -134,10 +134,10 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
   }
 
   private getDummyValueIfErrorIgnored(args: CcApiContextQuery): Record<string, any> | undefined {
-    if (!('ignoreErrorOnMissingContext' in args) || !args.ignoreErrorOnMissingContext) {
+    if (!args.ignoreErrorOnMissingContext) {
       return undefined;
     }
-    if (!('dummyValue' in args) || !Array.isArray(args.dummyValue) || args.dummyValue.length === 0) {
+    if (!Array.isArray(args.dummyValue) || args.dummyValue.length === 0) {
       return undefined;
     }
     const dummyValue = args.dummyValue[0];

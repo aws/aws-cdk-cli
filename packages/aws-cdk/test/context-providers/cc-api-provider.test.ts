@@ -261,7 +261,7 @@ describe('dummy value', () => {
           StorageEncrypted: 'true',
         },
       ],
-    } as TestQueryWithDummy);
+    });
 
     // THEN
     expect(results.length).toEqual(1);
@@ -290,7 +290,7 @@ describe('dummy value', () => {
           StorageEncrypted: 'true',
         },
       ],
-    } as TestQueryWithDummy);
+    });
 
     // THEN
     expect(results.length).toEqual(1);
@@ -319,7 +319,7 @@ describe('dummy value', () => {
             StorageEncrypted: 'true',
           },
         ],
-      } as TestQueryWithDummy),
+      }),
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 
@@ -342,7 +342,7 @@ describe('dummy value', () => {
             StorageEncrypted: 'true',
           },
         ],
-      } as TestQueryWithDummy),
+      }),
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 
@@ -359,7 +359,7 @@ describe('dummy value', () => {
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
         ignoreErrorOnMissingContext: true,
-      } as TestQueryWithDummy),
+      }),
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 
@@ -380,7 +380,7 @@ describe('dummy value', () => {
           DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
           StorageEncrypted: 'true',
         },
-      } as TestQueryWithDummy),
+      }),
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 
@@ -398,7 +398,7 @@ describe('dummy value', () => {
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
         ignoreErrorOnMissingContext: true,
         dummyValue: [],
-      } as TestQueryWithDummy),
+      }),
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 
@@ -418,13 +418,8 @@ describe('dummy value', () => {
         dummyValue: [
           'not an object',
         ],
-      } as TestQueryWithDummy),
+      }),
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 });
 /* eslint-enable */
-
-interface TestQueryWithDummy extends CcApiContextQuery {
-  ignoreErrorOnMissingContext?: boolean;
-  dummyValue?: any;
-}

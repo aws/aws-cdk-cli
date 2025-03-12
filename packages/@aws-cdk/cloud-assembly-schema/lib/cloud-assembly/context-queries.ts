@@ -384,6 +384,18 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    * This is a set of properties returned from CC API that we want to return from ContextQuery.
    */
   readonly propertiesToReturn: string[];
+
+  /**
+   * The value to return if the context value was not found.
+   * @default - None
+   */
+  readonly dummyValue?: any;
+
+  /**
+   * When True, the context provider don't throw an error and return the dummyValue if the resource was not found.
+   * @default false
+   */
+  readonly ignoreErrorOnMissingContext?: boolean;
 }
 
 /**
