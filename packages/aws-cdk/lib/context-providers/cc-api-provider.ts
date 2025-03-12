@@ -5,6 +5,17 @@ import { ContextProviderPlugin } from '../api/plugin';
 import { ContextProviderError } from '../toolkit/error';
 import { findJsonValue, getResultObj } from '../util';
 
+type CcApiContextQueryGet = Required<Pick<CcApiContextQuery, 'typeName' | 'exactIdentifier' | 'propertiesToReturn' | 'account' | 'region'>>;
+type CcApiContextQueryList = Required<Pick<CcApiContextQuery, 'typeName' | 'propertyMatch' | 'propertiesToReturn' | 'account' | 'region'>>;
+
+function isGetQuery(x: CcApiContextQuery): x is CcApiContextQueryGet {
+  return !!x.exactIdentifier;
+}
+
+function isListQuery(x: CcApiContextQuery): x is CcApiContextQueryList {
+  return !!x.propertyMatch;
+}
+
 export class CcApiContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider) {
   }
@@ -24,14 +35,17 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
   }
 
   private async findResources(cc: ICloudControlClient, args: CcApiContextQuery): Promise<{[key: string]: any} []> {
-    if (args.exactIdentifier && args.propertyMatch) {
+    const isGet = isGetQuery(args);
+    const isList = isListQuery(args);
+
+    if (isGet && isList) {
       throw new ContextProviderError(`Specify either exactIdentifier or propertyMatch, but not both. Failed to find resources using CC API for type ${args.typeName}.`);
     }
-    if (!args.exactIdentifier && !args.propertyMatch) {
+    if (!isGet && !isList) {
       throw new ContextProviderError(`Neither exactIdentifier nor propertyMatch is specified. Failed to find resources using CC API for type ${args.typeName}.`);
     }
 
-    if (args.exactIdentifier) {
+    if (isGet) {
       // use getResource to get the exact indentifier
       return this.getResource(cc, args);
     } else {
@@ -49,7 +63,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    */
   private async getResource(
     cc: ICloudControlClient,
-    args: CcApiContextQuery,
+    args: CcApiContextQueryGet,
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
     try {
@@ -86,7 +100,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    */
   private async listResources(
     cc: ICloudControlClient,
-    args: CcApiContextQuery,
+    args: CcApiContextQueryList,
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
 
@@ -99,7 +113,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         if (id !== '') {
           const propsObject = JSON.parse(resource.Properties ?? '');
 
-          const filters = Object.entries(args.propertyMatch!);
+          const filters = Object.entries(args.propertyMatch);
           let match = false;
           if (filters) {
             match = filters.every((record, _index, _arr) => {
