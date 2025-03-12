@@ -228,6 +228,8 @@ export class DefaultAwsClient implements IAws {
       config.region = options.region;
       if (options.assumeRoleArn) {
         config.credentials = fromTemporaryCredentials({
+          // dont forget the credentials chain.
+          masterCredentials: config.credentials,
           params: {
             RoleArn: options.assumeRoleArn,
             ExternalId: options.assumeRoleExternalId,
