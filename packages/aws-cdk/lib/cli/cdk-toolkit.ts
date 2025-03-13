@@ -294,6 +294,11 @@ export class CdkToolkit {
       return this.watch(options);
     }
 
+    // set progress from options, this includes user and app config
+    if (options.progress) {
+      this.ioHost.stackProgress = options.progress;
+    }
+
     const startSynthTime = new Date().getTime();
     const stackCollection = await this.selectStacksForDeploy(
       options.selector,
@@ -759,6 +764,11 @@ export class CdkToolkit {
 
   public async import(options: ImportOptions) {
     const stacks = await this.selectStacksForDeploy(options.selector, true, true, false);
+
+    // set progress from options, this includes user and app config
+    if (options.progress) {
+      this.ioHost.stackProgress = options.progress;
+    }
 
     if (stacks.stackCount > 1) {
       throw new ToolkitError(

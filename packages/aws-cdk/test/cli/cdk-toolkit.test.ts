@@ -97,6 +97,7 @@ import {
   restoreSdkMocksToDefault,
 } from '../util/mock-sdk';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { StackActivityProgress } from '../../lib/commands/deploy';
 
 markTesting();
 
@@ -615,7 +616,6 @@ describe('deploy', () => {
     expect(mockSynthesize).not.toHaveBeenCalled();
   });
 
-
   describe('readCurrentTemplate', () => {
     let template: any;
     let mockCloudExecutable: MockCloudExecutable;
@@ -1008,6 +1008,36 @@ describe('deploy', () => {
         },
       );
     });
+  });
+
+  test('can set progress via options', async () => {
+    const ioHost = CliIoHost.instance();
+
+    // Ensure environment allows StackActivityProgress.BAR
+    ioHost.stackProgress = StackActivityProgress.BAR;
+    ioHost.isTTY = true;
+    ioHost.isCI = false;
+    expect(ioHost.stackProgress).toBe('bar');
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: new FakeCloudFormation({}),
+    });
+
+    // check this hasn't changed yet
+    expect(ioHost.stackProgress).toBe('bar');
+
+    await toolkit.deploy({
+      progress: StackActivityProgress.EVENTS,
+      selector: { patterns: ["**"] },
+      hotswap: HotswapMode.FALL_BACK
+    });
+
+    // now expect it to be updated
+    expect(ioHost.stackProgress).toBe('events');
   });
 });
 
