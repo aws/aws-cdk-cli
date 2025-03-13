@@ -6,6 +6,7 @@ import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
 import type { StackDetailsPayload } from '../payloads/list';
+import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
 import type { StackRollbackProgress } from '../payloads/rollback';
 import type { SdkTrace } from '../payloads/sdk-trace';
 import type { StackActivity, StackMonitoringControlEvent } from '../payloads/stack-activity';
@@ -105,6 +106,26 @@ export const IO = {
   CDK_TOOLKIT_I5031: make.info({
     code: 'CDK_TOOLKIT_I5031',
     description: 'Informs about any log groups that are traced as part of the deployment',
+  }),
+  CDK_TOOLKIT_I5032: make.debug<CloudWatchLogMonitorControlEvent>({
+    code: 'CDK_TOOLKIT_I5032',
+    description: 'Start monitoring log groups',
+    interface: 'CloudWatchLogMonitorControlEvent',
+  }),
+  CDK_TOOLKIT_I5033: make.info<CloudWatchLogEvent>({
+    code: 'CDK_TOOLKIT_I5033',
+    description: 'A log event received from Cloud Watch',
+    interface: 'CloudWatchLogEvent',
+  }),
+  CDK_TOOLKIT_I5034: make.debug<CloudWatchLogMonitorControlEvent>({
+    code: 'CDK_TOOLKIT_I5034',
+    description: 'Stop monitoring log groups',
+    interface: 'CloudWatchLogMonitorControlEvent',
+  }),
+  CDK_TOOLKIT_E5035: make.error<ErrorPayload>({
+    code: 'CDK_TOOLKIT_E5035',
+    description: 'A log monitoring error',
+    interface: 'ErrorPayload',
   }),
   CDK_TOOLKIT_I5050: make.confirm<ConfirmationRequest>({
     code: 'CDK_TOOLKIT_I5050',

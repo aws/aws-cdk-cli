@@ -649,6 +649,7 @@ export class CdkToolkit {
 
   public async watch(options: WatchOptions) {
     const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
+    const ioHelper = asIoHelper(this.ioHost, 'watch');
     debug("root directory used for 'watch' is: %s", rootDir);
 
     const watchSettings: { include?: string | string[]; exclude: string | string[] } | undefined =
@@ -697,10 +698,12 @@ export class CdkToolkit {
     // --------------                --------  'cdk deploy' done  --------------  'cdk deploy' done  --------------
     let latch: 'pre-ready' | 'open' | 'deploying' | 'queued' = 'pre-ready';
 
-    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor() : undefined;
+    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({
+      ioHelper,
+    }) : undefined;
     const deployAndWatch = async () => {
       latch = 'deploying';
-      cloudWatchLogMonitor?.deactivate();
+      await cloudWatchLogMonitor?.deactivate();
 
       await this.invokeDeployFromWatch(options, cloudWatchLogMonitor);
 
@@ -714,7 +717,7 @@ export class CdkToolkit {
         await this.invokeDeployFromWatch(options, cloudWatchLogMonitor);
       }
       latch = 'open';
-      cloudWatchLogMonitor?.activate();
+      await cloudWatchLogMonitor?.activate();
     };
 
     chokidar

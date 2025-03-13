@@ -1,8 +1,9 @@
 import { FilterLogEventsCommand, type FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../../../lib/api/logs/logs-monitor';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
 import { sleep } from '../../util';
 import { MockSdk, mockCloudWatchClient } from '../../util/mock-sdk';
+import { TestIoHost } from '../../_helpers/test-io-host';
+import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 // Helper function to strip ANSI codes
 const stripAnsi = (str: string): string => {
@@ -11,23 +12,19 @@ const stripAnsi = (str: string): string => {
 };
 
 let sdk: MockSdk;
-let stderrMock: jest.SpyInstance;
 let monitor: CloudWatchLogEventMonitor;
+let ioHost = new TestIoHost();
 beforeEach(() => {
-  CliIoHost.instance().isCI = false;
-  monitor = new CloudWatchLogEventMonitor(new Date(T100));
-  stderrMock = jest.spyOn(process.stderr, 'write').mockImplementation((chunk: any) => {
-    // Strip ANSI codes when capturing output
-    if (typeof chunk === 'string') {
-      return stripAnsi(chunk) as unknown as boolean;
-    }
-    return stripAnsi(chunk.toString()) as unknown as boolean;
+  monitor = new CloudWatchLogEventMonitor({
+    ioHelper: asIoHelper(ioHost, 'deploy'),
+    startTime: new Date(T100),
   });
   sdk = new MockSdk();
 });
 
 afterEach(() => {
-  stderrMock.mockRestore();
+  ioHost.notifySpy.mockReset();
+  ioHost.requestSpy.mockReset();
   monitor.deactivate();
 });
 
@@ -54,8 +51,8 @@ test('process events', async () => {
 
   // THEN
   const expectedLocaleTimeString = eventDate.toLocaleTimeString();
-  expect(stderrMock).toHaveBeenCalledTimes(1);
-  expect(stripAnsi(stderrMock.mock.calls[0][0])).toContain(`[loggroup] ${expectedLocaleTimeString} message`);
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(1);
+  expect(stripAnsi(ioHost.notifySpy.mock.calls[0][0].message)).toContain(`[loggroup] ${expectedLocaleTimeString} message`);
 });
 
 test('process truncated events', async () => {
@@ -86,9 +83,9 @@ test('process truncated events', async () => {
 
   // THEN
   const expectedLocaleTimeString = eventDate.toLocaleTimeString();
-  expect(stderrMock).toHaveBeenCalledTimes(101);
-  expect(stripAnsi(stderrMock.mock.calls[0][0])).toContain(`[loggroup] ${expectedLocaleTimeString} message0`);
-  expect(stripAnsi(stderrMock.mock.calls[100][0])).toContain(
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(101);
+  expect(stripAnsi(ioHost.notifySpy.mock.calls[0][0].message)).toContain(`[loggroup] ${expectedLocaleTimeString} message0`);
+  expect(stripAnsi(ioHost.notifySpy.mock.calls[100][0].message)).toContain(
     `[loggroup] ${expectedLocaleTimeString} >>> \`watch\` shows only the first 100 log messages - the rest have been truncated...`,
   );
 });

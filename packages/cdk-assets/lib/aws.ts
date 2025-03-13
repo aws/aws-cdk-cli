@@ -126,17 +126,24 @@ export interface Account {
 export class DefaultAwsClient implements IAws {
   private account?: Account;
   private config: Configuration;
+  private readonly mainCredentials: AwsCredentialIdentityProvider;
 
   constructor(private readonly profile?: string) {
     const clientConfig: STSClientConfig = {
       customUserAgent: USER_AGENT,
     };
+
+    // storing the main credentials separately because
+    // the `config` object changes every time we assume the file publishing role.
+    // TODO refactor to make `config` a readonly property and avoid state mutations.
+    this.mainCredentials = fromNodeProviderChain({
+      profile: this.profile,
+      clientConfig,
+    });
+
     this.config = {
       clientConfig,
-      credentials: fromNodeProviderChain({
-        profile: this.profile,
-        clientConfig,
-      }),
+      credentials: this.mainCredentials,
     };
   }
 
@@ -228,6 +235,8 @@ export class DefaultAwsClient implements IAws {
       config.region = options.region;
       if (options.assumeRoleArn) {
         config.credentials = fromTemporaryCredentials({
+          // dont forget the credentials chain.
+          masterCredentials: this.mainCredentials,
           params: {
             RoleArn: options.assumeRoleArn,
             ExternalId: options.assumeRoleExternalId,
