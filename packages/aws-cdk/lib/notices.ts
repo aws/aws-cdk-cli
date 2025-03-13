@@ -13,8 +13,7 @@ import { IIoHost } from './toolkit/cli-io-host';
 import { ToolkitError } from './toolkit/error';
 import { ConstructTreeNode, loadTreeFromDir } from './tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
-import { IO } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/messages';
-import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO, asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 

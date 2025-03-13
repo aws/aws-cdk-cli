@@ -1,7 +1,7 @@
 import * as util from 'util';
 import type { ActionLessMessage, ActionLessRequest, IoHelper } from './io-helper';
 import type { IoMessageMaker } from './message-maker';
-import { IO } from '../messages';
+import { IO } from './messages';
 
 /**
  * Helper class to emit standard log messages to an IoHost
@@ -9,7 +9,7 @@ import { IO } from '../messages';
  * It wraps an `IoHelper`, and adds convenience methods to emit default messages
  * for the various log levels.
  */
-export class IoDefaultMessages implements IoHelper {
+export class IoDefaultMessages {
   constructor(private readonly ioHelper: IoHelper) {
   }
 
