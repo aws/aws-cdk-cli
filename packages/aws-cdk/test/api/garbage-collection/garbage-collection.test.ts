@@ -21,7 +21,6 @@ import {
   BackgroundStackRefreshProps,
 } from '../../../lib/api/garbage-collection/stack-refresh';
 import { ProgressPrinter } from '../../../lib/api/garbage-collection/progress-printer';
-import { TestIoHost } from '../../_helpers/test-io-host';
 import {
   BatchDeleteImageCommand,
   BatchGetImageCommand,
@@ -29,7 +28,7 @@ import {
   ListImagesCommand,
   PutImageCommand,
 } from '@aws-sdk/client-ecr';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let garbageCollector: GarbageCollector;
 
@@ -892,7 +891,7 @@ describe('Garbage Collection with large # of objects', () => {
     });
 
     // add every 5th asset hash to the mock template body: 8000 assets are isolated
-    const mockTemplateBody = [];
+    const mockTemplateBody: string[] = [];
     for (let i = 0; i < keyCount; i += 5) {
       mockTemplateBody.push(`asset${i}hash`);
     }

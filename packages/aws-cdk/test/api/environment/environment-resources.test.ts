@@ -6,8 +6,8 @@ import * as version from '../../../lib/cli/version';
 import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { FakeIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private/testing/fake-io-host';
 
 let mockSdk: MockSdk;
 let envRegistry: EnvironmentResourcesRegistry;
@@ -105,11 +105,12 @@ describe('validateversion without bootstrap stack', () => {
     jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
 
     // THEN
-    const notices = Notices.create({ context: new Context() });
+    const ioHost = new FakeIoHost();
+    const notices = Notices.create({ context: new Context(), ioHost });
     await notices.refresh({ dataSource: { fetch: async () => [] } });
     await expect(envResources().validateVersion(8, '/abc')).resolves.toBeUndefined();
 
-    const filter = jest.spyOn(NoticesFilter, 'filter');
+    const filter = jest.spyOn(NoticesFilter.prototype, 'filter');
     notices.display();
 
     expect(filter).toHaveBeenCalledTimes(1);

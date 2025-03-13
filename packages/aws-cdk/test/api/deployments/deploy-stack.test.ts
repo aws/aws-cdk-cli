@@ -29,8 +29,7 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault,
 } from '../../util/mock-sdk';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let ioHost = new TestIoHost();
 let ioHelper = asIoHelper(ioHost, 'deploy');

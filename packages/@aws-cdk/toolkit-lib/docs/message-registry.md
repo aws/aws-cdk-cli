@@ -9,6 +9,8 @@ group: Documents
 | `CDK_TOOLKIT_I0000` | Default info messages emitted from the Toolkit | `info` | n/a |
 | `CDK_TOOLKIT_I0000` | Default debug messages emitted from the Toolkit | `debug` | n/a |
 | `CDK_TOOLKIT_W0000` | Default warning messages emitted from the Toolkit | `warn` | n/a |
+| `CDK_TOOLKIT_E0000` | Default error messages emitted from the Toolkit | `error` | n/a |
+| `CDK_TOOLKIT_I0000` | Default trace messages emitted from the Toolkit | `trace` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
@@ -62,6 +64,10 @@ group: Documents
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
 | `CDK_TOOLKIT_I9900` | Bootstrap results on success | `result` | [cxapi.Environment](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.Environment.html) |
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
+| `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
+| `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |
+| `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
 | `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |

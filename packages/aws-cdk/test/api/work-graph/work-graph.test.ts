@@ -1,7 +1,6 @@
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { WorkGraph, DeploymentState } from '../../../lib/api/work-graph';
 import type { AssetBuildNode, AssetPublishNode, StackNode } from '../../../lib/api/work-graph';
-import { TestIoHost } from '../../_helpers/test-io-host';
 
 const DUMMY: any = 'DUMMY';
 

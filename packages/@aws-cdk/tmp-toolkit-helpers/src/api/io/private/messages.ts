@@ -34,6 +34,14 @@ export const IO = {
     code: 'CDK_TOOLKIT_W0000',
     description: 'Default warning messages emitted from the Toolkit',
   }),
+  DEFAULT_TOOLKIT_ERROR: make.error({
+    code: 'CDK_TOOLKIT_E0000',
+    description: 'Default error messages emitted from the Toolkit',
+  }),
+  DEFAULT_TOOLKIT_TRACE: make.trace({
+    code: 'CDK_TOOLKIT_I0000',
+    description: 'Default trace messages emitted from the Toolkit',
+  }),
 
   // 1: Synth
   CDK_TOOLKIT_I1000: make.info<Duration>({
@@ -318,6 +326,24 @@ export const IO = {
     code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',
     interface: 'ErrorPayload',
+  }),
+
+  // Notices
+  CDK_TOOLKIT_I0100: make.info({
+    code: 'CDK_TOOLKIT_I0100',
+    description: 'Notices decoration (the header or footer of a list of notices)',
+  }),
+  CDK_TOOLKIT_W0101: make.warn({
+    code: 'CDK_TOOLKIT_W0101',
+    description: 'A notice that is marked as a warning',
+  }),
+  CDK_TOOLKIT_E0101: make.error({
+    code: 'CDK_TOOLKIT_E0101',
+    description: 'A notice that is marked as an error',
+  }),
+  CDK_TOOLKIT_I0101: make.info({
+    code: 'CDK_TOOLKIT_I0101',
+    description: 'A notice that is marked as informational',
   }),
 
   // Assembly codes
