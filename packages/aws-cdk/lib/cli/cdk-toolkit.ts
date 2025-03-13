@@ -286,6 +286,9 @@ export class CdkToolkit {
     if (options.watch) {
       return this.watch(options);
     }
+    if (options.progress) {
+      this.ioHost.stackProgress = options.progress;
+    }
 
     const startSynthTime = new Date().getTime();
     const stackCollection = await this.selectStacksForDeploy(

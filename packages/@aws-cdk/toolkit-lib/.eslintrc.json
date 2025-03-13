@@ -269,6 +269,7 @@
         ]
       }
     ],
+    "@typescript-eslint/consistent-type-imports": "error",
     "semi": [
       "error",
       "always"
@@ -312,7 +313,6 @@
       "off"
     ],
     "@cdklabs/no-throw-default-error": "error",
-    "@typescript-eslint/consistent-type-imports": "error",
     "import/no-restricted-paths": [
       "error",
       {
