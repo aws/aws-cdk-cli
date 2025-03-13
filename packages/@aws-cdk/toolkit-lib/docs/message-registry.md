@@ -11,7 +11,6 @@ group: Documents
 | `CDK_TOOLKIT_W0000` | Default warning messages emitted from the Toolkit | `warn` | n/a |
 | `CDK_TOOLKIT_E0000` | Default error messages emitted from the Toolkit | `error` | n/a |
 | `CDK_TOOLKIT_I0000` | Default trace messages emitted from the Toolkit | `trace` | n/a |
-| `CDK_TOOLKIT_I0000` | Default trace messages emitted from the Toolkit | `result` | `string` |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
