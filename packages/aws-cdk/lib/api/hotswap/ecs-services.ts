@@ -1,8 +1,10 @@
+import type {
+  HotswapPropertyOverrides,
+  ChangeHotswapResult,
+  HotswappableChangeCandidate,
+} from './common';
 import {
-  type ChangeHotswapResult,
-  classifyChanges,
-  type HotswappableChangeCandidate,
-  HotswapPropertyOverrides, lowerCaseFirstCharacter,
+  classifyChanges, lowerCaseFirstCharacter,
   reportNonHotswappableChange,
   transformObjectKeys,
 } from './common';

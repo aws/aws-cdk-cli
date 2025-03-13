@@ -1,5 +1,5 @@
 import { loadAwsServiceSpecSync } from '@aws-cdk/aws-service-spec';
-import { Resource, SpecDatabase } from '@aws-cdk/service-spec-types';
+import type { Resource, SpecDatabase } from '@aws-cdk/service-spec-types';
 
 /**
  * Compares two objects for equality, deeply. The function handles arguments that are

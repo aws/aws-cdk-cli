@@ -1,19 +1,21 @@
 import * as os from 'os';
 import * as path from 'path';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
-import { CloudAssemblyBuilder, Environment, EnvironmentUtils } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cx-api';
+import { CloudAssemblyBuilder, EnvironmentUtils } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
+import type { BootstrapEnvironmentOptions } from './bootstrap-props';
 import {
   BOOTSTRAP_VARIANT_PARAMETER,
   BOOTSTRAP_VERSION_OUTPUT,
   BOOTSTRAP_VERSION_RESOURCE,
-  BootstrapEnvironmentOptions,
   DEFAULT_BOOTSTRAP_VARIANT,
 } from './bootstrap-props';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { warn } from '../../cli/messages';
 import type { SDK, SdkProvider } from '../aws-auth';
-import { assertIsSuccessfulDeployStackResult, SuccessfulDeployStackResult } from '../deployments';
+import type { SuccessfulDeployStackResult } from '../deployments';
+import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { deployStack } from '../deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../environment';
 import { Mode } from '../plugin/mode';

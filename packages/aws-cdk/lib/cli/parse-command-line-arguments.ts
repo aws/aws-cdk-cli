@@ -2,7 +2,7 @@
 // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
-/* eslint-disable @stylistic/max-len */
+/* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
 

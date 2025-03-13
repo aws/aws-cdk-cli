@@ -1,8 +1,9 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import { AssetManifest, type IManifestEntry } from 'cdk-assets';
 import { WorkGraph } from './work-graph';
-import { DeploymentState, AssetBuildNode, WorkNode } from './work-graph-types';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { AssetBuildNode, WorkNode } from './work-graph-types';
+import { DeploymentState } from './work-graph-types';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { ToolkitError } from '../../toolkit/error';
 import { contentHashAny } from '../../util';
 

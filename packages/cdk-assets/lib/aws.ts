@@ -12,11 +12,13 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import {
+import type {
   AssumeRoleCommandInput,
+  STSClientConfig,
+} from '@aws-sdk/client-sts';
+import {
   GetCallerIdentityCommand,
   STSClient,
-  STSClientConfig,
 } from '@aws-sdk/client-sts';
 import { fromNodeProviderChain, fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -25,7 +27,7 @@ import {
   NODE_REGION_CONFIG_OPTIONS,
 } from '@smithy/config-resolver';
 import { loadConfig } from '@smithy/node-config-provider';
-import {
+import type {
   AwsCredentialIdentityProvider,
   CompleteMultipartUploadCommandOutput,
   DescribeImagesCommandInput,

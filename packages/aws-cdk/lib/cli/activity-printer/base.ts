@@ -1,7 +1,7 @@
-import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import { type StackActivity, type StackProgress } from '@aws-cdk/tmp-toolkit-helpers';
 import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { IoMessage } from '../../toolkit/cli-io-host';
+import type { IoMessage } from '../../toolkit/cli-io-host';
 import { maxResourceTypeLength, stackEventHasErrorMessage } from '../../util';
 
 export interface IActivityPrinter {

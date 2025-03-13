@@ -1,6 +1,7 @@
 import * as util from 'util';
 import * as chalk from 'chalk';
-import { IoMessageLevel, IoMessage, CliIoHost, IoMessageCode } from './toolkit/cli-io-host';
+import type { IoMessageLevel, IoMessage, IoMessageCode } from './toolkit/cli-io-host';
+import { CliIoHost } from './toolkit/cli-io-host';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';

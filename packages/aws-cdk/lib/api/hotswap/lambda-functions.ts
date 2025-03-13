@@ -1,6 +1,7 @@
 import { Writable } from 'stream';
-import { type FunctionConfiguration, type UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
-import { type ChangeHotswapResult, classifyChanges, type HotswappableChangeCandidate, PropDiffs } from './common';
+import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
+import type { PropDiffs, ChangeHotswapResult, HotswappableChangeCandidate } from './common';
+import { classifyChanges } from './common';
 import { ToolkitError } from '../../toolkit/error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';

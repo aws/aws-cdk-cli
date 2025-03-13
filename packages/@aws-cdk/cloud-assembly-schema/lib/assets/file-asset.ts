@@ -1,4 +1,4 @@
-import { AwsDestination } from './aws-destination';
+import type { AwsDestination } from './aws-destination';
 
 /**
  * A file asset

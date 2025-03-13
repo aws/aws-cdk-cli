@@ -1,5 +1,6 @@
-import { ChildProcess } from 'child_process';
-import { DefaultCdkOptions, DeployOptions, DestroyOptions, SynthOptions, ListOptions, StackActivityProgress, HotswapMode } from './commands';
+import type { ChildProcess } from 'child_process';
+import type { DefaultCdkOptions, DeployOptions, DestroyOptions, SynthOptions, ListOptions } from './commands';
+import { StackActivityProgress, HotswapMode } from './commands';
 import { exec, watch } from './utils';
 
 /**

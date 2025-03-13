@@ -1,13 +1,15 @@
-import * as cxapi from '@aws-cdk/cx-api';
-import { SDK } from '../aws-auth';
-import { EnvironmentResources, EnvironmentResourcesRegistry } from './environment-resources';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type * as cxapi from '@aws-cdk/cx-api';
+import type { SDK } from '../aws-auth';
+import type { EnvironmentResources } from './environment-resources';
+import { EnvironmentResourcesRegistry } from './environment-resources';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { warn } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
-import { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
+import type { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
 import { Mode } from '../plugin/mode';
-import { replaceEnvPlaceholders, StringWithoutPlaceholders } from '../util/placeholders';
+import type { StringWithoutPlaceholders } from '../util/placeholders';
+import { replaceEnvPlaceholders } from '../util/placeholders';
 
 /**
  * Access particular AWS resources, based on information from the CX manifest

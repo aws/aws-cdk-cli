@@ -1,4 +1,4 @@
-import { DefaultCdkOptions } from './common';
+import type { DefaultCdkOptions } from './common';
 
 /**
  * Options for cdk list

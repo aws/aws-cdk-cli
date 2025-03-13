@@ -3,7 +3,8 @@ import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import { ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { mockS3 } from './mock-aws';
 import mockfs from './mock-fs';
-import { AssetManifest, AssetPublishing, DefaultAwsClient, IAws } from '../lib';
+import type { IAws } from '../lib';
+import { AssetManifest, AssetPublishing, DefaultAwsClient } from '../lib';
 
 let aws: IAws;
 beforeEach(() => {

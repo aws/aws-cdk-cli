@@ -1,6 +1,6 @@
 import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
-import { Tag } from '../api/tags';
+import type { Tag } from '../api/tags';
 import { debug, warning } from '../logging';
 import { ToolkitError } from '../toolkit/error';
 

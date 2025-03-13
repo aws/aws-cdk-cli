@@ -1,5 +1,5 @@
 import { EnvironmentPlaceholders } from '@aws-cdk/cx-api';
-import { IAws } from '../aws';
+import type { IAws } from '../aws';
 
 /**
  * Replace the {ACCOUNT} and {REGION} placeholders in all strings found in a complex object.

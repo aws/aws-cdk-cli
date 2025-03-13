@@ -3,7 +3,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ForReading } from '@aws-cdk/cli-plugin-contract';
-import { Environment, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cx-api';
+import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
 import type {
   DescribeGeneratedTemplateCommandOutput,
   DescribeResourceScanCommandOutput,

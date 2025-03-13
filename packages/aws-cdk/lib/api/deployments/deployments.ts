@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import * as cdk_assets from 'cdk-assets';
 import * as chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
@@ -8,29 +8,31 @@ import {
   PublishingAws,
 } from './asset-publishing';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
+import type {
+  ResourcesToImport,
+  Template,
+  ResourceIdentifierSummaries,
+} from './cloudformation';
 import {
   CloudFormationStack,
-  type ResourceIdentifierSummaries,
-  ResourcesToImport,
   stabilizeStack,
-  Template,
   uploadStackTemplateAssets,
 } from './cloudformation';
 import { deployStack, destroyStack } from './deploy-stack';
-import { DeploymentMethod } from './deployment-method';
-import { DeployStackResult } from './deployment-result';
+import type { DeploymentMethod } from './deployment-method';
+import type { DeployStackResult } from './deployment-result';
 import {
   loadCurrentTemplate,
   loadCurrentTemplateWithNestedStacks,
   type RootTemplateWithNestedStacks,
 } from './nested-stack-helpers';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, warn } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
-import { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
+import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';

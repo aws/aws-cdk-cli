@@ -9,7 +9,7 @@ import { debug, error, info } from '../../cli/messages';
 import { stackEventHasErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
 import { StackProgressMonitor } from './stack-progress-monitor';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export interface StackActivityMonitorProps {
   /**

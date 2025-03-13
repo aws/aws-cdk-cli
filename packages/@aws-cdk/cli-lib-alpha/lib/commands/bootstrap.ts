@@ -1,4 +1,4 @@
-import { SharedOptions } from './common';
+import type { SharedOptions } from './common';
 
 /**
  * Options to use with cdk bootstrap

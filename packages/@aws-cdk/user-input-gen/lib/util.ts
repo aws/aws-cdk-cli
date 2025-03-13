@@ -1,4 +1,5 @@
-import { code, Expression } from '@cdklabs/typewriter';
+import type { Expression } from '@cdklabs/typewriter';
+import { code } from '@cdklabs/typewriter';
 
 export const SOURCE_OF_TRUTH = 'packages/aws-cdk/lib/cli/cli-config.ts';
 

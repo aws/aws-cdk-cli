@@ -1,4 +1,4 @@
-import { SharedOptions, RequireApproval } from './common';
+import type { SharedOptions, RequireApproval } from './common';
 
 export enum HotswapMode {
   /**

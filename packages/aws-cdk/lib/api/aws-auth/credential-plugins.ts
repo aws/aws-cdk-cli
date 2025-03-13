@@ -5,7 +5,7 @@ import { credentialsAboutToExpire, makeCachingProvider } from './provider-cachin
 import { debug, warning } from '../../logging';
 import { AuthenticationError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
-import { Mode } from '../plugin/mode';
+import type { Mode } from '../plugin/mode';
 import { PluginHost } from '../plugin/plugin';
 
 /**

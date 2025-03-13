@@ -1,5 +1,5 @@
-import { EventType } from '../lib';
-import { IPublishProgress, IPublishProgressListener } from '../lib/progress';
+import type { EventType } from '../lib';
+import type { IPublishProgress, IPublishProgressListener } from '../lib/progress';
 
 /**
  * Represents a logged message with additional metadata purely for testing purposes.

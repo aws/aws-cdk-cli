@@ -1,14 +1,15 @@
 import { format } from 'util';
 import * as cfnDiff from '@aws-cdk/cloudformation-diff';
-import { ResourceDifference } from '@aws-cdk/cloudformation-diff';
-import * as cxapi from '@aws-cdk/cx-api';
+import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
+import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { error, info, warn } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
-import { assertIsSuccessfulDeployStackResult, type Deployments, DeploymentMethod, ResourceIdentifierProperties, ResourcesToImport } from '../deployments';
+import type { DeploymentMethod, ResourceIdentifierProperties, ResourcesToImport, Deployments } from '../deployments';
+import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import type { Tag } from '../tags';
 
 export interface ResourceImporterProps {

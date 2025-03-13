@@ -1,8 +1,8 @@
-import { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
-import { ICloudFormationClient } from '../aws-auth';
+import type { ICloudFormationClient } from '../aws-auth';
 
 export class ActiveAssetCache {
   private readonly stacks: Set<string> = new Set();

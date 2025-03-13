@@ -1,5 +1,5 @@
 import { hoistDependencies, renderTree } from '../lib/hoisting';
-import { PackageLockPackage } from '../lib/types';
+import type { PackageLockPackage } from '../lib/types';
 
 type DependencyTree = PackageLockPackage;
 

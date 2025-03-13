@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as jsonschema from 'jsonschema';
 import * as semver from 'semver';
-import * as assets from './assets';
+import type * as assets from './assets';
 import * as assembly from './cloud-assembly';
-import * as integ from './integ-tests';
+import type * as integ from './integ-tests';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable @typescript-eslint/no-require-imports */

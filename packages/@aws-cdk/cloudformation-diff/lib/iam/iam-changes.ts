@@ -1,10 +1,13 @@
 import { PropertyScrutinyType, ResourceScrutinyType } from '@aws-cdk/service-spec-types';
 import * as chalk from 'chalk';
-import { ISsoInstanceACAConfig, ISsoPermissionSet, SsoAssignment, SsoInstanceACAConfig, SsoPermissionSet } from './iam-identity-center';
-import { ManagedPolicyAttachment, ManagedPolicyJson } from './managed-policy';
-import { parseLambdaPermission, parseStatements, Statement, StatementJson } from './statement';
-import { MaybeParsed } from '../diff/maybe-parsed';
-import { PropertyChange, PropertyMap, ResourceChange } from '../diff/types';
+import type { ISsoInstanceACAConfig, ISsoPermissionSet } from './iam-identity-center';
+import { SsoAssignment, SsoInstanceACAConfig, SsoPermissionSet } from './iam-identity-center';
+import type { ManagedPolicyJson } from './managed-policy';
+import { ManagedPolicyAttachment } from './managed-policy';
+import type { Statement, StatementJson } from './statement';
+import { parseLambdaPermission, parseStatements } from './statement';
+import type { MaybeParsed } from '../diff/maybe-parsed';
+import type { PropertyChange, PropertyMap, ResourceChange } from '../diff/types';
 import { DiffableCollection } from '../diffable';
 import { renderIntrinsics } from '../render-intrinsics';
 import { deepRemoveUndefined, dropIfEmpty, flatMap, makeComparator } from '../util';

@@ -1,5 +1,5 @@
-import { IManifestEntry } from './asset-manifest';
-import { ShellEventType } from './private/shell';
+import type { IManifestEntry } from './asset-manifest';
+import type { ShellEventType } from './private/shell';
 
 /**
  * A listener for progress events from the publisher

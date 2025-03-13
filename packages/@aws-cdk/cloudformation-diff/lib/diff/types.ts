@@ -1,5 +1,6 @@
 import { AssertionError } from 'assert';
-import { PropertyScrutinyType, ResourceScrutinyType, Resource as ResourceModel } from '@aws-cdk/service-spec-types';
+import type { Resource as ResourceModel } from '@aws-cdk/service-spec-types';
+import { PropertyScrutinyType, ResourceScrutinyType } from '@aws-cdk/service-spec-types';
 import { deepEqual, loadResourceModel } from './util';
 import { IamChanges } from '../iam/iam-changes';
 import { SecurityGroupChanges } from '../network/security-group-changes';

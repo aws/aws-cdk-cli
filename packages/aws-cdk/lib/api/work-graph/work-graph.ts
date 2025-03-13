@@ -1,5 +1,6 @@
-import { WorkNode, DeploymentState, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
+import { DeploymentState } from './work-graph-types';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, trace } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { parallelPromises } from '../../util';

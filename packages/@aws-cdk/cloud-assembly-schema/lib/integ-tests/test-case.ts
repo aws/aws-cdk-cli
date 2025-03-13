@@ -1,4 +1,4 @@
-import { DeployOptions, DestroyOptions } from './commands';
+import type { DeployOptions, DestroyOptions } from './commands';
 
 /**
  * The set of options to control the workflow of the test runner

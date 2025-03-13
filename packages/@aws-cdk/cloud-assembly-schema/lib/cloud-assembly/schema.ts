@@ -1,6 +1,6 @@
-import { ArtifactProperties } from './artifact-schema';
-import { ContextProvider, ContextQueryProperties } from './context-queries';
-import { MetadataEntry } from './metadata-schema';
+import type { ArtifactProperties } from './artifact-schema';
+import type { ContextProvider, ContextQueryProperties } from './context-queries';
+import type { MetadataEntry } from './metadata-schema';
 
 /**
  * Type of cloud artifact.

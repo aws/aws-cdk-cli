@@ -1,11 +1,12 @@
 import { format } from 'util';
 import * as chalk from 'chalk';
-import { DifferenceCollection, TemplateDiff } from './diff/types';
+import type { DifferenceCollection, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
-import { Difference, isPropertyDifference, ResourceDifference, ResourceImpact } from './diff-template';
+import type { Difference, ResourceDifference } from './diff-template';
+import { isPropertyDifference, ResourceImpact } from './diff-template';
 import { formatTable } from './format-table';
-import { IamChanges } from './iam/iam-changes';
-import { SecurityGroupChanges } from './network/security-group-changes';
+import type { IamChanges } from './iam/iam-changes';
+import type { SecurityGroupChanges } from './network/security-group-changes';
 
 // from cx-api
 const PATH_METADATA_KEY = 'aws:cdk:path';
