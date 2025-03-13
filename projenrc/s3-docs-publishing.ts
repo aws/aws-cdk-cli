@@ -1,4 +1,4 @@
-import { Monorepo, TypeScriptWorkspace } from 'cdklabs-projen-project-types/lib/yarn';
+import type { Monorepo, TypeScriptWorkspace } from 'cdklabs-projen-project-types/lib/yarn';
 import { Component, github } from 'projen';
 
 export interface S3DocsPublishingProps {

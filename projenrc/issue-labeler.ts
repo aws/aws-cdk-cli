@@ -1,6 +1,7 @@
-import { Component, github } from 'projen';
+import type { github } from 'projen';
+import { Component } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
-import { TypeScriptProject } from 'projen/lib/typescript';
+import type { TypeScriptProject } from 'projen/lib/typescript';
 import { GitHubToken, stringifyList } from './util';
 
 const OSDS_DEVS = ['ashishdhingra', 'khushail', 'hunhsieh'];

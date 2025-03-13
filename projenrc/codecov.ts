@@ -1,6 +1,6 @@
 import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
-import { TypeScriptProject } from 'projen/lib/typescript';
+import type { TypeScriptProject } from 'projen/lib/typescript';
 
 export interface CodeCovWorkflowProps {
   readonly restrictToRepos: string[];

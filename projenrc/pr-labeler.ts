@@ -1,7 +1,9 @@
-import { Component, github } from 'projen';
+import type { github } from 'projen';
+import { Component } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
-import { TypeScriptProject } from 'projen/lib/typescript';
-import { GitHubToken, stringifyList } from './util';
+import type { TypeScriptProject } from 'projen/lib/typescript';
+import type { GitHubToken } from './util';
+import { stringifyList } from './util';
 
 /**
  * See https://github.com/cdklabs/pr-triage-manager
