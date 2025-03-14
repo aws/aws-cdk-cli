@@ -1,6 +1,9 @@
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { SDK } from './aws-auth';
 import type { NestedStackTemplates } from './deployments';
+import { resourceMetadata } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
+import type { ResourceMetadata } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
 import { ToolkitError } from '../toolkit/error';
 
 export interface ListStackResources {
@@ -85,8 +88,9 @@ export interface ResourceDefinition {
 }
 
 export interface EvaluateCloudFormationTemplateProps {
-  readonly stackName: string;
-  readonly template: Template;
+  readonly stackArtifact: CloudFormationStackArtifact;
+  readonly stackName?: string;
+  readonly template?: Template;
   readonly parameters: { [parameterName: string]: string };
   readonly account: string;
   readonly region: string;
@@ -98,6 +102,7 @@ export interface EvaluateCloudFormationTemplateProps {
 }
 
 export class EvaluateCloudFormationTemplate {
+  public readonly stackArtifact: CloudFormationStackArtifact;
   private readonly stackName: string;
   private readonly template: Template;
   private readonly context: { [k: string]: any };
@@ -114,8 +119,9 @@ export class EvaluateCloudFormationTemplate {
   private cachedUrlSuffix: string | undefined;
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
-    this.stackName = props.stackName;
-    this.template = props.template;
+    this.stackArtifact = props.stackArtifact;
+    this.stackName = props.stackName ?? props.stackArtifact.stackName;
+    this.template = props.template ?? props.stackArtifact.template;
     this.context = {
       'AWS::AccountId': props.account,
       'AWS::Region': props.region,
@@ -147,6 +153,7 @@ export class EvaluateCloudFormationTemplate {
   ) {
     const evaluatedParams = await this.evaluateCfnExpression(nestedStackParameters);
     return new EvaluateCloudFormationTemplate({
+      stackArtifact: this.stackArtifact,
       stackName,
       template: nestedTemplate,
       parameters: evaluatedParams,
@@ -310,6 +317,10 @@ export class EvaluateCloudFormationTemplate {
 
   public getResourceProperty(logicalId: string, propertyName: string): any {
     return this.template.Resources?.[logicalId]?.Properties?.[propertyName];
+  }
+
+  public metadataFor(logicalId: string): ResourceMetadata | undefined {
+    return resourceMetadata(this.stackArtifact, logicalId);
   }
 
   private references(logicalId: string, templateElement: any): boolean {

@@ -702,6 +702,7 @@ const tmpToolkitHelpers = configureProject(
       'fast-check',
     ],
     deps: [
+      cloudAssemblySchema.name,
       'archiver',
       'glob',
       'semver',

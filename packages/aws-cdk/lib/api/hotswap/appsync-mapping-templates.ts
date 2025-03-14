@@ -5,10 +5,10 @@ import type {
 import {
   type ChangeHotswapResult,
   classifyChanges,
-  type HotswappableChangeCandidate,
   lowerCaseFirstCharacter,
   transformObjectKeys,
 } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers';
 import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
@@ -16,7 +16,7 @@ import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-
 
 export async function isHotswappableAppSyncChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   const isResolver = change.newValue.Type === 'AWS::AppSync::Resolver';
@@ -55,17 +55,23 @@ export async function isHotswappableAppSyncChange(
     } else {
       physicalName = arn;
     }
-    ret.push({
-      hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
-      service: 'appsync',
-      resourceNames: [`${change.newValue.Type} '${physicalName}'`],
-      apply: async (sdk: SDK) => {
-        if (!physicalName) {
-          return;
-        }
 
+    if (!physicalName) {
+      return [];
+    }
+
+    ret.push({
+      change: {
+        cause: change,
+        resources: [{
+          logicalId,
+          resourceType: change.newValue.Type,
+          physicalName,
+        }],
+      },
+      hotswappable: true,
+      service: 'appsync',
+      apply: async (sdk: SDK) => {
         const sdkProperties: { [name: string]: any } = {
           ...change.oldValue.Properties,
           Definition: change.newValue.Properties?.Definition,
