@@ -103,9 +103,11 @@ export function deepSet(x: any, path: string[], value: any) {
 
   while (path.length > 1 && isObject(x)) {
     const key = path.shift()!;
-    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-      throw new ToolkitError(`Invalid key: ${key}`);
+
+    if (isPrototypePollutingKey(key)) {
+      continue;
     }
+
     if (!(key in x)) {
       x[key] = {};
     }
@@ -117,8 +119,9 @@ export function deepSet(x: any, path: string[], value: any) {
   }
 
   const finalKey = path[0];
-  if (finalKey === '__proto__' || finalKey === 'constructor' || finalKey === 'prototype') {
-    throw new ToolkitError(`Invalid key: ${finalKey}`);
+
+  if (isPrototypePollutingKey(finalKey)) {
+    return;
   }
 
   if (value !== undefined) {
@@ -126,6 +129,16 @@ export function deepSet(x: any, path: string[], value: any) {
   } else {
     delete x[finalKey];
   }
+}
+
+/**
+ * Helper to detect prototype polluting keys
+ *
+ * A key matching this, MUST NOT be used in an assignment.
+ * Use this to check user-input.
+ */
+function isPrototypePollutingKey(key: string) {
+  return key === '__proto__' || key === 'constructor' || key === 'prototype';
 }
 
 /**
@@ -139,7 +152,7 @@ export function deepSet(x: any, path: string[], value: any) {
 export function deepMerge(...objects: Array<Obj<any> | undefined>) {
   function mergeOne(target: Obj<any>, source: Obj<any>) {
     for (const key of Object.keys(source)) {
-      if (key === '__proto__' || key === 'constructor') {
+      if (isPrototypePollutingKey(key)) {
         continue;
       }
 
