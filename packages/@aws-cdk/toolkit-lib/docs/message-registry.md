@@ -38,6 +38,10 @@ group: Documents
 | `CDK_TOOLKIT_I5313` | File event detected during active deployment, changes are queued | `info` | {@link FileWatchEvent} |
 | `CDK_TOOLKIT_I5314` | Initial watch deployment started | `info` | n/a |
 | `CDK_TOOLKIT_I5315` | Queued watch deployment started | `info` | n/a |
+| `CDK_TOOLKIT_I5400` | Starting hotswap deployment | `trace` | {@link HotswapDeployment} |
+| `CDK_TOOLKIT_I5401` | Hotswap deployment resource processing | `info` | {@link HotswapChange} |
+| `CDK_TOOLKIT_I5402` | Hotswap deployment resource processing finished | `info` | {@link HotswapChange} |
+| `CDK_TOOLKIT_I5410` | Hotswap deployment end, a full deployment might still follow if needed | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5501` | Stack Monitoring: Start monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
 | `CDK_TOOLKIT_I5502` | Stack Monitoring: Activity event for a single stack | `info` | {@link StackActivity} |
 | `CDK_TOOLKIT_I5503` | Stack Monitoring: Finished monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
