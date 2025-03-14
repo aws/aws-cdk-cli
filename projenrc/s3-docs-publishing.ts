@@ -94,23 +94,32 @@ export class S3DocsPublishing extends Component {
             BUCKET_NAME: this.props.bucketName,
             DOCS_STREAM: this.props.docsStream,
           },
-          run: [
-            'echo ::add-mask::$BUCKET_NAME', // always hide bucket name
+          run: `echo "Uploading docs to S3"
+echo "::add-mask::$BUCKET_NAME"
+S3_PATH="$DOCS_STREAM/${safeName}-v$(cat dist/version.txt).zip"
+LATEST="latest-${this.props.docsStream}"
 
-            // setup paths
-            `echo "S3_PATH=$DOCS_STREAM/${safeName}-v$(cat dist/version.txt).zip" >> "$GITHUB_ENV"`,
-            'echo "S3_URI=s3://$BUCKET_NAME/$S3_PATH" >> "$GITHUB_ENV"',
-            `echo "LATEST=latest-${this.props.docsStream}" >> "$GITHUB_ENV"`,
+# Capture both stdout and stderr
+if OUTPUT=$(aws s3api put-object \\
+  --bucket "$BUCKET_NAME" \\
+  --key "$S3_PATH" \\
+  --body dist/${this.props.artifactPath} \\
+  --if-none-match "*" 2>&1); then
+  
+  # File was uploaded successfully, update the latest pointer
+  echo "New docs artifact uploaded successfully, updating latest pointer"
+  echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
-            // create the latest marker
-            'echo "$S3_PATH" > "$LATEST"',
+elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
+  # Check specifically for PreconditionFailed in the error output
+  echo "::warning::File already exists in S3. Skipping upload."
+  exit 0
 
-            // check if the target file already exists and upload
-            '(! aws s3 ls --human-readable $S3_URI \\',
-            `&& aws s3 cp --dryrun dist/${this.props.artifactPath} $S3_URI \\`,
-            '&& aws s3 cp --dryrun $LATEST s3://$BUCKET_NAME/$LATEST) \\',
-            '|| (echo "Docs artifact already published, skipping upload")',
-          ].join('\n'),
+else
+  # Any other error (permissions, etc)
+  echo "::error::Failed to upload docs artifact"
+  exit 1
+fi`,
         },
       ],
     });
