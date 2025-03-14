@@ -31,12 +31,20 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       throw new ContextProviderError(`Neither exactIdentifier nor propertyMatch is specified. Failed to find resources using CC API for type ${args.typeName}.`);
     }
 
-    if (args.exactIdentifier) {
-      // use getResource to get the exact indentifier
-      return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn);
-    } else {
-      // use listResource
-      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn);
+    try {
+      if (args.exactIdentifier) {
+        // use getResource to get the exact indentifier
+        return await this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn);
+      } else {
+        // use listResource
+        return await this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn);
+      }
+    } catch (err) {
+      const dummyValue = this.getDummyValueIfErrorIgnored(args);
+      if (dummyValue) {
+        return [getResultObj(dummyValue, 'dummy-id', args.propertiesToReturn)];
+      }
+      throw err;
     }
   }
 
@@ -123,5 +131,19 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. Error: ${err}`);
     }
     return resultObjs;
+  }
+
+  private getDummyValueIfErrorIgnored(args: CcApiContextQuery): Record<string, any> | undefined {
+    if (!args.ignoreErrorOnMissingContext) {
+      return undefined;
+    }
+    if (!Array.isArray(args.dummyValue) || args.dummyValue.length === 0) {
+      return undefined;
+    }
+    const dummyValue = args.dummyValue[0];
+    if (typeof dummyValue !== 'object' || dummyValue === null) {
+      return undefined;
+    }
+    return dummyValue;
   }
 }
