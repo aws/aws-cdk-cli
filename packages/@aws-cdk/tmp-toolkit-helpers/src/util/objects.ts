@@ -103,6 +103,9 @@ export function deepSet(x: any, path: string[], value: any) {
 
   while (path.length > 1 && isObject(x)) {
     const key = path.shift()!;
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      throw new ToolkitError(`Invalid key: ${key}`);
+    }
     if (!(key in x)) {
       x[key] = {};
     }
@@ -113,10 +116,15 @@ export function deepSet(x: any, path: string[], value: any) {
     throw new ToolkitError(`Expected an object, got '${x}'`);
   }
 
+  const finalKey = path[0];
+  if (finalKey === '__proto__' || finalKey === 'constructor' || finalKey === 'prototype') {
+    throw new ToolkitError(`Invalid key: ${finalKey}`);
+  }
+
   if (value !== undefined) {
-    x[path[0]] = value;
+    x[finalKey] = value;
   } else {
-    delete x[path[0]];
+    delete x[finalKey];
   }
 }
 
