@@ -22,7 +22,7 @@ export { aliases, command, describe } from './commands/docs';
 export { lowerCaseFirstCharacter } from './api/hotswap/common';
 export { Deployments } from './api/deployments';
 export { cliRootDir as rootDir } from './cli/root-dir';
-export { latestVersionIfHigher, versionNumber } from './cli/version';
+export { getVersionMessages, versionNumber } from './cli/version';
 export { availableInitTemplates } from './init';
 export { cached } from './api/aws-auth/cached';
 export { CfnEvaluationException } from './api/evaluate-cloudformation-template';
