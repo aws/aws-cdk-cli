@@ -9,7 +9,7 @@ import type { SdkHttpOptions } from './api';
 import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
 import type { Context } from './api/context';
 import { versionNumber } from './cli/version';
-import { IIoHost } from './toolkit/cli-io-host';
+import type { IIoHost } from './toolkit/cli-io-host';
 import { ToolkitError } from './toolkit/error';
 import type { ConstructTreeNode } from './tree';
 import { loadTreeFromDir } from './tree';
