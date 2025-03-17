@@ -1,6 +1,6 @@
 /* eslint-disable import/order */
 jest.mock('child_process');
-import { bockfs } from '@aws-cdk/cdk-build-tools';
+import bockfs from '../../_helpers/bockfs';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cdk from 'aws-cdk-lib';
 import * as semver from 'semver';

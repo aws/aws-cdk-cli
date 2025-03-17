@@ -34,12 +34,10 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/cdk-build-tools": "^0.0.0",
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
     "@aws-cdk/node-bundle": "^0.0.0",
     "@aws-cdk/tmp-toolkit-helpers": "^0.0.0",
     "@aws-cdk/user-input-gen": "^0.0.0",
-    "@aws-cdk/yarn-cling": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@octokit/rest": "^21.1.1",
     "@stylistic/eslint-plugin": "^3.1.0",

@@ -33,9 +33,5 @@
     "src/**/*.ts"
   ],
   "exclude": [],
-  "references": [
-    {
-      "path": "../cdk-build-tools"
-    }
-  ]
+  "references": []
 }

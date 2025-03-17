@@ -468,23 +468,6 @@ const cxApi = overrideEslint(
 
 //////////////////////////////////////////////////////////////////////
 
-const yarnCling = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/yarn-cling',
-    description: 'Tool for generating npm-shrinkwrap from yarn.lock',
-    srcdir: 'lib',
-    deps: ['@yarnpkg/lockfile', 'semver'],
-    devDeps: ['@types/semver', '@types/yarnpkg__lockfile'],
-  }),
-);
-yarnCling.testTask.prependExec('ln -sf ../../cdk test/test-fixture/jsii/node_modules/');
-
-//////////////////////////////////////////////////////////////////////
-
 const yargsGen = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps({
@@ -523,35 +506,6 @@ const nodeBundle = configureProject(
 );
 // Too many console statements
 nodeBundle.eslint?.addRules({ 'no-console': ['off'] });
-
-//////////////////////////////////////////////////////////////////////
-
-// This should be deprecated, but only after the move
-const cdkBuildTools = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-build-tools',
-    description: 'Build tools for CDK packages',
-    srcdir: 'lib',
-    deps: [
-      yarnCling,
-      nodeBundle,
-      'fs-extra@^9',
-      'chalk@^4',
-    ],
-    devDeps: [
-      '@types/fs-extra@^9',
-    ],
-    tsconfig: {
-      compilerOptions: {
-        esModuleInterop: false,
-      },
-    },
-  }),
-);
 
 //////////////////////////////////////////////////////////////////////
 
@@ -696,7 +650,6 @@ const tmpToolkitHelpers = configureProject(
     name: '@aws-cdk/tmp-toolkit-helpers',
     description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
     devDeps: [
-      cdkBuildTools,
       '@types/archiver',
       '@types/semver',
       'fast-check',
@@ -743,9 +696,7 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     srcdir: 'lib',
     devDeps: [
-      yarnCling,
       nodeBundle,
-      cdkBuildTools,
       yargsGen,
       cliPluginContract,
       tmpToolkitHelpers,
@@ -1163,7 +1114,6 @@ const toolkitLib = configureProject(
       'yargs@^15',
     ],
     devDeps: [
-      cdkBuildTools,
       '@smithy/types',
       '@types/fs-extra',
       '@types/split2',
