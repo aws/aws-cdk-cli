@@ -114,15 +114,15 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
       return this.ioHelper.notify(withSpanId(spanId, msg));
     };
 
-    const startMsg = second ? first : 'Starting %s ...';
+    const startMsg = second ? first : `Starting ${this.definition.name} ...`;
     const startPayload = second ?? first;
 
     await notify(this.definition.start.msg(
-      util.format(startMsg, this.definition.name),
+      startMsg,
       startPayload,
     ));
 
-    const timingMsg = '\n✨  %s time: %ds\n';
+    const timingMsgTemplate = '\n✨  %s time: %ds\n';
     const time = () => {
       const elapsedTime = new Date().getTime() - startTime;
       return {
@@ -132,13 +132,7 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
     };
 
     return {
-      elapsedTime: async (msg?: ActionLessMessage<object>): Promise<ElapsedTime> => {
-        if (msg) {
-          await notify({
-            ...msg,
-            data: msg.data,
-          });
-        }
+      elapsedTime: async (): Promise<ElapsedTime> => {
         return time();
       },
 
@@ -148,8 +142,8 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
 
       timing: async(maker: IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime> => {
         const duration = time();
-        const endMsg = message ? message : timingMsg;
-        await notify(maker.msg(util.format(endMsg, this.definition.name, duration.asSec), {
+        const timingMsg = message ? message : util.format(timingMsgTemplate, this.definition.name, duration.asSec);
+        await notify(maker.msg(timingMsg, {
           duration: duration.asMs,
         }));
         return duration;
@@ -157,11 +151,11 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
 
       end: async (a: any, b?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> => {
         const duration = time();
-        const endMsg = b ? a : timingMsg;
+        const endMsg = b ? a : util.format(timingMsgTemplate, this.definition.name, duration.asSec);
         const endPayload = b ?? a;
 
         await notify(this.definition.end.msg(
-          util.format(endMsg, this.definition.name, duration.asSec), {
+          endMsg, {
             duration: duration.asMs,
             ...endPayload,
           } as E));
