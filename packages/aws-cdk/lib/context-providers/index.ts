@@ -10,10 +10,11 @@ import { LoadBalancerContextProviderPlugin, LoadBalancerListenerContextProviderP
 import { SecurityGroupContextProviderPlugin } from './security-groups';
 import { SSMContextProviderPlugin } from './ssm-parameters';
 import { VpcNetworkContextProviderPlugin } from './vpcs';
-import { SdkProvider } from '../api';
-import { Context, TRANSIENT_CONTEXT_KEY } from '../api/context';
+import type { SdkProvider } from '../api';
+import type { Context } from '../api/context';
+import { TRANSIENT_CONTEXT_KEY } from '../api/context';
 import { PluginHost } from '../api/plugin';
-import { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
+import type { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
 import { replaceEnvPlaceholders } from '../api/util/placeholders';
 import { debug } from '../logging';
 import { ContextProviderError } from '../toolkit/error';

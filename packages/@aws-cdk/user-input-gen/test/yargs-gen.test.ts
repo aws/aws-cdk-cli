@@ -1,5 +1,6 @@
 import { $E, expr, ThingSymbol } from '@cdklabs/typewriter';
-import { CliConfig, CliHelpers, renderYargs } from '../lib';
+import type { CliConfig } from '../lib';
+import { CliHelpers, renderYargs } from '../lib';
 
 const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
 
@@ -28,7 +29,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Argv } from 'yargs';
       import * as helpers from './util/yargs-helpers';
 
@@ -94,7 +95,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Argv } from 'yargs';
       import * as helpers from './util/yargs-helpers';
 
@@ -139,9 +140,7 @@ describe('render', () => {
             one: {
               type: 'boolean',
               default: $E(
-                expr
-                  .sym(new ThingSymbol('banana', YARGS_HELPERS))
-                  .call(expr.lit(1), expr.lit(2), expr.lit(3)),
+                expr.sym(new ThingSymbol('banana', YARGS_HELPERS)).call(expr.lit(1), expr.lit(2), expr.lit(3)),
               ),
             },
           },
@@ -149,9 +148,7 @@ describe('render', () => {
       },
     };
 
-    expect(await renderYargs(config, YARGS_HELPERS)).toContain(
-      'default: helpers.banana(1, 2, 3)',
-    );
+    expect(await renderYargs(config, YARGS_HELPERS)).toContain('default: helpers.banana(1, 2, 3)');
   });
 
   test('special notification-arn option gets NO default value', async () => {
@@ -179,7 +176,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Argv } from 'yargs';
       import * as helpers from './util/yargs-helpers';
 

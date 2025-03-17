@@ -5,7 +5,7 @@
 // we keep a copy of the original version around.
 // See https://github.com/aws/aws-cdk/pull/33021 for more information.
 
-import { Writable } from 'stream';
+import type { Writable } from 'stream';
 import * as util from 'util';
 import * as chalk from 'chalk';
 

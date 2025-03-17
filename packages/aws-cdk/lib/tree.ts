@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { CloudAssembly } from '@aws-cdk/cx-api';
+import type { CloudAssembly } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { trace } from './logging';
 

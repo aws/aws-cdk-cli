@@ -1,5 +1,5 @@
 import { format } from 'util';
-import * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import type { SDK } from './aws-auth';
 import {
@@ -11,7 +11,7 @@ import {
   REPOSITORY_NAME_OUTPUT,
 } from './bootstrap/bootstrap-props';
 import { type CloudFormationStack, stabilizeStack } from './deployments/cloudformation';
-import { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../cli/messages';
 import { ToolkitError } from '../toolkit/error';
 

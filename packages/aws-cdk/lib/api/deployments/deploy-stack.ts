@@ -1,5 +1,5 @@
 import { format } from 'util';
-import * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import type {
   CreateChangeSetCommandInput,
   CreateStackCommandInput,
@@ -14,6 +14,11 @@ import { AssetManifestBuilder } from './asset-manifest-builder';
 import { publishAssets } from './asset-publishing';
 import { addMetadataAssetsToManifest } from './assets';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
+import type {
+  ParameterValues,
+  ParameterChanges,
+  ResourcesToImport,
+} from './cloudformation';
 import {
   changeSetHasNoChanges,
   CloudFormationStack,
@@ -21,14 +26,11 @@ import {
   waitForChangeSet,
   waitForStackDeploy,
   waitForStackDelete,
-  ParameterValues,
-  ParameterChanges,
-  ResourcesToImport,
 } from './cloudformation';
-import { ChangeSetDeploymentMethod, DeploymentMethod } from './deployment-method';
-import { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
+import type { ChangeSetDeploymentMethod, DeploymentMethod } from './deployment-method';
+import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import { tryHotswapDeployment } from './hotswap-deployments';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, info, warn } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
@@ -37,7 +39,7 @@ import type { EnvironmentResources } from '../environment';
 import { CfnEvaluationException } from '../evaluate-cloudformation-template';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
 import { StackActivityMonitor } from '../stack-events';
-import { StringWithoutPlaceholders } from '../util/placeholders';
+import type { StringWithoutPlaceholders } from '../util/placeholders';
 import { type TemplateBodyParameter, makeBodyParameter } from '../util/template-body-parameter';
 
 export interface DeployStackOptions {

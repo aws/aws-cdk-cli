@@ -3,7 +3,8 @@ import { GetBucketLocationCommand, ListObjectsV2Command } from '@aws-sdk/client-
 import { FakeListener } from './fake-listener';
 import { MockAws, mockS3 } from './mock-aws';
 import mockfs from './mock-fs';
-import { AssetManifest, AssetPublishing, IAws } from '../lib';
+import type { IAws } from '../lib';
+import { AssetManifest, AssetPublishing } from '../lib';
 
 let aws: IAws;
 beforeEach(() => {

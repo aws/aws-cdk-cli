@@ -1,6 +1,7 @@
 import { inspect, format } from 'util';
-import { Logger } from '@smithy/types';
-import { IoHelper, IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { Logger } from '@smithy/types';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { replacerBufferWithInfo } from '../../util';
 
 export class SdkToCliLogger implements Logger {

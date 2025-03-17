@@ -3,7 +3,8 @@ import { S3Client, UploadPartCommand, PutObjectCommand } from '@aws-sdk/client-s
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { mockClient } from 'aws-sdk-client-mock';
-import { Account, ClientOptions, DefaultAwsClient } from '../lib/aws';
+import type { Account, ClientOptions } from '../lib/aws';
+import { DefaultAwsClient } from '../lib/aws';
 
 export const mockEcr = mockClient(ECRClient);
 export const mockS3 = mockClient(S3Client);

@@ -3,12 +3,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as semver from 'semver';
+import type {
+  AssemblyManifest,
+  StackTagsMetadataEntry,
+} from '../lib';
 import {
   ArtifactType,
-  AssemblyManifest,
   ContextProvider,
   Manifest,
-  StackTagsMetadataEntry,
 } from '../lib';
 
 const FIXTURES = path.join(__dirname, 'fixtures');

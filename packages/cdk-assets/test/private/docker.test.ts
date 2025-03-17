@@ -1,5 +1,5 @@
 import { Docker } from '../../lib/private/docker';
-import { ShellOptions, ProcessFailedError } from '../../lib/private/shell';
+import type { ShellOptions, ProcessFailedError } from '../../lib/private/shell';
 
 type ShellExecuteMock = jest.SpyInstance<
   ReturnType<Docker['execute']>,

@@ -4,16 +4,17 @@ import 'aws-sdk-client-mock-jest';
 
 import * as fs from 'fs';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
+import type { GetAuthorizationTokenResponse } from '@aws-sdk/client-ecr';
 import {
   DescribeImagesCommand,
   DescribeRepositoriesCommand,
   GetAuthorizationTokenCommand,
-  GetAuthorizationTokenResponse,
 } from '@aws-sdk/client-ecr';
 import { MockAws, mockEcr, resetDefaultAwsMockBehavior } from './mock-aws';
 import { mockSpawn } from './mock-child_process';
 import mockfs from './mock-fs';
-import { AssetManifest, AssetPublishing, IAws } from '../lib';
+import type { IAws } from '../lib';
+import { AssetManifest, AssetPublishing } from '../lib';
 import * as dockercreds from '../lib/private/docker-credentials';
 
 let aws: IAws;

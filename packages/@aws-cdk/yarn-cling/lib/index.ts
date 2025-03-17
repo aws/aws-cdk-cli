@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as lockfile from '@yarnpkg/lockfile';
 import * as semver from 'semver';
 import { hoistDependencies } from './hoisting';
-import { PackageJson, PackageLock, PackageLockEntry, PackageLockPackage, YarnLock } from './types';
+import type { PackageJson, PackageLock, PackageLockEntry, PackageLockPackage, YarnLock } from './types';
 
 export interface ShrinkwrapOptions {
   /**

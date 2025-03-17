@@ -3,7 +3,8 @@ import mockfs from './mock-fs';
 import { MockProgressListener } from './mock-progress-listener';
 import { setLogThreshold } from '../bin/logging';
 import { EventType, shellEventToEventType } from '../lib';
-import { shell, ShellEventPublisher } from '../lib/private/shell';
+import type { ShellEventPublisher } from '../lib/private/shell';
+import { shell } from '../lib/private/shell';
 
 jest.mock('child_process');
 

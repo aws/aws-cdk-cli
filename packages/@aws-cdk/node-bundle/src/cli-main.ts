@@ -1,7 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as yargs from 'yargs';
-import { Bundle, BundlePackOptions, BundleProps, BundleValidateOptions } from './api';
+import type { BundlePackOptions, BundleProps, BundleValidateOptions } from './api';
+import { Bundle } from './api';
 
 function versionNumber(): string {
   return fs.readJSONSync(path.join(__dirname, '..', 'package.json')).version;

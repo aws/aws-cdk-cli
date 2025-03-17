@@ -1,4 +1,5 @@
-import { CliConfig, renderUserInputFuncs } from '../lib';
+import type { CliConfig } from '../lib';
+import { renderUserInputFuncs } from '../lib';
 
 describe('render', () => {
   test('can generate conversion function', async () => {
@@ -48,7 +49,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Command } from './user-configuration';
       import { UserInput, GlobalOptions } from './user-input';
 

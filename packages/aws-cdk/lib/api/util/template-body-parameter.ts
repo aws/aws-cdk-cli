@@ -8,7 +8,7 @@ import { debug, error } from '../../logging';
 import { ToolkitError } from '../../toolkit/error';
 import { contentHash, toYAML } from '../../util';
 import { type AssetManifestBuilder } from '../deployments';
-import { EnvironmentResources } from '../environment';
+import type { EnvironmentResources } from '../environment';
 
 export type TemplateBodyParameter = {
   TemplateBody?: string;

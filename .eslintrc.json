@@ -301,6 +301,7 @@
         ]
       }
     ],
+    "@typescript-eslint/consistent-type-imports": "error",
     "no-console": [
       "error"
     ],

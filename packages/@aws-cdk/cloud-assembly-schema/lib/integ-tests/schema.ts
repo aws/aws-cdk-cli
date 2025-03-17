@@ -1,4 +1,4 @@
-import { TestCase } from './test-case';
+import type { TestCase } from './test-case';
 /**
  * Definitions for the integration testing manifest
  */

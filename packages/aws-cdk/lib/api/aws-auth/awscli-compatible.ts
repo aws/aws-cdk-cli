@@ -2,7 +2,7 @@ import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
-import { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
+import type { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
 import * as promptly from 'promptly';
 import { ProxyAgent } from 'proxy-agent';
 import { makeCachingProvider } from './provider-caching';

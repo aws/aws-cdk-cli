@@ -3,12 +3,12 @@ import * as path from 'path';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { AssetManifestBuilder } from './asset-manifest-builder';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { AssetManifestBuilder } from './asset-manifest-builder';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
-import { EnvironmentResources } from '../environment';
-import { ToolkitInfo } from '../toolkit-info';
+import type { EnvironmentResources } from '../environment';
+import type { ToolkitInfo } from '../toolkit-info';
 
 /**
  * Take the metadata assets from the given stack and add them to the given asset manifest

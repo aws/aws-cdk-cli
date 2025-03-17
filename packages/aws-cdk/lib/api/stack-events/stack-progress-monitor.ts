@@ -1,7 +1,7 @@
 
 import * as util from 'util';
 import type { StackProgress } from '@aws-cdk/tmp-toolkit-helpers';
-import { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import { padLeft } from '../../util';
 
 /**

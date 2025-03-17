@@ -10,16 +10,18 @@ import {
   type Stack,
   type Tag,
 } from '@aws-sdk/client-cloudformation';
-import { AssetManifest, FileManifestEntry } from 'cdk-assets';
+import type { FileManifestEntry } from 'cdk-assets';
+import { AssetManifest } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
 import { StackStatus } from '../stack-events';
-import { makeBodyParameter, TemplateBodyParameter } from '../util/template-body-parameter';
+import type { TemplateBodyParameter } from '../util/template-body-parameter';
+import { makeBodyParameter } from '../util/template-body-parameter';
 
 export type ResourcesToImport = ResourceToImport[];
 export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];

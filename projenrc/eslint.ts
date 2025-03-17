@@ -65,6 +65,9 @@ export const ESLINT_RULES = {
   // we prefer `import/no-duplicate` over `no-duplicate-imports` since the former can handle type imports
   'import/no-duplicates': 'error',
 
+  // Enforce consistent usage of type imports. This allows transpilers to drop imports without knowing the types of the dependencies.s
+  '@typescript-eslint/consistent-type-imports': 'error',
+
   // Cannot shadow names
   'no-shadow': ['off'],
   '@typescript-eslint/no-shadow': ['error'],

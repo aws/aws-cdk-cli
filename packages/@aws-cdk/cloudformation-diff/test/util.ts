@@ -1,4 +1,4 @@
-import { Change, DescribeChangeSetOutput } from '@aws-sdk/client-cloudformation';
+import type { Change, DescribeChangeSetOutput } from '@aws-sdk/client-cloudformation';
 
 export function template(resources: {[key: string]: any}) {
   return { Resources: resources };

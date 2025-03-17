@@ -6,30 +6,39 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
-import { Configuration, PROJECT_CONFIG } from './user-configuration';
+import type { Configuration } from './user-configuration';
+import { PROJECT_CONFIG } from './user-configuration';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
-import { SdkProvider } from '../api/aws-auth';
-import { Bootstrapper, BootstrapEnvironmentOptions } from '../api/bootstrap';
-import {
+import type { SdkProvider } from '../api/aws-auth';
+import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
+import { Bootstrapper } from '../api/bootstrap';
+import type {
   CloudAssembly,
+  StackSelector,
+} from '../api/cxapp/cloud-assembly';
+import {
   DefaultSelection,
   ExtendedStackSelection,
   StackCollection,
-  StackSelector,
 } from '../api/cxapp/cloud-assembly';
-import { CloudExecutable } from '../api/cxapp/cloud-executable';
+import type { CloudExecutable } from '../api/cxapp/cloud-executable';
 import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
-import { type Deployments, DeploymentMethod, SuccessfulDeployStackResult, createDiffChangeSet } from '../api/deployments';
+import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
+import { createDiffChangeSet } from '../api/deployments';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
-import { type AssetBuildNode, type AssetPublishNode, type Concurrency, type StackNode, type WorkGraph } from '../api/work-graph';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import { StackActivityProgress } from '../commands/deploy';
+import type {
+  FromScan,
+  GenerateTemplateOutput,
+} from '../commands/migrate';
 import {
   generateCdkApp,
   generateStack,
@@ -38,9 +47,7 @@ import {
   setEnvironment,
   parseSourceOptions,
   generateTemplate,
-  FromScan,
   TemplateSourceOptions,
-  GenerateTemplateOutput,
   CfnTemplateGeneratorProvider,
   writeMigrateJsonFile,
   buildGenertedTemplateOutput,
@@ -56,7 +63,7 @@ import { ToolkitError } from '../toolkit/error';
 import { numberFromBool, partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
 const pLimit: typeof import('p-limit') = require('p-limit');
 
 let TESTING = false;
@@ -285,6 +292,11 @@ export class CdkToolkit {
   public async deploy(options: DeployOptions) {
     if (options.watch) {
       return this.watch(options);
+    }
+
+    // set progress from options, this includes user and app config
+    if (options.progress) {
+      this.ioHost.stackProgress = options.progress;
     }
 
     const startSynthTime = new Date().getTime();
@@ -752,6 +764,11 @@ export class CdkToolkit {
 
   public async import(options: ImportOptions) {
     const stacks = await this.selectStacksForDeploy(options.selector, true, true, false);
+
+    // set progress from options, this includes user and app config
+    if (options.progress) {
+      this.ioHost.stackProgress = options.progress;
+    }
 
     if (stacks.stackCount > 1) {
       throw new ToolkitError(

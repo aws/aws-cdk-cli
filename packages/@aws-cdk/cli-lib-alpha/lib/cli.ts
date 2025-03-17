@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { SharedOptions, DeployOptions, DestroyOptions, BootstrapOptions, SynthOptions, ListOptions, StackActivityProgress, HotswapMode } from './commands';
+import type { SharedOptions, DeployOptions, DestroyOptions, BootstrapOptions, SynthOptions, ListOptions } from './commands';
+import { StackActivityProgress, HotswapMode } from './commands';
 import { exec as runCli } from '../../../aws-cdk/lib';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { createAssembly, prepareContext, prepareDefaultEnvironment } from '../../../aws-cdk/lib/api/cxapp/exec';

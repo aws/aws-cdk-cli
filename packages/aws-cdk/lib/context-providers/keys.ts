@@ -3,7 +3,7 @@ import type { KeyContextResponse } from '@aws-cdk/cx-api';
 import type { AliasListEntry, ListAliasesCommandOutput } from '@aws-sdk/client-kms';
 import type { IKMSClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
-import { ContextProviderPlugin } from '../api/plugin';
+import type { ContextProviderPlugin } from '../api/plugin';
 import { debug } from '../logging';
 import { ContextProviderError } from '../toolkit/error';
 

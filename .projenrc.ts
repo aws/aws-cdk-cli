@@ -729,7 +729,6 @@ tmpToolkitHelpers.package.addField('exports', {
 
 tmpToolkitHelpers.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
-  '@typescript-eslint/consistent-type-imports': 'error',
 });
 
 tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
@@ -1218,7 +1217,6 @@ new S3DocsPublishing(toolkitLib, {
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
-  '@typescript-eslint/consistent-type-imports': 'error',
   'import/no-restricted-paths': ['error', {
     zones: [{
       target: './',

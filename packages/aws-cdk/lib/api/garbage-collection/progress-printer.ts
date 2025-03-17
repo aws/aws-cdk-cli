@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
-import { GcAsset as GCAsset } from './garbage-collector';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { GcAsset as GCAsset } from './garbage-collector';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { info } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 

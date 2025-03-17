@@ -10,16 +10,19 @@ import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/pri
 import { SdkProvider } from '../api/aws-auth';
 import { SdkToCliLogger } from '../api/aws-auth/sdk-logger';
 import { setSdkTracing } from '../api/aws-auth/tracing';
-import { BootstrapSource, Bootstrapper } from '../api/bootstrap';
-import { StackSelector } from '../api/cxapp/cloud-assembly';
-import { CloudExecutable, Synthesizer } from '../api/cxapp/cloud-executable';
+import type { BootstrapSource } from '../api/bootstrap';
+import { Bootstrapper } from '../api/bootstrap';
+import type { StackSelector } from '../api/cxapp/cloud-assembly';
+import type { Synthesizer } from '../api/cxapp/cloud-executable';
+import { CloudExecutable } from '../api/cxapp/cloud-executable';
 import { execProgram } from '../api/cxapp/exec';
-import { Deployments, DeploymentMethod } from '../api/deployments';
+import type { DeploymentMethod } from '../api/deployments';
+import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap/common';
 import { PluginHost } from '../api/plugin';
-import { Settings } from '../api/settings';
+import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
-import { ILock } from '../api/util/rwlock';
+import type { ILock } from '../api/util/rwlock';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
@@ -27,8 +30,10 @@ import { getMigrateScanType } from '../commands/migrate';
 import { cliInit, printAvailableTemplates } from '../init';
 import { result, debug, error, info } from '../logging';
 import { Notices } from '../notices';
-import { Command, Configuration } from './user-configuration';
-import { IoMessageLevel, CliIoHost } from '../toolkit/cli-io-host';
+import type { Command } from './user-configuration';
+import { Configuration } from './user-configuration';
+import type { IoMessageLevel } from '../toolkit/cli-io-host';
+import { CliIoHost } from '../toolkit/cli-io-host';
 import { ToolkitError } from '../toolkit/error';
 
 /* eslint-disable max-len */

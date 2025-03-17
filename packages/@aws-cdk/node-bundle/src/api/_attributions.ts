@@ -3,7 +3,8 @@ import * as fs from 'fs-extra';
 import type { ModuleInfo } from 'license-checker';
 import { shell } from './_shell';
 import type { Package } from './bundle';
-import { Violation, ViolationType, ViolationsReport } from './violation';
+import type { Violation } from './violation';
+import { ViolationType, ViolationsReport } from './violation';
 
 const ATTRIBUTION_SEPARATOR = '\n----------------\n';
 

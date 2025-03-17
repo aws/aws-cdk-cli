@@ -1,4 +1,4 @@
-import { ResourceChangeDetail } from '@aws-sdk/client-cloudformation';
+import type { ResourceChangeDetail } from '@aws-sdk/client-cloudformation';
 import * as utils from './util';
 import { PropertyDifference, ResourceDifference, ResourceImpact, fullDiff } from '../lib';
 import { TemplateAndChangeSetDiffMerger } from '../lib/diff/template-and-changeset-diff-merger';

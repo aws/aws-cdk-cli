@@ -1,4 +1,4 @@
-import { DefaultCdkOptions, RequireApproval } from './common';
+import type { DefaultCdkOptions, RequireApproval } from './common';
 
 /**
  * Options to use with cdk deploy

@@ -2,11 +2,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { cdkCredentialsConfig, obtainEcrCredentials } from './docker-credentials';
-import { shell, ShellOptions, ProcessFailedError } from './shell';
+import type { ShellOptions, ProcessFailedError } from './shell';
+import { shell } from './shell';
 import { createCriticalSection } from './util';
-import { IECRClient } from '../aws';
-import { SubprocessOutputDestination } from './asset-handler';
-import { EventEmitter, shellEventPublisherFromEventEmitter } from '../progress';
+import type { IECRClient } from '../aws';
+import type { SubprocessOutputDestination } from './asset-handler';
+import type { EventEmitter } from '../progress';
+import { shellEventPublisherFromEventEmitter } from '../progress';
 
 interface BuildOptions {
   readonly directory: string;

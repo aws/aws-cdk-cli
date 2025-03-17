@@ -3,12 +3,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
 import { GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { IAws } from '../../lib/aws';
+import type { IAws } from '../../lib/aws';
+import type { DockerCredentialsConfig } from '../../lib/private/docker-credentials';
 import {
   _clearCdkCredentialsConfigCache,
   cdkCredentialsConfig,
   cdkCredentialsConfigFile,
-  DockerCredentialsConfig,
   fetchDockerLoginCredentials,
 } from '../../lib/private/docker-credentials';
 import { MockAws, mockEcr, mockSecretsManager } from '../mock-aws';
