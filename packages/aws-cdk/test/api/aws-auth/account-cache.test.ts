@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { bockfs } from '@aws-cdk/cdk-build-tools';
+import bockfs from '../../_helpers/bockfs';
 import * as fs from 'fs-extra';
 import { AccountAccessKeyCache } from '../../../lib/api/aws-auth/account-cache';
 import { withMocked } from '../../util';

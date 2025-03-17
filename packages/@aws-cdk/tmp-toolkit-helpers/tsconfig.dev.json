@@ -35,9 +35,5 @@
   "exclude": [
     "node_modules"
   ],
-  "references": [
-    {
-      "path": "../cdk-build-tools"
-    }
-  ]
+  "references": []
 }

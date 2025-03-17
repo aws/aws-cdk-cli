@@ -60,10 +60,8 @@
     "packages": [
       "packages/@aws-cdk/cloud-assembly-schema",
       "packages/@aws-cdk/cloudformation-diff",
-      "packages/@aws-cdk/yarn-cling",
       "packages/@aws-cdk/user-input-gen",
       "packages/@aws-cdk/node-bundle",
-      "packages/@aws-cdk/cdk-build-tools",
       "packages/@aws-cdk/cli-plugin-contract",
       "packages/cdk-assets",
       "packages/@aws-cdk/tmp-toolkit-helpers",
@@ -84,10 +82,8 @@
     "projects": [
       "<rootDir>/packages/@aws-cdk/cloud-assembly-schema",
       "<rootDir>/packages/@aws-cdk/cloudformation-diff",
-      "<rootDir>/packages/@aws-cdk/yarn-cling",
       "<rootDir>/packages/@aws-cdk/user-input-gen",
       "<rootDir>/packages/@aws-cdk/node-bundle",
-      "<rootDir>/packages/@aws-cdk/cdk-build-tools",
       "<rootDir>/packages/@aws-cdk/cli-plugin-contract",
       "<rootDir>/packages/cdk-assets",
       "<rootDir>/packages/@aws-cdk/tmp-toolkit-helpers",

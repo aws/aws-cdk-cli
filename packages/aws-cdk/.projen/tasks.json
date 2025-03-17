@@ -101,7 +101,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(path.join(path.dirname(require.resolve('cdklabs-projen-project-types')), 'yarn', 'gather-versions.exec.js'))\" aws-cdk MAJOR --deps @aws-cdk/cloud-assembly-schema @aws-cdk/cloudformation-diff @aws-cdk/yarn-cling @aws-cdk/user-input-gen @aws-cdk/node-bundle @aws-cdk/cdk-build-tools @aws-cdk/cli-plugin-contract cdk-assets @aws-cdk/tmp-toolkit-helpers",
+          "exec": "node -e \"require(path.join(path.dirname(require.resolve('cdklabs-projen-project-types')), 'yarn', 'gather-versions.exec.js'))\" aws-cdk MAJOR --deps @aws-cdk/cloud-assembly-schema @aws-cdk/cloudformation-diff @aws-cdk/user-input-gen @aws-cdk/node-bundle @aws-cdk/cli-plugin-contract cdk-assets @aws-cdk/tmp-toolkit-helpers",
           "receiveArgs": true
         }
       ]

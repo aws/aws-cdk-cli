@@ -30,7 +30,6 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/cdk-build-tools": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3.1.0",
     "@types/archiver": "^6.0.3",
