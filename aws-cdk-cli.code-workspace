@@ -21,6 +21,9 @@
       "path": "packages/@aws-cdk/cloudformation-diff"
     },
     {
+      "path": "packages/@aws-cdk/integ-runner"
+    },
+    {
       "path": "packages/@aws-cdk/node-bundle"
     },
     {

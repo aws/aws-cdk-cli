@@ -26,6 +26,7 @@
     },
     {
       "name": "@stylistic/eslint-plugin",
+      "version": "^3",
       "type": "build"
     },
     {

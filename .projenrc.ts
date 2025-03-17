@@ -11,6 +11,7 @@ import { JsiiBuild } from './projenrc/jsii';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -33,7 +34,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   x.addDevDeps(
     '@typescript-eslint/eslint-plugin@^8',
     '@typescript-eslint/parser@^8',
-    '@stylistic/eslint-plugin',
+    '@stylistic/eslint-plugin@^3',
     '@cdklabs/eslint-plugin',
     'eslint-plugin-import',
     'eslint-plugin-jest',
@@ -85,6 +86,15 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
 ];
 
 const CLI_SDK_V3_RANGE = '^3';
+
+const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['compilerOptions'] = {
+  target: 'ES2020',
+  module: 'commonjs',
+  lib: ['es2020', 'dom'],
+  incremental: true,
+  esModuleInterop: false,
+  skipLibCheck: true,
+};
 
 /**
  * Shared jest config
@@ -412,7 +422,7 @@ const cloudFormationDiff = configureProject(
     // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
     tsconfig: {
       compilerOptions: {
-        esModuleInterop: false,
+        ...defaultTsOptions,
       },
     },
 
@@ -480,6 +490,11 @@ const yargsGen = configureProject(
     deps: ['@cdklabs/typewriter', 'prettier@^2.8', 'lodash.clonedeep'],
     devDeps: ['@types/semver', '@types/yarnpkg__lockfile', '@types/lodash.clonedeep', '@types/prettier@^2'],
     minNodeVersion: '17.0.0', // Necessary for 'structuredClone'
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
   }),
 );
 
@@ -502,6 +517,11 @@ const nodeBundle = configureProject(
         },
       },
     }),
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
   }),
 );
 // Too many console statements
@@ -521,6 +541,11 @@ const cliPluginContract = configureProject(
     ],
     devDeps: [
     ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
   }),
 );
 
@@ -574,21 +599,13 @@ const cdkAssets = configureProject(
     ],
     tsconfigDev: {
       compilerOptions: {
-        target: 'ES2020',
-        module: 'commonjs',
-        lib: ['es2020', 'dom'],
-        incremental: true,
-        esModuleInterop: false,
+        ...defaultTsOptions,
       },
       include: ['bin/**/*.ts'],
     },
     tsconfig: {
       compilerOptions: {
-        target: 'ES2020',
-        module: 'commonjs',
-        lib: ['es2020', 'dom'],
-        incremental: true,
-        esModuleInterop: false,
+        ...defaultTsOptions,
         rootDir: undefined,
         outDir: undefined,
       },
@@ -664,10 +681,10 @@ const tmpToolkitHelpers = configureProject(
     ],
     tsconfig: {
       compilerOptions: {
+        ...defaultTsOptions,
         target: 'es2022',
-        lib: ['es2022', 'esnext.disposable'],
+        lib: ['es2022', 'esnext.disposable', 'dom'],
         module: 'NodeNext',
-        esModuleInterop: false,
       },
     },
   }),
@@ -787,6 +804,8 @@ const cli = configureProject(
     },
     tsconfig: {
       compilerOptions: {
+        ...defaultTsOptions,
+
         // Changes the meaning of 'import' for libraries whose top-level export is a function
         // 'aws-cdk' has been written against `false` for interop
         esModuleInterop: false,
@@ -980,6 +999,11 @@ const cliLib = configureProject(
         moduleFileExtensions: undefined,
       },
     }),
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
   }),
 );
 
@@ -1152,10 +1176,10 @@ const toolkitLib = configureProject(
     }),
     tsconfig: {
       compilerOptions: {
+        ...defaultTsOptions,
         target: 'es2022',
-        lib: ['es2022', 'esnext.disposable'],
+        lib: ['es2022', 'esnext.disposable', 'dom'],
         module: 'NodeNext',
-        esModuleInterop: false,
       },
     },
   }),
@@ -1278,7 +1302,7 @@ const cdkCliWrapper = configureProject(
     name: '@aws-cdk/cdk-cli-wrapper',
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
-    devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
+    devDeps: [],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
 
@@ -1289,15 +1313,23 @@ const cdkCliWrapper = configureProject(
         },
       },
     }),
+
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      }
+    },
   }),
 );
 
+/* Can't have this -- the integ-runner depends on this package
 (() => {
   const integ = cdkCliWrapper.addTask('integ', {
     exec: 'integ-runner --language javascript',
   });
   cdkCliWrapper.testTask.spawn(integ);
 })();
+*/
 
 //////////////////////////////////////////////////////////////////////
 
@@ -1311,9 +1343,111 @@ const cdkAliasPackage = configureProject(
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
   }),
 );
 void cdkAliasPackage;
+
+//////////////////////////////////////////////////////////////////////
+
+const integRunner = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: '@aws-cdk/integ-runner',
+    description: 'CDK Integration Testing Tool',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cxApi,
+      cdkCliWrapper.customizeReference({ versionType: 'exact' }),
+      cli.customizeReference({ versionType: 'exact' }),
+      cdkAssets.customizeReference({ versionType: 'exact' }),
+      cloudFormationDiff.customizeReference({ versionType: 'exact' }),
+      'workerpool@^6',
+      'chokidar@^3',
+      'chalk@^4',
+      'fs-extra@^9',
+      'yargs@^16',
+      '@aws-cdk/aws-service-spec',
+      '@aws-sdk/client-cloudformation@^3',
+    ],
+    devDeps: [
+      'aws-cdk-lib',
+      '@types/fs-extra',
+      '@types/mock-fs@^4',
+      'mock-fs@^5',
+      '@types/workerpool@^6',
+      '@types/yargs',
+      'constructs@^10',
+      '@aws-cdk/integ-tests-alpha@2.184.1-alpha.0',
+    ],
+    allowPrivateDeps: true,
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      }
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          branches: 79,
+        },
+      },
+    }),
+  }),
+);
+integRunner.gitignore?.addPatterns(
+  // Ignore this symlink, we recreate it at test time
+  'test/test-archive-follow/data/linked',
+
+  // These files are needed for unit tests
+  '!test/test-data/cdk-integ.out*/',
+
+  '!**/*.snapshot/**/asset.*/*.js',
+  '!**/*.snapshot/**/asset.*/*.d.ts',
+  '!**/*.snapshot/**/asset.*/**',
+
+  'lib/recommended-feature-flags.json',
+);
+integRunner.tsconfig?.addInclude('lib/*.json');
+integRunner.tsconfig?.addInclude('lib/init-templates/*/*/add-project.hook.ts');
+integRunner.tsconfig?.addExclude('lib/init-templates/*/typescript/**/*.ts');
+integRunner.tsconfig?.addExclude('test/language-tests/**/integ.*.ts');
+
+integRunner.preCompileTask.prependExec('./build-tools/generate.sh');
+
+new BundleCli(integRunner, {
+  externals: {
+    optionalDependencies: [
+      'fsevents',
+    ],
+    dependencies: [
+      '@aws-cdk/aws-service-spec',
+      'aws-cdk',
+    ],
+  },
+  allowedLicenses: [
+    'Apache-2.0',
+    'MIT',
+    'BSD-3-Clause',
+    'ISC',
+    'BSD-2-Clause',
+    '0BSD',
+    'MIT OR Apache-2.0',
+  ],
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  test: 'bin/integ-runner --version',
+  entryPoints: [
+    'lib/index.js',
+    'lib/workers/extract/index.js',
+  ],
+  minifyWhitespace: true,
+});
 
 //////////////////////////////////////////////////////////////////////
 

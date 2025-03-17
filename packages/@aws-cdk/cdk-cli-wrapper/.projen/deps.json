@@ -1,15 +1,12 @@
 {
   "dependencies": [
     {
-      "name": "@aws-cdk/integ-runner",
-      "type": "build"
-    },
-    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
     {
       "name": "@stylistic/eslint-plugin",
+      "version": "^3",
       "type": "build"
     },
     {
@@ -29,14 +26,6 @@
     {
       "name": "@typescript-eslint/parser",
       "version": "^8",
-      "type": "build"
-    },
-    {
-      "name": "aws-cdk",
-      "type": "build"
-    },
-    {
-      "name": "aws-cdk-lib",
       "type": "build"
     },
     {

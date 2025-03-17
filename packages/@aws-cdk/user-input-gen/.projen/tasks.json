@@ -37,7 +37,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@stylistic/eslint-plugin,@types/jest,@types/lodash.clonedeep,@types/semver,@types/yarnpkg__lockfile,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,projen,ts-jest,@cdklabs/typewriter,lodash.clonedeep"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,@types/lodash.clonedeep,@types/semver,@types/yarnpkg__lockfile,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,projen,ts-jest,@cdklabs/typewriter,lodash.clonedeep"
         }
       ]
     },
