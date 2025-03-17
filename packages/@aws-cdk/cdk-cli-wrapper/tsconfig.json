@@ -5,14 +5,15 @@
     "outDir": "lib",
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": true,
+    "esModuleInterop": false,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2019"
+      "es2020",
+      "dom"
     ],
-    "module": "CommonJS",
+    "module": "commonjs",
     "noEmitOnError": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
@@ -25,16 +26,13 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
     "stripInternal": true,
-    "target": "ES2019",
+    "target": "ES2020",
+    "incremental": true,
     "composite": true
   },
   "include": [
     "lib/**/*.ts"
   ],
   "exclude": [],
-  "references": [
-    {
-      "path": "../../aws-cdk"
-    }
-  ]
+  "references": []
 }

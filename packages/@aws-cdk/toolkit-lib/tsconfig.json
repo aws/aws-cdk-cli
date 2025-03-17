@@ -11,7 +11,8 @@
     "inlineSources": true,
     "lib": [
       "es2022",
-      "esnext.disposable"
+      "esnext.disposable",
+      "dom"
     ],
     "module": "NodeNext",
     "noEmitOnError": false,

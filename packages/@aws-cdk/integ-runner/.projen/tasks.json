@@ -1,0 +1,226 @@
+{
+  "tasks": {
+    "build": {
+      "name": "build",
+      "description": "Full release build",
+      "steps": [
+        {
+          "spawn": "pre-compile"
+        },
+        {
+          "spawn": "compile"
+        },
+        {
+          "spawn": "post-compile"
+        },
+        {
+          "spawn": "test"
+        },
+        {
+          "spawn": "package"
+        }
+      ]
+    },
+    "bump": {
+      "name": "bump",
+      "description": "Bumps version based on latest git tag and generates a changelog entry",
+      "env": {
+        "OUTFILE": "package.json",
+        "CHANGELOG": "dist/changelog.md",
+        "BUMPFILE": "dist/version.txt",
+        "RELEASETAG": "dist/releasetag.txt",
+        "RELEASE_TAG_PREFIX": "@aws-cdk/integ-runner@",
+        "VERSIONRCOPTIONS": "{\"path\":\".\"}",
+        "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
+      },
+      "steps": [
+        {
+          "spawn": "gather-versions"
+        },
+        {
+          "builtin": "release/bump-version"
+        }
+      ],
+      "condition": "git log --oneline -1 | grep -qv \"chore(release):\""
+    },
+    "check-for-updates": {
+      "name": "check-for-updates",
+      "env": {
+        "CI": "0"
+      },
+      "steps": [
+        {
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/fs-extra,@types/jest,@types/yargs,aws-cdk-lib,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,projen,ts-jest,@aws-cdk/aws-service-spec,@aws-cdk/cx-api"
+        }
+      ]
+    },
+    "check-licenses": {
+      "name": "check-licenses",
+      "steps": [
+        {
+          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC\"",
+          "receiveArgs": true
+        }
+      ]
+    },
+    "compile": {
+      "name": "compile",
+      "description": "Only compile",
+      "steps": [
+        {
+          "exec": "tsc --build",
+          "receiveArgs": true
+        }
+      ]
+    },
+    "default": {
+      "name": "default",
+      "description": "Synthesize project files",
+      "steps": [
+        {
+          "exec": "cd ../../.. && npx projen default"
+        }
+      ]
+    },
+    "eslint": {
+      "name": "eslint",
+      "description": "Runs eslint against the codebase",
+      "env": {
+        "ESLINT_USE_FLAT_CONFIG": "false"
+      },
+      "steps": [
+        {
+          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ lib test build-tools",
+          "receiveArgs": true
+        }
+      ]
+    },
+    "gather-versions": {
+      "name": "gather-versions",
+      "steps": [
+        {
+          "exec": "node -e \"require(path.join(path.dirname(require.resolve('cdklabs-projen-project-types')), 'yarn', 'gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=exact,@aws-cdk/cdk-cli-wrapper=exact,aws-cdk=exact,cdk-assets=exact,@aws-cdk/cloudformation-diff=exact",
+          "receiveArgs": true
+        }
+      ]
+    },
+    "install": {
+      "name": "install",
+      "description": "Install project dependencies and update lockfile (non-frozen)",
+      "steps": [
+        {
+          "exec": "yarn install --check-files"
+        }
+      ]
+    },
+    "install:ci": {
+      "name": "install:ci",
+      "description": "Install project dependencies using frozen lockfile",
+      "steps": [
+        {
+          "exec": "yarn install --check-files --frozen-lockfile"
+        }
+      ]
+    },
+    "nx": {
+      "name": "nx",
+      "steps": [
+        {
+          "exec": "nx run",
+          "receiveArgs": true
+        }
+      ]
+    },
+    "package": {
+      "name": "package",
+      "description": "Creates the distribution package",
+      "steps": [
+        {
+          "exec": "mkdir -p dist/js"
+        },
+        {
+          "exec": "node-bundle pack --destination dist/js --external @aws-cdk/aws-service-spec:runtime --external aws-cdk:runtime --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js'"
+        }
+      ]
+    },
+    "post-compile": {
+      "name": "post-compile",
+      "description": "Runs after successful compilation",
+      "steps": [
+        {
+          "exec": "node-bundle validate --fix --external @aws-cdk/aws-service-spec:runtime --external aws-cdk:runtime --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js'"
+        }
+      ]
+    },
+    "pre-compile": {
+      "name": "pre-compile",
+      "description": "Prepare the project for compilation",
+      "steps": [
+        {
+          "exec": "./build-tools/generate.sh"
+        },
+        {
+          "spawn": "check-licenses"
+        }
+      ]
+    },
+    "test": {
+      "name": "test",
+      "description": "Run tests",
+      "steps": [
+        {
+          "exec": "jest --passWithNoTests --updateSnapshot",
+          "receiveArgs": true
+        },
+        {
+          "spawn": "eslint"
+        }
+      ]
+    },
+    "test:watch": {
+      "name": "test:watch",
+      "description": "Run jest in watch mode",
+      "steps": [
+        {
+          "exec": "jest --watch"
+        }
+      ]
+    },
+    "unbump": {
+      "name": "unbump",
+      "description": "Restores version to 0.0.0",
+      "env": {
+        "OUTFILE": "package.json",
+        "CHANGELOG": "dist/changelog.md",
+        "BUMPFILE": "dist/version.txt",
+        "RELEASETAG": "dist/releasetag.txt",
+        "RELEASE_TAG_PREFIX": "@aws-cdk/integ-runner@",
+        "VERSIONRCOPTIONS": "{\"path\":\".\"}",
+        "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
+      },
+      "steps": [
+        {
+          "builtin": "release/reset-version"
+        },
+        {
+          "spawn": "gather-versions"
+        }
+      ]
+    },
+    "watch": {
+      "name": "watch",
+      "description": "Watch & compile in the background",
+      "steps": [
+        {
+          "exec": "tsc --build -w"
+        }
+      ]
+    }
+  },
+  "env": {
+    "PATH": "$(npx -c \"node --print process.env.PATH\")"
+  },
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+}
