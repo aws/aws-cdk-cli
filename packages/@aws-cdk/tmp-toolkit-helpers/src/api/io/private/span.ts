@@ -106,7 +106,7 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
    */
   public async begin(payload: VoidWhenEmpty<S>): Promise<IMessageSpan<E>>;
   public async begin(message: string, payload: S): Promise<IMessageSpan<E>>;
-  public async begin(first: any, second?: S): Promise<IMessageSpan<E>> {
+  public async begin(a: any, b?: S): Promise<IMessageSpan<E>> {
     const spanId = uuid.v4();
     const startTime = new Date().getTime();
 
@@ -114,8 +114,9 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
       return this.ioHelper.notify(withSpanId(spanId, msg));
     };
 
-    const startMsg = second ? first : `Starting ${this.definition.name} ...`;
-    const startPayload = second ?? first;
+    const startInput = parseArgs<S>(a, b);
+    const startMsg = startInput.message ?? `Starting ${this.definition.name} ...`;
+    const startPayload = startInput.payload;
 
     await notify(this.definition.start.msg(
       startMsg,
@@ -149,10 +150,12 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
         return duration;
       },
 
-      end: async (a: any, b?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> => {
+      end: async (x: any, y?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> => {
         const duration = time();
-        const endMsg = b ? a : util.format(timingMsgTemplate, this.definition.name, duration.asSec);
-        const endPayload = b ?? a;
+
+        const endInput = parseArgs<ForceEmpty<Optional<E, keyof SpanEnd>>>(x, y);
+        const endMsg = endInput.message ?? util.format(timingMsgTemplate, this.definition.name, duration.asSec);
+        const endPayload = endInput.payload;
 
         await notify(this.definition.end.msg(
           endMsg, {
@@ -164,6 +167,22 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
       },
     };
   }
+}
+
+function parseArgs<S extends object>(first: any, second?: S): { message: string | undefined; payload: S } {
+  const firstIsMessage = typeof first === 'string';
+
+  // When the first argument is a string or we have a second argument, then the first arg is the message
+  const message = (firstIsMessage || second) ? first : undefined;
+
+  // When the first argument is a string or we have a second argument,
+  // then the second arg is the payload, otherwise the first arg is the payload
+  const payload = firstIsMessage ? second : (second ?? first);
+
+  return {
+    message,
+    payload,
+  };
 }
 
 function withSpanId(span: string, message: ActionLessMessage<unknown>): ActionLessMessage<unknown> {
