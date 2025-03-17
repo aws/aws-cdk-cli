@@ -33,7 +33,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   x.addDevDeps(
     '@typescript-eslint/eslint-plugin@^8',
     '@typescript-eslint/parser@^8',
-    '@stylistic/eslint-plugin',
+    '@stylistic/eslint-plugin@^3',
     '@cdklabs/eslint-plugin',
     'eslint-plugin-import',
     'eslint-plugin-jest',
@@ -665,7 +665,7 @@ const tmpToolkitHelpers = configureProject(
     tsconfig: {
       compilerOptions: {
         target: 'es2022',
-        lib: ['es2022', 'esnext.disposable'],
+        lib: ['es2022', 'esnext.disposable', 'dom'],
         module: 'NodeNext',
         esModuleInterop: false,
       },
@@ -1153,7 +1153,7 @@ const toolkitLib = configureProject(
     tsconfig: {
       compilerOptions: {
         target: 'es2022',
-        lib: ['es2022', 'esnext.disposable'],
+        lib: ['es2022', 'esnext.disposable', 'dom'],
         module: 'NodeNext',
         esModuleInterop: false,
       },
@@ -1278,7 +1278,7 @@ const cdkCliWrapper = configureProject(
     name: '@aws-cdk/cdk-cli-wrapper',
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
-    devDeps: ['aws-cdk-lib', cli, 'constructs', '@aws-cdk/integ-runner'],
+    devDeps: [],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
 
@@ -1289,15 +1289,27 @@ const cdkCliWrapper = configureProject(
         },
       },
     }),
+
+    tsconfig: {
+      compilerOptions: {
+        target: 'ES2020',
+        module: 'commonjs',
+        lib: ['es2020', 'dom'],
+        incremental: true,
+        esModuleInterop: false,
+      }
+    },
   }),
 );
 
+/* Can't have this -- the integ-runner depends on this package
 (() => {
   const integ = cdkCliWrapper.addTask('integ', {
     exec: 'integ-runner --language javascript',
   });
   cdkCliWrapper.testTask.spawn(integ);
 })();
+*/
 
 //////////////////////////////////////////////////////////////////////
 
@@ -1314,6 +1326,76 @@ const cdkAliasPackage = configureProject(
   }),
 );
 void cdkAliasPackage;
+
+//////////////////////////////////////////////////////////////////////
+
+const integRunner = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: '@aws-cdk/integ-runner',
+    description: 'CDK Integration Testing Tool',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ exactVersion: true }),
+      cxApi,
+      cdkCliWrapper.customizeReference({ exactVersion: true }),
+      cli.customizeReference({ exactVersion: true }),
+      cdkAssets.customizeReference({ exactVersion: true }),
+      cloudFormationDiff.customizeReference({ exactVersion: true }),
+      'workerpool@^6',
+      'chokidar@^3',
+      'chalk@^4',
+      'fs-extra@^9',
+      'yargs@^16',
+      '@aws-cdk/aws-service-spec',
+      '@aws-sdk/client-cloudformation@^3',
+    ],
+    devDeps: ['aws-cdk-lib', '@types/fs-extra', '@types/mock-fs@^4', 'mock-fs@^4', '@types/workerpool@^6', '@types/yargs', 'constructs@^10'],
+    allowPrivateDeps: true,
+    tsconfig: {
+      compilerOptions: {
+        target: 'ES2020',
+        module: 'commonjs',
+        lib: ['es2020', 'dom'],
+        incremental: true,
+        esModuleInterop: false,
+      }
+    },
+  }),
+);
+integRunner.gitignore?.addPatterns('recommended-feature-flags.json');
+integRunner.tsconfig?.addInclude('lib/*.json');
+
+integRunner.preCompileTask.prependExec('./build-tools/generate.sh');
+
+new BundleCli(integRunner, {
+  externals: {
+    optionalDependencies: [
+      'fsevents',
+    ],
+    dependencies: [
+      '@aws-cdk/aws-service-spec',
+      'aws-cdk',
+    ],
+  },
+  allowedLicenses: [
+    'Apache-2.0',
+    'MIT',
+    'BSD-3-Clause',
+    'ISC',
+    'BSD-2-Clause',
+    '0BSD',
+    'MIT OR Apache-2.0',
+  ],
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  test: 'bin/integ-runner --version',
+  entryPoints: [
+    'lib/index.js',
+    'lib/workers/extract/index.js',
+  ],
+  minifyWhitespace: true,
+});
 
 //////////////////////////////////////////////////////////////////////
 
