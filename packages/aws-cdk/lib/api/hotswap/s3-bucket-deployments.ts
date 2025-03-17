@@ -1,4 +1,5 @@
-import type { ChangeHotswapResult, HotswappableChangeCandidate } from './common';
+import type { ChangeHotswapResult } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
@@ -10,7 +11,7 @@ export const REQUIRED_BY_CFN = 'required-to-be-present-by-cfn';
 
 export async function isHotswappableS3BucketDeploymentChange(
   _logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   // In old-style synthesis, the policy used by the lambda to copy assets Ref's the assets directly,
@@ -28,9 +29,10 @@ export async function isHotswappableS3BucketDeploymentChange(
   });
 
   ret.push({
+    change: {
+      cause: change,
+    },
     hotswappable: true,
-    resourceType: change.newValue.Type,
-    propsChanged: ['*'],
     service: 'custom-s3-deployment',
     resourceNames: [`Contents of S3 Bucket '${customResourceProperties.DestinationBucketName}'`],
     apply: async (sdk: SDK) => {
@@ -61,7 +63,7 @@ export async function isHotswappableS3BucketDeploymentChange(
 
 export async function skipChangeForS3DeployCustomResourcePolicy(
   iamPolicyLogicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<boolean> {
   if (change.newValue.Type !== 'AWS::IAM::Policy') {

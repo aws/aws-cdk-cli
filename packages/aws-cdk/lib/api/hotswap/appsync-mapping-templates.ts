@@ -5,10 +5,10 @@ import type {
 import {
   type ChangeHotswapResult,
   classifyChanges,
-  type HotswappableChangeCandidate,
   lowerCaseFirstCharacter,
   transformObjectKeys,
 } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
@@ -16,7 +16,7 @@ import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-
 
 export async function isHotswappableAppSyncChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   const isResolver = change.newValue.Type === 'AWS::AppSync::Resolver';
@@ -56,9 +56,10 @@ export async function isHotswappableAppSyncChange(
       physicalName = arn;
     }
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
       service: 'appsync',
       resourceNames: [`${change.newValue.Type} '${physicalName}'`],
       apply: async (sdk: SDK) => {

@@ -1,10 +1,11 @@
-import { type ChangeHotswapResult, classifyChanges, type HotswappableChangeCandidate } from './common';
+import { type ChangeHotswapResult, classifyChanges } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
 export async function isHotswappableStateMachineChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   if (change.newValue.Type !== 'AWS::StepFunctions::StateMachine') {
@@ -25,9 +26,10 @@ export async function isHotswappableStateMachineChange(
       })
       : await evaluateCfnTemplate.findPhysicalNameFor(logicalId);
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
       service: 'stepfunctions-service',
       resourceNames: [`${change.newValue.Type} '${stateMachineArn?.split(':')[6]}'`],
       apply: async (sdk: SDK) => {

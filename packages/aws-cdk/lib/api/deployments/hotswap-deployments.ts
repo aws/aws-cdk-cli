@@ -15,9 +15,9 @@ import { isHotswappableAppSyncChange } from '../hotswap/appsync-mapping-template
 import { isHotswappableCodeBuildProjectChange } from '../hotswap/code-build-projects';
 import type {
   ChangeHotswapResult,
-  HotswappableChange,
+  HotswapOperation,
   NonHotswappableChange,
-  HotswappableChangeCandidate,
+  ResourceChange,
   HotswapPropertyOverrides, ClassifiedResourceChanges,
 } from '../hotswap/common';
 import {
@@ -43,7 +43,7 @@ const pLimit: typeof import('p-limit') = require('p-limit');
 
 type HotswapDetector = (
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
 ) => Promise<ChangeHotswapResult>;
@@ -66,7 +66,7 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   'Custom::CDKBucketDeployment': isHotswappableS3BucketDeploymentChange,
   'AWS::IAM::Policy': async (
     logicalId: string,
-    change: HotswappableChangeCandidate,
+    change: ResourceChange,
     evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   ): Promise<ChangeHotswapResult> => {
     // If the policy is for a S3BucketDeploymentChange, we can ignore the change
@@ -155,7 +155,7 @@ async function classifyResourceChanges(
   const resourceDifferences = getStackResourceDifferences(stackChanges);
 
   const promises: Array<() => Promise<ChangeHotswapResult>> = [];
-  const hotswappableResources = new Array<HotswappableChange>();
+  const hotswappableResources = new Array<HotswapOperation>();
   const nonHotswappableResources = new Array<NonHotswappableChange>();
   for (const logicalId of Object.keys(stackChanges.outputs.changes)) {
     nonHotswappableResources.push({
@@ -366,7 +366,7 @@ function makeRenameDifference(
 function isCandidateForHotswapping(
   change: cfn_diff.ResourceDifference,
   logicalId: string,
-): HotswappableChange | NonHotswappableChange | HotswappableChangeCandidate {
+): HotswapOperation | NonHotswappableChange | ResourceChange {
   // a resource has been removed OR a resource has been added; we can't short-circuit that change
   if (!change.oldValue) {
     return {
@@ -405,7 +405,7 @@ function isCandidateForHotswapping(
   };
 }
 
-async function applyAllHotswappableChanges(sdk: SDK, ioHelper: IoHelper, hotswappableChanges: HotswappableChange[]): Promise<void[]> {
+async function applyAllHotswappableChanges(sdk: SDK, ioHelper: IoHelper, hotswappableChanges: HotswapOperation[]): Promise<void[]> {
   if (hotswappableChanges.length > 0) {
     await ioHelper.notify(info(`\n${ICON} hotswapping resources:`));
   }
@@ -416,7 +416,7 @@ async function applyAllHotswappableChanges(sdk: SDK, ioHelper: IoHelper, hotswap
   })));
 }
 
-async function applyHotswappableChange(sdk: SDK, ioHelper: IoHelper, hotswapOperation: HotswappableChange): Promise<void> {
+async function applyHotswappableChange(sdk: SDK, ioHelper: IoHelper, hotswapOperation: HotswapOperation): Promise<void> {
   // note the type of service that was successfully hotswapped in the User-Agent
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);

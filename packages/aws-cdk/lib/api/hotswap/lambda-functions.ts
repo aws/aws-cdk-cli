@@ -1,7 +1,9 @@
 import { Writable } from 'stream';
+import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
-import type { PropDiffs, ChangeHotswapResult, HotswappableChangeCandidate } from './common';
+import type { ChangeHotswapResult } from './common';
 import { classifyChanges } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';
@@ -13,7 +15,7 @@ const archiver = require('archiver');
 
 export async function isHotswappableLambdaFunctionChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   // if the change is for a Lambda Version,
@@ -23,10 +25,11 @@ export async function isHotswappableLambdaFunctionChange(
   if (change.newValue.Type === 'AWS::Lambda::Version') {
     return [
       {
+        change: {
+          cause: change,
+        },
         hotswappable: true,
-        resourceType: 'AWS::Lambda::Version',
         resourceNames: [],
-        propsChanged: [],
         service: 'lambda',
         apply: async (_sdk: SDK) => {
         },
@@ -54,9 +57,10 @@ export async function isHotswappableLambdaFunctionChange(
   const namesOfHotswappableChanges = Object.keys(classifiedChanges.hotswappableProps);
   if (namesOfHotswappableChanges.length > 0) {
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
       service: 'lambda',
       resourceNames: [
         `Lambda Function '${functionName}'`,
@@ -153,7 +157,7 @@ export async function isHotswappableLambdaFunctionChange(
 /**
  * Determines which changes to this Alias are hotswappable or not
  */
-function classifyAliasChanges(change: HotswappableChangeCandidate): ChangeHotswapResult {
+function classifyAliasChanges(change: ResourceChange): ChangeHotswapResult {
   const ret: ChangeHotswapResult = [];
   const classifiedChanges = classifyChanges(change, ['FunctionVersion']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
@@ -161,9 +165,10 @@ function classifyAliasChanges(change: HotswappableChangeCandidate): ChangeHotswa
   const namesOfHotswappableChanges = Object.keys(classifiedChanges.hotswappableProps);
   if (namesOfHotswappableChanges.length > 0) {
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: [],
       service: 'lambda',
       resourceNames: [],
       apply: async (_sdk: SDK) => {
@@ -180,7 +185,7 @@ function classifyAliasChanges(change: HotswappableChangeCandidate): ChangeHotswa
  * Returns `undefined` if the change is not hotswappable.
  */
 async function evaluateLambdaFunctionProps(
-  hotswappablePropChanges: PropDiffs,
+  hotswappablePropChanges: Record<string, PropertyDifference<any>>,
   runtime: string,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<LambdaFunctionChange | undefined> {

@@ -1,19 +1,19 @@
 import type {
   HotswapPropertyOverrides,
   ChangeHotswapResult,
-  HotswappableChangeCandidate,
 } from './common';
 import {
   classifyChanges, lowerCaseFirstCharacter,
   reportNonHotswappableChange,
   transformObjectKeys,
 } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
 export async function isHotswappableEcsServiceChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
 ): Promise<ChangeHotswapResult> {
@@ -65,9 +65,10 @@ export async function isHotswappableEcsServiceChange(
   if (namesOfHotswappableChanges.length > 0) {
     const taskDefinitionResource = await prepareTaskDefinitionChange(evaluateCfnTemplate, logicalId, change);
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
       service: 'ecs-service',
       resourceNames: [
         `ECS Task Definition '${await taskDefinitionResource.Family}'`,
@@ -144,7 +145,7 @@ interface EcsService {
 async function prepareTaskDefinitionChange(
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
 ) {
   const taskDefinitionResource: { [name: string]: any } = {
     ...change.oldValue.Properties,
