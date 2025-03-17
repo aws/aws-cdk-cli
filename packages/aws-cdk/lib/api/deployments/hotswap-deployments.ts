@@ -103,8 +103,7 @@ export async function tryHotswapDeployment(
   const currentTemplate = await loadCurrentTemplateWithNestedStacks(stackArtifact, sdk);
 
   const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
-    stackName: stackArtifact.stackName,
-    template: stackArtifact.template,
+    stackArtifact,
     parameters: assetParams,
     account: resolvedEnv.account,
     region: resolvedEnv.region,
