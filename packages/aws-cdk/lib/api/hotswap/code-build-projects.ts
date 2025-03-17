@@ -30,6 +30,12 @@ export async function isHotswappableCodeBuildProjectChange(
       logicalId,
       change.newValue.Properties?.Name,
     );
+
+    // nothing to do jere
+    if (!projectName) {
+      return ret;
+    }
+
     ret.push({
       change: {
         cause: change,
@@ -38,9 +44,6 @@ export async function isHotswappableCodeBuildProjectChange(
       service: 'codebuild',
       resourceNames: [`CodeBuild Project '${projectName}'`],
       apply: async (sdk: SDK) => {
-        if (!projectName) {
-          return;
-        }
         updateProjectInput.name = projectName;
 
         for (const updatedPropName in change.propertyUpdates) {

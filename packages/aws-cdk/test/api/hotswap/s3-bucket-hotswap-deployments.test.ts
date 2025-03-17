@@ -1,12 +1,12 @@
 import { InvokeCommand } from '@aws-sdk/client-lambda';
 import * as setup from '../_helpers/hotswap-test-setup';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { REQUIRED_BY_CFN } from '../../../lib/api/hotswap/s3-bucket-deployments';
 import { mockLambdaClient } from '../../util/mock-sdk';
 import { silentTest } from '../../util/silent';
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
+const REQUIRED_BY_CFN = 'required-to-be-present-by-cfn';
 const payloadWithoutCustomResProps = {
   RequestType: 'Update',
   ResponseURL: REQUIRED_BY_CFN,

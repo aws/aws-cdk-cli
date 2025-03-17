@@ -55,6 +55,12 @@ export async function isHotswappableAppSyncChange(
     } else {
       physicalName = arn;
     }
+
+    // nothing do here
+    if (!physicalName) {
+      return ret;
+    }
+
     ret.push({
       change: {
         cause: change,
@@ -63,10 +69,6 @@ export async function isHotswappableAppSyncChange(
       service: 'appsync',
       resourceNames: [`${change.newValue.Type} '${physicalName}'`],
       apply: async (sdk: SDK) => {
-        if (!physicalName) {
-          return;
-        }
-
         const sdkProperties: { [name: string]: any } = {
           ...change.oldValue.Properties,
           Definition: change.newValue.Properties?.Definition,

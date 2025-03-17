@@ -25,6 +25,12 @@ export async function isHotswappableStateMachineChange(
             stateMachineNameInCfnTemplate,
       })
       : await evaluateCfnTemplate.findPhysicalNameFor(logicalId);
+
+    // nothing to do
+    if (!stateMachineArn) {
+      return ret;
+    }
+
     ret.push({
       change: {
         cause: change,
@@ -33,10 +39,6 @@ export async function isHotswappableStateMachineChange(
       service: 'stepfunctions-service',
       resourceNames: [`${change.newValue.Type} '${stateMachineArn?.split(':')[6]}'`],
       apply: async (sdk: SDK) => {
-        if (!stateMachineArn) {
-          return;
-        }
-
         // not passing the optional properties leaves them unchanged
         await sdk.stepFunctions().updateStateMachine({
           stateMachineArn,

@@ -3,6 +3,8 @@ import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { CloudFormationStack } from './cloudformation';
 import type { NestedStackTemplates } from './nested-stack-helpers';
@@ -17,8 +19,8 @@ import type {
   ChangeHotswapResult,
   HotswapOperation,
   NonHotswappableChange,
-  ResourceChange,
-  HotswapPropertyOverrides, ClassifiedResourceChanges,
+  HotswapPropertyOverrides,
+  ClassifiedResourceChanges,
 } from '../hotswap/common';
 import {
   ICON,
@@ -35,7 +37,6 @@ import {
 import { isHotswappableStateMachineChange } from '../hotswap/stepfunctions-state-machines';
 import { Mode } from '../plugin';
 import type { SuccessfulDeployStackResult } from './deployment-result';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -324,7 +325,8 @@ async function findNestedHotswappableChanges(
     evaluateNestedCfnTemplate,
     sdk,
     nestedStackTemplates[logicalId].nestedStackTemplates,
-    hotswapPropertyOverrides);
+    hotswapPropertyOverrides,
+  );
 }
 
 /** Returns 'true' if a pair of changes is for the same resource. */
