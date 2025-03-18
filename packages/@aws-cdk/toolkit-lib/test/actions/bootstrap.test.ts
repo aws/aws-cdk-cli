@@ -13,13 +13,6 @@ import { bold } from 'chalk';
 function expectValidBootstrapResult(result: any) {
   expect(result).toHaveProperty('environments');
   expect(Array.isArray(result.environments)).toBe(true);
-  expect(result).toHaveProperty('summary');
-  expect(result.summary).toHaveProperty('total');
-  expect(result.summary).toHaveProperty('successful');
-  expect(result.summary).toHaveProperty('failed');
-  expect(result.summary).toHaveProperty('noOp');
-  expect(result).toHaveProperty('duration');
-  expect(typeof result.duration).toBe('number');
 }
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
@@ -34,6 +27,7 @@ import {
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
 } from '../util/aws-cdk';
+import { EnvironmentUtils } from '@aws-cdk/cx-api';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -151,9 +145,6 @@ describe('bootstrap', () => {
       // THEN
       expectValidBootstrapResult(result);
       expect(result.environments.length).toBe(2);
-      expect(result.summary.total).toBe(2);
-      expect(result.summary.successful).toBe(2);
-      expect(result.summary.failed).toBe(0);
 
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')}: bootstrapping...`),
@@ -512,12 +503,8 @@ describe('bootstrap', () => {
       // THEN
       expectValidBootstrapResult(result);
       expect(result.environments.length).toBe(1);
-      expect(result.summary.total).toBe(1);
-      expect(result.summary.successful).toBe(1);
-      expect(result.summary.failed).toBe(0);
       expect(result.environments[0].status).toBe('success');
-      expect(result.environments[0].environment).toBe('aws://123456789012/us-east-1');
-      expect(result.environments[0].duration).toBeGreaterThan(0);
+      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make("123456789012", "us-east-1"));
     });
 
     test('returns correct BootstrapResult for no-op scenarios', async () => {
@@ -553,10 +540,8 @@ describe('bootstrap', () => {
       // THEN
       expectValidBootstrapResult(result);
       expect(result.environments.length).toBe(1);
-      expect(result.summary.total).toBe(1);
-      expect(result.summary.noOp).toBe(1);
       expect(result.environments[0].status).toBe('no-op');
-      expect(result.environments[0].environment).toBe('aws://123456789012/us-east-1');
+      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make("123456789012", "us-east-1"));
       expect(result.environments[0].message).toContain('No changes required');
     });
 

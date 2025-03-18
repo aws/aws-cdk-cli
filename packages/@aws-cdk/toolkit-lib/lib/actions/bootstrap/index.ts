@@ -170,21 +170,14 @@ export interface BootstrapParameters {
 }
 
 export interface EnvironmentBootstrapResult {
-  environment: string;
-  status: 'success' | 'failed' | 'no-op';
+  environment: cxapi.Environment;
+  status: 'success' | 'no-op';
   message?: string;
   error?: Error;
-  duration: number;
 }
 
 export interface BootstrapResult {
   environments: EnvironmentBootstrapResult[];
-  summary: {
-    total: number;
-    successful: number;
-    failed: number;
-    noOp: number;
-  };
   duration: number;
 }
 

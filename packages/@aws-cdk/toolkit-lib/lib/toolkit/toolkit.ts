@@ -160,9 +160,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const limit = pLimit(20);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {
-      const envStartTime = Date.now();
-
+    await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {      
       const bootstrapSpan = await ioHelper.span(SPAN.BOOTSTRAP_SINGLE)
         .begin(`${chalk.bold(environment.name)}: bootstrapping...`, {
           total: bootstrapEnvironments.length,
@@ -184,10 +182,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         );
 
         const result: EnvironmentBootstrapResult = {
-          environment: environment.name,
+          environment,
           status: bootstrapResult.noOp ? 'no-op' : 'success',
           message: bootstrapResult.noOp ? 'No changes required' : 'Successfully bootstrapped',
-          duration: Date.now() - envStartTime,
         };
 
         results.push(result);
@@ -199,6 +196,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
         await bootstrapSpan.end();
       } catch (e: any) {
+<<<<<<< HEAD
         const result: EnvironmentBootstrapResult = {
           environment: environment.name,
           status: 'failed',
@@ -209,30 +207,15 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
         results.push(result);
 
+=======
+>>>>>>> b3cbc8d (remove summary, remove unreachable code, use cxapi.Environment instead of string environment)
         await ioHelper.notify(IO.CDK_TOOLKIT_E9900.msg(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw e;
       }
     })));
 
-    const summary = results.reduce((acc, result) => {
-      acc.total++;
-      switch (result.status) {
-        case 'success':
-          acc.successful++;
-          break;
-        case 'failed':
-          acc.failed++;
-          break;
-        case 'no-op':
-          acc.noOp++;
-          break;
-      }
-      return acc;
-    }, { total: 0, successful: 0, failed: 0, noOp: 0 });
-
     return {
       environments: results,
-      summary,
       duration: Date.now() - startTime,
     };
   }
