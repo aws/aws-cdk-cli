@@ -536,7 +536,7 @@ const cdkAssets = configureProject(
     description: 'CDK Asset Publishing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema,
+      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
       cxApi,
       'archiver',
       'glob',
@@ -722,8 +722,8 @@ const cli = configureProject(
       'xml-js',
     ],
     deps: [
-      cloudAssemblySchema,
-      cloudFormationDiff,
+      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
       '@aws-cdk/region-info',
       'archiver',
@@ -962,7 +962,7 @@ const cliLib = configureProject(
     entrypoint: 'lib/main.js', // Bundled entrypoint
     description: 'AWS CDK Programmatic CLI library',
     srcdir: 'lib',
-    devDeps: ['aws-cdk-lib', cli, 'constructs'],
+    devDeps: ['aws-cdk-lib', cli.customizeReference({ versionType: 'exact' }), 'constructs'],
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
@@ -1060,6 +1060,8 @@ const toolkitLib = configureProject(
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema,
+      // Purposely a ^ dependency so that clients selecting old toolkit library
+      // versions still might get upgrades to this dependency.
       cloudFormationDiff,
       cxApi,
       '@aws-cdk/region-info',
@@ -1093,6 +1095,7 @@ const toolkitLib = configureProject(
       '@smithy/util-waiter',
       'archiver',
       'camelcase@^6', // Non-ESM
+      // Purposely a ^ dependency so that clients get upgrades to this library.
       cdkAssets,
       'cdk-from-cfn',
       'chalk@^4',
@@ -1305,7 +1308,7 @@ const cdkAliasPackage = configureProject(
     name: 'cdk',
     description: 'AWS CDK Toolkit',
     srcdir: 'lib',
-    deps: [cli],
+    deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
   }),
