@@ -101,6 +101,10 @@
       "type": "build"
     },
     {
+      "name": "@aws-cdk/cloud-assembly-schema",
+      "type": "runtime"
+    },
+    {
       "name": "archiver",
       "type": "runtime"
     },

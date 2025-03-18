@@ -13,3 +13,4 @@ export * from './watch';
 export * from './stack-details';
 export * from './diff';
 export * from './logs-monitor';
+export * from './hotswap';
