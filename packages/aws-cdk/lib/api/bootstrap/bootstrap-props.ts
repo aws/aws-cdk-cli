@@ -1,6 +1,6 @@
-import { BootstrapSource } from './bootstrap-environment';
-import { Tag } from '../tags';
-import { StringWithoutPlaceholders } from '../util/placeholders';
+import type { BootstrapSource } from './bootstrap-environment';
+import type { Tag } from '../tags';
+import type { StringWithoutPlaceholders } from '../util/placeholders';
 
 export const BUCKET_NAME_OUTPUT = 'BucketName';
 export const REPOSITORY_NAME_OUTPUT = 'ImageRepositoryName';

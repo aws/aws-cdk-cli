@@ -1,6 +1,7 @@
 import * as chalk from 'chalk';
-import { RuleJson, SecurityGroupRule } from './security-group-rule';
-import { PropertyChange, ResourceChange } from '../diff/types';
+import type { RuleJson } from './security-group-rule';
+import { SecurityGroupRule } from './security-group-rule';
+import type { PropertyChange, ResourceChange } from '../diff/types';
 import { DiffableCollection } from '../diffable';
 import { renderIntrinsics } from '../render-intrinsics';
 import { deepRemoveUndefined, dropIfEmpty, makeComparator } from '../util';

@@ -1,10 +1,6 @@
 {
   "dependencies": [
     {
-      "name": "@aws-cdk/cdk-build-tools",
-      "type": "build"
-    },
-    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -14,10 +10,6 @@
     },
     {
       "name": "@types/archiver",
-      "type": "build"
-    },
-    {
-      "name": "@types/glob",
       "type": "build"
     },
     {
@@ -118,6 +110,10 @@
     },
     {
       "name": "semver",
+      "type": "runtime"
+    },
+    {
+      "name": "uuid",
       "type": "runtime"
     },
     {

@@ -1,11 +1,11 @@
 import * as path from 'path';
-import { DockerImageDestination } from '@aws-cdk/cloud-assembly-schema';
+import type { DockerImageDestination } from '@aws-cdk/cloud-assembly-schema';
 import { destinationToClientOptions } from './client-options';
-import { DockerImageManifestEntry } from '../../asset-manifest';
+import type { DockerImageManifestEntry } from '../../asset-manifest';
 import type { IECRClient } from '../../aws';
 import { EventType, shellEventPublisherFromEventEmitter } from '../../progress';
-import { IAssetHandler, IHandlerHost, IHandlerOptions } from '../asset-handler';
-import { Docker } from '../docker';
+import type { IAssetHandler, IHandlerHost, IHandlerOptions } from '../asset-handler';
+import type { Docker } from '../docker';
 import { replaceAwsPlaceholders } from '../placeholders';
 import { shell } from '../shell';
 

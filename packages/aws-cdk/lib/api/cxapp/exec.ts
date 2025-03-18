@@ -5,15 +5,17 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import { Configuration, PROJECT_CONFIG, USER_DEFAULTS } from '../../cli/user-configuration';
+import type { Configuration } from '../../cli/user-configuration';
+import { PROJECT_CONFIG, USER_DEFAULTS } from '../../cli/user-configuration';
 import { versionNumber } from '../../cli/version';
 import { debug, warning } from '../../logging';
 import { ToolkitError } from '../../toolkit/error';
 import { loadTree, some } from '../../tree';
 import { splitBySize } from '../../util';
-import { SdkProvider } from '../aws-auth';
-import { Settings } from '../settings';
-import { RWLock, ILock } from '../util/rwlock';
+import type { SdkProvider } from '../aws-auth';
+import type { Settings } from '../settings';
+import type { ILock } from '../util/rwlock';
+import { RWLock } from '../util/rwlock';
 
 export interface ExecProgramResult {
   readonly assembly: cxapi.CloudAssembly;

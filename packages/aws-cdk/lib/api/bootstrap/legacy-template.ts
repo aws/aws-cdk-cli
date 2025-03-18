@@ -1,4 +1,5 @@
-import { BootstrappingParameters, BUCKET_DOMAIN_NAME_OUTPUT, BUCKET_NAME_OUTPUT } from './bootstrap-props';
+import type { BootstrappingParameters } from './bootstrap-props';
+import { BUCKET_DOMAIN_NAME_OUTPUT, BUCKET_NAME_OUTPUT } from './bootstrap-props';
 
 export function legacyBootstrapTemplate(params: BootstrappingParameters): any {
   return {

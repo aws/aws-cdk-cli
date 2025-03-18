@@ -21,6 +21,7 @@
     "post-compile": "npx projen post-compile",
     "pre-compile": "npx projen pre-compile",
     "publish-local": "npx projen publish-local",
+    "registry": "npx projen registry",
     "test": "npx projen test",
     "test:watch": "npx projen test:watch",
     "unbump": "npx projen unbump",
@@ -33,7 +34,6 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/cdk-build-tools": "^0.0.0",
     "@aws-cdk/tmp-toolkit-helpers": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@smithy/types": "^4.1.0",

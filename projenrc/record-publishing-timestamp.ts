@@ -1,4 +1,4 @@
-import { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
+import type { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
 import { Component } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 

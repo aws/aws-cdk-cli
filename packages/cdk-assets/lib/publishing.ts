@@ -1,15 +1,16 @@
-import { AssetManifest, IManifestEntry } from './asset-manifest';
-import { IAws } from './aws';
-import {
+import type { AssetManifest, IManifestEntry } from './asset-manifest';
+import type { IAws } from './aws';
+import type {
   IAssetHandler,
   IHandlerHost,
-  type PublishOptions,
   SubprocessOutputDestination,
+  PublishOptions,
 } from './private/asset-handler';
 import { DockerFactory } from './private/docker';
 import { makeAssetHandler } from './private/handlers';
 import { pLimit } from './private/p-limit';
-import { EventType, IPublishProgress, IPublishProgressListener } from './progress';
+import type { IPublishProgress, IPublishProgressListener } from './progress';
+import { EventType } from './progress';
 
 export interface AssetPublishingOptions {
   /**

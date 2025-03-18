@@ -5,7 +5,8 @@ import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
 import mockfs from './mock-fs';
-import { setLogThreshold, log, LogLevel } from '../bin/logging';
+import type { LogLevel } from '../bin/logging';
+import { setLogThreshold, log } from '../bin/logging';
 
 describe('Logging System', () => {
   let consoleErrorSpy: jest.SpyInstance;

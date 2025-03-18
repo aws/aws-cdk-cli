@@ -1,10 +1,6 @@
 {
   "dependencies": [
     {
-      "name": "@aws-cdk/cdk-build-tools",
-      "type": "build"
-    },
-    {
       "name": "@aws-cdk/cli-plugin-contract",
       "type": "build"
     },
@@ -18,10 +14,6 @@
     },
     {
       "name": "@aws-cdk/user-input-gen",
-      "type": "build"
-    },
-    {
-      "name": "@aws-cdk/yarn-cling",
       "type": "build"
     },
     {
@@ -43,10 +35,6 @@
     {
       "name": "@types/fs-extra",
       "version": "^9",
-      "type": "build"
-    },
-    {
-      "name": "@types/glob",
       "type": "build"
     },
     {
@@ -72,14 +60,6 @@
     },
     {
       "name": "@types/sinon",
-      "type": "build"
-    },
-    {
-      "name": "@types/source-map-support",
-      "type": "build"
-    },
-    {
-      "name": "@types/uuid",
       "type": "build"
     },
     {
@@ -171,10 +151,6 @@
     },
     {
       "name": "madge",
-      "type": "build"
-    },
-    {
-      "name": "make-runnable",
       "type": "build"
     },
     {
@@ -415,10 +391,6 @@
       "type": "runtime"
     },
     {
-      "name": "json-diff",
-      "type": "runtime"
-    },
-    {
       "name": "minimatch",
       "type": "runtime"
     },
@@ -437,10 +409,6 @@
     },
     {
       "name": "semver",
-      "type": "runtime"
-    },
-    {
-      "name": "source-map-support",
       "type": "runtime"
     },
     {

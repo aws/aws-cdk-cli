@@ -1,7 +1,7 @@
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
-import { SDK } from '../aws-auth';
+import type { SDK } from '../aws-auth';
 
 export async function determineAllowCrossAccountAssetPublishing(
   sdk: SDK,

@@ -2,7 +2,7 @@ import { code, FreeFunction, Module, SelectiveModuleImport, Type, TypeScriptRend
 import { EsLintRules } from '@cdklabs/typewriter/lib/eslint-rules';
 import * as prettier from 'prettier';
 import { kebabToCamelCase, SOURCE_OF_TRUTH } from './util';
-import { CliAction, CliConfig } from './yargs-types';
+import type { CliAction, CliConfig } from './yargs-types';
 
 const CLI_ARG_NAME = 'args';
 const CONFIG_ARG_NAME = 'config';
@@ -40,7 +40,10 @@ export async function renderUserInputFuncs(config: CliConfig): Promise<string> {
   createConfigArguments.addBody(code.expr.directCode(buildConfigArgsFunction(config)));
 
   const ts = new TypeScriptRenderer({
-    disabledEsLintRules: [EsLintRules.MAX_LEN], // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found'
+    disabledEsLintRules: [
+      EsLintRules.MAX_LEN, // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found
+      '@typescript-eslint/consistent-type-imports', // (ironically) typewriter does not support type imports
+    ],
   }).render(scope);
 
   return prettier.format(ts, {

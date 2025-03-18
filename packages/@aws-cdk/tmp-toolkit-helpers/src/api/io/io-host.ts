@@ -5,7 +5,7 @@ export interface IIoHost {
    * Notifies the host of a message.
    * The caller waits until the notification completes.
    */
-  notify<T>(msg: IoMessage<T>): Promise<void>;
+  notify(msg: IoMessage<unknown>): Promise<void>;
 
   /**
    * Notifies the host of a message that requires a response.

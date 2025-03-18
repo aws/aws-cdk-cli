@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import { fullDiff } from '../../lib';
-import { MaybeParsed } from '../../lib/diff/maybe-parsed';
-import { IamChangesJson } from '../../lib/iam/iam-changes';
+import type { MaybeParsed } from '../../lib/diff/maybe-parsed';
+import type { IamChangesJson } from '../../lib/iam/iam-changes';
 import { deepRemoveUndefined } from '../../lib/util';
 import { largeSsoPermissionSet, poldoc, policy, resource, role, template } from '../util';
 

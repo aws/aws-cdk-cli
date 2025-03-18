@@ -1,5 +1,5 @@
 import * as child_process from 'child_process';
-import { SubprocessOutputDestination } from './asset-handler';
+import type { SubprocessOutputDestination } from './asset-handler';
 
 export type ShellEventType = 'open' | 'data_stdout' | 'data_stderr' | 'close';
 

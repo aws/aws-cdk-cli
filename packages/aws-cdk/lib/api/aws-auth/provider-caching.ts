@@ -1,5 +1,5 @@
 import { memoize } from '@smithy/property-provider';
-import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
+import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 
 /**
  * Wrap a credential provider in a cache

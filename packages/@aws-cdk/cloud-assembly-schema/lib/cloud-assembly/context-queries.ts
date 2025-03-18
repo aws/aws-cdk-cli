@@ -1,4 +1,4 @@
-import { Tag } from './metadata-schema';
+import type { Tag } from './metadata-schema';
 
 /**
  * Identifier for the context provider

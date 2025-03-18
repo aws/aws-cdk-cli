@@ -270,6 +270,7 @@
         ]
       }
     ],
+    "@typescript-eslint/consistent-type-imports": "error",
     "semi": [
       "error",
       "always"

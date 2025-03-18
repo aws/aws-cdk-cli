@@ -41,7 +41,6 @@
     "@smithy/util-stream": "^4.1.2",
     "@stylistic/eslint-plugin": "^3.1.0",
     "@types/archiver": "^6.0.3",
-    "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.14",
     "@types/mime": "^2",
     "@types/mock-fs": "^4",

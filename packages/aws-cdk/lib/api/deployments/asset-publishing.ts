@@ -1,19 +1,21 @@
 import { type Environment, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
-import {
-  type Account,
-  type AssetManifest,
-  AssetPublishing,
+import type {
   ClientOptions,
   EventType,
-  type IAws,
-  type IECRClient,
-  type IPublishProgress,
-  type IPublishProgressListener,
-  type IS3Client,
-  type ISecretsManagerClient,
+  Account,
+  AssetManifest,
+  IAws,
+  IECRClient,
+  IPublishProgress,
+  IPublishProgressListener,
+  IS3Client,
+  ISecretsManagerClient,
+} from 'cdk-assets';
+import {
+  AssetPublishing,
 } from 'cdk-assets';
 import type { SDK } from '..';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatMessage } from '../../cli/messages';
 import type { IoMessageLevel } from '../../toolkit/cli-io-host';
 import { ToolkitError } from '../../toolkit/error';
@@ -199,6 +201,7 @@ export abstract class BasePublishProgressListener implements IPublishProgressLis
         formatMessage({
           level,
           message: this.getMessage(type, event),
+          data: undefined,
         }),
       );
     }

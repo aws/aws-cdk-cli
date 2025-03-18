@@ -13,7 +13,7 @@
  * calls and locally fake an STS Endpoint using the `FakeSts` class.
  */
 import * as os from 'os';
-import { bockfs } from '@aws-cdk/cdk-build-tools';
+import bockfs from '../../_helpers/bockfs';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fromEnv from '@aws-sdk/credential-provider-env';
 import * as promptly from 'promptly';
@@ -741,7 +741,7 @@ function sdkConfig(sdk: SDK): ConfigurationOptions {
  */
 function prepareCreds(options: PrepareCredsOptions) {
   function convertSections(sections?: Record<string, ProfileUser | ProfileRole>) {
-    const ret = [];
+    const ret: string[] = [];
     for (const [profile, user] of Object.entries(sections ?? {})) {
       ret.push(`[${profile}]`);
 

@@ -2,7 +2,7 @@
 // The CLI cannot depend on the toolkit yet, because the toolkit currently depends on the CLI.
 // Once we have complete the repo split, we will create a temporary, private library package
 // for all code that is shared between CLI and toolkit. This is where this file will then live.
-import { ActionLessMessage } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { ActionLessMessage } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { IoMessageCodeCategory } from '../logging';
 import type { IoMessageCode, IoMessageLevel } from '../toolkit/cli-io-host';
 

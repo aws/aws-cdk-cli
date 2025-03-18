@@ -1,19 +1,19 @@
-import * as cxapi from '@aws-cdk/cx-api';
-import { ImageIdentifier } from '@aws-sdk/client-ecr';
-import { Tag } from '@aws-sdk/client-s3';
+import type * as cxapi from '@aws-cdk/cx-api';
+import type { ImageIdentifier } from '@aws-sdk/client-ecr';
+import type { Tag } from '@aws-sdk/client-s3';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth';
+import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, info } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { Mode } from '../plugin/mode';
 
 // Must use a require() otherwise esbuild complains
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
 const pLimit: typeof import('p-limit') = require('p-limit');
 
 export const S3_ISOLATED_TAG = 'aws-cdk:isolated';

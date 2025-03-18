@@ -2,7 +2,8 @@ import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import { GetBucketLocationCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { MockAws, mockS3 } from './mock-aws';
 import mockfs from './mock-fs';
-import { AssetManifest, AssetPublishing, IAws } from '../lib';
+import type { IAws } from '../lib';
+import { AssetManifest, AssetPublishing } from '../lib';
 import { MockProgressListener } from './mock-progress-listener';
 import { EventType } from '../lib/progress';
 

@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
-import { Context } from '../api/context';
+import type { Context } from '../api/context';
 import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';
 import * as version from '../cli/version';

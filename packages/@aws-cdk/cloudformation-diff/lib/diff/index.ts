@@ -1,4 +1,4 @@
-import { Resource } from '@aws-cdk/service-spec-types';
+import type { Resource } from '@aws-cdk/service-spec-types';
 import * as types from './types';
 import { deepEqual, diffKeyedEntities, loadResourceModel } from './util';
 

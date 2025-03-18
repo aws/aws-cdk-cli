@@ -1,17 +1,18 @@
-import { ClientRequest } from 'http';
-import { RequestOptions } from 'https';
+import type { ClientRequest } from 'http';
+import type { RequestOptions } from 'https';
 import * as https from 'node:https';
 import * as path from 'path';
 import type { Environment } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import { SdkHttpOptions } from './api';
+import type { SdkHttpOptions } from './api';
 import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
 import type { Context } from './api/context';
 import { versionNumber } from './cli/version';
 import { debug, info, warning, error } from './logging';
 import { ToolkitError } from './toolkit/error';
-import { ConstructTreeNode, loadTreeFromDir } from './tree';
+import type { ConstructTreeNode } from './tree';
+import { loadTreeFromDir } from './tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');

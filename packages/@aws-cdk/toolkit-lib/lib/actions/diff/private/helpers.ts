@@ -1,26 +1,7 @@
 import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import { fullDiff } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
-
-/**
- * Different types of permissioning changes in a diff
- */
-export enum PermissionChangeType {
-  /**
-   * No permission changes
-   */
-  NONE = 'none',
-
-  /**
-   * Permissions are broadening
-   */
-  BROADENING = 'broadening',
-
-  /**
-   * Permissions are changed but not broadening
-   */
-  NON_BROADENING = 'non-broadening',
-}
+import { PermissionChangeType } from '../../../api/shared-public';
 
 /**
  * Return whether the diff has security-impacting changes that need confirmation.

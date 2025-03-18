@@ -468,23 +468,6 @@ const cxApi = overrideEslint(
 
 //////////////////////////////////////////////////////////////////////
 
-const yarnCling = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/yarn-cling',
-    description: 'Tool for generating npm-shrinkwrap from yarn.lock',
-    srcdir: 'lib',
-    deps: ['@yarnpkg/lockfile', 'semver'],
-    devDeps: ['@types/semver', '@types/yarnpkg__lockfile'],
-  }),
-);
-yarnCling.testTask.prependExec('ln -sf ../../cdk test/test-fixture/jsii/node_modules/');
-
-//////////////////////////////////////////////////////////////////////
-
 const yargsGen = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps({
@@ -523,35 +506,6 @@ const nodeBundle = configureProject(
 );
 // Too many console statements
 nodeBundle.eslint?.addRules({ 'no-console': ['off'] });
-
-//////////////////////////////////////////////////////////////////////
-
-// This should be deprecated, but only after the move
-const cdkBuildTools = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-build-tools',
-    description: 'Build tools for CDK packages',
-    srcdir: 'lib',
-    deps: [
-      yarnCling,
-      nodeBundle,
-      'fs-extra@^9',
-      'chalk@^4',
-    ],
-    devDeps: [
-      '@types/fs-extra@^9',
-    ],
-    tsconfig: {
-      compilerOptions: {
-        esModuleInterop: false,
-      },
-    },
-  }),
-);
 
 //////////////////////////////////////////////////////////////////////
 
@@ -603,7 +557,6 @@ const cdkAssets = configureProject(
     ],
     devDeps: [
       '@types/archiver',
-      '@types/glob',
       '@types/yargs',
       '@types/mime@^2',
       'fs-extra',
@@ -697,9 +650,7 @@ const tmpToolkitHelpers = configureProject(
     name: '@aws-cdk/tmp-toolkit-helpers',
     description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
     devDeps: [
-      cdkBuildTools,
       '@types/archiver',
-      '@types/glob',
       '@types/semver',
       'fast-check',
     ],
@@ -707,6 +658,7 @@ const tmpToolkitHelpers = configureProject(
       'archiver',
       'glob',
       'semver',
+      'uuid',
       'yaml@^1',
     ],
     tsconfig: {
@@ -730,14 +682,11 @@ tmpToolkitHelpers.package.addField('exports', {
 
 tmpToolkitHelpers.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
-  '@typescript-eslint/consistent-type-imports': 'error',
 });
 
 tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
 
 //////////////////////////////////////////////////////////////////////
-
-let CLI_SDK_VERSION: '2' | '3' = ('3' as any);
 
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -747,35 +696,25 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     srcdir: 'lib',
     devDeps: [
-      yarnCling,
       nodeBundle,
-      cdkBuildTools,
       yargsGen,
       cliPluginContract,
       tmpToolkitHelpers,
       '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
-      '@types/glob',
       '@types/mockery',
       '@types/promptly',
       '@types/semver',
       '@types/sinon',
-      '@types/source-map-support',
-      '@types/uuid',
       '@types/yargs@^15',
       'aws-cdk-lib',
-      ...CLI_SDK_VERSION === '2' ? [
-        'aws-sdk-mock@^5',
-      ] : [
-      ],
       'axios',
       'constructs',
       'fast-check',
       'jest-environment-node',
       'jest-mock',
       'madge',
-      'make-runnable',
       'nock',
       'sinon',
       'ts-mock-imports',
@@ -787,41 +726,37 @@ const cli = configureProject(
       cxApi,
       '@aws-cdk/region-info',
       'archiver',
-      ...CLI_SDK_VERSION === '2' ? [
-        'aws-sdk',
-      ] : [
-        `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-        '@aws-sdk/middleware-endpoint',
-        '@aws-sdk/util-retry',
-        '@aws-sdk/util-waiter',
-        '@smithy/middleware-endpoint',
-        '@smithy/shared-ini-file-loader',
-        '@smithy/property-provider',
-        '@smithy/types',
-        '@smithy/util-retry',
-        '@smithy/util-stream',
-        '@smithy/util-waiter',
-      ],
+      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@aws-sdk/middleware-endpoint',
+      '@aws-sdk/util-retry',
+      '@aws-sdk/util-waiter',
+      '@smithy/middleware-endpoint',
+      '@smithy/shared-ini-file-loader',
+      '@smithy/property-provider',
+      '@smithy/types',
+      '@smithy/util-retry',
+      '@smithy/util-stream',
+      '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
       // A version that is guaranteed to still work on Node 16
@@ -831,13 +766,11 @@ const cli = configureProject(
       'decamelize@^5', // Non-ESM
       'fs-extra@^9',
       'glob',
-      'json-diff',
       'minimatch',
       'p-limit@^3',
       'promptly',
       'proxy-agent',
       'semver',
-      'source-map-support',
       'strip-ansi@^6',
       'table',
       'uuid',
@@ -1181,7 +1114,6 @@ const toolkitLib = configureProject(
       'yargs@^15',
     ],
     devDeps: [
-      cdkBuildTools,
       '@smithy/types',
       '@types/fs-extra',
       '@types/split2',
@@ -1235,7 +1167,6 @@ new S3DocsPublishing(toolkitLib, {
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
-  '@typescript-eslint/consistent-type-imports': 'error',
   'import/no-restricted-paths': ['error', {
     zones: [{
       target: './',
@@ -1265,7 +1196,8 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
-toolkitLib.postCompileTask.exec('ts-node --prefer-ts-exts scripts/gen-code-registry.ts');
+const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-code-registry.ts' });
+toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test built JS files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
@@ -1277,6 +1209,7 @@ toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/nu
 toolkitLib.npmignore?.addPatterns(
   'assets',
   'docs',
+  'docs_html',
   'typedoc.json',
   '*.d.ts.map',
   // Explicitly allow all required files
@@ -1293,7 +1226,7 @@ toolkitLib.npmignore?.addPatterns(
 
 toolkitLib.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
-  'docs',
+  'docs_html',
   'build-info.json',
   'lib/**/*.wasm',
   'lib/**/*.yaml',
@@ -1412,16 +1345,19 @@ new CdkCliIntegTestsWorkflow(repo, {
   testRunsOn: POWERFUL_RUNNER,
 
   localPackages: [
-    // CloudAssemblySchema is not in this list because in the way we're doing
-    // Verdaccio now, its 0.0.0 version will shadow the ACTUAL published version
-    // that aws-cdk-lib depends on, and so will not be found.
-    //
-    // Not sure if that will cause problems yet.
+    cloudAssemblySchema.name,
     cloudFormationDiff.name,
     cdkAssets.name,
     cli.name,
     cliLib.name,
     cdkAliasPackage.name,
+  ],
+
+  allowUpstreamVersions: [
+    // cloud-assembly-schema gets referenced under multiple versions
+    // - Candidate version for cdk-assets
+    // - Previously released version for aws-cdk-lib
+    cloudAssemblySchema.name,
   ],
 });
 

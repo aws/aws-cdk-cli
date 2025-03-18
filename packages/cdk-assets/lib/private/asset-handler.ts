@@ -1,6 +1,6 @@
-import { DockerFactory } from './docker';
-import { IAws } from '../aws';
-import { EventEmitter } from '../progress';
+import type { DockerFactory } from './docker';
+import type { IAws } from '../aws';
+import type { EventEmitter } from '../progress';
 
 /**
  * Options for publishing an asset.

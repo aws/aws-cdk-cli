@@ -272,6 +272,7 @@
         ]
       }
     ],
+    "@typescript-eslint/consistent-type-imports": "error",
     "semi": [
       "error",
       "always"
@@ -314,8 +315,7 @@
     "prettier/prettier": [
       "off"
     ],
-    "@cdklabs/no-throw-default-error": "error",
-    "@typescript-eslint/consistent-type-imports": "error"
+    "@cdklabs/no-throw-default-error": "error"
   },
   "overrides": []
 }

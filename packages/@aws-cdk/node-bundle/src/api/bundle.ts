@@ -4,7 +4,8 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs-extra';
 import { Attributions } from './_attributions';
 import { shell } from './_shell';
-import { Violation, ViolationType, ViolationsReport } from './violation';
+import type { Violation } from './violation';
+import { ViolationType, ViolationsReport } from './violation';
 
 const DEFAULT_ALLOWED_LICENSES = [
   'Apache-2.0',

@@ -2,9 +2,10 @@ import { yarn } from 'cdklabs-projen-project-types';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { WorkflowSteps } from 'projen/lib/github';
-import { Job, JobPermission, Step, Tools } from 'projen/lib/github/workflows-model';
+import type { Job, Step, Tools } from 'projen/lib/github/workflows-model';
+import { JobPermission } from 'projen/lib/github/workflows-model';
 import { NodePackageManager } from 'projen/lib/javascript';
-import { CommonPublishOptions, NpmPublishOptions } from 'projen/lib/release';
+import type { CommonPublishOptions, NpmPublishOptions } from 'projen/lib/release';
 
 export interface JsiiBuildOptions {
   /**

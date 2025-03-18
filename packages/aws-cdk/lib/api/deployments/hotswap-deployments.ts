@@ -1,25 +1,28 @@
 import { format } from 'util';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
-import * as cxapi from '@aws-cdk/cx-api';
-import { WaiterResult } from '@smithy/util-waiter';
+import type * as cxapi from '@aws-cdk/cx-api';
+import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { CloudFormationStack } from './cloudformation';
-import { NestedStackTemplates, loadCurrentTemplateWithNestedStacks } from './nested-stack-helpers';
+import type { NestedStackTemplates } from './nested-stack-helpers';
+import { loadCurrentTemplateWithNestedStacks } from './nested-stack-helpers';
 import { info } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 import { isHotswappableAppSyncChange } from '../hotswap/appsync-mapping-templates';
 import { isHotswappableCodeBuildProjectChange } from '../hotswap/code-build-projects';
-import {
-  ICON,
+import type {
   ChangeHotswapResult,
-  HotswapMode,
   HotswappableChange,
   NonHotswappableChange,
   HotswappableChangeCandidate,
   HotswapPropertyOverrides, ClassifiedResourceChanges,
+} from '../hotswap/common';
+import {
+  ICON,
+  HotswapMode,
   reportNonHotswappableChange,
   reportNonHotswappableResource,
 } from '../hotswap/common';
@@ -31,11 +34,11 @@ import {
 } from '../hotswap/s3-bucket-deployments';
 import { isHotswappableStateMachineChange } from '../hotswap/stepfunctions-state-machines';
 import { Mode } from '../plugin';
-import { SuccessfulDeployStackResult } from './deployment-result';
-import { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { SuccessfulDeployStackResult } from './deployment-result';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
 const pLimit: typeof import('p-limit') = require('p-limit');
 
 type HotswapDetector = (

@@ -5,7 +5,7 @@
  * migration to an SDK v4.
  */
 
-import { Readable } from 'stream';
+import type { Readable } from 'stream';
 
 export interface ResponseMetadata {
   /**

@@ -1,4 +1,5 @@
-import { MaybeParsed, mkParsed } from '../diff/maybe-parsed';
+import type { MaybeParsed } from '../diff/maybe-parsed';
+import { mkParsed } from '../diff/maybe-parsed';
 
 export class ManagedPolicyAttachment {
   public static parseManagedPolicies(identityArn: string, arns: string | string[]): ManagedPolicyAttachment[] {

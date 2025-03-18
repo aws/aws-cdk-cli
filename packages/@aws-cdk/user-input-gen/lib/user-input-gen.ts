@@ -2,7 +2,7 @@ import { Module, SelectiveModuleImport, StructType, Type, TypeScriptRenderer } f
 import { EsLintRules } from '@cdklabs/typewriter/lib/eslint-rules';
 import * as prettier from 'prettier';
 import { kebabToCamelCase, kebabToPascal, SOURCE_OF_TRUTH } from './util';
-import { CliConfig } from './yargs-types';
+import type { CliConfig } from './yargs-types';
 
 export async function renderUserInputType(config: CliConfig): Promise<string> {
   const scope = new Module('aws-cdk');
@@ -121,7 +121,10 @@ export async function renderUserInputType(config: CliConfig): Promise<string> {
   }
 
   const ts = new TypeScriptRenderer({
-    disabledEsLintRules: [EsLintRules.MAX_LEN], // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found'
+    disabledEsLintRules: [
+      EsLintRules.MAX_LEN, // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found
+      '@typescript-eslint/consistent-type-imports', // (ironically) typewriter does not support type imports
+    ],
   }).render(scope);
 
   return prettier.format(ts, {

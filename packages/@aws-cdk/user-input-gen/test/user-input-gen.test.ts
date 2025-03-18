@@ -1,4 +1,5 @@
-import { CliConfig, renderUserInputType } from '../lib';
+import type { CliConfig } from '../lib';
+import { renderUserInputType } from '../lib';
 
 describe('render', () => {
   test('can generate UserInput type', async () => {
@@ -48,7 +49,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Command } from './user-configuration';
 
       /**
@@ -157,7 +158,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Command } from './user-configuration';
 
       /**
@@ -239,7 +240,7 @@ describe('render', () => {
       // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
       // Do not edit by hand; all changes will be overwritten at build time from the config file.
       // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len */
+      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
       import { Command } from './user-configuration';
 
       /**

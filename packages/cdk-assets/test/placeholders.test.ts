@@ -5,7 +5,8 @@ import { DescribeImagesCommand } from '@aws-sdk/client-ecr';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { MockAws, mockEcr, mockS3, resetDefaultAwsMockBehavior } from './mock-aws';
 import mockfs from './mock-fs';
-import { AssetManifest, AssetPublishing, IAws } from '../lib';
+import type { IAws } from '../lib';
+import { AssetManifest, AssetPublishing } from '../lib';
 
 let aws: IAws;
 beforeEach(() => {

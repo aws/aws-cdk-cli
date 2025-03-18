@@ -30,11 +30,9 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/cdk-build-tools": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3.1.0",
     "@types/archiver": "^6.0.3",
-    "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^16",
     "@types/semver": "^7.5.8",
@@ -60,6 +58,7 @@
     "archiver": "^7.0.1",
     "glob": "^11.0.1",
     "semver": "^7.7.1",
+    "uuid": "^11.1.0",
     "yaml": "^1"
   },
   "keywords": [

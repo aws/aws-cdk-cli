@@ -60,9 +60,19 @@ export interface IoMessage<T> {
   readonly message: string;
 
   /**
+   * Identifies the message span, this message belongs to.
+   *
+   * A message span, groups multiple messages together that semantically related to the same operation.
+   * This is an otherwise meaningless identifier.
+   *
+   * A message without a `spanId`, does not belong to a span.
+   */
+  readonly span?: string;
+
+  /**
    * The data attached to the message.
    */
-  readonly data?: T;
+  readonly data: T;
 }
 
 /**

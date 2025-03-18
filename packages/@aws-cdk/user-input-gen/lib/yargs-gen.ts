@@ -1,8 +1,9 @@
-import { $E, Expression, ExternalModule, FreeFunction, IScope, Module, SelectiveModuleImport, Statement, ThingSymbol, Type, TypeScriptRenderer, code, expr } from '@cdklabs/typewriter';
+import type { IScope, Statement } from '@cdklabs/typewriter';
+import { $E, Expression, ExternalModule, FreeFunction, Module, SelectiveModuleImport, ThingSymbol, Type, TypeScriptRenderer, code, expr } from '@cdklabs/typewriter';
 import { EsLintRules } from '@cdklabs/typewriter/lib/eslint-rules';
 import * as prettier from 'prettier';
 import { lit, SOURCE_OF_TRUTH } from './util';
-import { CliConfig, CliOption, YargsOption } from './yargs-types';
+import type { CliConfig, CliOption, YargsOption } from './yargs-types';
 
 // to import lodash.clonedeep properly, we would need to set esModuleInterop: true
 // however that setting does not work in the CLI, so we fudge it.
@@ -47,7 +48,10 @@ export async function renderYargs(config: CliConfig, helpers: CliHelpers): Promi
   parseCommandLineArguments.addBody(makeYargs(config, helpers));
 
   const ts = new TypeScriptRenderer({
-    disabledEsLintRules: [EsLintRules.MAX_LEN], // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found'
+    disabledEsLintRules: [
+      EsLintRules.MAX_LEN, // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found
+      '@typescript-eslint/consistent-type-imports', // (ironically) typewriter does not support type imports
+    ],
   }).render(scope);
 
   return prettier.format(ts, {

@@ -1,4 +1,4 @@
-import { IPublishProgressListener, EventType, IPublishProgress } from '../lib/progress';
+import type { IPublishProgressListener, EventType, IPublishProgress } from '../lib/progress';
 
 export class FakeListener implements IPublishProgressListener {
   public readonly types = new Array<EventType>();
