@@ -194,22 +194,17 @@ describe('bootstrap', () => {
         .on(CreateChangeSetCommand)
         .rejects(error);
 
-      try {
-        // WHEN
-        await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
-        fail('Expected error');
-      } catch (e: any) {
-        // THEN
-        expect(e.message).toContain('Access Denied');
-        expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          level: 'error',
-          message: expect.stringContaining('❌'),
-        }));
-        expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          level: 'error',
-          message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')} failed: Access Denied`),
-        }));
-      }
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Access Denied');
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('❌'),
+      }));
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')} failed: Access Denied`),
+      }));
     });
 
     test('throws error for invalid environment format', async () => {
@@ -573,18 +568,13 @@ describe('bootstrap', () => {
         .on(DescribeStacksCommand)
         .rejects(error);
 
-      try {
-        // WHEN
-        await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
-        fail('Expected error');
-      } catch (e: any) {
-        // THEN
-        expect(e.message).toContain('Access Denied');
-        expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          level: 'error',
-          message: expect.stringContaining('❌'),
-        }));
-      }
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Access Denied');
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('❌'),
+      }));
     });
 
     test('handles generic bootstrap errors', async () => {
@@ -594,18 +584,13 @@ describe('bootstrap', () => {
         .on(DescribeStacksCommand)
         .rejects(error);
 
-      try {
-        // WHEN
-        await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
-        fail('Expected error');
-      } catch (e: any) {
-        // THEN
-        expect(e.message).toContain('Bootstrap failed');
-        expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          level: 'error',
-          message: expect.stringContaining('❌'),
-        }));
-      }
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Bootstrap failed');
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('❌'),
+      }));
     });
 
     test('handles permission errors', async () => {
@@ -616,18 +601,13 @@ describe('bootstrap', () => {
         .on(DescribeStacksCommand)
         .rejects(error);
 
-      try {
-        // WHEN
-        await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
-        fail('Expected error');
-      } catch (e: any) {
-        // THEN
-        expect(e.message).toContain('Access Denied');
-        expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          level: 'error',
-          message: expect.stringContaining('❌'),
-        }));
-      }
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Access Denied');
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('❌'),
+      }));
     });
   });
 });
