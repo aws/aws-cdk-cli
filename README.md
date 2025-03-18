@@ -62,3 +62,12 @@ Here are the packages in this repository. See the README of each package for mor
 Every package comes with its own unit tests. There is a companion repository to this one containing the integration tests. You can find it here: <https://github.com/aws/aws-cdk-cli-testing>
 
 See the [contributing guide](./CONTRIBUTING.md) for more information on this repository.
+
+## Compatibility
+
+The CLI is always able to process CDK apps using a version of the Construct Library
+released before it. We recommend you always keep the CLI version up-to-date to get the
+latest features.
+
+For more details on the compatibility model and specific versions that work together,
+see [COMPATIBILITY.md](COMPATIBILITY.md).

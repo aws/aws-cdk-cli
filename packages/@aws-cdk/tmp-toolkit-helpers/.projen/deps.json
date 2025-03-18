@@ -1,10 +1,6 @@
 {
   "dependencies": [
     {
-      "name": "@aws-cdk/cdk-build-tools",
-      "type": "build"
-    },
-    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },

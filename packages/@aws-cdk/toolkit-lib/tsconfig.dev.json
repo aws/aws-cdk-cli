@@ -47,9 +47,6 @@
       "path": "../../cdk-assets"
     },
     {
-      "path": "../cdk-build-tools"
-    },
-    {
       "path": "../../aws-cdk"
     },
     {
