@@ -177,7 +177,7 @@ function parseArgs<S extends object>(first: any, second?: S): { message: string 
 
   // When the first argument is a string or we have a second argument,
   // then the second arg is the payload, otherwise the first arg is the payload
-  const payload = firstIsMessage ? second : (second ?? first);
+  const payload = (firstIsMessage || second) ? second : first;
 
   return {
     message,
