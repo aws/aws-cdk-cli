@@ -5,7 +5,7 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import type { BootstrapEnvironments, BootstrapOptions } from '../actions/bootstrap';
+import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
@@ -147,7 +147,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<void> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
+    const startTime = Date.now();
+    const results: EnvironmentBootstrapResult[] = [];
+    
     const ioHelper = asIoHelper(this.ioHost, 'bootstrap');
     const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
@@ -158,6 +161,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {
+      const envStartTime = Date.now();
+      
       const bootstrapSpan = await ioHelper.span(SPAN.BOOTSTRAP_SINGLE)
         .begin(`${chalk.bold(environment.name)}: bootstrapping...`, {
           total: bootstrapEnvironments.length,
@@ -177,6 +182,16 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             usePreviousParameters: parameters?.keepExistingParameters,
           },
         );
+
+        const result: EnvironmentBootstrapResult = {
+          environment: environment.name,
+          status: bootstrapResult.noOp ? 'no-op' : 'success',
+          message: bootstrapResult.noOp ? 'No changes required' : 'Successfully bootstrapped',
+          duration: Date.now() - envStartTime,
+        };
+        
+        results.push(result);
+
         const message = bootstrapResult.noOp
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
@@ -184,10 +199,43 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
         await bootstrapSpan.end();
       } catch (e: any) {
+
+        const result: EnvironmentBootstrapResult = {
+          environment: environment.name,
+          status: 'failed',
+          error: e,
+          message: formatErrorMessage(e),
+          duration: Date.now() - envStartTime,
+        };
+
+        results.push(result);
+
         await ioHelper.notify(IO.CDK_TOOLKIT_E9900.msg(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw e;
       }
     })));
+
+    const summary = results.reduce((acc, result) => {
+      acc.total++;
+      switch (result.status) {
+        case 'success':
+          acc.successful++;
+          break;
+        case 'failed':
+          acc.failed++;
+          break;
+        case 'no-op':
+          acc.noOp++;
+          break;
+      }
+      return acc;
+    }, { total: 0, successful: 0, failed: 0, noOp: 0 });
+
+    return {
+      environments: results,
+      summary,
+      duration: Date.now() - startTime,
+    };
   }
 
   /**

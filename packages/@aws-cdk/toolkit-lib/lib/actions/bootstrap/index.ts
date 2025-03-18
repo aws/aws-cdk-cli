@@ -169,6 +169,26 @@ export interface BootstrapParameters {
   readonly customPermissionsBoundary?: string;
 }
 
+export interface EnvironmentBootstrapResult {
+  environment: string;
+  status: 'success' | 'failed' | 'no-op';
+  message?: string;
+  error?: Error;
+  duration: number;
+}
+
+export interface BootstrapResult {
+  environments: EnvironmentBootstrapResult[];
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+    noOp: number;
+  };
+  duration: number;
+}
+  
+
 /**
  * Parameters of the bootstrapping template with flexible configuration options
  */
