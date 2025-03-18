@@ -196,19 +196,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
         await bootstrapSpan.end();
       } catch (e: any) {
-<<<<<<< HEAD
-        const result: EnvironmentBootstrapResult = {
-          environment: environment.name,
-          status: 'failed',
-          error: e,
-          message: formatErrorMessage(e),
-          duration: Date.now() - envStartTime,
-        };
-
-        results.push(result);
-
-=======
->>>>>>> b3cbc8d (remove summary, remove unreachable code, use cxapi.Environment instead of string environment)
         await ioHelper.notify(IO.CDK_TOOLKIT_E9900.msg(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw e;
       }
