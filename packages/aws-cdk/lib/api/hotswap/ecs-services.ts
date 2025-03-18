@@ -11,7 +11,7 @@ import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/sr
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
-const EcsServiceResourceType = 'AWS::ECS::Service';
+const ECS_SERVICE_RESOURCE_TYPE = 'AWS::ECS::Service';
 
 export async function isHotswappableEcsServiceChange(
   logicalId: string,
@@ -35,7 +35,7 @@ export async function isHotswappableEcsServiceChange(
   // find all ECS Services that reference the TaskDefinition that changed
   const resourcesReferencingTaskDef = evaluateCfnTemplate.findReferencesTo(logicalId);
   const ecsServiceResourcesReferencingTaskDef = resourcesReferencingTaskDef.filter(
-    (r) => r.Type === EcsServiceResourceType,
+    (r) => r.Type === ECS_SERVICE_RESOURCE_TYPE,
   );
   const ecsServicesReferencingTaskDef = new Array<EcsService>();
   for (const ecsServiceResource of ecsServiceResourcesReferencingTaskDef) {
@@ -52,7 +52,7 @@ export async function isHotswappableEcsServiceChange(
   if (resourcesReferencingTaskDef.length > ecsServicesReferencingTaskDef.length) {
     // if something besides an ECS Service is referencing the TaskDefinition,
     // hotswap is not possible in FALL_BACK mode
-    const nonEcsServiceTaskDefRefs = resourcesReferencingTaskDef.filter((r) => r.Type !== EcsServiceResourceType);
+    const nonEcsServiceTaskDefRefs = resourcesReferencingTaskDef.filter((r) => r.Type !== ECS_SERVICE_RESOURCE_TYPE);
     for (const taskRef of nonEcsServiceTaskDefRefs) {
       reportNonHotswappableChange(
         ret,
