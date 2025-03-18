@@ -61,13 +61,18 @@ export async function isHotswappableLambdaFunctionChange(
     ret.push({
       change: {
         cause: change,
+        resources: [
+          {
+            logicalId,
+            resourceType: change.newValue.Type,
+            physicalName: functionName,
+            metadata: evaluateCfnTemplate.metadataFor(logicalId),
+          },
+          ...dependencies,
+        ],
       },
       hotswappable: true,
       service: 'lambda',
-      resourceNames: [
-        `Lambda Function '${functionName}'`,
-        ...dependencies.map(d => d.description ?? `${d.resourceType} '${d.physicalName}'`),
-      ],
       apply: async (sdk: SDK) => {
         const lambda = sdk.lambda();
         const operations: Promise<any>[] = [];
@@ -363,9 +368,10 @@ async function dependantResources(
     const name = await evaluateCfnTemplate.evaluateCfnExpression(a.Properties?.Name);
     return {
       logicalId: a.LogicalId,
+      resourceType: a.Type,
       physicalName: name,
-      resourceType: 'AWS::Lambda::Alias',
-      description: `Lambda Alias '${name}' for Function '${functionName}'`,
+      description: `${a.Type} '${name}' for AWS::Lambda::Function '${functionName}'`,
+      metadata: evaluateCfnTemplate.metadataFor(a.LogicalId),
     };
   }));
 
@@ -373,7 +379,8 @@ async function dependantResources(
     {
       logicalId: v.LogicalId,
       resourceType: v.Type,
-      description: `Lambda Version for Function '${functionName}'`,
+      description: `${v.Type} for AWS::Lambda::Function '${functionName}'`,
+      metadata: evaluateCfnTemplate.metadataFor(v.LogicalId),
     }
   ));
 

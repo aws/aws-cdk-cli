@@ -39,10 +39,15 @@ export async function isHotswappableCodeBuildProjectChange(
     ret.push({
       change: {
         cause: change,
+        resources: [{
+          logicalId: logicalId,
+          resourceType: change.newValue.Type,
+          physicalName: projectName,
+          metadata: evaluateCfnTemplate.metadataFor(logicalId),
+        }],
       },
       hotswappable: true,
       service: 'codebuild',
-      resourceNames: [`CodeBuild Project '${projectName}'`],
       apply: async (sdk: SDK) => {
         updateProjectInput.name = projectName;
 

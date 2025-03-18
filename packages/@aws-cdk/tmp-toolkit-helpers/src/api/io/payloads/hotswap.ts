@@ -1,5 +1,6 @@
 import type { PropertyDifference, Resource } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { ResourceMetadata } from '../../resource-metadata/resource-metadata';
 
 /**
  * A resource affected by a change
@@ -24,6 +25,13 @@ export interface AffectedResource {
    * A physical name is not always available, e.g. new resources will not have one until after the deployment
    */
   readonly physicalName?: string;
+  /**
+   * Resource metadata attached to the logical id from the cloud assembly
+   *
+   * This is only present if the resource is present in the current Cloud Assembly,
+   * i.e. resource deletions will not have metadata.
+   */
+  readonly metadata?: ResourceMetadata;
 }
 
 /**
@@ -56,6 +64,10 @@ export interface HotswappableChange {
    * The resource change that is causing the hotswap.
    */
   readonly cause: ResourceChange;
+  /**
+   * A list of resources that are being hotswapped as part of the change
+   */
+  readonly resources: AffectedResource[];
 }
 
 /**
@@ -72,4 +84,3 @@ export interface HotswapDeployment {
    */
   readonly mode: 'hotswap-only' | 'fall-back';
 }
-

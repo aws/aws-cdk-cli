@@ -64,10 +64,15 @@ export async function isHotswappableAppSyncChange(
     ret.push({
       change: {
         cause: change,
+        resources: [{
+          logicalId,
+          resourceType: change.newValue.Type,
+          physicalName,
+          metadata: evaluateCfnTemplate.metadataFor(logicalId),
+        }],
       },
       hotswappable: true,
       service: 'appsync',
-      resourceNames: [`${change.newValue.Type} '${physicalName}'`],
       apply: async (sdk: SDK) => {
         const sdkProperties: { [name: string]: any } = {
           ...change.oldValue.Properties,

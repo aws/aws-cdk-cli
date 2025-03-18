@@ -34,10 +34,15 @@ export async function isHotswappableStateMachineChange(
     ret.push({
       change: {
         cause: change,
+        resources: [{
+          logicalId,
+          resourceType: change.newValue.Type,
+          physicalName: stateMachineArn?.split(':')[6],
+          metadata: evaluateCfnTemplate.metadataFor(logicalId),
+        }],
       },
       hotswappable: true,
       service: 'stepfunctions-service',
-      resourceNames: [`${change.newValue.Type} '${stateMachineArn?.split(':')[6]}'`],
       apply: async (sdk: SDK) => {
         // not passing the optional properties leaves them unchanged
         await sdk.stepFunctions().updateStateMachine({

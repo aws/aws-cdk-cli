@@ -23,7 +23,7 @@ export interface HotswapResult {
   /**
    * The changes that were deemed hotswappable
    */
-  readonly hotswappableChanges: any[];
+  readonly hotswappableChanges: HotswappableChange[];
   /**
    * The changes that were deemed not hotswappable
    */
@@ -46,11 +46,6 @@ export interface HotswapOperation {
    * Description of the change that is applied as part of the operation
    */
   readonly change: HotswappableChange;
-
-  /**
-   * The names of the resources being hotswapped.
-   */
-  readonly resourceNames: string[];
 
   /**
    * Applies the hotswap operation
@@ -80,7 +75,7 @@ export interface NonHotswappableChange {
 export type ChangeHotswapResult = Array<HotswapOperation | NonHotswappableChange>;
 
 export interface ClassifiedResourceChanges {
-  hotswappableChanges: HotswapOperation[];
+  hotswapOperations: HotswapOperation[];
   nonHotswappableChanges: NonHotswappableChange[];
 }
 

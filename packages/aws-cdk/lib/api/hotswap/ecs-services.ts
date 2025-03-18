@@ -41,7 +41,10 @@ export async function isHotswappableEcsServiceChange(
   for (const ecsServiceResource of ecsServiceResourcesReferencingTaskDef) {
     const serviceArn = await evaluateCfnTemplate.findPhysicalNameFor(ecsServiceResource.LogicalId);
     if (serviceArn) {
-      ecsServicesReferencingTaskDef.push({ serviceArn });
+      ecsServicesReferencingTaskDef.push({
+        logicalId: ecsServiceResource.LogicalId,
+        serviceArn,
+      });
     }
   }
   if (ecsServicesReferencingTaskDef.length === 0) {
@@ -69,13 +72,23 @@ export async function isHotswappableEcsServiceChange(
     ret.push({
       change: {
         cause: change,
+        resources: [
+          {
+            logicalId,
+            resourceType: change.newValue.Type,
+            physicalName: await taskDefinitionResource.Family,
+            metadata: evaluateCfnTemplate.metadataFor(logicalId),
+          },
+          ...ecsServicesReferencingTaskDef.map((ecsService) => ({
+            resourceType: ECS_SERVICE_RESOURCE_TYPE,
+            physicalName: ecsService.serviceArn.split('/')[2],
+            logicalId: ecsService.logicalId,
+            metadata: evaluateCfnTemplate.metadataFor(ecsService.logicalId),
+          })),
+        ],
       },
       hotswappable: true,
       service: 'ecs-service',
-      resourceNames: [
-        `ECS Task Definition '${await taskDefinitionResource.Family}'`,
-        ...ecsServicesReferencingTaskDef.map((ecsService) => `ECS Service '${ecsService.serviceArn.split('/')[2]}'`),
-      ],
       apply: async (sdk: SDK) => {
         // Step 1 - update the changed TaskDefinition, creating a new TaskDefinition Revision
         // we need to lowercase the evaluated TaskDef from CloudFormation,
@@ -141,6 +154,7 @@ export async function isHotswappableEcsServiceChange(
 }
 
 interface EcsService {
+  readonly logicalId: string;
   readonly serviceArn: string;
 }
 

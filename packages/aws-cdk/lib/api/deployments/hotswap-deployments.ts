@@ -3,7 +3,7 @@ import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
-import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
+import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
 import type { IMessageSpan, IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IO, SPAN } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { SDK, SdkProvider } from '../aws-auth';
@@ -157,7 +157,7 @@ async function hotswapDeployment(
   });
 
   const stackChanges = cfn_diff.fullDiff(currentTemplate.deployedRootTemplate, stack.template);
-  const { hotswappableChanges, nonHotswappableChanges } = await classifyResourceChanges(
+  const { hotswapOperations, nonHotswappableChanges } = await classifyResourceChanges(
     stackChanges,
     evaluateCfnTemplate,
     sdk,
@@ -165,6 +165,8 @@ async function hotswapDeployment(
   );
 
   await logNonHotswappableChanges(ioSpan, nonHotswappableChanges, hotswapMode);
+
+  const hotswappableChanges = hotswapOperations.map(o => o.change);
 
   // preserve classic hotswap behavior
   if (hotswapMode === 'fall-back') {
@@ -179,7 +181,7 @@ async function hotswapDeployment(
   }
 
   // apply the short-circuitable changes
-  await applyAllHotswappableChanges(sdk, ioSpan, hotswappableChanges);
+  await applyAllHotswappableChanges(sdk, ioSpan, hotswapOperations);
 
   return {
     stack,
@@ -225,7 +227,7 @@ async function classifyResourceChanges(
         sdk,
         hotswapPropertyOverrides,
       );
-      hotswappableResources.push(...nestedHotswappableResources.hotswappableChanges);
+      hotswappableResources.push(...nestedHotswappableResources.hotswapOperations);
       nonHotswappableResources.push(...nestedHotswappableResources.nonHotswappableChanges);
 
       continue;
@@ -275,7 +277,7 @@ async function classifyResourceChanges(
   }
 
   return {
-    hotswappableChanges: hotswappableResources,
+    hotswapOperations: hotswappableResources,
     nonHotswappableChanges: nonHotswappableResources,
   };
 }
@@ -343,7 +345,7 @@ async function findNestedHotswappableChanges(
   const nestedStack = nestedStackTemplates[logicalId];
   if (!nestedStack.physicalName) {
     return {
-      hotswappableChanges: [],
+      hotswapOperations: [],
       nonHotswappableChanges: [
         {
           hotswappable: false,
@@ -470,8 +472,10 @@ async function applyHotswappableChange(sdk: SDK, ioSpan: IMessageSpan<any>, hots
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);
 
-  for (const name of hotswapOperation.resourceNames) {
-    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format(`   ${ICON} %s`, chalk.bold(name))));
+  const resourceText = (r: AffectedResource) => r.description ?? `${r.resourceType} '${r.physicalName ?? r.logicalId}'`;
+
+  for (const resource of hotswapOperation.change.resources) {
+    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format(`   ${ICON} %s`, chalk.bold(resourceText(resource)))));
   }
 
   // if the SDK call fails, an error will be thrown by the SDK
@@ -488,8 +492,8 @@ async function applyHotswappableChange(sdk: SDK, ioSpan: IMessageSpan<any>, hots
     throw e;
   }
 
-  for (const name of hotswapOperation.resourceNames) {
-    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format(`${ICON} %s %s`, chalk.bold(name), chalk.green('hotswapped!'))));
+  for (const resource of hotswapOperation.change.resources) {
+    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format(`${ICON} %s %s`, chalk.bold(resourceText(resource)), chalk.green('hotswapped!'))));
   }
 
   sdk.removeCustomUserAgent(customUserAgent);

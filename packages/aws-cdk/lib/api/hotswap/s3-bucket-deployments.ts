@@ -12,7 +12,7 @@ const REQUIRED_BY_CFN = 'required-to-be-present-by-cfn';
 const CDK_BUCKET_DEPLOYMENT_CFN_TYPE = 'Custom::CDKBucketDeployment';
 
 export async function isHotswappableS3BucketDeploymentChange(
-  _logicalId: string,
+  logicalId: string,
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
@@ -39,10 +39,16 @@ export async function isHotswappableS3BucketDeploymentChange(
   ret.push({
     change: {
       cause: change,
+      resources: [{
+        logicalId,
+        physicalName: customResourceProperties.DestinationBucketName,
+        resourceType: CDK_BUCKET_DEPLOYMENT_CFN_TYPE,
+        description: `Contents of AWS::S3::Bucket '${customResourceProperties.DestinationBucketName}'`,
+        metadata: evaluateCfnTemplate.metadataFor(logicalId),
+      }],
     },
     hotswappable: true,
     service: 'custom-s3-deployment',
-    resourceNames: [`Contents of S3 Bucket '${customResourceProperties.DestinationBucketName}'`],
     apply: async (sdk: SDK) => {
       await sdk.lambda().invokeCommand({
         FunctionName: functionName,
