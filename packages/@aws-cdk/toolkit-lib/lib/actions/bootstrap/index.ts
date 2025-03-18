@@ -187,7 +187,6 @@ export interface BootstrapResult {
   };
   duration: number;
 }
-  
 
 /**
  * Parameters of the bootstrapping template with flexible configuration options

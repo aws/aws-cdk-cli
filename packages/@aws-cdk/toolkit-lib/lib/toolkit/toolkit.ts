@@ -150,7 +150,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
     const startTime = Date.now();
     const results: EnvironmentBootstrapResult[] = [];
-    
+
     const ioHelper = asIoHelper(this.ioHost, 'bootstrap');
     const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
@@ -162,7 +162,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {
       const envStartTime = Date.now();
-      
+
       const bootstrapSpan = await ioHelper.span(SPAN.BOOTSTRAP_SINGLE)
         .begin(`${chalk.bold(environment.name)}: bootstrapping...`, {
           total: bootstrapEnvironments.length,
@@ -189,7 +189,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           message: bootstrapResult.noOp ? 'No changes required' : 'Successfully bootstrapped',
           duration: Date.now() - envStartTime,
         };
-        
+
         results.push(result);
 
         const message = bootstrapResult.noOp
@@ -199,7 +199,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
         await bootstrapSpan.end();
       } catch (e: any) {
-
         const result: EnvironmentBootstrapResult = {
           environment: environment.name,
           status: 'failed',
