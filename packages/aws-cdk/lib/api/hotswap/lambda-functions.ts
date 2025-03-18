@@ -3,7 +3,7 @@ import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
 import type { ChangeHotswapResult } from './common';
 import { classifyChanges } from './common';
-import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';
@@ -66,7 +66,7 @@ export async function isHotswappableLambdaFunctionChange(
       service: 'lambda',
       resourceNames: [
         `Lambda Function '${functionName}'`,
-        ...dependencies.map(d => d.description),
+        ...dependencies.map(d => d.description ?? `${d.resourceType} '${d.physicalName}'`),
       ],
       apply: async (sdk: SDK) => {
         const lambda = sdk.lambda();
@@ -354,12 +354,7 @@ async function dependantResources(
   logicalId: string,
   functionName: string,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<Array<{
-    logicalId: string;
-    resourceType: string;
-    physicalName?: string;
-    description: string;
-  }>> {
+): Promise<Array<AffectedResource>> {
   const candidates = await versionsAndAliases(logicalId, evaluateCfnTemplate);
 
   // Limited set of updates per function

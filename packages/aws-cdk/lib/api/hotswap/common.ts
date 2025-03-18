@@ -1,9 +1,34 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { HotswappableChange, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
 export const ICON = '✨';
+
+/**
+ * The result of an attempted hotswap deployment
+ */
+export interface HotswapResult {
+  /**
+   * The stack that was hotswapped
+   */
+  readonly stack: CloudFormationStackArtifact;
+  /**
+   * Whether hotswapping happened or not.
+   *
+   * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
+   */
+  readonly hotswapped: boolean;
+  /**
+   * The changes that were deemed hotswappable
+   */
+  readonly hotswappableChanges: any[];
+  /**
+   * The changes that were deemed not hotswappable
+   */
+  readonly nonHotswappableChanges: any[];
+}
 
 export interface HotswapOperation {
   /**

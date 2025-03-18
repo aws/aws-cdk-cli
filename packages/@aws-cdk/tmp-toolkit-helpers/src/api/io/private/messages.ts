@@ -5,6 +5,7 @@ import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environ
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
+import type { HotswapDeployment } from '../payloads/hotswap';
 import type { StackDetailsPayload } from '../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
 import type { StackRollbackProgress } from '../payloads/rollback';
@@ -188,6 +189,16 @@ export const IO = {
   }),
 
   // Hotswap (54xx)
+  CDK_TOOLKIT_I5400: make.trace<HotswapDeployment>({
+    code: 'CDK_TOOLKIT_I5400',
+    description: 'Starting a hotswap deployment',
+    interface: 'HotswapDeployment',
+  }),
+  CDK_TOOLKIT_I5410: make.info<Duration>({
+    code: 'CDK_TOOLKIT_I5410',
+    description: 'Hotswap deployment has ended, a full deployment might still follow if needed',
+    interface: 'Duration',
+  }),
 
   // Stack Monitor (55xx)
   CDK_TOOLKIT_I5501: make.info<StackMonitoringControlEvent>({
@@ -442,5 +453,10 @@ export const SPAN = {
     name: 'Publish Asset',
     start: IO.CDK_TOOLKIT_I5220,
     end: IO.CDK_TOOLKIT_I5221,
+  },
+  HOTSWAP: {
+    name: 'hotswap-deployment',
+    start: IO.CDK_TOOLKIT_I5400,
+    end: IO.CDK_TOOLKIT_I5410,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;
