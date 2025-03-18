@@ -2,16 +2,16 @@ import type { UpdateProjectCommandInput } from '@aws-sdk/client-codebuild';
 import {
   type ChangeHotswapResult,
   classifyChanges,
-  type HotswappableChangeCandidate,
   lowerCaseFirstCharacter,
   transformObjectKeys,
 } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
 export async function isHotswappableCodeBuildProjectChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   if (change.newValue.Type !== 'AWS::CodeBuild::Project') {
@@ -30,16 +30,20 @@ export async function isHotswappableCodeBuildProjectChange(
       logicalId,
       change.newValue.Properties?.Name,
     );
+
+    // nothing to do jere
+    if (!projectName) {
+      return ret;
+    }
+
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: classifiedChanges.namesOfHotswappableProps,
       service: 'codebuild',
       resourceNames: [`CodeBuild Project '${projectName}'`],
       apply: async (sdk: SDK) => {
-        if (!projectName) {
-          return;
-        }
         updateProjectInput.name = projectName;
 
         for (const updatedPropName in change.propertyUpdates) {

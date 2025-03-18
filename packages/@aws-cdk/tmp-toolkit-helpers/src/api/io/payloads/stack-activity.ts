@@ -1,7 +1,7 @@
-import type { MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { StackProgress } from './progress';
+import type { ResourceMetadata } from '../../resource-metadata/resource-metadata';
 
 /**
  * Payload when stack monitoring is starting or stopping for a given stack deployment.
@@ -48,6 +48,9 @@ export interface StackActivity {
 
   /**
    * Additional resource metadata
+   *
+   * This information is only available if the information is available in the current cloud assembly.
+   * I.e. no `metadata` will not be available for resource deletion events.
    */
   readonly metadata?: ResourceMetadata;
 
@@ -55,9 +58,4 @@ export interface StackActivity {
    * The stack progress
    */
   readonly progress: StackProgress;
-}
-
-export interface ResourceMetadata {
-  entry: MetadataEntry;
-  constructPath: string;
 }

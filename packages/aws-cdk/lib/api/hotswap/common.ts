@@ -1,13 +1,41 @@
-import type { PropertyDifference, Resource } from '@aws-cdk/cloudformation-diff';
+import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { HotswappableChange, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
 export const ICON = '✨';
 
-export interface HotswappableChange {
+/**
+ * The result of an attempted hotswap deployment
+ */
+export interface HotswapResult {
+  /**
+   * The stack that was hotswapped
+   */
+  readonly stack: CloudFormationStackArtifact;
+  /**
+   * Whether hotswapping happened or not.
+   *
+   * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
+   */
+  readonly hotswapped: boolean;
+  /**
+   * The changes that were deemed hotswappable
+   */
+  readonly hotswappableChanges: any[];
+  /**
+   * The changes that were deemed not hotswappable
+   */
+  readonly nonHotswappableChanges: any[];
+}
+
+export interface HotswapOperation {
+  /**
+   * Marks the operation as hotswappable
+   */
   readonly hotswappable: true;
-  readonly resourceType: string;
-  readonly propsChanged: Array<string>;
+
   /**
    * The name of the service being hotswapped.
    * Used to set a custom User-Agent for SDK calls.
@@ -15,10 +43,18 @@ export interface HotswappableChange {
   readonly service: string;
 
   /**
+   * Description of the change that is applied as part of the operation
+   */
+  readonly change: HotswappableChange;
+
+  /**
    * The names of the resources being hotswapped.
    */
   readonly resourceNames: string[];
 
+  /**
+   * Applies the hotswap operation
+   */
   readonly apply: (sdk: SDK) => Promise<void>;
 }
 
@@ -41,10 +77,10 @@ export interface NonHotswappableChange {
   readonly hotswapOnlyVisible?: boolean;
 }
 
-export type ChangeHotswapResult = Array<HotswappableChange | NonHotswappableChange>;
+export type ChangeHotswapResult = Array<HotswapOperation | NonHotswappableChange>;
 
 export interface ClassifiedResourceChanges {
-  hotswappableChanges: HotswappableChange[];
+  hotswappableChanges: HotswapOperation[];
   nonHotswappableChanges: NonHotswappableChange[];
 }
 
@@ -63,38 +99,6 @@ export enum HotswapMode {
    * Will not attempt to hotswap anything and instead go straight to CloudFormation
    */
   FULL_DEPLOYMENT = 'full-deployment',
-}
-
-/**
- * Represents a change that can be hotswapped.
- */
-export class HotswappableChangeCandidate {
-  /**
-   * The logical ID of the resource which is being changed
-   */
-  public readonly logicalId: string;
-
-  /**
-   * The value the resource is being updated from
-   */
-  public readonly oldValue: Resource;
-
-  /**
-   * The value the resource is being updated to
-   */
-  public readonly newValue: Resource;
-
-  /**
-   * The changes made to the resource properties
-   */
-  public readonly propertyUpdates: PropDiffs;
-
-  public constructor(logicalId: string, oldValue: Resource, newValue: Resource, propertyUpdates: PropDiffs) {
-    this.logicalId = logicalId;
-    this.oldValue = oldValue;
-    this.newValue = newValue;
-    this.propertyUpdates = propertyUpdates;
-  }
 }
 
 type Exclude = { [key: string]: Exclude | true };
@@ -182,11 +186,11 @@ export function lowerCaseFirstCharacter(str: string): string {
   return str.length > 0 ? `${str[0].toLowerCase()}${str.slice(1)}` : str;
 }
 
-export type PropDiffs = Record<string, PropertyDifference<any>>;
+type PropDiffs = Record<string, PropertyDifference<any>>;
 
 export class ClassifiedChanges {
   public constructor(
-    public readonly change: HotswappableChangeCandidate,
+    public readonly change: ResourceChange,
     public readonly hotswappableProps: PropDiffs,
     public readonly nonHotswappableProps: PropDiffs,
   ) {
@@ -212,7 +216,7 @@ export class ClassifiedChanges {
   }
 }
 
-export function classifyChanges(xs: HotswappableChangeCandidate, hotswappablePropNames: string[]): ClassifiedChanges {
+export function classifyChanges(xs: ResourceChange, hotswappablePropNames: string[]): ClassifiedChanges {
   const hotswappableProps: PropDiffs = {};
   const nonHotswappableProps: PropDiffs = {};
 
@@ -229,7 +233,7 @@ export function classifyChanges(xs: HotswappableChangeCandidate, hotswappablePro
 
 export function reportNonHotswappableChange(
   ret: ChangeHotswapResult,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   nonHotswappableProps?: PropDiffs,
   reason?: string,
   hotswapOnlyVisible?: boolean,
@@ -249,7 +253,7 @@ export function reportNonHotswappableChange(
 }
 
 export function reportNonHotswappableResource(
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   reason?: string,
 ): ChangeHotswapResult {
   return [

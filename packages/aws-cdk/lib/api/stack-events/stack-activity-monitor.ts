@@ -1,10 +1,10 @@
 
 import * as util from 'util';
-import { ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
-import type { ResourceMetadata, StackActivity, StackMonitoringControlEvent } from '@aws-cdk/tmp-toolkit-helpers';
+import type { StackActivity, StackMonitoringControlEvent } from '@aws-cdk/tmp-toolkit-helpers';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
+import { resourceMetadata } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
 import { debug, error, info } from '../../cli/messages';
 import { stackEventHasErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
@@ -181,23 +181,12 @@ export class StackActivityMonitor {
     this.scheduleNextTick();
   }
 
-  private findMetadataFor(logicalId: string | undefined): ResourceMetadata | undefined {
+  private findMetadataFor(logicalId: string | undefined) {
     const metadata = this.stack.manifest?.metadata;
     if (!logicalId || !metadata) {
       return undefined;
     }
-    for (const path of Object.keys(metadata)) {
-      const entry = metadata[path]
-        .filter((e) => e.type === ArtifactMetadataEntryType.LOGICAL_ID)
-        .find((e) => e.data === logicalId);
-      if (entry) {
-        return {
-          entry,
-          constructPath: this.simplifyConstructPath(path),
-        };
-      }
-    }
-    return undefined;
+    return resourceMetadata(this.stack, logicalId);
   }
 
   /**
@@ -277,16 +266,5 @@ export class StackActivityMonitor {
         this.errors.push(activity.event.ResourceStatusReason ?? '');
       }
     }
-  }
-
-  private simplifyConstructPath(path: string) {
-    path = path.replace(/\/Resource$/, '');
-    path = path.replace(/^\//, ''); // remove "/" prefix
-
-    // remove "<stack-name>/" prefix
-    if (path.startsWith(this.stackName + '/')) {
-      path = path.slice(this.stackName.length + 1);
-    }
-    return path;
   }
 }

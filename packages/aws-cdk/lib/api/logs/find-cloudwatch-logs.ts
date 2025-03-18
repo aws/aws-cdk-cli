@@ -53,8 +53,7 @@ export async function findCloudWatchLogGroups(
 
   const listStackResources = new LazyListStackResources(sdk, stackArtifact.stackName);
   const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
-    stackName: stackArtifact.stackName,
-    template: stackArtifact.template,
+    stackArtifact,
     parameters: {},
     account: resolvedEnv.account,
     region: resolvedEnv.region,

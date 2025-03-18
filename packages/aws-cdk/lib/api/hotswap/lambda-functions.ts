@@ -1,7 +1,9 @@
 import { Writable } from 'stream';
+import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
-import type { PropDiffs, ChangeHotswapResult, HotswappableChangeCandidate } from './common';
+import type { ChangeHotswapResult } from './common';
 import { classifyChanges } from './common';
+import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';
@@ -13,28 +15,18 @@ const archiver = require('archiver');
 
 export async function isHotswappableLambdaFunctionChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
-  // if the change is for a Lambda Version,
-  // ignore it by returning an empty hotswap operation -
-  // we will publish a new version when we get to hotswapping the actual Function this Version points to, below
+  // if the change is for a Lambda Version, we just ignore it
+  // we will publish a new version when we get to hotswapping the actual Function this Version points to
   // (Versions can't be changed in CloudFormation anyway, they're immutable)
   if (change.newValue.Type === 'AWS::Lambda::Version') {
-    return [
-      {
-        hotswappable: true,
-        resourceType: 'AWS::Lambda::Version',
-        resourceNames: [],
-        propsChanged: [],
-        service: 'lambda',
-        apply: async (_sdk: SDK) => {
-        },
-      },
-    ];
+    return [];
   }
 
   // we handle Aliases specially too
+  // the actual alias update will happen if we change the function
   if (change.newValue.Type === 'AWS::Lambda::Alias') {
     return classifyAliasChanges(change);
   }
@@ -52,38 +44,31 @@ export async function isHotswappableLambdaFunctionChange(
     change.newValue.Properties?.FunctionName,
   );
   const namesOfHotswappableChanges = Object.keys(classifiedChanges.hotswappableProps);
-  if (namesOfHotswappableChanges.length > 0) {
+  if (functionName && namesOfHotswappableChanges.length > 0) {
+    const lambdaCodeChange = await evaluateLambdaFunctionProps(
+      classifiedChanges.hotswappableProps,
+      change.newValue.Properties?.Runtime,
+      evaluateCfnTemplate,
+    );
+
+    // nothing to do here
+    if (lambdaCodeChange === undefined) {
+      return ret;
+    }
+
+    const dependencies = await dependantResources(logicalId, functionName, evaluateCfnTemplate);
+
     ret.push({
+      change: {
+        cause: change,
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
       service: 'lambda',
       resourceNames: [
         `Lambda Function '${functionName}'`,
-        // add Version here if we're publishing a new one
-        ...(await renderVersions(logicalId, evaluateCfnTemplate, [`Lambda Version for Function '${functionName}'`])),
-        // add any Aliases that we are hotswapping here
-        ...(await renderAliases(
-          logicalId,
-          evaluateCfnTemplate,
-          async (alias) => `Lambda Alias '${alias}' for Function '${functionName}'`,
-        )),
+        ...dependencies.map(d => d.description ?? `${d.resourceType} '${d.physicalName}'`),
       ],
       apply: async (sdk: SDK) => {
-        const lambdaCodeChange = await evaluateLambdaFunctionProps(
-          classifiedChanges.hotswappableProps,
-          change.newValue.Properties?.Runtime,
-          evaluateCfnTemplate,
-        );
-        if (lambdaCodeChange === undefined) {
-          return;
-        }
-
-        if (!functionName) {
-          return;
-        }
-
-        const { versionsReferencingFunction, aliasesNames } = await versionsAndAliases(logicalId, evaluateCfnTemplate);
         const lambda = sdk.lambda();
         const operations: Promise<any>[] = [];
 
@@ -116,19 +101,21 @@ export async function isHotswappableLambdaFunctionChange(
           }
 
           // only if the code changed is there any point in publishing a new Version
-          if (versionsReferencingFunction.length > 0) {
+          const versions = dependencies.filter((d) => d.resourceType === 'AWS::Lambda::Version');
+          if (versions.length) {
             const publishVersionPromise = lambda.publishVersion({
               FunctionName: functionName,
             });
 
-            if (aliasesNames.length > 0) {
+            const aliases = dependencies.filter((d) => d.resourceType === 'AWS::Lambda::Alias');
+            if (aliases.length) {
               // we need to wait for the Version to finish publishing
               const versionUpdate = await publishVersionPromise;
-              for (const alias of aliasesNames) {
+              for (const alias of aliases) {
                 operations.push(
                   lambda.updateAlias({
                     FunctionName: functionName,
-                    Name: alias,
+                    Name: alias.physicalName,
                     FunctionVersion: versionUpdate.Version,
                   }),
                 );
@@ -153,23 +140,13 @@ export async function isHotswappableLambdaFunctionChange(
 /**
  * Determines which changes to this Alias are hotswappable or not
  */
-function classifyAliasChanges(change: HotswappableChangeCandidate): ChangeHotswapResult {
+function classifyAliasChanges(change: ResourceChange): ChangeHotswapResult {
   const ret: ChangeHotswapResult = [];
   const classifiedChanges = classifyChanges(change, ['FunctionVersion']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 
-  const namesOfHotswappableChanges = Object.keys(classifiedChanges.hotswappableProps);
-  if (namesOfHotswappableChanges.length > 0) {
-    ret.push({
-      hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: [],
-      service: 'lambda',
-      resourceNames: [],
-      apply: async (_sdk: SDK) => {
-      },
-    });
-  }
+  // we only want to report not hotswappable changes to aliases
+  // the actual alias update will happen if we change the function
 
   return ret;
 }
@@ -180,7 +157,7 @@ function classifyAliasChanges(change: HotswappableChangeCandidate): ChangeHotswa
  * Returns `undefined` if the change is not hotswappable.
  */
 async function evaluateLambdaFunctionProps(
-  hotswappablePropChanges: PropDiffs,
+  hotswappablePropChanges: Record<string, PropertyDifference<any>>,
   runtime: string,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<LambdaFunctionChange | undefined> {
@@ -369,38 +346,39 @@ async function versionsAndAliases(logicalId: string, evaluateCfnTemplate: Evalua
   // find all Lambda Aliases that reference the above Versions
   const aliasesReferencingVersions = flatMap(versionsReferencingFunction, v =>
     evaluateCfnTemplate.findReferencesTo(v.LogicalId));
-  // Limited set of updates per function
-  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  const aliasesNames = await Promise.all(aliasesReferencingVersions.map(a =>
-    evaluateCfnTemplate.evaluateCfnExpression(a.Properties?.Name)));
 
-  return { versionsReferencingFunction, aliasesNames };
+  return { versionsReferencingFunction, aliasesReferencingVersions };
 }
 
-/**
- * Renders the string used in displaying Alias resource names that reference the specified Lambda Function
- */
-async function renderAliases(
+async function dependantResources(
   logicalId: string,
+  functionName: string,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-  callbackfn: (value: any, index: number, array: any[]) => Promise<string>,
-): Promise<string[]> {
-  const aliasesNames = (await versionsAndAliases(logicalId, evaluateCfnTemplate)).aliasesNames;
+): Promise<Array<AffectedResource>> {
+  const candidates = await versionsAndAliases(logicalId, evaluateCfnTemplate);
 
   // Limited set of updates per function
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  return Promise.all(aliasesNames.map(callbackfn));
-}
+  const aliases = await Promise.all(candidates.aliasesReferencingVersions.map(async (a) => {
+    const name = await evaluateCfnTemplate.evaluateCfnExpression(a.Properties?.Name);
+    return {
+      logicalId: a.LogicalId,
+      physicalName: name,
+      resourceType: 'AWS::Lambda::Alias',
+      description: `Lambda Alias '${name}' for Function '${functionName}'`,
+    };
+  }));
 
-/**
- * Renders the string used in displaying Version resource names that reference the specified Lambda Function
- */
-async function renderVersions(
-  logicalId: string,
-  evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-  versionString: string[],
-): Promise<string[]> {
-  const versions = (await versionsAndAliases(logicalId, evaluateCfnTemplate)).versionsReferencingFunction;
+  const versions = candidates.versionsReferencingFunction.map((v) => (
+    {
+      logicalId: v.LogicalId,
+      resourceType: v.Type,
+      description: `Lambda Version for Function '${functionName}'`,
+    }
+  ));
 
-  return versions.length > 0 ? versionString : [];
+  return [
+    ...versions,
+    ...aliases,
+  ];
 }

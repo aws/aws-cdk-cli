@@ -1,4 +1,5 @@
-import type { ChangeHotswapResult, HotswappableChangeCandidate } from './common';
+import type { ChangeHotswapResult } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
@@ -6,18 +7,20 @@ import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-
  * This means that the value is required to exist by CloudFormation's Custom Resource API (or our S3 Bucket Deployment Lambda's API)
  * but the actual value specified is irrelevant
  */
-export const REQUIRED_BY_CFN = 'required-to-be-present-by-cfn';
+const REQUIRED_BY_CFN = 'required-to-be-present-by-cfn';
+
+const CDK_BUCKET_DEPLOYMENT_CFN_TYPE = 'Custom::CDKBucketDeployment';
 
 export async function isHotswappableS3BucketDeploymentChange(
   _logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<ChangeHotswapResult> {
   // In old-style synthesis, the policy used by the lambda to copy assets Ref's the assets directly,
   // meaning that the changes made to the Policy are artifacts that can be safely ignored
   const ret: ChangeHotswapResult = [];
 
-  if (change.newValue.Type !== 'Custom::CDKBucketDeployment') {
+  if (change.newValue.Type !== CDK_BUCKET_DEPLOYMENT_CFN_TYPE) {
     return [];
   }
 
@@ -27,19 +30,20 @@ export async function isHotswappableS3BucketDeploymentChange(
     ServiceToken: undefined,
   });
 
+  // note that this gives the ARN of the lambda, not the name. This is fine though, the invoke() sdk call will take either
+  const functionName = await evaluateCfnTemplate.evaluateCfnExpression(change.newValue.Properties?.ServiceToken);
+  if (!functionName) {
+    return ret;
+  }
+
   ret.push({
+    change: {
+      cause: change,
+    },
     hotswappable: true,
-    resourceType: change.newValue.Type,
-    propsChanged: ['*'],
     service: 'custom-s3-deployment',
     resourceNames: [`Contents of S3 Bucket '${customResourceProperties.DestinationBucketName}'`],
     apply: async (sdk: SDK) => {
-      // note that this gives the ARN of the lambda, not the name. This is fine though, the invoke() sdk call will take either
-      const functionName = await evaluateCfnTemplate.evaluateCfnExpression(change.newValue.Properties?.ServiceToken);
-      if (!functionName) {
-        return;
-      }
-
       await sdk.lambda().invokeCommand({
         FunctionName: functionName,
         // Lambda refuses to take a direct JSON object and requires it to be stringify()'d
@@ -61,7 +65,7 @@ export async function isHotswappableS3BucketDeploymentChange(
 
 export async function skipChangeForS3DeployCustomResourcePolicy(
   iamPolicyLogicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
 ): Promise<boolean> {
   if (change.newValue.Type !== 'AWS::IAM::Policy') {
