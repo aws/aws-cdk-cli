@@ -1,35 +1,10 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
-import type { HotswappableChange, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import type { HotswappableChange, NonHotswappableChange, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { NonHotswappableReason } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
 export const ICON = '✨';
-
-/**
- * The result of an attempted hotswap deployment
- */
-export interface HotswapResult {
-  /**
-   * The stack that was hotswapped
-   */
-  readonly stack: CloudFormationStackArtifact;
-  /**
-   * Whether hotswapping happened or not.
-   *
-   * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
-   */
-  readonly hotswapped: boolean;
-  /**
-   * The changes that were deemed hotswappable
-   */
-  readonly hotswappableChanges: HotswappableChange[];
-  /**
-   * The changes that were deemed not hotswappable
-   */
-  readonly nonHotswappableChanges: any[];
-}
 
 export interface HotswapOperation {
   /**
@@ -60,26 +35,9 @@ export interface RejectedChange {
    */
   readonly hotswappable: false;
   /**
-   * The friendly type of the rejected change
+   * The change that got rejected
    */
-  readonly resourceType: string;
-  /**
-   * The list of properties that are cause for the rejection
-   */
-  readonly rejectedProperties?: Array<string>;
-  /**
-   * The logical ID of the resource that is not hotswappable
-   */
-  readonly logicalId: string;
-  /**
-   * Why was this change was deemed non-hotswappable
-   */
-  readonly reason: NonHotswappableReason;
-  /**
-   * Tells the user exactly why this change was deemed non-hotswappable and what its logical ID is.
-   * If not specified, `displayReason` default to state that the properties listed in `rejectedChanges` are not hotswappable.
-   */
-  readonly description: string;
+  readonly change: NonHotswappableChange;
   /**
    * Whether or not to show this change when listing non-hotswappable changes in HOTSWAP_ONLY mode. Does not affect
    * listing in FALL_BACK mode.
@@ -209,22 +167,34 @@ export function nonHotswappableChange(
 ): RejectedChange {
   return {
     hotswappable: false,
-    rejectedProperties: Object.keys(nonHotswappableProps ?? change.propertyUpdates),
-    logicalId: change.logicalId,
-    resourceType: change.newValue.Type,
-    reason,
-    description,
     hotswapOnlyVisible,
+    change: {
+      reason,
+      description,
+      subject: {
+        type: 'Resource',
+        logicalId: change.logicalId,
+        resourceType: change.newValue.Type,
+        rejectedProperties: Object.keys(nonHotswappableProps ?? change.propertyUpdates),
+        metadata: change.metadata,
+      },
+    },
   };
 }
 
 export function nonHotswappableResource(change: ResourceChange): RejectedChange {
   return {
     hotswappable: false,
-    rejectedProperties: Object.keys(change.propertyUpdates),
-    logicalId: change.logicalId,
-    resourceType: change.newValue.Type,
-    reason: NonHotswappableReason.RESOURCE_UNSUPPORTED,
-    description: 'This resource type is not supported for hotswap deployments',
+    change: {
+      reason: NonHotswappableReason.RESOURCE_UNSUPPORTED,
+      description: 'This resource type is not supported for hotswap deployments',
+      subject: {
+        type: 'Resource',
+        logicalId: change.logicalId,
+        resourceType: change.newValue.Type,
+        rejectedProperties: Object.keys(change.propertyUpdates),
+        metadata: change.metadata,
+      },
+    },
   };
 }
