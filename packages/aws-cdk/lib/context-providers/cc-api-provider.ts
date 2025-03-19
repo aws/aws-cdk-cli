@@ -119,8 +119,14 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
           }
         }
       });
+      if (resultObjs.length === 0) {
+        throw new Error('Could not find any matched resources.');
+      }
+      if (resultObjs.length > 1) {
+        throw new Error(`Found ${resultObjs.length} resources; please narrow the search criteria.`);
+      }
     } catch (err) {
-      throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. Error: ${err}`);
+      throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. ${err}`);
     }
     return resultObjs;
   }

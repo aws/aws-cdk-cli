@@ -107,10 +107,6 @@ test('looks up RDS instance using CC API listResources', async () => {
         Identifier: 'my-db-instance-2',
         Properties: '{"DBInstanceArn":"arn:aws:rds:us-east-1:123456789012:db:test-instance-2","StorageEncrypted":"false","Endpoint":{"Address":"address2.amazonaws.com","Port":"5432"}}',
       },
-      {
-        Identifier: 'my-db-instance-3',
-        Properties: '{"DBInstanceArn":"arn:aws:rds:us-east-1:123456789012:db:test-instance-3","StorageEncrypted":"true","Endpoint":{"Address":"address3.amazonaws.com","Port":"6000"}}',
-      },
     ],
   });
 
@@ -134,15 +130,7 @@ test('looks up RDS instance using CC API listResources', async () => {
     Identifier: 'my-db-instance-1',
   }));
 
-  propsObj = results[1];
-  expect(propsObj).toEqual(expect.objectContaining({
-    DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:test-instance-3',
-    StorageEncrypted: 'true',
-    'Endpoint.Port': '6000',
-    Identifier: 'my-db-instance-3',
-  }));
-
-  expect(results.length).toEqual(2);
+  expect(results.length).toEqual(1);
 });
 
 test('looks up RDS instance using CC API listResources - nested prop', async () => {
@@ -201,7 +189,51 @@ test('looks up RDS instance using CC API listResources - error in CC API', async
       propertyMatch: { 'Endpoint.Port': '5432' },
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}.'); // THEN
+  ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}. Error: No data found'); // THEN
+});
+
+test('looks up VPC managed prefix list using CC API listResources - error for empty result', async () => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertyMatch: { PrefixListName: 'name3' },
+      propertiesToReturn: ['PrefixListId'],
+    }),
+  ).rejects.toThrow('Could not get resources {"PrefixListName":"name3"}. Error: Could not find any matched resources.'); // THEN
+});
+
+test('looks up VPC managed prefix list using CC API listResources - error for multiple results', async () => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertyMatch: { PrefixListName: 'name1' },
+      propertiesToReturn: ['PrefixListId'],
+    }),
+  ).rejects.toThrow('Could not get resources {"PrefixListName":"name1"}. Error: Found 2 resources;'); // THEN
 });
 
 test('error by specifying both exactIdentifier and propertyMatch', async () => {
