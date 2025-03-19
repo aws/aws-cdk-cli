@@ -189,7 +189,7 @@ test('looks up RDS instance using CC API listResources - error in CC API', async
       propertyMatch: { 'Endpoint.Port': '5432' },
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}. Error: No data found'); // THEN
+  ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}.'); // THEN
 });
 
 test('looks up VPC managed prefix list using CC API listResources - error for empty result', async () => {
@@ -211,7 +211,7 @@ test('looks up VPC managed prefix list using CC API listResources - error for em
       propertyMatch: { PrefixListName: 'name3' },
       propertiesToReturn: ['PrefixListId'],
     }),
-  ).rejects.toThrow('Could not get resources {"PrefixListName":"name3"}. Error: Could not find any matched resources.'); // THEN
+  ).rejects.toThrow('Could not find any resources matching {"PrefixListName":"name3"}'); // THEN
 });
 
 test('looks up VPC managed prefix list using CC API listResources - error for multiple results', async () => {
@@ -233,7 +233,7 @@ test('looks up VPC managed prefix list using CC API listResources - error for mu
       propertyMatch: { PrefixListName: 'name1' },
       propertiesToReturn: ['PrefixListId'],
     }),
-  ).rejects.toThrow('Could not get resources {"PrefixListName":"name1"}. Error: Found 2 resources;'); // THEN
+  ).rejects.toThrow('Found 2 resources matching {"PrefixListName":"name1"}'); // THEN
 });
 
 test('error by specifying both exactIdentifier and propertyMatch', async () => {
