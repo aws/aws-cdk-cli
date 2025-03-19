@@ -80,6 +80,22 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
+  CDK_TOOLKIT_I4200: make.debug({
+    code: 'CDK_TOOLKIT_I4200',
+    description: 'Reason for why checking if the stack exists failed',
+  }),
+  CDK_TOOLKIT_I4201: make.info({
+    code: 'CDK_TOOLKIT_I4200',
+    description: 'Notify that checking that the stack exists has failed',
+  }),
+  CDK_TOOLKIT_I4300: make.debug({
+    code: 'CDK_TOOLKIT_I4300',
+    description: 'Reason for skipping changeset creation',
+  }),
+  CDK_TOOLKIT_I4600: make.info({
+    code: 'CDK_TOOLKIT_I4600',
+    description: 'Provides the CloudFormation diff',
+  }),
 
   // 5: Deploy & Watch (5xxx)
   CDK_TOOLKIT_I5000: make.info<Duration>({

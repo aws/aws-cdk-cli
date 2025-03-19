@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
+import * as uuid from 'uuid';
 import * as fs from 'fs-extra';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
@@ -29,8 +30,10 @@ import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
 import { RequireApproval, ToolkitError } from '../api/shared-public';
-import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
+import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, numberFromBool, deserializeStructure } from '../private/util';
 import { pLimit } from '../util/concurrency';
+import { DiffOptions } from '../actions/diff';
+import { removeNonImportResources } from '../../../../aws-cdk/lib/api/resource-import'; // TODO: move this to a sharable place
 
 export interface ToolkitOptions {
   /**
@@ -232,6 +235,123 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     }
 
     return new IdentityCloudAssemblySource(assembly.assembly);
+  }
+
+  /**
+   * Diff Action
+   */
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<number> {
+    const ioHelper = asIoHelper(this.ioHost, 'diff');
+    const assembly = await assemblyFromSource(cx);
+    const selectStacks = options.stacks ?? ALL_STACKS;
+    const stackCollection = assembly.selectStacksV2(selectStacks);
+
+    const deployments = await this.deploymentsForAction('diff');
+
+    const strict = !!options.strict;
+    const contextLines = options.contextLines || 3;
+
+    let diffs = 0;
+    const parameterMap = buildParameterMap(options.parameters?.parameters);
+
+    if (options.templatePath !== undefined) {
+      // Compare single stack against fixed template
+      if (stackCollection.stackCount !== 1) {
+        throw new ToolkitError(
+          'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
+        );
+      }
+
+      if (!(await fs.pathExists(options.templatePath))) {
+        throw new ToolkitError(`There is no file at ${options.templatePath}`);
+      }
+
+      const file = fs.readFileSync(options.templatePath).toString();
+      const template = deserializeStructure(file);
+      diffs = options.securityOnly
+        ? numberFromBool(printSecurityDiff(template, stackCollection.firstStack, RequireApproval.Broadening, quiet))
+        : printStackDiff(template, stackCollection.firstStack, strict, contextLines, quiet, undefined, undefined, false, stream);
+    } else {
+      // Compare N stacks against deployed templates
+      for (const stack of stackCollection.stackArtifacts) {
+        const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
+          stack,
+          options.compareAgainstProcessedTemplate,
+        );
+        const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
+        const nestedStacks = templateWithNestedStacks.nestedStacks;
+
+        const migrator = new ResourceMigrator({
+          deployments,
+          ioHelper: asIoHelper(this.ioHost, 'diff'),
+        });
+        const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
+        if (resourcesToImport) {
+          removeNonImportResources(stack);
+        }
+
+        let changeSet = undefined;
+
+        if (options.changeSet) {
+          let stackExists = false;
+          try {
+            stackExists = await deployments.stackExists({
+              stack,
+              deployName: stack.stackName,
+              tryLookupRole: true,
+            });
+          } catch (e: any) {
+            ioHelper.notify(IO.CDK_TOOLKIT_I4201.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
+            ioHelper.notify(IO.CDK_TOOLKIT_I4200.msg(formatErrorMessage(e)));
+            stackExists = false;
+          }
+
+          if (stackExists) {
+            changeSet = await createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+              stack,
+              uuid: uuid.v4(),
+              deployments,
+              willExecute: false,
+              sdkProvider: this.sdkProvider('diff'),
+              parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+              resourcesToImport,
+              stream,
+            });
+          } else {
+            ioHelper.notify(IO.CDK_TOOLKIT_I4300.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
+          }
+        }
+
+        const stackCount = options.securityOnly
+          ? numberFromBool(
+            printSecurityDiff(
+              currentTemplate,
+              stack,
+              RequireApproval.Broadening,
+              quiet,
+              stack.displayName,
+              changeSet,
+            ),
+          )
+          : printStackDiff(
+            currentTemplate,
+            stack,
+            strict,
+            contextLines,
+            quiet,
+            stack.displayName,
+            changeSet,
+            !!resourcesToImport,
+            stream,
+            nestedStacks,
+          );
+
+        diffs += stackCount;
+      }
+    }
+    ioHelper.notify(IO.CDK_TOOLKIT_I4600.msg(`Number of differences: ${diffs}`));
+
+    return diffs ? 1 : 0;
   }
 
   /**

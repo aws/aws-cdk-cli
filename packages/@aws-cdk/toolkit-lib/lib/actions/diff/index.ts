@@ -1,4 +1,5 @@
 import type { StackSelector } from '../../api/cloud-assembly';
+import { StackParameters } from '../deploy';
 
 export interface CloudFormationDiffOptions {
   /**
@@ -78,10 +79,10 @@ export interface DiffOptions {
   readonly stacks: StackSelector;
 
   /**
-   * The mode to create a stack diff.
+   * The method to create a stack diff.
    *
    * Use changeset diff for the highest fidelity, including analyze resource replacements.
-   * In this mode, diff will use the deploy role instead of the lookup role.
+   * In this method, diff will use the deploy role instead of the lookup role.
    *
    * Use template-only diff for a faster, less accurate diff that doesn't require
    * permissions to create a change-set.
@@ -89,7 +90,7 @@ export interface DiffOptions {
    * Use local-template diff for a fast, local-only diff that doesn't require
    * any permissions or internet access.
    *
-   * @default DiffMode.ChangeSet
+   * @default DiffMethod.ChangeSet
    */
   readonly method: DiffMethod;
 
@@ -114,4 +115,32 @@ export interface DiffOptions {
    * @default false
    */
   readonly securityOnly?: boolean;
+
+  /**
+   * Used a template from disk instead of from the server
+   *
+   * @default - Use from the server
+   */
+  readonly templatePath?: string;
+
+  /**
+   * Stack parameters for CloudFormation used at deploy time
+   * @default StackParameters.onlyExisting()
+   */
+  readonly parameters?: StackParameters;
+
+  /**
+   * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed
+   * (as opposed to the original template, the default, which contains the unprocessed Transforms).
+   *
+   * @default false
+   */
+  compareAgainstProcessedTemplate?: boolean;
+
+  /**
+   * Whether or not to create, analyze, and subsequently delete a changeset
+   *
+   * @default true
+   */
+  changeSet?: boolean;
 }
