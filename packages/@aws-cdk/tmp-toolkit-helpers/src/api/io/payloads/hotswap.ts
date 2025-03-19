@@ -1,5 +1,6 @@
 import type { PropertyDifference, Resource } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { Duration } from './types';
 import type { ResourceMetadata } from '../../resource-metadata/resource-metadata';
 
 /**
@@ -176,10 +177,7 @@ export interface NonHotswappableChange {
   readonly description: string;
 }
 
-/**
- * Information about a hotswap deployment
- */
-export interface HotswapDeployment {
+export interface HotswapDeploymentAttempt {
   /**
    * The stack that's currently being deployed
    */
@@ -192,23 +190,18 @@ export interface HotswapDeployment {
 }
 
 /**
- * The result of an attempted hotswap deployment
+ * Information about a hotswap deployment
  */
-export interface HotswapResult {
+export interface HotswapDeploymentDetails {
   /**
-   * The stack that was hotswapped
+   * The stack that's currently being deployed
    */
   readonly stack: cxapi.CloudFormationStackArtifact;
+
   /**
    * The mode the hotswap deployment was initiated with.
    */
   readonly mode: 'hotswap-only' | 'fall-back';
-  /**
-   * Whether hotswapping happened or not.
-   *
-   * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
-   */
-  readonly hotswapped: boolean;
   /**
    * The changes that were deemed hotswappable
    */
@@ -217,4 +210,16 @@ export interface HotswapResult {
    * The changes that were deemed not hotswappable
    */
   readonly nonHotswappableChanges: NonHotswappableChange[];
+}
+
+/**
+ * The result of an attempted hotswap deployment
+ */
+export interface HotswapResult extends Duration, HotswapDeploymentDetails {
+  /**
+   * Whether hotswapping happened or not.
+   *
+   * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
+   */
+  readonly hotswapped: boolean;
 }

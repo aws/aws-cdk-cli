@@ -110,7 +110,7 @@ export async function tryHotswapDeployment(
     hotswapPropertyOverrides,
   );
 
-  await hotswapSpan.end();
+  await hotswapSpan.end(result);
 
   if (result?.hotswapped === true) {
     return {
@@ -135,7 +135,7 @@ async function hotswapDeployment(
   stack: cxapi.CloudFormationStackArtifact,
   hotswapMode: HotswapMode,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-): Promise<HotswapResult> {
+): Promise<Omit<HotswapResult, 'duration'>> {
   // resolve the environment, so we can substitute things like AWS::Region in CFN expressions
   const resolvedEnv = await sdkProvider.resolveEnvironment(stack.environment);
   // create a new SDK using the CLI credentials, because the default one will not work for new-style synthesis -
@@ -162,10 +162,17 @@ async function hotswapDeployment(
     currentTemplate.nestedStacks, hotswapPropertyOverrides,
   );
 
-  await logNonHotswappableChanges(ioSpan, nonHotswappable, hotswapMode);
+  await logRejectedChanges(ioSpan, nonHotswappable, hotswapMode);
 
   const hotswappableChanges = hotswappable.map(o => o.change);
   const nonHotswappableChanges = nonHotswappable.map(n => n.change);
+
+  await ioSpan.notify(IO.CDK_TOOLKIT_I5401.msg('Hotswap plan created', {
+    stack,
+    mode: hotswapMode,
+    hotswappableChanges,
+    nonHotswappableChanges,
+  }));
 
   // preserve classic hotswap behavior
   if (hotswapMode === 'fall-back') {
@@ -181,7 +188,7 @@ async function hotswapDeployment(
   }
 
   // apply the short-circuitable changes
-  await applyAllHotswappableChanges(sdk, ioSpan, hotswappable);
+  await applyAllHotswapOperations(sdk, ioSpan, hotswappable);
 
   return {
     stack,
@@ -489,27 +496,29 @@ function isCandidateForHotswapping(
   };
 }
 
-async function applyAllHotswappableChanges(sdk: SDK, ioSpan: IMessageSpan<any>, hotswappableChanges: HotswapOperation[]): Promise<void[]> {
-  if (hotswappableChanges.length > 0) {
-    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`\n${ICON} hotswapping resources:`));
+async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>, hotswappableChanges: HotswapOperation[]): Promise<void[]> {
+  if (hotswappableChanges.length <= 0) {
+    return Promise.resolve([]);
   }
+
+  await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`\n${ICON} hotswapping resources:`));
   const limit = pLimit(10);
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(hotswappableChanges.map(hotswapOperation => limit(() => {
-    return applyHotswappableChange(sdk, ioSpan, hotswapOperation);
+    return applyHotswapOperation(sdk, ioSpan, hotswapOperation);
   })));
 }
 
-async function applyHotswappableChange(sdk: SDK, ioSpan: IMessageSpan<any>, hotswapOperation: HotswapOperation): Promise<void> {
+async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>, hotswapOperation: HotswapOperation): Promise<void> {
   // note the type of service that was successfully hotswapped in the User-Agent
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);
-
   const resourceText = (r: AffectedResource) => r.description ?? `${r.resourceType} '${r.physicalName ?? r.logicalId}'`;
 
-  for (const resource of hotswapOperation.change.resources) {
-    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format(`   ${ICON} %s`, chalk.bold(resourceText(resource)))));
-  }
+  await ioSpan.notify(IO.CDK_TOOLKIT_I5402.msg(
+    hotswapOperation.change.resources.map(r => format(`   ${ICON} %s`, chalk.bold(resourceText(r)))).join('\n'),
+    hotswapOperation.change,
+  ));
 
   // if the SDK call fails, an error will be thrown by the SDK
   // and will prevent the green 'hotswapped!' text from being displayed
@@ -525,9 +534,10 @@ async function applyHotswappableChange(sdk: SDK, ioSpan: IMessageSpan<any>, hots
     throw e;
   }
 
-  for (const resource of hotswapOperation.change.resources) {
-    await ioSpan.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format(`${ICON} %s %s`, chalk.bold(resourceText(resource)), chalk.green('hotswapped!'))));
-  }
+  await ioSpan.notify(IO.CDK_TOOLKIT_I5403.msg(
+    hotswapOperation.change.resources.map(r => format(`   ${ICON} %s %s`, chalk.bold(resourceText(r)), chalk.green('hotswapped!'))).join('\n'),
+    hotswapOperation.change,
+  ));
 
   sdk.removeCustomUserAgent(customUserAgent);
 }
@@ -550,12 +560,12 @@ function formatWaiterErrorResult(result: WaiterResult) {
   return main;
 }
 
-async function logNonHotswappableChanges(
+async function logRejectedChanges(
   ioSpan: IMessageSpan<any>,
-  nonHotswappableChanges: RejectedChange[],
+  rejectedChanges: RejectedChange[],
   hotswapMode: HotswapMode,
 ): Promise<void> {
-  if (nonHotswappableChanges.length === 0) {
+  if (rejectedChanges.length === 0) {
     return;
   }
   /**
@@ -566,9 +576,9 @@ async function logNonHotswappableChanges(
    * This logic prevents us from logging that change as non-hotswappable when we hotswap it.
    */
   if (hotswapMode === 'hotswap-only') {
-    nonHotswappableChanges = nonHotswappableChanges.filter((change) => change.hotswapOnlyVisible === true);
+    rejectedChanges = rejectedChanges.filter((change) => change.hotswapOnlyVisible === true);
 
-    if (nonHotswappableChanges.length === 0) {
+    if (rejectedChanges.length === 0) {
       return;
     }
   }
@@ -581,8 +591,8 @@ async function logNonHotswappableChanges(
     messages.push(format('%s %s', chalk.red('⚠️'), chalk.red('The following non-hotswappable changes were found:')));
   }
 
-  for (const rejection of nonHotswappableChanges) {
-    messages.push('    ' + nonHotswappableChangeMessage(rejection.change));
+  for (const { change } of rejectedChanges) {
+    messages.push('    ' + nonHotswappableChangeMessage(change));
   }
   messages.push(''); // newline
 
