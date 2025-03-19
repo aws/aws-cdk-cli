@@ -160,7 +160,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const limit = pLimit(20);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {      
+    await Promise.all(bootstrapEnvironments.map((environment: cxapi.Environment, currentIdx) => limit(async () => {
       const bootstrapSpan = await ioHelper.span(SPAN.BOOTSTRAP_SINGLE)
         .begin(`${chalk.bold(environment.name)}: bootstrapping...`, {
           total: bootstrapEnvironments.length,
@@ -184,7 +184,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         const result: EnvironmentBootstrapResult = {
           environment,
           status: bootstrapResult.noOp ? 'no-op' : 'success',
-          message: bootstrapResult.noOp ? 'No changes required' : 'Successfully bootstrapped',
         };
 
         results.push(result);

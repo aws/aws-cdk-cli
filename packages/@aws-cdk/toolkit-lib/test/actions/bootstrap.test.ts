@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { EnvironmentUtils } from '@aws-cdk/cx-api';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import {
   CreateChangeSetCommand,
@@ -8,12 +9,6 @@ import {
   ExecuteChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
-
-// Helper function to check the structure of BootstrapResult
-function expectValidBootstrapResult(result: any) {
-  expect(result).toHaveProperty('environments');
-  expect(Array.isArray(result.environments)).toBe(true);
-}
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
@@ -27,7 +22,6 @@ import {
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
 } from '../util/aws-cdk';
-import { EnvironmentUtils } from '@aws-cdk/cx-api';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -98,6 +92,11 @@ async function runBootstrap(options?: {
     source: options?.source,
     parameters: options?.parameters,
   });
+}
+
+function expectValidBootstrapResult(result: any) {
+  expect(result).toHaveProperty('environments');
+  expect(Array.isArray(result.environments)).toBe(true);
 }
 
 function expectSuccessfulBootstrap() {
@@ -504,7 +503,7 @@ describe('bootstrap', () => {
       expectValidBootstrapResult(result);
       expect(result.environments.length).toBe(1);
       expect(result.environments[0].status).toBe('success');
-      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make("123456789012", "us-east-1"));
+      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make('123456789012', 'us-east-1'));
     });
 
     test('returns correct BootstrapResult for no-op scenarios', async () => {
@@ -541,8 +540,7 @@ describe('bootstrap', () => {
       expectValidBootstrapResult(result);
       expect(result.environments.length).toBe(1);
       expect(result.environments[0].status).toBe('no-op');
-      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make("123456789012", "us-east-1"));
-      expect(result.environments[0].message).toContain('No changes required');
+      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make('123456789012', 'us-east-1'));
     });
 
     test('returns correct BootstrapResult for failure', async () => {
