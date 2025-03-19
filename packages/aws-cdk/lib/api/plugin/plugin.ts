@@ -1,10 +1,7 @@
 import { inspect } from 'util';
 import type { CredentialProviderSource, IPluginHost, Plugin } from '@aws-cdk/cli-plugin-contract';
-
-import * as chalk from 'chalk';
 import { type ContextProviderPlugin, isContextProviderPlugin } from './context-provider-plugin';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { error } from '../../logging';
 
 export let TESTING = false;
 
@@ -44,15 +41,13 @@ export class PluginHost implements IPluginHost {
       const plugin = require(moduleSpec);
       /* eslint-enable */
       if (!isPlugin(plugin)) {
-        error(`Module ${chalk.green(moduleSpec)} is not a valid plug-in, or has an unsupported version.`);
-        throw new ToolkitError(`Module ${moduleSpec} does not define a valid plug-in.`);
+        throw new ToolkitError(`Module ${moduleSpec} is not a valid plug-in, or has an unsupported version.`);
       }
       if (plugin.init) {
         plugin.init(this);
       }
     } catch (e: any) {
-      error(`Unable to load ${chalk.green(moduleSpec)}: ${e.stack}`);
-      throw new ToolkitError(`Unable to load plug-in: ${moduleSpec}: ${e}`);
+      throw ToolkitError.withCause(`Unable to load plug-in '${moduleSpec}'`, e);
     }
 
     function isPlugin(x: any): x is Plugin {

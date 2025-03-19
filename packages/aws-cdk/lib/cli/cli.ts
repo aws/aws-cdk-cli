@@ -6,6 +6,7 @@ import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
+import { prettyPrintError } from './pretty-print-error';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
@@ -32,7 +33,6 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { result, debug, error, info } from '../logging';
 import { Notices } from '../notices';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
@@ -80,11 +80,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     await checkForPlatformWarnings();
   } catch (e) {
-    debug(`Error while checking for platform warnings: ${e}`);
+    ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  debug('CDK Toolkit CLI version:', version.displayVersion());
-  debug('Command line arguments:', argv);
+  ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
+  ioHost.defaults.debug('Command line arguments:', argv);
 
   const configuration = new Configuration({
     commandLineArguments: {
@@ -156,7 +156,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (loaded.has(resolved)) {
           continue;
         }
-        debug(`Loading plug-in: ${chalk.green(plugin)} from ${chalk.blue(resolved)}`);
+        ioHost.defaults.debug(`Loading plug-in: ${chalk.green(plugin)} from ${chalk.blue(resolved)}`);
         PluginHost.instance.load(plugin);
         loaded.add(resolved);
       }
@@ -166,8 +166,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       try {
         return require.resolve(plugin);
       } catch (e: any) {
-        error(`Unable to resolve plugin ${chalk.green(plugin)}: ${e.stack}`);
-        throw new ToolkitError(`Unable to resolve plug-in: ${plugin}`);
+        // according to Node.js docs `MODULE_NOT_FOUND` is the only possible error here
+        // @see https://nodejs.org/api/modules.html#requireresolverequest-options
+        // Not using `withCause()` here, since the node error contains a "Require Stack"
+        // as part of the error message that is inherently useless to our users.
+        throw new ToolkitError(`Unable to resolve plug-in: Cannot find module '${plugin}'`);
       }
     }
   }
@@ -199,7 +202,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   async function main(command: string, args: any): Promise<number | void> {
     ioHost.currentAction = command as any;
     const toolkitStackName: string = ToolkitInfo.determineName(configuration.settings.get(['toolkitStackName']));
-    debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
+    ioHost.defaults.debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
 
     const cloudFormation = new Deployments({
       sdkProvider,
@@ -280,7 +283,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'bootstrap':
         ioHost.currentAction = 'bootstrap';
-        const source: BootstrapSource = determineBootstrapVersion(args);
+        const source: BootstrapSource = determineBootstrapVersion(ioHost, args);
 
         if (args.showTemplate) {
           const bootstrapper = new Bootstrapper(source, asIoHelper(ioHost, ioHost.currentAction));
@@ -521,7 +524,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return result(version.displayVersion());
+        return ioHost.defaults.result(version.displayVersion());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
@@ -532,13 +535,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 /**
  * Determine which version of bootstrapping
  */
-function determineBootstrapVersion(args: { template?: string }): BootstrapSource {
+function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): BootstrapSource {
   let source: BootstrapSource;
   if (args.template) {
-    info(`Using bootstrapping template from ${args.template}`);
+    ioHost.defaults.info(`Using bootstrapping template from ${args.template}`);
     source = { source: 'custom', templateFile: args.template };
   } else if (process.env.CDK_LEGACY_BOOTSTRAP) {
-    info('CDK_LEGACY_BOOTSTRAP set, using legacy-style bootstrapping');
+    ioHost.defaults.info('CDK_LEGACY_BOOTSTRAP set, using legacy-style bootstrapping');
     source = { source: 'legacy' };
   } else {
     // in V2, the "new" bootstrapping is the default
@@ -598,13 +601,9 @@ export function cli(args: string[] = process.argv.slice(2)) {
       }
     })
     .catch((err) => {
-      error(err.message);
-
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      if (err.stack && version.isDeveloperBuild()) {
-        debug(err.stack);
-      }
+      prettyPrintError(err, version.isDeveloperBuild());
       process.exitCode = 1;
     });
 }

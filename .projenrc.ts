@@ -805,6 +805,7 @@ const cli = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
+        lib: ['es2019', 'es2022.error'],
 
         // Changes the meaning of 'import' for libraries whose top-level export is a function
         // 'aws-cdk' has been written against `false` for interop
