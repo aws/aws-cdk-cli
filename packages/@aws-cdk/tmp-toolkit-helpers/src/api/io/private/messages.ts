@@ -5,7 +5,7 @@ import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environ
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
-import type { HotswapDeployment } from '../payloads/hotswap';
+import type { AffectedResource, HotswapDeployment, HotswappableChange, HotswapResult, NonHotswappableChange } from '../payloads/hotswap';
 import type { StackDetailsPayload } from '../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
 import type { StackRollbackProgress } from '../payloads/rollback';
@@ -202,10 +202,35 @@ export const IO = {
     description: 'Starting a hotswap deployment',
     interface: 'HotswapDeployment',
   }),
-  CDK_TOOLKIT_I5410: make.info<Duration>({
+  CDK_TOOLKIT_I5401: make.trace<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5401',
+    description: 'A hotswappable change is processed as part of a hotswap deployment',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5402: make.trace<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5402',
+    description: 'The hotswappable change has completed',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5403: make.info<AffectedResource>({
+    code: 'CDK_TOOLKIT_I5403',
+    description: 'Resource affected by the current hotswap operation',
+    interface: 'AffectedResource',
+  }),
+  CDK_TOOLKIT_I5404: make.info<AffectedResource>({
+    code: 'CDK_TOOLKIT_I5404',
+    description: 'Resource affected by the current hotswap operation has finished changing',
+    interface: 'AffectedResource',
+  }),
+  CDK_TOOLKIT_I5405: make.info<NonHotswappableChange[]>({
+    code: 'CDK_TOOLKIT_I5405',
+    description: 'Non hotswappable resource that are ignored by the hotswap deployment',
+    interface: 'NonHotswappableChange[]',
+  }),
+  CDK_TOOLKIT_I5410: make.info<HotswapResult>({
     code: 'CDK_TOOLKIT_I5410',
     description: 'Hotswap deployment has ended, a full deployment might still follow if needed',
-    interface: 'Duration',
+    interface: 'HotswapResult',
   }),
 
   // Stack Monitor (55xx)

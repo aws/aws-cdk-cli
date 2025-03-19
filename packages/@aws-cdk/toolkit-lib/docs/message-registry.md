@@ -41,7 +41,12 @@ group: Documents
 | `CDK_TOOLKIT_I5314` | Initial watch deployment started | `info` | n/a |
 | `CDK_TOOLKIT_I5315` | Queued watch deployment started | `info` | n/a |
 | `CDK_TOOLKIT_I5400` | Starting a hotswap deployment | `trace` | {@link HotswapDeployment} |
-| `CDK_TOOLKIT_I5410` | Hotswap deployment has ended, a full deployment might still follow if needed | `info` | {@link Duration} |
+| `CDK_TOOLKIT_I5401` | A hotswappable change is processed as part of a hotswap deployment | `trace` | {@link HotswappableChange} |
+| `CDK_TOOLKIT_I5402` | The hotswappable change has completed | `trace` | {@link HotswappableChange} |
+| `CDK_TOOLKIT_I5403` | Resource affected by the current hotswap operation | `info` | {@link AffectedResource} |
+| `CDK_TOOLKIT_I5404` | Resource affected by the current hotswap operation has finished changing | `info` | {@link AffectedResource} |
+| `CDK_TOOLKIT_I5405` | Non hotswappable resource that are ignored by the hotswap deployment | `info` | {@link NonHotswappableChange[]} |
+| `CDK_TOOLKIT_I5410` | Hotswap deployment has ended, a full deployment might still follow if needed | `info` | {@link HotswapResult} |
 | `CDK_TOOLKIT_I5501` | Stack Monitoring: Start monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
 | `CDK_TOOLKIT_I5502` | Stack Monitoring: Activity event for a single stack | `info` | {@link StackActivity} |
 | `CDK_TOOLKIT_I5503` | Stack Monitoring: Finished monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |

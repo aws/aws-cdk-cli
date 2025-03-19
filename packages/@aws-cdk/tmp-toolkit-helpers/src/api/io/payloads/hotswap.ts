@@ -1,5 +1,6 @@
 import type { PropertyDifference, Resource } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { Duration } from './types';
 import type { ResourceMetadata } from '../../resource-metadata/resource-metadata';
 
 /**
@@ -194,7 +195,7 @@ export interface HotswapDeployment {
 /**
  * The result of an attempted hotswap deployment
  */
-export interface HotswapResult {
+export interface HotswapResult extends Duration {
   /**
    * The stack that was hotswapped
    */
