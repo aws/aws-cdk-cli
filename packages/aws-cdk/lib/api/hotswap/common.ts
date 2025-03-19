@@ -1,6 +1,7 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { HotswappableChange, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { NonHotswappableReason } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
@@ -59,10 +60,14 @@ export interface NonHotswappableChange {
   readonly rejectedChanges: Array<string>;
   readonly logicalId: string;
   /**
-   * Tells the user exactly why this change was deemed non-hotswappable and what its logical ID is.
-   * If not specified, `reason` will be autofilled to state that the properties listed in `rejectedChanges` are not hotswappable.
+   * Why was this change was deemed non-hotswappable
    */
-  readonly reason?: string;
+  readonly reason: NonHotswappableReason;
+  /**
+   * Tells the user exactly why this change was deemed non-hotswappable and what its logical ID is.
+   * If not specified, `displayReason` default to state that the properties listed in `rejectedChanges` are not hotswappable.
+   */
+  readonly description?: string;
   /**
    * Whether or not to show this change when listing non-hotswappable changes in HOTSWAP_ONLY mode. Does not affect
    * listing in FALL_BACK mode.
@@ -195,13 +200,15 @@ export class ClassifiedChanges {
     const nonHotswappablePropNames = Object.keys(this.nonHotswappableProps);
     if (nonHotswappablePropNames.length > 0) {
       const tagOnlyChange = nonHotswappablePropNames.length === 1 && nonHotswappablePropNames[0] === 'Tags';
+      const reason = tagOnlyChange ? NonHotswappableReason.TAGS : NonHotswappableReason.PROPERTIES;
+      const description = tagOnlyChange ? 'Tags are not hotswappable' : `resource properties '${nonHotswappablePropNames}' are not hotswappable on this resource type`;
+
       reportNonHotswappableChange(
         ret,
         this.change,
+        reason,
         this.nonHotswappableProps,
-        tagOnlyChange
-          ? 'Tags are not hotswappable'
-          : `resource properties '${nonHotswappablePropNames}' are not hotswappable on this resource type`,
+        description,
       );
     }
   }
@@ -229,27 +236,26 @@ export function classifyChanges(xs: ResourceChange, hotswappablePropNames: strin
 export function reportNonHotswappableChange(
   ret: ChangeHotswapResult,
   change: ResourceChange,
+  reason: NonHotswappableReason,
   nonHotswappableProps?: PropDiffs,
-  reason?: string,
-  hotswapOnlyVisible?: boolean,
+  description?: string,
+  hotswapOnlyVisible: boolean = true,
 ): void {
-  let hotswapOnlyVisibility = true;
-  if (hotswapOnlyVisible === false) {
-    hotswapOnlyVisibility = false;
-  }
   ret.push({
     hotswappable: false,
     rejectedChanges: Object.keys(nonHotswappableProps ?? change.propertyUpdates),
     logicalId: change.logicalId,
     resourceType: change.newValue.Type,
     reason,
-    hotswapOnlyVisible: hotswapOnlyVisibility,
+    description: description,
+    hotswapOnlyVisible,
   });
 }
 
 export function reportNonHotswappableResource(
   change: ResourceChange,
-  reason?: string,
+  reason: NonHotswappableReason,
+  description?: string,
 ): ChangeHotswapResult {
   return [
     {
@@ -258,6 +264,7 @@ export function reportNonHotswappableResource(
       logicalId: change.logicalId,
       resourceType: change.newValue.Type,
       reason,
+      description: description,
     },
   ];
 }

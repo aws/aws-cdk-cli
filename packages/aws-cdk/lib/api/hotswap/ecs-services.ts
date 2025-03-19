@@ -7,7 +7,7 @@ import {
   reportNonHotswappableChange,
   transformObjectKeys,
 } from './common';
-import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { NonHotswappableReason, type ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
@@ -48,9 +48,21 @@ export async function isHotswappableEcsServiceChange(
     }
   }
   if (ecsServicesReferencingTaskDef.length === 0) {
-    // if there are no resources referencing the TaskDefinition,
-    // hotswap is not possible in FALL_BACK mode
-    reportNonHotswappableChange(ret, change, undefined, 'No ECS services reference the changed task definition', false);
+    /**
+     * ECS Services can have a task definition that doesn't refer to the task definition being updated.
+     * We have to log this as a non-hotswappable change to the task definition, but when we do,
+     * we wind up hotswapping the task definition and logging it as a non-hotswappable change.
+     *
+     * This logic prevents us from logging that change as non-hotswappable when we hotswap it.
+     */
+    reportNonHotswappableChange(
+      ret,
+      change,
+      NonHotswappableReason.DEPENDENCY_UNSUPPORTED,
+      undefined,
+      'No ECS services reference the changed task definition',
+      false,
+    );
   }
   if (resourcesReferencingTaskDef.length > ecsServicesReferencingTaskDef.length) {
     // if something besides an ECS Service is referencing the TaskDefinition,
@@ -60,6 +72,7 @@ export async function isHotswappableEcsServiceChange(
       reportNonHotswappableChange(
         ret,
         change,
+        NonHotswappableReason.DEPENDENCY_UNSUPPORTED,
         undefined,
         `A resource '${taskRef.LogicalId}' with Type '${taskRef.Type}' that is not an ECS Service was found referencing the changed TaskDefinition '${logicalId}'`,
       );

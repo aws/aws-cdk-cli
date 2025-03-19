@@ -4,6 +4,7 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
 import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
+import { NonHotswappableReason } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
 import type { IMessageSpan, IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IO, SPAN } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { SDK, SdkProvider } from '../aws-auth';
@@ -77,7 +78,11 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
       return [];
     }
 
-    return reportNonHotswappableResource(change, 'This resource type is not supported for hotswap deployments');
+    return reportNonHotswappableResource(
+      change,
+      NonHotswappableReason.RESOURCE_UNSUPPORTED,
+      'This resource type is not supported for hotswap deployments',
+    );
   },
 
   'AWS::CDK::Metadata': async () => [],
@@ -210,7 +215,8 @@ async function classifyResourceChanges(
   for (const logicalId of Object.keys(stackChanges.outputs.changes)) {
     nonHotswappableResources.push({
       hotswappable: false,
-      reason: 'output was changed',
+      reason: NonHotswappableReason.OUTPUT,
+      description: 'output was changed',
       logicalId,
       rejectedChanges: [],
       resourceType: 'Stack Output',
@@ -253,6 +259,7 @@ async function classifyResourceChanges(
       reportNonHotswappableChange(
         nonHotswappableResources,
         hotswappableChangeCandidate,
+        NonHotswappableReason.RESOURCE_UNSUPPORTED,
         undefined,
         'This resource type is not supported for hotswap deployments',
       );
@@ -350,7 +357,8 @@ async function findNestedHotswappableChanges(
         {
           hotswappable: false,
           logicalId,
-          reason: `physical name for AWS::CloudFormation::Stack '${logicalId}' could not be found in CloudFormation, so this is a newly created nested stack and cannot be hotswapped`,
+          reason: NonHotswappableReason.NESTED_STACK_CREATION,
+          description: `physical name for AWS::CloudFormation::Stack '${logicalId}' could not be found in CloudFormation, so this is a newly created nested stack and cannot be hotswapped`,
           rejectedChanges: [],
           resourceType: 'AWS::CloudFormation::Stack',
         },
@@ -425,7 +433,8 @@ function isCandidateForHotswapping(
       resourceType: change.newValue!.Type,
       logicalId,
       rejectedChanges: [],
-      reason: `resource '${logicalId}' was created by this deployment`,
+      reason: NonHotswappableReason.RESOURCE_CREATION,
+      description: `resource '${logicalId}' was created by this deployment`,
     };
   } else if (!change.newValue) {
     return {
@@ -433,7 +442,8 @@ function isCandidateForHotswapping(
       resourceType: change.oldValue!.Type,
       logicalId,
       rejectedChanges: [],
-      reason: `resource '${logicalId}' was destroyed by this deployment`,
+      reason: NonHotswappableReason.RESOURCE_DELETION,
+      description: `resource '${logicalId}' was destroyed by this deployment`,
     };
   }
 
@@ -444,7 +454,8 @@ function isCandidateForHotswapping(
       resourceType: change.newValue?.Type,
       logicalId,
       rejectedChanges: [],
-      reason: `resource '${logicalId}' had its type changed from '${change.oldValue?.Type}' to '${change.newValue?.Type}'`,
+      reason: NonHotswappableReason.RESOURCE_TYPE_CHANGED,
+      description: `resource '${logicalId}' had its type changed from '${change.oldValue?.Type}' to '${change.newValue?.Type}'`,
     };
   }
 
@@ -555,14 +566,14 @@ async function logNonHotswappableChanges(
         chalk.bold(change.logicalId),
         chalk.bold(change.resourceType),
         chalk.bold(change.rejectedChanges),
-        chalk.red(change.reason),
+        chalk.red(change.description),
       ));
     } else {
       messages.push(format(
         '    logicalID: %s, type: %s, reason: %s',
         chalk.bold(change.logicalId),
         chalk.bold(change.resourceType),
-        chalk.red(change.reason),
+        chalk.red(change.description),
       ));
     }
   }

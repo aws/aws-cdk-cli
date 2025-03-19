@@ -70,6 +70,45 @@ export interface HotswappableChange {
   readonly resources: AffectedResource[];
 }
 
+export enum NonHotswappableReason {
+  /**
+   * Tags are not hotswappable
+   */
+  TAGS = 'tags',
+  /**
+   * Changed resource properties are not hotswappable on this resource type
+   */
+  PROPERTIES = 'properties',
+  /**
+   * A stack output has changed
+   */
+  OUTPUT = 'output',
+  /**
+   * A dependant resource is not hotswappable
+   */
+  DEPENDENCY_UNSUPPORTED = 'dependency-unsupported',
+  /**
+   * The resource type is not hotswappable
+   */
+  RESOURCE_UNSUPPORTED = 'resource-unsupported',
+  /**
+   * The resource is created in the deployment
+   */
+  RESOURCE_CREATION = 'resource-creation',
+  /**
+   * The resource is removed in the deployment
+   */
+  RESOURCE_DELETION = 'resource-deletion',
+  /**
+   * The resource identified by the logical id has its type changed
+   */
+  RESOURCE_TYPE_CHANGED = 'resource-type-changed',
+  /**
+   * The nested stack is created in the deployment
+   */
+  NESTED_STACK_CREATION = 'nested-stack-creation',
+}
+
 /**
  * Information about a hotswap deployment
  */
