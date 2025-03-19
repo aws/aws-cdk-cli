@@ -15,7 +15,7 @@ import { AssetManifest } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug } from '../../cli/messages';
+import { debug, info } from '../../cli/messages';
 import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
@@ -330,7 +330,6 @@ export type PrepareChangeSetOptions = {
   uuid: string;
   willExecute: boolean;
   sdkProvider: SdkProvider;
-  stream: NodeJS.WritableStream;
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
 }
@@ -413,9 +412,9 @@ async function uploadBodyParameterAndCreateChangeSet(
     const exists = (await CloudFormationStack.lookup(cfn, options.stack.stackName, false)).exists;
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
-    options.stream.write(
+    ioHelper.notify(info(
       'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
-    );
+    ));
 
     return await createChangeSet(ioHelper, {
       cfn,
@@ -431,9 +430,9 @@ async function uploadBodyParameterAndCreateChangeSet(
     });
   } catch (e: any) {
     await ioHelper.notify(debug(e));
-    options.stream.write(
+    ioHelper.notify(info(
       'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
-    );
+    ));
 
     return undefined;
   }

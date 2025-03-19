@@ -14,6 +14,7 @@ import * as chalk from 'chalk';
 import { type NestedStackTemplates } from './api/deployments';
 import { info, warning } from './logging';
 import { ToolkitError } from './toolkit/error';
+import * as fs from 'fs-extra';
 
 /**
  * Pretty-prints the differences between two template states to the console.
@@ -35,9 +36,10 @@ export function printStackDiff(
   stackName?: string,
   changeSet?: DescribeChangeSetOutput,
   isImport?: boolean,
-  stream: FormatStream = process.stderr,
-  nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates }): number {
+  nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates }): { stackDiffCount: number, printableStackDiff: string } {
   let diff = fullDiff(oldTemplate, newTemplate.template, changeSet, isImport);
+
+  const stream = new fs.WriteStream();
 
   // must output the stack name if there are differences, even if quiet
   if (stackName && (!quiet || !diff.isEmpty)) {
@@ -66,12 +68,18 @@ export function printStackDiff(
   }
 
   let stackDiffCount = 0;
+  let printableStackDiff = '';
   if (!diff.isEmpty) {
     stackDiffCount++;
+
+    // formatDifferences updates the stream with the formatted stack diff
     formatDifferences(stream, diff, {
       ...logicalIdMapFromTemplate(oldTemplate),
       ...buildLogicalToPathMap(newTemplate),
     }, context);
+
+    // store the stream containing a formatted stack diff
+    printableStackDiff = stream.toString();
   } else if (!quiet) {
     info(chalk.green('There were no differences'));
   }
@@ -86,7 +94,7 @@ export function printStackDiff(
     const nestedStack = nestedStackTemplates[nestedStackLogicalId];
 
     (newTemplate as any)._template = nestedStack.generatedTemplate;
-    stackDiffCount += printStackDiff(
+    const { stackDiffCount: newSackDiffCount, printableStackDiff: newPrintableStackDiff } = printStackDiff(
       nestedStack.deployedTemplate,
       newTemplate,
       strict,
@@ -95,12 +103,13 @@ export function printStackDiff(
       nestedStack.physicalName ?? nestedStackLogicalId,
       undefined,
       isImport,
-      stream,
       nestedStack.nestedStackTemplates,
     );
+    stackDiffCount += newSackDiffCount;
+    printableStackDiff += newPrintableStackDiff;
   }
 
-  return stackDiffCount;
+  return { stackDiffCount, printableStackDiff };
 }
 
 export enum RequireApproval {

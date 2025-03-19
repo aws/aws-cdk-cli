@@ -273,7 +273,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           contextLines: args.contextLines,
           securityOnly: args.securityOnly,
           fail: args.fail != null ? args.fail : !enableDiffNoFail,
-          stream: args.ci ? process.stdout : undefined,
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
           changeSet: args['change-set'],

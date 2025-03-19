@@ -177,7 +177,6 @@ export class CdkToolkit {
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
-    const stream = options.stream || process.stderr;
     const quiet = options.quiet || false;
 
     let diffs = 0;
@@ -196,9 +195,14 @@ export class CdkToolkit {
       }
 
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
-      diffs = options.securityOnly
-        ? numberFromBool(printSecurityDiff(template, stacks.firstStack, RequireApproval.Broadening, quiet))
-        : printStackDiff(template, stacks.firstStack, strict, contextLines, quiet, undefined, undefined, false, stream);
+
+      if (options.securityOnly) {
+        diffs = numberFromBool(printSecurityDiff(template, stacks.firstStack, RequireApproval.Broadening, quiet));
+      } else {
+        const { stackDiffCount, printableStackDiff } = printStackDiff(template, stacks.firstStack, strict, contextLines, quiet, undefined, undefined, false);
+        diffs = stackDiffCount;
+        info(printableStackDiff);
+      }
     } else {
       // Compare N stacks against deployed templates
       for (const stack of stacks.stackArtifacts) {
@@ -231,7 +235,7 @@ export class CdkToolkit {
           } catch (e: any) {
             debug(formatErrorMessage(e));
             if (!quiet) {
-              stream.write(
+              info(
                 `Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences (run again with -v to see the reason)\n`,
               );
             }
@@ -247,7 +251,6 @@ export class CdkToolkit {
               sdkProvider: this.props.sdkProvider,
               parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
               resourcesToImport,
-              stream,
             });
           } else {
             debug(
@@ -256,8 +259,8 @@ export class CdkToolkit {
           }
         }
 
-        const stackCount = options.securityOnly
-          ? numberFromBool(
+        if (options.securityOnly) {
+          diffs += numberFromBool(
             printSecurityDiff(
               currentTemplate,
               stack,
@@ -266,8 +269,9 @@ export class CdkToolkit {
               stack.displayName,
               changeSet,
             ),
-          )
-          : printStackDiff(
+          );
+        } else {
+          const { stackDiffCount, printableStackDiff } = printStackDiff(
             currentTemplate,
             stack,
             strict,
@@ -276,15 +280,15 @@ export class CdkToolkit {
             stack.displayName,
             changeSet,
             !!resourcesToImport,
-            stream,
             nestedStacks,
           );
-
-        diffs += stackCount;
+          info(printableStackDiff);
+          diffs += stackDiffCount;
+        }
       }
     }
 
-    stream.write(format('\n✨  Number of stacks with differences: %s\n', diffs));
+    info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
     return diffs && options.fail ? 1 : 0;
   }
@@ -1359,13 +1363,6 @@ export interface DiffOptions {
    * @default 3
    */
   contextLines?: number;
-
-  /**
-   * Where to write the default
-   *
-   * @default stderr
-   */
-  stream?: NodeJS.WritableStream;
 
   /**
    * Whether to fail with exit code 1 in case of diff
