@@ -5,7 +5,7 @@
 
 // Note: All type exports are in `legacy-exports.ts`
 export * from './legacy-logging-source';
-export { deepClone, flatten, ifDefined, isArray, isEmpty, numberFromBool, partition, padLeft as leftPad, contentHash, deepMerge } from './util';
+export { deepClone, flatten, ifDefined, isArray, isEmpty, numberFromBool, partition, padLeft as leftPad, contentHash, deepMerge, lowerCaseFirstCharacter } from './util';
 export { deployStack } from './api/deployments/deploy-stack';
 export { cli, exec } from './cli/cli';
 export { SdkProvider } from './api/aws-auth';
@@ -19,7 +19,6 @@ export { RequireApproval } from './diff';
 export { formatAsBanner } from './cli/util/console-formatters';
 export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
 export { aliases, command, describe } from './commands/docs';
-export { lowerCaseFirstCharacter } from './api/hotswap/common';
 export { Deployments } from './api/deployments';
 export { cliRootDir as rootDir } from './cli/root-dir';
 export { latestVersionIfHigher, versionNumber } from './cli/version';

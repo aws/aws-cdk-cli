@@ -1,4 +1,4 @@
-import { type ChangeHotswapResult, classifyChanges } from './common';
+import { type HotswapChange, classifyChanges } from './common';
 import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
@@ -7,11 +7,11 @@ export async function isHotswappableStateMachineChange(
   logicalId: string,
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   if (change.newValue.Type !== 'AWS::StepFunctions::StateMachine') {
     return [];
   }
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
   const classifiedChanges = classifyChanges(change, ['DefinitionString']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 

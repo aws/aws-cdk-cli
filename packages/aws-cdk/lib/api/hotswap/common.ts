@@ -54,10 +54,22 @@ export interface HotswapOperation {
   readonly apply: (sdk: SDK) => Promise<void>;
 }
 
-export interface NonHotswappableChange {
+export interface RejectedChange {
+  /**
+   * Marks the change as not hotswappable
+   */
   readonly hotswappable: false;
+  /**
+   * The friendly type of the rejected change
+   */
   readonly resourceType: string;
-  readonly rejectedChanges: Array<string>;
+  /**
+   * The list of properties that are cause for the rejection
+   */
+  readonly rejectedProperties?: Array<string>;
+  /**
+   * The logical ID of the resource that is not hotswappable
+   */
   readonly logicalId: string;
   /**
    * Why was this change was deemed non-hotswappable
@@ -67,7 +79,7 @@ export interface NonHotswappableChange {
    * Tells the user exactly why this change was deemed non-hotswappable and what its logical ID is.
    * If not specified, `displayReason` default to state that the properties listed in `rejectedChanges` are not hotswappable.
    */
-  readonly description?: string;
+  readonly description: string;
   /**
    * Whether or not to show this change when listing non-hotswappable changes in HOTSWAP_ONLY mode. Does not affect
    * listing in FALL_BACK mode.
@@ -77,12 +89,7 @@ export interface NonHotswappableChange {
   readonly hotswapOnlyVisible?: boolean;
 }
 
-export type ChangeHotswapResult = Array<HotswapOperation | NonHotswappableChange>;
-
-export interface ClassifiedResourceChanges {
-  hotswapOperations: HotswapOperation[];
-  nonHotswappableChanges: NonHotswappableChange[];
-}
+export type HotswapChange = HotswapOperation | RejectedChange;
 
 export enum HotswapMode {
   /**
@@ -100,8 +107,6 @@ export enum HotswapMode {
    */
   FULL_DEPLOYMENT = 'full-deployment',
 }
-
-type Exclude = { [key: string]: Exclude | true };
 
 /**
  * Represents configuration property overrides for hotswap deployments
@@ -149,46 +154,9 @@ export class EcsHotswapProperties {
   }
 }
 
-/**
- * This function transforms all keys (recursively) in the provided `val` object.
- *
- * @param val The object whose keys need to be transformed.
- * @param transform The function that will be applied to each key.
- * @param exclude The keys that will not be transformed and copied to output directly
- * @returns A new object with the same values as `val`, but with all keys transformed according to `transform`.
- */
-export function transformObjectKeys(val: any, transform: (str: string) => string, exclude: Exclude = {}): any {
-  if (val == null || typeof val !== 'object') {
-    return val;
-  }
-  if (Array.isArray(val)) {
-    // For arrays we just pass parent's exclude object directly
-    // since it makes no sense to specify different exclude options for each array element
-    return val.map((input: any) => transformObjectKeys(input, transform, exclude));
-  }
-  const ret: { [k: string]: any } = {};
-  for (const [k, v] of Object.entries(val)) {
-    const childExclude = exclude[k];
-    if (childExclude === true) {
-      // we don't transform this object if the key is specified in exclude
-      ret[transform(k)] = v;
-    } else {
-      ret[transform(k)] = transformObjectKeys(v, transform, childExclude);
-    }
-  }
-  return ret;
-}
-
-/**
- * This function lower cases the first character of the string provided.
- */
-export function lowerCaseFirstCharacter(str: string): string {
-  return str.length > 0 ? `${str[0].toLowerCase()}${str.slice(1)}` : str;
-}
-
 type PropDiffs = Record<string, PropertyDifference<any>>;
 
-export class ClassifiedChanges {
+class ClassifiedChanges {
   public constructor(
     public readonly change: ResourceChange,
     public readonly hotswappableProps: PropDiffs,
@@ -196,20 +164,19 @@ export class ClassifiedChanges {
   ) {
   }
 
-  public reportNonHotswappablePropertyChanges(ret: ChangeHotswapResult): void {
+  public reportNonHotswappablePropertyChanges(ret: HotswapChange[]): void {
     const nonHotswappablePropNames = Object.keys(this.nonHotswappableProps);
     if (nonHotswappablePropNames.length > 0) {
       const tagOnlyChange = nonHotswappablePropNames.length === 1 && nonHotswappablePropNames[0] === 'Tags';
       const reason = tagOnlyChange ? NonHotswappableReason.TAGS : NonHotswappableReason.PROPERTIES;
       const description = tagOnlyChange ? 'Tags are not hotswappable' : `resource properties '${nonHotswappablePropNames}' are not hotswappable on this resource type`;
 
-      reportNonHotswappableChange(
-        ret,
+      ret.push(nonHotswappableChange(
         this.change,
         reason,
-        this.nonHotswappableProps,
         description,
-      );
+        this.nonHotswappableProps,
+      ));
     }
   }
 
@@ -233,38 +200,31 @@ export function classifyChanges(xs: ResourceChange, hotswappablePropNames: strin
   return new ClassifiedChanges(xs, hotswappableProps, nonHotswappableProps);
 }
 
-export function reportNonHotswappableChange(
-  ret: ChangeHotswapResult,
+export function nonHotswappableChange(
   change: ResourceChange,
   reason: NonHotswappableReason,
+  description: string,
   nonHotswappableProps?: PropDiffs,
-  description?: string,
   hotswapOnlyVisible: boolean = true,
-): void {
-  ret.push({
+): RejectedChange {
+  return {
     hotswappable: false,
-    rejectedChanges: Object.keys(nonHotswappableProps ?? change.propertyUpdates),
+    rejectedProperties: Object.keys(nonHotswappableProps ?? change.propertyUpdates),
     logicalId: change.logicalId,
     resourceType: change.newValue.Type,
     reason,
-    description: description,
+    description,
     hotswapOnlyVisible,
-  });
+  };
 }
 
-export function reportNonHotswappableResource(
-  change: ResourceChange,
-  reason: NonHotswappableReason,
-  description?: string,
-): ChangeHotswapResult {
-  return [
-    {
-      hotswappable: false,
-      rejectedChanges: Object.keys(change.propertyUpdates),
-      logicalId: change.logicalId,
-      resourceType: change.newValue.Type,
-      reason,
-      description: description,
-    },
-  ];
+export function nonHotswappableResource(change: ResourceChange): RejectedChange {
+  return {
+    hotswappable: false,
+    rejectedProperties: Object.keys(change.propertyUpdates),
+    logicalId: change.logicalId,
+    resourceType: change.newValue.Type,
+    reason: NonHotswappableReason.RESOURCE_UNSUPPORTED,
+    description: 'This resource type is not supported for hotswap deployments',
+  };
 }

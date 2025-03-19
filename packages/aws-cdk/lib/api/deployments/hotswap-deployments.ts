@@ -17,17 +17,15 @@ import { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-templ
 import { isHotswappableAppSyncChange } from '../hotswap/appsync-mapping-templates';
 import { isHotswappableCodeBuildProjectChange } from '../hotswap/code-build-projects';
 import type {
-  ChangeHotswapResult,
+  HotswapChange,
   HotswapOperation,
-  NonHotswappableChange,
+  RejectedChange,
   HotswapPropertyOverrides,
-  ClassifiedResourceChanges,
   HotswapResult,
 } from '../hotswap/common';
 import {
   ICON,
-  reportNonHotswappableChange,
-  reportNonHotswappableResource,
+  nonHotswappableResource,
 } from '../hotswap/common';
 import { isHotswappableEcsServiceChange } from '../hotswap/ecs-services';
 import { isHotswappableLambdaFunctionChange } from '../hotswap/lambda-functions';
@@ -48,7 +46,7 @@ type HotswapDetector = (
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-) => Promise<ChangeHotswapResult>;
+) => Promise<HotswapChange[]>;
 
 type HotswapMode = 'hotswap-only' | 'fall-back';
 
@@ -72,17 +70,13 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
     logicalId: string,
     change: ResourceChange,
     evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-  ): Promise<ChangeHotswapResult> => {
+  ): Promise<HotswapChange[]> => {
     // If the policy is for a S3BucketDeploymentChange, we can ignore the change
     if (await skipChangeForS3DeployCustomResourcePolicy(logicalId, change, evaluateCfnTemplate)) {
       return [];
     }
 
-    return reportNonHotswappableResource(
-      change,
-      NonHotswappableReason.RESOURCE_UNSUPPORTED,
-      'This resource type is not supported for hotswap deployments',
-    );
+    return [nonHotswappableResource(change)];
   },
 
   'AWS::CDK::Metadata': async () => [],
@@ -162,7 +156,7 @@ async function hotswapDeployment(
   });
 
   const stackChanges = cfn_diff.fullDiff(currentTemplate.deployedRootTemplate, stack.template);
-  const { hotswapOperations, nonHotswappableChanges } = await classifyResourceChanges(
+  const { hotswappable: hotswapOperations, nonHotswappable: nonHotswappableChanges } = await classifyResourceChanges(
     stackChanges,
     evaluateCfnTemplate,
     sdk,
@@ -196,6 +190,11 @@ async function hotswapDeployment(
   };
 }
 
+interface ClassifiedChanges {
+  hotswappable: HotswapOperation[];
+  nonHotswappable: RejectedChange[];
+}
+
 /**
  * Classifies all changes to all resources as either hotswappable or not.
  * Metadata changes are excluded from the list of (non)hotswappable resources.
@@ -206,19 +205,18 @@ async function classifyResourceChanges(
   sdk: SDK,
   nestedStackNames: { [nestedStackName: string]: NestedStackTemplates },
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-): Promise<ClassifiedResourceChanges> {
+): Promise<ClassifiedChanges> {
   const resourceDifferences = getStackResourceDifferences(stackChanges);
 
-  const promises: Array<() => Promise<ChangeHotswapResult>> = [];
+  const promises: Array<() => Promise<HotswapChange[]>> = [];
   const hotswappableResources = new Array<HotswapOperation>();
-  const nonHotswappableResources = new Array<NonHotswappableChange>();
+  const nonHotswappableResources = new Array<RejectedChange>();
   for (const logicalId of Object.keys(stackChanges.outputs.changes)) {
     nonHotswappableResources.push({
       hotswappable: false,
       reason: NonHotswappableReason.OUTPUT,
       description: 'output was changed',
       logicalId,
-      rejectedChanges: [],
       resourceType: 'Stack Output',
     });
   }
@@ -233,8 +231,8 @@ async function classifyResourceChanges(
         sdk,
         hotswapPropertyOverrides,
       );
-      hotswappableResources.push(...nestedHotswappableResources.hotswapOperations);
-      nonHotswappableResources.push(...nestedHotswappableResources.nonHotswappableChanges);
+      hotswappableResources.push(...nestedHotswappableResources.hotswappable);
+      nonHotswappableResources.push(...nestedHotswappableResources.nonHotswappable);
 
       continue;
     }
@@ -256,18 +254,12 @@ async function classifyResourceChanges(
         RESOURCE_DETECTORS[resourceType](logicalId, hotswappableChangeCandidate, evaluateCfnTemplate, hotswapPropertyOverrides),
       );
     } else {
-      reportNonHotswappableChange(
-        nonHotswappableResources,
-        hotswappableChangeCandidate,
-        NonHotswappableReason.RESOURCE_UNSUPPORTED,
-        undefined,
-        'This resource type is not supported for hotswap deployments',
-      );
+      nonHotswappableResources.push(nonHotswappableResource(hotswappableChangeCandidate));
     }
   }
 
   // resolve all detector results
-  const changesDetectionResults: Array<ChangeHotswapResult> = [];
+  const changesDetectionResults: Array<HotswapChange[]> = [];
   for (const detectorResultPromises of promises) {
     // Constant set of promises per resource
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
@@ -284,8 +276,8 @@ async function classifyResourceChanges(
   }
 
   return {
-    hotswapOperations: hotswappableResources,
-    nonHotswappableChanges: nonHotswappableResources,
+    hotswappable: hotswappableResources,
+    nonHotswappable: nonHotswappableResources,
   };
 }
 
@@ -348,18 +340,17 @@ async function findNestedHotswappableChanges(
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   sdk: SDK,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-): Promise<ClassifiedResourceChanges> {
+): Promise<ClassifiedChanges> {
   const nestedStack = nestedStackTemplates[logicalId];
   if (!nestedStack.physicalName) {
     return {
-      hotswapOperations: [],
-      nonHotswappableChanges: [
+      hotswappable: [],
+      nonHotswappable: [
         {
           hotswappable: false,
           logicalId,
           reason: NonHotswappableReason.NESTED_STACK_CREATION,
           description: `physical name for AWS::CloudFormation::Stack '${logicalId}' could not be found in CloudFormation, so this is a newly created nested stack and cannot be hotswapped`,
-          rejectedChanges: [],
           resourceType: 'AWS::CloudFormation::Stack',
         },
       ],
@@ -425,14 +416,13 @@ function makeRenameDifference(
 function isCandidateForHotswapping(
   change: cfn_diff.ResourceDifference,
   logicalId: string,
-): HotswapOperation | NonHotswappableChange | ResourceChange {
+): RejectedChange | ResourceChange {
   // a resource has been removed OR a resource has been added; we can't short-circuit that change
   if (!change.oldValue) {
     return {
       hotswappable: false,
       resourceType: change.newValue!.Type,
       logicalId,
-      rejectedChanges: [],
       reason: NonHotswappableReason.RESOURCE_CREATION,
       description: `resource '${logicalId}' was created by this deployment`,
     };
@@ -441,7 +431,6 @@ function isCandidateForHotswapping(
       hotswappable: false,
       resourceType: change.oldValue!.Type,
       logicalId,
-      rejectedChanges: [],
       reason: NonHotswappableReason.RESOURCE_DELETION,
       description: `resource '${logicalId}' was destroyed by this deployment`,
     };
@@ -453,7 +442,6 @@ function isCandidateForHotswapping(
       hotswappable: false,
       resourceType: change.newValue?.Type,
       logicalId,
-      rejectedChanges: [],
       reason: NonHotswappableReason.RESOURCE_TYPE_CHANGED,
       description: `resource '${logicalId}' had its type changed from '${change.oldValue?.Type}' to '${change.newValue?.Type}'`,
     };
@@ -530,7 +518,7 @@ function formatWaiterErrorResult(result: WaiterResult) {
 
 async function logNonHotswappableChanges(
   ioSpan: IMessageSpan<any>,
-  nonHotswappableChanges: NonHotswappableChange[],
+  nonHotswappableChanges: RejectedChange[],
   hotswapMode: HotswapMode,
 ): Promise<void> {
   if (nonHotswappableChanges.length === 0) {
@@ -560,12 +548,12 @@ async function logNonHotswappableChanges(
   }
 
   for (const change of nonHotswappableChanges) {
-    if (change.rejectedChanges.length > 0) {
+    if (change.rejectedProperties?.length) {
       messages.push(format(
         '    logicalID: %s, type: %s, rejected changes: %s, reason: %s',
         chalk.bold(change.logicalId),
         chalk.bold(change.resourceType),
-        chalk.bold(change.rejectedChanges),
+        chalk.bold(change.rejectedProperties),
         chalk.red(change.description),
       ));
     } else {
