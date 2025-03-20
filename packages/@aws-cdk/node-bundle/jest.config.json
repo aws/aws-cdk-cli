@@ -4,7 +4,7 @@
     "ts",
     "js"
   ],
-  "maxWorkers": "80%",
+  "maxWorkers": 14,
   "testEnvironment": "node",
   "coverageThreshold": {
     "global": {

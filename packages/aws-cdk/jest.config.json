@@ -4,7 +4,7 @@
     "ts",
     "js"
   ],
-  "maxWorkers": "80%",
+  "maxWorkers": 14,
   "testEnvironment": "./test/_helpers/jest-bufferedconsole.ts",
   "coverageThreshold": {
     "global": {
