@@ -8,12 +8,12 @@ import * as sinon from 'sinon';
 import { ImportMock } from 'ts-mock-imports';
 import { execProgram } from '../../../lib/api/cxapp/exec';
 import { Configuration } from '../../../lib/cli/user-configuration';
-import { testAssembly } from '../../util';
+import { testAssembly } from '../../_helpers/assembly';
 import { mockSpawn } from '../../util/mock-child_process';
 import { MockSdkProvider } from '../../util/mock-sdk';
 import { RWLock } from '../../../lib/api/util/rwlock';
 import { rewriteManifestVersion } from './assembly-versions';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
+import { CliIoHost } from '../../../lib/cli/io-host';
 
 let sdkProvider: MockSdkProvider;
 let config: Configuration;

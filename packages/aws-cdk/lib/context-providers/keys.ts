@@ -1,11 +1,11 @@
 import type { KeyContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { KeyContextResponse } from '@aws-cdk/cx-api';
 import type { AliasListEntry, ListAliasesCommandOutput } from '@aws-sdk/client-kms';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IKMSClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
 import { debug } from '../logging';
-import { ContextProviderError } from '../toolkit/error';
 
 export class KeyContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider) {

@@ -1,8 +1,8 @@
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
 import { debug, warning } from '../logging';
-import { ToolkitError } from '../toolkit/error';
 
 export const PROJECT_CONFIG = 'cdk.json';
 export { PROJECT_CONTEXT } from '../api/context';

@@ -11,9 +11,9 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { type NestedStackTemplates } from './api/deployments';
-import { info, warning } from './logging';
-import { ToolkitError } from './toolkit/error';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { type NestedStackTemplates } from '../api/deployments';
+import { info, warning } from '../logging';
 
 /**
  * Pretty-prints the differences between two template states to the console.

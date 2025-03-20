@@ -1,6 +1,6 @@
 import * as child_process from 'child_process';
 import { mocked } from 'jest-mock';
-import { docs } from '../lib/commands/docs';
+import { docs } from '../../lib/commands/docs';
 
 // eslint-disable-next-line no-console
 console.log = jest.fn();

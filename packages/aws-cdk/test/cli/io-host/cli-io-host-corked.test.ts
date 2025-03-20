@@ -1,5 +1,5 @@
-import { debug, error, info, success, warning } from '../../lib/logging';
-import { CliIoHost } from '../../lib/toolkit/cli-io-host';
+import { debug, error, info, success, warning } from '../../../lib/logging';
+import { CliIoHost } from '../../../lib/cli/io-host';
 
 const ioHost = CliIoHost.instance({}, true);
 let mockStderr: jest.Mock;

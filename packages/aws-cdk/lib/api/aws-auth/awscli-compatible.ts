@@ -8,8 +8,8 @@ import { ProxyAgent } from 'proxy-agent';
 import { makeCachingProvider } from './provider-caching';
 import type { SdkHttpOptions } from './sdk-provider';
 import { readIfPossible } from './util';
+import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { debug } from '../../logging';
-import { AuthenticationError } from '../../toolkit/error';
 
 const DEFAULT_CONNECTION_TIMEOUT = 10000;
 const DEFAULT_TIMEOUT = 300000;

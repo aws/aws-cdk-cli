@@ -3,8 +3,8 @@ import type { CredentialProviderSource, IPluginHost, Plugin } from '@aws-cdk/cli
 
 import * as chalk from 'chalk';
 import { type ContextProviderPlugin, isContextProviderPlugin } from './context-provider-plugin';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { error } from '../../logging';
-import { ToolkitError } from '../../toolkit/error';
 
 export let TESTING = false;
 

@@ -24,8 +24,8 @@ import { AwsCliCompatible } from '../../../lib/api/aws-auth/awscli-compatible';
 import { defaultCliUserAgent } from '../../../lib/api/aws-auth/user-agent';
 import { PluginHost } from '../../../lib/api/plugin';
 import { Mode } from '../../../lib/api/plugin/mode';
-import { CliIoHost } from '../../../lib/toolkit/cli-io-host';
-import { withMocked } from '../../util';
+import { CliIoHost } from '../../../lib/cli/io-host';
+import { withMocked } from '../../_helpers/as-mock';
 import { undoAllSdkMocks } from '../../util/mock-sdk';
 
 // As part of the imports above we import `mock-sdk.ts` which automatically mocks

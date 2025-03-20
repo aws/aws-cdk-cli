@@ -11,7 +11,7 @@ import type { SDK, SdkProvider } from '../aws-auth';
 import type { CloudFormationStack } from './cloudformation';
 import type { NestedStackTemplates } from './nested-stack-helpers';
 import { loadCurrentTemplateWithNestedStacks } from './nested-stack-helpers';
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { formatErrorMessage } from '../../util';
 import { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 import { isHotswappableAppSyncChange } from '../hotswap/appsync-mapping-templates';

@@ -1,4 +1,4 @@
-import { doctor } from '../lib/commands/doctor';
+import { doctor } from '../../lib/commands/doctor';
 
 // eslint-disable-next-line no-console
 console.log = jest.fn();

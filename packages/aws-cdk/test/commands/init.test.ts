@@ -2,7 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../lib/init';
+import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
 
 describe('constructs version', () => {
   cliTest('create a TypeScript library project', async (workDir) => {
@@ -225,7 +225,7 @@ describe('constructs version', () => {
   });
 
   cliTest('CLI uses recommended feature flags from data file to initialize context', async (workDir) => {
-    const recommendedFlagsFile = path.join(__dirname, '..', 'lib', 'init-templates', '.recommended-feature-flags.json');
+    const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.recommended-feature-flags.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ banana: 'yellow' }), () => cliInit({
       type: 'app',
       language: 'typescript',
@@ -239,7 +239,7 @@ describe('constructs version', () => {
   });
 
   cliTest('CLI uses init versions file to initialize template', async (workDir) => {
-    const recommendedFlagsFile = path.join(__dirname, '..', 'lib', 'init-templates', '.init-version.json');
+    const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.init-version.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ 'aws-cdk-lib': '100.1.1', 'constructs': '^200.2.2' }), () => cliInit({
       type: 'app',
       language: 'typescript',

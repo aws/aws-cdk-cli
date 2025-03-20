@@ -821,8 +821,8 @@ const cli = configureProject(
           '<rootDir>/lib/user-input.ts',
           '<rootDir>/lib/convert-to-user-input.ts',
         ],
-        testEnvironment: './test/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/jest-setup-after-env.ts'],
+        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
+        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
       },
     }),
 

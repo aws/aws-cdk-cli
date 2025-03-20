@@ -6,8 +6,8 @@ import {
   type HotswapChange,
   classifyChanges,
 } from './common';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
-import { ToolkitError } from '../../toolkit/error';
 import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 

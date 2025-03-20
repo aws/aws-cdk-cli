@@ -1,7 +1,7 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { HotswappableChange, NonHotswappableChange, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { NonHotswappableReason } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
-import { ToolkitError } from '../../toolkit/error';
 import type { SDK } from '../aws-auth';
 
 export const ICON = '✨';

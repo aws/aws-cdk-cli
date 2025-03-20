@@ -1,7 +1,7 @@
 import type { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
 import type { ICloudFormationClient } from '../aws-auth';
 
 export class ActiveAssetCache {

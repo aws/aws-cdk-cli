@@ -26,9 +26,9 @@ import {
   loadCurrentTemplateWithNestedStacks,
   type RootTemplateWithNestedStacks,
 } from './nested-stack-helpers';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug, warn } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';

@@ -2,12 +2,12 @@ import * as childProcess from 'child_process';
 import * as path from 'path';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import { cliRootDir } from './cli/root-dir';
-import { versionNumber } from './cli/version';
 import { invokeBuiltinHooks } from './init-hooks';
-import { error, info, warning } from './logging';
-import { ToolkitError } from './toolkit/error';
-import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from './util';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { cliRootDir } from '../../cli/root-dir';
+import { versionNumber } from '../../cli/version';
+import { error, info, warning } from '../../logging';
+import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -500,7 +500,7 @@ interface Versions {
  * This has been built into the CLI at build time.
  */
 async function loadInitVersions(): Promise<Versions> {
-  const initVersionFile = path.join(__dirname, './init-templates/.init-version.json');
+  const initVersionFile = path.join(cliRootDir(), 'lib', 'init-templates', '.init-version.json');
   const contents = JSON.parse(await fs.readFile(initVersionFile, { encoding: 'utf-8' }));
 
   const ret = {
@@ -524,6 +524,6 @@ async function loadInitVersions(): Promise<Versions> {
  * These have been built into the CLI at build time.
  */
 export async function currentlyRecommendedAwsCdkLibFlags() {
-  const recommendedFlagsFile = path.join(__dirname, './init-templates/.recommended-feature-flags.json');
+  const recommendedFlagsFile = path.join(cliRootDir(), 'lib', 'init-templates', '.recommended-feature-flags.json');
   return JSON.parse(await fs.readFile(recommendedFlagsFile, { encoding: 'utf-8' }));
 }

@@ -2,10 +2,14 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
+import type { IoMessageLevel } from './io-host';
+import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
-
+import type { Command } from './user-configuration';
+import { Configuration } from './user-configuration';
 import * as version from './version';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { SdkProvider } from '../api/aws-auth';
 import { SdkToCliLogger } from '../api/aws-auth/sdk-logger';
@@ -26,16 +30,10 @@ import type { ILock } from '../api/util/rwlock';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { cliInit, printAvailableTemplates } from '../init';
 import { result, debug, error, info } from '../logging';
 import { Notices } from '../notices';
-import type { Command } from './user-configuration';
-import { Configuration } from './user-configuration';
-import type { IoMessageLevel } from '../toolkit/cli-io-host';
-import { CliIoHost } from '../toolkit/cli-io-host';
-import { ToolkitError } from '../toolkit/error';
-
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 

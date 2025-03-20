@@ -7,10 +7,10 @@ import {
   LoadBalancerIpAddressType,
 } from '@aws-cdk/cx-api';
 import type { LoadBalancer, Listener, TagDescription } from '@aws-sdk/client-elastic-load-balancing-v2';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IElasticLoadBalancingV2Client } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../toolkit/error';
 
 /**
  * Provides load balancer context information.

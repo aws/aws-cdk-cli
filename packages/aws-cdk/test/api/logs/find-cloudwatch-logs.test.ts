@@ -7,8 +7,8 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { SdkProvider } from '../../../lib/api';
 import { findCloudWatchLogGroups } from '../../../lib/api/logs/find-cloudwatch-logs';
-import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
-import { testStack, TestStackArtifact } from '../../util';
+import { CliIoHost, IoMessaging } from '../../../lib/cli/io-host';
+import { testStack, TestStackArtifact } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
   MockSdk,

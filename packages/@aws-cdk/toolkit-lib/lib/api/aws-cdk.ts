@@ -30,4 +30,4 @@ export { guessExecutable } from '../../../../aws-cdk/lib/api/cxapp/exec';
 
 // @todo Should not use! investigate how to replace
 export { versionNumber } from '../../../../aws-cdk/lib/cli/version';
-export { CliIoHost } from '../../../../aws-cdk/lib/toolkit/cli-io-host';
+export { CliIoHost } from '../../../../aws-cdk/lib/cli/io-host';

@@ -6,11 +6,11 @@ import { StringDecoder } from 'string_decoder';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
-import { instanceMockFrom, MockCloudExecutable } from './util';
-import { Deployments, PrepareChangeSetOptions, type NestedStackTemplates } from '../lib/api/deployments';
-import * as cfn from '../lib/api/deployments/cloudformation';
-import { CdkToolkit } from '../lib/cli/cdk-toolkit';
-import { IoMessaging } from '../lib/toolkit/cli-io-host';
+import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
+import { Deployments, PrepareChangeSetOptions, type NestedStackTemplates } from '../../lib/api/deployments';
+import * as cfn from '../../lib/api/deployments/cloudformation';
+import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
+import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let cloudExecutable: MockCloudExecutable;
 let cloudFormation: jest.Mocked<Deployments>;
@@ -110,7 +110,7 @@ describe('fixed template', () => {
 describe('imports', () => {
   let createDiffChangeSet: jest.SpyInstance<
     Promise<DescribeChangeSetCommandOutput | undefined>,
-    [msg: IoMessaging, options: PrepareChangeSetOptions],
+    [ioHelper: IoHelper, options: PrepareChangeSetOptions],
     any
   >;
 

@@ -4,9 +4,9 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import type { AssetManifestBuilder } from './asset-manifest-builder';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { debug } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
 import type { EnvironmentResources } from '../environment';
 import type { ToolkitInfo } from '../toolkit-info';
 

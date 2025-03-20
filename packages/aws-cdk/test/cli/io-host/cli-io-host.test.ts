@@ -1,6 +1,6 @@
 import { PassThrough } from 'stream';
 import * as chalk from 'chalk';
-import { CliIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/toolkit/cli-io-host';
+import { CliIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 
 let passThrough: PassThrough;

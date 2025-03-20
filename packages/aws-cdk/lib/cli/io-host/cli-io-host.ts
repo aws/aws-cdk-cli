@@ -2,12 +2,12 @@ import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import { ToolkitError } from './error';
-import { type IIoHost, type IoMessage, type IoMessageCode, type IoMessageLevel, type IoRequest, type ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
-import { IO, isMessageRelevantForLevel } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import type { ActivityPrinterProps, IActivityPrinter } from '../cli/activity-printer';
-import { CurrentActivityPrinter, HistoryActivityPrinter } from '../cli/activity-printer';
-import { StackActivityProgress } from '../commands/deploy';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, isMessageRelevantForLevel } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { StackActivityProgress } from '../../commands/deploy';
+import { CurrentActivityPrinter, HistoryActivityPrinter } from '../activity-printer';
+import type { ActivityPrinterProps, IActivityPrinter } from '../activity-printer';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
