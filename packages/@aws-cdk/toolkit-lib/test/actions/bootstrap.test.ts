@@ -504,6 +504,7 @@ describe('bootstrap', () => {
       expect(result.environments.length).toBe(1);
       expect(result.environments[0].status).toBe('success');
       expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make('123456789012', 'us-east-1'));
+      expect(result.environments[0].duration).toBeGreaterThan(0);
     });
 
     test('returns correct BootstrapResult for no-op scenarios', async () => {
@@ -541,6 +542,7 @@ describe('bootstrap', () => {
       expect(result.environments.length).toBe(1);
       expect(result.environments[0].status).toBe('no-op');
       expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make('123456789012', 'us-east-1'));
+      expect(result.environments[0].duration).toBeGreaterThan(0);
     });
 
     test('returns correct BootstrapResult for failure', async () => {
