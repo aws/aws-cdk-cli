@@ -10,6 +10,7 @@ import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { Deployments, PrepareChangeSetOptions, type NestedStackTemplates } from '../../lib/api/deployments';
 import * as cfn from '../../lib/api/deployments/cloudformation';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
+import { CliIoHost } from '../../lib/cli/io-host';
 import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let cloudExecutable: MockCloudExecutable;
@@ -17,6 +18,8 @@ let cloudFormation: jest.Mocked<Deployments>;
 let toolkit: CdkToolkit;
 let oldDir: string;
 let tmpDir: string;
+let ioHost = CliIoHost.instance();
+let notifySpy = jest.spyOn(ioHost, 'notify');
 
 beforeAll(() => {
   // The toolkit writes and checks for temporary files in the current directory,
@@ -30,6 +33,10 @@ beforeAll(() => {
 afterAll(() => {
   process.chdir(oldDir);
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+beforeEach(() => {
+  notifySpy.mockClear();
 });
 
 afterEach(() => {
@@ -81,29 +88,26 @@ describe('fixed template', () => {
   afterEach(() => fs.rmSync(templatePath));
 
   test('fixed template with valid templates', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
       changeSet: undefined,
       templatePath,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(exitCode).toBe(0);
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`Resources
 [~] AWS::SomeService::SomeResource SomeResource
  └─ [~] Something
      ├─ [-] old-value
      └─ [+] new-value
-
-
-✨  Number of stacks with differences: 1
 `);
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
+    expect(exitCode).toBe(0);
   });
 });
 
@@ -201,18 +205,14 @@ describe('imports', () => {
   });
 
   test('imports render correctly for a nonexistant stack without creating a changeset', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
       changeSet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(createDiffChangeSet).not.toHaveBeenCalled();
     expect(plainTextOutput).toContain(`Stack A
 Parameters and rules created during migration do not affect resource configuration.
@@ -222,24 +222,24 @@ Resources
 [←] AWS::S3::Bucket Bucket import
 `);
 
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 1');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(0);
   });
 
   test('imports render correctly for an existing stack and diff creates a changeset', async () => {
     // GIVEN
-    const buffer = new StringWritable();
     cloudFormation.stackExists = jest.fn().mockReturnValue(Promise.resolve(true));
 
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
       changeSet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(createDiffChangeSet).toHaveBeenCalled();
     expect(plainTextOutput).toContain(`Stack A
 Parameters and rules created during migration do not affect resource configuration.
@@ -249,7 +249,9 @@ Resources
 [←] AWS::S3::Bucket Bucket import
 `);
 
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 1');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(0);
   });
 });
@@ -323,21 +325,20 @@ describe('non-nested stacks', () => {
   });
 
   test('diff can diff multiple stacks', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['B'],
-      stream: buffer,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput).toContain('Stack A');
-    expect(plainTextOutput).toContain('Stack B');
+    const plainTextOutputA = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutputA).toContain('Stack A');
+    const plainTextOutputB = notifySpy.mock.calls[2][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutputB).toContain('Stack B');
 
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 2');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 2'),
+    }));
     expect(exitCode).toBe(0);
   });
 
@@ -363,116 +364,102 @@ describe('non-nested stacks', () => {
       sdkProvider: cloudExecutable.sdkProvider,
     });
 
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'B'],
-      stream: buffer,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput).toContain('Stack A');
-    expect(plainTextOutput).toContain('Stack B');
+    const plainTextOutputA = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutputA).toContain('Stack A');
+    const plainTextOutputB = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutputB).toContain('Stack B');
 
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 2');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 2'),
+    }));
     expect(exitCode).toBe(0);
   });
 
   test('exits with 1 with diffs and fail set to true', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
       fail: true,
     });
 
     // THEN
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 1');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(1);
   });
 
   test('throws an error if no valid stack names given', async () => {
-    const buffer = new StringWritable();
-
     // WHEN
     await expect(() =>
       toolkit.diff({
         stackNames: ['X', 'Y', 'Z'],
-        stream: buffer,
       }),
     ).rejects.toThrow('No stacks match the name(s) X,Y,Z');
   });
 
   test('exits with 1 with diff in first stack, but not in second stack and fail set to true', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'D'],
-      stream: buffer,
       fail: true,
     });
 
     // THEN
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 1');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(1);
   });
 
   test('throws an error during diffs on stack with error metadata', async () => {
-    const buffer = new StringWritable();
-
     // WHEN
     await expect(() =>
       toolkit.diff({
         stackNames: ['C'],
-        stream: buffer,
       }),
     ).rejects.toThrow(/Found errors/);
   });
 
   test('when quiet mode is enabled, stacks with no diffs should not print stack name & no differences to stdout', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['D'],
-      stream: buffer,
       fail: false,
       quiet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(plainTextOutput).not.toContain('Stack D');
     expect(plainTextOutput).not.toContain('There were no differences');
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 0');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 0'),
+    }));
     expect(exitCode).toBe(0);
   });
 
   test('when quiet mode is enabled, stacks with diffs should print stack name to stdout', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
       fail: false,
       quiet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(plainTextOutput).toContain('Stack A');
     expect(plainTextOutput).not.toContain('There were no differences');
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 1');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(0);
   });
 });
@@ -548,13 +535,9 @@ describe('stack exists checks', () => {
   });
 
   test('diff does not check for stack existence when --no-change-set is passed', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      stream: buffer,
       fail: false,
       quiet: true,
       changeSet: false,
@@ -567,14 +550,12 @@ describe('stack exists checks', () => {
 
   test('diff falls back to classic diff when stack does not exist', async () => {
     // GIVEN
-    const buffer = new StringWritable();
     const stackExists = jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(false));
     const createDiffChangeSet = jest.spyOn(cfn, 'createDiffChangeSet');
 
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      stream: buffer,
       fail: false,
       quiet: true,
       changeSet: true,
@@ -588,7 +569,6 @@ describe('stack exists checks', () => {
 
   test('diff falls back to classic diff when stackExists call fails', async () => {
     // GIVEN
-    const buffer = new StringWritable();
     const stackExists = jest.spyOn(cloudFormation, 'stackExists');
     const createDiffChangeSet = jest.spyOn(cfn, 'createDiffChangeSet');
 
@@ -599,7 +579,6 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      stream: buffer,
       fail: false,
       quiet: true,
       changeSet: true,
@@ -876,18 +855,14 @@ describe('nested stacks', () => {
   });
 
   test('diff can diff nested stacks and display the nested stack logical ID if has not been deployed or otherwise has no physical name', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      stream: buffer,
       changeSet: false,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    const plainTextOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
     expect(plainTextOutput.trim()).toEqual(`Stack Parent
 Resources
 [~] AWS::CloudFormation::Stack AdditionChild
@@ -928,11 +903,11 @@ Resources
 
 Stack newGrandChild
 Resources
-[+] AWS::Something SomeResource
+[+] AWS::Something SomeResource`);
 
-Stack UnChangedChild
-
-✨  Number of stacks with differences: 6`);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 6'),
+    }));
 
     expect(exitCode).toBe(0);
   });
@@ -940,17 +915,15 @@ Stack UnChangedChild
   test('diff falls back to non-changeset diff for nested stacks', async () => {
     // GIVEN
     const changeSetSpy = jest.spyOn(cfn, 'waitForChangeSet');
-    const buffer = new StringWritable();
 
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      stream: buffer,
       changeSet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    const plainTextOutput = notifySpy.mock.calls[2][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
     expect(plainTextOutput.trim()).toEqual(`Stack Parent
 Resources
 [~] AWS::CloudFormation::Stack AdditionChild
@@ -991,50 +964,44 @@ Resources
 
 Stack newGrandChild
 Resources
-[+] AWS::Something SomeResource
+[+] AWS::Something SomeResource`);
 
-Stack UnChangedChild
-
-✨  Number of stacks with differences: 6`);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 6'),
+    }));
 
     expect(exitCode).toBe(0);
     expect(changeSetSpy).not.toHaveBeenCalled();
   });
 
   test('when quiet mode is enabled, nested stacks with no diffs should not print stack name & no differences to stdout', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['UnchangedParent'],
-      stream: buffer,
       fail: false,
       quiet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
     expect(plainTextOutput).not.toContain('Stack UnchangedParent');
     expect(plainTextOutput).not.toContain('There were no differences');
-    expect(buffer.data.trim()).toContain('✨  Number of stacks with differences: 0');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 0'),
+    }));
     expect(exitCode).toBe(0);
   });
 
   test('when quiet mode is enabled, nested stacks with diffs should print stack name to stdout', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      stream: buffer,
       fail: false,
       quiet: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
     expect(plainTextOutput).toContain(`Stack Parent
 Resources
 [~] AWS::CloudFormation::Stack AdditionChild
@@ -1075,10 +1042,11 @@ Resources
 
 Stack newGrandChild
 Resources
-[+] AWS::Something SomeResource
+[+] AWS::Something SomeResource`);
 
-
-✨  Number of stacks with differences: 6`);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 6'),
+    }));
     expect(plainTextOutput).not.toContain('Stack UnChangedChild');
     expect(exitCode).toBe(0);
   });
@@ -1136,73 +1104,43 @@ describe('--strict', () => {
   afterEach(() => fs.rmSync(templatePath));
 
   test('--strict does not obscure CDK::Metadata or CheckBootstrapVersion', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
       strict: true,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(plainTextOutput.trim()).toEqual(`Stack A
 Resources
 [+] AWS::CDK::Metadata MetadataResource
 [+] AWS::Something::Amazing SomeOtherResource
 
 Other Changes
-[+] Unknown Rules: {\"CheckBootstrapVersion\":{\"newCheck\":\"newBootstrapVersion\"}}
+[+] Unknown Rules: {\"CheckBootstrapVersion\":{\"newCheck\":\"newBootstrapVersion\"}}`);
 
-
-✨  Number of stacks with differences: 1`);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(0);
   });
 
   test('--no-strict obscures CDK::Metadata and CheckBootstrapVersion', async () => {
-    // GIVEN
-    const buffer = new StringWritable();
-
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      stream: buffer,
     });
 
     // THEN
-    const plainTextOutput = buffer.data.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     expect(plainTextOutput.trim()).toEqual(`Stack A
 Resources
-[+] AWS::Something::Amazing SomeOtherResource
+[+] AWS::Something::Amazing SomeOtherResource`);
 
-
-✨  Number of stacks with differences: 1`);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
     expect(exitCode).toBe(0);
   });
 });
-
-class StringWritable extends Writable {
-  public data: string;
-  private readonly _decoder: StringDecoder;
-
-  constructor(options: any = {}) {
-    super(options);
-    this._decoder = new StringDecoder(options && options.defaultEncoding);
-    this.data = '';
-  }
-
-  public _write(chunk: any, encoding: string, callback: (error?: Error | undefined) => void) {
-    if (encoding === 'buffer') {
-      chunk = this._decoder.write(chunk);
-    }
-    this.data += chunk;
-    callback();
-  }
-
-  public _final(callback: (error?: Error | null) => void) {
-    this.data += this._decoder.end();
-    callback();
-  }
-}

@@ -14,6 +14,25 @@ import * as chalk from 'chalk';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { type NestedStackTemplates } from '../api/deployments';
 import { info, warning } from '../logging';
+import { Writable } from 'stream';
+
+// Custom writable stream that collects text into a string buffer
+class StringWriteStream extends Writable {
+  private buffer: string[] = [];
+
+  constructor() {
+    super();
+  }
+
+  _write(chunk: any, _encoding: string, callback: (error?: Error | null) => void): void {
+    this.buffer.push(chunk.toString());
+    callback();
+  }
+
+  toString(): string {
+    return this.buffer.join('');
+  }
+}
 
 /**
  * Pretty-prints the differences between two template states to the console.
@@ -38,7 +57,7 @@ export function printStackDiff(
   nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates }): { stackDiffCount: number, printableStackDiff: string } {
   let diff = fullDiff(oldTemplate, newTemplate.template, changeSet, isImport);
 
-  const stream = new fs.WriteStream();
+  const stream = new StringWriteStream();
 
   // must output the stack name if there are differences, even if quiet
   if (stackName && (!quiet || !diff.isEmpty)) {
