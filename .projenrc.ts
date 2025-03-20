@@ -199,6 +199,7 @@ const repoProject = new yarn.Monorepo({
     includeRootWorkspace: true,
   },
   nx: true,
+  buildWithNx: true,
 
   eslintOptions: {
     dirs: ['lib'],
@@ -305,6 +306,11 @@ function genericCdkProps(props: GenericProps = {}) {
     authorUrl: 'https://aws.amazon.com',
     authorOrganization: true,
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
+    tsJestOptions: {
+      transformOptions: {
+        isolatedModules: true,
+      },
+    },
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,

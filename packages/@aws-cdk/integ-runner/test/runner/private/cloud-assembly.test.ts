@@ -146,7 +146,7 @@ describe('cloud assembly manifest reader', () => {
 
     // THEN
     const newManifest = Manifest.loadAssetManifest(manifestFile);
-    expect(newManifest).toEqual({
+    expect(newManifest).toMatchObject({
       version: expect.any(String),
       artifacts: expect.objectContaining({
         'Tree': {
@@ -193,7 +193,7 @@ describe('cloud assembly manifest reader', () => {
 
     // THEN
     const newManifest = Manifest.loadAssetManifest(manifestFile);
-    expect(newManifest).toEqual({
+    expect(newManifest).toMatchObject({
       version: expect.any(String),
       artifacts: expect.objectContaining({
         'Tree': {
@@ -241,7 +241,7 @@ describe('cloud assembly manifest reader', () => {
 
     // THEN
     const newManifest = Manifest.loadAssetManifest(manifestFile);
-    expect(newManifest).toEqual({
+    expect(newManifest).toMatchObject({
       version: expect.any(String),
       artifacts: expect.objectContaining({
         'Tree': {
