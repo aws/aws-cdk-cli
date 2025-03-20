@@ -2,7 +2,6 @@ import * as os from 'os';
 import * as fs_path from 'path';
 import * as fs from 'fs-extra';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { warning } from '../logging';
 import * as util from '../util';
 
 export type SettingsMap = { [key: string]: any };
@@ -28,27 +27,6 @@ export class Settings {
     private settings: SettingsMap = {},
     public readonly readOnly = false,
   ) {
-  }
-
-  public async load(fileName: string): Promise<this> {
-    if (this.readOnly) {
-      throw new ToolkitError(
-        `Can't load ${fileName}: settings object is readonly`,
-      );
-    }
-    this.settings = {};
-
-    const expanded = expandHomeDir(fileName);
-    if (await fs.pathExists(expanded)) {
-      this.settings = await fs.readJson(expanded);
-    }
-
-    // See https://github.com/aws/aws-cdk/issues/59
-    this.prohibitContextKey('default-account', fileName);
-    this.prohibitContextKey('default-region', fileName);
-    this.warnAboutContextKey('aws:', fileName);
-
-    return this;
   }
 
   public async save(fileName: string): Promise<this> {
@@ -105,36 +83,6 @@ export class Settings {
 
   public unset(path: string[]) {
     this.set(path, undefined);
-  }
-
-  private prohibitContextKey(key: string, fileName: string) {
-    if (!this.settings.context) {
-      return;
-    }
-    if (key in this.settings.context) {
-      // eslint-disable-next-line max-len
-      throw new ToolkitError(
-        `The 'context.${key}' key was found in ${fs_path.resolve(
-          fileName,
-        )}, but it is no longer supported. Please remove it.`,
-      );
-    }
-  }
-
-  private warnAboutContextKey(prefix: string, fileName: string) {
-    if (!this.settings.context) {
-      return;
-    }
-    for (const contextKey of Object.keys(this.settings.context)) {
-      if (contextKey.startsWith(prefix)) {
-        // eslint-disable-next-line max-len
-        warning(
-          `A reserved context key ('context.${prefix}') key was found in ${fs_path.resolve(
-            fileName,
-          )}, it might cause surprising behavior and should be removed.`,
-        );
-      }
-    }
   }
 }
 
