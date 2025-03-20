@@ -70,7 +70,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   return x;
 }
 
-const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_4-core';
+const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_16-core';
 
 const workflowRunsOn = [
   POWERFUL_RUNNER,
@@ -199,6 +199,7 @@ const repoProject = new yarn.Monorepo({
     includeRootWorkspace: true,
   },
   nx: true,
+  buildWithNx: true,
 
   eslintOptions: {
     dirs: ['lib'],
