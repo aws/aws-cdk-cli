@@ -456,7 +456,7 @@ function isCandidateForHotswapping(
         subject: {
           type: 'Resource',
           logicalId,
-          resourceType: change.oldValue?.Type,
+          resourceType: change.oldValue.Type,
           metadata: evaluateCfnTemplate.metadataFor(logicalId),
         },
       },
@@ -464,7 +464,7 @@ function isCandidateForHotswapping(
   }
 
   // a resource has had its type changed
-  if (change.newValue?.Type !== change.oldValue?.Type) {
+  if (change.newValue.Type !== change.oldValue.Type) {
     return {
       hotswappable: false,
       change: {
@@ -473,7 +473,7 @@ function isCandidateForHotswapping(
         subject: {
           type: 'Resource',
           logicalId,
-          resourceType: change.newValue?.Type,
+          resourceType: change.newValue.Type,
           metadata: evaluateCfnTemplate.metadataFor(logicalId),
         },
       },
