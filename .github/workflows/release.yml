@@ -5,7 +5,7 @@ on:
   workflow_dispatch: {}
 jobs:
   release:
-    runs-on: aws-cdk_ubuntu-latest_4-core
+    runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: write
     outputs:
