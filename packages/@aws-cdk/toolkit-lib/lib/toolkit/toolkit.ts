@@ -180,7 +180,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             usePreviousParameters: parameters?.keepExistingParameters,
           },
         );
-        
+
         const envTime = await bootstrapSpan.end();
         const result: EnvironmentBootstrapResult = {
           environment,
