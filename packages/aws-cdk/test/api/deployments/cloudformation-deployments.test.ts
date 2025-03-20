@@ -16,7 +16,7 @@ import { CloudFormationStack, createChangeSet, Deployments } from '../../../lib/
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
-import { testStack } from '../../util';
+import { testStack } from '../../_helpers/assembly';
 import {
   mockBootstrapStack,
   mockCloudFormationClient,

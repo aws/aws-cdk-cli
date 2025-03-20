@@ -1,13 +1,13 @@
 import type {
   HotswapPropertyOverrides,
-  ChangeHotswapResult,
+  HotswapChange,
 } from './common';
 import {
-  classifyChanges, lowerCaseFirstCharacter,
-  reportNonHotswappableChange,
-  transformObjectKeys,
+  classifyChanges,
+  nonHotswappableChange,
 } from './common';
 import { NonHotswappableReason, type ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
@@ -18,13 +18,13 @@ export async function isHotswappableEcsServiceChange(
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   // the only resource change we can evaluate here is an ECS TaskDefinition
   if (change.newValue.Type !== 'AWS::ECS::TaskDefinition') {
     return [];
   }
 
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
 
   // We only allow a change in the ContainerDefinitions of the TaskDefinition for now -
   // it contains the image and environment variables, so seems like a safe bet for now.
@@ -55,27 +55,24 @@ export async function isHotswappableEcsServiceChange(
      *
      * This logic prevents us from logging that change as non-hotswappable when we hotswap it.
      */
-    reportNonHotswappableChange(
-      ret,
+    ret.push(nonHotswappableChange(
       change,
       NonHotswappableReason.DEPENDENCY_UNSUPPORTED,
-      undefined,
       'No ECS services reference the changed task definition',
+      undefined,
       false,
-    );
+    ));
   }
   if (resourcesReferencingTaskDef.length > ecsServicesReferencingTaskDef.length) {
     // if something besides an ECS Service is referencing the TaskDefinition,
     // hotswap is not possible in FALL_BACK mode
     const nonEcsServiceTaskDefRefs = resourcesReferencingTaskDef.filter((r) => r.Type !== ECS_SERVICE_RESOURCE_TYPE);
     for (const taskRef of nonEcsServiceTaskDefRefs) {
-      reportNonHotswappableChange(
-        ret,
+      ret.push(nonHotswappableChange(
         change,
         NonHotswappableReason.DEPENDENCY_UNSUPPORTED,
-        undefined,
         `A resource '${taskRef.LogicalId}' with Type '${taskRef.Type}' that is not an ECS Service was found referencing the changed TaskDefinition '${logicalId}'`,
-      );
+      ));
     }
   }
 

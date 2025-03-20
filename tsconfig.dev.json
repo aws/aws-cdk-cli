@@ -68,6 +68,9 @@
     },
     {
       "path": "packages/cdk"
+    },
+    {
+      "path": "packages/@aws-cdk/integ-runner"
     }
   ]
 }

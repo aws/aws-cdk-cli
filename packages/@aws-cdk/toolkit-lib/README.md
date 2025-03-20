@@ -61,7 +61,7 @@ import * as core from 'aws-cdk-lib/core';
 
 declare const cdk: Toolkit;
 
-const cx = cdk.fromAssemblyBuilder(async () => {
+const cx = await cdk.fromAssemblyBuilder(async () => {
   const app = new core.App();
 
   // Define your stacks here
@@ -321,7 +321,7 @@ Alternatively a inline `AssemblyBuilder` function can be used to build a CDK app
 ```ts
 declare const cdk: Toolkit;
 
-const cx = cdk.fromAssemblyBuilder(async () => {
+const cx = await cdk.fromAssemblyBuilder(async () => {
   const app = new core.App();
 
   // Define your stacks here

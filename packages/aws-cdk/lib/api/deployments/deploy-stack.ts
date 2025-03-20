@@ -30,8 +30,8 @@ import {
 import type { ChangeSetDeploymentMethod, DeploymentMethod } from './deployment-method';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import { tryHotswapDeployment } from './hotswap-deployments';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { ToolkitError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
 import type { EnvironmentResources } from '../environment';

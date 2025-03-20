@@ -1,10 +1,10 @@
 import { Writable } from 'stream';
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
-import type { ChangeHotswapResult } from './common';
+import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
-import { ToolkitError } from '../../toolkit/error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';
 import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
@@ -17,7 +17,7 @@ export async function isHotswappableLambdaFunctionChange(
   logicalId: string,
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   // if the change is for a Lambda Version, we just ignore it
   // we will publish a new version when we get to hotswapping the actual Function this Version points to
   // (Versions can't be changed in CloudFormation anyway, they're immutable)
@@ -35,7 +35,7 @@ export async function isHotswappableLambdaFunctionChange(
     return [];
   }
 
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
   const classifiedChanges = classifyChanges(change, ['Code', 'Environment', 'Description']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 
@@ -145,8 +145,8 @@ export async function isHotswappableLambdaFunctionChange(
 /**
  * Determines which changes to this Alias are hotswappable or not
  */
-function classifyAliasChanges(change: ResourceChange): ChangeHotswapResult {
-  const ret: ChangeHotswapResult = [];
+function classifyAliasChanges(change: ResourceChange): HotswapChange[] {
+  const ret: HotswapChange[] = [];
   const classifiedChanges = classifyChanges(change, ['FunctionVersion']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 

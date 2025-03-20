@@ -3,8 +3,8 @@ import { AssetManifest, type IManifestEntry } from 'cdk-assets';
 import { WorkGraph } from './work-graph';
 import type { AssetBuildNode, WorkNode } from './work-graph-types';
 import { DeploymentState } from './work-graph-types';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { ToolkitError } from '../../toolkit/error';
 import { contentHashAny } from '../../util';
 
 export class WorkGraphBuilder {

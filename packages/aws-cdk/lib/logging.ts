@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
-import type { IoMessageLevel } from './toolkit/cli-io-host';
-import { CliIoHost } from './toolkit/cli-io-host';
+import type { IoMessageLevel } from './cli/io-host/cli-io-host';
+import { CliIoHost } from './cli/io-host/cli-io-host';
 import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';

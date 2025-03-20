@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 /**
  * A single-writer/multi-reader lock on a directory

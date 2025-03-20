@@ -1,8 +1,8 @@
 import { exec as _exec } from 'child_process';
 import { promisify } from 'util';
 import * as semver from 'semver';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { debug } from '../../logging';
-import { ToolkitError } from '../../toolkit/error';
 
 const exec = promisify(_exec);
 

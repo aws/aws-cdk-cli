@@ -12,8 +12,8 @@ import { CredentialPlugins } from './credential-plugins';
 import { makeCachingProvider } from './provider-caching';
 import { SDK } from './sdk';
 import { callTrace, traceMemberMethods } from './tracing';
+import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { debug, warning } from '../../logging';
-import { AuthenticationError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 import { Mode } from '../plugin/mode';
 

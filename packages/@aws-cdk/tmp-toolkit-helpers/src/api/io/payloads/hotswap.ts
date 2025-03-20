@@ -1,5 +1,6 @@
 import type { PropertyDifference, Resource } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { Duration } from './types';
 import type { ResourceMetadata } from '../../resource-metadata/resource-metadata';
 
 /**
@@ -54,6 +55,13 @@ export interface ResourceChange {
    * The changes made to the resource properties
    */
   readonly propertyUpdates: Record<string, PropertyDifference<unknown>>;
+  /**
+   * Resource metadata attached to the logical id from the cloud assembly
+   *
+   * This is only present if the resource is present in the current Cloud Assembly,
+   * i.e. resource deletions will not have metadata.
+   */
+  readonly metadata?: ResourceMetadata;
 }
 
 /**
@@ -109,10 +117,67 @@ export enum NonHotswappableReason {
   NESTED_STACK_CREATION = 'nested-stack-creation',
 }
 
+export interface RejectionSubject {
+  /**
+   * The type of the rejection subject, e.g. Resource or Output
+   */
+  readonly type: string;
+
+  /**
+   * The logical ID of the change that is not hotswappable
+   */
+  readonly logicalId: string;
+  /**
+   * Resource metadata attached to the logical id from the cloud assembly
+   *
+   * This is only present if the resource is present in the current Cloud Assembly,
+   * i.e. resource deletions will not have metadata.
+   */
+  readonly metadata?: ResourceMetadata;
+}
+
+export interface ResourceSubject extends RejectionSubject {
+  /**
+   * A rejected resource
+   */
+  readonly type: 'Resource';
+  /**
+   * The type of the rejected resource
+   */
+  readonly resourceType: string;
+  /**
+   * The list of properties that are cause for the rejection
+   */
+  readonly rejectedProperties?: string[];
+}
+
+export interface OutputSubject extends RejectionSubject {
+  /**
+   * A rejected output
+   */
+  readonly type: 'Output';
+}
+
 /**
- * Information about a hotswap deployment
+ * A change that can not be hotswapped
  */
-export interface HotswapDeployment {
+export interface NonHotswappableChange {
+  /**
+   * The subject of the change that was rejected
+   */
+  readonly subject: ResourceSubject | OutputSubject;
+  /**
+   * Why was this change was deemed non-hotswappable
+   */
+  readonly reason: NonHotswappableReason;
+  /**
+   * Tells the user exactly why this change was deemed non-hotswappable and what its logical ID is.
+   * If not specified, `displayReason` default to state that the properties listed in `rejectedChanges` are not hotswappable.
+   */
+  readonly description: string;
+}
+
+export interface HotswapDeploymentAttempt {
   /**
    * The stack that's currently being deployed
    */
@@ -122,4 +187,39 @@ export interface HotswapDeployment {
    * The mode the hotswap deployment was initiated with.
    */
   readonly mode: 'hotswap-only' | 'fall-back';
+}
+
+/**
+ * Information about a hotswap deployment
+ */
+export interface HotswapDeploymentDetails {
+  /**
+   * The stack that's currently being deployed
+   */
+  readonly stack: cxapi.CloudFormationStackArtifact;
+
+  /**
+   * The mode the hotswap deployment was initiated with.
+   */
+  readonly mode: 'hotswap-only' | 'fall-back';
+  /**
+   * The changes that were deemed hotswappable
+   */
+  readonly hotswappableChanges: HotswappableChange[];
+  /**
+   * The changes that were deemed not hotswappable
+   */
+  readonly nonHotswappableChanges: NonHotswappableChange[];
+}
+
+/**
+ * The result of an attempted hotswap deployment
+ */
+export interface HotswapResult extends Duration, HotswapDeploymentDetails {
+  /**
+   * Whether hotswapping happened or not.
+   *
+   * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
+   */
+  readonly hotswapped: boolean;
 }

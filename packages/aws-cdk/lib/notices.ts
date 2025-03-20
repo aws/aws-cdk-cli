@@ -8,12 +8,12 @@ import * as semver from 'semver';
 import type { SdkHttpOptions } from './api';
 import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
 import type { Context } from './api/context';
+import type { IIoHost } from './cli/io-host';
 import { versionNumber } from './cli/version';
-import type { IIoHost } from './toolkit/cli-io-host';
-import { ToolkitError } from './toolkit/error';
 import type { ConstructTreeNode } from './tree';
 import { loadTreeFromDir } from './tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
+import { ToolkitError } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');

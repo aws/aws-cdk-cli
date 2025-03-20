@@ -2,7 +2,7 @@
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { DefaultSelection } from '../../../lib/api/cxapp/cloud-assembly';
 import { registerContextProvider } from '../../../lib/context-providers';
-import { MockCloudExecutable } from '../../util';
+import { MockCloudExecutable } from '../../_helpers/assembly';
 
 describe('AWS::CDK::Metadata', () => {
   test('is not generated for new frameworks', async () => {

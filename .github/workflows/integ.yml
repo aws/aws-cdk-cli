@@ -9,7 +9,7 @@ on:
   workflow_dispatch: {}
 jobs:
   prepare:
-    runs-on: aws-cdk_ubuntu-latest_4-core
+    runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: read
     environment: integ-approval
@@ -48,7 +48,7 @@ jobs:
           overwrite: "true"
   integ_matrix:
     needs: prepare
-    runs-on: aws-cdk_ubuntu-latest_4-core
+    runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: read
       id-token: write
@@ -146,7 +146,7 @@ jobs:
     needs:
       - prepare
       - integ_matrix
-    runs-on: aws-cdk_ubuntu-latest_4-core
+    runs-on: aws-cdk_ubuntu-latest_16-core
     permissions: {}
     if: always()
     steps:
