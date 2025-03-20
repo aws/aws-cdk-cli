@@ -108,7 +108,7 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
       'ts',
       'js',
     ],
-    maxWorkers: '80%',
+    maxWorkers: 1,
     testEnvironment: 'node',
     coverageThreshold: {
       statements: 80,
