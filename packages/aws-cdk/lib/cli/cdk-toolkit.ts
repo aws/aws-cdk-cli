@@ -8,6 +8,7 @@ import * as promptly from 'promptly';
 import * as uuid from 'uuid';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
@@ -35,6 +36,8 @@ import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import { StackActivityProgress } from '../commands/deploy';
+import { printSecurityDiff, printStackDiff, RequireApproval } from '../commands/diff';
+import { listStacks } from '../commands/list-stacks';
 import type {
   FromScan,
   GenerateTemplateOutput,
@@ -55,11 +58,8 @@ import {
   isThereAWarning,
   buildCfnClient,
 } from '../commands/migrate';
-import { printSecurityDiff, printStackDiff, RequireApproval } from '../diff';
-import { listStacks } from '../list-stacks';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { CliIoHost } from '../toolkit/cli-io-host';
-import { ToolkitError } from '../toolkit/error';
+import { CliIoHost } from './io-host';
 import { numberFromBool, partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace

@@ -1,10 +1,10 @@
 import type { HostedZoneContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { HostedZone } from '@aws-sdk/client-route-53';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IRoute53Client } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
 import { debug } from '../logging';
-import { ContextProviderError } from '../toolkit/error';
 
 export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider) {

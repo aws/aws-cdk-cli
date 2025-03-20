@@ -1,9 +1,8 @@
 import { FilterLogEventsCommand, type FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../../../lib/api/logs/logs-monitor';
-import { sleep } from '../../util';
+import { sleep } from '../../_helpers/sleep';
 import { MockSdk, mockCloudWatchClient } from '../../util/mock-sdk';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 // Helper function to strip ANSI codes
 const stripAnsi = (str: string): string => {

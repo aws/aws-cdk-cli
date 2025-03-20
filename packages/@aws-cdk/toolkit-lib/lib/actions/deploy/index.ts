@@ -1,5 +1,6 @@
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
+import type { RequireApproval } from '../../api/shared-public';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
@@ -46,24 +47,6 @@ export enum AssetBuildTime {
    * Build assets just-in-time, before publishing
    */
   JUST_IN_TIME = 'just-in-time',
-}
-
-/**
- * @deprecated
- */
-export enum RequireApproval {
-  /**
-   * Never require any security approvals
-   */
-  NEVER = 'never',
-  /**
-   * Any security changes require an approval
-   */
-  ANY_CHANGE = 'any-change',
-  /**
-   * Require approval only for changes that are access broadening
-   */
-  BROADENING = 'broadening',
 }
 
 export enum HotswapMode {

@@ -1,4 +1,4 @@
-import type { ChangeHotswapResult } from './common';
+import type { HotswapChange } from './common';
 import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
@@ -12,13 +12,13 @@ const REQUIRED_BY_CFN = 'required-to-be-present-by-cfn';
 const CDK_BUCKET_DEPLOYMENT_CFN_TYPE = 'Custom::CDKBucketDeployment';
 
 export async function isHotswappableS3BucketDeploymentChange(
-  _logicalId: string,
+  logicalId: string,
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   // In old-style synthesis, the policy used by the lambda to copy assets Ref's the assets directly,
   // meaning that the changes made to the Policy are artifacts that can be safely ignored
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
 
   if (change.newValue.Type !== CDK_BUCKET_DEPLOYMENT_CFN_TYPE) {
     return [];
@@ -39,10 +39,16 @@ export async function isHotswappableS3BucketDeploymentChange(
   ret.push({
     change: {
       cause: change,
+      resources: [{
+        logicalId,
+        physicalName: customResourceProperties.DestinationBucketName,
+        resourceType: CDK_BUCKET_DEPLOYMENT_CFN_TYPE,
+        description: `Contents of AWS::S3::Bucket '${customResourceProperties.DestinationBucketName}'`,
+        metadata: evaluateCfnTemplate.metadataFor(logicalId),
+      }],
     },
     hotswappable: true,
     service: 'custom-s3-deployment',
-    resourceNames: [`Contents of S3 Bucket '${customResourceProperties.DestinationBucketName}'`],
     apply: async (sdk: SDK) => {
       await sdk.lambda().invokeCommand({
         FunctionName: functionName,

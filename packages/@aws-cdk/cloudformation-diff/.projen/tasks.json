@@ -52,7 +52,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-cloudformation,@cdklabs/eslint-plugin,@stylistic/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,license-checker,projen,ts-jest,@aws-cdk/aws-service-spec,@aws-cdk/service-spec-types,diff,fast-deep-equal"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-cloudformation,@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,license-checker,projen,ts-jest,@aws-cdk/aws-service-spec,@aws-cdk/service-spec-types,diff,fast-deep-equal"
         }
       ]
     },
@@ -101,7 +101,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(path.join(path.dirname(require.resolve('cdklabs-projen-project-types')), 'yarn', 'gather-versions.exec.js'))\" @aws-cdk/cloudformation-diff MAJOR --deps ",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" ",
           "receiveArgs": true
         }
       ]

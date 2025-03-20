@@ -7,7 +7,7 @@ import { CloudAssemblyBuilder } from '@aws-cdk/cx-api';
 import { expect } from '@jest/globals';
 import { WorkGraph, WorkGraphBuilder } from '../../../lib/api/work-graph';
 import type { AssetBuildNode, AssetPublishNode, StackNode, WorkNode } from '../../../lib/api/work-graph';
-import { CliIoHost, IoMessaging } from '../../../lib/toolkit/cli-io-host';
+import { CliIoHost, IoMessaging } from '../../../lib/cli/io-host';
 
 let rootBuilder: CloudAssemblyBuilder;
 let mockMsg: IoMessaging = {

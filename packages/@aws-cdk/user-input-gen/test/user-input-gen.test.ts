@@ -33,10 +33,12 @@ describe('render', () => {
       commands: {
         deploy: {
           description: 'Deploy a stack',
+          aliases: ['ship-it'],
           options: {
             all: {
               type: 'boolean',
               desc: 'Deploy all stacks',
+              alias: 'A',
               default: false,
             },
           },
@@ -70,6 +72,8 @@ describe('render', () => {
 
         /**
          * Deploy a stack
+         *
+         * aliases: ship-it
          */
         readonly deploy?: DeployOptions;
       }
@@ -119,11 +123,15 @@ describe('render', () => {
       /**
        * Deploy a stack
        *
+       * aliases: ship-it
+       *
        * @struct
        */
       export interface DeployOptions {
         /**
          * Deploy all stacks
+         *
+         * aliases: A
          *
          * @default - false
          */

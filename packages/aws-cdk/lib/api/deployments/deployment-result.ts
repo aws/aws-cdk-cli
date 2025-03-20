@@ -1,4 +1,4 @@
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 export type DeployStackResult =
   | SuccessfulDeployStackResult

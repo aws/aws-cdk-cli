@@ -5,6 +5,7 @@ import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environ
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
+import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../payloads/hotswap';
 import type { StackDetailsPayload } from '../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
 import type { StackRollbackProgress } from '../payloads/rollback';
@@ -33,6 +34,14 @@ export const IO = {
   DEFAULT_TOOLKIT_WARN: make.warn({
     code: 'CDK_TOOLKIT_W0000',
     description: 'Default warning messages emitted from the Toolkit',
+  }),
+  DEFAULT_TOOLKIT_ERROR: make.error({
+    code: 'CDK_TOOLKIT_E0000',
+    description: 'Default error messages emitted from the Toolkit',
+  }),
+  DEFAULT_TOOLKIT_TRACE: make.trace({
+    code: 'CDK_TOOLKIT_I0000',
+    description: 'Default trace messages emitted from the Toolkit',
   }),
 
   // 1: Synth (1xxx)
@@ -188,6 +197,31 @@ export const IO = {
   }),
 
   // Hotswap (54xx)
+  CDK_TOOLKIT_I5400: make.trace<HotswapDeploymentAttempt>({
+    code: 'CDK_TOOLKIT_I5400',
+    description: 'Attempting a hotswap deployment',
+    interface: 'HotswapDeploymentAttempt',
+  }),
+  CDK_TOOLKIT_I5401: make.trace<HotswapDeploymentDetails>({
+    code: 'CDK_TOOLKIT_I5401',
+    description: 'Computed details for the hotswap deployment',
+    interface: 'HotswapDeploymentDetails',
+  }),
+  CDK_TOOLKIT_I5402: make.info<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5402',
+    description: 'A hotswappable change is processed as part of a hotswap deployment',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5403: make.info<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5403',
+    description: 'The hotswappable change has completed processing',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5410: make.info<HotswapResult>({
+    code: 'CDK_TOOLKIT_I5410',
+    description: 'Hotswap deployment has ended, a full deployment might still follow if needed',
+    interface: 'HotswapResult',
+  }),
 
   // Stack Monitor (55xx)
   CDK_TOOLKIT_I5501: make.info<StackMonitoringControlEvent>({
@@ -320,6 +354,24 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
+  // Notices
+  CDK_TOOLKIT_I0100: make.info({
+    code: 'CDK_TOOLKIT_I0100',
+    description: 'Notices decoration (the header or footer of a list of notices)',
+  }),
+  CDK_TOOLKIT_W0101: make.warn({
+    code: 'CDK_TOOLKIT_W0101',
+    description: 'A notice that is marked as a warning',
+  }),
+  CDK_TOOLKIT_E0101: make.error({
+    code: 'CDK_TOOLKIT_E0101',
+    description: 'A notice that is marked as an error',
+  }),
+  CDK_TOOLKIT_I0101: make.info({
+    code: 'CDK_TOOLKIT_I0101',
+    description: 'A notice that is marked as informational',
+  }),
+
   // Assembly codes
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
@@ -442,5 +494,10 @@ export const SPAN = {
     name: 'Publish Asset',
     start: IO.CDK_TOOLKIT_I5220,
     end: IO.CDK_TOOLKIT_I5221,
+  },
+  HOTSWAP: {
+    name: 'hotswap-deployment',
+    start: IO.CDK_TOOLKIT_I5400,
+    end: IO.CDK_TOOLKIT_I5410,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;

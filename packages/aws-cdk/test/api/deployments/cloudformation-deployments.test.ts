@@ -16,7 +16,7 @@ import { CloudFormationStack, createChangeSet, Deployments } from '../../../lib/
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
-import { testStack } from '../../util';
+import { testStack } from '../../_helpers/assembly';
 import {
   mockBootstrapStack,
   mockCloudFormationClient,
@@ -27,8 +27,7 @@ import {
   setDefaultSTSMocks,
 } from '../../util/mock-sdk';
 import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');

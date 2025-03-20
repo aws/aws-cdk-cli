@@ -5,7 +5,7 @@ import { ICloudFormationClient, SuccessfulDeployStackResult } from '../../../lib
 import { CloudFormationStack, Template } from '../../../lib/api/deployments';
 import * as deployments from '../../../lib/api/deployments/hotswap-deployments';
 import { HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
-import { testStack, TestStackArtifact } from '../../util';
+import { testStack, TestStackArtifact } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
   mockLambdaClient,
@@ -14,8 +14,7 @@ import {
   setDefaultSTSMocks,
 } from '../../util/mock-sdk';
 import { FakeCloudformationStack } from './fake-cloudformation-stack';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const STACK_NAME = 'withouterrors';
 export const STACK_ID = 'stackId';
