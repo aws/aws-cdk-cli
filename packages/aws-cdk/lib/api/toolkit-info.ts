@@ -12,8 +12,7 @@ import {
 } from './bootstrap/bootstrap-props';
 import { type CloudFormationStack, stabilizeStack } from './deployments/cloudformation';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug } from '../cli/messages';
+import { IO, type IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export const DEFAULT_TOOLKIT_STACK_NAME = 'CDKToolkit';
 
@@ -56,7 +55,7 @@ export abstract class ToolkitInfo {
     try {
       const stack = await stabilizeStack(cfn, ioHelper, stackName);
       if (!stack) {
-        await ioHelper.notify(debug(
+        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(
           format(
             "The environment %s doesn't have the CDK toolkit stack (%s) installed. Use %s to setup your environment for use with the toolkit.",
             environment.name,
@@ -68,7 +67,7 @@ export abstract class ToolkitInfo {
       }
       if (stack.stackStatus.isCreationFailure) {
         // Treat a "failed to create" bootstrap stack as an absent one.
-        await ioHelper.notify(debug(
+        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(
           format(
             'The environment %s has a CDK toolkit stack (%s) that failed to create. Use %s to try provisioning it again.',
             environment.name,

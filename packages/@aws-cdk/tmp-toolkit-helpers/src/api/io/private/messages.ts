@@ -74,9 +74,10 @@ export const IO = {
   }),
 
   // 3: Import & Migrate
-  CDK_TOOLKIT_E3900: make.error({
+  CDK_TOOLKIT_E3900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E3900',
     description: 'Resource import failed',
+    interface: 'ErrorPayload',
   }),
 
   // 4: Diff (4xxx)
@@ -92,9 +93,10 @@ export const IO = {
     description: 'Provides total time in deploy action, including synth and rollback',
     interface: 'Duration',
   }),
-  CDK_TOOLKIT_I5002: make.info({
+  CDK_TOOLKIT_I5002: make.info<Duration>({
     code: 'CDK_TOOLKIT_I5002',
     description: 'Provides time for resource migration',
+    interface: 'Duration',
   }),
   CDK_TOOLKIT_W5021: make.warn({
     code: 'CDK_TOOLKIT_W5021',

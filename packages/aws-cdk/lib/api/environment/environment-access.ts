@@ -3,8 +3,7 @@ import type { SDK } from '../aws-auth';
 import type { EnvironmentResources } from './environment-resources';
 import { EnvironmentResourcesRegistry } from './environment-resources';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { warn } from '../../cli/messages';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
 import { Mode } from '../plugin/mode';
@@ -113,7 +112,7 @@ export class EnvironmentAccess {
     }
     if (lookupEnv.isFallbackCredentials) {
       const arn = await lookupEnv.replacePlaceholders(stack.lookupRole?.arn);
-      await this.ioHelper.notify(warn(`Lookup role ${arn} was not assumed. Proceeding with default credentials.`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Lookup role ${arn} was not assumed. Proceeding with default credentials.`));
     }
     return lookupEnv;
   }
@@ -137,7 +136,7 @@ export class EnvironmentAccess {
     try {
       return await this.accessStackForLookup(stack);
     } catch (e: any) {
-      await this.ioHelper.notify(warn(`${formatErrorMessage(e)}`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${formatErrorMessage(e)}`));
     }
     return this.accessStackForStackOperations(stack, Mode.ForReading);
   }
