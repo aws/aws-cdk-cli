@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
+import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
@@ -11,7 +12,6 @@ import { JsiiBuild } from './projenrc/jsii';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
-import { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -1317,7 +1317,7 @@ const cdkCliWrapper = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-      }
+      },
     },
   }),
 );
@@ -1390,7 +1390,7 @@ const integRunner = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-      }
+      },
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
