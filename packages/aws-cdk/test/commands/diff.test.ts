@@ -7,10 +7,12 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
-import { Deployments, PrepareChangeSetOptions, type NestedStackTemplates } from '../../lib/api/deployments';
-import * as cfn from '../../lib/api/deployments/cloudformation';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { Deployments } from '../../lib/api/deployments';
+import * as cfn from '../../lib/api/deployments/cfn-api';
+import { NestedStackTemplates } from '../../lib/api/cloudformation';
+import { PrepareChangeSetOptions } from '../../lib/api/deployments/cfn-api';
 
 let cloudExecutable: MockCloudExecutable;
 let cloudFormation: jest.Mocked<Deployments>;

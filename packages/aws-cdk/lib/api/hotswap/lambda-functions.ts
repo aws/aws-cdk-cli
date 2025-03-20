@@ -7,7 +7,7 @@ import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';
-import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../cloudformation';
 
 // namespace object imports won't work in the bundle for function exports
 // eslint-disable-next-line @typescript-eslint/no-require-imports

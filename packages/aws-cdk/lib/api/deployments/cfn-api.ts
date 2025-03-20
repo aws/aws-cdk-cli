@@ -1,14 +1,14 @@
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
+import type {
+  DescribeChangeSetCommandOutput,
+  Parameter,
+  ResourceToImport,
+  Tag,
+} from '@aws-sdk/client-cloudformation';
 import {
   ChangeSetStatus,
-  type DescribeChangeSetCommandOutput,
-  type Parameter,
-  type ResourceIdentifierSummary,
-  type ResourceToImport,
-  type Stack,
-  type Tag,
 } from '@aws-sdk/client-cloudformation';
 import type { FileManifestEntry } from 'cdk-assets';
 import { AssetManifest } from 'cdk-assets';
@@ -16,199 +16,10 @@ import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
-import { StackStatus } from '../stack-events';
-import type { TemplateBodyParameter } from '../util/template-body-parameter';
-import { makeBodyParameter } from '../util/template-body-parameter';
-
-export type ResourcesToImport = ResourceToImport[];
-export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
-export type ResourceIdentifierProperties = Record<string, string>;
-
-export type Template = {
-  Parameters?: Record<string, TemplateParameter>;
-  [key: string]: any;
-};
-
-interface TemplateParameter {
-  Type: string;
-  Default?: any;
-  Description?: string;
-  [key: string]: any;
-}
-
-/**
- * Represents an (existing) Stack in CloudFormation
- *
- * Bundle and cache some information that we need during deployment (so we don't have to make
- * repeated calls to CloudFormation).
- */
-export class CloudFormationStack {
-  public static async lookup(
-    cfn: ICloudFormationClient,
-    stackName: string,
-    retrieveProcessedTemplate: boolean = false,
-  ): Promise<CloudFormationStack> {
-    try {
-      const response = await cfn.describeStacks({ StackName: stackName });
-      return new CloudFormationStack(cfn, stackName, response.Stacks && response.Stacks[0], retrieveProcessedTemplate);
-    } catch (e: any) {
-      if (e.name === 'ValidationError' && formatErrorMessage(e) === `Stack with id ${stackName} does not exist`) {
-        return new CloudFormationStack(cfn, stackName, undefined);
-      }
-      throw e;
-    }
-  }
-
-  /**
-   * Return a copy of the given stack that does not exist
-   *
-   * It's a little silly that it needs arguments to do that, but there we go.
-   */
-  public static doesNotExist(cfn: ICloudFormationClient, stackName: string) {
-    return new CloudFormationStack(cfn, stackName);
-  }
-
-  /**
-   * From static information (for testing)
-   */
-  public static fromStaticInformation(cfn: ICloudFormationClient, stackName: string, stack: Stack) {
-    return new CloudFormationStack(cfn, stackName, stack);
-  }
-
-  private _template: any;
-
-  protected constructor(
-    private readonly cfn: ICloudFormationClient,
-    public readonly stackName: string,
-    private readonly stack?: Stack,
-    private readonly retrieveProcessedTemplate: boolean = false,
-  ) {
-  }
-
-  /**
-   * Retrieve the stack's deployed template
-   *
-   * Cached, so will only be retrieved once. Will return an empty
-   * structure if the stack does not exist.
-   */
-  public async template(): Promise<Template> {
-    if (!this.exists) {
-      return {};
-    }
-
-    if (this._template === undefined) {
-      const response = await this.cfn.getTemplate({
-        StackName: this.stackName,
-        TemplateStage: this.retrieveProcessedTemplate ? 'Processed' : 'Original',
-      });
-      this._template = (response.TemplateBody && deserializeStructure(response.TemplateBody)) || {};
-    }
-    return this._template;
-  }
-
-  /**
-   * Whether the stack exists
-   */
-  public get exists() {
-    return this.stack !== undefined;
-  }
-
-  /**
-   * The stack's ID
-   *
-   * Throws if the stack doesn't exist.
-   */
-  public get stackId() {
-    this.assertExists();
-    return this.stack!.StackId!;
-  }
-
-  /**
-   * The stack's current outputs
-   *
-   * Empty object if the stack doesn't exist
-   */
-  public get outputs(): Record<string, string> {
-    if (!this.exists) {
-      return {};
-    }
-    const result: { [name: string]: string } = {};
-    (this.stack!.Outputs || []).forEach((output) => {
-      result[output.OutputKey!] = output.OutputValue!;
-    });
-    return result;
-  }
-
-  /**
-   * The stack's status
-   *
-   * Special status NOT_FOUND if the stack does not exist.
-   */
-  public get stackStatus(): StackStatus {
-    if (!this.exists) {
-      return new StackStatus('NOT_FOUND', 'Stack not found during lookup');
-    }
-    return StackStatus.fromStackDescription(this.stack!);
-  }
-
-  /**
-   * The stack's current tags
-   *
-   * Empty list if the stack does not exist
-   */
-  public get tags(): Tag[] {
-    return this.stack?.Tags || [];
-  }
-
-  /**
-   * SNS Topic ARNs that will receive stack events.
-   *
-   * Empty list if the stack does not exist
-   */
-  public get notificationArns(): string[] {
-    return this.stack?.NotificationARNs ?? [];
-  }
-
-  /**
-   * Return the names of all current parameters to the stack
-   *
-   * Empty list if the stack does not exist.
-   */
-  public get parameterNames(): string[] {
-    return Object.keys(this.parameters);
-  }
-
-  /**
-   * Return the names and values of all current parameters to the stack
-   *
-   * Empty object if the stack does not exist.
-   */
-  public get parameters(): Record<string, string> {
-    if (!this.exists) {
-      return {};
-    }
-    const ret: Record<string, string> = {};
-    for (const param of this.stack!.Parameters ?? []) {
-      ret[param.ParameterKey!] = param.ResolvedValue ?? param.ParameterValue!;
-    }
-    return ret;
-  }
-
-  /**
-   * Return the termination protection of the stack
-   */
-  public get terminationProtection(): boolean | undefined {
-    return this.stack?.EnableTerminationProtection;
-  }
-
-  private assertExists() {
-    if (!this.exists) {
-      throw new ToolkitError(`No stack named '${this.stackName}'`);
-    }
-  }
-}
+import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
+import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
+import type { ResourcesToImport } from '../resource-import';
 
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
@@ -403,6 +214,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
 
     const bodyParameter = await makeBodyParameter(
+      ioHelper,
       options.stack,
       env.resolvedEnvironment,
       new AssetManifestBuilder(),

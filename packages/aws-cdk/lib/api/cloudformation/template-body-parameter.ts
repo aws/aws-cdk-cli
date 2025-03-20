@@ -1,13 +1,14 @@
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import * as util from 'node:util';
 import { type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cx-api';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import * as chalk from 'chalk';
-import * as fs from 'fs-extra';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { debug, error } from '../../logging';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { contentHash, toYAML } from '../../util';
-import { type AssetManifestBuilder } from '../deployments';
+import type { AssetManifestBuilder } from '../deployments';
 import type { EnvironmentResources } from '../environment';
 
 export type TemplateBodyParameter = {
@@ -31,6 +32,7 @@ const LARGE_TEMPLATE_SIZE_KB = 50;
  * @param toolkitInfo information about the toolkit stack
  */
 export async function makeBodyParameter(
+  ioHelper: IoHelper,
   stack: CloudFormationStackArtifact,
   resolvedEnvironment: Environment,
   assetManifest: AssetManifestBuilder,
@@ -53,11 +55,13 @@ export async function makeBodyParameter(
 
   const toolkitInfo = await resources.lookupToolkit();
   if (!toolkitInfo.found) {
-    error(
-      `The template for stack "${stack.displayName}" is ${Math.round(templateJson.length / 1024)}KiB. ` +
+    await ioHelper.notify(
+      IO.DEFAULT_TOOLKIT_ERROR.msg(util.format(
+        `The template for stack "${stack.displayName}" is ${Math.round(templateJson.length / 1024)}KiB. ` +
         `Templates larger than ${LARGE_TEMPLATE_SIZE_KB}KiB must be uploaded to S3.\n` +
         'Run the following command in order to setup an S3 bucket in this environment, and then re-deploy:\n\n',
-      chalk.blue(`\t$ cdk bootstrap ${resolvedEnvironment.name}\n`),
+        chalk.blue(`\t$ cdk bootstrap ${resolvedEnvironment.name}\n`),
+      )),
     );
 
     throw new ToolkitError('Template too large to deploy ("cdk bootstrap" is required)');
@@ -86,7 +90,7 @@ export async function makeBodyParameter(
   );
 
   const templateURL = `${toolkitInfo.bucketUrl}/${key}`;
-  debug('Storing template in S3 at:', templateURL);
+  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Storing template in S3 at: ${templateURL}`));
   return { TemplateURL: templateURL };
 }
 

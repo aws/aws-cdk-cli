@@ -2,14 +2,18 @@ import { format } from 'util';
 import * as cfnDiff from '@aws-cdk/cloudformation-diff';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import type { DeploymentMethod, ResourceIdentifierProperties, ResourcesToImport, Deployments } from '../deployments';
+import type { DeploymentMethod, Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import type { Tag } from '../tags';
+
+export type ResourcesToImport = ResourceToImport[];
+export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
 
 export interface ResourceImporterProps {
   deployments: Deployments;
@@ -69,6 +73,8 @@ export interface ImportDeploymentOptions {
  */
 export type ResourceIdentifiers = { [resourceType: string]: string[][] };
 
+type ResourceIdentifierProperties = Record<string, string>;
+
 /**
  * Mapping of CDK resources (L1 constructs) to physical resources to be imported
  * in their place, example:
@@ -84,7 +90,7 @@ export type ResourceIdentifiers = { [resourceType: string]: string[][] };
  * }
  * ```
  */
-export type ResourceMap = { [logicalResource: string]: ResourceIdentifierProperties };
+type ResourceMap = { [logicalResource: string]: ResourceIdentifierProperties };
 
 /**
  * Resource importing utility class

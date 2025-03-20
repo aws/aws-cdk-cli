@@ -23,7 +23,7 @@ import { AwsCredentialIdentity } from '@smithy/types';
 import { mockClient } from 'aws-sdk-client-mock';
 import { type Account } from 'cdk-assets';
 import { SDK, SdkProvider } from '../../lib/api/aws-auth';
-import { CloudFormationStack } from '../../lib/api/deployments';
+import { CloudFormationStack } from '../../lib/api/cloudformation';
 
 export const FAKE_CREDENTIALS: AwsCredentialIdentity = {
   accessKeyId: 'ACCESS',

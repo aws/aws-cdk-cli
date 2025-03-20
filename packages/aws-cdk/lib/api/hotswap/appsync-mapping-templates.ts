@@ -11,7 +11,7 @@ import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/sr
 import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 
-import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
 export async function isHotswappableAppSyncChange(
   logicalId: string,

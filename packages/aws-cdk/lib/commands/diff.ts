@@ -12,7 +12,7 @@ import {
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { type NestedStackTemplates } from '../api/deployments';
+import type { NestedStackTemplates } from '../api/cloudformation';
 import { info, warning } from '../logging';
 
 /**

@@ -1,7 +1,7 @@
 import { type HotswapChange, classifyChanges } from './common';
 import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
-import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
 export async function isHotswappableStateMachineChange(
   logicalId: string,
