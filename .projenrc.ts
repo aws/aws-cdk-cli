@@ -199,6 +199,7 @@ const repoProject = new yarn.Monorepo({
     includeRootWorkspace: true,
   },
   nx: true,
+  buildWithNx: true,
 
   eslintOptions: {
     dirs: ['lib'],
