@@ -497,7 +497,7 @@ function isCandidateForHotswapping(
 }
 
 async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>, hotswappableChanges: HotswapOperation[]): Promise<void[]> {
-  if (hotswappableChanges.length <= 0) {
+  if (hotswappableChanges.length === 0) {
     return Promise.resolve([]);
   }
 
