@@ -2,6 +2,7 @@ import { AssemblyError, AuthenticationError, ContextProviderError, ToolkitError 
 
 describe('toolkit error', () => {
   let toolkitError = new ToolkitError('Test toolkit error');
+  let toolkitCauseError = ToolkitError.withCause('Test toolkit error', new Error('other error'));
   let authError = new AuthenticationError('Test authentication error');
   let contextProviderError = new ContextProviderError('Test context provider error');
   let assemblyError = AssemblyError.withStacks('Test authentication error', []);
@@ -25,6 +26,11 @@ describe('toolkit error', () => {
     expect(ToolkitError.isToolkitError(contextProviderError)).toBe(true);
   });
 
+  test('ToolkitError.withCause', () => {
+    expect((toolkitCauseError.cause as any)?.message).toBe('other error');
+    expect(ToolkitError.isToolkitError(toolkitCauseError)).toBe(true);
+  });
+
   test('isAuthenticationError works', () => {
     expect(authError.source).toBe('user');
 
@@ -42,7 +48,7 @@ describe('toolkit error', () => {
       expect(ToolkitError.isAssemblyError(authError)).toBe(false);
     });
 
-    test('AssemblyError.fromCause', () => {
+    test('AssemblyError.withCause', () => {
       expect(assemblyCauseError.source).toBe('user');
       expect((assemblyCauseError.cause as any)?.message).toBe('other error');
 
