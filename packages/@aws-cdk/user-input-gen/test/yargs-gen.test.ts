@@ -78,6 +78,7 @@ describe('render', () => {
       commands: {
         test: {
           description: 'the action under test',
+          aliases: ['spec'],
           options: {
             one: {
               type: 'boolean',
@@ -104,7 +105,7 @@ describe('render', () => {
         return yargs
           .env('CDK')
           .usage('Usage: cdk -a <cdk-app> COMMAND')
-          .command('test', 'the action under test', (yargs: Argv) =>
+          .command(['test', 'spec'], 'the action under test', (yargs: Argv) =>
             yargs
               .option('one', {
                 default: undefined,
