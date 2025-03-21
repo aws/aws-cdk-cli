@@ -191,7 +191,7 @@ export function formatSecurityDiff(
   stackName?: string,
   changeSet?: DescribeChangeSetOutput,
 ): FormatSecurityDiffOutput {
-  const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);\
+  const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);
 
   if (diffRequiresApproval(diff, requireApproval)) {
     info(format('Stack %s\n', chalk.bold(stackName)));
