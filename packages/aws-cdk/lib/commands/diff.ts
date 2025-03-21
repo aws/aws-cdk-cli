@@ -79,7 +79,7 @@ export function formatStackDiff(
   // and sends its output directly to that stream. To faciliate use of the
   // global CliIoHost, we create our own stream to capture the output of
   // `Formatter` and return the output as a string for the consumer of
-  // `printStackDiff` to decide what to do with it.
+  // `formatStackDiff` to decide what to do with it.
   const stream = new StringWriteStream();
 
   let numStacksWithChanges = 0;
@@ -191,14 +191,7 @@ export function formatSecurityDiff(
   stackName?: string,
   changeSet?: DescribeChangeSetOutput,
 ): FormatSecurityDiffOutput {
-  const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);
-
-  // The stack diff is formatted via `Formatter`, which takes in a stream
-  // and sends its output directly to that stream. To faciliate use of the
-  // global CliIoHost, we create our own stream to capture the output of
-  // `Formatter` and return the output as a string for the consumer of
-  // `printStackDiff` to decide what to do with it.
-  const stream = new StringWriteStream();
+  const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);\
 
   if (diffRequiresApproval(diff, requireApproval)) {
     info(format('Stack %s\n', chalk.bold(stackName)));
@@ -207,9 +200,18 @@ export function formatSecurityDiff(
     warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${requireApproval}).`);
     warning('Please confirm you intend to make the following modifications:\n');
 
-    // formatSecurityChanges updates the stream with the formatted security diff
-    formatSecurityChanges(stream, diff, buildLogicalToPathMap(newTemplate));
-
+    // The security diff is formatted via `Formatter`, which takes in a stream
+    // and sends its output directly to that stream. To faciliate use of the
+    // global CliIoHost, we create our own stream to capture the output of
+    // `Formatter` and return the output as a string for the consumer of
+    // `formatSecurityDiff` to decide what to do with it.
+    const stream = new StringWriteStream();
+    try {
+      // formatSecurityChanges updates the stream with the formatted security diff
+      formatSecurityChanges(stream, diff, buildLogicalToPathMap(newTemplate));
+    } finally {
+      stream.end();
+    }
     // store the stream containing a formatted stack diff
     const formattedDiff = stream.toString();
     return { formattedDiff };
