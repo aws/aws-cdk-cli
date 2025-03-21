@@ -10,6 +10,7 @@
     ".github/workflows/codecov.yml",
     ".github/workflows/integ.yml",
     ".github/workflows/issue-label-assign.yml",
+    ".github/workflows/large-pr-checker.yml",
     ".github/workflows/pr-labeler.yml",
     ".github/workflows/pull-request-lint.yml",
     ".github/workflows/release.yml",
