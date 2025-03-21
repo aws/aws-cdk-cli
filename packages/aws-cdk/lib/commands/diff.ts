@@ -3,7 +3,6 @@ import { format } from 'util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
   type DescribeChangeSetOutput,
-  type FormatStream,
   type TemplateDiff,
   formatDifferences,
   formatSecurityChanges,
@@ -171,32 +170,51 @@ export enum RequireApproval {
 }
 
 /**
- * Print the security changes of this diff, if the change is impactful enough according to the approval level
- *
- * Returns true if the changes are prompt-worthy, false otherwise.
+ * Output of formatSecurityDiff
  */
-export function printSecurityDiff(
+export interface FormatSecurityDiffOutput {
+  /**
+   * Complete formatted security diff, if it is prompt-worthy
+   */
+  readonly formattedDiff?: string;
+}
+
+/**
+ * Formats the security changes of this diff, if the change is impactful enough according to the approval level
+ *
+ * Returns the diff and a boolean; true if the changes are prompt-worthy, false otherwise.
+ */
+export function formatSecurityDiff(
   oldTemplate: any,
   newTemplate: cxapi.CloudFormationStackArtifact,
   requireApproval: RequireApproval,
-  _quiet?: boolean,
   stackName?: string,
   changeSet?: DescribeChangeSetOutput,
-  stream: FormatStream = process.stderr,
-): boolean {
+): FormatSecurityDiffOutput {
   const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);
 
+  // The stack diff is formatted via `Formatter`, which takes in a stream
+  // and sends its output directly to that stream. To faciliate use of the
+  // global CliIoHost, we create our own stream to capture the output of
+  // `Formatter` and return the output as a string for the consumer of
+  // `printStackDiff` to decide what to do with it.
+  const stream = new StringWriteStream();
+
   if (diffRequiresApproval(diff, requireApproval)) {
-    stream.write(format('Stack %s\n', chalk.bold(stackName)));
+    info(format('Stack %s\n', chalk.bold(stackName)));
 
     // eslint-disable-next-line max-len
     warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${requireApproval}).`);
     warning('Please confirm you intend to make the following modifications:\n');
 
-    formatSecurityChanges(process.stdout, diff, buildLogicalToPathMap(newTemplate));
-    return true;
+    // formatSecurityChanges updates the stream with the formatted security diff
+    formatSecurityChanges(stream, diff, buildLogicalToPathMap(newTemplate));
+
+    // store the stream containing a formatted stack diff
+    const formattedDiff = stream.toString();
+    return { formattedDiff };
   }
-  return false;
+  return {};
 }
 
 /**

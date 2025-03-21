@@ -36,7 +36,7 @@ import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import { StackActivityProgress } from '../commands/deploy';
-import { printSecurityDiff, formatStackDiff, RequireApproval } from '../commands/diff';
+import { formatSecurityDiff, formatStackDiff, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
 import type {
   FromScan,
@@ -60,7 +60,7 @@ import {
 } from '../commands/migrate';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
 import { CliIoHost } from './io-host';
-import { numberFromBool, partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
+import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -197,7 +197,15 @@ export class CdkToolkit {
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
 
       if (options.securityOnly) {
-        diffs = numberFromBool(printSecurityDiff(template, stacks.firstStack, RequireApproval.Broadening, quiet));
+        const securityDiff = formatSecurityDiff(
+          template,
+          stacks.firstStack,
+          RequireApproval.Broadening,
+        );
+        if (securityDiff.formattedDiff) {
+          info(securityDiff.formattedDiff);
+          diffs += 1;
+        }
       } else {
         const diff = formatStackDiff(
           template,
@@ -269,16 +277,17 @@ export class CdkToolkit {
         }
 
         if (options.securityOnly) {
-          diffs += numberFromBool(
-            printSecurityDiff(
-              currentTemplate,
-              stack,
-              RequireApproval.Broadening,
-              quiet,
-              stack.displayName,
-              changeSet,
-            ),
+          const securityDiff = formatSecurityDiff(
+            currentTemplate,
+            stack,
+            RequireApproval.Broadening,
+            stack.displayName,
+            changeSet,
           );
+          if (securityDiff.formattedDiff) {
+            info(securityDiff.formattedDiff);
+            diffs += 1;
+          }
         } else {
           const diff = formatStackDiff(
             currentTemplate,
@@ -414,7 +423,9 @@ export class CdkToolkit {
 
       if (requireApproval !== RequireApproval.Never) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        if (printSecurityDiff(currentTemplate, stack, requireApproval)) {
+        const securityDiff = formatSecurityDiff(currentTemplate, stack, requireApproval);
+        if (securityDiff.formattedDiff) {
+          info(securityDiff.formattedDiff);
           await askUserConfirmation(
             this.ioHost,
             concurrency,
