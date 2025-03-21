@@ -1036,7 +1036,7 @@
                     "type": "string"
                 },
                 "propertyMatch": {
-                    "description": "This indicates the property to search for.\nIf both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.\nSpecifying propertyMatch will return 0 or more results.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
+                    "description": "This indicates the property to search for.\nIf both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.\nTo restrict the number of results to return, specify allowEmptyResult or exactResult.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
                     "$ref": "#/definitions/Record<string,unknown>"
                 },
                 "propertiesToReturn": {
@@ -1045,6 +1045,16 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "allowEmptyResult": {
+                    "description": "Whether to allow to return empty result when propertyMatch is specified.",
+                    "default": false,
+                    "type": "boolean"
+                },
+                "exactResult": {
+                    "description": "Whether to restrict to return exact one result when propertyMatch is specified.",
+                    "default": false,
+                    "type": "boolean"
                 },
                 "account": {
                     "description": "Query account",

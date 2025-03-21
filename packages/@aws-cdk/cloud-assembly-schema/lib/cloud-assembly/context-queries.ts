@@ -375,7 +375,7 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
    * This indicates the property to search for.
    * If both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.
-   * Specifying propertyMatch will return 0 or more results.
+   * To restrict the number of results to return, specify allowEmptyResult or exactResult.
    * Either exactIdentifier or propertyMatch should be specified.
    * @default - None
    */
@@ -385,6 +385,18 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    * This is a set of properties returned from CC API that we want to return from ContextQuery.
    */
   readonly propertiesToReturn: string[];
+
+  /**
+   * Whether to allow to return empty result when propertyMatch is specified.
+   * @default false
+   */
+  readonly allowEmptyResult?: boolean;
+
+  /**
+   * Whether to restrict to return exact one result when propertyMatch is specified.
+   * @default false
+   */
+  readonly exactResult?: boolean;
 }
 
 /**
