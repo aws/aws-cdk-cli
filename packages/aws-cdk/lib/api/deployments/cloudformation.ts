@@ -412,7 +412,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     const exists = (await CloudFormationStack.lookup(cfn, options.stack.stackName, false)).exists;
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
-    ioHelper.notify(info(
+    await ioHelper.notify(info(
       'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
     ));
 
@@ -430,7 +430,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     });
   } catch (e: any) {
     await ioHelper.notify(debug(e));
-    ioHelper.notify(info(
+    await ioHelper.notify(info(
       'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
     ));
 
