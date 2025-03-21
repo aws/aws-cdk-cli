@@ -182,7 +182,7 @@ export interface FormatSecurityDiffOutput {
 /**
  * Formats the security changes of this diff, if the change is impactful enough according to the approval level
  *
- * Returns the diff and a boolean; true if the changes are prompt-worthy, false otherwise.
+ * Returns the diff if the changes are prompt-worthy, an empty object otherwise.
  */
 export function formatSecurityDiff(
   oldTemplate: any,
