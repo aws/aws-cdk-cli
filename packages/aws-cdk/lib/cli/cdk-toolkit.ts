@@ -26,7 +26,7 @@ import {
 import type { CloudExecutable } from '../api/cxapp/cloud-executable';
 import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { createDiffChangeSet } from '../api/deployments';
+import { createDiffChangeSet } from '../api/deployments/cfn-api';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';

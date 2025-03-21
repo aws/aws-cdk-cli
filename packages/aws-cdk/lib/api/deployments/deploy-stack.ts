@@ -13,20 +13,18 @@ import * as uuid from 'uuid';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import { publishAssets } from './asset-publishing';
 import { addMetadataAssetsToManifest } from './assets';
-import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type {
   ParameterValues,
   ParameterChanges,
-  ResourcesToImport,
-} from './cloudformation';
+} from './cfn-api';
 import {
   changeSetHasNoChanges,
-  CloudFormationStack,
   TemplateParameters,
   waitForChangeSet,
   waitForStackDeploy,
   waitForStackDelete,
-} from './cloudformation';
+} from './cfn-api';
+import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { ChangeSetDeploymentMethod, DeploymentMethod } from './deployment-method';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import { tryHotswapDeployment } from './hotswap-deployments';
@@ -34,12 +32,12 @@ import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth';
-import type { EnvironmentResources } from '../environment';
-import { CfnEvaluationException } from '../evaluate-cloudformation-template';
+import type { TemplateBodyParameter } from '../cloudformation';
+import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
+import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
+import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
-import type { StringWithoutPlaceholders } from '../util/placeholders';
-import { type TemplateBodyParameter, makeBodyParameter } from '../util/template-body-parameter';
 
 export interface DeployStackOptions {
   /**
@@ -274,6 +272,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   }
 
   const bodyParameter = await makeBodyParameter(
+    ioHelper,
     stackArtifact,
     options.resolvedEnvironment,
     legacyAssets,

@@ -7,36 +7,35 @@ import {
   BasePublishProgressListener,
   PublishingAws,
 } from './asset-publishing';
-import { determineAllowCrossAccountAssetPublishing } from './checks';
-import type {
-  ResourcesToImport,
-  Template,
-  ResourceIdentifierSummaries,
-} from './cloudformation';
 import {
-  CloudFormationStack,
   stabilizeStack,
   uploadStackTemplateAssets,
-} from './cloudformation';
+} from './cfn-api';
+import { determineAllowCrossAccountAssetPublishing } from './checks';
+
 import { deployStack, destroyStack } from './deploy-stack';
 import type { DeploymentMethod } from './deployment-method';
 import type { DeployStackResult } from './deployment-result';
-import {
-  loadCurrentTemplate,
-  loadCurrentTemplateWithNestedStacks,
-  type RootTemplateWithNestedStacks,
-} from './nested-stack-helpers';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug, warn } from '../../cli/messages';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
+import type {
+  Template,
+  RootTemplateWithNestedStacks,
+} from '../cloudformation';
+import {
+  CloudFormationStack,
+  loadCurrentTemplate,
+  loadCurrentTemplateWithNestedStacks,
+  makeBodyParameter,
+} from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
+import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
-import { makeBodyParameter } from '../util/template-body-parameter';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;
 
@@ -362,7 +361,7 @@ export class Deployments {
   }
 
   public async readCurrentTemplate(stackArtifact: cxapi.CloudFormationStackArtifact): Promise<Template> {
-    await this.ioHelper.notify(debug(`Reading existing template for stack ${stackArtifact.displayName}.`));
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Reading existing template for stack ${stackArtifact.displayName}.`));
     const env = await this.envs.accessStackForLookupBestEffort(stackArtifact);
     return loadCurrentTemplate(stackArtifact, env.sdk);
   }
@@ -370,7 +369,7 @@ export class Deployments {
   public async resourceIdentifierSummaries(
     stackArtifact: cxapi.CloudFormationStackArtifact,
   ): Promise<ResourceIdentifierSummaries> {
-    await this.ioHelper.notify(debug(`Retrieving template summary for stack ${stackArtifact.displayName}.`));
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Retrieving template summary for stack ${stackArtifact.displayName}.`));
     // Currently, needs to use `deploy-role` since it may need to read templates in the staging
     // bucket which have been encrypted with a KMS key (and lookup-role may not read encrypted things)
     const env = await this.envs.accessStackForReadOnlyStackOperations(stackArtifact);
@@ -381,10 +380,12 @@ export class Deployments {
     // Upload the template, if necessary, before passing it to CFN
     const builder = new AssetManifestBuilder();
     const cfnParam = await makeBodyParameter(
+      this.ioHelper,
       stackArtifact,
       env.resolvedEnvironment,
       builder,
-      env.resources);
+      env.resources,
+    );
 
     // If the `makeBodyParameter` before this added assets, make sure to publish them before
     // calling the API.
@@ -400,7 +401,7 @@ export class Deployments {
 
     const response = await cfn.getTemplateSummary(cfnParam);
     if (!response.ResourceIdentifierSummaries) {
-      await this.ioHelper.notify(debug('GetTemplateSummary API call did not return "ResourceIdentifierSummaries"'));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('GetTemplateSummary API call did not return "ResourceIdentifierSummaries"'));
     }
     return response.ResourceIdentifierSummaries ?? [];
   }
@@ -485,11 +486,11 @@ export class Deployments {
 
       switch (cloudFormationStack.stackStatus.rollbackChoice) {
         case RollbackChoice.NONE:
-          await this.ioHelper.notify(warn(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`));
+          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`));
           return { notInRollbackableState: true };
 
         case RollbackChoice.START_ROLLBACK:
-          await this.ioHelper.notify(debug(`Initiating rollback of stack ${deployName}`));
+          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Initiating rollback of stack ${deployName}`));
           await cfn.rollbackStack({
             StackName: deployName,
             RoleARN: executionRoleArn,
@@ -515,7 +516,7 @@ export class Deployments {
           }
 
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
-          await this.ioHelper.notify(warn(`Continuing rollback of stack ${deployName}${skipDescription}`));
+          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Continuing rollback of stack ${deployName}${skipDescription}`));
           await cfn.continueUpdateRollback({
             StackName: deployName,
             ClientRequestToken: randomUUID(),
@@ -525,7 +526,7 @@ export class Deployments {
           break;
 
         case RollbackChoice.ROLLBACK_FAILED:
-          await this.ioHelper.notify(warn(
+          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
             `Stack ${deployName} failed creation and rollback. This state cannot be rolled back. You can recreate this stack by running 'cdk deploy'.`,
           ));
           return { notInRollbackableState: true };

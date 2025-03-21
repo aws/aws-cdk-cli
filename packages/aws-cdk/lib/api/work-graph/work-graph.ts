@@ -1,10 +1,8 @@
 import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
 import { DeploymentState } from './work-graph-types';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug, trace } from '../../cli/messages';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { parallelPromises } from '../../util';
-
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
 export class WorkGraph {
@@ -259,7 +257,7 @@ export class WorkGraph {
    * Do this in parallel, because there may be a lot of assets in an application (seen in practice: >100 assets)
    */
   public async removeUnnecessaryAssets(isUnnecessary: (x: AssetPublishNode) => Promise<boolean>) {
-    await this.ioHelper.notify(debug('Checking for previously published assets'));
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Checking for previously published assets'));
 
     const publishes = this.nodesOfType('asset-publish');
 
@@ -272,7 +270,7 @@ export class WorkGraph {
       this.removeNode(assetNode);
     }
 
-    await this.ioHelper.notify(debug(`${publishes.length} total assets, ${publishes.length - alreadyPublished.length} still need to be published`));
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${publishes.length} total assets, ${publishes.length - alreadyPublished.length} still need to be published`));
 
     // Now also remove any asset build steps that don't have any dependencies on them anymore
     const unusedBuilds = this.nodesOfType('asset-build').filter(build => this.dependees(build).length === 0);
@@ -303,7 +301,7 @@ export class WorkGraph {
 
     if (this.readyPool.length === 0 && activeCount === 0 && pendingCount > 0) {
       const cycle = this.findCycle() ?? ['No cycle found!'];
-      await this.ioHelper.notify(trace(`Cycle ${cycle.join(' -> ')} in graph ${this}`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_TRACE.msg(`Cycle ${cycle.join(' -> ')} in graph ${this}`));
       throw new ToolkitError(`Unable to make progress anymore, dependency cycle between remaining artifacts: ${cycle.join(' -> ')} (run with -vv for full graph)`);
     }
   }

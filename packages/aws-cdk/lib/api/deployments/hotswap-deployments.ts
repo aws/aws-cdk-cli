@@ -3,17 +3,16 @@ import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
+import type { SuccessfulDeployStackResult } from './deployment-result';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { AffectedResource, HotswapResult, ResourceSubject, ResourceChange, NonHotswappableChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
 import { NonHotswappableReason } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads';
 import type { IMessageSpan, IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IO, SPAN } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import type { SDK, SdkProvider } from '../aws-auth';
-import type { CloudFormationStack } from './cloudformation';
-import type { NestedStackTemplates } from './nested-stack-helpers';
-import { loadCurrentTemplateWithNestedStacks } from './nested-stack-helpers';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { formatErrorMessage } from '../../util';
-import { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import type { SDK, SdkProvider } from '../aws-auth';
+import type { CloudFormationStack, NestedStackTemplates } from '../cloudformation';
+import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
 import { isHotswappableAppSyncChange } from '../hotswap/appsync-mapping-templates';
 import { isHotswappableCodeBuildProjectChange } from '../hotswap/code-build-projects';
 import type {
@@ -34,7 +33,6 @@ import {
 } from '../hotswap/s3-bucket-deployments';
 import { isHotswappableStateMachineChange } from '../hotswap/stepfunctions-state-machines';
 import { Mode } from '../plugin';
-import type { SuccessfulDeployStackResult } from './deployment-result';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports

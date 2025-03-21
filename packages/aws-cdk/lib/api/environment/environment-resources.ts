@@ -1,7 +1,6 @@
 import type { Environment } from '@aws-cdk/cx-api';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug, warn } from '../../cli/messages';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { Notices } from '../../notices';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth';
@@ -99,7 +98,7 @@ export class EnvironmentResources {
         // so let it fail as it would if we didn't have this fallback.
         const bootstrapStack = await this.lookupToolkit();
         if (bootstrapStack.found && bootstrapStack.version < BOOTSTRAP_TEMPLATE_VERSION_INTRODUCING_GETPARAMETER) {
-          await this.ioHelper.notify(warn(
+          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
             `Could not read SSM parameter ${ssmParameterName}: ${formatErrorMessage(e)}, falling back to version from ${bootstrapStack}`,
           ));
           doValidate(bootstrapStack.version, this.environment);
@@ -170,7 +169,7 @@ export class EnvironmentResources {
 
     // check if repo already exists
     try {
-      await this.ioHelper.notify(debug(`${repositoryName}: checking if ECR repository already exists`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${repositoryName}: checking if ECR repository already exists`));
       const describeResponse = await ecr.describeRepositories({
         repositoryNames: [repositoryName],
       });
@@ -185,7 +184,7 @@ export class EnvironmentResources {
     }
 
     // create the repo (tag it so it will be easier to garbage collect in the future)
-    await this.ioHelper.notify(debug(`${repositoryName}: creating ECR repository`));
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${repositoryName}: creating ECR repository`));
     const assetTag = { Key: 'awscdk:asset', Value: 'true' };
     const response = await ecr.createRepository({
       repositoryName,
@@ -197,7 +196,7 @@ export class EnvironmentResources {
     }
 
     // configure image scanning on push (helps in identifying software vulnerabilities, no additional charge)
-    await this.ioHelper.notify(debug(`${repositoryName}: enable image scanning`));
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${repositoryName}: enable image scanning`));
     await ecr.putImageScanningConfiguration({
       repositoryName,
       imageScanningConfiguration: { scanOnPush: true },
