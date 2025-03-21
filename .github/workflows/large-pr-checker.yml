@@ -5,13 +5,19 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - labeled
+      - edited
+      - opened
+      - reopened
+      - unlabeled
 jobs:
   check:
     name: Check PR size
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    if: "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-size-check')"
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr/exempt-size-check') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

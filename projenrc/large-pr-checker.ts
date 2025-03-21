@@ -35,12 +35,15 @@ export class LargePrChecker extends Component {
 
     this.workflow = repo.github.addWorkflow('large-pr-checker');
     this.workflow.on({
-      pullRequest: { branches: ['main'] },
+      pullRequest: {
+        branches: ['main'],
+        types: ['labeled', 'edited', 'opened', 'reopened', 'unlabeled'],
+      },
     });
 
     this.workflow.addJob('check', {
       name: 'Check PR size',
-      if: '!contains(github.event.pull_request.labels.*.name, \'pr/exempt-size-check\')',
+      if:'${{ !contains(github.event.pull_request.labels.*.name, \'pr/exempt-size-check\') }}',
       runsOn: ['ubuntu-latest'],
       permissions: {
         pullRequests: JobPermission.WRITE,
