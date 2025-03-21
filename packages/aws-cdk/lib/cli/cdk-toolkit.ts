@@ -36,7 +36,7 @@ import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import { StackActivityProgress } from '../commands/deploy';
-import { printSecurityDiff, printStackDiff, RequireApproval } from '../commands/diff';
+import { printSecurityDiff, formatStackDiff, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
 import type {
   FromScan,
@@ -199,9 +199,18 @@ export class CdkToolkit {
       if (options.securityOnly) {
         diffs = numberFromBool(printSecurityDiff(template, stacks.firstStack, RequireApproval.Broadening, quiet));
       } else {
-        const { stackDiffCount, printableStackDiff } = printStackDiff(template, stacks.firstStack, strict, contextLines, quiet, undefined, undefined, false);
-        diffs = stackDiffCount;
-        info(printableStackDiff);
+        const diff = formatStackDiff(
+          template,
+          stacks.firstStack,
+          strict,
+          contextLines,
+          quiet,
+          undefined,
+          undefined,
+          false,
+        );
+        diffs = diff.numStacksWithChanges;
+        info(diff.formattedDiff);
       }
     } else {
       // Compare N stacks against deployed templates
@@ -271,7 +280,7 @@ export class CdkToolkit {
             ),
           );
         } else {
-          const { stackDiffCount, printableStackDiff } = printStackDiff(
+          const diff = formatStackDiff(
             currentTemplate,
             stack,
             strict,
@@ -282,8 +291,8 @@ export class CdkToolkit {
             !!resourcesToImport,
             nestedStacks,
           );
-          info(printableStackDiff);
-          diffs += stackDiffCount;
+          info(diff.formattedDiff);
+          diffs += diff.numStacksWithChanges;
         }
       }
     }

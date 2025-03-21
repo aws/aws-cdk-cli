@@ -19,7 +19,7 @@ let toolkit: CdkToolkit;
 let oldDir: string;
 let tmpDir: string;
 let ioHost = CliIoHost.instance();
-let notifySpy = jest.spyOn(ioHost, 'notify');
+let notifySpy: jest.SpyInstance<Promise<void>>;
 
 beforeAll(() => {
   // The toolkit writes and checks for temporary files in the current directory,
@@ -36,6 +36,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  notifySpy = jest.spyOn(ioHost, 'notify');
   notifySpy.mockClear();
 });
 
