@@ -19,11 +19,11 @@ import type {
 } from '@aws-sdk/client-cloudformation';
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import * as chalk from 'chalk';
-import { cliInit } from '../../lib/init';
+import { cliInit } from './init';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/deployments';
-import { ToolkitError } from '../toolkit/error';
 import { zipDirectory } from '../util';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');

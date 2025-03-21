@@ -37,7 +37,7 @@
     "@aws-cdk/tmp-toolkit-helpers": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@smithy/types": "^4.1.0",
-    "@stylistic/eslint-plugin": "^3.1.0",
+    "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.14",
     "@types/node": "^16",

@@ -35,3 +35,10 @@ function roundPercentage(num: number): number {
 function millisecondsToSeconds(num: number): number {
   return num / 1000;
 }
+
+/**
+ * This function lower cases the first character of the string provided.
+ */
+export function lowerCaseFirstCharacter(str: string): string {
+  return str.length > 0 ? `${str[0].toLowerCase()}${str.slice(1)}` : str;
+}

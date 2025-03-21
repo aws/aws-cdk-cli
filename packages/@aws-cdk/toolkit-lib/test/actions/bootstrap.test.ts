@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { EnvironmentUtils } from '@aws-cdk/cx-api';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import {
   CreateChangeSetCommand,
@@ -8,6 +9,7 @@ import {
   ExecuteChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
+
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-cdk';
@@ -92,6 +94,11 @@ async function runBootstrap(options?: {
   });
 }
 
+function expectValidBootstrapResult(result: any) {
+  expect(result).toHaveProperty('environments');
+  expect(Array.isArray(result.environments)).toBe(true);
+}
+
 function expectSuccessfulBootstrap() {
   expect(mockCloudFormationClient.calls().length).toBeGreaterThan(0);
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -132,9 +139,12 @@ describe('bootstrap', () => {
       setupMockCloudFormationClient(mockStack2);
 
       // WHEN
-      await runBootstrap({ environments: ['aws://123456789012/us-east-1', 'aws://234567890123/eu-west-1'] });
+      const result = await runBootstrap({ environments: ['aws://123456789012/us-east-1', 'aws://234567890123/eu-west-1'] });
 
       // THEN
+      expectValidBootstrapResult(result);
+      expect(result.environments.length).toBe(2);
+
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')}: bootstrapping...`),
       }));
@@ -168,35 +178,20 @@ describe('bootstrap', () => {
 
     test('handles errors in user-specified environments', async () => {
       // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
-      // Mock an access denied error
-      const accessDeniedError = new Error('Access Denied');
-      accessDeniedError.name = 'AccessDeniedException';
+      const error = new Error('Access Denied');
+      error.name = 'AccessDeniedException';
       mockCloudFormationClient
         .on(CreateChangeSetCommand)
-        .rejects(accessDeniedError);
+        .rejects(error);
 
       // WHEN/THEN
       await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
         .rejects.toThrow('Access Denied');
-
-      // Get all error notifications
-      const errorCalls = ioHost.notifySpy.mock.calls
-        .filter(call => call[0].level === 'error')
-        .map(call => call[0]);
-
-      // Verify error notifications
-      expect(errorCalls).toContainEqual(expect.objectContaining({
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         level: 'error',
         message: expect.stringContaining('❌'),
       }));
-      expect(errorCalls).toContainEqual(expect.objectContaining({
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         level: 'error',
         message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')} failed: Access Denied`),
       }));
@@ -492,14 +487,91 @@ describe('bootstrap', () => {
   });
 
   describe('error handling', () => {
-    test('handles generic bootstrap errors', async () => {
+    test('returns correct BootstrapResult for successful bootstraps', async () => {
       // GIVEN
-      mockCloudFormationClient.onAnyCommand().rejects(new Error('Bootstrap failed'));
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
 
       // WHEN
-      await expect(runBootstrap()).rejects.toThrow('Bootstrap failed');
+      const result = await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
 
       // THEN
+      expectValidBootstrapResult(result);
+      expect(result.environments.length).toBe(1);
+      expect(result.environments[0].status).toBe('success');
+      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make('123456789012', 'us-east-1'));
+      expect(result.environments[0].duration).toBeGreaterThan(0);
+    });
+
+    test('returns correct BootstrapResult for no-op scenarios', async () => {
+      // GIVEN
+      const mockExistingStack = {
+        StackId: 'mock-stack-id',
+        StackName: 'CDKToolkit',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+        LastUpdatedTime: new Date(),
+        Outputs: [
+          { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
+          { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
+          { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+        ],
+      } as Stack;
+
+      mockCloudFormationClient
+        .on(DescribeStacksCommand)
+        .resolves({ Stacks: [mockExistingStack] })
+        .on(CreateChangeSetCommand)
+        .resolves({ Id: 'CHANGESET_ID' })
+        .on(DescribeChangeSetCommand)
+        .resolves({
+          Status: 'FAILED',
+          StatusReason: 'No updates are to be performed.',
+          Changes: [],
+        });
+
+      // WHEN
+      const result = await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
+
+      // THEN
+      expectValidBootstrapResult(result);
+      expect(result.environments.length).toBe(1);
+      expect(result.environments[0].status).toBe('no-op');
+      expect(result.environments[0].environment).toStrictEqual(EnvironmentUtils.make('123456789012', 'us-east-1'));
+      expect(result.environments[0].duration).toBeGreaterThan(0);
+    });
+
+    test('returns correct BootstrapResult for failure', async () => {
+      // GIVEN
+      const error = new Error('Access Denied');
+      error.name = 'AccessDeniedException';
+      mockCloudFormationClient
+        .on(DescribeStacksCommand)
+        .rejects(error);
+
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Access Denied');
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error',
+        message: expect.stringContaining('❌'),
+      }));
+    });
+
+    test('handles generic bootstrap errors', async () => {
+      // GIVEN
+      const error = new Error('Bootstrap failed');
+      mockCloudFormationClient
+        .on(DescribeStacksCommand)
+        .rejects(error);
+
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Bootstrap failed');
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         level: 'error',
         message: expect.stringContaining('❌'),
@@ -508,21 +580,18 @@ describe('bootstrap', () => {
 
     test('handles permission errors', async () => {
       // GIVEN
-      const permissionError = new Error('Access Denied');
-      permissionError.name = 'AccessDeniedException';
-      mockCloudFormationClient.onAnyCommand().rejects(permissionError);
+      const error = new Error('Access Denied');
+      error.name = 'AccessDeniedException';
+      mockCloudFormationClient
+        .on(DescribeStacksCommand)
+        .rejects(error);
 
-      // WHEN
-      await expect(runBootstrap()).rejects.toThrow('Access Denied');
-
-      // THEN
+      // WHEN/THEN
+      await expect(runBootstrap({ environments: ['aws://123456789012/us-east-1'] }))
+        .rejects.toThrow('Access Denied');
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         level: 'error',
         message: expect.stringContaining('❌'),
-      }));
-      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-        level: 'error',
-        message: expect.stringContaining('Access Denied'),
       }));
     });
   });

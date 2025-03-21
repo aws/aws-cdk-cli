@@ -1,5 +1,5 @@
 import { exec } from '../../lib/cli/cli';
-import { CliIoHost } from '../../lib/toolkit/cli-io-host';
+import { CliIoHost } from '../../lib/cli/io-host';
 
 // Store original version module exports so we don't conflict with other tests
 const originalVersion = jest.requireActual('../../lib/cli/version');

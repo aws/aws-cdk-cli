@@ -17,7 +17,7 @@ import {
 import * as promptly from 'promptly';
 import { Deployments } from '../../../lib/api/deployments';
 import { ResourceImporter, ImportMap, ResourceImporterProps } from '../../../lib/api/resource-import';
-import { testStack } from '../../util';
+import { testStack } from '../../_helpers/assembly';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
 import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 

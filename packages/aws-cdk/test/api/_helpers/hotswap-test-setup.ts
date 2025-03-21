@@ -5,7 +5,7 @@ import { ICloudFormationClient, SuccessfulDeployStackResult } from '../../../lib
 import { CloudFormationStack, Template } from '../../../lib/api/deployments';
 import * as deployments from '../../../lib/api/deployments/hotswap-deployments';
 import { HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
-import { testStack, TestStackArtifact } from '../../util';
+import { testStack, TestStackArtifact } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
   mockLambdaClient,

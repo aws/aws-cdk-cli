@@ -1,13 +1,13 @@
 import type {
   HotswapPropertyOverrides,
-  ChangeHotswapResult,
+  HotswapChange,
 } from './common';
 import {
-  classifyChanges, lowerCaseFirstCharacter,
-  reportNonHotswappableChange,
-  transformObjectKeys,
+  classifyChanges,
+  nonHotswappableChange,
 } from './common';
-import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { NonHotswappableReason, type ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
 
@@ -18,13 +18,13 @@ export async function isHotswappableEcsServiceChange(
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   // the only resource change we can evaluate here is an ECS TaskDefinition
   if (change.newValue.Type !== 'AWS::ECS::TaskDefinition') {
     return [];
   }
 
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
 
   // We only allow a change in the ContainerDefinitions of the TaskDefinition for now -
   // it contains the image and environment variables, so seems like a safe bet for now.
@@ -41,25 +41,38 @@ export async function isHotswappableEcsServiceChange(
   for (const ecsServiceResource of ecsServiceResourcesReferencingTaskDef) {
     const serviceArn = await evaluateCfnTemplate.findPhysicalNameFor(ecsServiceResource.LogicalId);
     if (serviceArn) {
-      ecsServicesReferencingTaskDef.push({ serviceArn });
+      ecsServicesReferencingTaskDef.push({
+        logicalId: ecsServiceResource.LogicalId,
+        serviceArn,
+      });
     }
   }
   if (ecsServicesReferencingTaskDef.length === 0) {
-    // if there are no resources referencing the TaskDefinition,
-    // hotswap is not possible in FALL_BACK mode
-    reportNonHotswappableChange(ret, change, undefined, 'No ECS services reference the changed task definition', false);
+    /**
+     * ECS Services can have a task definition that doesn't refer to the task definition being updated.
+     * We have to log this as a non-hotswappable change to the task definition, but when we do,
+     * we wind up hotswapping the task definition and logging it as a non-hotswappable change.
+     *
+     * This logic prevents us from logging that change as non-hotswappable when we hotswap it.
+     */
+    ret.push(nonHotswappableChange(
+      change,
+      NonHotswappableReason.DEPENDENCY_UNSUPPORTED,
+      'No ECS services reference the changed task definition',
+      undefined,
+      false,
+    ));
   }
   if (resourcesReferencingTaskDef.length > ecsServicesReferencingTaskDef.length) {
     // if something besides an ECS Service is referencing the TaskDefinition,
     // hotswap is not possible in FALL_BACK mode
     const nonEcsServiceTaskDefRefs = resourcesReferencingTaskDef.filter((r) => r.Type !== ECS_SERVICE_RESOURCE_TYPE);
     for (const taskRef of nonEcsServiceTaskDefRefs) {
-      reportNonHotswappableChange(
-        ret,
+      ret.push(nonHotswappableChange(
         change,
-        undefined,
+        NonHotswappableReason.DEPENDENCY_UNSUPPORTED,
         `A resource '${taskRef.LogicalId}' with Type '${taskRef.Type}' that is not an ECS Service was found referencing the changed TaskDefinition '${logicalId}'`,
-      );
+      ));
     }
   }
 
@@ -69,13 +82,23 @@ export async function isHotswappableEcsServiceChange(
     ret.push({
       change: {
         cause: change,
+        resources: [
+          {
+            logicalId,
+            resourceType: change.newValue.Type,
+            physicalName: await taskDefinitionResource.Family,
+            metadata: evaluateCfnTemplate.metadataFor(logicalId),
+          },
+          ...ecsServicesReferencingTaskDef.map((ecsService) => ({
+            resourceType: ECS_SERVICE_RESOURCE_TYPE,
+            physicalName: ecsService.serviceArn.split('/')[2],
+            logicalId: ecsService.logicalId,
+            metadata: evaluateCfnTemplate.metadataFor(ecsService.logicalId),
+          })),
+        ],
       },
       hotswappable: true,
       service: 'ecs-service',
-      resourceNames: [
-        `ECS Task Definition '${await taskDefinitionResource.Family}'`,
-        ...ecsServicesReferencingTaskDef.map((ecsService) => `ECS Service '${ecsService.serviceArn.split('/')[2]}'`),
-      ],
       apply: async (sdk: SDK) => {
         // Step 1 - update the changed TaskDefinition, creating a new TaskDefinition Revision
         // we need to lowercase the evaluated TaskDef from CloudFormation,
@@ -141,6 +164,7 @@ export async function isHotswappableEcsServiceChange(
 }
 
 interface EcsService {
+  readonly logicalId: string;
   readonly serviceArn: string;
 }
 

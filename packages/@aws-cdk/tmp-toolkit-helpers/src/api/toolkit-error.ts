@@ -38,6 +38,13 @@ export class ToolkitError extends Error {
   }
 
   /**
+   * An AssemblyError with an original error as cause
+   */
+  public static withCause(message: string, error: unknown): ToolkitError {
+    return new ToolkitError(message, 'toolkit', error);
+  }
+
+  /**
    * The type of the error, defaults to "toolkit".
    */
   public readonly type: string;
@@ -47,13 +54,19 @@ export class ToolkitError extends Error {
    */
   public readonly source: 'toolkit' | 'user';
 
-  constructor(message: string, type: string = 'toolkit') {
+  /**
+   * The specific original cause of the error, if available
+   */
+  public readonly cause?: unknown;
+
+  constructor(message: string, type: string = 'toolkit', cause?: unknown) {
     super(message);
     Object.setPrototypeOf(this, ToolkitError.prototype);
     Object.defineProperty(this, TOOLKIT_ERROR_SYMBOL, { value: true });
     this.name = new.target.name;
     this.type = type;
     this.source = 'toolkit';
+    this.cause = cause;
   }
 }
 
@@ -106,17 +119,11 @@ export class AssemblyError extends ToolkitError {
    */
   public readonly stacks?: cxapi.CloudFormationStackArtifact[];
 
-  /**
-   * The specific original cause of the error, if available
-   */
-  public readonly cause?: unknown;
-
   private constructor(message: string, stacks?: cxapi.CloudFormationStackArtifact[], cause?: unknown) {
-    super(message, 'assembly');
+    super(message, 'assembly', cause);
     Object.setPrototypeOf(this, AssemblyError.prototype);
     Object.defineProperty(this, ASSEMBLY_ERROR_SYMBOL, { value: true });
     this.stacks = stacks;
-    this.cause = cause;
   }
 }
 

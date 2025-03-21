@@ -3,13 +3,12 @@ import type {
   GetSchemaCreationStatusCommandInput,
 } from '@aws-sdk/client-appsync';
 import {
-  type ChangeHotswapResult,
+  type HotswapChange,
   classifyChanges,
-  lowerCaseFirstCharacter,
-  transformObjectKeys,
 } from './common';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
-import { ToolkitError } from '../../toolkit/error';
+import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 
 import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
@@ -18,7 +17,7 @@ export async function isHotswappableAppSyncChange(
   logicalId: string,
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   const isResolver = change.newValue.Type === 'AWS::AppSync::Resolver';
   const isFunction = change.newValue.Type === 'AWS::AppSync::FunctionConfiguration';
   const isGraphQLSchema = change.newValue.Type === 'AWS::AppSync::GraphQLSchema';
@@ -27,7 +26,7 @@ export async function isHotswappableAppSyncChange(
     return [];
   }
 
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
 
   const classifiedChanges = classifyChanges(change, [
     'RequestMappingTemplate',
@@ -64,10 +63,15 @@ export async function isHotswappableAppSyncChange(
     ret.push({
       change: {
         cause: change,
+        resources: [{
+          logicalId,
+          resourceType: change.newValue.Type,
+          physicalName,
+          metadata: evaluateCfnTemplate.metadataFor(logicalId),
+        }],
       },
       hotswappable: true,
       service: 'appsync',
-      resourceNames: [`${change.newValue.Type} '${physicalName}'`],
       apply: async (sdk: SDK) => {
         const sdkProperties: { [name: string]: any } = {
           ...change.oldValue.Properties,

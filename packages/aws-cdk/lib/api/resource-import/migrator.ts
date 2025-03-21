@@ -3,8 +3,7 @@ import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { ImportDeploymentOptions } from './importer';
 import { ResourceImporter } from './importer';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { info } from '../../cli/messages';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatTime } from '../../util';
 import type { StackCollection } from '../cxapp/cloud-assembly';
 import type { Deployments, ResourcesToImport } from '../deployments';
@@ -38,13 +37,13 @@ export class ResourceMigrator {
     const resourcesToImport = await this.tryGetResources(await migrateDeployment.resolveEnvironment());
 
     if (resourcesToImport) {
-      await this.ioHelper.notify(info(`${chalk.bold(stack.displayName)}: creating stack for resource migration...`));
-      await this.ioHelper.notify(info(`${chalk.bold(stack.displayName)}: importing resources into stack...`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`${chalk.bold(stack.displayName)}: creating stack for resource migration...`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`${chalk.bold(stack.displayName)}: importing resources into stack...`));
 
       await this.performResourceMigration(migrateDeployment, resourcesToImport, options);
 
       fs.rmSync('migrate.json');
-      await this.ioHelper.notify(info(`${chalk.bold(stack.displayName)}: applying CDKMetadata and Outputs to stack (if applicable)...`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`${chalk.bold(stack.displayName)}: applying CDKMetadata and Outputs to stack (if applicable)...`));
     }
   }
 
@@ -68,7 +67,7 @@ export class ResourceMigrator {
     });
 
     elapsedDeployTime = new Date().getTime() - startDeployTime;
-    await this.ioHelper.notify(info(`'\n✨  Resource migration time: ${formatTime(elapsedDeployTime)}s\n'`, 'CDK_TOOLKIT_I5002', {
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5002.msg(`'\n✨  Resource migration time: ${formatTime(elapsedDeployTime)}s\n'`, {
       duration: elapsedDeployTime,
     }));
   }

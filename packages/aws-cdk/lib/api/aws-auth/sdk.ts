@@ -346,8 +346,8 @@ import { cachedAsync } from './cached';
 import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
+import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { debug } from '../../logging';
-import { AuthenticationError } from '../../toolkit/error';
 import { formatErrorMessage } from '../../util';
 
 export interface S3ClientOptions {
