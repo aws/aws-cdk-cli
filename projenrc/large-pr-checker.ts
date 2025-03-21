@@ -43,7 +43,7 @@ export class LargePrChecker extends Component {
 
     this.workflow.addJob('check', {
       name: 'Check PR size',
-      if:'${{ !contains(github.event.pull_request.labels.*.name, \'pr/exempt-size-check\') }}',
+      if: '${{ !contains(github.event.pull_request.labels.*.name, \'pr/exempt-size-check\') }}',
       runsOn: ['ubuntu-latest'],
       permissions: {
         pullRequests: JobPermission.WRITE,
