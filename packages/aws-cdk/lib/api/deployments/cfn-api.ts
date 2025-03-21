@@ -16,7 +16,6 @@ import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { info } from '../../cli/messages';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
@@ -224,7 +223,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     const exists = (await CloudFormationStack.lookup(cfn, options.stack.stackName, false)).exists;
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
-    await ioHelper.notify(info(
+    await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
       'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
     ));
 
@@ -242,7 +241,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     });
   } catch (e: any) {
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(e));
-    await ioHelper.notify(info(
+    await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
       'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
     ));
 
