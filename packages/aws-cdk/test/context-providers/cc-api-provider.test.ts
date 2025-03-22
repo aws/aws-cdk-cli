@@ -393,7 +393,7 @@ describe('dummy value', () => {
 
   test('throws error when CC API fails and dummyValue is not provided', async () => {
     // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).rejects('No data found');
+    mockCloudControlClient.on(GetResourceCommand).rejects(createResourceNotFoundException());
 
     // WHEN/THEN
     await expect(
@@ -405,7 +405,7 @@ describe('dummy value', () => {
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
         ignoreFailedLookup: true,
       }),
-    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+    ).rejects.toThrow('dummyValue must be an array with at least one object. Failed to get dummy object for type AWS::RDS::DBInstance.');
   });
 
   test('throws error when CC API fails and dummyValue is not an array', async () => {
