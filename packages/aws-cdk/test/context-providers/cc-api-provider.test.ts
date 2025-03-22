@@ -253,7 +253,7 @@ describe('dummy value', () => {
       typeName: 'AWS::RDS::DBInstance',
       exactIdentifier: 'bad-identifier',
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-      ignoreFailedLookup: true,
+      ignoreErrorOnMissingContext: true,
       dummyValue: [
         {
           DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
@@ -282,7 +282,7 @@ describe('dummy value', () => {
       typeName: 'AWS::RDS::DBInstance',
       propertyMatch: { 'StorageEncrypted': 'true' },
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-      ignoreFailedLookup: true,
+      ignoreErrorOnMissingContext: true,
       dummyValue: [
         {
           DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
@@ -312,7 +312,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: true,
+        ignoreErrorOnMissingContext: true,
         dummyValue: [
           {
             DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
@@ -335,7 +335,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         propertyMatch: { 'StorageEncrypted': 'true' },
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: true,
+        ignoreErrorOnMissingContext: true,
         dummyValue: [
           {
             DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
@@ -346,7 +346,7 @@ describe('dummy value', () => {
     ).rejects.toThrow('Could not get resources {"StorageEncrypted":"true"}.');
   });
 
-  test('throws error when CC API fails and ignoreFailedLookup is not provided', async () => {
+  test('throws error when CC API fails and ignoreErrorOnMissingContext is not provided', async () => {
     // GIVEN
     mockCloudControlClient.on(GetResourceCommand).rejects(createResourceNotFoundException());
 
@@ -368,7 +368,7 @@ describe('dummy value', () => {
     ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
   });
 
-  test('throws error when CC API fails and ignoreFailedLookup is false', async () => {
+  test('throws error when CC API fails and ignoreErrorOnMissingContext is false', async () => {
     // GIVEN
     mockCloudControlClient.on(GetResourceCommand).rejects(createResourceNotFoundException());
 
@@ -380,7 +380,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: false,
+        ignoreErrorOnMissingContext: false,
         dummyValue: [
           {
             DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
@@ -403,7 +403,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: true,
+        ignoreErrorOnMissingContext: true,
       }),
     ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy objects for type AWS::RDS::DBInstance.');
   });
@@ -420,7 +420,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: true,
+        ignoreErrorOnMissingContext: true,
         dummyValue: {
           DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
           StorageEncrypted: 'true',
@@ -441,7 +441,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: true,
+        ignoreErrorOnMissingContext: true,
         dummyValue: [],
       }),
     ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy objects for type AWS::RDS::DBInstance.');
@@ -459,7 +459,7 @@ describe('dummy value', () => {
         typeName: 'AWS::RDS::DBInstance',
         exactIdentifier: 'bad-identifier',
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreFailedLookup: true,
+        ignoreErrorOnMissingContext: true,
         dummyValue: [
           'not an object',
         ],

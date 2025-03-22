@@ -44,10 +44,10 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
 
     if (args.exactIdentifier) {
       // use getResource to get the exact indentifier
-      return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn, args.ignoreFailedLookup);
+      return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn, args.ignoreErrorOnMissingContext);
     } else {
       // use listResource
-      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn, args.ignoreFailedLookup);
+      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn, args.ignoreErrorOnMissingContext);
     }
   }
 
@@ -63,7 +63,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     typeName: string,
     exactIdentifier: string,
     propertiesToReturn: string[],
-    ignoreFailedLookup?: boolean,
+    ignoreErrorOnMissingContext?: boolean,
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
     try {
@@ -80,7 +80,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         throw new ContextProviderError(`Could not get resource ${exactIdentifier}.`);
       }
     } catch (err) {
-      if (err instanceof ResourceNotFoundException && ignoreFailedLookup) {
+      if (err instanceof ResourceNotFoundException && ignoreErrorOnMissingContext) {
         throw err;
       }
       throw new ContextProviderError(`Encountered CC API error while getting resource ${exactIdentifier}. Error: ${err}`);
@@ -100,7 +100,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     typeName: string,
     propertyMatch: Record<string, unknown>,
     propertiesToReturn: string[],
-    ignoreFailedLookup?: boolean,
+    ignoreErrorOnMissingContext?: boolean,
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
 
@@ -136,7 +136,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         }
       });
     } catch (err) {
-      if (err instanceof ResourceNotFoundException && ignoreFailedLookup) {
+      if (err instanceof ResourceNotFoundException && ignoreErrorOnMissingContext) {
         throw err;
       }
       throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. Error: ${err}`);

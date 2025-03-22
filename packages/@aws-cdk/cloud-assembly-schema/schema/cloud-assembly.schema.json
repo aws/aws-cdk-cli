@@ -1047,9 +1047,9 @@
                     }
                 },
                 "dummyValue": {
-                    "description": "The value to return if the resource was not found and `ignoreFailedLookup` is true. (Default - None)"
+                    "description": "The value to return if the resource was not found and `ignoreErrorOnMissingContext` is true. (Default - None)"
                 },
-                "ignoreFailedLookup": {
+                "ignoreErrorOnMissingContext": {
                     "description": "Ignore an error and return the `dummyValue` instead if the resource was not found.",
                     "default": false,
                     "type": "boolean"

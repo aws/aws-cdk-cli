@@ -386,7 +386,7 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   readonly propertiesToReturn: string[];
 
   /**
-   * The value to return if the resource was not found and `ignoreFailedLookup` is true.
+   * The value to return if the resource was not found and `ignoreErrorOnMissingContext` is true.
    * @default - None
    */
   readonly dummyValue?: any;
@@ -395,7 +395,7 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    * Ignore an error and return the `dummyValue` instead if the resource was not found.
    * @default false
    */
-  readonly ignoreFailedLookup?: boolean;
+  readonly ignoreErrorOnMissingContext?: boolean;
 }
 
 /**
