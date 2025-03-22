@@ -44,10 +44,10 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
 
     if (args.exactIdentifier) {
       // use getResource to get the exact indentifier
-      return await this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn, args.ignoreFailedLookup);
+      return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn, args.ignoreFailedLookup);
     } else {
       // use listResource
-      return await this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn, args.ignoreFailedLookup);
+      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn, args.ignoreFailedLookup);
     }
   }
 
