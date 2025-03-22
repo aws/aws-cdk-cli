@@ -10,14 +10,14 @@ import { LoadBalancerContextProviderPlugin, LoadBalancerListenerContextProviderP
 import { SecurityGroupContextProviderPlugin } from './security-groups';
 import { SSMContextProviderPlugin } from './ssm-parameters';
 import { VpcNetworkContextProviderPlugin } from './vpcs';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { SdkProvider } from '../api';
 import type { Context } from '../api/context';
 import { TRANSIENT_CONTEXT_KEY } from '../api/context';
+import { replaceEnvPlaceholders } from '../api/environment';
 import { PluginHost } from '../api/plugin';
 import type { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
-import { replaceEnvPlaceholders } from '../api/util/placeholders';
 import { debug } from '../logging';
-import { ContextProviderError } from '../toolkit/error';
 import { formatErrorMessage } from '../util';
 
 export type ContextProviderFactory = ((sdk: SdkProvider) => ContextProviderPlugin);

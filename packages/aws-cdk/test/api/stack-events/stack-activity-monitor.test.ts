@@ -6,7 +6,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
 import { StackActivityMonitor } from '../../../lib/api/stack-events';
-import { testStack } from '../../util';
+import { testStack } from '../../_helpers/assembly';
 import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
 

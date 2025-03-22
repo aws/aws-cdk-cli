@@ -1,24 +1,23 @@
 import type { UpdateProjectCommandInput } from '@aws-sdk/client-codebuild';
 import {
-  type ChangeHotswapResult,
+  type HotswapChange,
   classifyChanges,
-  type HotswappableChangeCandidate,
-  lowerCaseFirstCharacter,
-  transformObjectKeys,
 } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
-import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
 export async function isHotswappableCodeBuildProjectChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   if (change.newValue.Type !== 'AWS::CodeBuild::Project') {
     return [];
   }
 
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
 
   const classifiedChanges = classifyChanges(change, ['Source', 'Environment', 'SourceVersion']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
@@ -30,16 +29,25 @@ export async function isHotswappableCodeBuildProjectChange(
       logicalId,
       change.newValue.Properties?.Name,
     );
+
+    // nothing to do jere
+    if (!projectName) {
+      return ret;
+    }
+
     ret.push({
+      change: {
+        cause: change,
+        resources: [{
+          logicalId: logicalId,
+          resourceType: change.newValue.Type,
+          physicalName: projectName,
+          metadata: evaluateCfnTemplate.metadataFor(logicalId),
+        }],
+      },
       hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: classifiedChanges.namesOfHotswappableProps,
       service: 'codebuild',
-      resourceNames: [`CodeBuild Project '${projectName}'`],
       apply: async (sdk: SDK) => {
-        if (!projectName) {
-          return;
-        }
         updateProjectInput.name = projectName;
 
         for (const updatedPropName in change.propertyUpdates) {

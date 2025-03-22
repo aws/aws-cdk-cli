@@ -9,15 +9,17 @@ group: Documents
 | `CDK_TOOLKIT_I0000` | Default info messages emitted from the Toolkit | `info` | n/a |
 | `CDK_TOOLKIT_I0000` | Default debug messages emitted from the Toolkit | `debug` | n/a |
 | `CDK_TOOLKIT_W0000` | Default warning messages emitted from the Toolkit | `warn` | n/a |
+| `CDK_TOOLKIT_E0000` | Default error messages emitted from the Toolkit | `error` | n/a |
+| `CDK_TOOLKIT_I0000` | Default trace messages emitted from the Toolkit | `trace` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
-| `CDK_TOOLKIT_E3900` | Resource import failed | `error` | n/a |
+| `CDK_TOOLKIT_E3900` | Resource import failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5001` | Provides total time in deploy action, including synth and rollback | `info` | {@link Duration} |
-| `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | n/a |
+| `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |
 | `CDK_TOOLKIT_W5021` | Empty non-existent stack, deployment is skipped | `warn` | n/a |
 | `CDK_TOOLKIT_W5022` | Empty existing stack, stack will be destroyed | `warn` | n/a |
 | `CDK_TOOLKIT_I5031` | Informs about any log groups that are traced as part of the deployment | `info` | n/a |
@@ -38,6 +40,11 @@ group: Documents
 | `CDK_TOOLKIT_I5313` | File event detected during active deployment, changes are queued | `info` | {@link FileWatchEvent} |
 | `CDK_TOOLKIT_I5314` | Initial watch deployment started | `info` | n/a |
 | `CDK_TOOLKIT_I5315` | Queued watch deployment started | `info` | n/a |
+| `CDK_TOOLKIT_I5400` | Attempting a hotswap deployment | `trace` | {@link HotswapDeploymentAttempt} |
+| `CDK_TOOLKIT_I5401` | Computed details for the hotswap deployment | `trace` | {@link HotswapDeploymentDetails} |
+| `CDK_TOOLKIT_I5402` | A hotswappable change is processed as part of a hotswap deployment | `info` | {@link HotswappableChange} |
+| `CDK_TOOLKIT_I5403` | The hotswappable change has completed processing | `info` | {@link HotswappableChange} |
+| `CDK_TOOLKIT_I5410` | Hotswap deployment has ended, a full deployment might still follow if needed | `info` | {@link HotswapResult} |
 | `CDK_TOOLKIT_I5501` | Stack Monitoring: Start monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
 | `CDK_TOOLKIT_I5502` | Stack Monitoring: Activity event for a single stack | `info` | {@link StackActivity} |
 | `CDK_TOOLKIT_I5503` | Stack Monitoring: Finished monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
@@ -62,6 +69,10 @@ group: Documents
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
 | `CDK_TOOLKIT_I9900` | Bootstrap results on success | `result` | [cxapi.Environment](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.Environment.html) |
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
+| `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
+| `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |
+| `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
 | `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |

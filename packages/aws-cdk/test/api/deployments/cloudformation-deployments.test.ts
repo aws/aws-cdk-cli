@@ -12,11 +12,10 @@ import {
   CreateChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
-import { CloudFormationStack, createChangeSet, Deployments } from '../../../lib/api/deployments';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
-import { testStack } from '../../util';
+import { testStack } from '../../_helpers/assembly';
 import {
   mockBootstrapStack,
   mockCloudFormationClient,
@@ -27,8 +26,10 @@ import {
   setDefaultSTSMocks,
 } from '../../util/mock-sdk';
 import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { Deployments } from '../../../lib/api/deployments';
+import { CloudFormationStack } from '../../../lib/api/cloudformation';
+import { createChangeSet } from '../../../lib/api/deployments/cfn-api';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');

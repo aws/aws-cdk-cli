@@ -5,6 +5,7 @@ import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environ
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
+import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../payloads/hotswap';
 import type { StackDetailsPayload } from '../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
 import type { StackRollbackProgress } from '../payloads/rollback';
@@ -21,7 +22,7 @@ import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
  * - X900-X999 are reserved for results
  */
 export const IO = {
-  // Defaults
+  // Defaults (0000)
   DEFAULT_TOOLKIT_INFO: make.info({
     code: 'CDK_TOOLKIT_I0000',
     description: 'Default info messages emitted from the Toolkit',
@@ -34,8 +35,16 @@ export const IO = {
     code: 'CDK_TOOLKIT_W0000',
     description: 'Default warning messages emitted from the Toolkit',
   }),
+  DEFAULT_TOOLKIT_ERROR: make.error({
+    code: 'CDK_TOOLKIT_E0000',
+    description: 'Default error messages emitted from the Toolkit',
+  }),
+  DEFAULT_TOOLKIT_TRACE: make.trace({
+    code: 'CDK_TOOLKIT_I0000',
+    description: 'Default trace messages emitted from the Toolkit',
+  }),
 
-  // 1: Synth
+  // 1: Synth (1xxx)
   CDK_TOOLKIT_I1000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I1000',
     description: 'Provides synthesis times.',
@@ -57,7 +66,7 @@ export const IO = {
     interface: 'AssemblyData',
   }),
 
-  // 2: List
+  // 2: List (2xxx)
   CDK_TOOLKIT_I2901: make.result<StackDetailsPayload>({
     code: 'CDK_TOOLKIT_I2901',
     description: 'Provides details on the selected stacks and their dependencies',
@@ -65,14 +74,15 @@ export const IO = {
   }),
 
   // 3: Import & Migrate
-  CDK_TOOLKIT_E3900: make.error({
+  CDK_TOOLKIT_E3900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E3900',
     description: 'Resource import failed',
+    interface: 'ErrorPayload',
   }),
 
-  // 4: Diff
+  // 4: Diff (4xxx)
 
-  // 5: Deploy & Watch
+  // 5: Deploy & Watch (5xxx)
   CDK_TOOLKIT_I5000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I5000',
     description: 'Provides deployment times',
@@ -83,9 +93,10 @@ export const IO = {
     description: 'Provides total time in deploy action, including synth and rollback',
     interface: 'Duration',
   }),
-  CDK_TOOLKIT_I5002: make.info({
+  CDK_TOOLKIT_I5002: make.info<Duration>({
     code: 'CDK_TOOLKIT_I5002',
     description: 'Provides time for resource migration',
+    interface: 'Duration',
   }),
   CDK_TOOLKIT_W5021: make.warn({
     code: 'CDK_TOOLKIT_W5021',
@@ -129,14 +140,13 @@ export const IO = {
     description: 'Confirm deploy security sensitive changes',
     interface: 'DeployConfirmationRequest',
   }),
-
   CDK_TOOLKIT_I5100: make.info<StackDeployProgress>({
     code: 'CDK_TOOLKIT_I5100',
     description: 'Stack deploy progress',
     interface: 'StackDeployProgress',
   }),
 
-  // Assets
+  // Assets (52xx)
   CDK_TOOLKIT_I5210: make.trace<BuildAsset>({
     code: 'CDK_TOOLKIT_I5210',
     description: 'Started building a specific asset',
@@ -147,7 +157,6 @@ export const IO = {
     description: 'Building the asset has completed',
     interface: 'Duration',
   }),
-
   CDK_TOOLKIT_I5220: make.trace<PublishAsset>({
     code: 'CDK_TOOLKIT_I5220',
     description: 'Started publishing a specific asset',
@@ -159,7 +168,7 @@ export const IO = {
     interface: 'Duration',
   }),
 
-  // Watch
+  // Watch (53xx)
   CDK_TOOLKIT_I5310: make.debug<WatchSettings>({
     code: 'CDK_TOOLKIT_I5310',
     description: 'The computed settings used for file watching',
@@ -189,7 +198,34 @@ export const IO = {
     description: 'Queued watch deployment started',
   }),
 
-  // Stack Monitor
+  // Hotswap (54xx)
+  CDK_TOOLKIT_I5400: make.trace<HotswapDeploymentAttempt>({
+    code: 'CDK_TOOLKIT_I5400',
+    description: 'Attempting a hotswap deployment',
+    interface: 'HotswapDeploymentAttempt',
+  }),
+  CDK_TOOLKIT_I5401: make.trace<HotswapDeploymentDetails>({
+    code: 'CDK_TOOLKIT_I5401',
+    description: 'Computed details for the hotswap deployment',
+    interface: 'HotswapDeploymentDetails',
+  }),
+  CDK_TOOLKIT_I5402: make.info<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5402',
+    description: 'A hotswappable change is processed as part of a hotswap deployment',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5403: make.info<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5403',
+    description: 'The hotswappable change has completed processing',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5410: make.info<HotswapResult>({
+    code: 'CDK_TOOLKIT_I5410',
+    description: 'Hotswap deployment has ended, a full deployment might still follow if needed',
+    interface: 'HotswapResult',
+  }),
+
+  // Stack Monitor (55xx)
   CDK_TOOLKIT_I5501: make.info<StackMonitoringControlEvent>({
     code: 'CDK_TOOLKIT_I5501',
     description: 'Stack Monitoring: Start monitoring of a single stack',
@@ -206,7 +242,7 @@ export const IO = {
     interface: 'StackMonitoringControlEvent',
   }),
 
-  // Success
+  // Success (59xx)
   CDK_TOOLKIT_I5900: make.result<SuccessfulDeployStackResult>({
     code: 'CDK_TOOLKIT_I5900',
     description: 'Deployment results on success',
@@ -232,7 +268,7 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // 6: Rollback
+  // 6: Rollback (6xxx)
   CDK_TOOLKIT_I6000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I6000',
     description: 'Provides rollback times',
@@ -254,7 +290,7 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // 7: Destroy
+  // 7: Destroy (7xxx)
   CDK_TOOLKIT_I7000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I7000',
     description: 'Provides destroy times',
@@ -297,7 +333,7 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // 9: Bootstrap
+  // 9: Bootstrap (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',
     description: 'Provides bootstrap times',
@@ -318,6 +354,24 @@ export const IO = {
     code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',
     interface: 'ErrorPayload',
+  }),
+
+  // Notices
+  CDK_TOOLKIT_I0100: make.info({
+    code: 'CDK_TOOLKIT_I0100',
+    description: 'Notices decoration (the header or footer of a list of notices)',
+  }),
+  CDK_TOOLKIT_W0101: make.warn({
+    code: 'CDK_TOOLKIT_W0101',
+    description: 'A notice that is marked as a warning',
+  }),
+  CDK_TOOLKIT_E0101: make.error({
+    code: 'CDK_TOOLKIT_E0101',
+    description: 'A notice that is marked as an error',
+  }),
+  CDK_TOOLKIT_I0101: make.info({
+    code: 'CDK_TOOLKIT_I0101',
+    description: 'A notice that is marked as informational',
   }),
 
   // Assembly codes
@@ -442,5 +496,10 @@ export const SPAN = {
     name: 'Publish Asset',
     start: IO.CDK_TOOLKIT_I5220,
     end: IO.CDK_TOOLKIT_I5221,
+  },
+  HOTSWAP: {
+    name: 'hotswap-deployment',
+    start: IO.CDK_TOOLKIT_I5400,
+    end: IO.CDK_TOOLKIT_I5410,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;

@@ -4,9 +4,8 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import type { AssetManifestBuilder } from './asset-manifest-builder';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { EnvironmentResources } from '../environment';
 import type { ToolkitInfo } from '../toolkit-info';
 
@@ -44,11 +43,11 @@ export async function addMetadataAssetsToManifest(
     const reuseAsset = reuse.indexOf(asset.id) > -1;
 
     if (reuseAsset) {
-      await ioHelper.notify(debug(`Reusing asset ${asset.id}: ${JSON.stringify(asset)}`));
+      await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Reusing asset ${asset.id}: ${JSON.stringify(asset)}`));
       continue;
     }
 
-    await ioHelper.notify(debug(`Preparing asset ${asset.id}: ${JSON.stringify(asset)}`));
+    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Preparing asset ${asset.id}: ${JSON.stringify(asset)}`));
     if (!stack.assembly) {
       throw new ToolkitError('Unexpected: stack assembly is required in order to find assets in assembly directory');
     }
@@ -98,7 +97,7 @@ async function prepareFileAsset(
   const key = `${s3Prefix}${baseName}`;
   const s3url = `s3://${toolkitInfo.bucketName}/${key}`;
 
-  await ioHelper.notify(debug(`Storing asset ${asset.path} at ${s3url}`));
+  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Storing asset ${asset.path} at ${s3url}`));
 
   assetManifest.addFileAsset(asset.sourceHash, {
     path: asset.path,

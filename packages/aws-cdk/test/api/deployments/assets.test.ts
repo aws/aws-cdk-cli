@@ -1,13 +1,12 @@
 /* eslint-disable import/order */
 import { AssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
-import { testStack, withMocked } from '../../util';
+import { testStack, withMocked } from '../../_helpers';
 import { addMetadataAssetsToManifest } from '../../../lib/api/deployments/assets';
 import { AssetManifestBuilder } from '../../../lib/api/deployments';
 import { EnvironmentResources, EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import { MockSdk } from '../../util/mock-sdk';
 import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { TestIoHost } from '../../_helpers/test-io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let assets: AssetManifestBuilder;
 let envRegistry: EnvironmentResourcesRegistry;

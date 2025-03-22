@@ -5,9 +5,9 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import type { BootstrapEnvironments, BootstrapOptions } from '../actions/bootstrap';
+import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, type DeployOptions, RequireApproval } from '../actions/deploy';
+import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import { determinePermissionType } from '../actions/diff/private';
@@ -28,7 +28,7 @@ import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespa
 import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { ToolkitError } from '../api/shared-public';
+import { RequireApproval, ToolkitError } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
 import { pLimit } from '../util/concurrency';
 
@@ -147,7 +147,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<void> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
+    const startTime = Date.now();
+    const results: EnvironmentBootstrapResult[] = [];
+
     const ioHelper = asIoHelper(this.ioHost, 'bootstrap');
     const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
@@ -177,17 +180,29 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             usePreviousParameters: parameters?.keepExistingParameters,
           },
         );
+
         const message = bootstrapResult.noOp
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
-        await bootstrapSpan.end();
+        const envTime = await bootstrapSpan.end();
+        const result: EnvironmentBootstrapResult = {
+          environment,
+          status: bootstrapResult.noOp ? 'no-op' : 'success',
+          duration: envTime.asMs,
+        };
+        results.push(result);
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E9900.msg(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw e;
       }
     })));
+
+    return {
+      environments: results,
+      duration: Date.now() - startTime,
+    };
   }
 
   /**

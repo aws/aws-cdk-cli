@@ -1,13 +1,15 @@
-import * as util from 'util';
 import * as chalk from 'chalk';
-import type { IoMessageLevel, IoMessage, IoMessageCode } from './toolkit/cli-io-host';
-import { CliIoHost } from './toolkit/cli-io-host';
+import type { IoMessageLevel } from './cli/io-host/cli-io-host';
+import { CliIoHost } from './cli/io-host/cli-io-host';
+import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';
 export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
 
 /**
+ * Logs messages to the global CliIoHost
+ *
  * Internal helper that processes log inputs into a consistent format.
  * Handles string interpolation, format strings, and object parameter styles.
  * Applies optional styling and sends the message to the IoHost.
@@ -15,48 +17,33 @@ export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeC
 function formatMessageAndLog(
   level: IoMessageLevel,
   input: LogInput<IoCodeLevel>,
-  style?: (str: string) => string,
   ...args: unknown[]
 ): void {
-  // Extract message and code from input, using new default code format
-  const { message, code = getDefaultCode(level) } = typeof input === 'object' ? input : { message: input };
+  const singletonHost = CliIoHost.instance();
+  // ALARM: forcing a CliAction into a ToolkitAction.
+  const helper = asIoHelper(singletonHost, singletonHost.currentAction as any);
 
-  // Format message if args are provided
-  const formattedMessage = args.length > 0
-    ? util.format(message, ...args)
-    : message;
-
-  // Apply style if provided
-  const finalMessage = style ? style(formattedMessage) : formattedMessage;
-
-  const ioHost = CliIoHost.instance();
-  const ioMessage: IoMessage<undefined> = {
-    time: new Date(),
-    action: ioHost.currentAction as any,
-    level,
-    message: finalMessage,
-    code,
-    data: undefined,
-  };
-
-  void ioHost.notify(ioMessage);
-}
-
-function getDefaultCode(level: IoMessageLevel, category: IoMessageCodeCategory = 'TOOLKIT'): IoMessageCode {
-  const levelIndicator = level === 'error' ? 'E' :
-    level === 'warn' ? 'W' :
-      'I';
-  return `CDK_${category}_${levelIndicator}0000`;
+  if (typeof input === 'string') {
+    const messages = new IoDefaultMessages(helper);
+    messages[level](input, ...args);
+  } else {
+    void helper.notify({
+      data: undefined,
+      time: new Date(),
+      level,
+      ...input,
+    });
+  }
 }
 
 // Type for the object parameter style
 interface LogParams<L extends IoCodeLevel> {
   /**
-   * @see {@link IoMessage.code}
+   * Message code
    */
-  readonly code?: IoMessageSpecificCode<L>;
+  readonly code: IoMessageSpecificCode<L>;
   /**
-   * @see {@link IoMessage.message}
+   * Message
    */
   readonly message: string;
 }
@@ -79,7 +66,7 @@ type LogInput<L extends IoCodeLevel> = string | LogParams<L>;
  * ```
  */
 export const error = (input: LogInput<'E'>, ...args: unknown[]) => {
-  return formatMessageAndLog('error', input, undefined, ...args);
+  return formatMessageAndLog('error', input, ...args);
 };
 
 /**
@@ -94,7 +81,7 @@ export const error = (input: LogInput<'E'>, ...args: unknown[]) => {
  * ```
  */
 export const warning = (input: LogInput<'W'>, ...args: unknown[]) => {
-  return formatMessageAndLog('warn', input, undefined, ...args);
+  return formatMessageAndLog('warn', input, ...args);
 };
 
 /**
@@ -109,7 +96,7 @@ export const warning = (input: LogInput<'W'>, ...args: unknown[]) => {
  * ```
  */
 export const info = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('info', input, undefined, ...args);
+  return formatMessageAndLog('info', input, ...args);
 };
 
 /**
@@ -124,7 +111,7 @@ export const info = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const result = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('result', input, undefined, ...args);
+  return formatMessageAndLog('result', input, ...args);
 };
 
 /**
@@ -139,7 +126,7 @@ export const result = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const debug = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('debug', input, undefined, ...args);
+  return formatMessageAndLog('debug', input, ...args);
 };
 
 /**
@@ -154,7 +141,7 @@ export const debug = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const trace = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('trace', input, undefined, ...args);
+  return formatMessageAndLog('trace', input, ...args);
 };
 
 /**
@@ -169,7 +156,7 @@ export const trace = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const success = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('info', input, chalk.green, ...args);
+  return formatMessageAndLog('info', chalkInput(input, chalk.green), ...args);
 };
 
 /**
@@ -184,5 +171,16 @@ export const success = (input: LogInput<'I'>, ...args: unknown[]) => {
  * ```
  */
 export const highlight = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('info', input, chalk.bold, ...args);
+  return formatMessageAndLog('info', chalkInput(input, chalk.bold), ...args);
 };
+
+function chalkInput<A extends LogInput<any>>(i: A, style: (str: string) => string): A {
+  if (typeof i === 'string') {
+    return style(i) as A;
+  }
+
+  return {
+    ...i as any,
+    message: style(i.message),
+  };
+}

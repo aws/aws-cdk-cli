@@ -1,8 +1,8 @@
 import type { AmiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
 import { debug, info } from '../logging';
-import { ContextProviderError } from '../toolkit/error';
 
 /**
  * Plugin to search AMIs for the current account

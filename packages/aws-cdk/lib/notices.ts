@@ -8,12 +8,13 @@ import * as semver from 'semver';
 import type { SdkHttpOptions } from './api';
 import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
 import type { Context } from './api/context';
+import type { IIoHost } from './cli/io-host';
 import { versionNumber } from './cli/version';
-import { debug, info, warning, error } from './logging';
-import { ToolkitError } from './toolkit/error';
 import type { ConstructTreeNode } from './tree';
 import { loadTreeFromDir } from './tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
+import { ToolkitError } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 
@@ -38,16 +39,14 @@ export interface NoticesProps {
   readonly output?: string;
 
   /**
-   * Global CLI option for whether we show notices
-   *
-   * @default true
-   */
-  readonly shouldDisplay?: boolean;
-
-  /**
    * Options for the HTTP request
    */
   readonly httpOptions?: SdkHttpOptions;
+
+  /**
+   * Where messages are going to be sent
+   */
+  readonly ioHost: IIoHost;
 }
 
 export interface NoticesPrintOptions {
@@ -83,20 +82,23 @@ export interface NoticesFilterFilterOptions {
   readonly bootstrappedEnvironments: BootstrappedEnvironment[];
 }
 
-export abstract class NoticesFilter {
-  public static filter(options: NoticesFilterFilterOptions): FilteredNotice[] {
+export class NoticesFilter {
+  constructor(private readonly ioMessages: IoDefaultMessages) {
+  }
+
+  public filter(options: NoticesFilterFilterOptions): FilteredNotice[] {
     const components = [
-      ...NoticesFilter.constructTreeComponents(options.outDir),
-      ...NoticesFilter.otherComponents(options),
+      ...this.constructTreeComponents(options.outDir),
+      ...this.otherComponents(options),
     ];
 
-    return NoticesFilter.findForNamedComponents(options.data, components);
+    return this.findForNamedComponents(options.data, components);
   }
 
   /**
    * From a set of input options, return the notices components we are searching for
    */
-  private static otherComponents(options: NoticesFilterFilterOptions): ActualComponent[] {
+  private otherComponents(options: NoticesFilterFilterOptions): ActualComponent[] {
     return [
       // CLI
       {
@@ -116,7 +118,7 @@ export abstract class NoticesFilter {
         const semverBootstrapVersion = semver.coerce(env.bootstrapStackVersion);
         if (!semverBootstrapVersion) {
           // we don't throw because notices should never crash the cli.
-          warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
+          this.ioMessages.warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
           return [];
         }
 
@@ -133,7 +135,7 @@ export abstract class NoticesFilter {
   /**
    * Based on a set of component names, find all notices that match one of the given components
    */
-  private static findForNamedComponents(data: Notice[], actualComponents: ActualComponent[]): FilteredNotice[] {
+  private findForNamedComponents(data: Notice[], actualComponents: ActualComponent[]): FilteredNotice[] {
     return data.flatMap(notice => {
       const ors = this.resolveAliases(normalizeComponents(notice.components));
 
@@ -142,12 +144,12 @@ export abstract class NoticesFilter {
       // component can match more than one actual component
       for (const ands of ors) {
         const matched = ands.map(affected => actualComponents.filter(actual =>
-          NoticesFilter.componentNameMatches(affected, actual) && semver.satisfies(actual.version, affected.version, { includePrerelease: true })));
+          this.componentNameMatches(affected, actual) && semver.satisfies(actual.version, affected.version, { includePrerelease: true })));
 
         // For every clause in the filter we matched one or more components
         if (matched.every(xs => xs.length > 0)) {
           const ret = new FilteredNotice(notice);
-          NoticesFilter.addDynamicValues(matched.flatMap(x => x), ret);
+          this.addDynamicValues(matched.flatMap(x => x), ret);
           return [ret];
         }
       }
@@ -162,7 +164,7 @@ export abstract class NoticesFilter {
    * The name matches if the name is exactly the same, or the name in the notice
    * is a prefix of the node name when the query ends in '.'.
    */
-  private static componentNameMatches(pattern: Component, actual: ActualComponent): boolean {
+  private componentNameMatches(pattern: Component, actual: ActualComponent): boolean {
     return pattern.name.endsWith('.') ? actual.name.startsWith(pattern.name) : pattern.name === actual.name;
   }
 
@@ -172,7 +174,7 @@ export abstract class NoticesFilter {
    * If there are multiple components with the same dynamic name, they are joined
    * by a comma.
    */
-  private static addDynamicValues(comps: ActualComponent[], notice: FilteredNotice) {
+  private addDynamicValues(comps: ActualComponent[], notice: FilteredNotice) {
     const dynamicValues: Record<string, string[]> = {};
     for (const comp of comps) {
       if (comp.dynamicName) {
@@ -191,7 +193,7 @@ export abstract class NoticesFilter {
    * Because it's EITHER `aws-cdk-lib` or `@aws-cdk/core`, we need to add multiple
    * arrays at the top level.
    */
-  private static resolveAliases(ors: Component[][]): Component[][] {
+  private resolveAliases(ors: Component[][]): Component[][] {
     return ors.flatMap(ands => {
       const hasFramework = ands.find(c => c.name === 'framework');
       if (!hasFramework) {
@@ -208,7 +210,7 @@ export abstract class NoticesFilter {
   /**
    * Load the construct tree from the given directory and return its components
    */
-  private static constructTreeComponents(manifestDir: string): ActualComponent[] {
+  private constructTreeComponents(manifestDir: string): ActualComponent[] {
     const tree = loadTreeFromDir(manifestDir);
     if (!tree) {
       return [];
@@ -299,10 +301,10 @@ export class Notices {
 
   private readonly context: Context;
   private readonly output: string;
-  private readonly shouldDisplay: boolean;
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly includeAcknowlegded: boolean;
   private readonly httpOptions: SdkHttpOptions;
+  private readonly ioMessages: IoDefaultMessages;
 
   private data: Set<Notice> = new Set();
 
@@ -314,8 +316,8 @@ export class Notices {
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
     this.includeAcknowlegded = props.includeAcknowledged ?? false;
     this.output = props.output ?? 'cdk.out';
-    this.shouldDisplay = props.shouldDisplay ?? true;
     this.httpOptions = props.httpOptions ?? {};
+    this.ioMessages = new IoDefaultMessages(asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */));
   }
 
   /**
@@ -340,17 +342,13 @@ export class Notices {
    * If context is configured to not display notices, this will no-op.
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    if (!this.shouldDisplay) {
-      return;
-    }
-
     try {
-      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.httpOptions);
-      const dataSource = new CachedDataSource(CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
+      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioMessages, this.httpOptions);
+      const dataSource = new CachedDataSource(this.ioMessages, CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
       const notices = await dataSource.fetch();
       this.data = new Set(this.includeAcknowlegded ? notices : notices.filter(n => !this.acknowledgedIssueNumbers.has(n.issueNumber)));
     } catch (e: any) {
-      debug(`Could not refresh notices: ${e}`);
+      this.ioMessages.debug(`Could not refresh notices: ${e}`);
     }
   }
 
@@ -358,11 +356,7 @@ export class Notices {
    * Display the relevant notices (unless context dictates we shouldn't).
    */
   public display(options: NoticesPrintOptions = {}) {
-    if (!this.shouldDisplay) {
-      return;
-    }
-
-    const filteredNotices = NoticesFilter.filter({
+    const filteredNotices = new NoticesFilter(this.ioMessages).filter({
       data: Array.from(this.data),
       cliVersion: versionNumber(),
       outDir: this.output,
@@ -370,29 +364,34 @@ export class Notices {
     });
 
     if (filteredNotices.length > 0) {
-      info('');
-      info('NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)');
-      info('');
+      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg([
+        '',
+        'NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)',
+        '',
+      ].join('\n')));
       for (const filtered of filteredNotices) {
-        const formatted = filtered.format();
+        const formatted = filtered.format() + '\n';
         switch (filtered.notice.severity) {
           case 'warning':
-            warning(formatted);
+            void this.ioMessages.notify(IO.CDK_TOOLKIT_W0101.msg(formatted));
             break;
           case 'error':
-            error(formatted);
+            void this.ioMessages.notify(IO.CDK_TOOLKIT_E0101.msg(formatted));
             break;
           default:
-            info(formatted);
+            void this.ioMessages.notify(IO.CDK_TOOLKIT_I0101.msg(formatted));
+            break;
         }
-        info('');
       }
-      info(`If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`);
+      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+        `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
+      ));
     }
 
     if (options.showTotal ?? false) {
-      info('');
-      info(`There are ${filteredNotices.length} unacknowledged notice(s).`);
+      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+        `\nThere are ${filteredNotices.length} unacknowledged notice(s).`,
+      ));
     }
   }
 }
@@ -486,7 +485,7 @@ export interface NoticeDataSource {
 export class WebsiteNoticeDataSource implements NoticeDataSource {
   private readonly options: SdkHttpOptions;
 
-  constructor(options: SdkHttpOptions = {}) {
+  constructor(private readonly ioMessages: IoDefaultMessages, options: SdkHttpOptions = {}) {
     this.options = options;
   }
 
@@ -523,7 +522,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
                   if (!data) {
                     throw new ToolkitError("'notices' key is missing");
                   }
-                  debug('Notices refreshed');
+                  this.ioMessages.debug('Notices refreshed');
                   resolve(data ?? []);
                 } catch (e: any) {
                   reject(new ToolkitError(`Failed to parse notices: ${formatErrorMessage(e)}`));
@@ -554,6 +553,7 @@ const TIME_TO_LIVE_ERROR = 1 * 60 * 1000; // 1 minute
 
 export class CachedDataSource implements NoticeDataSource {
   constructor(
+    private readonly ioMessages: IoDefaultMessages,
     private readonly fileName: string,
     private readonly dataSource: NoticeDataSource,
     private readonly skipCache?: boolean) {
@@ -569,7 +569,7 @@ export class CachedDataSource implements NoticeDataSource {
       await this.save(freshData);
       return freshData.notices;
     } else {
-      debug(`Reading cached notices from ${this.fileName}`);
+      this.ioMessages.debug(`Reading cached notices from ${this.fileName}`);
       return data;
     }
   }
@@ -581,7 +581,7 @@ export class CachedDataSource implements NoticeDataSource {
         notices: await this.dataSource.fetch(),
       };
     } catch (e) {
-      debug(`Could not refresh notices: ${e}`);
+      this.ioMessages.debug(`Could not refresh notices: ${e}`);
       return {
         expiration: Date.now() + TIME_TO_LIVE_ERROR,
         notices: [],
@@ -600,7 +600,7 @@ export class CachedDataSource implements NoticeDataSource {
         ? await fs.readJSON(this.fileName) as CachedNotices
         : defaultValue;
     } catch (e) {
-      debug(`Failed to load notices from cache: ${e}`);
+      this.ioMessages.debug(`Failed to load notices from cache: ${e}`);
       return defaultValue;
     }
   }
@@ -609,7 +609,7 @@ export class CachedDataSource implements NoticeDataSource {
     try {
       await fs.writeJSON(this.fileName, cached);
     } catch (e) {
-      debug(`Failed to store notices in the cache: ${e}`);
+      this.ioMessages.debug(`Failed to store notices in the cache: ${e}`);
     }
   }
 }

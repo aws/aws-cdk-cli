@@ -2,7 +2,7 @@ import * as path from 'path';
 import bockfs from '../../_helpers/bockfs';
 import * as fs from 'fs-extra';
 import { AccountAccessKeyCache } from '../../../lib/api/aws-auth/account-cache';
-import { withMocked } from '../../util';
+import { withMocked } from '../../_helpers/as-mock';
 
 async function makeCache() {
   const dir = await fs.mkdtemp('/tmp/account-cache-test');

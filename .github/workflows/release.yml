@@ -5,7 +5,7 @@ on:
   workflow_dispatch: {}
 jobs:
   release:
-    runs-on: aws-cdk_ubuntu-latest_4-core
+    runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: write
     outputs:
@@ -18,6 +18,7 @@ jobs:
       publish-aws-cdk-cli-lib-alpha: ${{ steps.check-publish-aws-cdk-cli-lib-alpha.outputs.publish }}
       publish-aws-cdk-toolkit-lib: ${{ steps.check-publish-aws-cdk-toolkit-lib.outputs.publish }}
       publish-cdk: ${{ steps.check-publish-cdk.outputs.publish }}
+      publish-aws-cdk-integ-runner: ${{ steps.check-publish-aws-cdk-integ-runner.outputs.publish }}
     env:
       CI: "true"
     steps:
@@ -61,6 +62,9 @@ jobs:
       - id: check-publish-cdk
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/cdk
+      - id: check-publish-aws-cdk-integ-runner
+        run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
+        working-directory: packages/@aws-cdk/integ-runner
       - name: Output the sha value that downstream checks expect
         id: git_remote
         run: echo "latest_commit=${{ github.sha }}" >> $GITHUB_OUTPUT
@@ -159,6 +163,18 @@ jobs:
         with:
           name: cdk_build-artifact
           path: packages/cdk/dist
+          overwrite: true
+      - name: "@aws-cdk/integ-runner: Backup artifact permissions"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        run: cd dist && getfacl -R . > permissions-backup.acl
+        continue-on-error: true
+        working-directory: packages/@aws-cdk/integ-runner
+      - name: "@aws-cdk/integ-runner: Upload artifact"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: aws-cdk-integ-runner_build-artifact
+          path: packages/@aws-cdk/integ-runner/dist
           overwrite: true
       - name: "standalone: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
@@ -969,6 +985,60 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cdk_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          NPM_DIST_TAG: latest
+          NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx -p publib@latest publib-npm
+  aws-cdk-integ-runner_release_github:
+    name: "@aws-cdk/integ-runner: Publish to GitHub Releases"
+    needs:
+      - release
+      - aws-cdk-integ-runner_release_npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-integ-runner_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.sha }}
+        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+  aws-cdk-integ-runner_release_npm:
+    name: "@aws-cdk/integ-runner: Publish to npm"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-integ-runner_build-artifact
           path: dist
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl

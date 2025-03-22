@@ -1,10 +1,16 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
+import type { IoMessageLevel } from './io-host';
+import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
-
+import { prettyPrintError } from './pretty-print-error';
+import type { Command } from './user-configuration';
+import { Configuration } from './user-configuration';
 import * as version from './version';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { SdkProvider } from '../api/aws-auth';
 import { SdkToCliLogger } from '../api/aws-auth/sdk-logger';
@@ -25,16 +31,9 @@ import type { ILock } from '../api/util/rwlock';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { cliInit, printAvailableTemplates } from '../init';
-import { result, debug, error, info } from '../logging';
 import { Notices } from '../notices';
-import type { Command } from './user-configuration';
-import { Configuration } from './user-configuration';
-import type { IoMessageLevel } from '../toolkit/cli-io-host';
-import { CliIoHost } from '../toolkit/cli-io-host';
-import { ToolkitError } from '../toolkit/error';
-
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -81,11 +80,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     await checkForPlatformWarnings();
   } catch (e) {
-    debug(`Error while checking for platform warnings: ${e}`);
+    ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  debug('CDK Toolkit CLI version:', version.displayVersion());
-  debug('Command line arguments:', argv);
+  ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
+  ioHost.defaults.debug('Command line arguments:', argv);
 
   const configuration = new Configuration({
     commandLineArguments: {
@@ -95,10 +94,24 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await configuration.load();
 
+  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  if (shouldDisplayNotices !== undefined) {
+    // Notices either go to stderr, or nowhere
+    ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
+  } else {
+    // If the user didn't supply either `--notices` or `--no-notices`, we do
+    // autodetection. The autodetection currently is: do write notices if we are
+    // not on CI, or are on a CI system where we know that writing to stderr is
+    // safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+    // systems, even though technically we maybe could.
+    const safeToWriteToStdErr = !argv.ci || Boolean(ciSystemIsStdErrSafe());
+    ioHost.noticesDestination = safeToWriteToStdErr ? 'stderr' : 'drop';
+  }
+
   const notices = Notices.create({
+    ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    shouldDisplay: configuration.settings.get(['notices']),
     includeAcknowledged: cmd === 'notices' ? !argv.unacknowledged : false,
     httpOptions: {
       proxyAddress: configuration.settings.get(['proxy']),
@@ -143,7 +156,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (loaded.has(resolved)) {
           continue;
         }
-        debug(`Loading plug-in: ${chalk.green(plugin)} from ${chalk.blue(resolved)}`);
+        ioHost.defaults.debug(`Loading plug-in: ${chalk.green(plugin)} from ${chalk.blue(resolved)}`);
         PluginHost.instance.load(plugin);
         loaded.add(resolved);
       }
@@ -153,8 +166,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       try {
         return require.resolve(plugin);
       } catch (e: any) {
-        error(`Unable to resolve plugin ${chalk.green(plugin)}: ${e.stack}`);
-        throw new ToolkitError(`Unable to resolve plug-in: ${plugin}`);
+        // according to Node.js docs `MODULE_NOT_FOUND` is the only possible error here
+        // @see https://nodejs.org/api/modules.html#requireresolverequest-options
+        // Not using `withCause()` here, since the node error contains a "Require Stack"
+        // as part of the error message that is inherently useless to our users.
+        throw new ToolkitError(`Unable to resolve plug-in: Cannot find module '${plugin}'`);
       }
     }
   }
@@ -186,7 +202,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   async function main(command: string, args: any): Promise<number | void> {
     ioHost.currentAction = command as any;
     const toolkitStackName: string = ToolkitInfo.determineName(configuration.settings.get(['toolkitStackName']));
-    debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
+    ioHost.defaults.debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
 
     const cloudFormation = new Deployments({
       sdkProvider,
@@ -258,7 +274,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           contextLines: args.contextLines,
           securityOnly: args.securityOnly,
           fail: args.fail != null ? args.fail : !enableDiffNoFail,
-          stream: args.ci ? process.stdout : undefined,
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
           changeSet: args['change-set'],
@@ -267,7 +282,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'bootstrap':
         ioHost.currentAction = 'bootstrap';
-        const source: BootstrapSource = determineBootstrapVersion(args);
+        const source: BootstrapSource = determineBootstrapVersion(ioHost, args);
 
         if (args.showTemplate) {
           const bootstrapper = new Bootstrapper(source, asIoHelper(ioHost, ioHost.currentAction));
@@ -461,7 +476,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'notices':
         ioHost.currentAction = 'notices';
-        // This is a valid command, but we're postponing its execution
+        // If the user explicitly asks for notices, they are now the primary output
+        // of the command and they should go to stdout.
+        ioHost.noticesDestination = 'stdout';
+
+        // This is a valid command, but we're postponing its execution because displaying
+        // notices automatically happens after every command.
         return;
 
       case 'metadata':
@@ -503,7 +523,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return result(version.displayVersion());
+        return ioHost.defaults.result(version.displayVersion());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
@@ -514,13 +534,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 /**
  * Determine which version of bootstrapping
  */
-function determineBootstrapVersion(args: { template?: string }): BootstrapSource {
+function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): BootstrapSource {
   let source: BootstrapSource;
   if (args.template) {
-    info(`Using bootstrapping template from ${args.template}`);
+    ioHost.defaults.info(`Using bootstrapping template from ${args.template}`);
     source = { source: 'custom', templateFile: args.template };
   } else if (process.env.CDK_LEGACY_BOOTSTRAP) {
-    info('CDK_LEGACY_BOOTSTRAP set, using legacy-style bootstrapping');
+    ioHost.defaults.info('CDK_LEGACY_BOOTSTRAP set, using legacy-style bootstrapping');
     source = { source: 'legacy' };
   } else {
     // in V2, the "new" bootstrapping is the default
@@ -580,13 +600,9 @@ export function cli(args: string[] = process.argv.slice(2)) {
       }
     })
     .catch((err) => {
-      error(err.message);
-
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      if (err.stack && version.isDeveloperBuild()) {
-        debug(err.stack);
-      }
+      prettyPrintError(err, version.isDeveloperBuild());
       process.exitCode = 1;
     });
 }

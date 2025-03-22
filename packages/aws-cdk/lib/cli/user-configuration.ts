@@ -1,8 +1,11 @@
+import * as os from 'os';
+import * as fs_path from 'path';
+import * as fs from 'fs-extra';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
 import { debug, warning } from '../logging';
-import { ToolkitError } from '../toolkit/error';
 
 export const PROJECT_CONFIG = 'cdk.json';
 export { PROJECT_CONTEXT } from '../api/context';
@@ -174,12 +177,69 @@ export class Configuration {
 }
 
 async function loadAndLog(fileName: string): Promise<Settings> {
-  const ret = new Settings();
-  await ret.load(fileName);
+  const ret = await settingsFromFile(fileName);
   if (!ret.empty) {
     debug(fileName + ':', JSON.stringify(ret.all, undefined, 2));
   }
   return ret;
+}
+
+async function settingsFromFile(fileName: string): Promise<Settings> {
+  let settings;
+  const expanded = expandHomeDir(fileName);
+  if (await fs.pathExists(expanded)) {
+    const data = await fs.readJson(expanded);
+    settings = new Settings(data);
+  } else {
+    settings = new Settings();
+  }
+
+  // See https://github.com/aws/aws-cdk/issues/59
+  prohibitContextKeys(settings, ['default-account', 'default-region'], fileName);
+  warnAboutContextKey(settings, 'aws:', fileName);
+
+  return settings;
+}
+
+function prohibitContextKeys(settings: Settings, keys: string[], fileName: string) {
+  const context = settings.get(['context']);
+  if (!context || typeof context !== 'object') {
+    return;
+  }
+
+  for (const key of keys) {
+    if (key in context) {
+      throw new ToolkitError(
+        `The 'context.${key}' key was found in ${fs_path.resolve(
+          fileName,
+        )}, but it is no longer supported. Please remove it.`,
+      );
+    }
+  }
+}
+
+function warnAboutContextKey(settings: Settings, prefix: string, fileName: string) {
+  const context = settings.get(['context']);
+  if (!context || typeof context !== 'object') {
+    return;
+  }
+
+  for (const contextKey of Object.keys(context)) {
+    if (contextKey.startsWith(prefix)) {
+      warning(
+        `A reserved context key ('context.${prefix}') key was found in ${fs_path.resolve(
+          fileName,
+        )}, it might cause surprising behavior and should be removed.`,
+      );
+    }
+  }
+}
+
+function expandHomeDir(x: string) {
+  if (x.startsWith('~')) {
+    return fs_path.join(os.homedir(), x.slice(1));
+  }
+  return x;
 }
 
 /**

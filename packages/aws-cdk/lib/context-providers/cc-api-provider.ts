@@ -1,8 +1,8 @@
 import type { CcApiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { ICloudControlClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../toolkit/error';
 import { findJsonValue, getResultObj } from '../util';
 import { ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 

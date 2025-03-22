@@ -1,12 +1,10 @@
-import { info } from 'console';
 import * as path from 'path';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { BootstrapEnvironmentOptions, BootstrappingParameters } from './bootstrap-props';
 import { BootstrapStack, bootstrapVersionFromTemplate } from './deploy-bootstrap';
 import { legacyBootstrapTemplate } from './legacy-template';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { warn } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { SuccessfulDeployStackResult } from '../deployments';
@@ -125,14 +123,16 @@ export class Bootstrapper {
       accounts.filter(acc => !params.untrustedAccounts?.map(String).includes(String(acc)));
 
     const trustedAccounts = removeUntrusted(params.trustedAccounts ?? splitCfnArray(current.parameters.TrustedAccounts));
-    info(`Trusted accounts for deployment: ${trustedAccounts.length > 0 ? trustedAccounts.join(', ') : '(none)'}`);
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
+      `Trusted accounts for deployment: ${trustedAccounts.length > 0 ? trustedAccounts.join(', ') : '(none)'}`,
+    ));
 
     const trustedAccountsForLookup = removeUntrusted(
       params.trustedAccountsForLookup ?? splitCfnArray(current.parameters.TrustedAccountsForLookup),
     );
-    info(
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
       `Trusted accounts for lookup: ${trustedAccountsForLookup.length > 0 ? trustedAccountsForLookup.join(', ') : '(none)'}`,
-    );
+    ));
 
     const cloudFormationExecutionPolicies =
       params.cloudFormationExecutionPolicies ?? splitCfnArray(current.parameters.CloudFormationExecutionPolicies);
@@ -151,7 +151,7 @@ export class Bootstrapper {
       // Would leave AdministratorAccess policies with a trust relationship, without the user explicitly
       // approving the trust policy.
       const implicitPolicy = `arn:${partition}:iam::aws:policy/AdministratorAccess`;
-      await this.ioHelper.notify(warn(
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
         `Using default execution policy of '${implicitPolicy}'. Pass '--cloudformation-execution-policies' to customize.`,
       ));
     } else if (cloudFormationExecutionPolicies.length === 0) {
@@ -160,7 +160,7 @@ export class Bootstrapper {
       );
     } else {
       // Remind people what the current settings are
-      info(`Execution policies: ${cloudFormationExecutionPolicies.join(', ')}`);
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`Execution policies: ${cloudFormationExecutionPolicies.join(', ')}`));
     }
 
     // * If an ARN is given, that ARN. Otherwise:
@@ -199,15 +199,15 @@ export class Bootstrapper {
     }
     if (currentPermissionsBoundary !== policyName) {
       if (!currentPermissionsBoundary) {
-        await this.ioHelper.notify(warn(
+        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
           `Adding new permissions boundary ${policyName}`,
         ));
       } else if (!policyName) {
-        await this.ioHelper.notify(warn(
+        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
           `Removing existing permissions boundary ${currentPermissionsBoundary}`,
         ));
       } else {
-        await this.ioHelper.notify(warn(
+        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
           `Changing permissions boundary from ${currentPermissionsBoundary} to ${policyName}`,
         ));
       }

@@ -1,16 +1,17 @@
-import { type ChangeHotswapResult, classifyChanges, type HotswappableChangeCandidate } from './common';
+import { type HotswapChange, classifyChanges } from './common';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
-import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
 export async function isHotswappableStateMachineChange(
   logicalId: string,
-  change: HotswappableChangeCandidate,
+  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   if (change.newValue.Type !== 'AWS::StepFunctions::StateMachine') {
     return [];
   }
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
   const classifiedChanges = classifyChanges(change, ['DefinitionString']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 
@@ -24,17 +25,25 @@ export async function isHotswappableStateMachineChange(
             stateMachineNameInCfnTemplate,
       })
       : await evaluateCfnTemplate.findPhysicalNameFor(logicalId);
-    ret.push({
-      hotswappable: true,
-      resourceType: change.newValue.Type,
-      propsChanged: namesOfHotswappableChanges,
-      service: 'stepfunctions-service',
-      resourceNames: [`${change.newValue.Type} '${stateMachineArn?.split(':')[6]}'`],
-      apply: async (sdk: SDK) => {
-        if (!stateMachineArn) {
-          return;
-        }
 
+    // nothing to do
+    if (!stateMachineArn) {
+      return ret;
+    }
+
+    ret.push({
+      change: {
+        cause: change,
+        resources: [{
+          logicalId,
+          resourceType: change.newValue.Type,
+          physicalName: stateMachineArn?.split(':')[6],
+          metadata: evaluateCfnTemplate.metadataFor(logicalId),
+        }],
+      },
+      hotswappable: true,
+      service: 'stepfunctions-service',
+      apply: async (sdk: SDK) => {
         // not passing the optional properties leaves them unchanged
         await sdk.stepFunctions().updateStateMachine({
           stateMachineArn,
