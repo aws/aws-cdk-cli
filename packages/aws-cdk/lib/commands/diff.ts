@@ -1,8 +1,8 @@
+import { Writable } from 'stream';
 import { format } from 'util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
   type DescribeChangeSetOutput,
-  type FormatStream,
   type TemplateDiff,
   formatDifferences,
   formatSecurityChanges,
@@ -12,11 +12,48 @@ import {
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { type NestedStackTemplates } from '../api/deployments';
+import type { NestedStackTemplates } from '../api/cloudformation';
 import { info, warning } from '../logging';
 
+/*
+ * Custom writable stream that collects text into a string buffer.
+ * Used on classes that take in and directly write to a stream, but
+ * we intend to capture the output rather than print.
+ */
+class StringWriteStream extends Writable {
+  private buffer: string[] = [];
+
+  constructor() {
+    super();
+  }
+
+  _write(chunk: any, _encoding: string, callback: (error?: Error | null) => void): void {
+    this.buffer.push(chunk.toString());
+    callback();
+  }
+
+  toString(): string {
+    return this.buffer.join('');
+  }
+}
+
 /**
- * Pretty-prints the differences between two template states to the console.
+ * Output of formatStackDiff
+ */
+export interface FormatStackDiffOutput {
+  /**
+   * Number of stacks with diff changes
+   */
+  readonly numStacksWithChanges: number;
+
+  /**
+   * Complete formatted diff
+   */
+  readonly formattedDiff: string;
+}
+
+/**
+ * Formats the differences between two template states and returns it as a string.
  *
  * @param oldTemplate the old/current state of the stack.
  * @param newTemplate the new/target state of the stack.
@@ -24,9 +61,9 @@ import { info, warning } from '../logging';
  * @param context     lines of context to use in arbitrary JSON diff
  * @param quiet       silences \'There were no differences\' messages
  *
- * @returns the number of stacks in this stack tree that have differences, including the top-level root stack
+ * @returns the formatted diff, and the number of stacks in this stack tree that have differences, including the top-level root stack
  */
-export function printStackDiff(
+export function formatStackDiff(
   oldTemplate: any,
   newTemplate: cxapi.CloudFormationStackArtifact,
   strict: boolean,
@@ -35,46 +72,63 @@ export function printStackDiff(
   stackName?: string,
   changeSet?: DescribeChangeSetOutput,
   isImport?: boolean,
-  stream: FormatStream = process.stderr,
-  nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates }): number {
+  nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates }): FormatStackDiffOutput {
   let diff = fullDiff(oldTemplate, newTemplate.template, changeSet, isImport);
 
-  // must output the stack name if there are differences, even if quiet
-  if (stackName && (!quiet || !diff.isEmpty)) {
-    stream.write(format('Stack %s\n', chalk.bold(stackName)));
-  }
+  // The stack diff is formatted via `Formatter`, which takes in a stream
+  // and sends its output directly to that stream. To faciliate use of the
+  // global CliIoHost, we create our own stream to capture the output of
+  // `Formatter` and return the output as a string for the consumer of
+  // `formatStackDiff` to decide what to do with it.
+  const stream = new StringWriteStream();
 
-  if (!quiet && isImport) {
-    stream.write('Parameters and rules created during migration do not affect resource configuration.\n');
-  }
-
-  // detect and filter out mangled characters from the diff
+  let numStacksWithChanges = 0;
+  let formattedDiff = '';
   let filteredChangesCount = 0;
-  if (diff.differenceCount && !strict) {
-    const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(newTemplate.template)));
-    const mangledDiff = fullDiff(oldTemplate, mangledNewTemplate, changeSet);
-    filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
-    if (filteredChangesCount > 0) {
-      diff = mangledDiff;
+  try {
+    // must output the stack name if there are differences, even if quiet
+    if (stackName && (!quiet || !diff.isEmpty)) {
+      stream.write(format('Stack %s\n', chalk.bold(stackName)));
     }
+
+    if (!quiet && isImport) {
+      stream.write('Parameters and rules created during migration do not affect resource configuration.\n');
+    }
+
+    // detect and filter out mangled characters from the diff
+    if (diff.differenceCount && !strict) {
+      const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(newTemplate.template)));
+      const mangledDiff = fullDiff(oldTemplate, mangledNewTemplate, changeSet);
+      filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
+      if (filteredChangesCount > 0) {
+        diff = mangledDiff;
+      }
+    }
+
+    // filter out 'AWS::CDK::Metadata' resources from the template
+    // filter out 'CheckBootstrapVersion' rules from the template
+    if (!strict) {
+      obscureDiff(diff);
+    }
+
+    if (!diff.isEmpty) {
+      numStacksWithChanges++;
+
+      // formatDifferences updates the stream with the formatted stack diff
+      formatDifferences(stream, diff, {
+        ...logicalIdMapFromTemplate(oldTemplate),
+        ...buildLogicalToPathMap(newTemplate),
+      }, context);
+
+      // store the stream containing a formatted stack diff
+      formattedDiff = stream.toString();
+    } else if (!quiet) {
+      info(chalk.green('There were no differences'));
+    }
+  } finally {
+    stream.end();
   }
 
-  // filter out 'AWS::CDK::Metadata' resources from the template
-  // filter out 'CheckBootstrapVersion' rules from the template
-  if (!strict) {
-    obscureDiff(diff);
-  }
-
-  let stackDiffCount = 0;
-  if (!diff.isEmpty) {
-    stackDiffCount++;
-    formatDifferences(stream, diff, {
-      ...logicalIdMapFromTemplate(oldTemplate),
-      ...buildLogicalToPathMap(newTemplate),
-    }, context);
-  } else if (!quiet) {
-    info(chalk.green('There were no differences'));
-  }
   if (filteredChangesCount > 0) {
     info(chalk.yellow(`Omitted ${filteredChangesCount} changes because they are likely mangled non-ASCII characters. Use --strict to print them.`));
   }
@@ -86,7 +140,7 @@ export function printStackDiff(
     const nestedStack = nestedStackTemplates[nestedStackLogicalId];
 
     (newTemplate as any)._template = nestedStack.generatedTemplate;
-    stackDiffCount += printStackDiff(
+    const nextDiff = formatStackDiff(
       nestedStack.deployedTemplate,
       newTemplate,
       strict,
@@ -95,12 +149,16 @@ export function printStackDiff(
       nestedStack.physicalName ?? nestedStackLogicalId,
       undefined,
       isImport,
-      stream,
       nestedStack.nestedStackTemplates,
     );
+    numStacksWithChanges += nextDiff.numStacksWithChanges;
+    formattedDiff += nextDiff.formattedDiff;
   }
 
-  return stackDiffCount;
+  return {
+    numStacksWithChanges,
+    formattedDiff,
+  };
 }
 
 export enum RequireApproval {
@@ -112,32 +170,53 @@ export enum RequireApproval {
 }
 
 /**
- * Print the security changes of this diff, if the change is impactful enough according to the approval level
- *
- * Returns true if the changes are prompt-worthy, false otherwise.
+ * Output of formatSecurityDiff
  */
-export function printSecurityDiff(
+export interface FormatSecurityDiffOutput {
+  /**
+   * Complete formatted security diff, if it is prompt-worthy
+   */
+  readonly formattedDiff?: string;
+}
+
+/**
+ * Formats the security changes of this diff, if the change is impactful enough according to the approval level
+ *
+ * Returns the diff if the changes are prompt-worthy, an empty object otherwise.
+ */
+export function formatSecurityDiff(
   oldTemplate: any,
   newTemplate: cxapi.CloudFormationStackArtifact,
   requireApproval: RequireApproval,
-  _quiet?: boolean,
   stackName?: string,
   changeSet?: DescribeChangeSetOutput,
-  stream: FormatStream = process.stderr,
-): boolean {
+): FormatSecurityDiffOutput {
   const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);
 
   if (diffRequiresApproval(diff, requireApproval)) {
-    stream.write(format('Stack %s\n', chalk.bold(stackName)));
+    info(format('Stack %s\n', chalk.bold(stackName)));
 
     // eslint-disable-next-line max-len
     warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${requireApproval}).`);
     warning('Please confirm you intend to make the following modifications:\n');
 
-    formatSecurityChanges(process.stdout, diff, buildLogicalToPathMap(newTemplate));
-    return true;
+    // The security diff is formatted via `Formatter`, which takes in a stream
+    // and sends its output directly to that stream. To faciliate use of the
+    // global CliIoHost, we create our own stream to capture the output of
+    // `Formatter` and return the output as a string for the consumer of
+    // `formatSecurityDiff` to decide what to do with it.
+    const stream = new StringWriteStream();
+    try {
+      // formatSecurityChanges updates the stream with the formatted security diff
+      formatSecurityChanges(stream, diff, buildLogicalToPathMap(newTemplate));
+    } finally {
+      stream.end();
+    }
+    // store the stream containing a formatted stack diff
+    const formattedDiff = stream.toString();
+    return { formattedDiff };
   }
-  return false;
+  return {};
 }
 
 /**

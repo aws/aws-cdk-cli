@@ -7,35 +7,35 @@ import {
   BasePublishProgressListener,
   PublishingAws,
 } from './asset-publishing';
-import { determineAllowCrossAccountAssetPublishing } from './checks';
-import type {
-  ResourcesToImport,
-  Template,
-  ResourceIdentifierSummaries,
-} from './cloudformation';
 import {
-  CloudFormationStack,
   stabilizeStack,
   uploadStackTemplateAssets,
-} from './cloudformation';
+} from './cfn-api';
+import { determineAllowCrossAccountAssetPublishing } from './checks';
+
 import { deployStack, destroyStack } from './deploy-stack';
 import type { DeploymentMethod } from './deployment-method';
 import type { DeployStackResult } from './deployment-result';
-import {
-  loadCurrentTemplate,
-  loadCurrentTemplateWithNestedStacks,
-  type RootTemplateWithNestedStacks,
-} from './nested-stack-helpers';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
+import type {
+  Template,
+  RootTemplateWithNestedStacks,
+} from '../cloudformation';
+import {
+  CloudFormationStack,
+  loadCurrentTemplate,
+  loadCurrentTemplateWithNestedStacks,
+  makeBodyParameter,
+} from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
+import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
-import { makeBodyParameter } from '../util/template-body-parameter';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;
 
@@ -380,10 +380,12 @@ export class Deployments {
     // Upload the template, if necessary, before passing it to CFN
     const builder = new AssetManifestBuilder();
     const cfnParam = await makeBodyParameter(
+      this.ioHelper,
       stackArtifact,
       env.resolvedEnvironment,
       builder,
-      env.resources);
+      env.resources,
+    );
 
     // If the `makeBodyParameter` before this added assets, make sure to publish them before
     // calling the API.

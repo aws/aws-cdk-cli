@@ -1,10 +1,11 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { SDK } from './aws-auth';
-import type { NestedStackTemplates } from './deployments';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { resourceMetadata } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
-import type { ResourceMetadata } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
+import type { SDK } from '../aws-auth';
+import type { NestedStackTemplates } from './nested-stack-helpers';
+import type { Template } from './stack-helpers';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { resourceMetadata } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata';
+import type { ResourceMetadata } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata';
 
 export interface ListStackResources {
   listStackResources(): Promise<StackResourceSummary[]>;
@@ -481,8 +482,6 @@ export class EvaluateCloudFormationTemplate {
       resourceType.split('::')[2].toLowerCase();
   }
 }
-
-export type Template = { [section: string]: { [headings: string]: any } };
 
 interface ArnParts {
   readonly partition: string;

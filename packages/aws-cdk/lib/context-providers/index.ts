@@ -14,9 +14,9 @@ import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/
 import type { SdkProvider } from '../api';
 import type { Context } from '../api/context';
 import { TRANSIENT_CONTEXT_KEY } from '../api/context';
+import { replaceEnvPlaceholders } from '../api/environment';
 import { PluginHost } from '../api/plugin';
 import type { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
-import { replaceEnvPlaceholders } from '../api/util/placeholders';
 import { debug } from '../logging';
 import { formatErrorMessage } from '../util';
 

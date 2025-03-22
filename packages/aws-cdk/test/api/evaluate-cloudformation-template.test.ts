@@ -3,7 +3,7 @@ import {
   CfnEvaluationException,
   EvaluateCloudFormationTemplate,
   Template,
-} from '../../lib/api/evaluate-cloudformation-template';
+} from '../../lib/api/cloudformation';
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../util/mock-sdk';
 
 const sdk = new MockSdk();
@@ -11,12 +11,12 @@ const sdk = new MockSdk();
 const createEvaluateCloudFormationTemplate = (template: Template) =>
   new EvaluateCloudFormationTemplate({
     template,
+    stackName: 'test-stack',
     parameters: {},
     account: '0123456789',
     region: 'ap-south-east-2',
     partition: 'aws',
     sdk,
-    stackName: 'test-stack',
   });
 
 describe('evaluateCfnExpression', () => {

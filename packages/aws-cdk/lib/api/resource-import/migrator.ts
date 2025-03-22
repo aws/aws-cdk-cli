@@ -1,12 +1,12 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import type { ImportDeploymentOptions } from './importer';
+import type { ImportDeploymentOptions, ResourcesToImport } from './importer';
 import { ResourceImporter } from './importer';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatTime } from '../../util';
 import type { StackCollection } from '../cxapp/cloud-assembly';
-import type { Deployments, ResourcesToImport } from '../deployments';
+import type { Deployments } from '../deployments';
 
 export interface ResourceMigratorProps {
   deployments: Deployments;

@@ -23,7 +23,7 @@ import { cliInit } from './init';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
-import { CloudFormationStack } from '../api/deployments';
+import { CloudFormationStack } from '../api/cloudformation';
 import { zipDirectory } from '../util';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');

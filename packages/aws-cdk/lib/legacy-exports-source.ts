@@ -24,6 +24,6 @@ export { cliRootDir as rootDir } from './cli/root-dir';
 export { latestVersionIfHigher, versionNumber } from './cli/version';
 export { availableInitTemplates } from './commands/init';
 export { cached } from './api/aws-auth/cached';
-export { CfnEvaluationException } from './api/evaluate-cloudformation-template';
+export { CfnEvaluationException } from './api/cloudformation/evaluate-cloudformation-template';
 export { CredentialPlugins } from './api/aws-auth/credential-plugins';
 export { AwsCliCompatible } from './api/aws-auth/awscli-compatible';

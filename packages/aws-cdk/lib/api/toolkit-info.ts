@@ -10,7 +10,8 @@ import {
   DEFAULT_BOOTSTRAP_VARIANT,
   REPOSITORY_NAME_OUTPUT,
 } from './bootstrap/bootstrap-props';
-import { type CloudFormationStack, stabilizeStack } from './deployments/cloudformation';
+import type { CloudFormationStack } from './cloudformation';
+import { stabilizeStack } from './deployments/cfn-api';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 

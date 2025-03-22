@@ -26,7 +26,7 @@ import {
 import type { CloudExecutable } from '../api/cxapp/cloud-executable';
 import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { createDiffChangeSet } from '../api/deployments';
+import { createDiffChangeSet } from '../api/deployments/cfn-api';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
 import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
@@ -36,7 +36,7 @@ import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import { StackActivityProgress } from '../commands/deploy';
-import { printSecurityDiff, printStackDiff, RequireApproval } from '../commands/diff';
+import { formatSecurityDiff, formatStackDiff, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
 import type {
   FromScan,
@@ -60,7 +60,7 @@ import {
 } from '../commands/migrate';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
 import { CliIoHost } from './io-host';
-import { numberFromBool, partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
+import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -177,7 +177,6 @@ export class CdkToolkit {
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
-    const stream = options.stream || process.stderr;
     const quiet = options.quiet || false;
 
     let diffs = 0;
@@ -196,9 +195,31 @@ export class CdkToolkit {
       }
 
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
-      diffs = options.securityOnly
-        ? numberFromBool(printSecurityDiff(template, stacks.firstStack, RequireApproval.Broadening, quiet))
-        : printStackDiff(template, stacks.firstStack, strict, contextLines, quiet, undefined, undefined, false, stream);
+
+      if (options.securityOnly) {
+        const securityDiff = formatSecurityDiff(
+          template,
+          stacks.firstStack,
+          RequireApproval.Broadening,
+        );
+        if (securityDiff.formattedDiff) {
+          info(securityDiff.formattedDiff);
+          diffs += 1;
+        }
+      } else {
+        const diff = formatStackDiff(
+          template,
+          stacks.firstStack,
+          strict,
+          contextLines,
+          quiet,
+          undefined,
+          undefined,
+          false,
+        );
+        diffs = diff.numStacksWithChanges;
+        info(diff.formattedDiff);
+      }
     } else {
       // Compare N stacks against deployed templates
       for (const stack of stacks.stackArtifacts) {
@@ -231,7 +252,7 @@ export class CdkToolkit {
           } catch (e: any) {
             debug(formatErrorMessage(e));
             if (!quiet) {
-              stream.write(
+              info(
                 `Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences (run again with -v to see the reason)\n`,
               );
             }
@@ -247,7 +268,6 @@ export class CdkToolkit {
               sdkProvider: this.props.sdkProvider,
               parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
               resourcesToImport,
-              stream,
             });
           } else {
             debug(
@@ -256,18 +276,20 @@ export class CdkToolkit {
           }
         }
 
-        const stackCount = options.securityOnly
-          ? numberFromBool(
-            printSecurityDiff(
-              currentTemplate,
-              stack,
-              RequireApproval.Broadening,
-              quiet,
-              stack.displayName,
-              changeSet,
-            ),
-          )
-          : printStackDiff(
+        if (options.securityOnly) {
+          const securityDiff = formatSecurityDiff(
+            currentTemplate,
+            stack,
+            RequireApproval.Broadening,
+            stack.displayName,
+            changeSet,
+          );
+          if (securityDiff.formattedDiff) {
+            info(securityDiff.formattedDiff);
+            diffs += 1;
+          }
+        } else {
+          const diff = formatStackDiff(
             currentTemplate,
             stack,
             strict,
@@ -276,15 +298,15 @@ export class CdkToolkit {
             stack.displayName,
             changeSet,
             !!resourcesToImport,
-            stream,
             nestedStacks,
           );
-
-        diffs += stackCount;
+          info(diff.formattedDiff);
+          diffs += diff.numStacksWithChanges;
+        }
       }
     }
 
-    stream.write(format('\n✨  Number of stacks with differences: %s\n', diffs));
+    info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
     return diffs && options.fail ? 1 : 0;
   }
@@ -401,7 +423,9 @@ export class CdkToolkit {
 
       if (requireApproval !== RequireApproval.Never) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        if (printSecurityDiff(currentTemplate, stack, requireApproval)) {
+        const securityDiff = formatSecurityDiff(currentTemplate, stack, requireApproval);
+        if (securityDiff.formattedDiff) {
+          info(securityDiff.formattedDiff);
           await askUserConfirmation(
             this.ioHost,
             concurrency,
@@ -1359,13 +1383,6 @@ export interface DiffOptions {
    * @default 3
    */
   contextLines?: number;
-
-  /**
-   * Where to write the default
-   *
-   * @default stderr
-   */
-  stream?: NodeJS.WritableStream;
 
   /**
    * Whether to fail with exit code 1 in case of diff
