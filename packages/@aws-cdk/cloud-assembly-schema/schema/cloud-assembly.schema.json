@@ -1049,8 +1049,8 @@
                 "dummyValue": {
                     "description": "The value to return if the context value was not found. (Default - None)"
                 },
-                "ignoreErrorOnMissingContext": {
-                    "description": "When True, the context provider don't throw an error and return the dummyValue if the resource was not found.",
+                "ignoreFailedLookup": {
+                    "description": "Ignore an error and return the `dummyValue` instead if the resource was not found.",
                     "default": false,
                     "type": "boolean"
                 },

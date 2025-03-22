@@ -392,10 +392,10 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   readonly dummyValue?: any;
 
   /**
-   * When True, the context provider don't throw an error and return the dummyValue if the resource was not found.
+   * Ignore an error and return the `dummyValue` instead if the resource was not found.
    * @default false
    */
-  readonly ignoreErrorOnMissingContext?: boolean;
+  readonly ignoreFailedLookup?: boolean;
 }
 
 /**
