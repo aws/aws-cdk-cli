@@ -27,7 +27,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       if (err instanceof ResourceNotFoundException) {
         const dummyObject = this.getDummyObject(args);
         if (dummyObject) {
-          return [dummyObject];
+          return dummyObject;
         }
       }
       throw err;
@@ -144,10 +144,13 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     return resultObjs;
   }
 
-  private getDummyObject(args: CcApiContextQuery): Record<string, any> | undefined {
-    if (!Array.isArray(args.dummyValue) || args.dummyValue.length === 0 || typeof args.dummyValue[0] !== 'object' || args.dummyValue[0] === null) {
-      throw new ContextProviderError(`dummyValue must be an array with at least one object. Failed to get dummy object for type ${args.typeName}.`);
+  private getDummyObject(args: CcApiContextQuery): {[key: string]: any}[] {
+    if (!Array.isArray(args.dummyValue) || args.dummyValue.length === 0 || !args.dummyValue.every(value => typeof value === 'object' && value !== null)) {
+      throw new ContextProviderError(`dummyValue must be an array of objects. Failed to get dummy object for type ${args.typeName}.`);
     }
-    return getResultObj(args.dummyValue[0], 'dummy-id', args.propertiesToReturn);
+
+    return args.dummyValue.map((dummyValue) => 
+      getResultObj(dummyValue, `dummy-id`, args.propertiesToReturn)
+    );
   }
 }

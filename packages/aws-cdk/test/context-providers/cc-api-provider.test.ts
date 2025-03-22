@@ -405,7 +405,7 @@ describe('dummy value', () => {
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
         ignoreFailedLookup: true,
       }),
-    ).rejects.toThrow('dummyValue must be an array with at least one object. Failed to get dummy object for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy object for type AWS::RDS::DBInstance.');
   });
 
   test('throws error when CC API fails and dummyValue is not an array', async () => {
@@ -426,7 +426,7 @@ describe('dummy value', () => {
           StorageEncrypted: 'true',
         },
       }),
-    ).rejects.toThrow('dummyValue must be an array with at least one object. Failed to get dummy object for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy object for type AWS::RDS::DBInstance.');
   });
 
   test('throws error when CC API fails and dummyValue is an empty array', async () => {
@@ -444,7 +444,7 @@ describe('dummy value', () => {
         ignoreFailedLookup: true,
         dummyValue: [],
       }),
-    ).rejects.toThrow('dummyValue must be an array with at least one object. Failed to get dummy object for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy object for type AWS::RDS::DBInstance.');
   });
 
   test('throws error when CC API fails and dummyValue is not an object array', async () => {
@@ -464,7 +464,7 @@ describe('dummy value', () => {
           'not an object',
         ],
       }),
-    ).rejects.toThrow('dummyValue must be an array with at least one object. Failed to get dummy object for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy object for type AWS::RDS::DBInstance.');
   });
 });
 /* eslint-enable */
