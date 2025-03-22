@@ -1036,7 +1036,7 @@
                     "type": "string"
                 },
                 "propertyMatch": {
-                    "description": "This indicates the property to search for.\nIf both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.\nTo restrict the number of results to return, specify allowEmptyResult or exactResult.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
+                    "description": "This indicates the property to search for.\nIf both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.\nTo restrict the count of results to return, specify expectedMatchCount.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
                     "$ref": "#/definitions/Record<string,unknown>"
                 },
                 "propertiesToReturn": {
@@ -1046,15 +1046,15 @@
                         "type": "string"
                     }
                 },
-                "allowEmptyResult": {
-                    "description": "Whether to allow to return empty result when propertyMatch is specified.",
-                    "default": false,
-                    "type": "boolean"
-                },
-                "exactResult": {
-                    "description": "Whether to restrict to return exact one result when propertyMatch is specified.",
-                    "default": false,
-                    "type": "boolean"
+                "expectedMatchCount": {
+                    "description": "This is the expected count of results that we want to return from ContextQuery when propertyMatch is specified. (Default any)",
+                    "enum": [
+                        "any",
+                        "at-least-one",
+                        "at-most-one",
+                        "exactly-one"
+                    ],
+                    "type": "string"
                 },
                 "account": {
                     "description": "Query account",
