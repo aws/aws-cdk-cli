@@ -1406,6 +1406,7 @@ const integRunner = configureProject(
         },
       },
     }),
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/integ-runner'),
   }),
 );
 integRunner.gitignore?.addPatterns(
