@@ -204,6 +204,87 @@ test('looks up RDS instance using CC API listResources - error in CC API', async
   ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}.'); // THEN
 });
 
+test.each([
+  [undefined],
+  ['any'],
+  ['at-most-one'],
+] as const)('return an empty array for empty result when expectedMatchCount is %s', async (expectedMatchCount) => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  // WHEN
+  const results = await provider.getValue({
+    account: '123456789012',
+    region: 'us-east-1',
+    typeName: 'AWS::EC2::PrefixList',
+    propertyMatch: { PrefixListName: 'name3' },
+    propertiesToReturn: ['PrefixListId'],
+    expectedMatchCount,
+  });
+
+  // THEN
+  expect(results.length).toEqual(0);
+});
+
+
+test.each([
+  ['at-least-one'],
+  ['exactly-one']
+] as const)('throws an error for empty result when expectedMatchCount is %s', async (expectedMatchCount) => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertyMatch: { PrefixListName: 'name3' },
+      propertiesToReturn: ['PrefixListId'],
+      expectedMatchCount,
+    }),
+  ).rejects.toThrow('Could not find any resources matching {"PrefixListName":"name3"}'); // THEN
+});
+
+test.each([
+  ['at-most-one'],
+  ['exactly-one']
+] as const)('throws an error for multiple results when expectedMatchCount is %s', async (expectedMatchCount) => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertyMatch: { PrefixListName: 'name1' },
+      propertiesToReturn: ['PrefixListId'],
+      expectedMatchCount,
+    }),
+  ).rejects.toThrow('Found 2 resources matching {"PrefixListName":"name1"}'); // THEN
+});
+
 test('error by specifying both exactIdentifier and propertyMatch', async () => {
   // GIVEN
   mockCloudControlClient.on(GetResourceCommand).resolves({

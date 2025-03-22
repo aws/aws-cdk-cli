@@ -36,7 +36,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn);
     } else {
       // use listResource
-      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn);
+      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn, args.expectedMatchCount);
     }
   }
 
@@ -85,6 +85,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     typeName: string,
     propertyMatch: Record<string, unknown>,
     propertiesToReturn: string[],
+    expectedMatchCount?: CcApiContextQuery['expectedMatchCount'],
   ): Promise<{[key: string]: any}[]> {
     const resultObjs: {[key: string]: any}[] = [];
 
@@ -122,6 +123,14 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     } catch (err) {
       throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. Error: ${err}`);
     }
+
+    if ((expectedMatchCount === 'at-least-one' || expectedMatchCount === 'exactly-one') && resultObjs.length === 0) {
+      throw new ContextProviderError(`Could not find any resources matching ${JSON.stringify(propertyMatch)}`);
+    }
+    if ((expectedMatchCount === 'at-most-one' || expectedMatchCount === 'exactly-one') && resultObjs.length > 1) {
+      throw new ContextProviderError(`Found ${resultObjs.length} resources matching ${JSON.stringify(propertyMatch)}; please narrow the search criteria`);
+    }
+
     return resultObjs;
   }
 }
