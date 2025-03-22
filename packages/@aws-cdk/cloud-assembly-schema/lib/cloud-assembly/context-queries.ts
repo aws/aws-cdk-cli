@@ -374,7 +374,6 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
 
   /**
    * This indicates the property to search for.
-   * If both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.
    * Specifying propertyMatch will return 0 or more results.
    * Either exactIdentifier or propertyMatch should be specified.
    * @default - None
@@ -385,6 +384,18 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    * This is a set of properties returned from CC API that we want to return from ContextQuery.
    */
   readonly propertiesToReturn: string[];
+
+  /**
+   * The value to return if the resource was not found and `ignoreErrorOnMissingContext` is true.
+   * @default - None
+   */
+  readonly dummyValue?: any;
+
+  /**
+   * Ignore an error and return the `dummyValue` instead if the resource was not found.
+   * @default false
+   */
+  readonly ignoreErrorOnMissingContext?: boolean;
 }
 
 /**
