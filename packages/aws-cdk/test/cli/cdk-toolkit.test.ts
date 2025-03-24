@@ -85,10 +85,11 @@ import { Mode } from '../../lib/api/plugin';
 import { Tag } from '../../lib/api/tags';
 import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';
 import { Configuration } from '../../lib/cli/user-configuration';
-import { RequireApproval } from '../../lib/diff';
-import { CliIoHost } from '../../lib/toolkit/cli-io-host';
+import { RequireApproval } from '../../lib/commands/diff';
+import { CliIoHost } from '../../lib/cli/io-host';
 import { flatten } from '../../lib/util';
-import { instanceMockFrom, MockCloudExecutable, TestStackArtifact } from '../util';
+import { MockCloudExecutable, TestStackArtifact } from '../_helpers/assembly';
+import { instanceMockFrom } from '../_helpers/as-mock';
 import {
   mockCloudFormationClient,
   MockSdk,

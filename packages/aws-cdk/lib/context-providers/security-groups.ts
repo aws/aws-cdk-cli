@@ -1,9 +1,9 @@
 import type { SecurityGroupContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { SecurityGroupContextResponse } from '@aws-cdk/cx-api';
 import type { Filter, SecurityGroup } from '@aws-sdk/client-ec2';
+import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../toolkit/error';
 
 export class SecurityGroupContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider) {

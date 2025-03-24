@@ -1,7 +1,7 @@
-import type { ChangeHotswapResult } from './common';
+import type { HotswapChange } from './common';
 import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
 import type { SDK } from '../aws-auth';
-import type { EvaluateCloudFormationTemplate } from '../evaluate-cloudformation-template';
+import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
 /**
  * This means that the value is required to exist by CloudFormation's Custom Resource API (or our S3 Bucket Deployment Lambda's API)
@@ -15,10 +15,10 @@ export async function isHotswappableS3BucketDeploymentChange(
   logicalId: string,
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-): Promise<ChangeHotswapResult> {
+): Promise<HotswapChange[]> {
   // In old-style synthesis, the policy used by the lambda to copy assets Ref's the assets directly,
   // meaning that the changes made to the Policy are artifacts that can be safely ignored
-  const ret: ChangeHotswapResult = [];
+  const ret: HotswapChange[] = [];
 
   if (change.newValue.Type !== CDK_BUCKET_DEPLOYMENT_CFN_TYPE) {
     return [];

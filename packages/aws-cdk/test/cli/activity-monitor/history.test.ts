@@ -1,7 +1,7 @@
 import { ResourceStatus } from "@aws-sdk/client-cloudformation";
 import { HistoryActivityPrinter } from "../../../lib/cli/activity-printer";
-import { CliIoHost } from "../../../lib/toolkit/cli-io-host";
-import { testStack } from "../../util";
+import { CliIoHost } from "../../../lib/cli/io-host";
+import { testStack } from "../../_helpers";
 import { stderr } from "../_helpers/console-listener";
 import * as chalk from 'chalk';
 

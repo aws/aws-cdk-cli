@@ -15,10 +15,9 @@ import {
   AssetPublishing,
 } from 'cdk-assets';
 import type { SDK } from '..';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { formatMessage } from '../../cli/messages';
-import type { IoMessageLevel } from '../../toolkit/cli-io-host';
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { IoMessageMaker, IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { SdkProvider } from '../aws-auth';
 import { Mode } from '../plugin';
 
@@ -169,17 +168,17 @@ export class PublishingAws implements IAws {
   }
 }
 
-export const EVENT_TO_LEVEL: Record<EventType, IoMessageLevel | false> = {
-  build: 'debug',
-  cached: 'debug',
-  check: 'debug',
-  debug: 'debug',
-  fail: 'error',
-  found: 'debug',
-  start: 'info',
-  success: 'info',
-  upload: 'debug',
-  shell_open: 'debug',
+const EVENT_TO_MSG_MAKER: Record<EventType, IoMessageMaker<any> | false> = {
+  build: IO.DEFAULT_TOOLKIT_DEBUG,
+  cached: IO.DEFAULT_TOOLKIT_DEBUG,
+  check: IO.DEFAULT_TOOLKIT_DEBUG,
+  debug: IO.DEFAULT_TOOLKIT_DEBUG,
+  fail: IO.DEFAULT_TOOLKIT_ERROR,
+  found: IO.DEFAULT_TOOLKIT_DEBUG,
+  start: IO.DEFAULT_TOOLKIT_INFO,
+  success: IO.DEFAULT_TOOLKIT_INFO,
+  upload: IO.DEFAULT_TOOLKIT_DEBUG,
+  shell_open: IO.DEFAULT_TOOLKIT_DEBUG,
   shell_stderr: false,
   shell_stdout: false,
   shell_close: false,
@@ -195,15 +194,9 @@ export abstract class BasePublishProgressListener implements IPublishProgressLis
   protected abstract getMessage(type: EventType, event: IPublishProgress): string;
 
   public onPublishEvent(type: EventType, event: IPublishProgress): void {
-    const level = EVENT_TO_LEVEL[type];
-    if (level) {
-      void this.ioHelper.notify(
-        formatMessage({
-          level,
-          message: this.getMessage(type, event),
-          data: undefined,
-        }),
-      );
+    const maker = EVENT_TO_MSG_MAKER[type];
+    if (maker) {
+      void this.ioHelper.notify(maker.msg(this.getMessage(type, event)));
     }
   }
 }

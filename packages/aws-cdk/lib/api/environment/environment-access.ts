@@ -2,14 +2,13 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { SDK } from '../aws-auth';
 import type { EnvironmentResources } from './environment-resources';
 import { EnvironmentResourcesRegistry } from './environment-resources';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { warn } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
+import type { StringWithoutPlaceholders } from './placeholders';
+import { replaceEnvPlaceholders } from './placeholders';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
 import { Mode } from '../plugin/mode';
-import type { StringWithoutPlaceholders } from '../util/placeholders';
-import { replaceEnvPlaceholders } from '../util/placeholders';
 
 /**
  * Access particular AWS resources, based on information from the CX manifest
@@ -113,7 +112,7 @@ export class EnvironmentAccess {
     }
     if (lookupEnv.isFallbackCredentials) {
       const arn = await lookupEnv.replacePlaceholders(stack.lookupRole?.arn);
-      await this.ioHelper.notify(warn(`Lookup role ${arn} was not assumed. Proceeding with default credentials.`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Lookup role ${arn} was not assumed. Proceeding with default credentials.`));
     }
     return lookupEnv;
   }
@@ -137,7 +136,7 @@ export class EnvironmentAccess {
     try {
       return await this.accessStackForLookup(stack);
     } catch (e: any) {
-      await this.ioHelper.notify(warn(`${formatErrorMessage(e)}`));
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${formatErrorMessage(e)}`));
     }
     return this.accessStackForStackOperations(stack, Mode.ForReading);
   }

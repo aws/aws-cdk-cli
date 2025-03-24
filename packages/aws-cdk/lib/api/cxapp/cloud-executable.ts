@@ -1,9 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { CloudAssembly } from './cloud-assembly';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { Configuration } from '../../cli/user-configuration';
 import * as contextproviders from '../../context-providers';
 import { debug } from '../../logging';
-import { ToolkitError } from '../../toolkit/error';
 import type { SdkProvider } from '../aws-auth';
 
 /**

@@ -21,7 +21,7 @@ import { deployStack, DeployStackOptions } from '../../../lib/api/deployments/de
 import { tryHotswapDeployment } from '../../../lib/api/deployments/hotswap-deployments';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../util';
+import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
   mockResolvedEnvironment,

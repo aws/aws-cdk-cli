@@ -4,8 +4,8 @@ import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/
 import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
+import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../cloudformation';
 import { EnvironmentAccess } from '../environment';
-import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../evaluate-cloudformation-template';
 import { Mode } from '../plugin/mode';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 

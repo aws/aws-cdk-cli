@@ -5,7 +5,7 @@ import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environ
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
-import type { HotswapDeployment } from '../payloads/hotswap';
+import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../payloads/hotswap';
 import type { StackDetailsPayload } from '../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
 import type { StackRollbackProgress } from '../payloads/rollback';
@@ -74,9 +74,10 @@ export const IO = {
   }),
 
   // 3: Import & Migrate
-  CDK_TOOLKIT_E3900: make.error({
+  CDK_TOOLKIT_E3900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E3900',
     description: 'Resource import failed',
+    interface: 'ErrorPayload',
   }),
 
   // 4: Diff (4xxx)
@@ -108,9 +109,10 @@ export const IO = {
     description: 'Provides total time in deploy action, including synth and rollback',
     interface: 'Duration',
   }),
-  CDK_TOOLKIT_I5002: make.info({
+  CDK_TOOLKIT_I5002: make.info<Duration>({
     code: 'CDK_TOOLKIT_I5002',
     description: 'Provides time for resource migration',
+    interface: 'Duration',
   }),
   CDK_TOOLKIT_W5021: make.warn({
     code: 'CDK_TOOLKIT_W5021',
@@ -213,15 +215,30 @@ export const IO = {
   }),
 
   // Hotswap (54xx)
-  CDK_TOOLKIT_I5400: make.trace<HotswapDeployment>({
+  CDK_TOOLKIT_I5400: make.trace<HotswapDeploymentAttempt>({
     code: 'CDK_TOOLKIT_I5400',
-    description: 'Starting a hotswap deployment',
-    interface: 'HotswapDeployment',
+    description: 'Attempting a hotswap deployment',
+    interface: 'HotswapDeploymentAttempt',
   }),
-  CDK_TOOLKIT_I5410: make.info<Duration>({
+  CDK_TOOLKIT_I5401: make.trace<HotswapDeploymentDetails>({
+    code: 'CDK_TOOLKIT_I5401',
+    description: 'Computed details for the hotswap deployment',
+    interface: 'HotswapDeploymentDetails',
+  }),
+  CDK_TOOLKIT_I5402: make.info<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5402',
+    description: 'A hotswappable change is processed as part of a hotswap deployment',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5403: make.info<HotswappableChange>({
+    code: 'CDK_TOOLKIT_I5403',
+    description: 'The hotswappable change has completed processing',
+    interface: 'HotswappableChange',
+  }),
+  CDK_TOOLKIT_I5410: make.info<HotswapResult>({
     code: 'CDK_TOOLKIT_I5410',
     description: 'Hotswap deployment has ended, a full deployment might still follow if needed',
-    interface: 'Duration',
+    interface: 'HotswapResult',
   }),
 
   // Stack Monitor (55xx)
@@ -374,6 +391,11 @@ export const IO = {
   }),
 
   // Assembly codes
+  DEFAULT_ASSEMBLY_TRACE: make.trace({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default trace messages emitted from Cloud Assembly operations',
+  }),
+
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
     description: 'Generic environment preparation debug messages',

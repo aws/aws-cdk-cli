@@ -786,7 +786,9 @@ describe(Notices, () => {
 
     test('nothing when there are no notices', async () => {
       Notices.create({ ioHost, context: new Context() }).display();
-      expect(ioHost.messages).toEqual([]);
+      // expect a single trace that the tree.json was not found, but nothing else
+      expect(ioHost.messages.length).toBe(1);
+      ioHost.expectMessage({ level: 'trace', containing: 'Failed to get tree.json file' });
     });
 
     test('total count when show total is true', async () => {

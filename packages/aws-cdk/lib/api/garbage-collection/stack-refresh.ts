@@ -1,7 +1,6 @@
 import type { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { debug } from '../../cli/messages';
-import { ToolkitError } from '../../toolkit/error';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { ICloudFormationClient } from '../aws-auth';
 
 export class ActiveAssetCache {
@@ -53,7 +52,7 @@ async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHe
     return stacks.NextToken;
   });
 
-  await ioHelper.notify(debug(`Parsing through ${stackNames.length} stacks`));
+  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Parsing through ${stackNames.length} stacks`));
 
   const templates: string[] = [];
   for (const stack of stackNames) {
@@ -74,7 +73,7 @@ async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHe
     }
   }
 
-  await ioHelper.notify(debug('Done parsing through stacks'));
+  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Done parsing through stacks'));
 
   return templates;
 }

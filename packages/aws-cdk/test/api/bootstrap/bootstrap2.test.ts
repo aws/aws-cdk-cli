@@ -10,7 +10,7 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault, setDefaultSTSMocks,
 } from '../../util/mock-sdk';
-import { IIoHost } from '../../../lib/toolkit/cli-io-host';
+import { IIoHost } from '../../../lib/cli/io-host';
 import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const mockDeployStack = jest.spyOn(deployStack, 'deployStack');

@@ -1,15 +1,14 @@
 
 import * as util from 'util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
-import type { StackActivity, StackMonitoringControlEvent } from '@aws-cdk/tmp-toolkit-helpers';
+import type { StackActivity } from '@aws-cdk/tmp-toolkit-helpers';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
 import { resourceMetadata } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
-import { debug, error, info } from '../../cli/messages';
 import { stackEventHasErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
 import { StackProgressMonitor } from './stack-progress-monitor';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export interface StackActivityMonitorProps {
   /**
@@ -119,12 +118,12 @@ export class StackActivityMonitor {
 
   public async start() {
     this.monitorId = uuid.v4();
-    await this.ioHelper.notify(debug(`Deploying ${this.stackName}`, 'CDK_TOOLKIT_I5501', {
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackName}`, {
       deployment: this.monitorId,
       stack: this.stack,
       stackName: this.stackName,
       resourcesTotal: this.progressMonitor.total,
-    } as StackMonitoringControlEvent));
+    }));
     this.scheduleNextTick();
     return this;
   }
@@ -141,12 +140,12 @@ export class StackActivityMonitor {
     // up not printing the failure reason to users.
     await this.finalPollToEnd(oldMonitorId);
 
-    await this.ioHelper.notify(debug(`Completed ${this.stackName}`, 'CDK_TOOLKIT_I5503', {
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5503.msg(`Completed ${this.stackName}`, {
       deployment: oldMonitorId,
       stack: this.stack,
       stackName: this.stackName,
       resourcesTotal: this.progressMonitor.total,
-    } as StackMonitoringControlEvent));
+    }));
   }
 
   private scheduleNextTick() {
@@ -172,10 +171,9 @@ export class StackActivityMonitor {
         return;
       }
     } catch (e) {
-      await this.ioHelper.notify(error(
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_E5500.msg(
         util.format('Error occurred while monitoring stack: %s', e),
-        'CDK_TOOLKIT_E5500',
-        { error: e },
+        { error: e as any },
       ));
     }
     this.scheduleNextTick();
@@ -210,7 +208,7 @@ export class StackActivityMonitor {
       };
 
       this.checkForErrors(activity);
-      await this.ioHelper.notify(info(this.formatActivity(activity, true), 'CDK_TOOLKIT_I5502', activity));
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_I5502.msg(this.formatActivity(activity, true), activity));
     }
   }
 

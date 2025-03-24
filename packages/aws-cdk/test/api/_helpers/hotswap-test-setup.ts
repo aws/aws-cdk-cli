@@ -2,10 +2,9 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { ListStackResourcesCommand, StackResourceSummary, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetFunctionCommand } from '@aws-sdk/client-lambda';
 import { ICloudFormationClient, SuccessfulDeployStackResult } from '../../../lib/api';
-import { CloudFormationStack, Template } from '../../../lib/api/deployments';
 import * as deployments from '../../../lib/api/deployments/hotswap-deployments';
 import { HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
-import { testStack, TestStackArtifact } from '../../util';
+import { testStack, TestStackArtifact } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
   mockLambdaClient,
@@ -15,6 +14,7 @@ import {
 } from '../../util/mock-sdk';
 import { FakeCloudformationStack } from './fake-cloudformation-stack';
 import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { CloudFormationStack, Template } from '../../../lib/api/cloudformation';
 
 const STACK_NAME = 'withouterrors';
 export const STACK_ID = 'stackId';

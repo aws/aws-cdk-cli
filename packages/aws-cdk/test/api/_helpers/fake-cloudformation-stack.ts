@@ -1,5 +1,5 @@
 import { ICloudFormationClient } from '../../../lib/api';
-import { CloudFormationStack, Template } from '../../../lib/api/deployments';
+import { CloudFormationStack, Template } from '../../../lib/api/cloudformation';
 import { StackStatus } from '../../../lib/api/stack-events';
 import { MockSdk } from '../../util/mock-sdk';
 

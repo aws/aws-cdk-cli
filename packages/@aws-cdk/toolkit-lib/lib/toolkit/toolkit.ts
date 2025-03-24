@@ -6,7 +6,7 @@ import * as uuid from 'uuid';
 import * as fs from 'fs-extra';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import type { BootstrapEnvironments, BootstrapOptions } from '../actions/bootstrap';
+import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
@@ -150,7 +150,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Bootstrap Action
    */
-  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<void> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
+    const startTime = Date.now();
+    const results: EnvironmentBootstrapResult[] = [];
+
     const ioHelper = asIoHelper(this.ioHost, 'bootstrap');
     const bootstrapEnvironments = await environments.getEnvironments();
     const source = options.source ?? BootstrapSource.default();
@@ -180,17 +183,29 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             usePreviousParameters: parameters?.keepExistingParameters,
           },
         );
+
         const message = bootstrapResult.noOp
           ? ` ✅  ${environment.name} (no changes)`
           : ` ✅  ${environment.name}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
-        await bootstrapSpan.end();
+        const envTime = await bootstrapSpan.end();
+        const result: EnvironmentBootstrapResult = {
+          environment,
+          status: bootstrapResult.noOp ? 'no-op' : 'success',
+          duration: envTime.asMs,
+        };
+        results.push(result);
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E9900.msg(`\n ❌  ${chalk.bold(environment.name)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw e;
       }
     })));
+
+    return {
+      environments: results,
+      duration: Date.now() - startTime,
+    };
   }
 
   /**

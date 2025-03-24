@@ -169,6 +169,17 @@ export interface BootstrapParameters {
   readonly customPermissionsBoundary?: string;
 }
 
+export interface EnvironmentBootstrapResult {
+  environment: cxapi.Environment;
+  status: 'success' | 'no-op';
+  duration: number;
+}
+
+export interface BootstrapResult {
+  environments: EnvironmentBootstrapResult[];
+  duration: number;
+}
+
 /**
  * Parameters of the bootstrapping template with flexible configuration options
  */
