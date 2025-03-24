@@ -1,15 +1,15 @@
 import type { SSMParameterContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { GetParameterCommandOutput } from '@aws-sdk/client-ssm';
+import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { debug } from '../logging';
 
 /**
  * Plugin to read arbitrary SSM parameter names
  */
 export class SSMContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {
+  constructor(private readonly aws: SdkProvider, private readonly io: IContextProviderMessages) {
   }
 
   public async getValue(args: SSMParameterContextQuery) {
@@ -20,7 +20,7 @@ export class SSMContextProviderPlugin implements ContextProviderPlugin {
       throw new ContextProviderError('parameterName must be provided in props for SSMContextProviderPlugin');
     }
     const parameterName = args.parameterName;
-    debug(`Reading SSM parameter ${account}:${region}:${parameterName}`);
+    await this.io.debug(`Reading SSM parameter ${account}:${region}:${parameterName}`);
 
     const response = await this.getSsmParameterValue(args);
     const parameterNotFound: boolean = !response.Parameter || response.Parameter.Value === undefined;

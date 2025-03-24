@@ -4,8 +4,16 @@ import { mockKMSClient, MockSdkProvider, restoreSdkMocksToDefault } from '../uti
 
 let provider: KeyContextProviderPlugin;
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
 beforeEach(() => {
-  provider = new KeyContextProviderPlugin(new MockSdkProvider());
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+
+  provider = new KeyContextProviderPlugin(new MockSdkProvider(), mockMsg);
   restoreSdkMocksToDefault();
 });
 

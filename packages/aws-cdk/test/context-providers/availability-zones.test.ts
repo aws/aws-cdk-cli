@@ -9,6 +9,16 @@ const mockSDK = new (class extends MockSdkProvider {
   }
 })();
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
+beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+});
+
 test('empty array as result when response has no AZs', async () => {
   // GIVEN
   mockEC2Client.on(DescribeAvailabilityZonesCommand).resolves({
@@ -16,7 +26,7 @@ test('empty array as result when response has no AZs', async () => {
   });
 
   // WHEN
-  const azs = await new AZContextProviderPlugin(mockSDK).getValue({
+  const azs = await new AZContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '1234',
     region: 'asdf',
   });
@@ -35,7 +45,7 @@ test('returns AZs', async () => {
   });
 
   // WHEN
-  const azs = await new AZContextProviderPlugin(mockSDK).getValue({
+  const azs = await new AZContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '1234',
     region: 'asdf',
   });
