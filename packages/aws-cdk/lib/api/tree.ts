@@ -1,6 +1,6 @@
 import * as path from 'node:path';
-import * as fs from 'fs-extra';
 import type { CloudAssembly } from '@aws-cdk/cx-api';
+import * as fs from 'fs-extra';
 
 /**
  * Source information on a construct (class fqn and version)
