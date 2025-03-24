@@ -442,7 +442,6 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   readonly ignoreErrorOnMissingContext?: boolean;
 }
 
-
 /**
  * Query input for plugins
  *

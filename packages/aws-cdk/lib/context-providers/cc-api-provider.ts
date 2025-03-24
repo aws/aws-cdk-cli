@@ -1,10 +1,11 @@
 import type { CcApiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+import type { ResourceDescription } from '@aws-sdk/client-cloudcontrol';
+import { ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { ICloudControlClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
 import { findJsonValue, getResultObj } from '../util';
-import { ResourceDescription, ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 
 export class CcApiContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider) {
@@ -70,7 +71,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         Identifier: exactIdentifier,
       });
       if (!result.ResourceDescription) {
-        throw new ContextProviderError(`Unexpected CloudControl API behavior: returned empty response`);
+        throw new ContextProviderError('Unexpected CloudControl API behavior: returned empty response');
       }
 
       return [foundResourceFromCcApi(result.ResourceDescription)];
@@ -111,7 +112,6 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
             return propertyMatchesFilter(actual, expected);
           });
         });
-
 
       return found;
     } catch (err: any) {
