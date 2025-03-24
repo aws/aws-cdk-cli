@@ -135,12 +135,12 @@ export interface DiffOptions {
    *
    * @default false
    */
-  compareAgainstProcessedTemplate?: boolean;
+  readonly compareAgainstProcessedTemplate?: boolean;
 
   /**
    * Whether or not to create, analyze, and subsequently delete a changeset
    *
    * @default true
    */
-  changeSet?: boolean;
+  readonly changeSet?: boolean;
 }
