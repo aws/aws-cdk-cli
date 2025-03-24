@@ -355,18 +355,18 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
 }
 
 /**
- * Query input for lookup up Cloudformation resources using CC API
+ * Query input for lookup up CloudFormation resources using CC API
  */
 export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
-   * The Cloudformation resource type.
+   * The CloudFormation resource type.
    * See https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
    */
   readonly typeName: string;
 
   /**
    * exactIdentifier of the resource.
-   * Specifying exactIdentifier will return at most one result.
+   * Specifying exactIdentifier will return exact one result.
    * Either exactIdentifier or propertyMatch should be specified.
    * @default - None
    */
@@ -374,7 +374,6 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
 
   /**
    * This indicates the property to search for.
-   * If both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.
    * To restrict the count of results to return, specify expectedMatchCount.
    * Either exactIdentifier or propertyMatch should be specified.
    * @default - None

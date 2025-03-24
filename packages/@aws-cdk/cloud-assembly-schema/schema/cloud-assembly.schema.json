@@ -1024,19 +1024,19 @@
             ]
         },
         "CcApiContextQuery": {
-            "description": "Query input for lookup up Cloudformation resources using CC API",
+            "description": "Query input for lookup up CloudFormation resources using CC API",
             "type": "object",
             "properties": {
                 "typeName": {
-                    "description": "The Cloudformation resource type.\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html",
+                    "description": "The CloudFormation resource type.\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html",
                     "type": "string"
                 },
                 "exactIdentifier": {
-                    "description": "exactIdentifier of the resource.\nSpecifying exactIdentifier will return at most one result.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
+                    "description": "exactIdentifier of the resource.\nSpecifying exactIdentifier will return exact one result.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
                     "type": "string"
                 },
                 "propertyMatch": {
-                    "description": "This indicates the property to search for.\nIf both exactIdentifier and propertyMatch are specified, then exactIdentifier is used.\nTo restrict the count of results to return, specify expectedMatchCount.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
+                    "description": "This indicates the property to search for.\nTo restrict the count of results to return, specify expectedMatchCount.\nEither exactIdentifier or propertyMatch should be specified. (Default - None)",
                     "$ref": "#/definitions/Record<string,unknown>"
                 },
                 "propertiesToReturn": {
