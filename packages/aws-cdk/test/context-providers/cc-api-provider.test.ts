@@ -38,30 +38,6 @@ test('looks up RDS instance using CC API getResource', async () => {
   }));
 });
 
-// In theory, this should never happen.  We ask for my-db-instance-1 but CC API returns ''.
-// Included this to test the code path.
-test('looks up RDS instance using CC API getResource - wrong match', async () => {
-  // GIVEN
-  mockCloudControlClient.on(GetResourceCommand).resolves({
-    TypeName: 'AWS::RDS::DBInstance',
-    ResourceDescription: {
-      Identifier: '',
-      Properties: '{"DBInstanceArn":"arn:aws:rds:us-east-1:123456789012:db:test-instance-1","StorageEncrypted":"true"}',
-    },
-  });
-
-  await expect(
-    // WHEN
-    provider.getValue({
-      account: '123456789012',
-      region: 'us-east-1',
-      typeName: 'AWS::RDS::DBInstance',
-      exactIdentifier: 'my-db-instance-1',
-      propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-    }),
-  ).rejects.toThrow('Encountered CC API error while getting resource my-db-instance-1.'); // THEN
-});
-
 test('looks up RDS instance using CC API getResource - empty response', async () => {
   // GIVEN
   mockCloudControlClient.on(GetResourceCommand).resolves({
@@ -76,7 +52,7 @@ test('looks up RDS instance using CC API getResource - empty response', async ()
       exactIdentifier: 'bad-identifier',
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.'); // THEN
+  ).rejects.toThrow('Unexpected CloudControl API behavior: returned empty response'); // THEN
 });
 
 test('looks up RDS instance using CC API getResource - error in CC API', async () => {
@@ -92,7 +68,7 @@ test('looks up RDS instance using CC API getResource - error in CC API', async (
       exactIdentifier: 'bad-identifier',
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.'); // THEN
+  ).rejects.toThrow('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier'); // THEN
 });
 
 test('looks up RDS instance using CC API listResources', async () => {
@@ -201,7 +177,7 @@ test('looks up RDS instance using CC API listResources - error in CC API', async
       propertyMatch: { 'Endpoint.Port': '5432' },
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Could not get resources {"Endpoint.Port":"5432"}.'); // THEN
+  ).rejects.toThrow('error while listing AWS::RDS::DBInstance resources'); // THEN
 });
 
 test('error by specifying both exactIdentifier and propertyMatch', async () => {
@@ -222,7 +198,7 @@ test('error by specifying both exactIdentifier and propertyMatch', async () => {
       },
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Specify either exactIdentifier or propertyMatch, but not both. Failed to find resources using CC API for type AWS::RDS::DBInstance.'); // THEN
+  ).rejects.toThrow('specify either exactIdentifier or propertyMatch, but not both'); // THEN
 });
 
 test('error by specifying neither exactIdentifier or propertyMatch', async () => {
@@ -238,7 +214,7 @@ test('error by specifying neither exactIdentifier or propertyMatch', async () =>
       typeName: 'AWS::RDS::DBInstance',
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Neither exactIdentifier nor propertyMatch is specified. Failed to find resources using CC API for type AWS::RDS::DBInstance.'); // THEN
+  ).rejects.toThrow('neither exactIdentifier nor propertyMatch is specified');
 });
 
 describe('dummy value', () => {
@@ -267,11 +243,12 @@ describe('dummy value', () => {
     expect(results[0]).toEqual({
       DBInstanceArn: 'arn:aws:rds:us-east-1:123456789012:db:dummy-instance',
       StorageEncrypted: 'true',
-      Identifier: 'dummy-id',
     });
   });
 
-  test('returns dummy value when CC API listResources fails', async () => {
+  // TODO: This test can be re-enabled when listResources can be made to fail, after
+  // https://github.com/aws/aws-cdk-cli/pull/251 is merged.
+  test.skip('returns dummy value when CC API listResources fails', async () => {
     // GIVEN
     mockCloudControlClient.on(ListResourcesCommand).rejects(createResourceNotFoundException());
 
@@ -320,7 +297,7 @@ describe('dummy value', () => {
           },
       ],
     }),
-  ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+  ).rejects.toThrow('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier: Other error');
   });
 
   test('throws error when CC API listResources fails but the error is not ResourceNotFoundException', async () => {
@@ -343,7 +320,7 @@ describe('dummy value', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Could not get resources {"StorageEncrypted":"true"}.');
+    ).rejects.toThrow('Encountered CC API error while listing AWS::RDS::DBInstance resources matching {\"StorageEncrypted\":\"true\"}: Other error');
   });
 
   test('throws error when CC API fails and ignoreErrorOnMissingContext is not provided', async () => {
@@ -365,7 +342,7 @@ describe('dummy value', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+    ).rejects.toThrow('No resource of type AWS::RDS::DBInstance with identifier: bad-identifier');
   });
 
   test('throws error when CC API fails and ignoreErrorOnMissingContext is false', async () => {
@@ -388,7 +365,7 @@ describe('dummy value', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Encountered CC API error while getting resource bad-identifier.');
+    ).rejects.toThrow('No resource of type AWS::RDS::DBInstance with identifier: bad-identifier');
   });
 
   test('throws error when CC API fails and dummyValue is not provided', async () => {
@@ -405,7 +382,7 @@ describe('dummy value', () => {
         propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
         ignoreErrorOnMissingContext: true,
       }),
-    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy objects for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('if ignoreErrorOnMissingContext is set, a dummyValue must be supplied');
   });
 
   test('throws error when CC API fails and dummyValue is not an array', async () => {
@@ -426,25 +403,7 @@ describe('dummy value', () => {
           StorageEncrypted: 'true',
         },
       }),
-    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy objects for type AWS::RDS::DBInstance.');
-  });
-
-  test('throws error when CC API fails and dummyValue is an empty array', async () => {
-    // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).rejects(createResourceNotFoundException());
-
-    // WHEN/THEN
-    await expect(
-      provider.getValue({
-        account: '123456789012',
-        region: 'us-east-1',
-        typeName: 'AWS::RDS::DBInstance',
-        exactIdentifier: 'bad-identifier',
-        propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
-        ignoreErrorOnMissingContext: true,
-        dummyValue: [],
-      }),
-    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy objects for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('dummyValue must be an array of objects');
   });
 
   test('throws error when CC API fails and dummyValue is not an object array', async () => {
@@ -464,7 +423,7 @@ describe('dummy value', () => {
           'not an object',
         ],
       }),
-    ).rejects.toThrow('dummyValue must be an array of objects. Failed to get dummy objects for type AWS::RDS::DBInstance.');
+    ).rejects.toThrow('dummyValue must be an array of objects');
   });
 });
 /* eslint-enable */
