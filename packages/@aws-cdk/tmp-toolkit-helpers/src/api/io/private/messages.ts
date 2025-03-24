@@ -437,12 +437,12 @@ export const IO = {
   CDK_ASSEMBLY_I0300: make.info<ContextProviderMessageSource>({
     code: 'CDK_ASSEMBLY_I0300',
     description: 'An info message emitted by a Context Provider',
-    interface: 'ContextProviderMessageSource'
+    interface: 'ContextProviderMessageSource',
   }),
   CDK_ASSEMBLY_I0301: make.debug<ContextProviderMessageSource>({
     code: 'CDK_ASSEMBLY_I0301',
     description: 'A debug message emitted by a Context Provider',
-    interface: 'ContextProviderMessageSource'
+    interface: 'ContextProviderMessageSource',
   }),
 
   // Assembly Annotations
