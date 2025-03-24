@@ -93,6 +93,18 @@ export const IO = {
     code: 'CDK_TOOLKIT_I4300',
     description: 'Reason for skipping changeset creation',
   }),
+  CDK_TOOLKIT_I4400: make.debug({
+    code: 'CDK_TOOLKIT_I4400',
+    description: 'Security diff',
+  }),
+  CDK_TOOLKIT_I4401: make.debug({
+    code: 'CDK_TOOLKIT_I4401',
+    description: 'Stack diff',
+  }),
+  CDK_TOOLKIT_I4402: make.debug({
+    code: 'CDK_TOOLKIT_I4402',
+    description: 'Number of stacks with a diff',
+  }),
   CDK_TOOLKIT_I4600: make.info({
     code: 'CDK_TOOLKIT_I4600',
     description: 'Provides the CloudFormation diff',

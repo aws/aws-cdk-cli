@@ -19,7 +19,7 @@ import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/aws-cdk';
+import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, formatSecurityDiff, formatStackDiff, createDiffChangeSet } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -30,7 +30,7 @@ import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
 import { RequireApproval, ToolkitError } from '../api/shared-public';
-import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, numberFromBool, deserializeStructure } from '../private/util';
+import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
 import { pLimit } from '../util/concurrency';
 import { DiffOptions } from '../actions/diff';
 import { removeNonImportResources } from '../../../../aws-cdk/lib/api/resource-import'; // TODO: move this to a sharable place
@@ -283,9 +283,30 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
       const file = fs.readFileSync(options.templatePath).toString();
       const template = deserializeStructure(file);
-      diffs = options.securityOnly
-        ? numberFromBool(printSecurityDiff(template, stackCollection.firstStack, RequireApproval.Broadening, quiet))
-        : printStackDiff(template, stackCollection.firstStack, strict, contextLines, quiet, undefined, undefined, false, stream);
+      if (options.securityOnly) {
+        const securityDiff = formatSecurityDiff(
+          template,
+          stackCollection.firstStack,
+          RequireApproval.BROADENING,
+        );
+        if (securityDiff.formattedDiff) {
+          await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
+          diffs += 1;
+        }
+      } else {
+        const diff = formatStackDiff(
+          template,
+          stackCollection.firstStack,
+          strict,
+          contextLines,
+          false,
+          undefined,
+          undefined,
+          false,
+        );
+        diffs = diff.numStacksWithChanges;
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff));
+      }
     } else {
       // Compare N stacks against deployed templates
       for (const stack of stackCollection.stackArtifacts) {
@@ -327,41 +348,42 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               uuid: uuid.v4(),
               deployments,
               willExecute: false,
-              sdkProvider: this.sdkProvider('diff'),
+              sdkProvider: await this.sdkProvider('diff'),
               parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
               resourcesToImport,
-              stream,
             });
           } else {
             ioHelper.notify(IO.CDK_TOOLKIT_I4300.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
           }
         }
 
-        const stackCount = options.securityOnly
-          ? numberFromBool(
-            printSecurityDiff(
-              currentTemplate,
-              stack,
-              RequireApproval.Broadening,
-              quiet,
-              stack.displayName,
-              changeSet,
-            ),
-          )
-          : printStackDiff(
+        if (options.securityOnly) {
+          const securityDiff = formatSecurityDiff(
+            currentTemplate,
+            stack,
+            RequireApproval.BROADENING,
+            stack.displayName,
+            changeSet,
+          );
+          if (securityDiff.formattedDiff) {
+            await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
+            diffs += 1;
+          }
+        } else {
+          const diff = formatStackDiff(
             currentTemplate,
             stack,
             strict,
             contextLines,
-            quiet,
+            false,
             stack.displayName,
             changeSet,
             !!resourcesToImport,
-            stream,
             nestedStacks,
           );
-
-        diffs += stackCount;
+          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff));
+          diffs += diff.numStacksWithChanges;
+        }
       }
     }
     ioHelper.notify(IO.CDK_TOOLKIT_I4600.msg(`Number of differences: ${diffs}`));
