@@ -107,7 +107,7 @@ export const IO = {
   }),
   CDK_TOOLKIT_I4600: make.info({
     code: 'CDK_TOOLKIT_I4600',
-    description: 'Provides the CloudFormation diff',
+    description: 'Provides the number of stacks with diffs',
   }),
 
   // 5: Deploy & Watch (5xxx)
