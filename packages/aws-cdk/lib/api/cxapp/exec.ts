@@ -9,8 +9,8 @@ import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { Configuration } from '../../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../../cli/user-configuration';
 import { versionNumber } from '../../cli/version';
-import { debug, warning } from '../../logging';
-import { loadTree, some } from '../../tree';
+import { debug, trace, warning } from '../../logging';
+import { loadTree, some } from '../../api/tree';
 import { splitBySize } from '../../util';
 import type { SdkProvider } from '../aws-auth';
 import type { Settings } from '../settings';
@@ -293,7 +293,7 @@ function contextOverflowCleanup(location: string | undefined, assembly: cxapi.Cl
   if (location) {
     fs.removeSync(path.dirname(location));
 
-    const tree = loadTree(assembly);
+    const tree = loadTree(assembly, trace);
     const frameworkDoesNotSupportContextOverflow = some(tree, node => {
       const fqn = node.constructInfo?.fqn;
       const version = node.constructInfo?.version;

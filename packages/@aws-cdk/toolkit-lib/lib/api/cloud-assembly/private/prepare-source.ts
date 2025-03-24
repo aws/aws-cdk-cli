@@ -130,8 +130,8 @@ export async function withContext<T>(
  *
  * @param assembly the assembly to check
  */
-export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHost: IoHelper): Promise<void> {
-  const tree = loadTree(assembly);
+export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
+  const tree = loadTree(assembly, (msg: string) => void ioHelper.notify(IO.DEFAULT_ASSEMBLY_TRACE.msg(msg)));
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;
     const version = node.constructInfo?.version;
@@ -142,7 +142,7 @@ export async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly,
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
   if (frameworkDoesNotSupportContextOverflow) {
-    await ioHost.notify(IO.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
+    await ioHelper.notify(IO.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
   }
 }
 

@@ -11,6 +11,7 @@ export { ResourceMigrator } from '../../../../aws-cdk/lib/api/resource-import';
 export { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../../../../aws-cdk/lib/api/logs';
 export { type WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
 export { Bootstrapper } from '../../../../aws-cdk/lib/api/bootstrap';
+export { loadTree, some } from '../../../../aws-cdk/lib/api/tree';
 
 // Context Providers
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
@@ -19,9 +20,6 @@ export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
 export { HotswapMode } from '../../../../aws-cdk/lib/api/hotswap/common';
 export { HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap/common';
 export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/util/rwlock';
-
-// @todo Not yet API probably should be
-export { loadTree, some } from '../../../../aws-cdk/lib/tree';
 
 // @todo Cloud Assembly and Executable - this is a messy API right now
 export { CloudAssembly, sanitizePatterns, StackCollection, ExtendedStackSelection } from '../../../../aws-cdk/lib/api/cxapp/cloud-assembly';

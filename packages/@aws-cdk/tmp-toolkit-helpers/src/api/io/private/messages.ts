@@ -375,6 +375,11 @@ export const IO = {
   }),
 
   // Assembly codes
+  DEFAULT_ASSEMBLY_TRACE: make.trace({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default trace messages emitted from Cloud Assembly operations',
+  }),
+
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
     description: 'Generic environment preparation debug messages',

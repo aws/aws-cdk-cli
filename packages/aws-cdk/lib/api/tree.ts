@@ -1,7 +1,6 @@
-import * as path from 'path';
-import type { CloudAssembly } from '@aws-cdk/cx-api';
+import * as path from 'node:path';
 import * as fs from 'fs-extra';
-import { trace } from './logging';
+import type { CloudAssembly } from '@aws-cdk/cx-api';
 
 /**
  * Source information on a construct (class fqn and version)
@@ -37,7 +36,7 @@ export function some(node: ConstructTreeNode | undefined, predicate: (n: Constru
   }
 }
 
-export function loadTree(assembly: CloudAssembly): ConstructTreeNode | undefined {
+export function loadTree(assembly: CloudAssembly, trace: (msg: string) => void): ConstructTreeNode | undefined {
   try {
     const outdir = assembly.directory;
     const fileName = assembly.tree()?.file;
@@ -48,7 +47,7 @@ export function loadTree(assembly: CloudAssembly): ConstructTreeNode | undefined
   }
 }
 
-export function loadTreeFromDir(outdir: string): ConstructTreeNode | undefined {
+export function loadTreeFromDir(outdir: string, trace: (msg: string) => void): ConstructTreeNode | undefined {
   try {
     return fs.readJSONSync(path.join(outdir, 'tree.json')).tree;
   } catch (e) {

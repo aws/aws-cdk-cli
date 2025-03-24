@@ -10,8 +10,8 @@ import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
 import type { Context } from './api/context';
 import type { IIoHost } from './cli/io-host';
 import { versionNumber } from './cli/version';
-import type { ConstructTreeNode } from './tree';
-import { loadTreeFromDir } from './tree';
+import type { ConstructTreeNode } from './api/tree';
+import { loadTreeFromDir } from './api/tree';
 import { cdkCacheDir, formatErrorMessage } from './util';
 import { ToolkitError } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
@@ -211,7 +211,7 @@ export class NoticesFilter {
    * Load the construct tree from the given directory and return its components
    */
   private constructTreeComponents(manifestDir: string): ActualComponent[] {
-    const tree = loadTreeFromDir(manifestDir);
+    const tree = loadTreeFromDir(manifestDir, (msg: string) => void this.ioMessages.notify(IO.DEFAULT_ASSEMBLY_TRACE.msg(msg)));
     if (!tree) {
       return [];
     }
