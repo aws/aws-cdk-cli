@@ -1,13 +1,14 @@
 import type { VpcContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import { type VpcContextResponse, type VpcSubnetGroup, VpcSubnetGroupType } from '@aws-cdk/cx-api';
 import type { Filter, RouteTable, Tag, Vpc } from '@aws-sdk/client-ec2';
+import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IEC2Client } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { debug } from '../logging';
+
 export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {
+  constructor(private readonly aws: SdkProvider, private readonly io: IContextProviderMessages) {
   }
 
   public async getValue(args: VpcContextQuery) {
@@ -22,7 +23,7 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
     // Build request filter (map { Name -> Value } to list of [{ Name, Values }])
     const filters: Filter[] = Object.entries(args.filter).map(([tag, value]) => ({ Name: tag, Values: [value] }));
 
-    debug(`Listing VPCs in ${args.account}:${args.region}`);
+    await this.io.debug(`Listing VPCs in ${args.account}:${args.region}`);
     const response = await ec2.describeVpcs({ Filters: filters });
 
     const vpcs = response.Vpcs || [];
@@ -39,7 +40,7 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
   private async readVpcProps(ec2: IEC2Client, vpc: Vpc, args: VpcContextQuery): Promise<VpcContextResponse> {
     const vpcId = vpc.VpcId!;
 
-    debug(`Describing VPC ${vpcId}`);
+    await this.io.debug(`Describing VPC ${vpcId}`);
 
     const filters = { Filters: [{ Name: 'vpc-id', Values: [vpcId] }] };
 

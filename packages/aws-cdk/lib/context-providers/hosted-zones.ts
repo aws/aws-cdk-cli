@@ -1,13 +1,13 @@
 import type { HostedZoneContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { HostedZone } from '@aws-sdk/client-route-53';
+import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IRoute53Client } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { debug } from '../logging';
 
 export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {
+  constructor(private readonly aws: SdkProvider, private readonly io: IContextProviderMessages) {
   }
 
   public async getValue(args: HostedZoneContextQuery): Promise<object> {
@@ -17,7 +17,7 @@ export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
       throw new ContextProviderError(`HostedZoneProvider requires domainName property to be set in ${args}`);
     }
     const domainName = args.domainName;
-    debug(`Reading hosted zone ${account}:${region}:${domainName}`);
+    await this.io.debug(`Reading hosted zone ${account}:${region}:${domainName}`);
     const r53 = (await initContextProviderSdk(this.aws, args)).route53();
     const response = await r53.listHostedZonesByName({ DNSName: domainName });
     if (!response.HostedZones) {
@@ -42,9 +42,9 @@ export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
   ): Promise<HostedZone[]> {
     let candidates: HostedZone[] = [];
     const domainName = props.domainName.endsWith('.') ? props.domainName : `${props.domainName}.`;
-    debug(`Found the following zones ${JSON.stringify(zones)}`);
+    await this.io.debug(`Found the following zones ${JSON.stringify(zones)}`);
     candidates = zones.filter((zone) => zone.Name === domainName);
-    debug(`Found the following matched name zones ${JSON.stringify(candidates)}`);
+    await this.io.debug(`Found the following matched name zones ${JSON.stringify(candidates)}`);
     if (props.privateZone) {
       candidates = candidates.filter((zone) => zone.Config && zone.Config.PrivateZone);
     } else {
@@ -55,7 +55,7 @@ export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
       for (const zone of candidates) {
         const data = await r53.getHostedZone({ Id: zone.Id });
         if (!data.VPCs) {
-          debug(`Expected VPC for private zone but no VPC found ${zone.Id}`);
+          await this.io.debug(`Expected VPC for private zone but no VPC found ${zone.Id}`);
           continue;
         }
         if (data.VPCs.map((vpc) => vpc.VPCId).includes(props.vpcId)) {
