@@ -1,4 +1,4 @@
-import { Template } from "./stack-helpers";
+import type { Template } from './stack-helpers';
 
 export interface NestedStackTemplates {
   readonly physicalName: string | undefined;
