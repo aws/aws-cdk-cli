@@ -1,4 +1,6 @@
 import type { CcApiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+import type { ResourceDescription } from '@aws-sdk/client-cloudcontrol';
+import { ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { ICloudControlClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
@@ -11,32 +13,44 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
 
   /**
    * This returns a data object with the value from CloudControl API result.
-   * args.typeName - see https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
-   * args.exactIdentifier -  use CC API getResource.
-   * args.propertyMatch - use CCP API listResources to get resources and propertyMatch to search through the list.
-   * args.propertiesToReturn - Properties from CC API to return.
+   *
+   * See the documentation in the Cloud Assembly Schema for the semantics of
+   * each query parameter.
    */
   public async getValue(args: CcApiContextQuery) {
+    // Validate input
+    if (args.exactIdentifier && args.propertyMatch) {
+      throw new ContextProviderError(`Provider protocol error: specify either exactIdentifier or propertyMatch, but not both (got ${JSON.stringify(args)})`);
+    }
+    if (args.ignoreErrorOnMissingContext && args.dummyValue === undefined) {
+      throw new ContextProviderError(`Provider protocol error: if ignoreErrorOnMissingContext is set, a dummyValue must be supplied (got ${JSON.stringify(args)})`);
+    }
+    if (args.dummyValue !== undefined && (!Array.isArray(args.dummyValue) || !args.dummyValue.every(isObject))) {
+      throw new ContextProviderError(`Provider protocol error: dummyValue must be an array of objects (got ${JSON.stringify(args.dummyValue)})`);
+    }
+
+    // Do the lookup
     const cloudControl = (await initContextProviderSdk(this.aws, args)).cloudControl();
 
-    const result = await this.findResources(cloudControl, args);
-    return result;
-  }
+    try {
+      let resources: FoundResource[];
+      if (args.exactIdentifier) {
+        // use getResource to get the exact indentifier
+        resources = await this.getResource(cloudControl, args.typeName, args.exactIdentifier);
+      } else if (args.propertyMatch) {
+        // use listResource
+        resources = await this.listResources(cloudControl, args.typeName, args.propertyMatch);
+      } else {
+        throw new ContextProviderError(`Provider protocol error: neither exactIdentifier nor propertyMatch is specified in ${JSON.stringify(args)}.`);
+      }
 
-  private async findResources(cc: ICloudControlClient, args: CcApiContextQuery): Promise<{[key: string]: any} []> {
-    if (args.exactIdentifier && args.propertyMatch) {
-      throw new ContextProviderError(`Specify either exactIdentifier or propertyMatch, but not both. Failed to find resources using CC API for type ${args.typeName}.`);
-    }
-    if (!args.exactIdentifier && !args.propertyMatch) {
-      throw new ContextProviderError(`Neither exactIdentifier nor propertyMatch is specified. Failed to find resources using CC API for type ${args.typeName}.`);
-    }
-
-    if (args.exactIdentifier) {
-      // use getResource to get the exact indentifier
-      return this.getResource(cc, args.typeName, args.exactIdentifier, args.propertiesToReturn);
-    } else {
-      // use listResource
-      return this.listResources(cc, args.typeName, args.propertyMatch!, args.propertiesToReturn);
+      return resources.map((r) => getResultObj(r.properties, r.identifier, args.propertiesToReturn));
+    } catch (err) {
+      if (err instanceof ZeroResourcesFoundError && args.ignoreErrorOnMissingContext) {
+        // We've already type-checked dummyValue.
+        return args.dummyValue;
+      }
+      throw err;
     }
   }
 
@@ -44,84 +58,104 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
    * Calls getResource from CC API to get the resource.
    * See https://docs.aws.amazon.com/cli/latest/reference/cloudcontrol/get-resource.html
    *
-   * If the exactIdentifier is not found, then an empty map is returned.
-   * If the resource is found, then a map of the identifier to a map of property values is returned.
+   * Will always return exactly one resource, or fail.
    */
   private async getResource(
     cc: ICloudControlClient,
     typeName: string,
     exactIdentifier: string,
-    propertiesToReturn: string[],
-  ): Promise<{[key: string]: any}[]> {
-    const resultObjs: {[key: string]: any}[] = [];
+  ): Promise<FoundResource[]> {
     try {
       const result = await cc.getResource({
         TypeName: typeName,
         Identifier: exactIdentifier,
       });
-      const id = result.ResourceDescription?.Identifier ?? '';
-      if (id !== '') {
-        const propsObject = JSON.parse(result.ResourceDescription?.Properties ?? '');
-        const propsObj = getResultObj(propsObject, result.ResourceDescription?.Identifier!, propertiesToReturn);
-        resultObjs.push(propsObj);
-      } else {
-        throw new ContextProviderError(`Could not get resource ${exactIdentifier}.`);
+      if (!result.ResourceDescription) {
+        throw new ContextProviderError('Unexpected CloudControl API behavior: returned empty response');
       }
-    } catch (err) {
-      throw new ContextProviderError(`Encountered CC API error while getting resource ${exactIdentifier}. Error: ${err}`);
+
+      return [foundResourceFromCcApi(result.ResourceDescription)];
+    } catch (err: any) {
+      if (err instanceof ResourceNotFoundException || (err as any).name === 'ResourceNotFoundException') {
+        throw new ZeroResourcesFoundError(`No resource of type ${typeName} with identifier: ${exactIdentifier}`);
+      }
+      if (!(err instanceof ContextProviderError)) {
+        throw new ContextProviderError(`Encountered CC API error while getting ${typeName} resource ${exactIdentifier}: ${err.message}`);
+      }
+      throw err;
     }
-    return resultObjs;
   }
 
   /**
    * Calls listResources from CC API to get the resources and apply args.propertyMatch to find the resources.
    * See https://docs.aws.amazon.com/cli/latest/reference/cloudcontrol/list-resources.html
    *
-   * Since exactIdentifier is not specified, propertyMatch must be specified.
-   * This returns an object where the ids are object keys and values are objects with keys of args.propertiesToReturn.
+   * Will return 0 or more resources.
+   *
+   * Does not currently paginate through more than one result page.
    */
   private async listResources(
     cc: ICloudControlClient,
     typeName: string,
     propertyMatch: Record<string, unknown>,
-    propertiesToReturn: string[],
-  ): Promise<{[key: string]: any}[]> {
-    const resultObjs: {[key: string]: any}[] = [];
-
+  ): Promise<FoundResource[]> {
     try {
       const result = await cc.listResources({
         TypeName: typeName,
+
       });
-      result.ResourceDescriptions?.forEach((resource) => {
-        const id = resource.Identifier ?? '';
-        if (id !== '') {
-          const propsObject = JSON.parse(resource.Properties ?? '');
+      const found = (result.ResourceDescriptions ?? [])
+        .map(foundResourceFromCcApi)
+        .filter((r) => {
+          return Object.entries(propertyMatch).every(([propPath, expected]) => {
+            const actual = findJsonValue(r.properties, propPath);
+            return propertyMatchesFilter(actual, expected);
+          });
+        });
 
-          const filters = Object.entries(propertyMatch);
-          let match = false;
-          if (filters) {
-            match = filters.every((record, _index, _arr) => {
-              const key = record[0];
-              const expected = record[1];
-              const actual = findJsonValue(propsObject, key);
-              return propertyMatchesFilter(actual, expected);
-            });
-
-            function propertyMatchesFilter(actual: any, expected: unknown) {
-              // For now we just check for strict equality, but we can implement pattern matching and fuzzy matching here later
-              return expected === actual;
-            }
-          }
-
-          if (match) {
-            const propsObj = getResultObj(propsObject, resource.Identifier!, propertiesToReturn);
-            resultObjs.push(propsObj);
-          }
-        }
-      });
-    } catch (err) {
-      throw new ContextProviderError(`Could not get resources ${JSON.stringify(propertyMatch)}. Error: ${err}`);
+      return found;
+    } catch (err: any) {
+      if (!(err instanceof ContextProviderError) && !(err instanceof ZeroResourcesFoundError)) {
+        throw new ContextProviderError(`Encountered CC API error while listing ${typeName} resources matching ${JSON.stringify(propertyMatch)}: ${err.message}`);
+      }
+      throw err;
     }
-    return resultObjs;
   }
+}
+
+/**
+ * Convert a CC API response object into a nicer object (parse the JSON)
+ */
+function foundResourceFromCcApi(desc: ResourceDescription): FoundResource {
+  return {
+    identifier: desc.Identifier ?? '*MISSING*',
+    properties: JSON.parse(desc.Properties ?? '{}'),
+  };
+}
+
+/**
+ * Whether the given property value matches the given filter
+ *
+ * For now we just check for strict equality, but we can implement pattern matching and fuzzy matching here later
+ */
+function propertyMatchesFilter(actual: unknown, expected: unknown) {
+  return expected === actual;
+}
+
+function isObject(x: unknown): x is {[key: string]: unknown} {
+  return typeof x === 'object' && x !== null && !Array.isArray(x);
+}
+
+/**
+ * A parsed version of the return value from CCAPI
+ */
+interface FoundResource {
+  readonly identifier: string;
+  readonly properties: Record<string, unknown>;
+}
+
+/**
+ * A specific lookup failure indicating 0 resources found that can be recovered
+ */
+class ZeroResourcesFoundError extends Error {
 }

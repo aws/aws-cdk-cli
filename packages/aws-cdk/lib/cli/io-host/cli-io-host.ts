@@ -4,6 +4,7 @@ import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { CurrentActivityPrinter, HistoryActivityPrinter } from '../activity-printer';
@@ -205,8 +206,11 @@ export class CliIoHost implements IIoHost {
   }
 
   public get defaults() {
-    const helper = asIoHelper(this, this.currentAction as any);
-    return new IoDefaultMessages(helper);
+    return new IoDefaultMessages(this.asIoHelper());
+  }
+
+  public asIoHelper(): IoHelper {
+    return asIoHelper(this, this.currentAction as any);
   }
 
   /**

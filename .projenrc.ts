@@ -9,6 +9,7 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
+import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
@@ -1516,5 +1517,9 @@ new CodeCovWorkflow(repo, {
 
 new IssueLabeler(repo);
 new PrLabeler(repo);
+
+new LargePrChecker(repo, {
+  excludeFiles: ['*.md', '*.test.ts', '*.yml'],
+});
 
 repo.synth();
