@@ -148,7 +148,10 @@
       "description": "Resets versions of local dependencies to 0.0.0",
       "steps": [
         {
-          "spawn": "gather-versions"
+          "spawn": "gather-versions",
+          "env": {
+            "RESET_VERSIONS": "true"
+          }
         }
       ]
     },
