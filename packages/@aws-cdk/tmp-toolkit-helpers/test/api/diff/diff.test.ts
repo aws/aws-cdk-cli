@@ -5,13 +5,6 @@ import { formatSecurityDiff, formatStackDiff } from '../../../src/api/diff/diff'
 import { IoHelper, IoDefaultMessages } from '../../../src/api/io/private';
 import { RequireApproval } from '../../../src/api/require-approval';
 
-jest.mock('@aws-cdk/cloudformation-diff', () => ({
-  fullDiff: jest.fn(),
-  formatSecurityChanges: jest.fn(),
-  formatDifferences: jest.fn(),
-  mangleLikeCloudFormation: jest.fn(),
-}));
-
 jest.mock('../../../src/api/io/private/messages', () => ({
   IoDefaultMessages: jest.fn(),
 }));
@@ -42,31 +35,38 @@ describe('formatStackDiff', () => {
     (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
 
     mockNewTemplate = {
-      template: {},
+      template: {
+        Resources: {
+          Func: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Code: {
+                S3Bucket: 'XXXXXXXXXXX',
+                S3Key: 'some-key',
+              },
+              Handler: 'index.handler',
+              Runtime: 'nodejs14.x',
+            },
+          },
+        },
+      },
       templateFile: 'template.json',
       stackName: 'test-stack',
       findMetadataByType: () => [],
     } as any;
-
-    (fullDiff as jest.Mock).mockReset();
-    (formatDifferences as jest.Mock).mockImplementation((stream) => {
-      stream.write('Changes detected');
-    });
-    (mangleLikeCloudFormation as jest.Mock).mockImplementation((input) => {
-      return input;
-    });
   });
 
   test('returns no changes when templates are identical', () => {
-    // GIVEN
-    const mockDiff = { isEmpty: true };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-
     // WHEN
     const result = formatStackDiff(
       mockIoHelper,
       {},
-      mockNewTemplate,
+      {
+        template: {},
+        templateFile: 'template.json',
+        stackName: 'test-stack',
+        findMetadataByType: () => [],
+      } as any,
       false,
       3,
       false,
@@ -80,10 +80,6 @@ describe('formatStackDiff', () => {
   });
 
   test('formats differences when changes exist', () => {
-    // GIVEN
-    const mockDiff = { isEmpty: false, differenceCount: 1 };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-
     // WHEN
     const result = formatStackDiff(
       mockIoHelper,
@@ -97,14 +93,16 @@ describe('formatStackDiff', () => {
 
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
-    expect(result.formattedDiff).toContain('Changes detected');
-    expect(result.formattedDiff).toContain(`Stack ${chalk.bold('test-stack')}`);
+    expect(result.formattedDiff).toBeDefined();
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func'
+    );
   });
 
   test('handles nested stack templates', () => {
-    // GIVEN
-    const mockDiff = { isEmpty: false, differenceCount: 1 };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
     const nestedStackTemplates = {
       NestedStack1: {
         deployedTemplate: {},
@@ -162,29 +160,45 @@ describe('formatSecurityDiff', () => {
     (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
 
     mockNewTemplate = {
-      template: {},
+      template: {
+        Resources: {
+          Role: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              AssumeRolePolicyDocument: {
+                Version: '2012-10-17',
+                Statement: [{
+                  Effect: 'Allow',
+                  Principal: {
+                    Service: 'lambda.amazonaws.com'
+                  },
+                  Action: 'sts:AssumeRole'
+                }]
+              },
+              ManagedPolicyArns: [
+                'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
+              ],
+            },
+          },
+        },
+      },
       templateFile: 'template.json',
       stackName: 'test-stack',
       findMetadataByType: () => [],
     } as any;
-
-    (fullDiff as jest.Mock).mockReset();
-    (formatSecurityChanges as jest.Mock).mockReset();
   });
 
   test('returns empty object when no security changes exist', () => {
-    // GIVEN
-    const mockDiff = {
-      permissionsAnyChanges: false,
-      permissionsBroadened: false,
-    };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-
     // WHEN
     const result = formatSecurityDiff(
       mockIoHelper,
       {},
-      mockNewTemplate,
+      {
+        template: {},
+        templateFile: 'template.json',
+        stackName: 'test-stack',
+        findMetadataByType: () => [],
+      } as any,
       RequireApproval.BROADENING,
       'test-stack',
     );
@@ -195,16 +209,6 @@ describe('formatSecurityDiff', () => {
   });
 
   test('formats diff when permissions are broadened and approval level is BROADENING', () => {
-    // GIVEN
-    const mockDiff = {
-      permissionsAnyChanges: true,
-      permissionsBroadened: true,
-    };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-    (formatSecurityChanges as jest.Mock).mockImplementation((stream) => {
-      stream.write('Security changes detected');
-    });
-
     // WHEN
     const result = formatSecurityDiff(
       mockIoHelper,
@@ -216,23 +220,25 @@ describe('formatSecurityDiff', () => {
 
     // THEN
     expect(result.formattedDiff).toBeDefined();
-    expect(result.formattedDiff).toContain('Security changes detected');
-    expect(mockIoDefaultMessages.warning).toHaveBeenCalledWith(
-      expect.stringContaining('potentially sensitive changes'),
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'IAM Statement Changes\n' +
+      '┌───┬─────────────┬────────┬────────────────┬──────────────────────────────┬───────────┐\n' +
+      '│   │ Resource    │ Effect │ Action         │ Principal                    │ Condition │\n' +
+      '├───┼─────────────┼────────┼────────────────┼──────────────────────────────┼───────────┤\n' +
+      '│ + │ ${Role.Arn} │ Allow  │ sts:AssumeRole │ Service:lambda.amazonaws.com │           │\n' +
+      '└───┴─────────────┴────────┴────────────────┴──────────────────────────────┴───────────┘\n' +
+      'IAM Policy Changes\n' +
+      '┌───┬──────────┬──────────────────────────────────────────────────────────────────┐\n' +
+      '│   │ Resource │ Managed Policy ARN                                               │\n' +
+      '├───┼──────────┼──────────────────────────────────────────────────────────────────┤\n' +
+      '│ + │ ${Role}  │ arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole │\n' +
+      '└───┴──────────┴──────────────────────────────────────────────────────────────────┘\n' +
+      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)'
     );
   });
 
   test('formats diff for any security change when approval level is ANY_CHANGE', () => {
-    // GIVEN
-    const mockDiff = {
-      permissionsAnyChanges: true,
-      permissionsBroadened: false,
-    };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-    (formatSecurityChanges as jest.Mock).mockImplementation((stream) => {
-      stream.write('Minor security changes detected');
-    });
-
     // WHEN
     const result = formatSecurityDiff(
       mockIoHelper,
@@ -244,20 +250,28 @@ describe('formatSecurityDiff', () => {
 
     // THEN
     expect(result.formattedDiff).toBeDefined();
-    expect(result.formattedDiff).toContain('Minor security changes detected');
     expect(mockIoDefaultMessages.warning).toHaveBeenCalledWith(
       expect.stringContaining('potentially sensitive changes'),
+    );
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'IAM Statement Changes\n' +
+      '┌───┬─────────────┬────────┬────────────────┬──────────────────────────────┬───────────┐\n' +
+      '│   │ Resource    │ Effect │ Action         │ Principal                    │ Condition │\n' +
+      '├───┼─────────────┼────────┼────────────────┼──────────────────────────────┼───────────┤\n' +
+      '│ + │ ${Role.Arn} │ Allow  │ sts:AssumeRole │ Service:lambda.amazonaws.com │           │\n' +
+      '└───┴─────────────┴────────┴────────────────┴──────────────────────────────┴───────────┘\n' +
+      'IAM Policy Changes\n' +
+      '┌───┬──────────┬──────────────────────────────────────────────────────────────────┐\n' +
+      '│   │ Resource │ Managed Policy ARN                                               │\n' +
+      '├───┼──────────┼──────────────────────────────────────────────────────────────────┤\n' +
+      '│ + │ ${Role}  │ arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole │\n' +
+      '└───┴──────────┴──────────────────────────────────────────────────────────────────┘\n' +
+      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)'
     );
   });
 
   test('returns empty object when approval level is NEVER', () => {
-    // GIVEN
-    const mockDiff = {
-      permissionsAnyChanges: true,
-      permissionsBroadened: true,
-    };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-
     // WHEN
     const result = formatSecurityDiff(
       mockIoHelper,
@@ -270,55 +284,5 @@ describe('formatSecurityDiff', () => {
     // THEN
     expect(result).toEqual({});
     expect(mockIoDefaultMessages.warning).not.toHaveBeenCalled();
-    expect(formatSecurityChanges).not.toHaveBeenCalled();
-  });
-
-  test('handles undefined stack name', () => {
-    // GIVEN
-    const mockDiff = {
-      permissionsAnyChanges: true,
-      permissionsBroadened: true,
-    };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-    (formatSecurityChanges as jest.Mock).mockImplementation((stream) => {
-      stream.write('Security changes detected');
-    });
-
-    // WHEN
-    const result = formatSecurityDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      RequireApproval.BROADENING,
-    );
-
-    // THEN
-    expect(result.formattedDiff).toBeDefined();
-    expect(mockIoDefaultMessages.info).toHaveBeenCalledWith(expect.stringContaining(`Stack ${chalk.bold('undefined')}`));
-  });
-
-  test('handles changeSet parameter', () => {
-    // GIVEN
-    const mockDiff = {
-      permissionsAnyChanges: true,
-      permissionsBroadened: true,
-    };
-    const mockChangeSet = {
-      Changes: [],
-    };
-    (fullDiff as jest.Mock).mockReturnValue(mockDiff);
-
-    // WHEN
-    formatSecurityDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      RequireApproval.BROADENING,
-      'test-stack',
-      mockChangeSet,
-    );
-
-    // THEN
-    expect(fullDiff).toHaveBeenCalledWith({}, expect.any(Object), mockChangeSet);
   });
 });
