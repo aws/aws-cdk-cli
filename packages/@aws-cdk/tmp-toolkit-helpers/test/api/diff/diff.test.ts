@@ -98,7 +98,7 @@ describe('formatStackDiff', () => {
     expect(sanitizedDiff).toBe(
       'Stack test-stack\n' +
       'Resources\n' +
-      '[+] AWS::Lambda::Function Func'
+      '[+] AWS::Lambda::Function Func',
     );
   });
 
@@ -170,10 +170,10 @@ describe('formatSecurityDiff', () => {
                 Statement: [{
                   Effect: 'Allow',
                   Principal: {
-                    Service: 'lambda.amazonaws.com'
+                    Service: 'lambda.amazonaws.com',
                   },
-                  Action: 'sts:AssumeRole'
-                }]
+                  Action: 'sts:AssumeRole',
+                }],
               },
               ManagedPolicyArns: [
                 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
@@ -234,7 +234,7 @@ describe('formatSecurityDiff', () => {
       '├───┼──────────┼──────────────────────────────────────────────────────────────────┤\n' +
       '│ + │ ${Role}  │ arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole │\n' +
       '└───┴──────────┴──────────────────────────────────────────────────────────────────┘\n' +
-      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)'
+      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)',
     );
   });
 
@@ -267,7 +267,7 @@ describe('formatSecurityDiff', () => {
       '├───┼──────────┼──────────────────────────────────────────────────────────────────┤\n' +
       '│ + │ ${Role}  │ arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole │\n' +
       '└───┴──────────┴──────────────────────────────────────────────────────────────────┘\n' +
-      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)'
+      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)',
     );
   });
 
