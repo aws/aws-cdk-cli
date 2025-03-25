@@ -1,9 +1,9 @@
-import { RequireApproval } from '../../../src/api/require-approval';
+import { fullDiff, formatSecurityChanges, formatDifferences, mangleLikeCloudFormation } from '@aws-cdk/cloudformation-diff';
+import type * as cxapi from '@aws-cdk/cx-api';
+import * as chalk from 'chalk';
 import { formatSecurityDiff, formatStackDiff } from '../../../src/api/diff/diff';
 import { IoHelper, IoDefaultMessages } from '../../../src/api/io/private';
-import type * as cxapi from '@aws-cdk/cx-api';
-import { fullDiff, formatSecurityChanges, formatDifferences, mangleLikeCloudFormation } from '@aws-cdk/cloudformation-diff';
-import * as chalk from 'chalk';
+import { RequireApproval } from '../../../src/api/require-approval';
 
 jest.mock('@aws-cdk/cloudformation-diff', () => ({
   fullDiff: jest.fn(),
@@ -24,7 +24,7 @@ describe('formatStackDiff', () => {
   beforeEach(() => {
     const mockNotify = jest.fn().mockResolvedValue(undefined);
     const mockRequestResponse = jest.fn().mockResolvedValue(undefined);
-    
+
     mockIoHelper = IoHelper.fromIoHost(
       { notify: mockNotify, requestResponse: mockRequestResponse },
       'diff',
@@ -38,7 +38,7 @@ describe('formatStackDiff', () => {
 
     jest.spyOn(mockIoHelper, 'notify').mockImplementation(() => Promise.resolve());
     jest.spyOn(mockIoHelper, 'requestResponse').mockImplementation(() => Promise.resolve());
-    
+
     (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
 
     mockNewTemplate = {
@@ -52,7 +52,9 @@ describe('formatStackDiff', () => {
     (formatDifferences as jest.Mock).mockImplementation((stream) => {
       stream.write('Changes detected');
     });
-    (mangleLikeCloudFormation as jest.Mock).mockImplementation((input) => { return input; });
+    (mangleLikeCloudFormation as jest.Mock).mockImplementation((input) => {
+      return input;
+    });
   });
 
   test('returns no changes when templates are identical', () => {
@@ -104,7 +106,7 @@ describe('formatStackDiff', () => {
     const mockDiff = { isEmpty: false, differenceCount: 1 };
     (fullDiff as jest.Mock).mockReturnValue(mockDiff);
     const nestedStackTemplates = {
-      'NestedStack1': {
+      NestedStack1: {
         deployedTemplate: {},
         generatedTemplate: {},
         physicalName: 'nested-stack-1',
@@ -141,10 +143,10 @@ describe('formatSecurityDiff', () => {
   beforeEach(() => {
     const mockNotify = jest.fn().mockResolvedValue(undefined);
     const mockRequestResponse = jest.fn().mockResolvedValue(undefined);
-    
+
     mockIoHelper = IoHelper.fromIoHost(
       { notify: mockNotify, requestResponse: mockRequestResponse },
-      'diff'
+      'diff',
     );
 
     mockIoDefaultMessages = {
@@ -155,7 +157,7 @@ describe('formatSecurityDiff', () => {
 
     jest.spyOn(mockIoHelper, 'notify').mockImplementation(() => Promise.resolve());
     jest.spyOn(mockIoHelper, 'requestResponse').mockImplementation(() => Promise.resolve());
-    
+
     // Mock IoDefaultMessages constructor to return our mock instance
     (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
 
