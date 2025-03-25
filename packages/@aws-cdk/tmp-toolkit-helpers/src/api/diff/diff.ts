@@ -1,4 +1,5 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import { format } from 'node:util';
+import { Writable } from 'stream';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
   type DescribeChangeSetOutput,
@@ -8,14 +9,14 @@ import {
   formatDifferences,
   mangleLikeCloudFormation,
 } from '@aws-cdk/cloudformation-diff';
+import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { format } from 'node:util';
-import { Writable } from 'stream';
 
 import { RequireApproval } from '../../api/require-approval';
 import { ToolkitError } from '../../api/toolkit-error';
-import { NestedStackTemplates } from '../cloudformation/nested-stack-templates';
-import { IoDefaultMessages, IoHelper } from '../io/private';
+import type { NestedStackTemplates } from '../cloudformation/nested-stack-templates';
+import type { IoHelper } from '../io/private';
+import { IoDefaultMessages } from '../io/private';
 
 /*
  * Custom writable stream that collects text into a string buffer.
@@ -219,7 +220,6 @@ export function formatStackDiff(
     formattedDiff,
   };
 }
-
 
 /**
  * Return whether the diff has security-impacting changes that need confirmation

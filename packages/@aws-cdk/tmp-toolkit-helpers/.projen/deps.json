@@ -106,7 +106,16 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cloudformation-diff",
+      "type": "runtime"
+    },
+    {
       "name": "archiver",
+      "type": "runtime"
+    },
+    {
+      "name": "chalk",
+      "version": "4",
       "type": "runtime"
     },
     {

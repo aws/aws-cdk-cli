@@ -1,3 +1,5 @@
+import { Template } from "./stack-helpers";
+
 export interface NestedStackTemplates {
   readonly physicalName: string | undefined;
   readonly deployedTemplate: Template;
@@ -5,16 +7,4 @@ export interface NestedStackTemplates {
   readonly nestedStackTemplates: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
-}
-
-export interface Template {
-  Parameters?: Record<string, TemplateParameter>;
-  [section: string]: any;
-}
-
-export interface TemplateParameter {
-  Type: string;
-  Default?: any;
-  Description?: string;
-  [key: string]: any;
 }
