@@ -376,6 +376,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             changeSet,
           );
           fullDiff = securityDiff.fullDiff;
+          console.log('formattedDiff', JSON.stringify(securityDiff.fullDiff));
           if (securityDiff.formattedDiff) {
             await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
             diffs += 1;
