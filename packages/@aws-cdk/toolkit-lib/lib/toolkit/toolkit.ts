@@ -19,7 +19,7 @@ import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/aws-cdk';
+import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -285,6 +285,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       const template = deserializeStructure(file);
       if (options.securityOnly) {
         const securityDiff = formatSecurityDiff(
+          ioHelper,
           template,
           stackCollection.firstStack,
           RequireApproval.BROADENING,
@@ -295,6 +296,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         }
       } else {
         const diff = formatStackDiff(
+          ioHelper,
           template,
           stackCollection.firstStack,
           strict,
@@ -343,7 +345,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           }
 
           if (stackExists) {
-            changeSet = await createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+            changeSet = await createDiffChangeSet(ioHelper, {
               stack,
               uuid: uuid.v4(),
               deployments,
@@ -359,6 +361,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
         if (options.securityOnly) {
           const securityDiff = formatSecurityDiff(
+            ioHelper,
             currentTemplate,
             stack,
             RequireApproval.BROADENING,
@@ -371,6 +374,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           }
         } else {
           const diff = formatStackDiff(
+            ioHelper,
             currentTemplate,
             stack,
             strict,

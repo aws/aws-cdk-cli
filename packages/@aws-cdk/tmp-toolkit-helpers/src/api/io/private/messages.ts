@@ -86,7 +86,7 @@ export const IO = {
     description: 'Reason for why checking if the stack exists failed',
   }),
   CDK_TOOLKIT_I4201: make.info({
-    code: 'CDK_TOOLKIT_I4200',
+    code: 'CDK_TOOLKIT_I4201',
     description: 'Notify that checking that the stack exists has failed',
   }),
   CDK_TOOLKIT_I4300: make.debug({
