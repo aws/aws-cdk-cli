@@ -48,6 +48,11 @@ export interface FormatSecurityDiffOutput {
    * Complete formatted security diff, if it is prompt-worthy
    */
   readonly formattedDiff?: string;
+
+  /**
+   * The full diff object
+   */
+  readonly fullDiff: TemplateDiff;
 }
 
 /**
@@ -88,9 +93,11 @@ export function formatSecurityDiff(
     }
     // store the stream containing a formatted stack diff
     const formattedDiff = stream.toString();
-    return { formattedDiff };
+    return { formattedDiff, fullDiff: diff };
   }
-  return {};
+  return {
+    fullDiff: diff,
+  };
 }
 
 /**
@@ -106,6 +113,11 @@ export interface FormatStackDiffOutput {
    * Complete formatted diff
    */
   readonly formattedDiff: string;
+
+  /**
+   * The full diff object
+   */
+  readonly fullDiff: TemplateDiff,
 }
 
 /**
@@ -218,6 +230,7 @@ export function formatStackDiff(
   return {
     numStacksWithChanges,
     formattedDiff,
+    fullDiff: diff,
   };
 }
 
