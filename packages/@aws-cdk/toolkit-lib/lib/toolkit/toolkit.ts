@@ -331,9 +331,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
         let changeSet = undefined;
 
-        console.log('changeset', options.changeSet);
-
-        if (options.changeSet) {
+        if (options.changeSet ?? true) {
           let stackExists = false;
           try {
             stackExists = await deployments.stackExists({
@@ -346,8 +344,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             await ioHelper.notify(IO.CDK_TOOLKIT_I4200.msg(formatErrorMessage(e)));
             stackExists = false;
           }
-
-          console.log('stack exists', stackExists);
 
           if (stackExists) {
             changeSet = await createDiffChangeSet(ioHelper, {
@@ -364,8 +360,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           }
         }
 
-        console.log('security', options.securityOnly);
-
         if (options.securityOnly) {
           const securityDiff = formatSecurityDiff(
             ioHelper,
@@ -376,7 +370,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             changeSet,
           );
           fullDiff = securityDiff.fullDiff;
-          console.log('formattedDiff', JSON.stringify(securityDiff.fullDiff));
           if (securityDiff.formattedDiff) {
             await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
             diffs += 1;
@@ -395,7 +388,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             nestedStacks,
           );
 
-          console.log('diff', diff);
           await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff), );
           diffs += diff.numStacksWithChanges;
           fullDiff = diff.fullDiff;

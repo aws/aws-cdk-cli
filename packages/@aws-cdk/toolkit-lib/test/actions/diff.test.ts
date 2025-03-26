@@ -9,7 +9,6 @@ import * as path from 'path';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
-let mockReadCurrentTemplateWithNestedStacks: jest.SpyInstance<Promise<RootTemplateWithNestedStacks>>;
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -20,7 +19,7 @@ beforeEach(() => {
   const sdk = new MockSdk();
 
   // Some default implementations
-  mockReadCurrentTemplateWithNestedStacks = jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+  jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
       Parameters: {},
       Resources: {},
@@ -136,6 +135,34 @@ describe('diff', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I4402',
       message: expect.stringContaining('Number of differences: 0'),
+    }));
+  });
+
+  test('changeSet off', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      changeSet: false,
+    });
+
+    // THEN
+    expect(result).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyBucketF68F3FF0: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
+              Type: 'AWS::S3::Bucket',
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          }),
+        }),
+      },
     }));
   });
 

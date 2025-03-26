@@ -240,7 +240,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       role: executionRoleArn,
     });
   } catch (e: any) {
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(e));
+    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(String(e)));
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
       'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
     ));
