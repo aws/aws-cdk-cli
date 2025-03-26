@@ -11,12 +11,22 @@ const mockSDK = new (class extends MockSdkProvider {
   }
 })();
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
+beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+});
+
 test('empty result when service details cannot be retrieved', async () => {
   // GIVEN
   mockEC2Client.on(DescribeVpcEndpointServicesCommand).resolves({});
 
   // WHEN
-  const result = await new EndpointServiceAZContextProviderPlugin(mockSDK).getValue({
+  const result = await new EndpointServiceAZContextProviderPlugin(mockSDK, mockMsg).getValue({
     serviceName: 'svc',
     account: 'foo',
     region: 'rgn',
@@ -34,7 +44,7 @@ test('returns availability zones', async () => {
   });
 
   // WHEN
-  const result = await new EndpointServiceAZContextProviderPlugin(mockSDK).getValue({
+  const result = await new EndpointServiceAZContextProviderPlugin(mockSDK, mockMsg).getValue({
     serviceName: 'svc',
     account: 'foo',
     region: 'rgn',

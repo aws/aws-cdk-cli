@@ -9,6 +9,16 @@ const mockSDK = new (class extends MockSdkProvider {
   }
 })();
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
+beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+});
+
 test('get value without private zone', async () => {
   // GIVEN
   mockRoute53Client.on(ListHostedZonesByNameCommand).resolves({
@@ -20,7 +30,7 @@ test('get value without private zone', async () => {
   });
 
   // WHEN
-  const result = await new HostedZoneContextProviderPlugin(mockSDK).getValue({
+  const result = await new HostedZoneContextProviderPlugin(mockSDK, mockMsg).getValue({
     domainName: 'example.com',
     account: '1234',
     region: 'rgn',
@@ -46,7 +56,7 @@ test('get value with private zone', async () => {
   });
 
   // WHEN
-  const result = await new HostedZoneContextProviderPlugin(mockSDK).getValue({
+  const result = await new HostedZoneContextProviderPlugin(mockSDK, mockMsg).getValue({
     domainName: 'example.com',
     account: '1234',
     region: 'rgn',
@@ -76,7 +86,7 @@ test('get value with private zone and VPC not found', async () => {
   mockRoute53Client.on(GetHostedZoneCommand).resolves({});
 
   // WHEN
-  const result = new HostedZoneContextProviderPlugin(mockSDK).getValue({
+  const result = new HostedZoneContextProviderPlugin(mockSDK, mockMsg).getValue({
     domainName: 'example.com',
     account: '1234',
     region: 'rgn',
@@ -109,7 +119,7 @@ test('get value with private zone and VPC found', async () => {
   });
 
   // WHEN
-  const result = await new HostedZoneContextProviderPlugin(mockSDK).getValue({
+  const result = await new HostedZoneContextProviderPlugin(mockSDK, mockMsg).getValue({
     domainName: 'example.com',
     account: '1234',
     region: 'rgn',

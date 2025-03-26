@@ -1,14 +1,14 @@
 import type { AmiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { debug, info } from '../logging';
 
 /**
  * Plugin to search AMIs for the current account
  */
 export class AmiContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {
+  constructor(private readonly aws: SdkProvider, private readonly io: IContextProviderMessages) {
   }
 
   public async getValue(args: AmiContextQuery) {
@@ -17,8 +17,8 @@ export class AmiContextProviderPlugin implements ContextProviderPlugin {
 
     // Normally we'd do this only as 'debug', but searching AMIs typically takes dozens
     // of seconds, so be little more verbose about it so users know what is going on.
-    info(`Searching for AMI in ${account}:${region}`);
-    debug(`AMI search parameters: ${JSON.stringify(args)}`);
+    await this.io.info(`Searching for AMI in ${account}:${region}`);
+    await this.io.debug(`AMI search parameters: ${JSON.stringify(args)}`);
 
     const ec2 = (await initContextProviderSdk(this.aws, args)).ec2();
     const response = await ec2.describeImages({
@@ -40,7 +40,7 @@ export class AmiContextProviderPlugin implements ContextProviderPlugin {
     // but since we only care about the relative values that is okay.
     images.sort(descending((i) => Date.parse(i.CreationDate || '1970')));
 
-    debug(`Selected image '${images[0].ImageId}' created at '${images[0].CreationDate}'`);
+    await this.io.debug(`Selected image '${images[0].ImageId}' created at '${images[0].CreationDate}'`);
     return images[0].ImageId!;
   }
 }
