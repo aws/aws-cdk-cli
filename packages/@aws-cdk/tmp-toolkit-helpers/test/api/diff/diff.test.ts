@@ -1,7 +1,6 @@
-import { fullDiff, formatSecurityChanges, formatDifferences, mangleLikeCloudFormation } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { formatSecurityDiff, formatStackDiff } from '../../../src/api/diff/diff';
+import { DiffFormatter } from '../../../src/api/diff/diff-formater';
 import { IoHelper, IoDefaultMessages } from '../../../src/api/io/private';
 import { RequireApproval } from '../../../src/api/require-approval';
 
@@ -58,20 +57,22 @@ describe('formatStackDiff', () => {
 
   test('returns no changes when templates are identical', () => {
     // WHEN
-    const result = formatStackDiff(
-      mockIoHelper,
-      {},
-      {
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: {
         template: {},
         templateFile: 'template.json',
         stackName: 'test-stack',
         findMetadataByType: () => [],
       } as any,
-      false,
-      3,
-      false,
-      'test-stack',
-    );
+    });
+    const result = formatter.formatStackDiff({
+      strict: false,
+      context: 3,
+      quiet: false,
+      stackName: 'test-stack',
+    });
 
     // THEN
     expect(result.numStacksWithChanges).toBe(0);
@@ -81,15 +82,14 @@ describe('formatStackDiff', () => {
 
   test('formats differences when changes exist', () => {
     // WHEN
-    const result = formatStackDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      false,
-      3,
-      false,
-      'test-stack',
-    );
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    });
+    const result = formatter.formatStackDiff({
+      stackName: 'test-stack',
+    });
 
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
@@ -103,6 +103,7 @@ describe('formatStackDiff', () => {
   });
 
   test('handles nested stack templates', () => {
+    // GIVEN
     const nestedStackTemplates = {
       NestedStack1: {
         deployedTemplate: {},
@@ -113,18 +114,15 @@ describe('formatStackDiff', () => {
     };
 
     // WHEN
-    const result = formatStackDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      false,
-      3,
-      false,
-      'test-stack',
-      undefined,
-      false,
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    });
+    const result = formatter.formatStackDiff({
+      stackName: 'test-stack',
       nestedStackTemplates,
-    );
+    });
 
     // THEN
     expect(result.numStacksWithChanges).toBe(2);
@@ -190,18 +188,20 @@ describe('formatSecurityDiff', () => {
 
   test('returns empty object when no security changes exist', () => {
     // WHEN
-    const result = formatSecurityDiff(
-      mockIoHelper,
-      {},
-      {
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: {
         template: {},
         templateFile: 'template.json',
         stackName: 'test-stack',
         findMetadataByType: () => [],
       } as any,
-      RequireApproval.BROADENING,
-      'test-stack',
-    );
+    });
+    const result = formatter.formatSecurityDiff({
+      stackName: 'test-stack',
+      requireApproval: RequireApproval.BROADENING,
+    });
 
     // THEN
     expect(result).toEqual({});
@@ -210,13 +210,15 @@ describe('formatSecurityDiff', () => {
 
   test('formats diff when permissions are broadened and approval level is BROADENING', () => {
     // WHEN
-    const result = formatSecurityDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      RequireApproval.BROADENING,
-      'test-stack',
-    );
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    });
+    const result = formatter.formatSecurityDiff({
+      stackName: 'test-stack',
+      requireApproval: RequireApproval.BROADENING,
+    });
 
     // THEN
     expect(result.formattedDiff).toBeDefined();
@@ -240,13 +242,15 @@ describe('formatSecurityDiff', () => {
 
   test('formats diff for any security change when approval level is ANY_CHANGE', () => {
     // WHEN
-    const result = formatSecurityDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      RequireApproval.ANY_CHANGE,
-      'test-stack',
-    );
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    });
+    const result = formatter.formatSecurityDiff({
+      stackName: 'test-stack',
+      requireApproval: RequireApproval.ANY_CHANGE,
+    });
 
     // THEN
     expect(result.formattedDiff).toBeDefined();
@@ -273,13 +277,15 @@ describe('formatSecurityDiff', () => {
 
   test('returns empty object when approval level is NEVER', () => {
     // WHEN
-    const result = formatSecurityDiff(
-      mockIoHelper,
-      {},
-      mockNewTemplate,
-      RequireApproval.NEVER,
-      'test-stack',
-    );
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    });
+    const result = formatter.formatSecurityDiff({
+      stackName: 'test-stack',
+      requireApproval: RequireApproval.NEVER,
+    });
 
     // THEN
     expect(result).toEqual({});
