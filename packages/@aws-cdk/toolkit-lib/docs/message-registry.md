@@ -20,10 +20,9 @@ group: Documents
 | `CDK_TOOLKIT_I4200` | Reason for why checking if the stack exists failed | `debug` | n/a |
 | `CDK_TOOLKIT_I4201` | Notify that checking that the stack exists has failed | `info` | n/a |
 | `CDK_TOOLKIT_I4300` | Reason for skipping changeset creation | `debug` | n/a |
-| `CDK_TOOLKIT_I4400` | Security diff | `debug` | n/a |
-| `CDK_TOOLKIT_I4401` | Stack diff | `debug` | n/a |
-| `CDK_TOOLKIT_I4402` | Number of stacks with a diff | `debug` | n/a |
-| `CDK_TOOLKIT_I4600` | Provides the number of stacks with diffs | `info` | n/a |
+| `CDK_TOOLKIT_I4400` | Security diff | `info` | n/a |
+| `CDK_TOOLKIT_I4401` | Stack diff | `info` | n/a |
+| `CDK_TOOLKIT_I4402` | Number of stacks with a diff | `info` | n/a |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5001` | Provides total time in deploy action, including synth and rollback | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |

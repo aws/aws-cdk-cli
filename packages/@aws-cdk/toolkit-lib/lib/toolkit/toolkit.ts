@@ -34,6 +34,7 @@ import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, f
 import { pLimit } from '../util/concurrency';
 import { DiffOptions } from '../actions/diff';
 import { removeNonImportResources } from '../../../../aws-cdk/lib/api/resource-import'; // TODO: move this to a sharable place
+import { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 
 export interface ToolkitOptions {
   /**
@@ -255,7 +256,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<number> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<TemplateDiff> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const assembly = await assemblyFromSource(cx);
     const selectStacks = options.stacks ?? ALL_STACKS;
@@ -267,6 +268,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
+    let fullDiff;
     const parameterMap = buildParameterMap(options.parameters?.parameters);
 
     if (options.templatePath !== undefined) {
@@ -290,6 +292,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stackCollection.firstStack,
           RequireApproval.BROADENING,
         );
+        fullDiff = securityDiff.fullDiff;
         if (securityDiff.formattedDiff) {
           await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
           diffs += 1;
@@ -307,6 +310,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           false,
         );
         diffs = diff.numStacksWithChanges;
+        fullDiff = diff.fullDiff;
         await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff));
       }
     } else {
@@ -319,16 +323,15 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
 
-        const migrator = new ResourceMigrator({
-          deployments,
-          ioHelper: asIoHelper(this.ioHost, 'diff'),
-        });
+        const migrator = new ResourceMigrator({ deployments, ioHelper });
         const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
         if (resourcesToImport) {
           removeNonImportResources(stack);
         }
 
         let changeSet = undefined;
+
+        console.log('changeset', options.changeSet);
 
         if (options.changeSet) {
           let stackExists = false;
@@ -339,10 +342,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               tryLookupRole: true,
             });
           } catch (e: any) {
-            ioHelper.notify(IO.CDK_TOOLKIT_I4201.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
-            ioHelper.notify(IO.CDK_TOOLKIT_I4200.msg(formatErrorMessage(e)));
+            await ioHelper.notify(IO.CDK_TOOLKIT_I4201.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
+            await ioHelper.notify(IO.CDK_TOOLKIT_I4200.msg(formatErrorMessage(e)));
             stackExists = false;
           }
+
+          console.log('stack exists', stackExists);
 
           if (stackExists) {
             changeSet = await createDiffChangeSet(ioHelper, {
@@ -355,9 +360,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               resourcesToImport,
             });
           } else {
-            ioHelper.notify(IO.CDK_TOOLKIT_I4300.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
+            await ioHelper.notify(IO.CDK_TOOLKIT_I4300.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
           }
         }
+
+        console.log('security', options.securityOnly);
 
         if (options.securityOnly) {
           const securityDiff = formatSecurityDiff(
@@ -368,6 +375,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             stack.displayName,
             changeSet,
           );
+          fullDiff = securityDiff.fullDiff;
           if (securityDiff.formattedDiff) {
             await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
             diffs += 1;
@@ -385,14 +393,22 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             !!resourcesToImport,
             nestedStacks,
           );
-          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff));
+
+          console.log('diff', diff);
+          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff), );
           diffs += diff.numStacksWithChanges;
+          fullDiff = diff.fullDiff;
         }
       }
     }
-    ioHelper.notify(IO.CDK_TOOLKIT_I4600.msg(`Number of differences: ${diffs}`));
+    await ioHelper.notify(IO.CDK_TOOLKIT_I4402.msg(`Number of differences: ${diffs}`));
 
-    return diffs ? 1 : 0;
+    // Shouldn't happen but just in case
+    if (!fullDiff) {
+      throw new ToolkitError('Unexpected error: no diff found');
+    }
+
+    return fullDiff;
   }
 
   /**

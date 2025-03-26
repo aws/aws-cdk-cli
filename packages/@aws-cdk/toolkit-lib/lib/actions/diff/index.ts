@@ -92,7 +92,7 @@ export interface DiffOptions {
    *
    * @default DiffMethod.ChangeSet
    */
-  readonly method: DiffMethod;
+  readonly method?: DiffMethod;
 
   /**
    * Strict diff mode
