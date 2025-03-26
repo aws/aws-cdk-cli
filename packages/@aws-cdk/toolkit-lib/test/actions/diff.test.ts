@@ -22,13 +22,7 @@ beforeEach(() => {
   mockReadCurrentTemplateWithNestedStacks = jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
       Parameters: {},
-      Resources: {
-        MyBucketF68F3FF0: {
-          Type: 'AWS::S3::Bucket',
-          UpdateReplacePolicy: 'Retain',
-          DeletionPolicy: 'Retain',
-        },
-      },
+      Resources: {},
     },
     nestedStacks: [] as any,
   });
@@ -41,11 +35,11 @@ beforeEach(() => {
 });
 
 describe('diff', () => {
-  test('sends regular diff to IoHost', async () => {
+  test('sends diff to IoHost', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
     await toolkit.diff(cx, {
-      stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
     // THEN
@@ -60,15 +54,15 @@ describe('diff', () => {
       action: 'diff',
       level: 'info',
       code: 'CDK_TOOLKIT_I4401',
-      // message: expect.stringContaining(`${chalk.red('Stack')}${chalk.red(chalk.bold(' Stack1'))}`),
+      message: expect.stringContaining((chalk.bold('Stack1'))),
     }));
   });
 
-  test('returns regular diff', async () => {
+  test('returns diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
-      stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
     // THEN
@@ -76,17 +70,71 @@ describe('diff', () => {
       resources: {
         diffs: expect.objectContaining({
           MyBucketF68F3FF0: expect.objectContaining({
-            isAddition: false,
-            isRemoval: true,
-            newValue: undefined,
-            oldValue: {
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
               Type: 'AWS::S3::Bucket',
               UpdateReplacePolicy: 'Retain',
               DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
             },
           }),
         }),
       },
+    }));
+  });
+
+  test('only security diff', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const result = await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
+      securityOnly: true,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'warn',
+      code: 'CDK_TOOLKIT_W0000',
+      message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level (--require-approval broadening)'),
+    }));
+    expect(result).toMatchObject(expect.objectContaining({
+      iamChanges: expect.objectContaining({
+        statements: expect.objectContaining({
+          additions: [expect.objectContaining({
+            actions: expect.objectContaining({
+              not: false,
+              values: ['sts:AssumeRole'],
+            }),
+            condition: undefined,
+            effect: 'Allow',
+            principals: expect.objectContaining({
+              not: false,
+              values: ['AWS:arn'],
+            }),
+          })],
+          removals: [],
+        }),
+      }),
+    }));
+  });
+
+  test('no security diff', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      securityOnly: true,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'info',
+      code: 'CDK_TOOLKIT_I4402',
+      message: expect.stringContaining('Number of differences: 0'),
     }));
   });
 
