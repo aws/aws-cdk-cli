@@ -277,7 +277,10 @@
           "builtin": "release/reset-version"
         },
         {
-          "spawn": "gather-versions"
+          "spawn": "gather-versions",
+          "env": {
+            "RESET_VERSIONS": "true"
+          }
         }
       ]
     },
