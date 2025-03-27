@@ -260,7 +260,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const assembly = await assemblyFromSource(cx);
     const selectStacks = options.stacks ?? ALL_STACKS;
-    const stackCollection = assembly.selectStacksV2(selectStacks);
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    const stacks = assembly.selectStacksV2(selectStacks);
+    await synthSpan.end();
 
     const deployments = await this.deploymentsForAction('diff');
 
@@ -270,11 +272,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     let diffs = 0;
     let fullDiff;
-    // const parameterMap = buildParameterMap(options.parameters?.parameters);
 
     if (diffMethod.method === 'local-file') {
       // Compare single stack against fixed template
-      if (stackCollection.stackCount !== 1) {
+      if (stacks.stackCount !== 1) {
         throw new ToolkitError(
           'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
         );
@@ -290,7 +291,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         const securityDiff = formatSecurityDiff(
           ioHelper,
           template,
-          stackCollection.firstStack,
+          stacks.firstStack,
           RequireApproval.BROADENING,
         );
         fullDiff = securityDiff.fullDiff;
@@ -302,7 +303,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         const diff = formatStackDiff(
           ioHelper,
           template,
-          stackCollection.firstStack,
+          stacks.firstStack,
           strict,
           contextLines,
           false,
@@ -316,7 +317,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       }
     } else {
       // Compare N stacks against deployed templates
-      for (const stack of stackCollection.stackArtifacts) {
+      for (const stack of stacks.stackArtifacts) {
         const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
           stack,
           diffMethod.options.compareAgainstProcessedTemplate,
