@@ -1,4 +1,3 @@
-/* eslint-disable import/order */
 jest.mock('child_process');
 import bockfs from '../../_helpers/bockfs';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
@@ -13,12 +12,16 @@ import { mockSpawn } from '../../util/mock-child_process';
 import { MockSdkProvider } from '../../util/mock-sdk';
 import { RWLock } from '../../../lib/api/util/rwlock';
 import { rewriteManifestVersion } from './assembly-versions';
-import { CliIoHost } from '../../../lib/cli/io-host';
+import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 let sdkProvider: MockSdkProvider;
 let config: Configuration;
+const ioHost = new TestIoHost();
+const ioHelper = asIoHelper(ioHost, 'synth');
+
 beforeEach(() => {
-  CliIoHost.instance().logLevel = 'debug';
+  ioHost.notifySpy.mockClear();
+  ioHost.requestSpy.mockClear();
 
   sdkProvider = new MockSdkProvider();
   config = new Configuration();
@@ -37,8 +40,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  CliIoHost.instance().logLevel = 'info';
-
   sinon.restore();
   bockfs.restore();
 });
@@ -84,7 +85,7 @@ test('cli throws when manifest version > schema version', async () => {
 
   config.settings.set(['app'], 'cdk.out');
 
-  await expect(execProgram(sdkProvider, config)).rejects.toEqual(new Error(expectedError));
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new Error(expectedError));
 
 }, TEN_SECOND_TIMEOUT);
 
@@ -97,7 +98,7 @@ test('cli does not throw when manifest version = schema version', async () => {
 
   config.settings.set(['app'], 'cdk.out');
 
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 
 }, TEN_SECOND_TIMEOUT);
@@ -124,7 +125,7 @@ test.skip('cli does not throw when manifest version < schema version', async () 
   // greater that the version created in the manifest, which is what we are testing for.
   const mockVersionNumber = ImportMock.mockFunction(cxschema.Manifest, 'version', semver.inc(currentSchemaVersion, 'major'));
   try {
-    const { lock } = await execProgram(sdkProvider, config);
+    const { lock } = await execProgram(sdkProvider, ioHelper, config);
     await lock.release();
   } finally {
     mockVersionNumber.restore();
@@ -134,7 +135,7 @@ test.skip('cli does not throw when manifest version < schema version', async () 
 
 test('validates --app key is present', async () => {
   // GIVEN no config key for `app`
-  await expect(execProgram(sdkProvider, config)).rejects.toThrow(
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toThrow(
     '--app is required either in command-line, in cdk.json or in ~/.cdk.json',
   );
 
@@ -147,7 +148,7 @@ test('bypasses synth when app points to a cloud assembly', async () => {
   rewriteManifestVersionToOurs();
 
   // WHEN
-  const { assembly: cloudAssembly, lock } = await execProgram(sdkProvider, config);
+  const { assembly: cloudAssembly, lock } = await execProgram(sdkProvider, ioHelper, config);
   expect(cloudAssembly.artifacts).toEqual([]);
   expect(cloudAssembly.directory).toEqual('cdk.out');
 
@@ -163,7 +164,7 @@ test('the application set in --app is executed', async () => {
   });
 
   // WHEN
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 });
 
@@ -176,7 +177,7 @@ test('the application set in --app is executed as-is if it contains a filename t
   });
 
   // WHEN
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 });
 
@@ -189,7 +190,7 @@ test('the application set in --app is executed with arguments', async () => {
   });
 
   // WHEN
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 });
 
@@ -203,7 +204,7 @@ test('application set in --app as `*.js` always uses handler on windows', async 
   });
 
   // WHEN
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 });
 
@@ -216,7 +217,7 @@ test('application set in --app is `*.js` and executable', async () => {
   });
 
   // WHEN
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 });
 
@@ -229,7 +230,7 @@ test('cli throws when the `build` script fails', async () => {
   });
 
   // WHEN
-  await expect(execProgram(sdkProvider, config)).rejects.toEqual(new Error('Subprocess exited with error 127'));
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new Error('Subprocess exited with error 127'));
 }, TEN_SECOND_TIMEOUT);
 
 test('cli does not throw when the `build` script succeeds', async () => {
@@ -246,7 +247,7 @@ test('cli does not throw when the `build` script succeeds', async () => {
   });
 
   // WHEN
-  const { lock } = await execProgram(sdkProvider, config);
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
 }, TEN_SECOND_TIMEOUT);
 
@@ -259,7 +260,7 @@ test('cli releases the outdir lock when execProgram throws', async () => {
   });
 
   // WHEN
-  await expect(execProgram(sdkProvider, config)).rejects.toThrow();
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toThrow();
 
   const output = config.settings.get(['output']);
   expect(output).toBeDefined();

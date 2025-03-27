@@ -4,7 +4,7 @@ import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource 
 import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { ContextAwareCloudAssembly } from './context-aware-source';
 import { execInChildProcess } from './exec';
-import { assemblyFromDirectory, changeDir, determineOutputDirectory, guessExecutable, prepareDefaultEnvironment, withContext, withEnv } from './prepare-source';
+import { ExecutionEnviornment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
 import type { ILock } from '../../aws-cdk';
 import { Context, RWLock, Settings } from '../../aws-cdk';
@@ -40,14 +40,14 @@ export abstract class CloudAssemblySourceBuilder {
     return new ContextAwareCloudAssembly(
       {
         produce: async () => {
-          const outdir = determineOutputDirectory(props.outdir);
-          const env = await prepareDefaultEnvironment(services, { outdir });
-          const assembly = await changeDir(async () =>
-            withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
-              withEnv(envWithContext, () => {
+          const x = new ExecutionEnviornment(services, { outdir: props.outdir });
+          const env = await x.defaultEnvVars();
+          const assembly = await x.changeDir(async () =>
+            x.withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
+              x.withEnv(envWithContext, () => {
                 try {
                   return builder({
-                    outdir,
+                    outdir: x.outdir,
                     context: ctx,
                   });
                 } catch (error: unknown) {
@@ -122,9 +122,7 @@ export abstract class CloudAssemblySourceBuilder {
             //   await execInChildProcess(build, { cwd: props.workingDirectory });
             // }
 
-            const commandLine = await guessExecutable(app);
             const outdir = props.outdir ?? 'cdk.out';
-
             try {
               fs.mkdirpSync(outdir);
             } catch (e: any) {
@@ -133,8 +131,10 @@ export abstract class CloudAssemblySourceBuilder {
 
             lock = await new RWLock(outdir).acquireWrite();
 
-            const env = await prepareDefaultEnvironment(services, { outdir });
-            return await withContext(context.all, env, props.synthOptions, async (envWithContext, _ctx) => {
+            const x = new ExecutionEnviornment(services, { outdir });
+            const commandLine = await x.guessExecutable(app);
+            const env = await x.defaultEnvVars();
+            return await x.withContext(context.all, env, props.synthOptions, async (envWithContext, _ctx) => {
               await execInChildProcess(commandLine.join(' '), {
                 eventPublisher: async (type, line) => {
                   switch (type) {

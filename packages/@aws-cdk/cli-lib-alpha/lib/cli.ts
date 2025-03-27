@@ -1,9 +1,10 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import type { SharedOptions, DeployOptions, DestroyOptions, BootstrapOptions, SynthOptions, ListOptions } from './commands';
 import { StackActivityProgress, HotswapMode } from './commands';
 import { exec as runCli } from '../../../aws-cdk/lib';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { createAssembly, prepareContext, prepareDefaultEnvironment } from '../../../aws-cdk/lib/api/cxapp/exec';
+import { debug } from '../../../aws-cdk/lib/legacy-exports';
+
+const debugFn = async (msg: string) => void debug(msg);
 
 /**
  * AWS CDK CLI operations
@@ -123,8 +124,8 @@ export class AwsCdkCli implements IAwsCdkCli {
   public static fromCloudAssemblyDirectoryProducer(producer: ICloudAssemblyDirectoryProducer) {
     return new AwsCdkCli(async (args) => changeDir(
       () => runCli(args, async (sdk, config) => {
-        const env = await prepareDefaultEnvironment(sdk);
-        const context = await prepareContext(config.settings, config.context.all, env);
+        const env = await prepareDefaultEnvironment(sdk, debugFn);
+        const context = await prepareContext(config.settings, config.context.all, env, debugFn);
 
         return withEnv(async() => createAssembly(await producer.produce(context)), env);
       }),

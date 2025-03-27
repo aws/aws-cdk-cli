@@ -383,6 +383,14 @@ export const IO = {
     code: 'CDK_ASSEMBLY_I0000',
     description: 'Default debug messages emitted from Cloud Assembly operations',
   }),
+  DEFAULT_ASSEMBLY_INFO: make.info({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default info messages emitted from Cloud Assembly operations',
+  }),
+  DEFAULT_ASSEMBLY_WARN: make.warn({
+    code: 'CDK_ASSEMBLY_W0000',
+    description: 'Default warning messages emitted from Cloud Assembly operations',
+  }),
 
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',

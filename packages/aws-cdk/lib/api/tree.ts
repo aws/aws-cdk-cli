@@ -36,13 +36,13 @@ export function some(node: ConstructTreeNode | undefined, predicate: (n: Constru
   }
 }
 
-export function loadTree(assembly: CloudAssembly, trace: (msg: string) => void): ConstructTreeNode | undefined {
+export async function loadTree(assembly: CloudAssembly, trace: (msg: string) => Promise<void>): Promise<ConstructTreeNode | undefined > {
   try {
     const outdir = assembly.directory;
     const fileName = assembly.tree()?.file;
-    return fileName ? fs.readJSONSync(path.join(outdir, fileName)).tree : {};
+    return fileName ? fs.readJSONSync(path.join(outdir, fileName)).tree : ({} as ConstructTreeNode);
   } catch (e) {
-    trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
+    await trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
     return undefined;
   }
 }

@@ -1,9 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { CloudAssembly } from './cloud-assembly';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { Configuration } from '../../cli/user-configuration';
 import * as contextproviders from '../../context-providers';
-import { debug } from '../../logging';
 import type { SdkProvider } from '../aws-auth';
 
 /**
@@ -21,6 +21,11 @@ export interface CloudExecutableProps {
    * AWS object (used by synthesizer and contextprovider)
    */
   sdkProvider: SdkProvider;
+
+  /**
+   * Messaging helper
+   */
+  ioHelper: IoHelper;
 
   /**
    * Callback invoked to synthesize the actual stacks
@@ -79,19 +84,20 @@ export class CloudExecutable {
 
         let tryLookup = true;
         if (previouslyMissingKeys && setsEqual(missingKeys, previouslyMissingKeys)) {
-          debug('Not making progress trying to resolve environmental context. Giving up.');
+          await this.props.ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg('Not making progress trying to resolve environmental context. Giving up.'));
           tryLookup = false;
         }
 
         previouslyMissingKeys = missingKeys;
 
         if (tryLookup) {
-          debug('Some context information is missing. Fetching...');
+          await this.props.ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg('Some context information is missing. Fetching...'));
 
           await contextproviders.provideContextValues(
             assembly.manifest.missing,
             this.props.configuration.context,
             this.props.sdkProvider,
+            this.props.ioHelper,
           );
 
           // Cache the new context to disk
@@ -102,7 +108,7 @@ export class CloudExecutable {
         }
       }
 
-      return new CloudAssembly(assembly);
+      return new CloudAssembly(assembly, this.props.ioHelper);
     }
   }
 

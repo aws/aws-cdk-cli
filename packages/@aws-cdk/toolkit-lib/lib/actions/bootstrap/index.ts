@@ -1,8 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { environmentsFromDescriptors } from './private';
 import type { Tag } from '../../api/aws-cdk';
-import type { ICloudAssemblySource } from '../../api/cloud-assembly';
+import type { ICloudAssemblySource, IIoHost } from '../../api/cloud-assembly';
 import { ALL_STACKS } from '../../api/cloud-assembly/private';
+import { asIoHelper } from '../../api/shared-private';
 import { assemblyFromSource } from '../../toolkit/private';
 
 /**
@@ -21,21 +22,28 @@ export class BootstrapEnvironments {
    * Create from a cloud assembly source
    */
   static fromCloudAssemblySource(cx: ICloudAssemblySource): BootstrapEnvironments {
-    return new BootstrapEnvironments(async () => {
-      const assembly = await assemblyFromSource(cx);
-      const stackCollection = assembly.selectStacksV2(ALL_STACKS);
+    return new BootstrapEnvironments(async (ioHost: IIoHost) => {
+      const ioHelper = asIoHelper(ioHost, 'bootstrap');
+      const assembly = await assemblyFromSource(ioHelper, cx);
+      const stackCollection = await assembly.selectStacksV2(ALL_STACKS);
       return stackCollection.stackArtifacts.map(stack => stack.environment);
     });
   }
 
-  private constructor(private readonly envProvider: cxapi.Environment[] | (() => Promise<cxapi.Environment[]>)) {
+  private constructor(private readonly envProvider: cxapi.Environment[] | ((ioHost: IIoHost) => Promise<cxapi.Environment[]>)) {
+
   }
 
-  async getEnvironments(): Promise<cxapi.Environment[]> {
+  /**
+   * Compute the bootstrap enviornments
+   *
+   * @internal
+   */
+  async getEnvironments(ioHost: IIoHost): Promise<cxapi.Environment[]> {
     if (Array.isArray(this.envProvider)) {
       return this.envProvider;
     }
-    return this.envProvider();
+    return this.envProvider(ioHost);
   }
 }
 
