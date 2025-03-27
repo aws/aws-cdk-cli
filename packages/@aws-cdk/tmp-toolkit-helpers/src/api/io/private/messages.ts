@@ -12,7 +12,7 @@ import type { StackRollbackProgress } from '../payloads/rollback';
 import type { SdkTrace } from '../payloads/sdk-trace';
 import type { StackActivity, StackMonitoringControlEvent } from '../payloads/stack-activity';
 import type { StackSelectionDetails } from '../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
+import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
 
 /**
@@ -375,6 +375,15 @@ export const IO = {
   }),
 
   // Assembly codes
+  DEFAULT_ASSEMBLY_TRACE: make.trace({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default trace messages emitted from Cloud Assembly operations',
+  }),
+  DEFAULT_ASSEMBLY_DEBUG: make.debug({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default debug messages emitted from Cloud Assembly operations',
+  }),
+
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
     description: 'Generic environment preparation debug messages',
@@ -423,6 +432,17 @@ export const IO = {
   CDK_ASSEMBLY_I0150: make.debug<never>({
     code: 'CDK_ASSEMBLY_I0150',
     description: 'Indicates the use of a pre-synthesized cloud assembly directory',
+  }),
+
+  CDK_ASSEMBLY_I0300: make.info<ContextProviderMessageSource>({
+    code: 'CDK_ASSEMBLY_I0300',
+    description: 'An info message emitted by a Context Provider',
+    interface: 'ContextProviderMessageSource',
+  }),
+  CDK_ASSEMBLY_I0301: make.debug<ContextProviderMessageSource>({
+    code: 'CDK_ASSEMBLY_I0301',
+    description: 'A debug message emitted by a Context Provider',
+    interface: 'ContextProviderMessageSource',
   }),
 
   // Assembly Annotations

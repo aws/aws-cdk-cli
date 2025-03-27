@@ -73,6 +73,8 @@ group: Documents
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |
 | `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
+| `CDK_ASSEMBLY_I0000` | Default trace messages emitted from Cloud Assembly operations | `trace` | n/a |
+| `CDK_ASSEMBLY_I0000` | Default debug messages emitted from Cloud Assembly operations | `debug` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
 | `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |
@@ -84,6 +86,8 @@ group: Documents
 | `CDK_ASSEMBLY_I1003` | Cloud assembly output finished | `info` | n/a |
 | `CDK_ASSEMBLY_E1111` | Incompatible CDK CLI version. Upgrade needed. | `error` | {@link ErrorPayload} |
 | `CDK_ASSEMBLY_I0150` | Indicates the use of a pre-synthesized cloud assembly directory | `debug` | n/a |
+| `CDK_ASSEMBLY_I0300` | An info message emitted by a Context Provider | `info` | {@link ContextProviderMessageSource} |
+| `CDK_ASSEMBLY_I0301` | A debug message emitted by a Context Provider | `debug` | {@link ContextProviderMessageSource} |
 | `CDK_ASSEMBLY_I9999` | Annotations emitted by the cloud assembly | `info` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_W9999` | Warnings emitted by the cloud assembly | `warn` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_E9999` | Errors emitted by the cloud assembly | `error` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |

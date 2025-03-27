@@ -198,9 +198,10 @@ export class CdkToolkit {
 
       if (options.securityOnly) {
         const securityDiff = formatSecurityDiff(
+          asIoHelper(this.ioHost, 'diff'),
           template,
           stacks.firstStack,
-          RequireApproval.Broadening,
+          RequireApproval.BROADENING,
         );
         if (securityDiff.formattedDiff) {
           info(securityDiff.formattedDiff);
@@ -208,6 +209,7 @@ export class CdkToolkit {
         }
       } else {
         const diff = formatStackDiff(
+          asIoHelper(this.ioHost, 'diff'),
           template,
           stacks.firstStack,
           strict,
@@ -278,9 +280,10 @@ export class CdkToolkit {
 
         if (options.securityOnly) {
           const securityDiff = formatSecurityDiff(
+            asIoHelper(this.ioHost, 'diff'),
             currentTemplate,
             stack,
-            RequireApproval.Broadening,
+            RequireApproval.BROADENING,
             stack.displayName,
             changeSet,
           );
@@ -290,6 +293,7 @@ export class CdkToolkit {
           }
         } else {
           const diff = formatStackDiff(
+            asIoHelper(this.ioHost, 'diff'),
             currentTemplate,
             stack,
             strict,
@@ -345,7 +349,7 @@ export class CdkToolkit {
       ...options,
     });
 
-    const requireApproval = options.requireApproval ?? RequireApproval.Broadening;
+    const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
 
     const parameterMap = buildParameterMap(options.parameters);
 
@@ -421,9 +425,14 @@ export class CdkToolkit {
         return;
       }
 
-      if (requireApproval !== RequireApproval.Never) {
+      if (requireApproval !== RequireApproval.NEVER) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        const securityDiff = formatSecurityDiff(currentTemplate, stack, requireApproval);
+        const securityDiff = formatSecurityDiff(
+          asIoHelper(this.ioHost, 'deploy'),
+          currentTemplate,
+          stack,
+          requireApproval,
+        );
         if (securityDiff.formattedDiff) {
           info(securityDiff.formattedDiff);
           await askUserConfirmation(
@@ -1305,7 +1314,7 @@ export class CdkToolkit {
   ): Promise<void> {
     const deployOptions: DeployOptions = {
       ...options,
-      requireApproval: RequireApproval.Never,
+      requireApproval: RequireApproval.NEVER,
       // if 'watch' is called by invoking 'cdk deploy --watch',
       // we need to make sure to not call 'deploy' with 'watch' again,
       // as that would lead to a cycle

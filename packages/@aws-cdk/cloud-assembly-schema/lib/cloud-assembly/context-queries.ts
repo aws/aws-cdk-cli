@@ -365,32 +365,101 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   readonly typeName: string;
 
   /**
-   * exactIdentifier of the resource.
-   * Specifying exactIdentifier will return exact one result.
-   * Either exactIdentifier or propertyMatch should be specified.
-   * @default - None
+   * Identifier of the resource to look up using `GetResource`.
+   *
+   * Specifying exactIdentifier will return exactly one result, or throw an error
+   * unless `ignoreErrorOnMissingContext` is set.
+   *
+   * @default - Either exactIdentifier or propertyMatch should be specified.
    */
   readonly exactIdentifier?: string;
 
   /**
-   * This indicates the property to search for.
-   * To restrict the count of results to return, specify expectedMatchCount.
-   * Either exactIdentifier or propertyMatch should be specified.
-   * @default - None
+   * Returns any resources matching these properties, using `ListResources`.
+   *
+   * By default, specifying propertyMatch will successfully return 0 or more
+   * results. To throw an error if the number of results is unexpected (and
+   * prevent the query results from being committed to context), specify
+   * `expectedMatchCount`.
+   *
+   * ## Notes on property completeness
+   *
+   * CloudControl API's `ListResources` may return fewer properties than
+   * `GetResource` would, depending on the resource implementation.
+   *
+   * The resources that `propertyMatch` matches against will *only ever* be the
+   * properties returned by the `ListResources` call.
+   *
+   * @default - Either exactIdentifier or propertyMatch should be specified.
    */
   readonly propertyMatch?: Record<string, unknown>;
 
   /**
    * This is a set of properties returned from CC API that we want to return from ContextQuery.
+   *
+   * If any properties listed here are absent from the target resource, an error will be thrown.
+   *
+   * The returned object will always include the key `Identifier` with the CC-API returned
+   * field `Identifier`.
+   *
+   * ## Notes on property completeness
+   *
+   * CloudControl API's `ListResources` may return fewer properties than
+   * `GetResource` would, depending on the resource implementation.
+   *
+   * The returned properties here are *currently* selected from the response
+   * object that CloudControl API returns to the CDK CLI.
+   *
+   * However, if we find there is need to do so, we may decide to change this
+   * behavior in the future: we might change it to perform an additional
+   * `GetResource` call for resources matched by `propertyMatch`.
    */
   readonly propertiesToReturn: string[];
 
   /**
-   * This is the expected count of results that we want to return from ContextQuery when propertyMatch is specified.
+   * Expected count of results if `propertyMatch` is specified.
    *
-   * @default "any"
+   * If the expected result count does not match the actual count,
+   * by default an error is produced and the result is not committed to cached
+   * context, and the user can correct the situation and try again without
+   * having to manually clear out the context key using `cdk context --remove`
+   *
+   * If the value of * `ignoreErrorOnMissingContext` is `true`, the value of
+   * `expectedMatchCount` is `at-least-one | exactly-one` and the number
+   * of found resources is 0, `dummyValue` is returned and committed to context
+   * instead.
+   *
+   * @default 'any'
    */
   readonly expectedMatchCount?: 'any' | 'at-least-one' | 'at-most-one' | 'exactly-one';
+
+  /**
+   * The value to return if the resource was not found and `ignoreErrorOnMissingContext` is true.
+   *
+   * If supplied, `dummyValue` should be an array of objects.
+   *
+   * `dummyValue` does not have to have elements, and it may have objects with
+   * different properties than the properties in `propertiesToReturn`, but it
+   * will be easiest for downstream code if the `dummyValue` conforms to
+   * the expected response shape.
+   *
+   * @default - No dummy value available
+   */
+  readonly dummyValue?: any;
+
+  /**
+   * Ignore an error and return the `dummyValue` instead if the resource was not found.
+   *
+   * - In case of an `exactIdentifier` lookup, return the `dummyValue` if the resource with
+   *   that identifier was not found.
+   * - In case of a `propertyMatch` lookup, return the `dummyValue` if `expectedMatchCount`
+   *   is `at-least-one | exactly-one` and the number of resources found was 0.
+   *
+   * if `ignoreErrorOnMissingContext` is set, `dummyValue` should be set and be an array.
+   *
+   * @default false
+   */
+  readonly ignoreErrorOnMissingContext?: boolean;
 }
 
 /**

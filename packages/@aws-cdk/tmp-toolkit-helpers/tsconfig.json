@@ -36,5 +36,9 @@
     "src/**/*.ts"
   ],
   "exclude": [],
-  "references": []
+  "references": [
+    {
+      "path": "../cloudformation-diff"
+    }
+  ]
 }

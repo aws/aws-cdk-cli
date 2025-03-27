@@ -1,20 +1,11 @@
 import type { Stack, Tag } from '@aws-sdk/client-cloudformation';
+import type { Template } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
 import { StackStatus } from '../stack-events';
 
-export interface Template {
-  Parameters?: Record<string, TemplateParameter>;
-  [section: string]: any;
-}
-
-export interface TemplateParameter {
-  Type: string;
-  Default?: any;
-  Description?: string;
-  [key: string]: any;
-}
+export { Template, TemplateParameter } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 /**
  * Represents an (existing) Stack in CloudFormation

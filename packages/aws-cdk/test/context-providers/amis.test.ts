@@ -10,6 +10,16 @@ const mockSDK = new (class extends MockSdkProvider {
   }
 })();
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
+beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+});
+
 test('calls DescribeImages on the request', async () => {
   // GIVEN
   mockEC2Client.on(DescribeImagesCommand).resolves({
@@ -17,7 +27,7 @@ test('calls DescribeImages on the request', async () => {
   });
 
   // WHEN
-  await new AmiContextProviderPlugin(mockSDK).getValue({
+  await new AmiContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '1234',
     region: 'asdf',
     owners: ['some-owner'],
@@ -54,7 +64,7 @@ test('returns the most recent AMI matching the criteria', async () => {
   });
 
   // WHEN
-  const result = await new AmiContextProviderPlugin(mockSDK).getValue({
+  const result = await new AmiContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '1234',
     region: 'asdf',
     filters: {},

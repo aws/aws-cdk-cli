@@ -107,7 +107,7 @@ export interface CredentialProviderSource {
   /**
    * Construct a credential provider for the given account and the given access mode
    *
-   * Guaranteed to be called only if canProvideCredentails() returned true at some point.
+   * Guaranteed to be called only if canProvideCredentials() returned true at some point.
    *
    * While it is possible for the plugin to return a static set of credentials, it is
    * recommended to return a provider.

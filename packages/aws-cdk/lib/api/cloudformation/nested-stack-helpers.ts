@@ -5,15 +5,9 @@ import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth';
 import { LazyListStackResources, type ListStackResources } from './evaluate-cloudformation-template';
 import { CloudFormationStack, type Template } from './stack-helpers';
+import type { NestedStackTemplates } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
-export interface NestedStackTemplates {
-  readonly physicalName: string | undefined;
-  readonly deployedTemplate: Template;
-  readonly generatedTemplate: Template;
-  readonly nestedStackTemplates: {
-    [nestedStackLogicalId: string]: NestedStackTemplates;
-  };
-}
+export { NestedStackTemplates } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 export interface RootTemplateWithNestedStacks {
   readonly deployedRootTemplate: Template;

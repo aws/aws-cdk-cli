@@ -8,8 +8,15 @@ import { VpcNetworkContextProviderPlugin } from '../../lib/context-providers/vpc
 import { MockSdkProvider, mockEC2Client, restoreSdkMocksToDefault } from '../util/mock-sdk';
 
 const mockSDK = new MockSdkProvider();
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
 
 beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+
   restoreSdkMocksToDefault();
   mockEC2Client
     .on(DescribeVpcsCommand)
@@ -73,7 +80,7 @@ beforeEach(() => {
 test('looks up the requested VPC', async () => {
   // GIVEN
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
@@ -117,7 +124,7 @@ test('looks up the requested VPC', async () => {
 test('throws when no such VPC is found', async () => {
   // GIVEN
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
   mockEC2Client.on(DescribeVpcsCommand).resolves({});
 
   // WHEN
@@ -136,7 +143,7 @@ test('throws when no such VPC is found', async () => {
 test('throws when subnet with subnetGroupNameTag not found', async () => {
   // GIVEN
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   await expect(
@@ -177,7 +184,7 @@ test('does not throw when subnet with subnetGroupNameTag is found', async () => 
     ],
   });
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
@@ -225,7 +232,7 @@ test('throws when multiple VPCs are found', async () => {
     Vpcs: [{ VpcId: 'vpc-1' }, { VpcId: 'vpc-2' }],
   });
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   await expect(
@@ -283,7 +290,7 @@ test('uses the VPC main route table when a subnet has no specific association', 
     ],
   });
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
@@ -364,7 +371,7 @@ test('Recognize public subnet by route table', async () => {
     .on(DescribeVpnGatewaysCommand)
     .resolves({});
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
@@ -440,7 +447,7 @@ test('Recognize private subnet by route table with NAT Gateway', async () => {
     .on(DescribeVpnGatewaysCommand)
     .resolves({});
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
@@ -516,7 +523,7 @@ test('Recognize private subnet by route table with Transit Gateway', async () =>
     .on(DescribeVpnGatewaysCommand)
     .resolves({});
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
@@ -580,7 +587,7 @@ test('Recognize isolated subnet by route table', async () => {
     .on(DescribeVpnGatewaysCommand)
     .resolves({});
   const filter = { foo: 'bar' };
-  const provider = new VpcNetworkContextProviderPlugin(mockSDK);
+  const provider = new VpcNetworkContextProviderPlugin(mockSDK, mockMsg);
 
   // WHEN
   const result = await provider.getValue({
