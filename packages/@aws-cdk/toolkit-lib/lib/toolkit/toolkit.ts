@@ -1,5 +1,4 @@
 import * as path from 'node:path';
-import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -256,7 +255,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<TemplateDiff> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const assembly = await assemblyFromSource(cx);
     const selectStacks = options.stacks ?? ALL_STACKS;
@@ -271,7 +270,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const diffMethod = options.method ?? DiffMethod.ChangeSet();
 
     let diffs = 0;
-    let fullDiff;
 
     if (diffMethod.method === 'local-file') {
       // Compare single stack against fixed template
@@ -294,7 +292,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stacks.firstStack,
           RequireApproval.BROADENING,
         );
-        fullDiff = securityDiff.fullDiff;
         if (securityDiff.formattedDiff) {
           await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
           diffs += 1;
@@ -312,7 +309,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           false,
         );
         diffs = diff.numStacksWithChanges;
-        fullDiff = diff.fullDiff;
         await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff));
       }
     } else {
@@ -371,7 +367,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             stack.displayName,
             changeSet,
           );
-          fullDiff = securityDiff.fullDiff;
           if (securityDiff.formattedDiff) {
             await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
             diffs += 1;
@@ -392,18 +387,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
           await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff) );
           diffs += diff.numStacksWithChanges;
-          fullDiff = diff.fullDiff;
         }
       }
     }
     await ioHelper.notify(IO.CDK_TOOLKIT_I4402.msg(`Number of differences: ${diffs}`));
 
-    // Shouldn't happen but just in case
-    if (!fullDiff) {
-      throw new ToolkitError('Unexpected error: no diff found');
-    }
-
-    return fullDiff;
+    return;
   }
 
   /**
