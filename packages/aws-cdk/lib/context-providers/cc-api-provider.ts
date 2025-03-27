@@ -128,7 +128,6 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       }
       throw err;
     }
-
   }
 }
 
