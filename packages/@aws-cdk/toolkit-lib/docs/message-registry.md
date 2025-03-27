@@ -75,8 +75,8 @@ group: Documents
 | `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
 | `CDK_ASSEMBLY_I0000` | Default trace messages emitted from Cloud Assembly operations | `trace` | n/a |
 | `CDK_ASSEMBLY_I0000` | Default debug messages emitted from Cloud Assembly operations | `debug` | n/a |
-| `CDK_ASSEMBLY_I0000` | Default info messages emitted from Cloud Assembly operations | `debug` | n/a |
-| `CDK_ASSEMBLY_W0000` | Default warning messages emitted from Cloud Assembly operations | `debug` | n/a |
+| `CDK_ASSEMBLY_I0000` | Default info messages emitted from Cloud Assembly operations | `info` | n/a |
+| `CDK_ASSEMBLY_W0000` | Default warning messages emitted from Cloud Assembly operations | `warn` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
 | `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |
