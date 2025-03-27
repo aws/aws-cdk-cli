@@ -1,5 +1,4 @@
 import type { StackSelector } from '../../api/cloud-assembly';
-import { StackParameters } from '../deploy';
 
 export interface CloudFormationDiffOptions {
   /**
@@ -29,6 +28,10 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
   readonly parameters?: { [name: string]: string | undefined };
 }
 
+export interface Options extends ChangeSetDiffOptions, CloudFormationDiffOptions {
+  readonly path?: string;
+}
+
 export class DiffMethod {
   /**
    * Use a changeset to compute the diff.
@@ -55,6 +58,9 @@ export class DiffMethod {
     }(options);
   }
 
+  /**
+   * Use a local template file to compute the diff.
+   */
   public static LocalFile(path: string): DiffMethod {
     return new class extends DiffMethod {
       public override readonly options: { path: string };
@@ -67,7 +73,7 @@ export class DiffMethod {
 
   private constructor(
     public readonly method: 'change-set' | 'template-only' | 'local-file',
-    public readonly options: ChangeSetDiffOptions | CloudFormationDiffOptions | { path: string },
+    public readonly options: Options,
   ) {
   }
 }
@@ -115,32 +121,4 @@ export interface DiffOptions {
    * @default false
    */
   readonly securityOnly?: boolean;
-
-  /**
-   * Used a template from disk instead of from the server
-   *
-   * @default - Use from the server
-   */
-  readonly templatePath?: string;
-
-  /**
-   * Stack parameters for CloudFormation used at deploy time
-   * @default StackParameters.onlyExisting()
-   */
-  readonly parameters?: StackParameters;
-
-  /**
-   * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed
-   * (as opposed to the original template, the default, which contains the unprocessed Transforms).
-   *
-   * @default false
-   */
-  readonly compareAgainstProcessedTemplate?: boolean;
-
-  /**
-   * Whether or not to create, analyze, and subsequently delete a changeset
-   *
-   * @default true
-   */
-  readonly changeSet?: boolean;
 }

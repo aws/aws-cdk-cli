@@ -1352,6 +1352,9 @@ function printSerializedObject(obj: any, json: boolean) {
   logResult(serializeStructure(obj, json));
 }
 
+/**
+ * Options for the diff command
+ */
 export interface DiffOptions {
   /**
    * Stack names to diff

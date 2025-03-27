@@ -1,9 +1,10 @@
 import * as path from 'node:path';
+import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
-import * as uuid from 'uuid';
 import * as fs from 'fs-extra';
+import * as uuid from 'uuid';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
@@ -11,6 +12,8 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
+import type { DiffOptions } from '../actions/diff';
+import { DiffMethod } from '../actions/diff';
 import { determinePermissionType } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import { type RollbackOptions } from '../actions/rollback';
@@ -29,12 +32,9 @@ import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespa
 import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { RequireApproval, ToolkitError, formatSecurityDiff, formatStackDiff } from '../api/shared-public';
+import { RequireApproval, ToolkitError, formatSecurityDiff, formatStackDiff, removeNonImportResources } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
 import { pLimit } from '../util/concurrency';
-import { DiffOptions } from '../actions/diff';
-import { removeNonImportResources } from '../../../../aws-cdk/lib/api/resource-import'; // TODO: move this to a sharable place
-import { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 
 export interface ToolkitOptions {
   /**
@@ -266,12 +266,13 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
+    const diffMethod = options.method ?? DiffMethod.ChangeSet();
 
     let diffs = 0;
     let fullDiff;
-    const parameterMap = buildParameterMap(options.parameters?.parameters);
+    // const parameterMap = buildParameterMap(options.parameters?.parameters);
 
-    if (options.templatePath !== undefined) {
+    if (diffMethod.method === 'local-file') {
       // Compare single stack against fixed template
       if (stackCollection.stackCount !== 1) {
         throw new ToolkitError(
@@ -279,11 +280,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         );
       }
 
-      if (!(await fs.pathExists(options.templatePath))) {
-        throw new ToolkitError(`There is no file at ${options.templatePath}`);
+      if (!(await fs.pathExists(diffMethod.options.path!))) {
+        throw new ToolkitError(`There is no file at ${path}`);
       }
 
-      const file = fs.readFileSync(options.templatePath).toString();
+      const file = fs.readFileSync(diffMethod.options.path!).toString();
       const template = deserializeStructure(file);
       if (options.securityOnly) {
         const securityDiff = formatSecurityDiff(
@@ -318,7 +319,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       for (const stack of stackCollection.stackArtifacts) {
         const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
           stack,
-          options.compareAgainstProcessedTemplate,
+          diffMethod.options.compareAgainstProcessedTemplate,
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
@@ -331,7 +332,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
         let changeSet = undefined;
 
-        if (options.changeSet ?? true) {
+        if (diffMethod.method === 'change-set') {
           let stackExists = false;
           try {
             stackExists = await deployments.stackExists({
@@ -352,7 +353,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               deployments,
               willExecute: false,
               sdkProvider: await this.sdkProvider('diff'),
-              parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+              parameters: diffMethod.options.parameters ?? {},
               resourcesToImport,
             });
           } else {
@@ -388,7 +389,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             nestedStacks,
           );
 
-          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff), );
+          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff) );
           diffs += diff.numStacksWithChanges;
           fullDiff = diff.fullDiff;
         }

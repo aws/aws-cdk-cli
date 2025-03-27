@@ -1,11 +1,11 @@
+import * as path from 'path';
 import * as chalk from 'chalk';
-import { RootTemplateWithNestedStacks } from '../../../../aws-cdk/lib/api/cloudformation';
 import { RequireApproval } from '../../lib';
+import { DiffMethod } from '../../lib/actions/diff';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
 import { StackSelectionStrategy, Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
-import * as path from 'path';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -143,7 +143,7 @@ describe('diff', () => {
     const cx = await builderFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-      changeSet: false,
+      method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
     });
 
     // THEN
@@ -170,18 +170,18 @@ describe('diff', () => {
     test('fails with multiple stacks', async () => {
       // WHEN + THEN
       const cx = await builderFixture(toolkit, 'two-empty-stacks');
-      await expect(async () => await toolkit.diff(cx, { 
+      await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-        templatePath: path.join(__dirname, '..', '_fixtures', 'stack-with-bucket', 'cdk.out', 'Stack1.template.json'),
+        method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'stack-with-bucket', 'cdk.out', 'Stack1.template.json')),
       })).rejects.toThrow(/Can only select one stack when comparing to fixed template./);
     });
 
     test('fails with bad file path', async () => {
       // WHEN + THEN
       const cx = await builderFixture(toolkit, 'stack-with-bucket');
-      await expect(async () => await toolkit.diff(cx, { 
+      await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-        templatePath: path.join(__dirname, 'blah.json'),
+        method: DiffMethod.LocalFile(path.join(__dirname, 'blah.json')),
       })).rejects.toThrow(/There is no file at/);
     });
 
@@ -190,7 +190,7 @@ describe('diff', () => {
       const cx = await builderFixture(toolkit, 'stack-with-bucket');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-        templatePath: path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json'),
+        method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
       });
 
       // THEN
@@ -219,7 +219,7 @@ describe('diff', () => {
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         securityOnly: true,
-        templatePath: path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json'),
+        method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
       });
 
       // THEN
