@@ -4,6 +4,14 @@ import { mockCloudControlClient, MockSdkProvider, restoreSdkMocksToDefault } fro
 
 let provider: CcApiContextProviderPlugin;
 
+const INDIFFERENT_PROPERTYMATCH_PROPS = {
+  account: '123456789012',
+  region: 'us-east-1',
+  typeName: 'AWS::RDS::DBInstance',
+  propertyMatch: { },
+  propertiesToReturn: ['Index'],
+};
+
 beforeEach(() => {
   provider = new CcApiContextProviderPlugin(new MockSdkProvider());
   restoreSdkMocksToDefault();
@@ -505,6 +513,43 @@ describe('dummy value', () => {
         ],
       }),
     ).rejects.toThrow('dummyValue must be an array of objects');
+  });
+
+  test.each(['at-least-one', 'exactly-one'] as const)('dummyValue is returned when list operation returns 0 values for expectedMatchCount %p', async (expectedMatchCount) => {
+    // GIVEN
+    mockCloudControlClient.on(ListResourcesCommand).resolves({
+      ResourceDescriptions: []
+    });
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        ...INDIFFERENT_PROPERTYMATCH_PROPS,
+        expectedMatchCount,
+        ignoreErrorOnMissingContext: true,
+        dummyValue: [{ Dummy: true }],
+      }),
+    ).resolves.toEqual([{ Dummy: true }]);
+  });
+
+  test('ignoreErrorOnMissingContext does not suppress errors for at-most-one', async () => {
+    // GIVEN
+    mockCloudControlClient.on(ListResourcesCommand).resolves({
+      ResourceDescriptions: [
+        { Properties: JSON.stringify({ Index: 1 }) },
+        { Properties: JSON.stringify({ Index: 2 }) },
+      ]
+    });
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        ...INDIFFERENT_PROPERTYMATCH_PROPS,
+        expectedMatchCount: 'at-most-one',
+        ignoreErrorOnMissingContext: true,
+        dummyValue: [{ Dummy: true }],
+      }),
+    ).rejects.toThrow(/Found 2 resources matching/);
   });
 });
 /* eslint-enable */
