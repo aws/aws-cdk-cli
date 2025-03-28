@@ -14,6 +14,7 @@ import type { StackActivity, StackMonitoringControlEvent } from '../payloads/sta
 import type { StackSelectionDetails } from '../payloads/synth';
 import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
+import { DiffOutput } from '../payloads';
 
 /**
  * We have a rough system by which we assign message codes:
@@ -81,10 +82,10 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
-  CDK_TOOLKIT_I4402: make.info<number>({
-    code: 'CDK_TOOLKIT_I4402',
-    description: 'Number of stacks with a diff',
-    interface: 'number',
+  CDK_TOOLKIT_I4401: make.info<DiffOutput>({
+    code: 'CDK_TOOLKIT_I4401',
+    description: 'Output of the diff command',
+    interface: 'DiffOutput',
   }),
 
   // 5: Deploy & Watch (5xxx)

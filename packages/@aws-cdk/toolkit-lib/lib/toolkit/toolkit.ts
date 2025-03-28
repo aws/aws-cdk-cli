@@ -270,6 +270,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const diffMethod = options.method ?? DiffMethod.ChangeSet();
 
     let diffs = 0;
+    let formattedSecurityDiff = '';
+    let formattedStackDiff = '';
 
     if (diffMethod.method === 'local-file') {
       // Compare single stack against fixed template
@@ -292,10 +294,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stacks.firstStack,
           RequireApproval.BROADENING,
         );
-        if (securityDiff.formattedDiff) {
-          await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(securityDiff.formattedDiff));
-          diffs += 1;
-        }
+        formattedSecurityDiff = securityDiff.formattedDiff ?? '';
+        diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
       } else {
         const diff = formatStackDiff(
           ioHelper,
@@ -308,8 +308,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           undefined,
           false,
         );
+        formattedStackDiff = diff.formattedDiff;
         diffs = diff.numStacksWithChanges;
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(diff.formattedDiff));
       }
     } else {
       // Compare N stacks against deployed templates
@@ -367,10 +367,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             stack.displayName,
             changeSet,
           );
-          if (securityDiff.formattedDiff) {
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(securityDiff.formattedDiff));
-            diffs += 1;
-          }
+          formattedSecurityDiff = securityDiff.formattedDiff ?? '';
+          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
         } else {
           const diff = formatStackDiff(
             ioHelper,
@@ -384,13 +382,15 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             !!resourcesToImport,
             nestedStacks,
           );
-
-          await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(diff.formattedDiff));
-          diffs += diff.numStacksWithChanges;
+          formattedStackDiff = diff.formattedDiff;
+          diffs = diff.numStacksWithChanges;
         }
       }
     }
-    await ioHelper.notify(IO.CDK_TOOLKIT_I4402.msg(`Number of differences: ${diffs}`, diffs));
+    await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(`✨ Number of stacks with differences: ${diffs}`, {
+      formattedSecurityDiff,
+      formattedStackDiff,
+    }));
 
     return;
   }

@@ -119,6 +119,8 @@ export interface DiffOptions {
    * Only include broadened security changes in the diff
    *
    * @default false
+   *
+   * @deprecated implement in IoHost
    */
   readonly securityOnly?: boolean;
 }

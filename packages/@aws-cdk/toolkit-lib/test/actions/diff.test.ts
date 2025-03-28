@@ -6,6 +6,7 @@ import * as awsCdkApi from '../../lib/api/aws-cdk';
 import { StackSelectionStrategy, Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
+import { format } from 'util';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -46,15 +47,11 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4402',
-      message: expect.stringContaining('Number of differences: 1'),
-    }));
-
-    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I0000',
-      message: expect.stringContaining((chalk.bold('Stack1'))),
+      code: 'CDK_TOOLKIT_I4401',
+      message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      data: expect.objectContaining({
+        formattedStackDiff: expect.stringContaining((chalk.bold('Stack1'))),
+      }),
     }));
   });
 
@@ -92,6 +89,7 @@ describe('diff', () => {
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
       securityOnly: true,
+      method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
     });
 
     // THEN
@@ -100,6 +98,15 @@ describe('diff', () => {
       level: 'warn',
       code: 'CDK_TOOLKIT_W0000',
       message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level (--require-approval broadening)'),
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'info',
+      code: 'CDK_TOOLKIT_I4401',
+      message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      data: expect.objectContaining({
+        formattedSecurityDiff: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
+      }),
     }));
     // TODO: uncomment when diff returns a value
     // expect(result).toMatchObject(expect.objectContaining({
@@ -135,12 +142,15 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4402',
-      message: expect.stringContaining('Number of differences: 0'),
+      code: 'CDK_TOOLKIT_I4401',
+      message: expect.stringContaining('✨ Number of stacks with differences: 0'),
+      data: expect.objectContaining({
+        formattedSecurityDiff: '',
+      }),
     }));
   });
 
-  test('changeSet off', async () => {
+  test('TemplateOnly diff method does not try to find changeSet', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
@@ -149,30 +159,21 @@ describe('diff', () => {
     });
 
     // THEN
-    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
       code: 'CDK_TOOLKIT_I0000',
-      message: expect.stringContaining((chalk.bold('Stack1'))),
+      message: expect.stringContaining('Could not create a change set'),
     }));
-    // TODO: uncomment when diff returns a value
-    // expect(result).toMatchObject(expect.objectContaining({
-    //   resources: {
-    //     diffs: expect.objectContaining({
-    //       MyBucketF68F3FF0: expect.objectContaining({
-    //         isAddition: true,
-    //         isRemoval: false,
-    //         oldValue: undefined,
-    //         newValue: {
-    //           Type: 'AWS::S3::Bucket',
-    //           UpdateReplacePolicy: 'Retain',
-    //           DeletionPolicy: 'Retain',
-    //           Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
-    //         },
-    //       }),
-    //     }),
-    //   },
-    // }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'info',
+      code: 'CDK_TOOLKIT_I4401',
+      message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      data: expect.objectContaining({
+        formattedStackDiff: expect.stringContaining(chalk.bold('Stack1')),
+      }),
+    }));
   });
 
   describe('templatePath', () => {

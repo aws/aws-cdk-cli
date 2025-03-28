@@ -17,3 +17,18 @@ export enum PermissionChangeType {
    */
   NON_BROADENING = 'non-broadening',
 }
+
+/**
+ * Output of the diff command
+ */
+export interface DiffOutput {
+  /**
+   * Stack diff formatted as a string
+   */
+  readonly formattedStackDiff: string;
+
+  /**
+   * Security diff formatted as a string
+   */
+  readonly formattedSecurityDiff: string;
+}
