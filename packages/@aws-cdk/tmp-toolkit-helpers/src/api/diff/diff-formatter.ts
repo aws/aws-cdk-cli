@@ -97,7 +97,7 @@ export interface FormatSecurityDiffOptions {
   /**
    * The name of the Stack.
    */
-  readonly stackName: string,
+  readonly stackName?: string,
 
   /**
    * The changeSet for the Stack.
@@ -135,7 +135,7 @@ export interface FormatStackDiffOptions {
   /**
    * The name of the stack
    */
-  readonly stackName: string;
+  readonly stackName?: string;
 
   /**
    * @default undefined
@@ -189,7 +189,7 @@ export class DiffFormatter {
 
   private formatStackDiffHelper(
     oldTemplate: any,
-    stackName: string,
+    stackName: string | undefined,
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
