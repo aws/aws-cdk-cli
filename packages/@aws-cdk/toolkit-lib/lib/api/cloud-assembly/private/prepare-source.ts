@@ -17,7 +17,7 @@ import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 type Env = { [key: string]: string };
 type Context = { [key: string]: any };
 
-export class ExecutionEnviornment {
+export class ExecutionEnvironment {
   private readonly ioHelper: IoHelper;
   private readonly sdkProvider: SdkProvider;
   private readonly debugFn: (msg: string) => Promise<void>;
@@ -69,10 +69,8 @@ export class ExecutionEnviornment {
     const debugFn = (msg: string) => this.ioHelper.notify(IO.CDK_ASSEMBLY_I0010.msg(msg));
     const env = await oldPrepare(this.sdkProvider, debugFn);
 
-    if (this.outdir) {
-      env[cxapi.OUTDIR_ENV] = this.outdir;
-      await debugFn(format('outdir:', this.outdir));
-    }
+    env[cxapi.OUTDIR_ENV] = this.outdir;
+    await debugFn(format('outdir:', this.outdir));
 
     // CLI version information
     env[cxapi.CLI_ASM_VERSION_ENV] = cxschema.Manifest.version();
