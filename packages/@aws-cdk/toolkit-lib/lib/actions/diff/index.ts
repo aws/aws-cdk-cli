@@ -82,6 +82,9 @@ export class DiffMethod {
   }
 }
 
+/**
+ * Optins for the diff method
+ */
 export interface DiffOptions {
   /**
    * Select the stacks
