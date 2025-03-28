@@ -12,8 +12,8 @@ import {
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 
-import { RequireApproval } from '../../api/require-approval';
-import { ToolkitError } from '../../api/toolkit-error';
+import { RequireApproval } from '../require-approval';
+import { ToolkitError } from '../toolkit-error';
 import type { NestedStackTemplates } from '../cloudformation/nested-stack-templates';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
