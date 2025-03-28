@@ -1,6 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { DiffFormatter } from '../../../src/api/diff/diff-formater';
+import { DiffFormatter } from '../../../src/api/diff/diff-formatter';
 import { IoHelper, IoDefaultMessages } from '../../../src/api/io/private';
 import { RequireApproval } from '../../../src/api/require-approval';
 

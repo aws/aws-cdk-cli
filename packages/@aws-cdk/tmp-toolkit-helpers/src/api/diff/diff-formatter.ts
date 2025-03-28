@@ -65,18 +65,51 @@ export interface FormatStackDiffOutput {
   readonly formattedDiff: string;
 }
 
+/**
+ * Props for the Diff Formatter
+ */
 export interface DiffFormatterProps {
+  /**
+   * Helper for the IoHost class
+   */
   readonly ioHelper: IoHelper;
+
+  /**
+   * The old/current state of the stack.
+   */
   readonly oldTemplate: any;
+
+  /**
+   * The new/target state of the stack.
+   */
   readonly newTemplate: cxapi.CloudFormationStackArtifact,
 }
 
+/**
+ * Properties specific to formatting the security diff
+ */
 export interface FormatSecurityDiffOptions {
+  /**
+   * The approval level of the security diff
+   */
   readonly requireApproval: RequireApproval,
+
+  /**
+   * The name of the Stack.
+   */
   readonly stackName: string,
+
+  /**
+   * The changeSet for the Stack.
+   *
+   * @default undefined
+   */
   readonly changeSet?: DescribeChangeSetOutput,
 }
 
+/**
+ * PRoperties specific to formatting the stack diff
+ */
 export interface FormatStackDiffOptions {
   /**
    * do not filter out AWS::CDK::Metadata or Rules
@@ -124,6 +157,9 @@ interface ReusableStackDiffOptions extends Omit<FormatStackDiffOptions, 'stackNa
   readonly ioDefaultHelper: IoDefaultMessages;
 }
 
+/**
+ * Class for formatting the diff output
+ */
 export class DiffFormatter {
   private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
@@ -135,6 +171,9 @@ export class DiffFormatter {
     this.newTemplate = props.newTemplate;
   }
 
+  /**
+   * Format the stack diff
+   */
   public formatStackDiff(options: FormatStackDiffOptions): FormatStackDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
     return this.formatStackDiffHelper(
@@ -237,6 +276,9 @@ export class DiffFormatter {
     };
   }
 
+  /**
+   * Format the security diff
+   */
   public formatSecurityDiff(options: FormatSecurityDiffOptions): FormatSecurityDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
 
