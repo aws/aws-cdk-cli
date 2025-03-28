@@ -31,7 +31,7 @@ import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespa
 import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { RequireApproval, ToolkitError, formatSecurityDiff, formatStackDiff, removeNonImportResources } from '../api/shared-public';
+import { DiffFormatter, RequireApproval, ToolkitError, removeNonImportResources } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
 import { pLimit } from '../util/concurrency';
 
@@ -257,10 +257,10 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
-    const assembly = await assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(ioHelper, cx);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const stacks = assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
     const deployments = await this.deploymentsForAction('diff');
@@ -287,27 +287,22 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
       const file = fs.readFileSync(diffMethod.options.path!).toString();
       const template = deserializeStructure(file);
+      const formatter = new DiffFormatter({
+        ioHelper,
+        oldTemplate: template,
+        newTemplate: stacks.firstStack,
+      });
       if (options.securityOnly) {
-        const securityDiff = formatSecurityDiff(
-          ioHelper,
-          template,
-          stacks.firstStack,
-          RequireApproval.BROADENING,
-        );
+        const securityDiff = formatter.formatSecurityDiff({
+          requireApproval: RequireApproval.BROADENING,
+        });
         formattedSecurityDiff = securityDiff.formattedDiff ?? '';
         diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
       } else {
-        const diff = formatStackDiff(
-          ioHelper,
-          template,
-          stacks.firstStack,
+        const diff = formatter.formatStackDiff({
           strict,
-          contextLines,
-          false,
-          undefined,
-          undefined,
-          false,
-        );
+          context: contextLines,
+        });
         formattedStackDiff = diff.formattedDiff;
         diffs = diff.numStacksWithChanges;
       }
@@ -320,6 +315,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
+
+        const formatter = new DiffFormatter({
+          ioHelper,
+          oldTemplate: currentTemplate,
+          newTemplate: stack,
+        });
 
         const migrator = new ResourceMigrator({ deployments, ioHelper });
         const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
@@ -359,29 +360,22 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         }
 
         if (options.securityOnly) {
-          const securityDiff = formatSecurityDiff(
-            ioHelper,
-            currentTemplate,
-            stack,
-            RequireApproval.BROADENING,
-            stack.displayName,
+          const securityDiff = formatter.formatSecurityDiff({
+            requireApproval: RequireApproval.BROADENING,
+            stackName: stack.displayName,
             changeSet,
-          );
+          });
           formattedSecurityDiff = securityDiff.formattedDiff ?? '';
           diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
         } else {
-          const diff = formatStackDiff(
-            ioHelper,
-            currentTemplate,
-            stack,
+          const diff = formatter.formatStackDiff({
             strict,
-            contextLines,
-            false,
-            stack.displayName,
+            context: contextLines,
+            stackName: stack.displayName,
             changeSet,
-            !!resourcesToImport,
-            nestedStacks,
-          );
+            isImport: !!resourcesToImport,
+            nestedStackTemplates: nestedStacks,
+          });
           formattedStackDiff = diff.formattedDiff;
           diffs = diff.numStacksWithChanges;
         }
