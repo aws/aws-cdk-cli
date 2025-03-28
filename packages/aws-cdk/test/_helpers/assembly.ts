@@ -6,6 +6,8 @@ import { cxapiAssemblyWithForcedVersion } from '../api/cxapp/assembly-versions';
 import { MockSdkProvider } from '../util/mock-sdk';
 import { CloudExecutable } from '../../lib/api/cxapp/cloud-executable';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { asIoHelper, TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IIoHost } from '../../lib/cli/io-host';
 
 export const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 
@@ -40,14 +42,16 @@ export class MockCloudExecutable extends CloudExecutable {
   public readonly configuration: Configuration;
   public readonly sdkProvider: MockSdkProvider;
 
-  constructor(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider) {
+  constructor(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider, ioHost?: IIoHost) {
     const configuration = new Configuration();
     const sdkProvider = sdkProviderArg ?? new MockSdkProvider();
-
+    const mockIoHost = ioHost ?? new TestIoHost();
+    
     super({
       configuration,
       sdkProvider,
       synthesizer: () => Promise.resolve(testAssembly(assembly)),
+      ioHelper: asIoHelper(mockIoHost, 'deploy'),
     });
 
     this.configuration = configuration;

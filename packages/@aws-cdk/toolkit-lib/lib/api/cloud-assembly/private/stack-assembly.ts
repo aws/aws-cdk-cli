@@ -19,7 +19,7 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
    * @throws when the assembly does not contain any stacks, unless `selector.failOnEmpty` is `false`
    * @throws when individual selection strategies are not satisfied
    */
-  public selectStacksV2(selector: StackSelector): StackCollection {
+  public async selectStacksV2(selector: StackSelector): Promise<StackCollection> {
     const asm = this.assembly;
     const topLevelStacks = asm.stacks;
     const allStacks = major(asm.version) < 10 ? asm.stacks : asm.stacksRecursively;
@@ -48,7 +48,7 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
         }
         return new StackCollection(this, topLevelStacks);
       default:
-        const matched = this.selectMatchingStacks(allStacks, patterns, extend);
+        const matched = await this.selectMatchingStacks(allStacks, patterns, extend);
         if (
           selector.strategy === StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE
           && matched.stackCount !== 1
