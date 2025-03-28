@@ -76,7 +76,7 @@ describe('fixed template', () => {
           },
         },
       ],
-    });
+    }, undefined, ioHost);
 
     toolkit = new CdkToolkit({
       cloudExecutable,
@@ -172,7 +172,7 @@ describe('imports', () => {
           },
         },
       ],
-    });
+    }, undefined, ioHost);
 
     cloudFormation = instanceMockFrom(Deployments);
 
@@ -290,7 +290,7 @@ describe('non-nested stacks', () => {
           template: { resource: 'D' },
         },
       ],
-    });
+    }, undefined, ioHost);
 
     cloudFormation = instanceMockFrom(Deployments);
 
@@ -358,7 +358,7 @@ describe('non-nested stacks', () => {
           template: { resourceC: 'C' },
         },
       ],
-    });
+    }, undefined, ioHost);
 
     toolkit = new CdkToolkit({
       cloudExecutable,
@@ -500,7 +500,7 @@ describe('stack exists checks', () => {
           template: { resource: 'D' },
         },
       ],
-    });
+    }, undefined, ioHost);
 
     cloudFormation = instanceMockFrom(Deployments);
 
@@ -607,7 +607,7 @@ describe('nested stacks', () => {
           template: {},
         },
       ],
-    });
+    }, undefined, ioHost);
 
     cloudFormation = instanceMockFrom(Deployments);
 
@@ -1092,7 +1092,7 @@ describe('--strict', () => {
           },
         },
       ],
-    });
+    }, undefined, ioHost);
 
     toolkit = new CdkToolkit({
       cloudExecutable,

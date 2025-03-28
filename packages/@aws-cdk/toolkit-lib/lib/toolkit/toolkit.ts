@@ -152,7 +152,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const results: EnvironmentBootstrapResult[] = [];
 
     const ioHelper = asIoHelper(this.ioHost, 'bootstrap');
-    const bootstrapEnvironments = await environments.getEnvironments();
+    const bootstrapEnvironments = await environments.getEnvironments(this.ioHost);
     const source = options.source ?? BootstrapSource.default();
     const parameters = options.parameters;
     const bootstrapper = new Bootstrapper(source, ioHelper);
@@ -212,8 +212,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const ioHelper = asIoHelper(this.ioHost, 'synth');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const assembly = await assemblyFromSource(cx);
-    const stacks = assembly.selectStacksV2(selectStacks);
+    const assembly = await assemblyFromSource(ioHelper, cx);
+    const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
     await synthSpan.end();
@@ -258,7 +258,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const assembly = await assemblyFromSource(cx);
+    const assembly = await assemblyFromSource(ioHelper, cx);
     const stackCollection = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -275,7 +275,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Deploys the selected stacks into an AWS account
    */
   public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<void> {
-    const assembly = await assemblyFromSource(cx);
+    const ioHelper = asIoHelper(this.ioHost, 'deploy');
+    const assembly = await assemblyFromSource(ioHelper, cx);
     return this._deploy(assembly, 'deploy', options);
   }
 
@@ -286,7 +287,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const stackCollection = assembly.selectStacksV2(selectStacks);
+    const stackCollection = await assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stackCollection, ioHelper);
     const synthDuration = await synthSpan.end();
 
@@ -594,8 +595,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Implies hotswap deployments.
    */
   public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<void> {
-    const assembly = await assemblyFromSource(cx, false);
     const ioHelper = asIoHelper(this.ioHost, 'watch');
+    const assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
     if (options.include === undefined && options.exclude === undefined) {
@@ -710,7 +711,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Rolls back the selected stacks.
    */
   public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<void> {
-    const assembly = await assemblyFromSource(cx);
+    const ioHelper = asIoHelper(this.ioHost, 'rollback');
+    const assembly = await assemblyFromSource(ioHelper, cx);
     return this._rollback(assembly, 'rollback', options);
   }
 
@@ -720,7 +722,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
-    const stacks = assembly.selectStacksV2(options.stacks);
+    const stacks = await assembly.selectStacksV2(options.stacks);
     await this.validateStacksMetadata(stacks, ioHelper);
     await synthSpan.end();
 
@@ -767,7 +769,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * Destroys the selected Stacks.
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<void> {
-    const assembly = await assemblyFromSource(cx);
+    const ioHelper = asIoHelper(this.ioHost, 'destroy');
+    const assembly = await assemblyFromSource(ioHelper, cx);
     return this._destroy(assembly, 'destroy', options);
   }
 
@@ -778,7 +781,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const ioHelper = asIoHelper(this.ioHost, action);
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = await assembly.selectStacksV2(options.stacks).reversed();
+    const stacks = (await assembly.selectStacksV2(options.stacks)).reversed();
     await synthSpan.end();
 
     const motivation = 'Destroying stacks is an irreversible action';
