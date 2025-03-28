@@ -518,8 +518,8 @@ export const SPAN = {
   },
   DIFF_STACK: {
     name: 'Diff',
-    start: IO.CDK_TOOLKIT_I5200,
-    end: IO.CDK_TOOLKIT_I5201,
+    start: IO.CDK_TOOLKIT_I4001,
+    end: IO.CDK_TOOLKIT_I4000,
   },
   DESTROY_STACK: {
     name: 'Destroy',
