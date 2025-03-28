@@ -263,6 +263,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
+    const diffSpan = await ioHelper.span(SPAN.DIFF_STACK).begin({ stacks: selectStacks });
     const deployments = await this.deploymentsForAction('diff');
 
     const strict = !!options.strict;
@@ -385,6 +386,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       formattedSecurityDiff,
       formattedStackDiff,
     }));
+    await diffSpan.end();
 
     return;
   }
