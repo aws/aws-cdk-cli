@@ -82,6 +82,16 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
+  CDK_TOOLKIT_I4000: make.info<Duration>({
+    code: 'CDK_TOOLKIT_I4000',
+    description: 'Provides diff times.',
+    interface: 'Duration',
+  }),
+  CDK_TOOLKIT_I4001: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4001',
+    description: 'Diff stacks is starting',
+    interface: 'StackSelectionDetails',
+  }),
   CDK_TOOLKIT_I4401: make.info<DiffOutput>({
     code: 'CDK_TOOLKIT_I4401',
     description: 'Output of the diff command',
@@ -505,6 +515,11 @@ export const SPAN = {
     name: 'Rollback',
     start: IO.CDK_TOOLKIT_I6100,
     end: IO.CDK_TOOLKIT_I6000,
+  },
+  DIFF_STACK: {
+    name: 'Diff',
+    start: IO.CDK_TOOLKIT_I5200,
+    end: IO.CDK_TOOLKIT_I5201,
   },
   DESTROY_STACK: {
     name: 'Destroy',
