@@ -257,9 +257,9 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    */
   public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
-    const assembly = await assemblyFromSource(ioHelper, cx);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    const assembly = await assemblyFromSource(ioHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
