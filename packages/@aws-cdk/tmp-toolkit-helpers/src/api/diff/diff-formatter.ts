@@ -12,11 +12,11 @@ import {
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 
-import { RequireApproval } from '../require-approval';
-import { ToolkitError } from '../toolkit-error';
 import type { NestedStackTemplates } from '../cloudformation/nested-stack-templates';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
+import { RequireApproval } from '../require-approval';
+import { ToolkitError } from '../toolkit-error';
 
 /*
  * Custom writable stream that collects text into a string buffer.
@@ -82,7 +82,7 @@ export interface DiffFormatterProps {
   /**
    * The new/target state of the stack.
    */
-  readonly newTemplate: cxapi.CloudFormationStackArtifact,
+  readonly newTemplate: cxapi.CloudFormationStackArtifact;
 }
 
 /**
@@ -92,19 +92,19 @@ export interface FormatSecurityDiffOptions {
   /**
    * The approval level of the security diff
    */
-  readonly requireApproval: RequireApproval,
+  readonly requireApproval: RequireApproval;
 
   /**
    * The name of the Stack.
    */
-  readonly stackName?: string,
+  readonly stackName?: string;
 
   /**
    * The changeSet for the Stack.
    *
    * @default undefined
    */
-  readonly changeSet?: DescribeChangeSetOutput,
+  readonly changeSet?: DescribeChangeSetOutput;
 }
 
 /**
