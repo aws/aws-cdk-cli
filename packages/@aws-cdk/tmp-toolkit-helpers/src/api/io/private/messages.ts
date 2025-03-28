@@ -93,13 +93,15 @@ export const IO = {
     code: 'CDK_TOOLKIT_I4300',
     description: 'Reason for skipping changeset creation',
   }),
-  CDK_TOOLKIT_I4400: make.info({
+  CDK_TOOLKIT_I4400: make.info<String>({
     code: 'CDK_TOOLKIT_I4400',
-    description: 'Security diff',
+    description: 'Formatted security diff',
+    interface: 'string',
   }),
-  CDK_TOOLKIT_I4401: make.info({
+  CDK_TOOLKIT_I4401: make.info<String>({
     code: 'CDK_TOOLKIT_I4401',
-    description: 'Stack diff',
+    description: 'Formatted stack diff',
+    interface: 'string',
   }),
   CDK_TOOLKIT_I4402: make.info({
     code: 'CDK_TOOLKIT_I4402',

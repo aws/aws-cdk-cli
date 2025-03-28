@@ -368,7 +368,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             changeSet,
           );
           if (securityDiff.formattedDiff) {
-            await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
+            await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff, securityDiff.formattedDiff));
             diffs += 1;
           }
         } else {
@@ -385,7 +385,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             nestedStacks,
           );
 
-          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff) );
+          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff, diff.formattedDiff));
           diffs += diff.numStacksWithChanges;
         }
       }
