@@ -43,7 +43,7 @@ class StringWriteStream extends Writable {
 /**
  * Output of formatSecurityDiff
  */
-export interface FormatSecurityDiffOutput {
+interface FormatSecurityDiffOutput {
   /**
    * Complete formatted security diff, if it is prompt-worthy
    */
@@ -53,7 +53,7 @@ export interface FormatSecurityDiffOutput {
 /**
  * Output of formatStackDiff
  */
-export interface FormatStackDiffOutput {
+interface FormatStackDiffOutput {
   /**
    * Number of stacks with diff changes
    */
@@ -68,7 +68,7 @@ export interface FormatStackDiffOutput {
 /**
  * Props for the Diff Formatter
  */
-export interface DiffFormatterProps {
+interface DiffFormatterProps {
   /**
    * Helper for the IoHost class
    */
@@ -88,7 +88,7 @@ export interface DiffFormatterProps {
 /**
  * Properties specific to formatting the security diff
  */
-export interface FormatSecurityDiffOptions {
+interface FormatSecurityDiffOptions {
   /**
    * The approval level of the security diff
    */
@@ -110,7 +110,7 @@ export interface FormatSecurityDiffOptions {
 /**
  * PRoperties specific to formatting the stack diff
  */
-export interface FormatStackDiffOptions {
+interface FormatStackDiffOptions {
   /**
    * do not filter out AWS::CDK::Metadata or Rules
    *
@@ -326,7 +326,7 @@ function diffRequiresApproval(diff: TemplateDiff, requireApproval: RequireApprov
   }
 }
 
-export function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
+function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
   const map: { [id: string]: string } = {};
   for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
     map[md.data as string] = md.path;
@@ -334,7 +334,7 @@ export function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) 
   return map;
 }
 
-export function logicalIdMapFromTemplate(template: any) {
+function logicalIdMapFromTemplate(template: any) {
   const ret: Record<string, string> = {};
 
   for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
@@ -352,7 +352,7 @@ export function logicalIdMapFromTemplate(template: any) {
  * - AWS::CDK::Metadata resource
  * - CheckBootstrapVersion Rule
  */
-export function obscureDiff(diff: TemplateDiff) {
+function obscureDiff(diff: TemplateDiff) {
   if (diff.unknown) {
     // see https://github.com/aws/aws-cdk/issues/17942
     diff.unknown = diff.unknown.filter(change => {

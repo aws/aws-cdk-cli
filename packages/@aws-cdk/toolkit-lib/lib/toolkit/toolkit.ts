@@ -382,11 +382,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         }
       }
     }
-    await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(`✨ Number of stacks with differences: ${diffs}`, {
+
+    await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
       formattedSecurityDiff,
       formattedStackDiff,
-    }));
-    await diffSpan.end();
+    });
 
     return;
   }

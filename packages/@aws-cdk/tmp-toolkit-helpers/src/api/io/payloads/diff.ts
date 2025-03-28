@@ -1,3 +1,5 @@
+import { Duration } from "./types";
+
 /**
  * Different types of permission related changes in a diff
  */
@@ -21,7 +23,7 @@ export enum PermissionChangeType {
 /**
  * Output of the diff command
  */
-export interface DiffOutput {
+export interface DiffResult extends Duration {
   /**
    * Stack diff formatted as a string
    */

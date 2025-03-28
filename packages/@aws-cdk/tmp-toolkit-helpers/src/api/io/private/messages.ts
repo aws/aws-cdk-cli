@@ -14,7 +14,7 @@ import type { StackActivity, StackMonitoringControlEvent } from '../payloads/sta
 import type { StackSelectionDetails } from '../payloads/synth';
 import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
-import { DiffOutput } from '../payloads';
+import type { DiffResult } from '../payloads';
 
 /**
  * We have a rough system by which we assign message codes:
@@ -82,20 +82,15 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
-  CDK_TOOLKIT_I4000: make.info<Duration>({
+  CDK_TOOLKIT_I4000: make.trace<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I4000',
-    description: 'Provides diff times.',
-    interface: 'Duration',
-  }),
-  CDK_TOOLKIT_I4001: make.trace<StackSelectionDetails>({
-    code: 'CDK_TOOLKIT_I4001',
     description: 'Diff stacks is starting',
     interface: 'StackSelectionDetails',
   }),
-  CDK_TOOLKIT_I4401: make.info<DiffOutput>({
-    code: 'CDK_TOOLKIT_I4401',
+  CDK_TOOLKIT_I4001: make.info<DiffResult>({
+    code: 'CDK_TOOLKIT_I4001',
     description: 'Output of the diff command',
-    interface: 'DiffOutput',
+    interface: 'DiffResult',
   }),
 
   // 5: Deploy & Watch (5xxx)
@@ -500,6 +495,9 @@ export const IO = {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Payload type of the end message must extend Duration
+ */
 export const SPAN = {
   SYNTH_ASSEMBLY: {
     name: 'Synthesis',
@@ -518,8 +516,8 @@ export const SPAN = {
   },
   DIFF_STACK: {
     name: 'Diff',
-    start: IO.CDK_TOOLKIT_I4001,
-    end: IO.CDK_TOOLKIT_I4000,
+    start: IO.CDK_TOOLKIT_I4000,
+    end: IO.CDK_TOOLKIT_I4001,
   },
   DESTROY_STACK: {
     name: 'Destroy',
