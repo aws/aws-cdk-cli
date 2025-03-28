@@ -53,7 +53,7 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4401',
+      code: 'CDK_TOOLKIT_I0000',
       message: expect.stringContaining((chalk.bold('Stack1'))),
     }));
   });
@@ -152,7 +152,7 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4401',
+      code: 'CDK_TOOLKIT_I0000',
       message: expect.stringContaining((chalk.bold('Stack1'))),
     }));
     // TODO: uncomment when diff returns a value
