@@ -12,7 +12,7 @@ export class SdkToCliLogger implements Logger {
   }
 
   private notify(level: 'debug' | 'info' | 'warn' | 'error', ...content: any[]) {
-    void this.ioHelper.notify(IO.CDK_SDK_I0000.msg(format('[SDK %s] %s', level, formatSdkLoggerContent(content))));
+    void this.ioHelper.notify(IO.DEFAULT_SDK_TRACE.msg(format('[SDK %s] %s', level, formatSdkLoggerContent(content))));
   }
 
   public trace(..._content: any[]) {

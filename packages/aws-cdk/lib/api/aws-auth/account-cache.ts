@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import type { Account } from './sdk-provider';
-import { debug } from '../../logging';
 import { cdkCacheDir } from '../../util';
 
 /**
@@ -16,13 +15,24 @@ export class AccountAccessKeyCache {
    */
   public static readonly MAX_ENTRIES = 1000;
 
+  /**
+   * The default path used for the accounts access key cache
+   */
+  public static get DEFAULT_PATH(): string {
+    // needs to be a getter because cdkCacheDir can be set via env variable and might change
+    return path.join(cdkCacheDir(), 'accounts_partitions.json');
+  }
+
   private readonly cacheFile: string;
+
+  private readonly debug: (msg: string) => Promise<void>;
 
   /**
    * @param filePath Path to the cache file
    */
-  constructor(filePath?: string) {
-    this.cacheFile = filePath || path.join(cdkCacheDir(), 'accounts_partitions.json');
+  constructor(filePath: string = AccountAccessKeyCache.DEFAULT_PATH, debugFn: (msg: string) => Promise<void>) {
+    this.cacheFile = filePath;
+    this.debug = debugFn;
   }
 
   /**
@@ -40,7 +50,7 @@ export class AccountAccessKeyCache {
     // try to get account ID based on this access key ID from disk.
     const cached = await this.get(accessKeyId);
     if (cached) {
-      debug(`Retrieved account ID ${cached.accountId} from disk cache`);
+      await this.debug(`Retrieved account ID ${cached.accountId} from disk cache`);
       return cached;
     }
 

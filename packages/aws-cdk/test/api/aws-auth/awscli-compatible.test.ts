@@ -2,6 +2,10 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { AwsCliCompatible } from '../../../lib/api/aws-auth/awscli-compatible';
+import { TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('sdk');
 
 describe('AwsCliCompatible.region', () => {
 
@@ -235,7 +239,7 @@ async function region(opts: {
       process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
     }
 
-    return await AwsCliCompatible.region(opts.profile);
+    return await new AwsCliCompatible(ioHelper).region(opts.profile);
 
   } finally {
     fs.removeSync(workdir);
@@ -253,7 +257,7 @@ describe('Session token', () => {
     delete process.env.AWS_SESSION_TOKEN;
     delete process.env.AMAZON_SESSION_TOKEN;
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toBeUndefined();
   });
@@ -262,7 +266,7 @@ describe('Session token', () => {
     process.env.AWS_SESSION_TOKEN = 'aaa';
     delete process.env.AMAZON_SESSION_TOKEN;
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });
@@ -271,7 +275,7 @@ describe('Session token', () => {
     delete process.env.AWS_SESSION_TOKEN;
     process.env.AMAZON_SESSION_TOKEN = 'aaa';
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });
@@ -280,7 +284,7 @@ describe('Session token', () => {
     process.env.AWS_SESSION_TOKEN = 'aaa';
     process.env.AMAZON_SESSION_TOKEN = 'bbb';
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });

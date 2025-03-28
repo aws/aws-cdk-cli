@@ -167,7 +167,8 @@ const NOTICE_FOR_APIGATEWAYV2_CFN_STAGE = {
 };
 
 const ioHost = new FakeIoHost();
-const ioHostEmitter = new IoDefaultMessages(asIoHelper(ioHost, 'notices' as any));
+const ioHelper = asIoHelper(ioHost, 'notices' as any)
+const ioHostEmitter = new IoDefaultMessages(ioHelper);
 const noticesFilter = new NoticesFilter(ioHostEmitter);
 
 beforeEach(() => {
@@ -448,7 +449,7 @@ function parseTestComponent(x: string): Component {
 
 
 describe(WebsiteNoticeDataSource, () => {
-  const dataSource = new WebsiteNoticeDataSource(ioHostEmitter);
+  const dataSource = new WebsiteNoticeDataSource(ioHelper);
 
   test('returns data when download succeeds', async () => {
     const result = await mockCall(200, {

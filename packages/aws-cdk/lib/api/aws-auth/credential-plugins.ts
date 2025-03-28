@@ -3,10 +3,10 @@ import type { CredentialProviderSource, ForReading, ForWriting, PluginProviderRe
 import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 import { credentialsAboutToExpire, makeCachingProvider } from './provider-caching';
 import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { debug, warning } from '../../logging';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { Mode } from '../plugin/mode';
-import { PluginHost } from '../plugin/plugin';
+import type { PluginHost } from '../plugin/plugin';
 
 /**
  * Cache for credential providers.
@@ -23,9 +23,11 @@ import { PluginHost } from '../plugin/plugin';
 export class CredentialPlugins {
   private readonly cache: { [key: string]: PluginCredentialsFetchResult | undefined } = {};
   private readonly host: PluginHost;
+  private readonly ioHelper: IoHelper;
 
-  constructor(host?: PluginHost) {
-    this.host = host ?? PluginHost.instance;
+  constructor(host: PluginHost, ioHelper: IoHelper) {
+    this.host = host;
+    this.ioHelper = ioHelper;
   }
 
   public async fetchCredentialsFor(awsAccountId: string, mode: Mode): Promise<PluginCredentialsFetchResult | undefined> {
@@ -49,12 +51,12 @@ export class CredentialPlugins {
         available = await source.isAvailable();
       } catch (e: any) {
         // This shouldn't happen, but let's guard against it anyway
-        warning(`Uncaught exception in ${source.name}: ${formatErrorMessage(e)}`);
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_W0100.msg(`Uncaught exception in ${source.name}: ${formatErrorMessage(e)}`));
         available = false;
       }
 
       if (!available) {
-        debug('Credentials source %s is not available, ignoring it.', source.name);
+        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Credentials source ${source.name} is not available, ignoring it.`));
         continue;
       }
       triedSources.push(source);
@@ -63,13 +65,13 @@ export class CredentialPlugins {
         canProvide = await source.canProvideCredentials(awsAccountId);
       } catch (e: any) {
         // This shouldn't happen, but let's guard against it anyway
-        warning(`Uncaught exception in ${source.name}: ${formatErrorMessage(e)}`);
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_W0100.msg(`Uncaught exception in ${source.name}: ${formatErrorMessage(e)}`));
         canProvide = false;
       }
       if (!canProvide) {
         continue;
       }
-      debug(`Using ${source.name} credentials for account ${awsAccountId}`);
+      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Using ${source.name} credentials for account ${awsAccountId}`));
 
       return {
         credentials: await v3ProviderFromPlugin(() => source.getProvider(awsAccountId, mode as ForReading | ForWriting, {

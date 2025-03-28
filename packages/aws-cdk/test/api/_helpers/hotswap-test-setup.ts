@@ -145,6 +145,6 @@ export class HotswapMockSdkProvider extends MockSdkProvider {
     hotswapPropertyOverrides?: HotswapPropertyOverrides,
   ): Promise<SuccessfulDeployStackResult | undefined> {
     let hotswapProps = hotswapPropertyOverrides || new HotswapPropertyOverrides();
-    return deployments.tryHotswapDeployment(this, asIoHelper(ioHost, 'deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode, hotswapProps);
+    return deployments.tryHotswapDeployment(this, asIoHelper(ioHost, 'deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode as any, hotswapProps);
   }
 }

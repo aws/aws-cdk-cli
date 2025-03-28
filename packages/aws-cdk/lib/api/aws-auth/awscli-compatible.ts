@@ -1,15 +1,15 @@
+import { format } from 'node:util';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import type { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
 import * as promptly from 'promptly';
-import { ProxyAgent } from 'proxy-agent';
 import { makeCachingProvider } from './provider-caching';
+import { ProxyAgentProvider } from './proxy-agent';
 import type { SdkHttpOptions } from './sdk-provider';
-import { readIfPossible } from './util';
 import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { debug } from '../../logging';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const DEFAULT_CONNECTION_TIMEOUT = 10000;
 const DEFAULT_TIMEOUT = 300000;
@@ -23,16 +23,22 @@ const DEFAULT_TIMEOUT = 300000;
  * https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
  */
 export class AwsCliCompatible {
+  private readonly ioHelper: IoHelper;
+
+  public constructor(ioHelper: IoHelper) {
+    this.ioHelper = ioHelper;
+  }
+
   /**
    * Build an AWS CLI-compatible credential chain provider
    *
    * The credential chain returned by this function is always caching.
    */
-  public static async credentialChainBuilder(
+  public async credentialChainBuilder(
     options: CredentialChainOptions = {},
   ): Promise<AwsCredentialIdentityProvider> {
     const clientConfig = {
-      requestHandler: AwsCliCompatible.requestHandlerBuilder(options.httpOptions),
+      requestHandler: await this.requestHandlerBuilder(options.httpOptions),
       customUserAgent: 'aws-cdk',
       logger: options.logger,
     };
@@ -63,7 +69,7 @@ export class AwsCliCompatible {
       return makeCachingProvider(fromIni({
         profile: options.profile,
         ignoreCache: true,
-        mfaCodeProvider: tokenCodeFn,
+        mfaCodeProvider: makeTokenCodeFn(this.ioHelper),
         clientConfig,
         parentClientConfig,
         logger: options.logger,
@@ -100,7 +106,7 @@ export class AwsCliCompatible {
       clientConfig,
       parentClientConfig,
       logger: options.logger,
-      mfaCodeProvider: tokenCodeFn,
+      mfaCodeProvider: makeTokenCodeFn(this.ioHelper),
       ignoreCache: true,
     });
 
@@ -109,8 +115,8 @@ export class AwsCliCompatible {
       : nodeProviderChain;
   }
 
-  public static requestHandlerBuilder(options: SdkHttpOptions = {}): NodeHttpHandlerOptions {
-    const agent = this.proxyAgent(options);
+  public async requestHandlerBuilder(options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
+    const agent = await new ProxyAgentProvider(this.ioHelper).create(options);
 
     return {
       connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
@@ -118,19 +124,6 @@ export class AwsCliCompatible {
       httpsAgent: agent,
       httpAgent: agent,
     };
-  }
-
-  public static proxyAgent(options: SdkHttpOptions) {
-    // Force it to use the proxy provided through the command line.
-    // Otherwise, let the ProxyAgent auto-detect the proxy using environment variables.
-    const getProxyForUrl = options.proxyAddress != null
-      ? () => Promise.resolve(options.proxyAddress!)
-      : undefined;
-
-    return new ProxyAgent({
-      ca: tryGetCACert(options.caBundlePath),
-      getProxyForUrl,
-    });
   }
 
   /**
@@ -147,7 +140,7 @@ export class AwsCliCompatible {
    * 3. IMDS instance identity region from the Metadata Service.
    * 4. us-east-1
    */
-  public static async region(maybeProfile?: string): Promise<string> {
+  public async region(maybeProfile?: string): Promise<string> {
     const defaultRegion = 'us-east-1';
     const profile = maybeProfile || process.env.AWS_PROFILE || process.env.AWS_DEFAULT_PROFILE || 'default';
 
@@ -156,69 +149,71 @@ export class AwsCliCompatible {
       process.env.AMAZON_REGION ||
       process.env.AWS_DEFAULT_REGION ||
       process.env.AMAZON_DEFAULT_REGION ||
-      (await getRegionFromIni(profile)) ||
-      (await regionFromMetadataService());
+      (await this.getRegionFromIni(profile)) ||
+      (await this.regionFromMetadataService());
 
     if (!region) {
       const usedProfile = !profile ? '' : ` (profile: "${profile}")`;
-      debug(
+      await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(
         `Unable to determine AWS region from environment or AWS configuration${usedProfile}, defaulting to '${defaultRegion}'`,
-      );
+      ));
       return defaultRegion;
     }
 
     return region;
   }
-}
 
-/**
- * Looks up the region of the provided profile. If no region is present,
- * it will attempt to lookup the default region.
- * @param profile The profile to use to lookup the region
- * @returns The region for the profile or default profile, if present. Otherwise returns undefined.
- */
-async function getRegionFromIni(profile: string): Promise<string | undefined> {
-  const sharedFiles = await loadSharedConfigFiles({ ignoreCache: true });
+  /**
+   * The MetadataService class will attempt to fetch the instance identity document from
+   * IMDSv2 first, and then will attempt v1 as a fallback.
+   *
+   * If this fails, we will use us-east-1 as the region so no error should be thrown.
+   * @returns The region for the instance identity
+   */
+  private async regionFromMetadataService() {
+    await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).'));
+    try {
+      const metadataService = new MetadataService({
+        httpOptions: {
+          timeout: 1000,
+        },
+      });
 
-  // Priority:
-  //
-  // credentials come before config because aws-cli v1 behaves like that.
-  //
-  // 1. profile-region-in-credentials
-  // 2. profile-region-in-config
-  // 3. default-region-in-credentials
-  // 4. default-region-in-config
-
-  return getRegionFromIniFile(profile, sharedFiles.credentialsFile)
-    ?? getRegionFromIniFile(profile, sharedFiles.configFile)
-    ?? getRegionFromIniFile('default', sharedFiles.credentialsFile)
-    ?? getRegionFromIniFile('default', sharedFiles.configFile);
-}
-
-function getRegionFromIniFile(profile: string, data?: any) {
-  return data?.[profile]?.region;
-}
-
-function tryGetCACert(bundlePath?: string) {
-  const path = bundlePath || caBundlePathFromEnvironment();
-  if (path) {
-    debug('Using CA bundle path: %s', path);
-    return readIfPossible(path);
+      await metadataService.fetchMetadataToken();
+      const document = await metadataService.request('/latest/dynamic/instance-identity/document', {});
+      return JSON.parse(document).region;
+    } catch (e) {
+      await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(`Unable to retrieve AWS region from IMDS: ${e}`));
+    }
   }
-  return undefined;
-}
 
-/**
- * Find and return a CA certificate bundle path to be passed into the SDK.
- */
-function caBundlePathFromEnvironment(): string | undefined {
-  if (process.env.aws_ca_bundle) {
-    return process.env.aws_ca_bundle;
+  /**
+   * Looks up the region of the provided profile. If no region is present,
+   * it will attempt to lookup the default region.
+   * @param profile The profile to use to lookup the region
+   * @returns The region for the profile or default profile, if present. Otherwise returns undefined.
+   */
+  private async getRegionFromIni(profile: string): Promise<string | undefined> {
+    const sharedFiles = await loadSharedConfigFiles({ ignoreCache: true });
+
+    // Priority:
+    //
+    // credentials come before config because aws-cli v1 behaves like that.
+    //
+    // 1. profile-region-in-credentials
+    // 2. profile-region-in-config
+    // 3. default-region-in-credentials
+    // 4. default-region-in-config
+
+    return this.getRegionFromIniFile(profile, sharedFiles.credentialsFile)
+    ?? this.getRegionFromIniFile(profile, sharedFiles.configFile)
+    ?? this.getRegionFromIniFile('default', sharedFiles.credentialsFile)
+    ?? this.getRegionFromIniFile('default', sharedFiles.configFile);
   }
-  if (process.env.AWS_CA_BUNDLE) {
-    return process.env.AWS_CA_BUNDLE;
+
+  private getRegionFromIniFile(profile: string, data?: any) {
+    return data?.[profile]?.region;
   }
-  return undefined;
 }
 
 /**
@@ -245,30 +240,6 @@ function shouldPrioritizeEnv() {
   return false;
 }
 
-/**
- * The MetadataService class will attempt to fetch the instance identity document from
- * IMDSv2 first, and then will attempt v1 as a fallback.
- *
- * If this fails, we will use us-east-1 as the region so no error should be thrown.
- * @returns The region for the instance identity
- */
-async function regionFromMetadataService() {
-  debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
-  try {
-    const metadataService = new MetadataService({
-      httpOptions: {
-        timeout: 1000,
-      },
-    });
-
-    await metadataService.fetchMetadataToken();
-    const document = await metadataService.request('/latest/dynamic/instance-identity/document', {});
-    return JSON.parse(document).region;
-  } catch (e) {
-    debug(`Unable to retrieve AWS region from IMDS: ${e}`);
-  }
-}
-
 export interface CredentialChainOptions {
   readonly profile?: string;
   readonly httpOptions?: SdkHttpOptions;
@@ -280,19 +251,22 @@ export interface CredentialChainOptions {
  *
  * Result is send to callback function for SDK to authorize the request
  */
-async function tokenCodeFn(serialArn: string): Promise<string> {
-  debug('Require MFA token for serial ARN', serialArn);
-  try {
-    const token: string = await promptly.prompt(`MFA token for ${serialArn}: `, {
-      trim: true,
-      default: '',
-    });
-    debug('Successfully got MFA token from user');
-    return token;
-  } catch (err: any) {
-    debug('Failed to get MFA token', err);
-    const e = new AuthenticationError(`Error fetching MFA token: ${err.message ?? err}`);
-    e.name = 'SharedIniFileCredentialsProviderFailure';
-    throw e;
-  }
+function makeTokenCodeFn(ioHelper: IoHelper) {
+  const debugFn = (msg: string, ...args: any[]) => ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(format(msg, ...args)));
+  return async (serialArn: string): Promise<string> => {
+    await debugFn('Require MFA token for serial ARN', serialArn);
+    try {
+      const token: string = await promptly.prompt(`MFA token for ${serialArn}: `, {
+        trim: true,
+        default: '',
+      });
+      await debugFn('Successfully got MFA token from user');
+      return token;
+    } catch (err: any) {
+      await debugFn('Failed to get MFA token', err);
+      const e = new AuthenticationError(`Error fetching MFA token: ${err.message ?? err}`);
+      e.name = 'SharedIniFileCredentialsProviderFailure';
+      throw e;
+    }
+  };
 }
