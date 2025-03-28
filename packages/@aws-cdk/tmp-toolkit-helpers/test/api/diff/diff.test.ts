@@ -102,6 +102,30 @@ describe('formatStackDiff', () => {
     );
   });
 
+  test('formats differences with isImport', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    });
+    const result = formatter.formatStackDiff({
+      stackName: 'test-stack',
+      isImport: true,
+    });
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(result.formattedDiff).toBeDefined();
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
+      'Parameters and rules created during migration do not affect resource configuration.\n' +
+      'Resources\n' +
+      '[←] AWS::Lambda::Function Func import',
+    );
+  });
+
   test('handles nested stack templates', () => {
     // GIVEN
     const nestedStackTemplates = {
@@ -109,7 +133,14 @@ describe('formatStackDiff', () => {
         deployedTemplate: {},
         generatedTemplate: {},
         physicalName: 'nested-stack-1',
-        nestedStackTemplates: {},
+        nestedStackTemplates: {
+          NestedStack2: {
+            deployedTemplate: {},
+            generatedTemplate: {},
+            physicalName: 'nested-stack-2',
+            nestedStackTemplates: {},
+          },
+        },
       },
     };
 
@@ -125,9 +156,10 @@ describe('formatStackDiff', () => {
     });
 
     // THEN
-    expect(result.numStacksWithChanges).toBe(2);
+    expect(result.numStacksWithChanges).toBe(3);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('test-stack')}`);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-1')}`);
+    expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-2')}`);
   });
 });
 
