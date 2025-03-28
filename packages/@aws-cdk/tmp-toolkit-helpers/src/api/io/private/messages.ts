@@ -81,31 +81,10 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
-  CDK_TOOLKIT_I4200: make.debug({
-    code: 'CDK_TOOLKIT_I4200',
-    description: 'Reason for why checking if the stack exists failed',
-  }),
-  CDK_TOOLKIT_I4201: make.info({
-    code: 'CDK_TOOLKIT_I4201',
-    description: 'Notify that checking that the stack exists has failed',
-  }),
-  CDK_TOOLKIT_I4300: make.debug({
-    code: 'CDK_TOOLKIT_I4300',
-    description: 'Reason for skipping changeset creation',
-  }),
-  CDK_TOOLKIT_I4400: make.info<String>({
-    code: 'CDK_TOOLKIT_I4400',
-    description: 'Formatted security diff',
-    interface: 'string',
-  }),
-  CDK_TOOLKIT_I4401: make.info<String>({
-    code: 'CDK_TOOLKIT_I4401',
-    description: 'Formatted stack diff',
-    interface: 'string',
-  }),
-  CDK_TOOLKIT_I4402: make.info({
+  CDK_TOOLKIT_I4402: make.info<number>({
     code: 'CDK_TOOLKIT_I4402',
     description: 'Number of stacks with a diff',
+    interface: 'number',
   }),
 
   // 5: Deploy & Watch (5xxx)

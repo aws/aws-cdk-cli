@@ -293,7 +293,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           RequireApproval.BROADENING,
         );
         if (securityDiff.formattedDiff) {
-          await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff));
+          await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(securityDiff.formattedDiff));
           diffs += 1;
         }
       } else {
@@ -309,7 +309,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           false,
         );
         diffs = diff.numStacksWithChanges;
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff));
+        await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(diff.formattedDiff));
       }
     } else {
       // Compare N stacks against deployed templates
@@ -338,8 +338,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               tryLookupRole: true,
             });
           } catch (e: any) {
-            await ioHelper.notify(IO.CDK_TOOLKIT_I4201.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
-            await ioHelper.notify(IO.CDK_TOOLKIT_I4200.msg(formatErrorMessage(e)));
+            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
+            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(formatErrorMessage(e)));
             stackExists = false;
           }
 
@@ -354,7 +354,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               resourcesToImport,
             });
           } else {
-            await ioHelper.notify(IO.CDK_TOOLKIT_I4300.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
+            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
           }
         }
 
@@ -368,7 +368,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             changeSet,
           );
           if (securityDiff.formattedDiff) {
-            await ioHelper.notify(IO.CDK_TOOLKIT_I4400.msg(securityDiff.formattedDiff, securityDiff.formattedDiff));
+            await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(securityDiff.formattedDiff));
             diffs += 1;
           }
         } else {
@@ -385,12 +385,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             nestedStacks,
           );
 
-          await ioHelper.notify(IO.CDK_TOOLKIT_I4401.msg(diff.formattedDiff, diff.formattedDiff));
+          await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(diff.formattedDiff));
           diffs += diff.numStacksWithChanges;
         }
       }
     }
-    await ioHelper.notify(IO.CDK_TOOLKIT_I4402.msg(`Number of differences: ${diffs}`));
+    await ioHelper.notify(IO.CDK_TOOLKIT_I4402.msg(`Number of differences: ${diffs}`, diffs));
 
     return;
   }
