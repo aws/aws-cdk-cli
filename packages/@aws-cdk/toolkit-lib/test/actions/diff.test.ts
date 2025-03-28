@@ -47,7 +47,7 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4401',
+      code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
       data: expect.objectContaining({
         formattedStackDiff: expect.stringContaining((chalk.bold('Stack1'))),
@@ -102,7 +102,7 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4401',
+      code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
       data: expect.objectContaining({
         formattedSecurityDiff: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
@@ -142,7 +142,7 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4401',
+      code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 0'),
       data: expect.objectContaining({
         formattedSecurityDiff: '',
@@ -168,7 +168,7 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'info',
-      code: 'CDK_TOOLKIT_I4401',
+      code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
       data: expect.objectContaining({
         formattedStackDiff: expect.stringContaining(chalk.bold('Stack1')),

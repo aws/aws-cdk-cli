@@ -1356,7 +1356,7 @@ export interface DiffOptions {
   /**
    * Stack names to diff
    */
-  stackNames: string[];
+  readonly stackNames: string[];
 
   /**
    * Name of the toolkit stack, if not the default name
@@ -1370,42 +1370,42 @@ export interface DiffOptions {
    *
    * @default false
    */
-  exclusively?: boolean;
+  readonly exclusively?: boolean;
 
   /**
    * Used a template from disk instead of from the server
    *
    * @default Use from the server
    */
-  templatePath?: string;
+  readonly templatePath?: string;
 
   /**
    * Strict diff mode
    *
    * @default false
    */
-  strict?: boolean;
+  readonly strict?: boolean;
 
   /**
    * How many lines of context to show in the diff
    *
    * @default 3
    */
-  contextLines?: number;
+  readonly contextLines?: number;
 
   /**
    * Whether to fail with exit code 1 in case of diff
    *
    * @default false
    */
-  fail?: boolean;
+  readonly fail?: boolean;
 
   /**
    * Only run diff on broadened security changes
    *
    * @default false
    */
-  securityOnly?: boolean;
+  readonly securityOnly?: boolean;
 
   /**
    * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed
@@ -1413,27 +1413,27 @@ export interface DiffOptions {
    *
    * @default false
    */
-  compareAgainstProcessedTemplate?: boolean;
+  readonly compareAgainstProcessedTemplate?: boolean;
 
   /*
    * Run diff in quiet mode without printing the diff statuses
    *
    * @default false
    */
-  quiet?: boolean;
+  readonly quiet?: boolean;
 
   /**
    * Additional parameters for CloudFormation at diff time, used to create a change set
    * @default {}
    */
-  parameters?: { [name: string]: string | undefined };
+  readonly parameters?: { [name: string]: string | undefined };
 
   /**
    * Whether or not to create, analyze, and subsequently delete a changeset
    *
    * @default true
    */
-  changeSet?: boolean;
+  readonly changeSet?: boolean;
 }
 
 interface CfnDeployOptions {

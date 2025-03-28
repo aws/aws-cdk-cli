@@ -11,7 +11,7 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
-import type { DiffOptions } from '../actions/diff';
+import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '../actions/diff';
 import { DiffMethod } from '../actions/diff';
 import { determinePermissionType } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
@@ -275,6 +275,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     let formattedStackDiff = '';
 
     if (diffMethod.method === 'local-file') {
+      const methodOptions = diffMethod.options as LocalFileDiffOptions;
+
       // Compare single stack against fixed template
       if (stacks.stackCount !== 1) {
         throw new ToolkitError(
@@ -282,11 +284,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         );
       }
 
-      if (!(await fs.pathExists(diffMethod.options.path!))) {
+      if (!(await fs.pathExists(methodOptions.path))) {
         throw new ToolkitError(`There is no file at ${path}`);
       }
 
-      const file = fs.readFileSync(diffMethod.options.path!).toString();
+      const file = fs.readFileSync(methodOptions.path).toString();
       const template = deserializeStructure(file);
       const formatter = new DiffFormatter({
         ioHelper,
@@ -308,11 +310,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         diffs = diff.numStacksWithChanges;
       }
     } else {
+      const methodOptions = diffMethod.options as ChangeSetDiffOptions;
       // Compare N stacks against deployed templates
       for (const stack of stacks.stackArtifacts) {
         const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
           stack,
-          diffMethod.options.compareAgainstProcessedTemplate,
+          methodOptions.compareAgainstProcessedTemplate,
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
@@ -352,7 +355,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               deployments,
               willExecute: false,
               sdkProvider: await this.sdkProvider('diff'),
-              parameters: diffMethod.options.parameters ?? {},
+              parameters: methodOptions.parameters ?? {},
               resourcesToImport,
             });
           } else {
