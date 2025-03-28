@@ -1,4 +1,4 @@
-import { Duration } from "./types";
+import type { Duration } from './types';
 
 /**
  * Different types of permission related changes in a diff

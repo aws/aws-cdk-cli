@@ -1,6 +1,7 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
+import type { DiffResult } from '../payloads';
 import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
@@ -14,7 +15,6 @@ import type { StackActivity, StackMonitoringControlEvent } from '../payloads/sta
 import type { StackSelectionDetails } from '../payloads/synth';
 import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
-import type { DiffResult } from '../payloads';
 
 /**
  * We have a rough system by which we assign message codes:
