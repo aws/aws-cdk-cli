@@ -9,8 +9,7 @@
     "inlineSources": true,
     "lib": [
       "es2022",
-      "esnext.disposable",
-      "dom"
+      "esnext.disposable"
     ],
     "module": "NodeNext",
     "noEmitOnError": false,
