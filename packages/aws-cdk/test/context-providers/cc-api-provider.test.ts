@@ -4,6 +4,14 @@ import { mockCloudControlClient, MockSdkProvider, restoreSdkMocksToDefault } fro
 
 let provider: CcApiContextProviderPlugin;
 
+const INDIFFERENT_PROPERTYMATCH_PROPS = {
+  account: '123456789012',
+  region: 'us-east-1',
+  typeName: 'AWS::RDS::DBInstance',
+  propertyMatch: { },
+  propertiesToReturn: ['Index'],
+};
+
 beforeEach(() => {
   provider = new CcApiContextProviderPlugin(new MockSdkProvider());
   restoreSdkMocksToDefault();
@@ -178,6 +186,87 @@ test('looks up RDS instance using CC API listResources - error in CC API', async
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
   ).rejects.toThrow('error while listing AWS::RDS::DBInstance resources'); // THEN
+});
+
+test.each([
+  [undefined],
+  ['any'],
+  ['at-most-one'],
+] as const)('return an empty array for empty result when expectedMatchCount is %s', async (expectedMatchCount) => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  // WHEN
+  const results = await provider.getValue({
+    account: '123456789012',
+    region: 'us-east-1',
+    typeName: 'AWS::EC2::PrefixList',
+    propertyMatch: { PrefixListName: 'name3' },
+    propertiesToReturn: ['PrefixListId'],
+    expectedMatchCount,
+  });
+
+  // THEN
+  expect(results.length).toEqual(0);
+});
+
+
+test.each([
+  ['at-least-one'],
+  ['exactly-one']
+] as const)('throws an error for empty result when expectedMatchCount is %s', async (expectedMatchCount) => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertyMatch: { PrefixListName: 'name3' },
+      propertiesToReturn: ['PrefixListId'],
+      expectedMatchCount,
+    }),
+  ).rejects.toThrow('Could not find any resources matching {"PrefixListName":"name3"}'); // THEN
+});
+
+test.each([
+  ['at-most-one'],
+  ['exactly-one']
+] as const)('throws an error for multiple results when expectedMatchCount is %s', async (expectedMatchCount) => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand).resolves({
+    ResourceDescriptions: [
+      { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+      { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+      { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+    ],
+  });
+
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertyMatch: { PrefixListName: 'name1' },
+      propertiesToReturn: ['PrefixListId'],
+      expectedMatchCount,
+    }),
+  ).rejects.toThrow('Found 2 resources matching {"PrefixListName":"name1"}'); // THEN
 });
 
 test('error by specifying both exactIdentifier and propertyMatch', async () => {
@@ -424,6 +513,43 @@ describe('dummy value', () => {
         ],
       }),
     ).rejects.toThrow('dummyValue must be an array of objects');
+  });
+
+  test.each(['at-least-one', 'exactly-one'] as const)('dummyValue is returned when list operation returns 0 values for expectedMatchCount %p', async (expectedMatchCount) => {
+    // GIVEN
+    mockCloudControlClient.on(ListResourcesCommand).resolves({
+      ResourceDescriptions: []
+    });
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        ...INDIFFERENT_PROPERTYMATCH_PROPS,
+        expectedMatchCount,
+        ignoreErrorOnMissingContext: true,
+        dummyValue: [{ Dummy: true }],
+      }),
+    ).resolves.toEqual([{ Dummy: true }]);
+  });
+
+  test('ignoreErrorOnMissingContext does not suppress errors for at-most-one', async () => {
+    // GIVEN
+    mockCloudControlClient.on(ListResourcesCommand).resolves({
+      ResourceDescriptions: [
+        { Properties: JSON.stringify({ Index: 1 }) },
+        { Properties: JSON.stringify({ Index: 2 }) },
+      ]
+    });
+
+    // WHEN/THEN
+    await expect(
+      provider.getValue({
+        ...INDIFFERENT_PROPERTYMATCH_PROPS,
+        expectedMatchCount: 'at-most-one',
+        ignoreErrorOnMissingContext: true,
+        dummyValue: [{ Dummy: true }],
+      }),
+    ).rejects.toThrow(/Found 2 resources matching/);
   });
 });
 /* eslint-enable */

@@ -1024,19 +1024,19 @@
             ]
         },
         "CcApiContextQuery": {
-            "description": "Query input for lookup up Cloudformation resources using CC API",
+            "description": "Query input for lookup up CloudFormation resources using CC API",
             "type": "object",
             "properties": {
                 "typeName": {
-                    "description": "The Cloudformation resource type.\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html",
+                    "description": "The CloudFormation resource type.\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html",
                     "type": "string"
                 },
                 "exactIdentifier": {
-                    "description": "Identifier of the resource to look up using `GetResource`.\n\nSpecifying exactIdentifier will return exactly one result, or throw an error. (Default - Either exactIdentifier or propertyMatch should be specified.)",
+                    "description": "Identifier of the resource to look up using `GetResource`.\n\nSpecifying exactIdentifier will return exactly one result, or throw an error\nunless `ignoreErrorOnMissingContext` is set. (Default - Either exactIdentifier or propertyMatch should be specified.)",
                     "type": "string"
                 },
                 "propertyMatch": {
-                    "description": "Returns any resources matching these properties, using `ListResources`.\n\nSpecifying propertyMatch will return 0 or more results.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe resources that `propertyMatch` matches against will *only ever* be the\nproperties returned by the `ListResources` call. (Default - Either exactIdentifier or propertyMatch should be specified.)",
+                    "description": "Returns any resources matching these properties, using `ListResources`.\n\nBy default, specifying propertyMatch will successfully return 0 or more\nresults. To throw an error if the number of results is unexpected (and\nprevent the query results from being committed to context), specify\n`expectedMatchCount`.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe resources that `propertyMatch` matches against will *only ever* be the\nproperties returned by the `ListResources` call. (Default - Either exactIdentifier or propertyMatch should be specified.)",
                     "$ref": "#/definitions/Record<string,unknown>"
                 },
                 "propertiesToReturn": {
@@ -1046,11 +1046,21 @@
                         "type": "string"
                     }
                 },
+                "expectedMatchCount": {
+                    "description": "Expected count of results if `propertyMatch` is specified.\n\nIf the expected result count does not match the actual count,\nby default an error is produced and the result is not committed to cached\ncontext, and the user can correct the situation and try again without\nhaving to manually clear out the context key using `cdk context --remove`\n\nIf the value of * `ignoreErrorOnMissingContext` is `true`, the value of\n`expectedMatchCount` is `at-least-one | exactly-one` and the number\nof found resources is 0, `dummyValue` is returned and committed to context\ninstead. (Default 'any')",
+                    "enum": [
+                        "any",
+                        "at-least-one",
+                        "at-most-one",
+                        "exactly-one"
+                    ],
+                    "type": "string"
+                },
                 "dummyValue": {
                     "description": "The value to return if the resource was not found and `ignoreErrorOnMissingContext` is true.\n\nIf supplied, `dummyValue` should be an array of objects.\n\n`dummyValue` does not have to have elements, and it may have objects with\ndifferent properties than the properties in `propertiesToReturn`, but it\nwill be easiest for downstream code if the `dummyValue` conforms to\nthe expected response shape. (Default - No dummy value available)"
                 },
                 "ignoreErrorOnMissingContext": {
-                    "description": "Ignore an error and return the `dummyValue` instead if the resource was not found.\n\n- In case of an `exactIdentifier` lookup, return the `dummyValue` if the resource with\n  that identifier was not found.\n- In case of a `propertyMatch` lookup, this setting currently does not have any effect,\n  as `propertyMatch` queries can legally return 0 resources.\n\nif `ignoreErrorOnMissingContext` is set, `dummyValue` should be set and be an array.",
+                    "description": "Ignore an error and return the `dummyValue` instead if the resource was not found.\n\n- In case of an `exactIdentifier` lookup, return the `dummyValue` if the resource with\n  that identifier was not found.\n- In case of a `propertyMatch` lookup, return the `dummyValue` if `expectedMatchCount`\n  is `at-least-one | exactly-one` and the number of resources found was 0.\n\nif `ignoreErrorOnMissingContext` is set, `dummyValue` should be set and be an array.",
                     "default": false,
                     "type": "boolean"
                 },
