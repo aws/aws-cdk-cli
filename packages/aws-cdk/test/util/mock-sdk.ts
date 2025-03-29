@@ -24,6 +24,7 @@ import { mockClient } from 'aws-sdk-client-mock';
 import { type Account } from 'cdk-assets';
 import { SDK, SdkProvider } from '../../lib/api/aws-auth';
 import { CloudFormationStack } from '../../lib/api/cloudformation';
+import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export const FAKE_CREDENTIALS: AwsCredentialIdentity = {
   accessKeyId: 'ACCESS',
@@ -143,7 +144,7 @@ export const setDefaultSTSMocks = () => {
  */
 export class MockSdkProvider extends SdkProvider {
   constructor() {
-    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337');
+    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
   }
 
   public defaultAccount(): Promise<Account | undefined> {
@@ -159,7 +160,7 @@ export class MockSdkProvider extends SdkProvider {
  */
 export class MockSdk extends SDK {
   constructor() {
-    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {});
+    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
   }
 }
 

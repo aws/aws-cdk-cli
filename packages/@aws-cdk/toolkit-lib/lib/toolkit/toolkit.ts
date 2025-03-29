@@ -128,9 +128,11 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   private async sdkProvider(action: ToolkitAction): Promise<SdkProvider> {
     // @todo this needs to be different instance per action
     if (!this._sdkProvider) {
+      const ioHelper = asIoHelper(this.ioHost, action);
       this._sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
         ...this.props.sdkConfig,
-        logger: asSdkLogger(asIoHelper(this.ioHost, action)),
+        ioHelper,
+        logger: asSdkLogger(ioHelper),
       });
     }
 

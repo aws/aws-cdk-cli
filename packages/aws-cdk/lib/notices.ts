@@ -5,15 +5,16 @@ import * as path from 'path';
 import type { Environment } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import type { SdkHttpOptions } from './api';
-import { AwsCliCompatible } from './api/aws-auth/awscli-compatible';
+import type { SdkHttpOptions } from './api/aws-auth';
+import { ProxyAgentProvider } from './api/aws-auth';
 import type { Context } from './api/context';
 import type { ConstructTreeNode } from './api/tree';
 import { loadTreeFromDir } from './api/tree';
-import type { IIoHost } from './cli/io-host';
 import { versionNumber } from './cli/version';
 import { cdkCacheDir, formatErrorMessage } from './util';
+import type { IIoHost } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { ToolkitError } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { IoHelper } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IO, asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
@@ -304,6 +305,7 @@ export class Notices {
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly includeAcknowlegded: boolean;
   private readonly httpOptions: SdkHttpOptions;
+  private readonly ioHelper: IoHelper;
   private readonly ioMessages: IoDefaultMessages;
 
   private data: Set<Notice> = new Set();
@@ -317,7 +319,8 @@ export class Notices {
     this.includeAcknowlegded = props.includeAcknowledged ?? false;
     this.output = props.output ?? 'cdk.out';
     this.httpOptions = props.httpOptions ?? {};
-    this.ioMessages = new IoDefaultMessages(asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */));
+    this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
+    this.ioMessages = new IoDefaultMessages(this.ioHelper);
   }
 
   /**
@@ -343,7 +346,7 @@ export class Notices {
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
     try {
-      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioMessages, this.httpOptions);
+      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
       const dataSource = new CachedDataSource(this.ioMessages, CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
       const notices = await dataSource.fetch();
       this.data = new Set(this.includeAcknowlegded ? notices : notices.filter(n => !this.acknowledgedIssueNumbers.has(n.issueNumber)));
@@ -485,13 +488,18 @@ export interface NoticeDataSource {
 export class WebsiteNoticeDataSource implements NoticeDataSource {
   private readonly options: SdkHttpOptions;
 
-  constructor(private readonly ioMessages: IoDefaultMessages, options: SdkHttpOptions = {}) {
+  constructor(private readonly ioHelper: IoHelper, options: SdkHttpOptions = {}) {
     this.options = options;
   }
 
-  fetch(): Promise<Notice[]> {
+  async fetch(): Promise<Notice[]> {
     const timeout = 3000;
-    return new Promise((resolve, reject) => {
+
+    const options: RequestOptions = {
+      agent: await new ProxyAgentProvider(this.ioHelper).create(this.options),
+    };
+
+    const notices = await new Promise<Notice[]>((resolve, reject) => {
       let req: ClientRequest | undefined;
 
       let timer = setTimeout(() => {
@@ -501,10 +509,6 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       }, timeout);
 
       timer.unref();
-
-      const options: RequestOptions = {
-        agent: AwsCliCompatible.proxyAgent(this.options),
-      };
 
       try {
         req = https.get('https://cli.cdk.dev-tools.aws.dev/notices.json',
@@ -522,7 +526,6 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
                   if (!data) {
                     throw new ToolkitError("'notices' key is missing");
                   }
-                  this.ioMessages.debug('Notices refreshed');
                   resolve(data ?? []);
                 } catch (e: any) {
                   reject(new ToolkitError(`Failed to parse notices: ${formatErrorMessage(e)}`));
@@ -540,6 +543,9 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
         reject(new ToolkitError(`HTTPS 'get' call threw an error: ${formatErrorMessage(e)}`));
       }
     });
+
+    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Notices refreshed'));
+    return notices;
   }
 }
 

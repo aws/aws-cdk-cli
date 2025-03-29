@@ -1,5 +1,4 @@
 import * as fs from 'fs-extra';
-import { debug } from '../../logging';
 
 /**
  * Read a file if it exists, or return undefined
@@ -13,7 +12,6 @@ export function readIfPossible(filename: string): string | undefined {
     }
     return fs.readFileSync(filename, { encoding: 'utf-8' });
   } catch (e: any) {
-    debug(e);
     return undefined;
   }
 }

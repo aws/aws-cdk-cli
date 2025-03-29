@@ -45,6 +45,12 @@ export const IO = {
     description: 'Default trace messages emitted from the Toolkit',
   }),
 
+  // warnings & errors
+  CDK_TOOLKIT_W0100: make.warn({
+    code: 'CDK_TOOLKIT_W0100',
+    description: 'Credential plugin warnings',
+  }),
+
   // 1: Synth (1xxx)
   CDK_TOOLKIT_I1000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I1000',
@@ -268,7 +274,6 @@ export const IO = {
     description: 'Hotswap disclosure message',
   }),
 
-  // errors
   CDK_TOOLKIT_E5001: make.error({
     code: 'CDK_TOOLKIT_E5001',
     description: 'No stacks found',
@@ -482,9 +487,17 @@ export const IO = {
   }),
 
   // SDK codes
-  CDK_SDK_I0000: make.trace({
+  DEFAULT_SDK_TRACE: make.trace({
     code: 'CDK_SDK_I0000',
-    description: 'An SDK message.',
+    description: 'An SDK trace message.',
+  }),
+  DEFAULT_SDK_DEBUG: make.debug({
+    code: 'CDK_SDK_I0000',
+    description: 'An SDK debug message.',
+  }),
+  DEFAULT_SDK_WARN: make.warn({
+    code: 'CDK_SDK_W0000',
+    description: 'An SDK warning message.',
   }),
   CDK_SDK_I0100: make.trace<SdkTrace>({
     code: 'CDK_SDK_I0100',

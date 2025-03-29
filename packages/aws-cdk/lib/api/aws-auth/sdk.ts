@@ -347,7 +347,7 @@ import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
 import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { debug } from '../../logging';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 
 export interface S3ClientOptions {
@@ -555,13 +555,13 @@ export interface IStepFunctionsClient {
  */
 @traceMemberMethods
 export class SDK {
-  private static readonly accountCache = new AccountAccessKeyCache();
-
   public readonly currentRegion: string;
 
   public readonly config: ConfigurationOptions;
 
   protected readonly logger?: Logger;
+
+  private readonly accountCache;
 
   /**
    * STS is used to check credential validity, don't do too many retries.
@@ -577,12 +577,21 @@ export class SDK {
    */
   private _credentialsValidated = false;
 
+  /**
+   * A function to create debug messages
+   */
+  private readonly debug: (msg: string) => Promise<void>;
+
   constructor(
     private readonly credProvider: AwsCredentialIdentityProvider,
     region: string,
     requestHandler: NodeHttpHandlerOptions,
+    ioHelper: IoHelper,
     logger?: Logger,
   ) {
+    const debugFn = async (msg: string) => ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(msg));
+    this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
+    this.debug = debugFn;
     this.config = {
       region,
       credentials: credProvider,
@@ -992,9 +1001,9 @@ export class SDK {
   public async currentAccount(): Promise<Account> {
     return cachedAsync(this, CURRENT_ACCOUNT_KEY, async () => {
       const creds = await this.credProvider();
-      return SDK.accountCache.fetch(creds.accessKeyId, async () => {
+      return this.accountCache.fetch(creds.accessKeyId, async () => {
         // if we don't have one, resolve from STS and store in cache.
-        debug('Looking up default account ID from STS');
+        await this.debug('Looking up default account ID from STS');
         const client = new STSClient({
           ...this.config,
           retryStrategy: this.stsRetryStrategy,
@@ -1006,7 +1015,7 @@ export class SDK {
         if (!accountId) {
           throw new AuthenticationError("STS didn't return an account ID");
         }
-        debug('Default account ID:', accountId);
+        await this.debug(`Default account ID ${accountId}`);
 
         // Save another STS call later if this one already succeeded
         this._credentialsValidated = true;
