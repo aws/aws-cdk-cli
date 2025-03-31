@@ -3,7 +3,6 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
-import * as uuid from 'uuid';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
@@ -11,8 +10,8 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
-import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '../actions/diff';
-import { DiffMethod } from '../actions/diff';
+import type { DiffOptions } from '../actions/diff';
+import { makeTemplateInfos } from '../actions/diff';
 import { determinePermissionType } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import { type RollbackOptions } from '../actions/rollback';
@@ -21,7 +20,7 @@ import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
+import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -31,8 +30,8 @@ import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespa
 import type { IoHelper } from '../api/shared-private';
 import { asIoHelper } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { DiffFormatter, RequireApproval, ToolkitError, removeNonImportResources } from '../api/shared-public';
-import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
+import { DiffFormatter, RequireApproval, ToolkitError } from '../api/shared-public';
+import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
 import { pLimit } from '../util/concurrency';
 
 export interface ToolkitOptions {
@@ -268,36 +267,25 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
-    const diffMethod = options.method ?? DiffMethod.ChangeSet();
 
     let diffs = 0;
     let formattedSecurityDiff = '';
     let formattedStackDiff = '';
 
-    if (diffMethod.method === 'local-file') {
-      const methodOptions = diffMethod.options as LocalFileDiffOptions;
+    const templateInfos = await makeTemplateInfos(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
 
-      // Compare single stack against fixed template
-      if (stacks.stackCount !== 1) {
-        throw new ToolkitError(
-          'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
-        );
-      }
-
-      if (!(await fs.pathExists(methodOptions.path))) {
-        throw new ToolkitError(`There is no file at ${path}`);
-      }
-
-      const file = fs.readFileSync(methodOptions.path).toString();
-      const template = deserializeStructure(file);
+    for (const template of templateInfos) {
       const formatter = new DiffFormatter({
         ioHelper,
-        oldTemplate: template,
-        newTemplate: stacks.firstStack,
+        oldTemplate: template.oldTemplate,
+        newTemplate: template.newTemplate,
       });
+
       if (options.securityOnly) {
         const securityDiff = formatter.formatSecurityDiff({
           requireApproval: RequireApproval.BROADENING,
+          stackName: template.stackName,
+          changeSet: template.changeSet,
         });
         formattedSecurityDiff = securityDiff.formattedDiff ?? '';
         diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
@@ -305,84 +293,13 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         const diff = formatter.formatStackDiff({
           strict,
           context: contextLines,
+          stackName: template.stackName,
+          changeSet: template.changeSet,
+          isImport: template.isImport,
+          nestedStackTemplates: template.nestedStacks,
         });
         formattedStackDiff = diff.formattedDiff;
         diffs = diff.numStacksWithChanges;
-      }
-    } else {
-      const methodOptions = diffMethod.options as ChangeSetDiffOptions;
-      // Compare N stacks against deployed templates
-      for (const stack of stacks.stackArtifacts) {
-        const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
-          stack,
-          methodOptions.compareAgainstProcessedTemplate,
-        );
-        const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
-        const nestedStacks = templateWithNestedStacks.nestedStacks;
-
-        const formatter = new DiffFormatter({
-          ioHelper,
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        });
-
-        const migrator = new ResourceMigrator({ deployments, ioHelper });
-        const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
-        if (resourcesToImport) {
-          removeNonImportResources(stack);
-        }
-
-        let changeSet = undefined;
-
-        if (diffMethod.method === 'change-set') {
-          let stackExists = false;
-          try {
-            stackExists = await deployments.stackExists({
-              stack,
-              deployName: stack.stackName,
-              tryLookupRole: true,
-            });
-          } catch (e: any) {
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(formatErrorMessage(e)));
-            stackExists = false;
-          }
-
-          if (stackExists) {
-            changeSet = await createDiffChangeSet(ioHelper, {
-              stack,
-              uuid: uuid.v4(),
-              deployments,
-              willExecute: false,
-              sdkProvider: await this.sdkProvider('diff'),
-              parameters: methodOptions.parameters ?? {},
-              resourcesToImport,
-            });
-          } else {
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
-          }
-        }
-
-        if (options.securityOnly) {
-          const securityDiff = formatter.formatSecurityDiff({
-            requireApproval: RequireApproval.BROADENING,
-            stackName: stack.displayName,
-            changeSet,
-          });
-          formattedSecurityDiff = securityDiff.formattedDiff ?? '';
-          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
-        } else {
-          const diff = formatter.formatStackDiff({
-            strict,
-            context: contextLines,
-            stackName: stack.displayName,
-            changeSet,
-            isImport: !!resourcesToImport,
-            nestedStackTemplates: nestedStacks,
-          });
-          formattedStackDiff = diff.formattedDiff;
-          diffs = diff.numStacksWithChanges;
-        }
       }
     }
 
