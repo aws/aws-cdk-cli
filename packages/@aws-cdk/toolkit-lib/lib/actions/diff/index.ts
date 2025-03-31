@@ -1,15 +1,14 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { NestedStackTemplates } from '../../api/shared-public';
-import { removeNonImportResources } from '../../api/shared-public';
-import { deserializeStructure, formatErrorMessage } from '../../private/util';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
-import type { ResourcesToImport } from '../../../../../aws-cdk/lib/api/resource-import';
-import type { Deployments, SdkProvider, StackCollection } from '../../api/aws-cdk';
+import type { Deployments, ResourcesToImport, SdkProvider, StackCollection } from '../../api/aws-cdk';
 import { createDiffChangeSet, ResourceMigrator } from '../../api/aws-cdk';
 import { ToolkitError, type StackSelector } from '../../api/cloud-assembly';
 import type { IoHelper } from '../../api/shared-private';
 import { IO } from '../../api/shared-private';
+import { removeNonImportResources } from '../../api/shared-public';
+import type { NestedStackTemplates } from '../../api/shared-public';
+import { deserializeStructure, formatErrorMessage } from '../../private/util';
 
 export interface CloudFormationDiffOptions {
   /**
