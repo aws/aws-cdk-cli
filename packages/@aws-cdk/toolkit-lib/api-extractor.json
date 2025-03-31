@@ -1,0 +1,37 @@
+{
+  "projectFolder": ".",
+  "mainEntryPointFilePath": "<projectFolder>/lib/index.d.ts",
+  "bundledPackages": [],
+  "apiReport": {
+    "enabled": false
+  },
+  "docModel": {
+    "enabled": true,
+    "apiJsonFilePath": "./temp/<unscopedPackageName>.api.json",
+    "projectFolderUrl": "https://github.com/aws/aws-cdk-cli"
+  },
+  "dtsRollup": {
+    "enabled": false
+  },
+  "tsdocMetadata": {
+    "enabled": false
+  },
+  "messages": {
+    "compilerMessageReporting": {
+      "default": {
+        "logLevel": "error"
+      }
+    },
+    "extractorMessageReporting": {
+      "default": {
+        "logLevel": "error"
+      }
+    },
+    "tsdocMessageReporting": {
+      "default": {
+        "logLevel": "error"
+      }
+    }
+  }
+}
+
