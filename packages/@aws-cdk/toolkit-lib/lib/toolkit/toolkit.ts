@@ -273,18 +273,15 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const templateInfos = await makeTemplateInfos(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
 
-    for (const template of templateInfos) {
+    for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({
         ioHelper,
-        oldTemplate: template.oldTemplate,
-        newTemplate: template.newTemplate,
+        templateInfo,
       });
 
       if (options.securityOnly) {
         const securityDiff = formatter.formatSecurityDiff({
           requireApproval: RequireApproval.BROADENING,
-          stackName: template.stackName,
-          changeSet: template.changeSet,
         });
         formattedSecurityDiff = securityDiff.formattedDiff ?? '';
         diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
@@ -292,10 +289,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         const diff = formatter.formatStackDiff({
           strict,
           context: contextLines,
-          stackName: template.stackName,
-          changeSet: template.changeSet,
-          isImport: template.isImport,
-          nestedStackTemplates: template.nestedStacks,
         });
         formattedStackDiff = diff.formattedDiff;
         diffs = diff.numStacksWithChanges;

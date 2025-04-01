@@ -10,20 +10,9 @@ import { createDiffChangeSet, ResourceMigrator } from '../../../api/aws-cdk';
 import { ToolkitError } from '../../../api/cloud-assembly';
 import type { IoHelper } from '../../../api/shared-private';
 import { IO } from '../../../api/shared-private';
+import type { TemplateInfo } from '../../../api/shared-public';
 import { PermissionChangeType, removeNonImportResources } from '../../../api/shared-public';
-import type { NestedStackTemplates } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
-
-interface TemplateInfo {
-  oldTemplate: any;
-  newTemplate: cxapi.CloudFormationStackArtifact;
-  changeSet?: any;
-  stackName?: string;
-  isImport?: boolean;
-  nestedStacks?: {
-    [nestedStackLogicalId: string]: NestedStackTemplates;
-  };
-}
 
 export function makeTemplateInfos(
   ioHelper: IoHelper,

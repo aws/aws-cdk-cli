@@ -1,4 +1,4 @@
-import type { StackSelector } from '@aws-cdk/tmp-toolkit-helpers';
+import type { StackSelector } from '../../../lib/api/shared-public';
 
 export interface CloudFormationDiffOptions {
   /**
