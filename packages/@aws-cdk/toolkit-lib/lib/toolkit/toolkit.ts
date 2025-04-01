@@ -11,7 +11,7 @@ import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
-import { determinePermissionType, makeTemplateInfos } from '../actions/diff/private';
+import { determinePermissionType, makeTemplateInfos as prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
@@ -271,7 +271,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     let formattedSecurityDiff = '';
     let formattedStackDiff = '';
 
-    const templateInfos = await makeTemplateInfos(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
+    const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
 
     for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({

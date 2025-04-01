@@ -128,12 +128,12 @@ export interface TemplateInfo {
   /**
    * The old/existing template
    */
-  oldTemplate: any;
+  readonly oldTemplate: any;
 
   /**
    * The new template 
    */
-  newTemplate: cxapi.CloudFormationStackArtifact;
+  readonly newTemplate: cxapi.CloudFormationStackArtifact;
 
   /**
    * A CloudFormation ChangeSet to help the diff operation.
@@ -141,28 +141,28 @@ export interface TemplateInfo {
    *
    * @default undefined
    */
-  changeSet?: any;
+  readonly changeSet?: any;
 
   /**
    * The name of the stack
    *
    * @default undefined
    */
-  stackName?: string;
+  readonly stackName?: string;
 
   /**
    * Whether or not there are any imported resources
    *
    * @default false
    */
-  isImport?: boolean;
+  readonly isImport?: boolean;
 
   /**
    * Any nested stacks included in the template
    *
    * @default {}
    */
-  nestedStacks?: {
+  readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
 }
