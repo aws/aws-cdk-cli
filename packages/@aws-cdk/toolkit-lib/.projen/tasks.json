@@ -1,5 +1,13 @@
 {
   "tasks": {
+    "api-extractor-docs": {
+      "name": "api-extractor-docs",
+      "steps": [
+        {
+          "exec": "api-extractor run --local || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && cp dist/*.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/ && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && find . -type f -name \"*.md\" -not -path \"*/node_modules/*\" -not -path \"*/dist/*\" | while read file; do mkdir -p \"dist/api-extractor-docs/cdk/api/toolkit-lib/$(dirname \"$file\")\" && cp \"$file\" \"dist/api-extractor-docs/cdk/api/toolkit-lib/$file\"; done && cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk"
+        }
+      ]
+    },
     "build": {
       "name": "build",
       "description": "Full release build",
@@ -150,6 +158,9 @@
         },
         {
           "exec": "npm pack --pack-destination dist/js"
+        },
+        {
+          "spawn": "api-extractor-docs"
         },
         {
           "spawn": "docs",

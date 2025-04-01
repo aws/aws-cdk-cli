@@ -4,6 +4,7 @@ import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/li
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
+import { ApiExtractorDocsPublishing } from './projenrc/api-extractor-docs-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
@@ -1202,6 +1203,12 @@ new S3DocsPublishing(toolkitLib, {
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
 });
 
+new ApiExtractorDocsPublishing(toolkitLib, {
+  docsStream: 'toolkit-lib',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+});
+
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
@@ -1281,6 +1288,48 @@ for (const tsconfig of [toolkitLib.tsconfigDev]) {
     tsconfig?.addExclude(pat);
   }
 }
+
+// Add API Extractor configuration
+new pj.JsonFile(toolkitLib, 'api-extractor.json', {
+  marker: false,
+  obj: {
+    projectFolder: '.',
+    mainEntryPointFilePath: '<projectFolder>/lib/index.d.ts',
+    bundledPackages: [],
+    apiReport: {
+      enabled: false
+    },
+    docModel: {
+      enabled: true,
+      apiJsonFilePath: './dist/<unscopedPackageName>.api.json',
+      projectFolderUrl: 'https://github.com/aws/aws-cdk-cli'
+    },
+    dtsRollup: {
+      enabled: false
+    },
+    tsdocMetadata: {
+      enabled: false
+    },
+    messages: {
+      compilerMessageReporting: {
+        default: {
+          logLevel: 'warning'
+        }
+      },
+      extractorMessageReporting: {
+        default: {
+          logLevel: 'warning'
+        }
+      },
+      tsdocMessageReporting: {
+        default: {
+          logLevel: 'warning'
+        }
+      }
+    }
+  },
+  committed: true,
+});
 
 // Add a command for the docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
