@@ -1,11 +1,11 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cx-api';
-import { type StackDetails } from '@aws-cdk/tmp-toolkit-helpers';
 import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
 import * as semver from 'semver';
+import { type StackDetails } from '../../../../@aws-cdk/tmp-toolkit-helpers';
 import { AssemblyError, ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { info } from '../../logging';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { flatten } from '../../util';
 
 export enum DefaultSelection {
@@ -97,8 +97,11 @@ export class CloudAssembly {
    */
   public readonly directory: string;
 
-  constructor(public readonly assembly: cxapi.CloudAssembly) {
+  private readonly ioHelper: IoHelper;
+
+  constructor(public readonly assembly: cxapi.CloudAssembly, ioHelper: IoHelper) {
     this.directory = assembly.directory;
+    this.ioHelper = ioHelper;
   }
 
   public async selectStacks(selector: StackSelector, options: SelectStacksOptions): Promise<StackCollection> {
@@ -124,11 +127,11 @@ export class CloudAssembly {
     }
   }
 
-  private selectTopLevelStacks(
+  private async selectTopLevelStacks(
     stacks: cxapi.CloudFormationStackArtifact[],
     topLevelStacks: cxapi.CloudFormationStackArtifact[],
     extend: ExtendedStackSelection = ExtendedStackSelection.None,
-  ): StackCollection {
+  ): Promise<StackCollection> {
     if (topLevelStacks.length > 0) {
       return this.extendStacks(topLevelStacks, stacks, extend);
     } else {
@@ -136,11 +139,11 @@ export class CloudAssembly {
     }
   }
 
-  protected selectMatchingStacks(
+  protected async selectMatchingStacks(
     stacks: cxapi.CloudFormationStackArtifact[],
     patterns: string[],
     extend: ExtendedStackSelection = ExtendedStackSelection.None,
-  ): StackCollection {
+  ): Promise<StackCollection> {
     const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => minimatch(stack.hierarchicalId, pattern);
     const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
 
@@ -171,7 +174,7 @@ export class CloudAssembly {
     }
   }
 
-  protected extendStacks(
+  protected async extendStacks(
     matched: cxapi.CloudFormationStackArtifact[],
     all: cxapi.CloudFormationStackArtifact[],
     extend: ExtendedStackSelection = ExtendedStackSelection.None,
@@ -185,10 +188,10 @@ export class CloudAssembly {
 
     switch (extend) {
       case ExtendedStackSelection.Downstream:
-        includeDownstreamStacks(index, allStacks);
+        await includeDownstreamStacks(this.ioHelper, index, allStacks);
         break;
       case ExtendedStackSelection.Upstream:
-        includeUpstreamStacks(index, allStacks);
+        await includeUpstreamStacks(this.ioHelper, index, allStacks);
         break;
     }
 
@@ -366,9 +369,11 @@ function indexByHierarchicalId(stacks: cxapi.CloudFormationStackArtifact[]): Map
  *
  * Modifies `selectedStacks` in-place.
  */
-function includeDownstreamStacks(
+async function includeDownstreamStacks(
+  ioHelper: IoHelper,
   selectedStacks: Map<string, cxapi.CloudFormationStackArtifact>,
-  allStacks: Map<string, cxapi.CloudFormationStackArtifact>) {
+  allStacks: Map<string, cxapi.CloudFormationStackArtifact>,
+) {
   const added = new Array<string>();
 
   let madeProgress;
@@ -386,7 +391,7 @@ function includeDownstreamStacks(
   } while (madeProgress);
 
   if (added.length > 0) {
-    info('Including depending stacks: %s', chalk.bold(added.join(', ')));
+    await ioHelper.notify(IO.DEFAULT_ASSEMBLY_INFO.msg(`Including depending stacks: ${chalk.bold(added.join(', '))}`));
   }
 }
 
@@ -395,9 +400,11 @@ function includeDownstreamStacks(
  *
  * Modifies `selectedStacks` in-place.
  */
-function includeUpstreamStacks(
+async function includeUpstreamStacks(
+  ioHelper: IoHelper,
   selectedStacks: Map<string, cxapi.CloudFormationStackArtifact>,
-  allStacks: Map<string, cxapi.CloudFormationStackArtifact>) {
+  allStacks: Map<string, cxapi.CloudFormationStackArtifact>,
+) {
   const added = new Array<string>();
   let madeProgress = true;
   while (madeProgress) {
@@ -416,7 +423,7 @@ function includeUpstreamStacks(
   }
 
   if (added.length > 0) {
-    info('Including dependency stacks: %s', chalk.bold(added.join(', ')));
+    await ioHelper.notify(IO.DEFAULT_ASSEMBLY_INFO.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
   }
 }
 

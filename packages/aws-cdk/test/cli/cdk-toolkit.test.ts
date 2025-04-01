@@ -216,7 +216,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-A-Display-Name'] },
-        requireApproval: RequireApproval.Never,
+        requireApproval: RequireApproval.NEVER,
         hotswap: HotswapMode.FALL_BACK,
       });
 
@@ -1627,7 +1627,7 @@ describe('rollback', () => {
       selector: { patterns: [] },
       hotswap: HotswapMode.FULL_DEPLOYMENT,
       rollback: false,
-      requireApproval: RequireApproval.Never,
+      requireApproval: RequireApproval.NEVER,
       force: useForce,
     });
 

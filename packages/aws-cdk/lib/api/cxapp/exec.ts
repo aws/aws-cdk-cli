@@ -1,16 +1,17 @@
 import * as childProcess from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
+import { format } from 'util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { loadTree, some } from '../../api/tree';
 import type { Configuration } from '../../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../../cli/user-configuration';
 import { versionNumber } from '../../cli/version';
-import { debug, trace, warning } from '../../logging';
 import { splitBySize } from '../../util';
 import type { SdkProvider } from '../aws-auth';
 import type { Settings } from '../settings';
@@ -23,9 +24,10 @@ export interface ExecProgramResult {
 }
 
 /** Invokes the cloud executable and returns JSON output */
-export async function execProgram(aws: SdkProvider, config: Configuration): Promise<ExecProgramResult> {
-  const env = await prepareDefaultEnvironment(aws);
-  const context = await prepareContext(config.settings, config.context.all, env);
+export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: Configuration): Promise<ExecProgramResult> {
+  const debugFn = (msg: string) => ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg(msg));
+  const env = await prepareDefaultEnvironment(aws, debugFn);
+  const context = await prepareContext(config.settings, config.context.all, env, debugFn);
 
   const build = config.settings.get(['build']);
   if (build) {
@@ -39,7 +41,7 @@ export async function execProgram(aws: SdkProvider, config: Configuration): Prom
 
   // bypass "synth" if app points to a cloud assembly
   if (await fs.pathExists(app) && (await fs.stat(app)).isDirectory()) {
-    debug('--app points to a cloud assembly, so we bypass synth');
+    await debugFn('--app points to a cloud assembly, so we bypass synth');
 
     // Acquire a read lock on this directory
     const lock = await new RWLock(app).acquireRead();
@@ -47,7 +49,7 @@ export async function execProgram(aws: SdkProvider, config: Configuration): Prom
     return { assembly: createAssembly(app), lock };
   }
 
-  const commandLine = await guessExecutable(app);
+  const commandLine = await guessExecutable(app, debugFn);
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
@@ -62,7 +64,7 @@ export async function execProgram(aws: SdkProvider, config: Configuration): Prom
     throw new ToolkitError(`Could not create output directory ${outdir} (${error.message})`);
   }
 
-  debug('outdir:', outdir);
+  await debugFn(`outdir: ${outdir}`);
   env[cxapi.OUTDIR_ENV] = outdir;
 
   // Acquire a lock on the output directory
@@ -73,7 +75,7 @@ export async function execProgram(aws: SdkProvider, config: Configuration): Prom
     env[cxapi.CLI_ASM_VERSION_ENV] = cxschema.Manifest.version();
     env[cxapi.CLI_VERSION_ENV] = versionNumber();
 
-    debug('env:', env);
+    await debugFn(format('env:', env));
 
     const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
     const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(env, envVariableSizeLimit));
@@ -94,7 +96,7 @@ export async function execProgram(aws: SdkProvider, config: Configuration): Prom
 
     const assembly = createAssembly(outdir);
 
-    contextOverflowCleanup(contextOverflowLocation, assembly);
+    await contextOverflowCleanup(contextOverflowLocation, assembly, ioHelper);
 
     return { assembly, lock: await writerLock.convertToReaderLock() };
   } catch (e) {
@@ -103,38 +105,42 @@ export async function execProgram(aws: SdkProvider, config: Configuration): Prom
   }
 
   async function exec(commandAndArgs: string) {
-    return new Promise<void>((ok, fail) => {
-      // We use a slightly lower-level interface to:
-      //
-      // - Pass arguments in an array instead of a string, to get around a
-      //   number of quoting issues introduced by the intermediate shell layer
-      //   (which would be different between Linux and Windows).
-      //
-      // - Inherit stderr from controlling terminal. We don't use the captured value
-      //   anyway, and if the subprocess is printing to it for debugging purposes the
-      //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
-      //   processes like Maven.
-      const proc = childProcess.spawn(commandAndArgs, {
-        stdio: ['ignore', 'inherit', 'inherit'],
-        detached: false,
-        shell: true,
-        env: {
-          ...process.env,
-          ...env,
-        },
-      });
+    try {
+      await new Promise<void>((ok, fail) => {
+        // We use a slightly lower-level interface to:
+        //
+        // - Pass arguments in an array instead of a string, to get around a
+        //   number of quoting issues introduced by the intermediate shell layer
+        //   (which would be different between Linux and Windows).
+        //
+        // - Inherit stderr from controlling terminal. We don't use the captured value
+        //   anyway, and if the subprocess is printing to it for debugging purposes the
+        //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
+        //   processes like Maven.
+        const proc = childProcess.spawn(commandAndArgs, {
+          stdio: ['ignore', 'inherit', 'inherit'],
+          detached: false,
+          shell: true,
+          env: {
+            ...process.env,
+            ...env,
+          },
+        });
 
-      proc.on('error', fail);
+        proc.on('error', fail);
 
-      proc.on('exit', code => {
-        if (code === 0) {
-          return ok();
-        } else {
-          debug('failed command:', commandAndArgs);
-          return fail(new ToolkitError(`Subprocess exited with error ${code}`));
-        }
+        proc.on('exit', code => {
+          if (code === 0) {
+            return ok();
+          } else {
+            return fail(new ToolkitError(`Subprocess exited with error ${code}`));
+          }
+        });
       });
-    });
+    } catch (e: any) {
+      await debugFn(`failed command: ${commandAndArgs}`);
+      throw e;
+    }
   }
 }
 
@@ -171,17 +177,17 @@ export function createAssembly(appDir: string) {
  */
 export async function prepareDefaultEnvironment(
   aws: SdkProvider,
-  logFn: (msg: string, ...args: any) => any = debug,
+  debugFn: (msg: string) => Promise<void>,
 ): Promise<{ [key: string]: string }> {
   const env: { [key: string]: string } = { };
 
   env[cxapi.DEFAULT_REGION_ENV] = aws.defaultRegion;
-  await logFn(`Setting "${cxapi.DEFAULT_REGION_ENV}" environment variable to`, env[cxapi.DEFAULT_REGION_ENV]);
+  await debugFn(`Setting "${cxapi.DEFAULT_REGION_ENV}" environment variable to ${env[cxapi.DEFAULT_REGION_ENV]}`);
 
   const accountId = (await aws.defaultAccount())?.accountId;
   if (accountId) {
     env[cxapi.DEFAULT_ACCOUNT_ENV] = accountId;
-    await logFn(`Setting "${cxapi.DEFAULT_ACCOUNT_ENV}" environment variable to`, env[cxapi.DEFAULT_ACCOUNT_ENV]);
+    await debugFn(`Setting "${cxapi.DEFAULT_ACCOUNT_ENV}" environment variable to ${env[cxapi.DEFAULT_ACCOUNT_ENV]}`);
   }
 
   return env;
@@ -192,7 +198,12 @@ export async function prepareDefaultEnvironment(
  * The merging of various configuration sources like cli args or cdk.json has already happened.
  * We now need to set the final values to the context.
  */
-export async function prepareContext(settings: Settings, context: {[key: string]: any}, env: { [key: string]: string | undefined}) {
+export async function prepareContext(
+  settings: Settings,
+  context: {[key: string]: any},
+  env: { [key: string]: string | undefined},
+  debugFn: (msg: string) => Promise<void>,
+) {
   const debugMode: boolean = settings.get(['debug']) ?? true;
   if (debugMode) {
     env.CDK_DEBUG = 'true';
@@ -225,7 +236,7 @@ export async function prepareContext(settings: Settings, context: {[key: string]
   const bundlingStacks = settings.get(['bundlingStacks']) ?? ['**'];
   context[cxapi.BUNDLING_STACKS] = bundlingStacks;
 
-  debug('context:', context);
+  await debugFn(format('context:', context));
 
   return context;
 }
@@ -265,7 +276,7 @@ const EXTENSION_MAP = new Map<string, CommandGenerator>([
  * verify if registry associations have or have not been set up for this
  * file type, so we'll assume the worst and take control.
  */
-export async function guessExecutable(app: string) {
+export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>) {
   const commandLine = appToArray(app);
   if (commandLine.length === 1) {
     let fstat;
@@ -273,7 +284,7 @@ export async function guessExecutable(app: string) {
     try {
       fstat = await fs.stat(commandLine[0]);
     } catch {
-      debug(`Not a file: '${commandLine[0]}'. Using '${commandLine}' as command-line`);
+      await debugFn(`Not a file: '${commandLine[0]}'. Using '${commandLine}' as command-line`);
       return commandLine;
     }
 
@@ -289,11 +300,15 @@ export async function guessExecutable(app: string) {
   return commandLine;
 }
 
-function contextOverflowCleanup(location: string | undefined, assembly: cxapi.CloudAssembly) {
+async function contextOverflowCleanup(
+  location: string | undefined,
+  assembly: cxapi.CloudAssembly,
+  ioHelper: IoHelper,
+) {
   if (location) {
     fs.removeSync(path.dirname(location));
 
-    const tree = loadTree(assembly, trace);
+    const tree = await loadTree(assembly, (msg: string) => ioHelper.notify(IO.DEFAULT_ASSEMBLY_TRACE.msg(msg)));
     const frameworkDoesNotSupportContextOverflow = some(tree, node => {
       const fqn = node.constructInfo?.fqn;
       const version = node.constructInfo?.version;
@@ -304,7 +319,7 @@ function contextOverflowCleanup(location: string | undefined, assembly: cxapi.Cl
     // We're dealing with an old version of the framework here. It is unaware of the temporary
     // file, which means that it will ignore the context overflow.
     if (frameworkDoesNotSupportContextOverflow) {
-      warning('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.');
+      await ioHelper.notify(IO.DEFAULT_ASSEMBLY_WARN.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
     }
   }
 }

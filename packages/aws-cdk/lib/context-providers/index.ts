@@ -11,19 +11,60 @@ import { SecurityGroupContextProviderPlugin } from './security-groups';
 import { SSMContextProviderPlugin } from './ssm-parameters';
 import { VpcNetworkContextProviderPlugin } from './vpcs';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { SdkProvider } from '../api';
 import type { Context } from '../api/context';
 import { TRANSIENT_CONTEXT_KEY } from '../api/context';
 import { replaceEnvPlaceholders } from '../api/environment';
 import { PluginHost } from '../api/plugin';
 import type { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
-import { debug } from '../logging';
+import { CliIoHost } from '../cli/io-host';
 import { formatErrorMessage } from '../util';
 
-export type ContextProviderFactory = ((sdk: SdkProvider) => ContextProviderPlugin);
-export type ProviderMap = {[name: string]: ContextProviderFactory};
+type ContextProviderFactory = ((sdk: SdkProvider, io: IContextProviderMessages) => ContextProviderPlugin);
+type ProviderMap = {[name: string]: ContextProviderFactory};
 
 const PLUGIN_PROVIDER_PREFIX = 'plugin';
+
+export interface IContextProviderMessages {
+  /**
+   * A message that is presented to users in normal mode of operation.
+   *
+   * Should be used sparingly. The Context Provider framework already provides useful output by default.
+   * This can be uses in exceptionally situations, e.g. if a lookup call is expected to take a long time.
+   */
+  info(message: string): Promise<void>;
+
+  /**
+   * A message that helps users debugging the context provider.
+   *
+   * Should be used in most cases to note on current action.
+   */
+  debug(message: string): Promise<void>;
+}
+
+class ContextProviderMessages implements IContextProviderMessages {
+  private readonly ioHelper: IoHelper;
+  private readonly providerName: string;
+
+  public constructor(ioHelper: IoHelper, providerName: string) {
+    this.ioHelper = ioHelper;
+    this.providerName = providerName;
+  }
+
+  public async info(message: string): Promise<void> {
+    return this.ioHelper.notify(IO.CDK_ASSEMBLY_I0300.msg(message, {
+      provider: this.providerName,
+    }));
+  }
+
+  public async debug(message: string): Promise<void> {
+    return this.ioHelper.notify(IO.CDK_ASSEMBLY_I0301.msg(message, {
+      provider: this.providerName,
+    }));
+  }
+}
 
 /**
  * Iterate over the list of missing context values and invoke the appropriate providers from the map to retrieve them
@@ -31,7 +72,9 @@ const PLUGIN_PROVIDER_PREFIX = 'plugin';
 export async function provideContextValues(
   missingValues: cxschema.MissingContext[],
   context: Context,
-  sdk: SdkProvider) {
+  sdk: SdkProvider,
+  ioHelper: IoHelper,
+) {
   for (const missingContext of missingValues) {
     const key = missingContext.key;
 
@@ -55,7 +98,8 @@ export async function provideContextValues(
       }
     }
 
-    const provider = factory(sdk);
+    ioHelper = ioHelper ?? CliIoHost.instance().asIoHelper();
+    const provider = factory(sdk, new ContextProviderMessages(ioHelper, providerName));
 
     let value;
     try {
@@ -78,7 +122,7 @@ export async function provideContextValues(
       value = { [cxapi.PROVIDER_ERROR_KEY]: formatErrorMessage(e), [TRANSIENT_CONTEXT_KEY]: true };
     }
     context.set(key, value);
-    debug(`Setting "${key}" context to ${JSON.stringify(value)}`);
+    await ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg(`Setting "${key}" context to ${JSON.stringify(value)}`));
   }
 }
 
@@ -110,15 +154,15 @@ export function registerContextProviderFactory(name: string, provider: ContextPr
 }
 
 const availableContextProviders: ProviderMap = {
-  [cxschema.ContextProvider.AVAILABILITY_ZONE_PROVIDER]: (s) => new AZContextProviderPlugin(s),
-  [cxschema.ContextProvider.SSM_PARAMETER_PROVIDER]: (s) => new SSMContextProviderPlugin(s),
-  [cxschema.ContextProvider.HOSTED_ZONE_PROVIDER]: (s) => new HostedZoneContextProviderPlugin(s),
-  [cxschema.ContextProvider.VPC_PROVIDER]: (s) => new VpcNetworkContextProviderPlugin(s),
-  [cxschema.ContextProvider.AMI_PROVIDER]: (s) => new AmiContextProviderPlugin(s),
-  [cxschema.ContextProvider.ENDPOINT_SERVICE_AVAILABILITY_ZONE_PROVIDER]: (s) => new EndpointServiceAZContextProviderPlugin(s),
+  [cxschema.ContextProvider.AVAILABILITY_ZONE_PROVIDER]: (s, io) => new AZContextProviderPlugin(s, io),
+  [cxschema.ContextProvider.SSM_PARAMETER_PROVIDER]: (s, io) => new SSMContextProviderPlugin(s, io),
+  [cxschema.ContextProvider.HOSTED_ZONE_PROVIDER]: (s, io) => new HostedZoneContextProviderPlugin(s, io),
+  [cxschema.ContextProvider.VPC_PROVIDER]: (s, io) => new VpcNetworkContextProviderPlugin(s, io),
+  [cxschema.ContextProvider.AMI_PROVIDER]: (s, io) => new AmiContextProviderPlugin(s, io),
+  [cxschema.ContextProvider.ENDPOINT_SERVICE_AVAILABILITY_ZONE_PROVIDER]: (s, io) => new EndpointServiceAZContextProviderPlugin(s, io),
   [cxschema.ContextProvider.SECURITY_GROUP_PROVIDER]: (s) => new SecurityGroupContextProviderPlugin(s),
   [cxschema.ContextProvider.LOAD_BALANCER_PROVIDER]: (s) => new LoadBalancerContextProviderPlugin(s),
   [cxschema.ContextProvider.LOAD_BALANCER_LISTENER_PROVIDER]: (s) => new LoadBalancerListenerContextProviderPlugin(s),
-  [cxschema.ContextProvider.KEY_PROVIDER]: (s) => new KeyContextProviderPlugin(s),
+  [cxschema.ContextProvider.KEY_PROVIDER]: (s, io) => new KeyContextProviderPlugin(s, io),
   [cxschema.ContextProvider.CC_API_PROVIDER]: (s) => new CcApiContextProviderPlugin(s),
 };

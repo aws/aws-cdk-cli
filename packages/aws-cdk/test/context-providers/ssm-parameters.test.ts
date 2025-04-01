@@ -9,10 +9,20 @@ const mockSDK = new (class extends MockSdkProvider {
   }
 })();
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
+beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+});
+
 describe('ssmParameters', () => {
   test('returns value', async () => {
     restoreSdkMocksToDefault();
-    const provider = new SSMContextProviderPlugin(mockSDK);
+    const provider = new SSMContextProviderPlugin(mockSDK, mockMsg);
 
     mockSSMClient.on(GetParameterCommand).resolves({
       Parameter: {
@@ -32,7 +42,7 @@ describe('ssmParameters', () => {
 
   test('errors when parameter is not found', async () => {
     restoreSdkMocksToDefault();
-    const provider = new SSMContextProviderPlugin(mockSDK);
+    const provider = new SSMContextProviderPlugin(mockSDK, mockMsg);
 
     const notFound = new Error('Parameter not found');
     notFound.name = 'ParameterNotFound';

@@ -7,7 +7,15 @@ import {
 import { VpcNetworkContextProviderPlugin } from '../../lib/context-providers/vpcs';
 import { MockSdkProvider, mockEC2Client, restoreSdkMocksToDefault } from '../util/mock-sdk';
 
+const mockMsg = {
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
 beforeEach(() => {
+  mockMsg.debug.mockClear();
+  mockMsg.info.mockClear();
+
   restoreSdkMocksToDefault();
   mockEC2Client
     .on(DescribeVpcsCommand)
@@ -84,7 +92,7 @@ test('looks up the requested (symmetric) VPC', async () => {
     })
     .on(DescribeVpnGatewaysCommand)
     .resolves({ VpnGateways: [{ VpnGatewayId: 'gw-abcdef' }] });
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },
@@ -144,7 +152,7 @@ test('looks up the requested (symmetric) VPC', async () => {
 test('throws when no such VPC is found', async () => {
   mockEC2Client.on(DescribeVpcsCommand).resolves({});
   await expect(
-    new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+    new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
       account: '123456789012',
       region: 'us-east-1',
       filter: { foo: 'bar' },
@@ -164,7 +172,7 @@ test('throws when multiple VPCs are found', async () => {
 
   // WHEN
   await expect(
-    new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+    new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
       account: '123456789012',
       region: 'us-east-1',
       filter: { foo: 'bar' },
@@ -241,7 +249,7 @@ test('uses the VPC main route table when a subnet has no specific association', 
       VpnGateways: [{ VpnGatewayId: 'gw-abcdef' }],
     });
 
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },
@@ -330,7 +338,7 @@ test('Recognize public subnet by route table', async () => {
   });
 
   // WHEN
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },
@@ -396,7 +404,7 @@ test('Recognize isolated subnet by route table', async () => {
   });
 
   // WHEN
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },
@@ -458,7 +466,7 @@ test('Recognize private subnet by route table', async () => {
   });
 
   // WHEN
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },
@@ -551,7 +559,7 @@ test('works for asymmetric subnets (not spanning the same Availability Zones)', 
     });
 
   // WHEN
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },
@@ -667,7 +675,7 @@ test('allows specifying the subnet group name tag', async () => {
       ],
     });
 
-  const result = await new VpcNetworkContextProviderPlugin(mockSDK).getValue({
+  const result = await new VpcNetworkContextProviderPlugin(mockSDK, mockMsg).getValue({
     account: '123456789012',
     region: 'us-east-1',
     filter: { foo: 'bar' },

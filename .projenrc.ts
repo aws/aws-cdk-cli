@@ -680,7 +680,9 @@ const tmpToolkitHelpers = configureProject(
     ],
     deps: [
       cloudAssemblySchema.name,
+      cloudFormationDiff,
       'archiver',
+      'chalk@4',
       'glob',
       'semver',
       'uuid',

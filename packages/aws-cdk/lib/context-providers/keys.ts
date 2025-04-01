@@ -1,14 +1,14 @@
 import type { KeyContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { KeyContextResponse } from '@aws-cdk/cx-api';
 import type { AliasListEntry, ListAliasesCommandOutput } from '@aws-sdk/client-kms';
+import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IKMSClient } from '../api';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { debug } from '../logging';
 
 export class KeyContextProviderPlugin implements ContextProviderPlugin {
-  constructor(private readonly aws: SdkProvider) {
+  constructor(private readonly aws: SdkProvider, private readonly io: IContextProviderMessages) {
   }
 
   public async getValue(args: KeyContextQuery) {
@@ -21,7 +21,7 @@ export class KeyContextProviderPlugin implements ContextProviderPlugin {
 
   // TODO: use paginator function
   private async findKey(kms: IKMSClient, args: KeyContextQuery): Promise<AliasListEntry> {
-    debug(`Listing keys in ${args.account}:${args.region}`);
+    await this.io.debug(`Listing keys in ${args.account}:${args.region}`);
 
     let response: ListAliasesCommandOutput;
     let nextMarker: string | undefined;
@@ -54,7 +54,7 @@ export class KeyContextProviderPlugin implements ContextProviderPlugin {
       throw new ContextProviderError(`Could not find any key with alias named ${args.aliasName}`);
     }
 
-    debug(`Key found ${alias.TargetKeyId}`);
+    await this.io.debug(`Key found ${alias.TargetKeyId}`);
 
     return {
       keyId: alias.TargetKeyId,

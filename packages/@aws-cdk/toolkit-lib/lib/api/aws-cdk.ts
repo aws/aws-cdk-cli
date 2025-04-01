@@ -3,7 +3,7 @@
 // APIs
 export { SdkProvider } from '../../../../aws-cdk/lib/api/aws-auth';
 export { Context, PROJECT_CONTEXT } from '../../../../aws-cdk/lib/api/context';
-export { Deployments, type SuccessfulDeployStackResult, type DeployStackOptions, type DeployStackResult } from '../../../../aws-cdk/lib/api/deployments';
+export { createDiffChangeSet, Deployments, type SuccessfulDeployStackResult, type DeployStackOptions, type DeployStackResult } from '../../../../aws-cdk/lib/api/deployments';
 export { Settings } from '../../../../aws-cdk/lib/api/settings';
 export { type Tag, tagsForStack } from '../../../../aws-cdk/lib/api/tags';
 export { DEFAULT_TOOLKIT_STACK_NAME } from '../../../../aws-cdk/lib/api/toolkit-info';

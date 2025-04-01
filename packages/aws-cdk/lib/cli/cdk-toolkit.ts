@@ -36,7 +36,7 @@ import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
 import { StackActivityProgress } from '../commands/deploy';
-import { formatSecurityDiff, formatStackDiff, RequireApproval } from '../commands/diff';
+import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
 import type {
   FromScan,
@@ -195,28 +195,26 @@ export class CdkToolkit {
       }
 
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
+      const formatter = new DiffFormatter({
+        ioHelper: asIoHelper(this.ioHost, 'diff'),
+        oldTemplate: template,
+        newTemplate: stacks.firstStack,
+      });
 
       if (options.securityOnly) {
-        const securityDiff = formatSecurityDiff(
-          template,
-          stacks.firstStack,
-          RequireApproval.Broadening,
-        );
+        const securityDiff = formatter.formatSecurityDiff({
+          requireApproval: RequireApproval.BROADENING,
+        });
         if (securityDiff.formattedDiff) {
           info(securityDiff.formattedDiff);
           diffs += 1;
         }
       } else {
-        const diff = formatStackDiff(
-          template,
-          stacks.firstStack,
+        const diff = formatter.formatStackDiff({
           strict,
-          contextLines,
+          context: contextLines,
           quiet,
-          undefined,
-          undefined,
-          false,
-        );
+        });
         diffs = diff.numStacksWithChanges;
         info(diff.formattedDiff);
       }
@@ -229,6 +227,11 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
+        const formatter = new DiffFormatter({
+          ioHelper: asIoHelper(this.ioHost, 'diff'),
+          oldTemplate: currentTemplate,
+          newTemplate: stack,
+        });
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -277,29 +280,25 @@ export class CdkToolkit {
         }
 
         if (options.securityOnly) {
-          const securityDiff = formatSecurityDiff(
-            currentTemplate,
-            stack,
-            RequireApproval.Broadening,
-            stack.displayName,
+          const securityDiff = formatter.formatSecurityDiff({
+            requireApproval: RequireApproval.BROADENING,
+            stackName: stack.displayName,
             changeSet,
-          );
+          });
           if (securityDiff.formattedDiff) {
             info(securityDiff.formattedDiff);
             diffs += 1;
           }
         } else {
-          const diff = formatStackDiff(
-            currentTemplate,
-            stack,
+          const diff = formatter.formatStackDiff({
             strict,
-            contextLines,
+            context: contextLines,
             quiet,
-            stack.displayName,
+            stackName: stack.displayName,
             changeSet,
-            !!resourcesToImport,
-            nestedStacks,
-          );
+            isImport: !!resourcesToImport,
+            nestedStackTemplates: nestedStacks,
+          });
           info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
         }
@@ -345,7 +344,7 @@ export class CdkToolkit {
       ...options,
     });
 
-    const requireApproval = options.requireApproval ?? RequireApproval.Broadening;
+    const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
 
     const parameterMap = buildParameterMap(options.parameters);
 
@@ -421,9 +420,16 @@ export class CdkToolkit {
         return;
       }
 
-      if (requireApproval !== RequireApproval.Never) {
+      if (requireApproval !== RequireApproval.NEVER) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        const securityDiff = formatSecurityDiff(currentTemplate, stack, requireApproval);
+        const formatter = new DiffFormatter({
+          ioHelper: asIoHelper(this.ioHost, 'deploy'),
+          oldTemplate: currentTemplate,
+          newTemplate: stack,
+        });
+        const securityDiff = formatter.formatSecurityDiff({
+          requireApproval,
+        });
         if (securityDiff.formattedDiff) {
           info(securityDiff.formattedDiff);
           await askUserConfirmation(
@@ -1305,7 +1311,7 @@ export class CdkToolkit {
   ): Promise<void> {
     const deployOptions: DeployOptions = {
       ...options,
-      requireApproval: RequireApproval.Never,
+      requireApproval: RequireApproval.NEVER,
       // if 'watch' is called by invoking 'cdk deploy --watch',
       // we need to make sure to not call 'deploy' with 'watch' again,
       // as that would lead to a cycle
@@ -1343,11 +1349,14 @@ function printSerializedObject(obj: any, json: boolean) {
   logResult(serializeStructure(obj, json));
 }
 
+/**
+ * Options for the diff command
+ */
 export interface DiffOptions {
   /**
    * Stack names to diff
    */
-  stackNames: string[];
+  readonly stackNames: string[];
 
   /**
    * Name of the toolkit stack, if not the default name
@@ -1361,42 +1370,42 @@ export interface DiffOptions {
    *
    * @default false
    */
-  exclusively?: boolean;
+  readonly exclusively?: boolean;
 
   /**
    * Used a template from disk instead of from the server
    *
    * @default Use from the server
    */
-  templatePath?: string;
+  readonly templatePath?: string;
 
   /**
    * Strict diff mode
    *
    * @default false
    */
-  strict?: boolean;
+  readonly strict?: boolean;
 
   /**
    * How many lines of context to show in the diff
    *
    * @default 3
    */
-  contextLines?: number;
+  readonly contextLines?: number;
 
   /**
    * Whether to fail with exit code 1 in case of diff
    *
    * @default false
    */
-  fail?: boolean;
+  readonly fail?: boolean;
 
   /**
    * Only run diff on broadened security changes
    *
    * @default false
    */
-  securityOnly?: boolean;
+  readonly securityOnly?: boolean;
 
   /**
    * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed
@@ -1404,27 +1413,27 @@ export interface DiffOptions {
    *
    * @default false
    */
-  compareAgainstProcessedTemplate?: boolean;
+  readonly compareAgainstProcessedTemplate?: boolean;
 
   /*
    * Run diff in quiet mode without printing the diff statuses
    *
    * @default false
    */
-  quiet?: boolean;
+  readonly quiet?: boolean;
 
   /**
    * Additional parameters for CloudFormation at diff time, used to create a change set
    * @default {}
    */
-  parameters?: { [name: string]: string | undefined };
+  readonly parameters?: { [name: string]: string | undefined };
 
   /**
    * Whether or not to create, analyze, and subsequently delete a changeset
    *
    * @default true
    */
-  changeSet?: boolean;
+  readonly changeSet?: boolean;
 }
 
 interface CfnDeployOptions {

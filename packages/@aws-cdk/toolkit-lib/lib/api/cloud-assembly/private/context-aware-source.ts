@@ -89,6 +89,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
             assembly.manifest.missing,
             this.context,
             this.props.services.sdkProvider,
+            this.ioHelper,
           );
 
           // Cache the new context to disk

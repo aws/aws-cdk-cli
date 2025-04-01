@@ -1,6 +1,7 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
+import type { DiffResult } from '../payloads';
 import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
@@ -12,7 +13,7 @@ import type { StackRollbackProgress } from '../payloads/rollback';
 import type { SdkTrace } from '../payloads/sdk-trace';
 import type { StackActivity, StackMonitoringControlEvent } from '../payloads/stack-activity';
 import type { StackSelectionDetails } from '../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
+import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
 
 /**
@@ -81,6 +82,16 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
+  CDK_TOOLKIT_I4000: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4000',
+    description: 'Diff stacks is starting',
+    interface: 'StackSelectionDetails',
+  }),
+  CDK_TOOLKIT_I4001: make.info<DiffResult>({
+    code: 'CDK_TOOLKIT_I4001',
+    description: 'Output of the diff command',
+    interface: 'DiffResult',
+  }),
 
   // 5: Deploy & Watch (5xxx)
   CDK_TOOLKIT_I5000: make.info<Duration>({
@@ -379,6 +390,18 @@ export const IO = {
     code: 'CDK_ASSEMBLY_I0000',
     description: 'Default trace messages emitted from Cloud Assembly operations',
   }),
+  DEFAULT_ASSEMBLY_DEBUG: make.debug({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default debug messages emitted from Cloud Assembly operations',
+  }),
+  DEFAULT_ASSEMBLY_INFO: make.info({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default info messages emitted from Cloud Assembly operations',
+  }),
+  DEFAULT_ASSEMBLY_WARN: make.warn({
+    code: 'CDK_ASSEMBLY_W0000',
+    description: 'Default warning messages emitted from Cloud Assembly operations',
+  }),
 
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
@@ -430,6 +453,17 @@ export const IO = {
     description: 'Indicates the use of a pre-synthesized cloud assembly directory',
   }),
 
+  CDK_ASSEMBLY_I0300: make.info<ContextProviderMessageSource>({
+    code: 'CDK_ASSEMBLY_I0300',
+    description: 'An info message emitted by a Context Provider',
+    interface: 'ContextProviderMessageSource',
+  }),
+  CDK_ASSEMBLY_I0301: make.debug<ContextProviderMessageSource>({
+    code: 'CDK_ASSEMBLY_I0301',
+    description: 'A debug message emitted by a Context Provider',
+    interface: 'ContextProviderMessageSource',
+  }),
+
   // Assembly Annotations
   CDK_ASSEMBLY_I9999: make.info<cxapi.SynthesisMessage>({
     code: 'CDK_ASSEMBLY_I9999',
@@ -461,6 +495,9 @@ export const IO = {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Payload type of the end message must extend Duration
+ */
 export const SPAN = {
   SYNTH_ASSEMBLY: {
     name: 'Synthesis',
@@ -476,6 +513,11 @@ export const SPAN = {
     name: 'Rollback',
     start: IO.CDK_TOOLKIT_I6100,
     end: IO.CDK_TOOLKIT_I6000,
+  },
+  DIFF_STACK: {
+    name: 'Diff',
+    start: IO.CDK_TOOLKIT_I4000,
+    end: IO.CDK_TOOLKIT_I4001,
   },
   DESTROY_STACK: {
     name: 'Destroy',

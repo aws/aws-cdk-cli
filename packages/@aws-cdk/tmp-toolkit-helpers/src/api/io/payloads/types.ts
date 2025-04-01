@@ -98,3 +98,10 @@ export interface ConfirmationRequest {
    */
   readonly concurrency?: number;
 }
+
+export interface ContextProviderMessageSource {
+  /**
+   * The name of the context provider sending the message
+   */
+  readonly provider: string;
+}

@@ -11,14 +11,15 @@ export interface CloudFormationDiffOptions {
 }
 
 export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
-  /**
-   * Enable falling back to template-based diff in case creating the changeset is not possible or results in an error.
-   *
-   * Should be used for stacks containing nested stacks or when change set permissions aren't available.
-   *
-   * @default true
-   */
-  readonly fallbackToTemplate?: boolean;
+  // @TODO: add this as a feature
+  // /**
+  //  * Enable falling back to template-based diff in case creating the changeset is not possible or results in an error.
+  //  *
+  //  * Should be used for stacks containing nested stacks or when change set permissions aren't available.
+  //  *
+  //  * @default true
+  //  */
+  // readonly fallbackToTemplate?: boolean;
 
   /**
    * Additional parameters for CloudFormation when creating a diff change set
@@ -26,6 +27,13 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
    * @default {}
    */
   readonly parameters?: { [name: string]: string | undefined };
+}
+
+export interface LocalFileDiffOptions {
+  /**
+   * Path to the local file.
+   */
+  readonly path: string;
 }
 
 export class DiffMethod {
@@ -54,10 +62,13 @@ export class DiffMethod {
     }(options);
   }
 
+  /**
+   * Use a local template file to compute the diff.
+   */
   public static LocalFile(path: string): DiffMethod {
     return new class extends DiffMethod {
       public override readonly options: { path: string };
-      public constructor(opts: { path: string }) {
+      public constructor(opts: LocalFileDiffOptions) {
         super('local-file', opts);
         this.options = opts;
       }
@@ -66,11 +77,14 @@ export class DiffMethod {
 
   private constructor(
     public readonly method: 'change-set' | 'template-only' | 'local-file',
-    public readonly options: ChangeSetDiffOptions | CloudFormationDiffOptions | { path: string },
+    public readonly options: ChangeSetDiffOptions | CloudFormationDiffOptions | LocalFileDiffOptions,
   ) {
   }
 }
 
+/**
+ * Optins for the diff method
+ */
 export interface DiffOptions {
   /**
    * Select the stacks
@@ -78,10 +92,10 @@ export interface DiffOptions {
   readonly stacks: StackSelector;
 
   /**
-   * The mode to create a stack diff.
+   * The method to create a stack diff.
    *
    * Use changeset diff for the highest fidelity, including analyze resource replacements.
-   * In this mode, diff will use the deploy role instead of the lookup role.
+   * In this method, diff will use the deploy role instead of the lookup role.
    *
    * Use template-only diff for a faster, less accurate diff that doesn't require
    * permissions to create a change-set.
@@ -89,9 +103,9 @@ export interface DiffOptions {
    * Use local-template diff for a fast, local-only diff that doesn't require
    * any permissions or internet access.
    *
-   * @default DiffMode.ChangeSet
+   * @default DiffMethod.ChangeSet
    */
-  readonly method: DiffMethod;
+  readonly method?: DiffMethod;
 
   /**
    * Strict diff mode
@@ -112,6 +126,8 @@ export interface DiffOptions {
    * Only include broadened security changes in the diff
    *
    * @default false
+   *
+   * @deprecated implement in IoHost
    */
   readonly securityOnly?: boolean;
 }
