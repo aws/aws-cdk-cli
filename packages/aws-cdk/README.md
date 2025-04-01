@@ -536,7 +536,7 @@ and might have breaking changes in the future.
 - `Fn::Split`
 - `Fn::Sub`
 
-> *: `Fn::GetAtt` is only partially supported. Refer to [this implementation](https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/lib/api/evaluate-cloudformation-template.ts#L477-L492) for supported resources and attributes.
+> *: `Fn::GetAtt` is only partially supported. Refer to [this implementation](https://github.com/aws/aws-cdk-cli/blob/main/packages/aws-cdk/lib/api/cloudformation/evaluate-cloudformation-template.ts#L256-L266) for supported resources and attributes.
 
 ### `cdk rollback`
 
