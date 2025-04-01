@@ -17,6 +17,8 @@ group: Documents
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
 | `CDK_TOOLKIT_E3900` | Resource import failed | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_I4000` | Diff stacks is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I4001` | Output of the diff command | `info` | {@link DiffResult} |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5001` | Provides total time in deploy action, including synth and rollback | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |
@@ -75,6 +77,8 @@ group: Documents
 | `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
 | `CDK_ASSEMBLY_I0000` | Default trace messages emitted from Cloud Assembly operations | `trace` | n/a |
 | `CDK_ASSEMBLY_I0000` | Default debug messages emitted from Cloud Assembly operations | `debug` | n/a |
+| `CDK_ASSEMBLY_I0000` | Default info messages emitted from Cloud Assembly operations | `info` | n/a |
+| `CDK_ASSEMBLY_W0000` | Default warning messages emitted from Cloud Assembly operations | `warn` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
 | `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |

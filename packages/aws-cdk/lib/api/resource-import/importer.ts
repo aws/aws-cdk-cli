@@ -6,7 +6,7 @@ import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/clien
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError, removeNonImportResources } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import type { DeploymentMethod, Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
@@ -14,6 +14,7 @@ import type { Tag } from '../tags';
 
 export type ResourcesToImport = ResourceToImport[];
 export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
+export { removeNonImportResources } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 export interface ResourceImporterProps {
   deployments: Deployments;
@@ -441,17 +442,6 @@ export class ResourceImporter {
   private removeNonImportResources() {
     return removeNonImportResources(this.stack);
   }
-}
-
-/**
- * Removes CDKMetadata and Outputs in the template so that only resources for importing are left.
- * @returns template with import resources only
- */
-export function removeNonImportResources(stack: cxapi.CloudFormationStackArtifact) {
-  const template = stack.template;
-  delete template.Resources.CDKMetadata;
-  delete template.Outputs;
-  return template;
 }
 
 /**

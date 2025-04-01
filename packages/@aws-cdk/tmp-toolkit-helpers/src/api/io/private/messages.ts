@@ -1,6 +1,7 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
+import type { DiffResult } from '../payloads';
 import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
@@ -81,6 +82,16 @@ export const IO = {
   }),
 
   // 4: Diff (4xxx)
+  CDK_TOOLKIT_I4000: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4000',
+    description: 'Diff stacks is starting',
+    interface: 'StackSelectionDetails',
+  }),
+  CDK_TOOLKIT_I4001: make.info<DiffResult>({
+    code: 'CDK_TOOLKIT_I4001',
+    description: 'Output of the diff command',
+    interface: 'DiffResult',
+  }),
 
   // 5: Deploy & Watch (5xxx)
   CDK_TOOLKIT_I5000: make.info<Duration>({
@@ -383,6 +394,14 @@ export const IO = {
     code: 'CDK_ASSEMBLY_I0000',
     description: 'Default debug messages emitted from Cloud Assembly operations',
   }),
+  DEFAULT_ASSEMBLY_INFO: make.info({
+    code: 'CDK_ASSEMBLY_I0000',
+    description: 'Default info messages emitted from Cloud Assembly operations',
+  }),
+  DEFAULT_ASSEMBLY_WARN: make.warn({
+    code: 'CDK_ASSEMBLY_W0000',
+    description: 'Default warning messages emitted from Cloud Assembly operations',
+  }),
 
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
@@ -476,6 +495,9 @@ export const IO = {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Payload type of the end message must extend Duration
+ */
 export const SPAN = {
   SYNTH_ASSEMBLY: {
     name: 'Synthesis',
@@ -491,6 +513,11 @@ export const SPAN = {
     name: 'Rollback',
     start: IO.CDK_TOOLKIT_I6100,
     end: IO.CDK_TOOLKIT_I6000,
+  },
+  DIFF_STACK: {
+    name: 'Diff',
+    start: IO.CDK_TOOLKIT_I4000,
+    end: IO.CDK_TOOLKIT_I4001,
   },
   DESTROY_STACK: {
     name: 'Destroy',

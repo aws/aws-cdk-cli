@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import type { AssemblyDirectoryProps, Toolkit } from '../../lib';
 import { ToolkitError } from '../../lib';
-import { determineOutputDirectory } from '../../lib/api/cloud-assembly/private';
 
 export * from '../../lib/api/shared-private';
 export * from './test-cloud-assembly-source';
@@ -18,7 +18,7 @@ export async function appFixture(toolkit: Toolkit, name: string, context?: { [ke
   }
   const app = `cat ${appPath} | node --input-type=module`;
   return toolkit.fromCdkApp(app, {
-    outdir: determineOutputDirectory(),
+    outdir: tmpOutdir(),
     context,
   });
 }
@@ -27,7 +27,7 @@ export function builderFixture(toolkit: Toolkit, name: string, context?: { [key:
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const builder = require(path.join(__dirname, '..', '_fixtures', name)).default;
   return toolkit.fromAssemblyBuilder(builder, {
-    outdir: determineOutputDirectory(),
+    outdir: tmpOutdir(),
     context,
   });
 }
@@ -38,4 +38,8 @@ export function cdkOutFixture(toolkit: Toolkit, name: string, props: AssemblyDir
     throw new ToolkitError(`Assembly Dir Fixture ${name} does not exist in ${outdir}`);
   }
   return toolkit.fromAssemblyDirectory(outdir, props);
+}
+
+function tmpOutdir(): string {
+  return fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
 }

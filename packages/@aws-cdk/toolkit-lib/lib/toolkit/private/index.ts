@@ -18,14 +18,14 @@ export interface ToolkitServices {
  * @param cache if the assembly should be cached, default: `true`
  * @returns the CloudAssembly object
  */
-export async function assemblyFromSource(assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {
+export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {
   if (assemblySource instanceof StackAssembly) {
     return assemblySource;
   }
 
   if (cache) {
-    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce());
+    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce(), ioHelper);
   }
 
-  return new StackAssembly(await assemblySource.produce());
+  return new StackAssembly(await assemblySource.produce(), ioHelper);
 }

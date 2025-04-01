@@ -140,10 +140,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         // variable here. It will be released when the CLI exits. Locks are not re-entrant
         // so release it if we have to synthesize more than once (because of context lookups).
         await outDirLock?.release();
-        const { assembly, lock } = await execProgram(aws, config);
+        const { assembly, lock } = await execProgram(aws, ioHost.asIoHelper(), config);
         outDirLock = lock;
         return assembly;
       }),
+    ioHelper: ioHost.asIoHelper(),
   });
 
   /** Function to load plug-ins, using configurations additively. */
