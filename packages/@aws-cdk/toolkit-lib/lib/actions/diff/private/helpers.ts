@@ -11,6 +11,7 @@ import { IO } from '../../../api/shared-private';
 import { PermissionChangeType, removeNonImportResources } from '../../../api/shared-public';
 import type { NestedStackTemplates } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
+import { ChangeSetDiffOptions, DiffMethod, DiffOptions, LocalFileDiffOptions } from '..';
 
 interface TemplateInfo {
   oldTemplate: any;
