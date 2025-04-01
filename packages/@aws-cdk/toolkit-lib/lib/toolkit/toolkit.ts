@@ -34,6 +34,7 @@ import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-pu
 import { DiffFormatter, RequireApproval, ToolkitError, removeNonImportResources } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
 import { pLimit } from '../util/concurrency';
+import { promiseWithResolvers } from '../util/promises';
 
 export interface ToolkitOptions {
   /**
@@ -736,10 +737,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
   /**
    * Watch Action
    *
-   * Continuously observe project files and deploy the selected stacks automatically when changes are detected.
-   * Implies hotswap deployments.
+   * Continuously observe project files and deploy the selected stacks
+   * automatically when changes are detected.  Implies hotswap deployments.
+   *
+   * This function returns immediately, starting a watcher in the background.
    */
-  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<void> {
+  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
     const assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
@@ -818,7 +821,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       await cloudWatchLogMonitor?.activate();
     };
 
-    chokidar
+    const watcher = chokidar
       .watch(watchIncludes, {
         ignored: watchExcludes,
         cwd: rootDir,
@@ -848,6 +851,26 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           ));
         }
       });
+
+    const stoppedPromise = promiseWithResolvers<void>();
+
+    return {
+      async dispose() {
+        await watcher.close();
+        // Prevents Node from staying alive. There is no 'end' event that the watcher emits
+        // that we can know it's definitely done, so best we can do is tell it to stop watching,
+        // stop keeping Node alive, and then pretend that's everything we needed to do.
+        watcher.unref();
+        stoppedPromise.resolve();
+        return stoppedPromise.promise;
+      },
+      async waitForEnd() {
+        return stoppedPromise.promise;
+      },
+      async [Symbol.asyncDispose]() {
+        return this.dispose();
+      },
+    } satisfies IWatcher;
   }
 
   /**
@@ -1015,4 +1038,26 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       // just continue - deploy will show the error
     }
   }
+}
+
+/**
+ * The result of a `cdk.watch()` operation.
+ */
+export interface IWatcher extends AsyncDisposable {
+  /**
+   * Stop the watcher and wait for the current watch iteration to complete.
+   *
+   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
+   * environments that don't support the Disposable APIs yet.
+   */
+  dispose(): Promise<void>;
+
+  /**
+   * Wait for the watcher to stop.
+   *
+   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
+   *
+   * If neither of those is called, awaiting this promise will wait forever.
+   */
+  waitForEnd(): Promise<void>;
 }
