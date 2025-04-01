@@ -1400,7 +1400,7 @@ const integRunner = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2020', 'dom']
+        lib: ['es2020', 'dom'],
       },
     },
     jestOptions: jestOptionsForProject({
