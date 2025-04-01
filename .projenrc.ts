@@ -91,7 +91,7 @@ const CLI_SDK_V3_RANGE = '^3';
 const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['compilerOptions'] = {
   target: 'ES2020',
   module: 'commonjs',
-  lib: ['es2020', 'dom'],
+  lib: ['es2020'],
   incremental: true,
   esModuleInterop: false,
   skipLibCheck: true,
@@ -1400,6 +1400,7 @@ const integRunner = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
+        lib: ['es2020', 'dom']
       },
     },
     jestOptions: jestOptionsForProject({
