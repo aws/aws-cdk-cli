@@ -39,7 +39,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         resources = await this.getResource(cloudControl, args.typeName, args.exactIdentifier);
       } else if (args.propertyMatch) {
         // use listResource
-        resources = await this.listResources(cloudControl, args.typeName, args.propertyMatch);
+        resources = await this.listResources(cloudControl, args.typeName, args.propertyMatch, args.expectedMatchCount);
       } else {
         throw new ContextProviderError(`Provider protocol error: neither exactIdentifier nor propertyMatch is specified in ${JSON.stringify(args)}.`);
       }
@@ -98,6 +98,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     cc: ICloudControlClient,
     typeName: string,
     propertyMatch: Record<string, unknown>,
+    expectedMatchCount?: CcApiContextQuery['expectedMatchCount'],
   ): Promise<FoundResource[]> {
     try {
       const result = await cc.listResources({
@@ -112,6 +113,13 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
             return propertyMatchesFilter(actual, expected);
           });
         });
+
+      if ((expectedMatchCount === 'at-least-one' || expectedMatchCount === 'exactly-one') && found.length === 0) {
+        throw new ZeroResourcesFoundError(`Could not find any resources matching ${JSON.stringify(propertyMatch)}`);
+      }
+      if ((expectedMatchCount === 'at-most-one' || expectedMatchCount === 'exactly-one') && found.length > 1) {
+        throw new ContextProviderError(`Found ${found.length} resources matching ${JSON.stringify(propertyMatch)}; please narrow the search criteria`);
+      }
 
       return found;
     } catch (err: any) {
