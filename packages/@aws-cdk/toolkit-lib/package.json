@@ -7,6 +7,7 @@
     "directory": "packages/@aws-cdk/toolkit-lib"
   },
   "scripts": {
+    "api-extractor-docs": "npx projen api-extractor-docs",
     "build": "npx projen build",
     "bump": "npx projen bump",
     "check-for-updates": "npx projen check-for-updates",

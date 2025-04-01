@@ -7,7 +7,7 @@
   },
   "docModel": {
     "enabled": true,
-    "apiJsonFilePath": "./temp/<unscopedPackageName>.api.json",
+    "apiJsonFilePath": "./dist/<unscopedPackageName>.api.json",
     "projectFolderUrl": "https://github.com/aws/aws-cdk-cli"
   },
   "dtsRollup": {
@@ -19,19 +19,18 @@
   "messages": {
     "compilerMessageReporting": {
       "default": {
-        "logLevel": "error"
+        "logLevel": "warning"
       }
     },
     "extractorMessageReporting": {
       "default": {
-        "logLevel": "error"
+        "logLevel": "warning"
       }
     },
     "tsdocMessageReporting": {
       "default": {
-        "logLevel": "error"
+        "logLevel": "warning"
       }
     }
   }
 }
-
