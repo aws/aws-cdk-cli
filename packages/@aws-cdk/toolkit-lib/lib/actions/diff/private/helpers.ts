@@ -3,6 +3,8 @@ import { fullDiff } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
+import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
+import { DiffMethod } from '..';
 import type { Deployments, ResourcesToImport, SdkProvider, StackCollection } from '../../../api/aws-cdk';
 import { createDiffChangeSet, ResourceMigrator } from '../../../api/aws-cdk';
 import { ToolkitError } from '../../../api/cloud-assembly';
@@ -11,7 +13,6 @@ import { IO } from '../../../api/shared-private';
 import { PermissionChangeType, removeNonImportResources } from '../../../api/shared-public';
 import type { NestedStackTemplates } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
-import { ChangeSetDiffOptions, DiffMethod, DiffOptions, LocalFileDiffOptions } from '..';
 
 interface TemplateInfo {
   oldTemplate: any;
