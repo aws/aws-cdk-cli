@@ -192,7 +192,7 @@ export class DiffFormatter {
   /**
    * Format the stack diff
    */
-  public formatStackDiff(options: FormatStackDiffOptions): FormatStackDiffOutput {
+  public formatStackDiff(options: FormatStackDiffOptions = {}): FormatStackDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
     return this.formatStackDiffHelper(
       this.oldTemplate,
