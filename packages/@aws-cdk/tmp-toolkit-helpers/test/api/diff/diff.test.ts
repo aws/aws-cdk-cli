@@ -251,7 +251,7 @@ describe('formatSecurityDiff', () => {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
         stackName: 'test-stack',
-      }
+      },
     });
     const result = formatter.formatSecurityDiff({
       requireApproval: RequireApproval.BROADENING,
@@ -285,7 +285,7 @@ describe('formatSecurityDiff', () => {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
         stackName: 'test-stack',
-      }
+      },
     });
     const result = formatter.formatSecurityDiff({
       requireApproval: RequireApproval.ANY_CHANGE,
@@ -322,7 +322,7 @@ describe('formatSecurityDiff', () => {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
         stackName: 'test-stack',
-      }
+      },
     });
     const result = formatter.formatSecurityDiff({
       requireApproval: RequireApproval.NEVER,

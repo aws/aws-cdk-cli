@@ -131,7 +131,7 @@ export interface TemplateInfo {
   readonly oldTemplate: any;
 
   /**
-   * The new template 
+   * The new template
    */
   readonly newTemplate: cxapi.CloudFormationStackArtifact;
 
