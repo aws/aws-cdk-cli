@@ -355,11 +355,11 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
 }
 
 /**
- * Query input for lookup up Cloudformation resources using CC API
+ * Query input for lookup up CloudFormation resources using CC API
  */
 export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
-   * The Cloudformation resource type.
+   * The CloudFormation resource type.
    * See https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
    */
   readonly typeName: string;
@@ -367,8 +367,8 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
    * Identifier of the resource to look up using `GetResource`.
    *
-   * Specifying exactIdentifier will return exactly one result, or throw an error.
-   *
+   * Specifying exactIdentifier will return exactly one result, or throw an error
+   * unless `ignoreErrorOnMissingContext` is set.
    *
    * @default - Either exactIdentifier or propertyMatch should be specified.
    */
@@ -377,7 +377,10 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
    * Returns any resources matching these properties, using `ListResources`.
    *
-   * Specifying propertyMatch will return 0 or more results.
+   * By default, specifying propertyMatch will successfully return 0 or more
+   * results. To throw an error if the number of results is unexpected (and
+   * prevent the query results from being committed to context), specify
+   * `expectedMatchCount`.
    *
    * ## Notes on property completeness
    *
@@ -414,6 +417,23 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
   readonly propertiesToReturn: string[];
 
   /**
+   * Expected count of results if `propertyMatch` is specified.
+   *
+   * If the expected result count does not match the actual count,
+   * by default an error is produced and the result is not committed to cached
+   * context, and the user can correct the situation and try again without
+   * having to manually clear out the context key using `cdk context --remove`
+   *
+   * If the value of * `ignoreErrorOnMissingContext` is `true`, the value of
+   * `expectedMatchCount` is `at-least-one | exactly-one` and the number
+   * of found resources is 0, `dummyValue` is returned and committed to context
+   * instead.
+   *
+   * @default 'any'
+   */
+  readonly expectedMatchCount?: 'any' | 'at-least-one' | 'at-most-one' | 'exactly-one';
+
+  /**
    * The value to return if the resource was not found and `ignoreErrorOnMissingContext` is true.
    *
    * If supplied, `dummyValue` should be an array of objects.
@@ -432,8 +452,8 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    *
    * - In case of an `exactIdentifier` lookup, return the `dummyValue` if the resource with
    *   that identifier was not found.
-   * - In case of a `propertyMatch` lookup, this setting currently does not have any effect,
-   *   as `propertyMatch` queries can legally return 0 resources.
+   * - In case of a `propertyMatch` lookup, return the `dummyValue` if `expectedMatchCount`
+   *   is `at-least-one | exactly-one` and the number of resources found was 0.
    *
    * if `ignoreErrorOnMissingContext` is set, `dummyValue` should be set and be an array.
    *
