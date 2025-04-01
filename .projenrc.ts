@@ -1297,36 +1297,36 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
     mainEntryPointFilePath: '<projectFolder>/lib/index.d.ts',
     bundledPackages: [],
     apiReport: {
-      enabled: false
+      enabled: false,
     },
     docModel: {
       enabled: true,
       apiJsonFilePath: './dist/<unscopedPackageName>.api.json',
-      projectFolderUrl: 'https://github.com/aws/aws-cdk-cli'
+      projectFolderUrl: 'https://github.com/aws/aws-cdk-cli',
     },
     dtsRollup: {
-      enabled: false
+      enabled: false,
     },
     tsdocMetadata: {
-      enabled: false
+      enabled: false,
     },
     messages: {
       compilerMessageReporting: {
         default: {
-          logLevel: 'warning'
-        }
+          logLevel: 'warning',
+        },
       },
       extractorMessageReporting: {
         default: {
-          logLevel: 'warning'
-        }
+          logLevel: 'warning',
+        },
       },
       tsdocMessageReporting: {
         default: {
-          logLevel: 'warning'
-        }
-      }
-    }
+          logLevel: 'warning',
+        },
+      },
+    },
   },
   committed: true,
 });

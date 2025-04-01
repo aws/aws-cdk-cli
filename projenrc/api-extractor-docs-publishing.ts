@@ -36,19 +36,22 @@ export class ApiExtractorDocsPublishing extends Component {
     // Add a task to run api-extractor and zip the output
     const apiExtractorDocsTask = project.addTask('api-extractor-docs', {
       exec: [
+        // Ensure API Extractor is installed
+        'npm install -g @microsoft/api-extractor || true',
         // Run api-extractor to generate the API model
         // Use || true to ensure the task continues even if api-extractor reports failures
-        'api-extractor run --local || true',
+        'api-extractor run --local --diagnostics || true',
         // Create a directory for the API model
         'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
-        // Copy the API model to the directory
-        'cp dist/*.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/',
+        // Copy the API model to the directory (with error handling)
+        'if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo "Warning: API JSON file not found"; fi',
         // Add version file
         '(cat dist/version.txt || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
         // Find and copy all markdown files (excluding node_modules)
         'find . -type f -name "*.md" -not -path "*/node_modules/*" -not -path "*/dist/*" | while read file; do ' +
-        'mkdir -p "dist/api-extractor-docs/cdk/api/toolkit-lib/$(dirname "$file")" && ' +
-        'cp "$file" "dist/api-extractor-docs/cdk/api/toolkit-lib/$file"; ' +
+        'target_dir="dist/api-extractor-docs/cdk/api/toolkit-lib/$(dirname "$file")" && ' +
+        'mkdir -p "$target_dir" && ' +
+        'cp "$file" "$target_dir/$(basename "$file")"; ' +
         'done',
         // Zip the API model and markdown files
         'cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk',

@@ -4,7 +4,7 @@
       "name": "api-extractor-docs",
       "steps": [
         {
-          "exec": "api-extractor run --local || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && cp dist/*.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/ && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && find . -type f -name \"*.md\" -not -path \"*/node_modules/*\" -not -path \"*/dist/*\" | while read file; do mkdir -p \"dist/api-extractor-docs/cdk/api/toolkit-lib/$(dirname \"$file\")\" && cp \"$file\" \"dist/api-extractor-docs/cdk/api/toolkit-lib/$file\"; done && cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk"
+          "exec": "npm install -g @microsoft/api-extractor || true && api-extractor run --local --diagnostics || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo \"Warning: API JSON file not found\"; fi && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && find . -type f -name \"*.md\" -not -path \"*/node_modules/*\" -not -path \"*/dist/*\" | while read file; do target_dir=\"dist/api-extractor-docs/cdk/api/toolkit-lib/$(dirname \"$file\")\" && mkdir -p \"$target_dir\" && cp \"$file\" \"$target_dir/$(basename \"$file\")\"; done && cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk"
         }
       ]
     },
