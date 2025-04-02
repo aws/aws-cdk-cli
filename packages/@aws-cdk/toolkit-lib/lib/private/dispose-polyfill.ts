@@ -13,5 +13,5 @@
 // MDN doesn't even know that Node 22 has them already; for broadest compatibility,
 // we just polyfill them here. Their value doesn't matter, they just need to exist
 // and be unique symbols.
-(Symbol as any).dispose ??= Symbol("Symbol.dispose");
-(Symbol as any).asyncDispose ??= Symbol("Symbol.asyncDispose");
+(Symbol as any).dispose ??= Symbol('Symbol.dispose');
+(Symbol as any).asyncDispose ??= Symbol('Symbol.asyncDispose');
