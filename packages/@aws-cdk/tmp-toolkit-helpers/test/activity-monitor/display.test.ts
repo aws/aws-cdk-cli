@@ -1,5 +1,4 @@
-/* eslint-disable import/order */
-import { RewritableBlock } from '../../../lib/cli/activity-printer/display';
+import { RewritableBlock } from '../../src/private/activity-printer/display';
 import { stderr } from '../_helpers/console-listener';
 
 describe('Rewritable Block Tests', () => {

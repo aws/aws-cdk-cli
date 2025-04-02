@@ -6,9 +6,9 @@ import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { CurrentActivityPrinter, HistoryActivityPrinter } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/private/activity-printer';
+import type { ActivityPrinterProps, IActivityPrinter } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/private/activity-printer';
 import { StackActivityProgress } from '../../commands/deploy';
-import { CurrentActivityPrinter, HistoryActivityPrinter } from '../activity-printer';
-import type { ActivityPrinterProps, IActivityPrinter } from '../activity-printer';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 

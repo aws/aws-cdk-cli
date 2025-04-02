@@ -57,11 +57,14 @@
   "dependencies": {
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
+    "@aws-cdk/cx-api": "^2.186.0",
+    "@aws-sdk/client-cloudformation": "^3",
     "archiver": "^7.0.1",
     "chalk": "4",
     "glob": "^11.0.1",
     "semver": "^7.7.1",
     "uuid": "^11.1.0",
+    "wrap-ansi": "^7",
     "yaml": "^1"
   },
   "keywords": [

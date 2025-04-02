@@ -4,6 +4,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
+import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
@@ -21,7 +22,7 @@ import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
+import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -39,14 +40,14 @@ export interface ToolkitOptions {
   /**
    * The IoHost implementation, handling the inline interactions between the Toolkit and an integration.
    */
-  ioHost?: IIoHost;
+  readonly ioHost?: IIoHost;
 
   /**
    * Allow emojis in messages sent to the IoHost.
    *
    * @default true
    */
-  emojis?: boolean;
+  readonly emojis?: boolean;
 
   /**
    * Whether to allow ANSI colors and formatting in IoHost messages.
@@ -56,26 +57,26 @@ export interface ToolkitOptions {
    *
    * @default - detects color from the TTY status of the IoHost
    */
-  color?: boolean;
+  readonly color?: boolean;
 
   /**
    * Configuration options for the SDK.
    */
-  sdkConfig?: SdkConfig;
+  readonly sdkConfig?: SdkConfig;
 
   /**
    * Name of the toolkit stack to be used.
    *
    * @default "CDKToolkit"
    */
-  toolkitStackName?: string;
+  readonly toolkitStackName?: string;
 
   /**
    * Fail Cloud Assemblies
    *
    * @default "error"
    */
-  assemblyFailureAt?: 'error' | 'warn' | 'none';
+  readonly assemblyFailureAt?: 'error' | 'warn' | 'none';
 }
 
 /**
@@ -91,18 +92,17 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * The IoHost of this Toolkit
    */
   public readonly ioHost: IIoHost;
+
+  /**
+   * Cache of the internal SDK Provider instance
+   */
   private _sdkProvider?: SdkProvider;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
 
-    // Hacky way to re-use the global IoHost until we have fully removed the need for it
-    const globalIoHost = CliIoHost.instance();
-    if (props.ioHost) {
-      globalIoHost.registerIoHost(props.ioHost as any);
-    }
-    let ioHost = globalIoHost as IIoHost;
+    let ioHost = props.ioHost ?? new NonInteractiveIoHost();
     if (props.emojis === false) {
       ioHost = withoutEmojis(ioHost);
     }

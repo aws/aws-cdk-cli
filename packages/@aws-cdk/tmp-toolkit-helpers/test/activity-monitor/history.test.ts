@@ -1,9 +1,8 @@
-import { ResourceStatus } from "@aws-sdk/client-cloudformation";
-import { HistoryActivityPrinter } from "../../../lib/cli/activity-printer";
-import { CliIoHost } from "../../../lib/cli/io-host";
-import { testStack } from "../../_helpers";
-import { stderr } from "../_helpers/console-listener";
+import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
+import { HistoryActivityPrinter } from '../../src/private/activity-printer';
+import { testStack } from '../_helpers/assembly';
+import { stderr } from '../_helpers/console-listener';
 
 let TIMESTAMP: number;
 let HUMAN_TIME: string;
@@ -11,7 +10,6 @@ let HUMAN_TIME: string;
 beforeAll(() => {
   TIMESTAMP = new Date().getTime();
   HUMAN_TIME = new Date(TIMESTAMP).toLocaleTimeString();
-  CliIoHost.instance().isCI = false;
 });
 
 test('prints "IN_PROGRESS" ResourceStatus', () => {
@@ -31,12 +29,12 @@ test('prints "IN_PROGRESS" ResourceStatus', () => {
         EventId: '',
         StackName: 'stack-name',
       },
-      deployment: "test",
+      deployment: 'test',
       progress: {
         completed: 0,
         total: 2,
-        formatted: "0/4"
-      }
+        formatted: '0/4',
+      },
     });
     historyActivityPrinter.stop();
   });
@@ -45,7 +43,6 @@ test('prints "IN_PROGRESS" ResourceStatus', () => {
     `stack-name | 0/4 | ${HUMAN_TIME} | ${chalk.reset('CREATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
   );
 });
-
 
 test('prints "Failed Resources:" list, when at least one deployment fails', () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
@@ -64,12 +61,12 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
         EventId: '',
         StackName: 'stack-name',
       },
-      deployment: "test",
+      deployment: 'test',
       progress: {
         completed: 0,
         total: 2,
-        formatted: "0/2"
-      }
+        formatted: '0/2',
+      },
     });
     historyActivityPrinter.activity({
       event: {
@@ -81,12 +78,12 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
         EventId: '',
         StackName: 'stack-name',
       },
-      deployment: "test",
+      deployment: 'test',
       progress: {
         completed: 0,
         total: 2,
-        formatted: "0/2"
-      }
+        formatted: '0/2',
+      },
     });
     historyActivityPrinter.stop();
   });
@@ -124,12 +121,12 @@ test('print failed resources because of hook failures', () => {
         HookType: 'hook1',
         HookStatusReason: 'stack1 must obey certain rules',
       },
-      deployment: "test",
+      deployment: 'test',
       progress: {
         completed: 0,
         total: 2,
-        formatted: "0/2"
-      }
+        formatted: '0/2',
+      },
     });
     historyActivityPrinter.activity({
       event: {
@@ -142,12 +139,12 @@ test('print failed resources because of hook failures', () => {
         StackName: 'stack-name',
         ResourceStatusReason: 'The following hook(s) failed: hook1',
       },
-      deployment: "test",
+      deployment: 'test',
       progress: {
         completed: 0,
         total: 2,
-        formatted: "0/2"
-      }
+        formatted: '0/2',
+      },
     });
     historyActivityPrinter.stop();
   });
