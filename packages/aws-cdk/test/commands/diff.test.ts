@@ -865,6 +865,70 @@ describe('nested stacks', () => {
     });
 
     // THEN
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    expect(plainTextOutput.trim()).toEqual(`Stack Parent
+Resources
+[~] AWS::CloudFormation::Stack AdditionChild
+ └─ [~] TemplateURL
+     ├─ [-] addition-child-url-new
+     └─ [+] addition-child-url-old
+[~] AWS::CloudFormation::Stack DeletionChild
+ └─ [~] TemplateURL
+     ├─ [-] deletion-child-url-new
+     └─ [+] deletion-child-url-old
+[~] AWS::CloudFormation::Stack ChangedChild
+ └─ [~] TemplateURL
+     ├─ [-] changed-child-url-new
+     └─ [+] changed-child-url-old
+
+Stack AdditionChild
+Resources
+[~] AWS::Something SomeResource
+ └─ [+] Prop
+     └─ added-value
+
+Stack DeletionChild
+Resources
+[~] AWS::Something SomeResource
+ └─ [-] Prop
+     └─ value-to-be-removed
+
+Stack ChangedChild
+Resources
+[~] AWS::Something SomeResource
+ └─ [~] Prop
+     ├─ [-] old-value
+     └─ [+] new-value
+
+Stack newChild
+Resources
+[+] AWS::Something SomeResource
+
+Stack newGrandChild
+Resources
+[+] AWS::Something SomeResource
+
+Stack UnChangedChild
+There were no differences`);
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 6'),
+    }));
+
+    expect(exitCode).toBe(0);
+  });
+
+  test('diff falls back to non-changeset diff for nested stacks', async () => {
+    // GIVEN
+    const changeSetSpy = jest.spyOn(cfn, 'waitForChangeSet');
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['Parent'],
+      changeSet: true,
+    });
+
+    // THEN
     const plainTextOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
     expect(plainTextOutput.trim()).toEqual(`Stack Parent
 Resources
@@ -906,68 +970,10 @@ Resources
 
 Stack newGrandChild
 Resources
-[+] AWS::Something SomeResource`);
-
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('✨  Number of stacks with differences: 6'),
-    }));
-
-    expect(exitCode).toBe(0);
-  });
-
-  test('diff falls back to non-changeset diff for nested stacks', async () => {
-    // GIVEN
-    const changeSetSpy = jest.spyOn(cfn, 'waitForChangeSet');
-
-    // WHEN
-    const exitCode = await toolkit.diff({
-      stackNames: ['Parent'],
-      changeSet: true,
-    });
-
-    // THEN
-    const plainTextOutput = notifySpy.mock.calls[2][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
-    expect(plainTextOutput.trim()).toEqual(`Stack Parent
-Resources
-[~] AWS::CloudFormation::Stack AdditionChild
- └─ [~] TemplateURL
-     ├─ [-] addition-child-url-new
-     └─ [+] addition-child-url-old
-[~] AWS::CloudFormation::Stack DeletionChild
- └─ [~] TemplateURL
-     ├─ [-] deletion-child-url-new
-     └─ [+] deletion-child-url-old
-[~] AWS::CloudFormation::Stack ChangedChild
- └─ [~] TemplateURL
-     ├─ [-] changed-child-url-new
-     └─ [+] changed-child-url-old
-
-Stack AdditionChild
-Resources
-[~] AWS::Something SomeResource
- └─ [+] Prop
-     └─ added-value
-
-Stack DeletionChild
-Resources
-[~] AWS::Something SomeResource
- └─ [-] Prop
-     └─ value-to-be-removed
-
-Stack ChangedChild
-Resources
-[~] AWS::Something SomeResource
- └─ [~] Prop
-     ├─ [-] old-value
-     └─ [+] new-value
-
-Stack newChild
-Resources
 [+] AWS::Something SomeResource
 
-Stack newGrandChild
-Resources
-[+] AWS::Something SomeResource`);
+Stack UnChangedChild
+There were no differences`);
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('✨  Number of stacks with differences: 6'),
