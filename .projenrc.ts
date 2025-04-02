@@ -4,7 +4,6 @@ import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/li
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
-import { ApiExtractorDocsPublishing } from './projenrc/api-extractor-docs-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
@@ -13,7 +12,7 @@ import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
-import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -1163,6 +1162,7 @@ const toolkitLib = configureProject(
       'dts-bundle-generator',
       'esbuild',
       'typedoc',
+      '@microsoft/api-extractor',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -1196,17 +1196,22 @@ const toolkitLib = configureProject(
   }),
 );
 
+// TypeDoc documentation publishing
 new S3DocsPublishing(toolkitLib, {
   docsStream: 'toolkit-lib',
   artifactPath: 'docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+  docType: DocType.TYPEDOC,
 });
 
-new ApiExtractorDocsPublishing(toolkitLib, {
+// API Extractor documentation publishing
+new S3DocsPublishing(toolkitLib, {
   docsStream: 'toolkit-lib',
+  artifactPath: 'api-extractor-docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+  docType: DocType.API_EXTRACTOR,
 });
 
 // Eslint rules
@@ -1302,7 +1307,7 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
     docModel: {
       enabled: true,
       apiJsonFilePath: './dist/<unscopedPackageName>.api.json',
-      projectFolderUrl: 'https://github.com/aws/aws-cdk-cli',
+      projectFolderUrl: 'https://github.com/aws/aws-cdk-cli/tree/main/packages/%40aws-cdk/toolkit-lib',
     },
     dtsRollup: {
       enabled: false,
@@ -1331,19 +1336,42 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
   committed: true,
 });
 
-// Add a command for the docs
+// Add a command for the TypeDoc docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
 });
 
-// When packaging, output the docs into a specific nested directory
+// Add commands for the API Extractor docs
+const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
+  exec: [
+    // Run api-extractor to generate the API model
+    'api-extractor run --local --diagnostics || true',
+    // Create a directory for the API model
+    'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
+    // Copy the API model to the directory (with error handling)
+    'if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo "Warning: API JSON file not found"; fi',
+    // Add version file
+    '(cat dist/version.txt || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
+    // Copy README.md if it exists
+    'if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi',
+    // Copy all files from docs directory if it exists
+    'if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi',
+    // Zip the API model and docs files
+    'cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk',
+  ].join(' && '),
+});
+
+// When packaging, output the TypeDoc docs into a specific nested directory
 // This is required because the zip file needs to have this structure when created
 toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
 // The docs build needs the version in a specific file at the nested root
 toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
 // Zip the whole thing up, again paths are important here to get the desired folder structure
 toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
+
+// Add the API Extractor docs task to the package task
+toolkitLib.packageTask.spawn(apiExtractorDocsTask);
 
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
