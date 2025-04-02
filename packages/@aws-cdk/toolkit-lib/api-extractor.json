@@ -8,7 +8,7 @@
   "docModel": {
     "enabled": true,
     "apiJsonFilePath": "./dist/<unscopedPackageName>.api.json",
-    "projectFolderUrl": "https://github.com/aws/aws-cdk-cli"
+    "projectFolderUrl": "https://github.com/aws/aws-cdk-cli/tree/main/packages/%40aws-cdk/toolkit-lib"
   },
   "dtsRollup": {
     "enabled": false
