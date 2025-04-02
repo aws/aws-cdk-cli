@@ -69,7 +69,7 @@ export class AwsCliCompatible {
       return makeCachingProvider(fromIni({
         profile: options.profile,
         ignoreCache: true,
-        mfaCodeProvider: makeTokenCodeFn(this.ioHelper),
+        mfaCodeProvider: this.tokenCodeFn.bind(this),
         clientConfig,
         parentClientConfig,
         logger: options.logger,
@@ -106,7 +106,7 @@ export class AwsCliCompatible {
       clientConfig,
       parentClientConfig,
       logger: options.logger,
-      mfaCodeProvider: makeTokenCodeFn(this.ioHelper),
+      mfaCodeProvider: this.tokenCodeFn.bind(this),
       ignoreCache: true,
     });
 
@@ -214,6 +214,29 @@ export class AwsCliCompatible {
   private getRegionFromIniFile(profile: string, data?: any) {
     return data?.[profile]?.region;
   }
+
+  /**
+   * Ask user for MFA token for given serial
+   *
+   * Result is send to callback function for SDK to authorize the request
+   */
+  private async tokenCodeFn(serialArn: string): Promise<string> {
+    const debugFn = (msg: string, ...args: any[]) => this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(format(msg, ...args)));
+    await debugFn('Require MFA token for serial ARN', serialArn);
+    try {
+      const token: string = await promptly.prompt(`MFA token for ${serialArn}: `, {
+        trim: true,
+        default: '',
+      });
+      await debugFn('Successfully got MFA token from user');
+      return token;
+    } catch (err: any) {
+      await debugFn('Failed to get MFA token', err);
+      const e = new AuthenticationError(`Error fetching MFA token: ${err.message ?? err}`);
+      e.name = 'SharedIniFileCredentialsProviderFailure';
+      throw e;
+    }
+  }
 }
 
 /**
@@ -244,29 +267,4 @@ export interface CredentialChainOptions {
   readonly profile?: string;
   readonly httpOptions?: SdkHttpOptions;
   readonly logger?: Logger;
-}
-
-/**
- * Ask user for MFA token for given serial
- *
- * Result is send to callback function for SDK to authorize the request
- */
-function makeTokenCodeFn(ioHelper: IoHelper) {
-  const debugFn = (msg: string, ...args: any[]) => ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(format(msg, ...args)));
-  return async (serialArn: string): Promise<string> => {
-    await debugFn('Require MFA token for serial ARN', serialArn);
-    try {
-      const token: string = await promptly.prompt(`MFA token for ${serialArn}: `, {
-        trim: true,
-        default: '',
-      });
-      await debugFn('Successfully got MFA token from user');
-      return token;
-    } catch (err: any) {
-      await debugFn('Failed to get MFA token', err);
-      const e = new AuthenticationError(`Error fetching MFA token: ${err.message ?? err}`);
-      e.name = 'SharedIniFileCredentialsProviderFailure';
-      throw e;
-    }
-  };
 }

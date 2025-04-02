@@ -1015,7 +1015,7 @@ export class SDK {
         if (!accountId) {
           throw new AuthenticationError("STS didn't return an account ID");
         }
-        await this.debug(`Default account ID ${accountId}`);
+        await this.debug(`Default account ID: ${accountId}`);
 
         // Save another STS call later if this one already succeeded
         this._credentialsValidated = true;

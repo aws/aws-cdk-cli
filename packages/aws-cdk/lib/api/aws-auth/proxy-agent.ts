@@ -1,6 +1,6 @@
+import * as fs from 'fs-extra';
 import { ProxyAgent } from 'proxy-agent';
 import type { SdkHttpOptions } from './sdk-provider';
-import { readIfPossible } from './util';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export class ProxyAgentProvider {
@@ -27,7 +27,15 @@ export class ProxyAgentProvider {
     const path = bundlePath || this.caBundlePathFromEnvironment();
     if (path) {
       await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(`Using CA bundle path: ${path}`));
-      return readIfPossible(path);
+      try {
+        if (!fs.pathExistsSync(path)) {
+          return undefined;
+        }
+        return fs.readFileSync(path, { encoding: 'utf-8' });
+      } catch (e: any) {
+        await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(String(e)));
+        return undefined;
+      }
     }
     return undefined;
   }
