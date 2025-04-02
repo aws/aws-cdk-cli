@@ -6,6 +6,7 @@ const exec = promisify(_exec);
 
 export async function execNpmView(currentVersion: string) {
   try {
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const [latestResult, currentResult] = await Promise.all([
       exec('npm view aws-cdk@latest version', { timeout: 3000 }),
       exec(`npm view aws-cdk@${currentVersion} name version deprecated --json`, { timeout: 3000 })
