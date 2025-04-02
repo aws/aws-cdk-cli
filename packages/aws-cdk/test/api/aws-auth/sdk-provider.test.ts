@@ -24,9 +24,9 @@ import { AwsCliCompatible } from '../../../lib/api/aws-auth/awscli-compatible';
 import { defaultCliUserAgent } from '../../../lib/api/aws-auth/user-agent';
 import { PluginHost } from '../../../lib/api/plugin';
 import { Mode } from '../../../lib/api/plugin/mode';
-import { CliIoHost } from '../../../lib/cli/io-host';
-import { withMocked } from '../../_helpers/as-mock';
+import { instanceMockFrom, withMocked } from '../../_helpers/as-mock';
 import { undoAllSdkMocks } from '../../util/mock-sdk';
+import { TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 // As part of the imports above we import `mock-sdk.ts` which automatically mocks
 // all SDK clients. We don't want that for this test suite, so undo it.
@@ -52,6 +52,9 @@ jest.mock('@aws-sdk/ec2-metadata-service', () => {
 let uid: string;
 let pluginQueried: boolean;
 
+const ioHost = new TestIoHost('trace');
+const ioHelper = ioHost.asHelper('sdk');
+
 beforeEach(() => {
   // Cache busters!
   // We prefix everything with UUIDs because:
@@ -61,7 +64,8 @@ beforeEach(() => {
   uid = `(${uuid.v4()})`;
   pluginQueried = false;
 
-  CliIoHost.instance().logLevel = 'trace';
+  ioHost.notifySpy.mockClear();
+  ioHost.requestSpy.mockClear();
 
   PluginHost.instance.credentialProviderSources.splice(0);
   PluginHost.instance.credentialProviderSources.push({
@@ -89,7 +93,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  CliIoHost.instance().logLevel = 'info';
   bockfs.restore();
   jest.restoreAllMocks();
 });
@@ -160,7 +163,7 @@ describe('with intercepted network calls', () => {
       const error = new Error('Expired Token');
       error.name = 'ExpiredToken';
       const identityProvider = () => Promise.reject(error);
-      const provider = new SdkProvider(identityProvider, 'rgn');
+      const provider = new SdkProvider(identityProvider, 'rgn', {}, ioHelper);
       const creds = await provider.baseCredentialsPartition({ ...env(account), region: 'rgn' }, Mode.ForReading);
 
       expect(creds).toBeUndefined();
@@ -168,7 +171,7 @@ describe('with intercepted network calls', () => {
 
     test('throws if profile credentials are not for the right account', async () => {
       // WHEN
-      jest.spyOn(AwsCliCompatible, 'region').mockResolvedValue('us-east-123');
+      jest.spyOn(AwsCliCompatible.prototype, 'region').mockResolvedValueOnce('us-east-123');
       prepareCreds({
         fakeSts,
         config: {
@@ -322,7 +325,7 @@ describe('with intercepted network calls', () => {
         // The profile is not passed explicitly. Should be picked from the environment variable
         process.env.AWS_PROFILE = 'mfa-role';
         // Awaiting to make sure the environment variable is only deleted after it's used
-        const provider = await SdkProvider.withAwsCliCompatibleDefaults({ logger: console });
+        const provider = await SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, logger: console });
         delete process.env.AWS_PROFILE;
         return Promise.resolve(provider);
       }),
@@ -826,7 +829,7 @@ function isProfileRole(x: ProfileUser | ProfileRole): x is ProfileRole {
 }
 
 async function providerFromProfile(profile: string | undefined) {
-  return SdkProvider.withAwsCliCompatibleDefaults({ profile, logger: console });
+  return SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, profile, logger: console });
 }
 
 async function exerciseCredentials(provider: SdkProvider, e: cxapi.Environment, mode: Mode = Mode.ForReading,

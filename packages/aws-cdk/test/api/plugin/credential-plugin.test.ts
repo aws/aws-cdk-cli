@@ -3,15 +3,19 @@ import { CredentialPlugins } from '../../../lib/api/aws-auth/credential-plugins'
 import { credentialsAboutToExpire } from '../../../lib/api/aws-auth/provider-caching';
 import { Mode } from '../../../lib/api/plugin/mode';
 import { PluginHost, markTesting } from '../../../lib/api/plugin/plugin';
+import { TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private/testing';
 
 markTesting();
 
 let host: PluginHost;
 let credentialPlugins: CredentialPlugins;
 
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('deploy');
+
 beforeEach(() => {
   host = new PluginHost();
-  credentialPlugins = new CredentialPlugins(host);
+  credentialPlugins = new CredentialPlugins(host, ioHelper);
   jest.resetModules();
   jest.useFakeTimers();
 });

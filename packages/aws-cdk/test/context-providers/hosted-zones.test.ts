@@ -2,10 +2,11 @@ import { GetHostedZoneCommand, ListHostedZonesByNameCommand } from '@aws-sdk/cli
 import { SDK, SdkForEnvironment } from '../../lib/api';
 import { HostedZoneContextProviderPlugin } from '../../lib/context-providers/hosted-zones';
 import { FAKE_CREDENTIAL_CHAIN, mockRoute53Client, MockSdkProvider } from '../util/mock-sdk';
+import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const mockSDK = new (class extends MockSdkProvider {
   public forEnvironment(): Promise<SdkForEnvironment> {
-    return Promise.resolve({ sdk: new SDK(FAKE_CREDENTIAL_CHAIN, mockSDK.defaultRegion, {}), didAssumeRole: false });
+    return Promise.resolve({ sdk: new SDK(FAKE_CREDENTIAL_CHAIN, mockSDK.defaultRegion, {}, new TestIoHost().asHelper("deploy")), didAssumeRole: false });
   }
 })();
 

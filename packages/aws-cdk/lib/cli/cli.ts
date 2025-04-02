@@ -120,7 +120,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await notices.refresh();
 
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
+    ioHelper,
     profile: configuration.settings.get(['profile']),
     httpOptions: {
       proxyAddress: argv.proxy,

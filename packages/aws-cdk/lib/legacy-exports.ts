@@ -69,8 +69,6 @@ export const {
   availableInitTemplates,
   cached,
   CfnEvaluationException,
-  CredentialPlugins,
-  AwsCliCompatible,
   withCorkedLogging,
   LogLevel,
   logLevel,

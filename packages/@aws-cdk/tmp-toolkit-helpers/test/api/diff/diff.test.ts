@@ -55,7 +55,7 @@ describe('formatStackDiff', () => {
     } as any;
   });
 
-  test('returns no changes when templates are identical', () => {
+  test('returns no differences when templates are identical', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
@@ -76,8 +76,12 @@ describe('formatStackDiff', () => {
 
     // THEN
     expect(result.numStacksWithChanges).toBe(0);
-    expect(result.formattedDiff).toBe('');
-    expect(mockIoDefaultMessages.info).toHaveBeenCalledWith(expect.stringContaining('no differences'));
+    expect(result.formattedDiff).toBeDefined();
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
+      'There were no differences',
+    );
   });
 
   test('formats differences when changes exist', () => {
@@ -256,6 +260,7 @@ describe('formatSecurityDiff', () => {
     expect(result.formattedDiff).toBeDefined();
     const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
     expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
       'IAM Statement Changes\n' +
       '┌───┬─────────────┬────────┬────────────────┬──────────────────────────────┬───────────┐\n' +
       '│   │ Resource    │ Effect │ Action         │ Principal                    │ Condition │\n' +
@@ -291,6 +296,7 @@ describe('formatSecurityDiff', () => {
     );
     const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
     expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
       'IAM Statement Changes\n' +
       '┌───┬─────────────┬────────┬────────────────┬──────────────────────────────┬───────────┐\n' +
       '│   │ Resource    │ Effect │ Action         │ Principal                    │ Condition │\n' +

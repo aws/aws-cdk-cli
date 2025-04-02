@@ -2,10 +2,11 @@ import { DescribeSecurityGroupsCommand } from '@aws-sdk/client-ec2';
 import { SDK, type SdkForEnvironment } from '../../lib/api';
 import { hasAllTrafficEgress, SecurityGroupContextProviderPlugin } from '../../lib/context-providers/security-groups';
 import { FAKE_CREDENTIAL_CHAIN, MockSdkProvider, mockEC2Client, restoreSdkMocksToDefault } from '../util/mock-sdk';
+import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const mockSDK = new (class extends MockSdkProvider {
   public forEnvironment(): Promise<SdkForEnvironment> {
-    return Promise.resolve({ sdk: new SDK(FAKE_CREDENTIAL_CHAIN, mockSDK.defaultRegion, {}), didAssumeRole: false });
+    return Promise.resolve({ sdk: new SDK(FAKE_CREDENTIAL_CHAIN, mockSDK.defaultRegion, {}, new TestIoHost().asHelper("deploy")), didAssumeRole: false });
   }
 })();
 
