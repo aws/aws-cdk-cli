@@ -226,7 +226,7 @@ export class DiffFormatter {
     try {
       // must output the stack name if there are differences, even if quiet
       if (stackName && (!options.quiet || !diff.isEmpty)) {
-        stream.write(format('Stack %s\n', chalk.bold(stackName)));
+        stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
       }
 
       if (!options.quiet && this.isImport) {
@@ -257,18 +257,17 @@ export class DiffFormatter {
           ...logicalIdMapFromTemplate(this.oldTemplate),
           ...buildLogicalToPathMap(this.newTemplate),
         }, options.context);
-
-        // store the stream containing a formatted stack diff
-        formattedDiff = stream.toString();
       } else if (!options.quiet) {
-        options.ioDefaultHelper.info(chalk.green('There were no differences'));
+        stream.write(chalk.green('There were no differences\n'));
+      }
+
+      if (filteredChangesCount > 0) {
+        stream.write(chalk.yellow(`Omitted ${filteredChangesCount} changes because they are likely mangled non-ASCII characters. Use --strict to print them.\n`));
       }
     } finally {
+      // store the stream containing a formatted stack diff
+      formattedDiff = stream.toString();
       stream.end();
-    }
-
-    if (filteredChangesCount > 0) {
-      options.ioDefaultHelper.info(chalk.yellow(`Omitted ${filteredChangesCount} changes because they are likely mangled non-ASCII characters. Use --strict to print them.`));
     }
 
     for (const nestedStackLogicalId of Object.keys(nestedStackTemplates ?? {})) {
@@ -303,18 +302,18 @@ export class DiffFormatter {
     const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
 
     if (diffRequiresApproval(diff, options.requireApproval)) {
-      ioDefaultHelper.info(format('Stack %s\n', chalk.bold(this.stackName)));
-
-      // eslint-disable-next-line max-len
-      ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);
-      ioDefaultHelper.warning('Please confirm you intend to make the following modifications:\n');
-
       // The security diff is formatted via `Formatter`, which takes in a stream
       // and sends its output directly to that stream. To faciliate use of the
       // global CliIoHost, we create our own stream to capture the output of
       // `Formatter` and return the output as a string for the consumer of
       // `formatSecurityDiff` to decide what to do with it.
       const stream = new StringWriteStream();
+
+      stream.write(format(`Stack ${chalk.bold(options.stackName)}\n`));
+
+      // eslint-disable-next-line max-len
+      ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);
+      ioDefaultHelper.warning('Please confirm you intend to make the following modifications:\n');
       try {
         // formatSecurityChanges updates the stream with the formatted security diff
         formatSecurityChanges(stream, diff, buildLogicalToPathMap(this.newTemplate));
