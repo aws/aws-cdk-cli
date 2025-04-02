@@ -239,7 +239,6 @@ export class DiffFormatter {
           ...logicalIdMapFromTemplate(this.oldTemplate),
           ...buildLogicalToPathMap(this.newTemplate),
         }, options.context);
-
       } else if (!options.quiet) {
         stream.write(chalk.green('There were no differences\n'));
       }
