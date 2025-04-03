@@ -36,7 +36,7 @@ export interface NonInteractiveIoHostProps {
 }
 
 /**
- * A simple IO host for a non interactive CLI that writes messages to the console.
+ * A simple IO host for a non interactive CLI that writes messages to the console and returns the default answer to all requests.
  */
 export class NonInteractiveIoHost implements IIoHost {
   /**
