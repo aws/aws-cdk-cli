@@ -1,6 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { major } from 'semver';
-import { CloudAssembly, sanitizePatterns, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../aws-cdk';
+import { StackCollection, ExtendedStackSelection as CliExtendedStackSelection, BaseStackAssembly } from '../../aws-cdk';
 import { ToolkitError } from '../../shared-public';
 import type { StackSelector } from '../stack-selector';
 import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector';
@@ -9,7 +9,7 @@ import type { ICloudAssemblySource } from '../types';
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
  */
-export class StackAssembly extends CloudAssembly implements ICloudAssemblySource {
+export class StackAssembly extends BaseStackAssembly implements ICloudAssemblySource {
   public async produce(): Promise<cxapi.CloudAssembly> {
     return this.assembly;
   }
@@ -29,7 +29,7 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
     }
 
     const extend = expandToExtendEnum(selector.expand);
-    const patterns = sanitizePatterns(selector.patterns ?? []);
+    const patterns = StackAssembly.sanitizePatterns(selector.patterns ?? []);
 
     switch (selector.strategy) {
       case StackSelectionStrategy.ALL_STACKS:
@@ -43,7 +43,7 @@ export class StackAssembly extends CloudAssembly implements ICloudAssemblySource
       case StackSelectionStrategy.ONLY_SINGLE:
         if (topLevelStacks.length !== 1) {
           // @todo text should probably be handled in io host
-          throw new ToolkitError('Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+          throw new ToolkitError('Since this app includes more than a single stack, specsify which stacks to use (wildcards are supported) or specify `--all`\n' +
           `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`);
         }
         return new StackCollection(this, topLevelStacks);

@@ -98,7 +98,6 @@
     "@smithy/property-provider": "^4.0.2",
     "@smithy/shared-ini-file-loader": "^4.0.2",
     "@smithy/util-retry": "^4.0.2",
-    "@smithy/util-stream": "^4.2.0",
     "@smithy/util-waiter": "^4.0.3",
     "archiver": "^7.0.1",
     "camelcase": "^6",
