@@ -1,6 +1,8 @@
 import { RequireApproval } from '../../../require-approval';
 import type { IIoHost } from '../../io-host';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../io-message';
+import type { IoHelper } from '../io-helper';
+import { asIoHelper } from '../io-helper';
 import { isMessageRelevantForLevel } from '../level-priority';
 
 /**
@@ -24,6 +26,10 @@ export class TestIoHost implements IIoHost {
   constructor(public level: IoMessageLevel = 'info') {
     this.notifySpy = jest.fn();
     this.requestSpy = jest.fn();
+  }
+
+  public asHelper(action = 'synth'): IoHelper {
+    return asIoHelper(this, action as any);
   }
 
   public async notify(msg: IoMessage<unknown>): Promise<void> {

@@ -112,7 +112,7 @@ export interface DeployStackOptions {
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
    * @default false deployment will be skipped if the template is identical
    */
-  readonly force?: boolean;
+  readonly forceDeployment?: boolean;
 
   /**
    * Extra parameters for CloudFormation
@@ -179,9 +179,10 @@ export interface DeployStackOptions {
   /**
    * Whether to deploy if the app contains no stacks.
    *
+   * @deprecated this option seems to be unsed inside deployments
    * @default false
    */
-  ignoreNoStacks?: boolean;
+  readonly ignoreNoStacks?: boolean;
 }
 
 export interface RollbackStackOptions {
@@ -198,20 +199,6 @@ export interface RollbackStackOptions {
   readonly roleArn?: string;
 
   /**
-   * Don't show stack deployment events, just wait
-   *
-   * @default false
-   */
-  readonly quiet?: boolean;
-
-  /**
-   * Whether we are on a CI system
-   *
-   * @default false
-   */
-  readonly ci?: boolean;
-
-  /**
    * Name of the toolkit stack, if not the default name
    *
    * @default 'CDKToolkit'
@@ -219,13 +206,13 @@ export interface RollbackStackOptions {
   readonly toolkitStackName?: string;
 
   /**
-   * Whether to force a rollback or not
+   * Whether to automatically orphan all failed resources during the rollback
    *
-   * Forcing a rollback will orphan all undeletable resources.
+   * This will force a rollback that otherwise would have failed.
    *
    * @default false
    */
-  readonly force?: boolean;
+  readonly orphanFailedResources?: boolean;
 
   /**
    * Orphan the resources with the given logical IDs
@@ -444,7 +431,7 @@ export class Deployments {
       envResources: env.resources,
       tags: options.tags,
       deploymentMethod,
-      force: options.force,
+      forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
@@ -459,7 +446,7 @@ export class Deployments {
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
     let resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
-    if (options.force && resourcesToSkip.length > 0) {
+    if (options.orphanFailedResources && resourcesToSkip.length > 0) {
       throw new ToolkitError('Cannot combine --force with --orphan');
     }
 
@@ -501,7 +488,7 @@ export class Deployments {
           break;
 
         case RollbackChoice.CONTINUE_UPDATE_ROLLBACK:
-          if (options.force) {
+          if (options.orphanFailedResources) {
             // Find the failed resources from the deployment and automatically skip them
             // (Using deployment log because we definitely have `DescribeStackEvents` permissions, and we might not have
             // `DescribeStackResources` permissions).
@@ -569,7 +556,7 @@ export class Deployments {
       }
 
       // Either we need to ignore some resources to continue the rollback, or something went wrong
-      if (finalStackState.stackStatus.rollbackChoice === RollbackChoice.CONTINUE_UPDATE_ROLLBACK && options.force) {
+      if (finalStackState.stackStatus.rollbackChoice === RollbackChoice.CONTINUE_UPDATE_ROLLBACK && options.orphanFailedResources) {
         // Do another loop-de-loop
         continue;
       }

@@ -18,8 +18,8 @@ export { ResourcesToImport } from '../../../../aws-cdk/lib/api/resource-import';
 export * as contextproviders from '../../../../aws-cdk/lib/context-providers';
 
 // @todo APIs not clean import
-export { HotswapMode } from '../../../../aws-cdk/lib/api/hotswap/common';
-export { HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap/common';
+export { HotswapMode } from '../../../../aws-cdk/lib/api/hotswap';
+export { HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap';
 export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/util/rwlock';
 
 // @todo Cloud Assembly and Executable - this is a messy API right now
@@ -29,4 +29,3 @@ export { guessExecutable } from '../../../../aws-cdk/lib/api/cxapp/exec';
 
 // @todo Should not use! investigate how to replace
 export { versionNumber } from '../../../../aws-cdk/lib/cli/version';
-export { CliIoHost } from '../../../../aws-cdk/lib/cli/io-host';

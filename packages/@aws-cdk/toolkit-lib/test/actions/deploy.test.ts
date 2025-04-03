@@ -198,12 +198,12 @@ describe('deploy', () => {
       successfulDeployment();
     });
 
-    test('force: true option is used for asset publishing', async () => {
+    test('forceAssetPublishing: true option is used for asset publishing', async () => {
       const publishSingleAsset = jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {
-        force: true,
+        forceAssetPublishing: true,
       });
 
       // THEN

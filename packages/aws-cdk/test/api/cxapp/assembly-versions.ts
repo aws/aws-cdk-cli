@@ -32,3 +32,10 @@ export function rewriteManifestVersion(directory: string, version: string) {
   contents.version = version;
   fs.writeFileSync(manifestFile, JSON.stringify(contents, undefined, 2));
 }
+
+export function rewriteManifestMinimumCliVersion(directory: string, version: string) {
+  const manifestFile = `${directory}/manifest.json`;
+  const contents = JSON.parse(fs.readFileSync(`${directory}/manifest.json`, 'utf-8'));
+  contents.minimumCliVersion = version;
+  fs.writeFileSync(manifestFile, JSON.stringify(contents, undefined, 2));
+}

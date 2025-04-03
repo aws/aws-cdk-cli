@@ -681,11 +681,14 @@ const tmpToolkitHelpers = configureProject(
     deps: [
       cloudAssemblySchema.name,
       cloudFormationDiff,
+      cxApi,
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       'archiver',
       'chalk@4',
       'glob',
       'semver',
       'uuid',
+      'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
     tsconfig: {

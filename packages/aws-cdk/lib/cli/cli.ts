@@ -120,7 +120,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await notices.refresh();
 
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
+    ioHelper,
     profile: configuration.settings.get(['profile']),
     httpOptions: {
       proxyAddress: argv.proxy,
@@ -293,7 +295,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.bootstrap(args.ENVIRONMENTS, {
           source,
           roleArn: args.roleArn,
-          force: argv.force,
+          forceDeployment: argv.force,
           toolkitStackName: toolkitStackName,
           execute: args.execute,
           tags: configuration.settings.get(['tags']),
@@ -424,7 +426,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'watch':
         ioHost.currentAction = 'watch';
-        return cli.watch({
+        await cli.watch({
           selector,
           exclusively: args.exclusively,
           toolkitStackName,
@@ -441,6 +443,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });
+        return;
 
       case 'destroy':
         ioHost.currentAction = 'destroy';

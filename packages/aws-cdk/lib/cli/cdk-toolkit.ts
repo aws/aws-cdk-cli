@@ -492,7 +492,7 @@ export class CdkToolkit {
             execute: options.execute,
             changeSetName: options.changeSetName,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
             rollback,
@@ -675,7 +675,7 @@ export class CdkToolkit {
           stack,
           roleArn: options.roleArn,
           toolkitStackName: options.toolkitStackName,
-          force: options.force,
+          orphanFailedResources: options.force,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });

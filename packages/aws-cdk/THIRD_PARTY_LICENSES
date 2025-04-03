@@ -1442,7 +1442,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-codebuild@3.778.0 - https://www.npmjs.com/package/@aws-sdk/client-codebuild/v/3.778.0 | Apache-2.0
+** @aws-sdk/client-codebuild@3.781.0 - https://www.npmjs.com/package/@aws-sdk/client-codebuild/v/3.781.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1854,7 +1854,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ec2@3.777.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.777.0 | Apache-2.0
+** @aws-sdk/client-ec2@3.779.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.779.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2060,7 +2060,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ecr@3.777.0 - https://www.npmjs.com/package/@aws-sdk/client-ecr/v/3.777.0 | Apache-2.0
+** @aws-sdk/client-ecr@3.781.0 - https://www.npmjs.com/package/@aws-sdk/client-ecr/v/3.781.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2266,7 +2266,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ecs@3.778.0 - https://www.npmjs.com/package/@aws-sdk/client-ecs/v/3.778.0 | Apache-2.0
+** @aws-sdk/client-ecs@3.781.0 - https://www.npmjs.com/package/@aws-sdk/client-ecs/v/3.781.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3502,7 +3502,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-s3@3.777.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.777.0 | Apache-2.0
+** @aws-sdk/client-s3@3.779.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.779.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6592,7 +6592,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/lib-storage@3.777.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.777.0 | Apache-2.0
+** @aws-sdk/lib-storage@3.779.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.779.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
