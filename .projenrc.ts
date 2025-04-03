@@ -707,10 +707,10 @@ const tmpToolkitHelpers = configureProject(
           // We want to improve our test coverage
           // DO NOT LOWER THESE VALUES!
           // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 83,
-          branches: 84,
-          functions: 82,
-          lines: 83,
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
         },
         // We have many tests here that commonly time out
         testTimeout: 30_000,

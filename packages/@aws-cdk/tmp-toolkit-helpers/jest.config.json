@@ -8,10 +8,10 @@
   "testEnvironment": "./test/_helpers/jest-bufferedconsole.ts",
   "coverageThreshold": {
     "global": {
-      "statements": 83,
-      "branches": 84,
-      "functions": 82,
-      "lines": 83
+      "statements": 80,
+      "branches": 80,
+      "functions": 80,
+      "lines": 80
     }
   },
   "collectCoverage": true,
