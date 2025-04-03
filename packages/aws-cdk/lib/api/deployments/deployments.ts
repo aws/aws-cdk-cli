@@ -570,7 +570,7 @@ export class Deployments {
     );
   }
 
-  public async destroyStack(options: DestroyStackOptions): Promise<void> {
+  public async destroyStack(options: DestroyStackOptions) {
     const env = await this.envs.accessStackForMutableStackOperations(options.stack);
     const executionRoleArn = await env.replacePlaceholders(options.roleArn ?? options.stack.cloudFormationExecutionRoleArn);
 

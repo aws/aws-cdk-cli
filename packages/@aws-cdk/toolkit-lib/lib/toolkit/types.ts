@@ -128,3 +128,42 @@ export interface Environment {
    */
   readonly region: string;
 }
+
+/**
+ * Result interface for toolkit.destroy operation
+ */
+export interface DestroyResult {
+  /**
+   * List of stacks destroyed by this operation
+   */
+  readonly stacks: DestroyedStack[];
+}
+
+/**
+ * A stack targeted by a destroy operation
+ */
+export interface DestroyedStack {
+  /**
+   * The name of the stack
+   *
+   * A stack name is unique inside its environment, but not unique globally.
+   */
+  readonly stackName: string;
+
+  /**
+   * The environment of the stack
+   *
+   * This environment is always concrete, because even though the CDK app's
+   * stack may be region-agnostic, in order to be deployed it will have to have
+   * been specialized.
+   */
+  readonly environment: Environment;
+
+  /**
+   * The ARN of the stack that was destroyed, if any.
+   *
+   * If the stack didn't exist to begin with, the operation will succeed but
+   * this value will be undefined.
+   */
+  readonly stackArn?: string;
+}
