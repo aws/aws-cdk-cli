@@ -56,9 +56,10 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
   } else {
     // List -- support '--json' flag
     if (options.json) {
-      /* istanbul ignore next */
+      /* c8 ignore start */
       const contextValues = options.context.all;
       result(JSON.stringify(contextValues, undefined, 2));
+      /* c8 ignore stop */
     } else {
       listContext(options.context);
     }

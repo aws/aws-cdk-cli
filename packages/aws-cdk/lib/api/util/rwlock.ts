@@ -12,7 +12,7 @@ import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
  * This class is not 100% race safe, but in practice it should be a lot
  * better than the 0 protection we have today.
  */
-/* istanbul ignore next: code paths are unpredictable */
+/* c8 ignore start */ // code paths are unpredictable
 export class RWLock {
   private readonly pidString: string;
   private readonly writerFile: string;
@@ -146,6 +146,7 @@ export class RWLock {
     return ret;
   }
 }
+/* c8 ignore stop */
 
 /**
  * An acquired lock
@@ -164,7 +165,7 @@ export interface IWriterLock extends ILock {
   convertToReaderLock(): Promise<ILock>;
 }
 
-/* istanbul ignore next: code paths are unpredictable */
+/* c8 ignore start */ // code paths are unpredictable
 async function readFileIfExists(filename: string): Promise<string | undefined> {
   try {
     return await fs.readFile(filename, { encoding: 'utf-8' });
@@ -175,17 +176,19 @@ async function readFileIfExists(filename: string): Promise<string | undefined> {
     throw e;
   }
 }
+/* c8 ignore stop */
 
 let tmpCounter = 0;
-/* istanbul ignore next: code paths are unpredictable */
+/* c8 ignore start */ // code paths are unpredictable
 async function writeFileAtomic(filename: string, contents: string): Promise<void> {
   await fs.mkdir(path.dirname(filename), { recursive: true });
   const tmpFile = `${filename}.${process.pid}_${++tmpCounter}`;
   await fs.writeFile(tmpFile, contents, { encoding: 'utf-8' });
   await fs.rename(tmpFile, filename);
 }
+/* c8 ignore stop */
 
-/* istanbul ignore next: code paths are unpredictable */
+/* c8 ignore start */ // code paths are unpredictable
 async function deleteFile(filename: string) {
   try {
     await fs.unlink(filename);
@@ -196,8 +199,9 @@ async function deleteFile(filename: string) {
     throw e;
   }
 }
+/* c8 ignore stop */
 
-/* istanbul ignore next: code paths are unpredictable */
+/* c8 ignore start */ // code paths are unpredictable
 function processExists(pid: number) {
   try {
     process.kill(pid, 0);
@@ -206,3 +210,4 @@ function processExists(pid: number) {
     return false;
   }
 }
+/* c8 ignore stop */

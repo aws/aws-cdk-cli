@@ -6,7 +6,7 @@ import { debug } from '../../logging';
 
 const exec = promisify(_exec);
 
-/* istanbul ignore next: not called during unit tests */
+/* c8 ignore start */ // not called during unit tests
 export async function getLatestVersionFromNpm(): Promise<string> {
   const { stdout, stderr } = await exec('npm view aws-cdk version', { timeout: 3000 });
   if (stderr && stderr.trim().length > 0) {
@@ -19,3 +19,4 @@ export async function getLatestVersionFromNpm(): Promise<string> {
 
   return latestVersion;
 }
+/* c8 ignore stop */
