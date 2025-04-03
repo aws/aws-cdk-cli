@@ -12,28 +12,15 @@ import { Configuration } from './user-configuration';
 import * as version from './version';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { SdkProvider } from '../api/aws-auth';
-import { SdkToCliLogger } from '../api/aws-auth/sdk-logger';
-import { setSdkTracing } from '../api/aws-auth/tracing';
-import type { BootstrapSource } from '../api/bootstrap';
-import { Bootstrapper } from '../api/bootstrap';
-import type { StackSelector } from '../api/cxapp/cloud-assembly';
-import type { Synthesizer } from '../api/cxapp/cloud-executable';
-import { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { execProgram } from '../api/cxapp/exec';
-import type { DeploymentMethod } from '../api/deployments';
-import { Deployments } from '../api/deployments';
-import { HotswapMode } from '../api/hotswap/common';
-import { PluginHost } from '../api/plugin';
-import type { Settings } from '../api/settings';
-import { ToolkitInfo } from '../api/toolkit-info';
-import type { ILock } from '../api/util/rwlock';
+import type { ILock, Settings, BootstrapSource, DeploymentMethod } from '../api';
+import { ToolkitInfo, SdkToCliLogger, Bootstrapper, Deployments, HotswapMode, PluginHost, SdkProvider, setSdkTracing, Notices } from '../api';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { Notices } from '../notices';
+import { execProgram, CloudExecutable } from '../cxapp';
+import type { Synthesizer, StackSelector } from '../cxapp';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -117,6 +104,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       proxyAddress: configuration.settings.get(['proxy']),
       caBundlePath: configuration.settings.get(['caBundlePath']),
     },
+    cliVersion: version.versionNumber(),
   });
   await notices.refresh();
 
@@ -594,7 +582,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   return hotswapMode;
 }
 
-/* istanbul ignore next: we never call this in unit tests */
+/* c8 ignore */
 export function cli(args: string[] = process.argv.slice(2)) {
   exec(args)
     .then(async (value) => {

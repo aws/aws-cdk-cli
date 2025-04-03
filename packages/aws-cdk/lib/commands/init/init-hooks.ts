@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { shell } from './os';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../../api';
 import { formatErrorMessage } from '../../util';
 
 export type SubstitutePlaceholders = (...fileNames: string[]) => Promise<void>;

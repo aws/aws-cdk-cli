@@ -1,7 +1,7 @@
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';;
 import { instanceMockFrom, MockCloudExecutable, TestStackArtifact } from '../_helpers';
-import { Bootstrapper } from '../../lib/api/bootstrap';
-import { Deployments } from '../../lib/api/deployments';
+import { Bootstrapper } from '../../lib/api';
+import { Deployments } from '../../lib/api';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { listStacks } from '../../lib/commands/list-stacks';
 

@@ -2,13 +2,12 @@ import * as os from 'os';
 import * as fs_path from 'path';
 import * as fs from 'fs-extra';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { Context, PROJECT_CONTEXT } from '../api/context';
-import { Settings } from '../api/settings';
-import type { Tag } from '../api/tags';
+import { Context, PROJECT_CONTEXT, Settings } from '../api';
+import type { Tag } from '../api';
 import { debug, warning } from '../logging';
 
 export const PROJECT_CONFIG = 'cdk.json';
-export { PROJECT_CONTEXT } from '../api/context';
+export { PROJECT_CONTEXT } from '../api';
 export const USER_DEFAULTS = '~/.cdk.json';
 const CONTEXT_KEY = 'context';
 

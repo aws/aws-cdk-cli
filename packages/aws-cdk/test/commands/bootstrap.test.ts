@@ -1,4 +1,4 @@
-import { Bootstrapper } from '../../lib/api/bootstrap/bootstrap-environment';
+import { Bootstrapper } from '../../lib/api';
 import { exec } from '../../lib/cli/cli';
 
 beforeEach(() => {

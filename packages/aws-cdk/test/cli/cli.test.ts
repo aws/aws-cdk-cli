@@ -1,4 +1,4 @@
-import { exec } from '../../lib/cli/cli';
+import { cli } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 
 // Store original version module exports so we don't conflict with other tests
@@ -29,7 +29,8 @@ jest.mock('../../lib/cli/user-configuration', () => ({
   })),
 }));
 
-jest.mock('../../lib/notices', () => ({
+jest.mock('../../lib/api', () => ({
+  ...jest.requireActual('../../lib/api'),
   Notices: {
     create: jest.fn().mockReturnValue({
       refresh: jest.fn().mockResolvedValue(undefined),
@@ -49,7 +50,7 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
   })),
 }));
 
-describe('exec verbose flag tests', () => {
+describe('cli verbose flag tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Set up version module for our tests
@@ -67,32 +68,32 @@ describe('exec verbose flag tests', () => {
   });
 
   test('should not set log level when no verbose flag is present', async () => {
-    await exec(['version']);
+    await cli(['version']);
     expect(CliIoHost.instance().logLevel).toBe('info');
   });
 
   test('should set DEBUG level with single -v flag', async () => {
-    await exec(['-v', 'version']);
+    await cli(['-v', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('debug');
   });
 
   test('should set TRACE level with double -v flag', async () => {
-    await exec(['-v', '-v', 'version']);
+    await cli(['-v', '-v', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 
   test('should set DEBUG level with --verbose=1', async () => {
-    await exec(['--verbose', '1', 'version']);
+    await cli(['--verbose', '1', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('debug');
   });
 
   test('should set TRACE level with --verbose=2', async () => {
-    await exec(['--verbose', '2', 'version']);
+    await cli(['--verbose', '2', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 
   test('should set TRACE level with verbose level > 2', async () => {
-    await exec(['--verbose', '3', 'version']);
+    await cli(['--verbose', '3', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 });

@@ -7,17 +7,11 @@
 export * from './legacy-logging-source';
 
 // API
-export { SdkProvider } from './legacy-aws-auth';
-export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
-export { cached } from './api/aws-auth/cached';
-export { CfnEvaluationException } from './api/cloudformation';
-export { CloudExecutable } from './api/cxapp/cloud-executable';
-export { execProgram } from './api/cxapp/exec';
-export { Deployments } from './api/deployments';
-export { deployStack } from './api/deployments/deploy-stack';
-export { PluginHost } from './api/plugin';
-export { Settings } from './api/settings';
-export { Bootstrapper } from './api/bootstrap';
+export { enableTracing, SdkProvider } from './legacy-aws-auth';
+export { CloudExecutable } from './cxapp/cloud-executable';
+export { execProgram } from './cxapp/exec';
+export { cached, CfnEvaluationException, Deployments, PluginHost, Settings, Bootstrapper } from './api';
+export { deployStack } from './api-private';
 
 // CLI
 export { cli, exec } from './cli/cli';

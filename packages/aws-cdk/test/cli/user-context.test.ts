@@ -3,8 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { Configuration, PROJECT_CONFIG, PROJECT_CONTEXT } from '../../lib/cli/user-configuration';
-import { Context, TRANSIENT_CONTEXT_KEY } from '../../lib/api/context';
-import { Settings } from '../../lib/api/settings';
+import { Context, TRANSIENT_CONTEXT_KEY } from '../../lib/api';
+import { Settings } from '../../lib/api';
 
 const state: {
   previousWorkingDir?: string;

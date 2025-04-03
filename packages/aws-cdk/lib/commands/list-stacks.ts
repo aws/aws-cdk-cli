@@ -1,6 +1,6 @@
-import type { StackDetails } from '@aws-cdk/tmp-toolkit-helpers';
-import { DefaultSelection, ExtendedStackSelection } from '../api/cxapp/cloud-assembly';
 import type { CdkToolkit } from '../cli/cdk-toolkit';
+import { DefaultSelection, ExtendedStackSelection } from '../cxapp/cloud-assembly';
+import type { StackDetails } from '../payloads';
 
 /**
  * Options for List Stacks

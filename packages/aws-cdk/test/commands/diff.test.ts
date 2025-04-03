@@ -1,19 +1,17 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { Writable } from 'stream';
-import { StringDecoder } from 'string_decoder';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
-import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { Deployments } from '../../lib/api/deployments';
-import * as cfn from '../../lib/api/deployments/cfn-api';
-import { NestedStackTemplates } from '../../lib/api/cloudformation';
-import { PrepareChangeSetOptions } from '../../lib/api/deployments/cfn-api';
+import { Deployments } from '../../lib/api';
+import { cfnApi } from '../../lib/api-private';
+import { NestedStackTemplates } from '../../lib/api';
+import { PrepareChangeSetOptions } from '../../lib/api';
+import { IoHelper } from '../../lib/api-private';
 
 let cloudExecutable: MockCloudExecutable;
 let cloudFormation: jest.Mocked<Deployments>;
@@ -128,7 +126,7 @@ describe('imports', () => {
       'Resources': [],
     };
     fs.writeFileSync('migrate.json', JSON.stringify(outputToJson, null, 2));
-    createDiffChangeSet = jest.spyOn(cfn, 'createDiffChangeSet').mockImplementationOnce(async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
         $metadata: {},
         Changes: [
@@ -554,7 +552,7 @@ describe('stack exists checks', () => {
   test('diff falls back to classic diff when stack does not exist', async () => {
     // GIVEN
     const stackExists = jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(false));
-    const createDiffChangeSet = jest.spyOn(cfn, 'createDiffChangeSet');
+    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet');
 
     // WHEN
     const exitCode = await toolkit.diff({
@@ -573,7 +571,7 @@ describe('stack exists checks', () => {
   test('diff falls back to classic diff when stackExists call fails', async () => {
     // GIVEN
     const stackExists = jest.spyOn(cloudFormation, 'stackExists');
-    const createDiffChangeSet = jest.spyOn(cfn, 'createDiffChangeSet');
+    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet');
 
     stackExists.mockImplementation(() => {
       throw new Error('Fail fail fail');
@@ -920,7 +918,7 @@ There were no differences`);
 
   test('diff falls back to non-changeset diff for nested stacks', async () => {
     // GIVEN
-    const changeSetSpy = jest.spyOn(cfn, 'waitForChangeSet');
+    const changeSetSpy = jest.spyOn(cfnApi, 'waitForChangeSet');
 
     // WHEN
     const exitCode = await toolkit.diff({

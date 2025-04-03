@@ -69,7 +69,7 @@ import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import { SdkProvider } from '../../lib/api';
-import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
+import { Bootstrapper, type BootstrapSource } from '../../lib/api';
 import {
   DeployStackResult,
   SuccessfulDeployStackResult,
@@ -78,10 +78,10 @@ import {
   DestroyStackOptions,
   RollbackStackOptions,
   RollbackStackResult,
-} from '../../lib/api/deployments';
-import { HotswapMode } from '../../lib/api/hotswap/common';
-import { Mode } from '../../lib/api/plugin';
-import { Tag } from '../../lib/api/tags';
+} from '../../lib/api';
+import { HotswapMode } from '../../lib/api';
+import { Mode } from '../../lib/api';
+import { Tag } from '../../lib/api';
 import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { RequireApproval } from '../../lib/commands/diff';

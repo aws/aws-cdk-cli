@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import { contextHandler } from '../../lib/commands/context';
-import { Settings } from '../../lib/api/settings';
-import { Context } from '../../lib/api/context';
+import { Settings } from '../../lib/api';
+import { Context } from '../../lib/api';
 import { Configuration } from '../../lib/cli/user-configuration';
 
 describe('context --list', () => {

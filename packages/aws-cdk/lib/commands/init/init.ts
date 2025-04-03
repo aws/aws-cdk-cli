@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../../api';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
 import { error, info, warning } from '../../logging';
@@ -509,10 +509,11 @@ async function loadInitVersions(): Promise<Versions> {
     'aws-cdk': versionNumber(),
   };
   for (const [key, value] of Object.entries(ret)) {
-    /* istanbul ignore next */
+    /* c8 ignore start */
     if (!value) {
       throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
     }
+    /* c8 ignore stop */
   }
 
   return ret;

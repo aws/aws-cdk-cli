@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { Context } from '../api/context';
+import type { Context } from '../api';
 import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';
 import * as version from '../cli/version';
@@ -56,9 +56,10 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
   } else {
     // List -- support '--json' flag
     if (options.json) {
-      /* istanbul ignore next */
+      /* c8 ignore start */
       const contextValues = options.context.all;
       result(JSON.stringify(contextValues, undefined, 2));
+      /* c8 ignore stop */
     } else {
       listContext(options.context);
     }

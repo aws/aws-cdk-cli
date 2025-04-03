@@ -2,12 +2,12 @@ import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { CurrentActivityPrinter, HistoryActivityPrinter } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/private/activity-printer';
 import type { ActivityPrinterProps, IActivityPrinter } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/private/activity-printer';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../api';
+import { ToolkitError } from '../../api';
+import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel } from '../../api-private';
+import type { IoHelper } from '../../api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };

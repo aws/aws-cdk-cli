@@ -2,12 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cx-api';
-import { cxapiAssemblyWithForcedVersion } from '../api/cxapp/assembly-versions';
+import { cxapiAssemblyWithForcedVersion } from '../cxapp/assembly-versions';
 import { MockSdkProvider } from '../util/mock-sdk';
-import { CloudExecutable } from '../../lib/api/cxapp/cloud-executable';
+import { CloudExecutable } from '../../lib/cxapp/cloud-executable';
 import { Configuration } from '../../lib/cli/user-configuration';
-import { asIoHelper, TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { IIoHost } from '../../lib/cli/io-host';
+import { TestIoHost } from './test-io-host';
+import { asIoHelper } from '../../lib/api-private';
 
 export const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 

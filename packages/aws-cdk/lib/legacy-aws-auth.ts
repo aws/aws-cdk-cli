@@ -2,15 +2,26 @@
 // We generally use two different patterns here:
 // - make a copy of the old code as is
 // - wrap the old code and add a deprecation warning
+// - make a no-op copy that preserves the previous interface but doesn't do anything
 // This way we can keep the old code running until the new code is fully ready
 // and can be used by the users that are ready to migrate
 // The old code will be removed in a future version of aws-cdk
 import type { AwsCredentialIdentityProvider, Logger, NodeHttpHandlerOptions } from '@smithy/types';
-import { SdkProvider as SdkProviderCurrentVersion } from './api/aws-auth/sdk-provider';
+import { SdkProvider as SdkProviderCurrentVersion } from './api';
 import { CliIoHost } from './cli/io-host';
 
 /**
+ * Enable tracing in the CDK
+ *
+ * @deprecated cannot be enabled from outside the CDK
+ */
+export function enableTracing(_enabled: boolean) {
+  // noop
+}
+
+/**
  * Options for individual SDKs
+ * @deprecated
  */
 interface SdkHttpOptions {
   /**
@@ -30,6 +41,7 @@ interface SdkHttpOptions {
 
 /**
  * Options for the default SDK provider
+ * @deprecated
  */
 interface SdkProviderOptions {
   /**
@@ -50,6 +62,9 @@ interface SdkProviderOptions {
   readonly logger?: Logger;
 }
 
+/**
+ * @deprecated
+ */
 export class SdkProvider {
   public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions = {}) {
     return SdkProviderCurrentVersion.withAwsCliCompatibleDefaults({

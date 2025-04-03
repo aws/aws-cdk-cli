@@ -6,35 +6,12 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
+import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
-import type { SdkProvider } from '../api/aws-auth';
-import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
-import { Bootstrapper } from '../api/bootstrap';
-import type {
-  CloudAssembly,
-  StackSelector,
-} from '../api/cxapp/cloud-assembly';
-import {
-  DefaultSelection,
-  ExtendedStackSelection,
-  StackCollection,
-} from '../api/cxapp/cloud-assembly';
-import type { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
-import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { createDiffChangeSet } from '../api/deployments/cfn-api';
-import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
-import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
-import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
-import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
-import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
-import { tagsForStack, type Tag } from '../api/tags';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
-import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
+import type { SdkProvider, BootstrapEnvironmentOptions, DeploymentMethod, SuccessfulDeployStackResult, Deployments, Tag, AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
+import { StackCollection, tagsForStack, DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, createDiffChangeSet, GarbageCollector, HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties, findCloudWatchLogGroups, CloudWatchLogEventMonitor, ResourceImporter, removeNonImportResources, ResourceMigrator, WorkGraphBuilder, ToolkitError } from '../api';
+import { asIoHelper } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
@@ -58,8 +35,17 @@ import {
   isThereAWarning,
   buildCfnClient,
 } from '../commands/migrate';
+import type {
+  CloudAssembly,
+  StackSelector,
+  CloudExecutable,
+} from '../cxapp';
+import {
+  DefaultSelection,
+  ExtendedStackSelection,
+  environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob,
+} from '../cxapp';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { CliIoHost } from './io-host';
 import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
