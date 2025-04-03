@@ -5,17 +5,16 @@ import * as path from 'path';
 import type { Environment } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import type { SdkHttpOptions } from './api/aws-auth';
-import { ProxyAgentProvider } from './api/aws-auth';
-import type { Context } from './api/context';
-import type { ConstructTreeNode } from './api/tree';
-import { loadTreeFromDir } from './api/tree';
-import { versionNumber } from './cli/version';
-import { cdkCacheDir, formatErrorMessage } from './util';
-import type { IIoHost } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { ToolkitError } from '../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { IoHelper } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { IO, asIoHelper, IoDefaultMessages } from '../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { SdkHttpOptions } from './aws-auth';
+import { ProxyAgentProvider } from './aws-auth';
+import type { Context } from './context';
+import type { ConstructTreeNode } from './tree';
+import { loadTreeFromDir } from './tree';
+import type { IIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO, asIoHelper, IoDefaultMessages } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { cdkCacheDir, formatErrorMessage } from '../util';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 
@@ -48,6 +47,11 @@ export interface NoticesProps {
    * Where messages are going to be sent
    */
   readonly ioHost: IIoHost;
+
+  /**
+   * The version of the CLI
+   */
+  readonly cliVersion: string;
 }
 
 export interface NoticesPrintOptions {
@@ -307,6 +311,7 @@ export class Notices {
   private readonly httpOptions: SdkHttpOptions;
   private readonly ioHelper: IoHelper;
   private readonly ioMessages: IoDefaultMessages;
+  private readonly cliVersion: string;
 
   private data: Set<Notice> = new Set();
 
@@ -321,6 +326,7 @@ export class Notices {
     this.httpOptions = props.httpOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
     this.ioMessages = new IoDefaultMessages(this.ioHelper);
+    this.cliVersion = props.cliVersion;
   }
 
   /**
@@ -361,7 +367,7 @@ export class Notices {
   public display(options: NoticesPrintOptions = {}) {
     const filteredNotices = new NoticesFilter(this.ioMessages).filter({
       data: Array.from(this.data),
-      cliVersion: versionNumber(),
+      cliVersion: this.cliVersion,
       outDir: this.output,
       bootstrappedEnvironments: Array.from(this.bootstrappedEnvironments.values()),
     });

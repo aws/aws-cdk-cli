@@ -13,8 +13,7 @@ import {
   WebsiteNoticeDataSource,
   BootstrappedEnvironment,
   Component,
-} from '../../lib/notices';
-import * as version from '../../lib/cli/version';
+} from '../../lib/api/notices';
 import { Settings } from '../../lib/api/settings';
 import { Context } from '../../lib/api/context';
 import { asIoHelper, IoDefaultMessages } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
@@ -723,6 +722,8 @@ describe(CachedDataSource, () => {
 });
 
 describe(Notices, () => {
+  const cliVersion = '2.1005.0';
+
   beforeEach(() => {
     // disable caching
     jest.spyOn(CachedDataSource.prototype as any, 'save').mockImplementation((_: any) => Promise.resolve());
@@ -737,7 +738,7 @@ describe(Notices, () => {
 
   describe('addBootstrapVersion', () => {
     test('can add multiple values', async () => {
-      const notices = Notices.create({ context: new Context(), ioHost });
+      const notices = Notices.create({ context: new Context(), ioHost, cliVersion });
       notices.addBootstrappedEnvironment({
         bootstrapStackVersion: 10,
         environment: { account: 'account', region: 'region', name: 'env' },
@@ -757,7 +758,7 @@ describe(Notices, () => {
     });
 
     test('deduplicates', async () => {
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       notices.addBootstrappedEnvironment({
         bootstrapStackVersion: 10,
         environment: { account: 'account', region: 'region', name: 'env' },
@@ -766,9 +767,6 @@ describe(Notices, () => {
         bootstrapStackVersion: 10,
         environment: { account: 'account', region: 'region', name: 'env' },
       });
-
-      // mock cli version number
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
 
       notices.display();
 
@@ -796,10 +794,7 @@ describe(Notices, () => {
 
   describe('refresh', () => {
     test('deduplicates notices', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, BASIC_NOTICE] },
       });
@@ -809,10 +804,7 @@ describe(Notices, () => {
     });
 
     test('clears notices if empty', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [] },
       });
@@ -822,7 +814,7 @@ describe(Notices, () => {
     });
 
     test('doesnt throw', async () => {
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion });
       await notices.refresh({
         dataSource: {
           fetch: async () => {
@@ -833,14 +825,11 @@ describe(Notices, () => {
     });
 
     test('filters out acknowledged notices by default', async () => {
-      // within the affected version range of both notices
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.126.0');
-
       const context = new Context({
         bag: new Settings({ 'acknowledged-issue-numbers': [MULTIPLE_AFFECTED_VERSIONS_NOTICE.issueNumber] }),
       });
 
-      const notices = Notices.create({ ioHost, context });
+      const notices = Notices.create({ ioHost, context, cliVersion: '1.126.0'  });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
@@ -854,14 +843,11 @@ describe(Notices, () => {
     });
 
     test('preserves acknowledged notices if requested', async () => {
-      // within the affected version range of both notices
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.126.0');
-
       const context = new Context({
         bag: new Settings({ 'acknowledged-issue-numbers': [MULTIPLE_AFFECTED_VERSIONS_NOTICE.issueNumber] }),
       });
 
-      const notices = Notices.create({ ioHost, context, includeAcknowledged: true });
+      const notices = Notices.create({ ioHost, context, includeAcknowledged: true, cliVersion: '1.126.0'  });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
@@ -874,10 +860,7 @@ describe(Notices, () => {
 
   describe('display', () => {
     test('notices envelop', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, BASIC_NOTICE] },
       });
@@ -893,10 +876,7 @@ describe(Notices, () => {
     });
 
     test('deduplicates notices', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context() , cliVersion: '1.0.0'});
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, BASIC_NOTICE] },
       });
@@ -910,22 +890,19 @@ describe(Notices, () => {
     });
 
     test('nothing when there are no notices', async () => {
-      Notices.create({ ioHost, context: new Context() }).display();
+      Notices.create({ ioHost, context: new Context(), cliVersion }).display();
       // expect a single trace that the tree.json was not found, but nothing else
       expect(ioHost.messages.length).toBe(1);
       ioHost.expectMessage({ level: 'trace', containing: 'Failed to get tree.json file' });
     });
 
     test('total count when show total is true', async () => {
-      Notices.create({ ioHost, context: new Context() }).display({ showTotal: true });
+      Notices.create({ ioHost, context: new Context(), cliVersion }).display({ showTotal: true });
       ioHost.expectMessage({ containing: 'There are 0 unacknowledged notice(s).' });
     });
 
     test('warning', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_WARNING_NOTICE] },
       });
@@ -935,10 +912,7 @@ describe(Notices, () => {
     });
 
     test('error', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_ERROR_NOTICE] },
       });
@@ -948,10 +922,7 @@ describe(Notices, () => {
     });
 
     test('only relevant notices', async () => {
-      // within the affected version range of the notice
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
-      const notices = Notices.create({ ioHost, context: new Context() });
+      const notices = Notices.create({ ioHost, context: new Context(), cliVersion: '1.0.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE] },
       });
@@ -961,14 +932,11 @@ describe(Notices, () => {
     });
 
     test('only unacknowledged notices', async () => {
-      // within the affected version range of both notices
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.126.0');
-
       const context = new Context({
         bag: new Settings({ 'acknowledged-issue-numbers': [MULTIPLE_AFFECTED_VERSIONS_NOTICE.issueNumber] }),
       });
 
-      const notices = Notices.create({ ioHost, context });
+      const notices = Notices.create({ ioHost, context, cliVersion: '1.126.0'  });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
@@ -978,13 +946,10 @@ describe(Notices, () => {
     });
 
     test('can include acknowledged notices if requested', async () => {
-      // within the affected version range of both notices
-      jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.126.0');
-
       const context = new Context({
         bag: new Settings({ 'acknowledged-issue-numbers': [MULTIPLE_AFFECTED_VERSIONS_NOTICE.issueNumber] }),
       });
-      const notices = Notices.create({ ioHost, context, includeAcknowledged: true });
+      const notices = Notices.create({ ioHost, context, includeAcknowledged: true, cliVersion: '1.126.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });

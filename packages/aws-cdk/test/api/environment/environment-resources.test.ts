@@ -2,8 +2,7 @@ import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { ToolkitInfo } from '../../../lib/api';
 import { Context } from '../../../lib/api/context';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
-import * as version from '../../../lib/cli/version';
-import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
+import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/api/notices';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../_helpers/mock-sdk';
 import { MockToolkitInfo } from '../../_helpers/mock-toolkitinfo';
 import { TestIoHost } from '../../_helpers/io-host';
@@ -101,12 +100,9 @@ describe('validateversion without bootstrap stack', () => {
       .spyOn(CachedDataSource.prototype as any, 'load')
       .mockImplementation(() => Promise.resolve({ expiration: 0, notices: [] }));
 
-    // mock cli version number
-    jest.spyOn(version, 'versionNumber').mockImplementation(() => '1.0.0');
-
     // THEN
     const ioHost = new FakeIoHost();
-    const notices = Notices.create({ context: new Context(), ioHost });
+    const notices = Notices.create({ context: new Context(), ioHost, cliVersion: '1.0.0' });
     await notices.refresh({ dataSource: { fetch: async () => [] } });
     await expect(envResources().validateVersion(8, '/abc')).resolves.toBeUndefined();
 

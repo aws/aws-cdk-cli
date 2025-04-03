@@ -9,6 +9,7 @@ export * from './format-error';
 export * from './json';
 export * from './objects';
 export * from './parallel';
+export * from './package-info';
 export * from './serialize';
 export * from './string-manipulation';
 export * from './type-brands';
