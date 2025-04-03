@@ -29,7 +29,7 @@ import {
   GenerateTemplateOptions,
   FromScan,
 } from '../../lib/commands/migrate';
-import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../util/mock-sdk';
+import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 jest.setTimeout(120_000);
 

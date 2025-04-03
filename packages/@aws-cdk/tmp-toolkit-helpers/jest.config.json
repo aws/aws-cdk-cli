@@ -5,13 +5,13 @@
     "js"
   ],
   "maxWorkers": "80%",
-  "testEnvironment": "node",
+  "testEnvironment": "./test/_helpers/jest-bufferedconsole.ts",
   "coverageThreshold": {
     "global": {
-      "statements": 80,
-      "branches": 80,
-      "functions": 80,
-      "lines": 80
+      "statements": 83,
+      "branches": 84,
+      "functions": 82,
+      "lines": 83
     }
   },
   "collectCoverage": true,
@@ -47,6 +47,10 @@
     ]
   ],
   "randomize": true,
+  "testTimeout": 30000,
+  "setupFilesAfterEnv": [
+    "<rootDir>/test/_helpers/jest-setup-after-env.ts"
+  ],
   "clearMocks": true,
   "coverageDirectory": "coverage",
   "testPathIgnorePatterns": [

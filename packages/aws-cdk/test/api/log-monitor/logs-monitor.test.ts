@@ -1,8 +1,8 @@
 import { FilterLogEventsCommand, type FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../../../lib/api/logs/logs-monitor';
 import { sleep } from '../../_helpers/sleep';
-import { MockSdk, mockCloudWatchClient } from '../../util/mock-sdk';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { MockSdk, mockCloudWatchClient } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/io-host';
 
 // Helper function to strip ANSI codes
 const stripAnsi = (str: string): string => {
@@ -15,16 +15,16 @@ let monitor: CloudWatchLogEventMonitor;
 let ioHost = new TestIoHost();
 beforeEach(() => {
   monitor = new CloudWatchLogEventMonitor({
-    ioHelper: asIoHelper(ioHost, 'deploy'),
+    ioHelper: ioHost.asHelper('deploy'),
     startTime: new Date(T100),
   });
   sdk = new MockSdk();
 });
 
-afterEach(() => {
+afterEach(async () => {
   ioHost.notifySpy.mockReset();
   ioHost.requestSpy.mockReset();
-  monitor.deactivate();
+  await monitor.deactivate();
 });
 
 test('process events', async () => {
@@ -44,7 +44,7 @@ test('process events', async () => {
     ['loggroup'],
   );
   // WHEN
-  monitor.activate();
+  await monitor.activate();
   // need time for the log processing to occur
   await sleep(1000);
 
@@ -76,7 +76,7 @@ test('process truncated events', async () => {
     ['loggroup'],
   );
   // WHEN
-  monitor.activate();
+  await monitor.activate();
   // need time for the log processing to occur
   await sleep(1000);
 

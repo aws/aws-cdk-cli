@@ -24,9 +24,9 @@ import {
   mockSSMClient,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-} from '../../util/mock-sdk';
+} from '../../_helpers/mock-sdk';
 import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { TestIoHost } from '../../_helpers/io-host';
 import { Deployments } from '../../../lib/api/deployments';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { createChangeSet } from '../../../lib/api/deployments/cfn-api';
@@ -40,7 +40,7 @@ let deployments: Deployments;
 let mockToolkitInfoLookup: jest.Mock;
 let currentCfnStackResources: { [key: string]: StackResourceSummary[] };
 let ioHost = new TestIoHost();
-let ioHelper = asIoHelper(ioHost, 'deploy');
+let ioHelper = ioHost.asHelper('deploy');
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -1120,7 +1120,9 @@ describe('stackExists', () => {
     [false, 'deploy:here:123456789012'],
     [true, 'lookup:here:123456789012'],
   ])('uses lookup role if requested: %p', async (tryLookupRole, expectedRoleArn) => {
-    const mockForEnvironment = jest.fn().mockImplementation(() => { return { sdk: new MockSdk() }; });
+    const mockForEnvironment = jest.fn().mockImplementation(() => {
+      return { sdk: new MockSdk() };
+    });
     sdkProvider.forEnvironment = mockForEnvironment;
     givenStacks({
       '*': { template: {} },

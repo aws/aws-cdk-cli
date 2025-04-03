@@ -4,7 +4,7 @@ import {
   EvaluateCloudFormationTemplate,
   Template,
 } from '../../lib/api/cloudformation';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../util/mock-sdk';
+import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 const sdk = new MockSdk();
 

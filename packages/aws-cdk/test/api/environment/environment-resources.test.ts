@@ -4,9 +4,9 @@ import { Context } from '../../../lib/api/context';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import * as version from '../../../lib/cli/version';
 import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/notices';
-import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../util/mock-sdk';
-import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../_helpers/mock-sdk';
+import { MockToolkitInfo } from '../../_helpers/mock-toolkitinfo';
+import { TestIoHost } from '../../_helpers/io-host';
 import { FakeIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private/testing/fake-io-host';
 
 let mockSdk: MockSdk;
@@ -14,7 +14,7 @@ let envRegistry: EnvironmentResourcesRegistry;
 let toolkitMock: ReturnType<typeof MockToolkitInfo.setup>;
 
 let ioHost = new TestIoHost();
-let ioHelper = asIoHelper(ioHost, 'deploy');
+let ioHelper = ioHost.asHelper('deploy');
 
 beforeEach(() => {
   mockSdk = new MockSdk();

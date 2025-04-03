@@ -11,10 +11,10 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-} from '../../util/mock-sdk';
+} from '../../_helpers/mock-sdk';
 import { FakeCloudformationStack } from './fake-cloudformation-stack';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { CloudFormationStack, Template } from '../../../lib/api/cloudformation';
+import { TestIoHost } from '../../_helpers/io-host';
 
 const STACK_NAME = 'withouterrors';
 export const STACK_ID = 'stackId';
@@ -145,6 +145,6 @@ export class HotswapMockSdkProvider extends MockSdkProvider {
     hotswapPropertyOverrides?: HotswapPropertyOverrides,
   ): Promise<SuccessfulDeployStackResult | undefined> {
     let hotswapProps = hotswapPropertyOverrides || new HotswapPropertyOverrides();
-    return deployments.tryHotswapDeployment(this, asIoHelper(ioHost, 'deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode as any, hotswapProps);
+    return deployments.tryHotswapDeployment(this, ioHost.asHelper('deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode as any, hotswapProps);
   }
 }
