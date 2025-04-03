@@ -81,7 +81,7 @@ export interface ToolkitOptions {
 /**
  * The AWS CDK Programmatic Toolkit
  */
-export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposable {
+export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * The toolkit stack name used for bootstrapping resources.
    */
@@ -112,14 +112,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // After removing emojis and color, we might end up with floating whitespace at either end of the message
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
-  }
-
-  public async dispose(): Promise<void> {
-    // nothing to do yet
-  }
-
-  public async [Symbol.asyncDispose](): Promise<void> {
-    await this.dispose();
   }
 
   /**
