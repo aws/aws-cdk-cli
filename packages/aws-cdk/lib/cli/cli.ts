@@ -24,6 +24,7 @@ import { execProgram } from '../api/cxapp/exec';
 import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap/common';
+import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
@@ -33,7 +34,6 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { Notices } from '../notices';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -117,6 +117,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       proxyAddress: configuration.settings.get(['proxy']),
       caBundlePath: configuration.settings.get(['caBundlePath']),
     },
+    cliVersion: version.versionNumber(),
   });
   await notices.refresh();
 
