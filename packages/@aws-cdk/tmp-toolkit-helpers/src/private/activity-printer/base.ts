@@ -1,7 +1,7 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { IoMessage } from '../../api/io';
-import { type StackActivity, type StackProgress } from '../../api/io/payloads';
 import { IO } from '../../api/io/private';
+import { type StackActivity, type StackProgress } from '../../payloads';
 import { maxResourceTypeLength, stackEventHasErrorMessage } from '../../util';
 
 export interface IActivityPrinter {
