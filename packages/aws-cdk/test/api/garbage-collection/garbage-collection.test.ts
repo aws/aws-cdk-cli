@@ -7,7 +7,7 @@ import {
   Stack,
 } from '@aws-sdk/client-cloudformation';
 import { ECR_ISOLATED_TAG, GarbageCollector, S3_ISOLATED_TAG, ToolkitInfo } from '../../../lib/api';
-import { mockBootstrapStack, mockCloudFormationClient, mockECRClient, mockS3Client, MockSdk, MockSdkProvider } from '../../util/mock-sdk';
+import { mockBootstrapStack, mockCloudFormationClient, mockECRClient, mockS3Client, MockSdk, MockSdkProvider } from '../../_helpers/mock-sdk';
 import {
   DeleteObjectsCommand,
   DeleteObjectTaggingCommand,
@@ -28,7 +28,7 @@ import {
   ListImagesCommand,
   PutImageCommand,
 } from '@aws-sdk/client-ecr';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { TestIoHost } from '../../_helpers/io-host';
 
 let garbageCollector: GarbageCollector;
 
@@ -73,7 +73,7 @@ function gc(props: {
 }): GarbageCollector {
   return new GarbageCollector({
     sdkProvider: new MockSdkProvider(),
-    ioHelper: asIoHelper(ioHost, 'gc'),
+    ioHelper: ioHost.asHelper('gc'),
     action: props.action,
     resolvedEnvironment: {
       account: '123456789012',
@@ -935,7 +935,7 @@ describe('BackgroundStackRefresh', () => {
 
     refreshProps = {
       cfn: foo.cloudFormation(),
-      ioHelper: asIoHelper(ioHost, 'gc'),
+      ioHelper: ioHost.asHelper('gc'),
       activeAssets: new ActiveAssetCache(),
     };
 
@@ -1020,7 +1020,7 @@ describe('ProgressPrinter', () => {
     setInterval = jest.spyOn(global, 'setInterval');
     clearInterval = jest.spyOn(global, 'clearInterval');
 
-    progressPrinter = new ProgressPrinter(asIoHelper(ioHost, 'gc'), 0, 1000);
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 0, 1000);
   });
 
   afterEach(() => {

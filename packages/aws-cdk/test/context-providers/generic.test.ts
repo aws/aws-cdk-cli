@@ -2,7 +2,7 @@
 import { PluginHost } from '../../lib/api/plugin';
 import * as contextproviders from '../../lib/context-providers';
 import { Context, TRANSIENT_CONTEXT_KEY } from '../../lib/api/context';
-import { MockSdkProvider, setDefaultSTSMocks } from '../util/mock-sdk';
+import { MockSdkProvider, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 const mockSDK = new MockSdkProvider();
 setDefaultSTSMocks();

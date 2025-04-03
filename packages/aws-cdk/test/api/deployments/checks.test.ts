@@ -1,9 +1,9 @@
 import { DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { determineAllowCrossAccountAssetPublishing, getBootstrapStackInfo } from '../../../lib/api/deployments/checks';
-import { mockCloudFormationClient, MockSdk } from '../../util/mock-sdk';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { mockCloudFormationClient, MockSdk } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/io-host';
 
-let ioHelper = asIoHelper(new TestIoHost(), 'deploy');
+let ioHelper = new TestIoHost().asHelper('deploy');
 
 describe('determineAllowCrossAccountAssetPublishing', () => {
   it('should return true when hasStagingBucket is false', async () => {

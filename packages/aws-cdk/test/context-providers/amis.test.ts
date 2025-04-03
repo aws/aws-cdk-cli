@@ -2,8 +2,8 @@ import 'aws-sdk-client-mock';
 import { DescribeImagesCommand } from '@aws-sdk/client-ec2';
 import { SDK, SdkForEnvironment } from '../../lib/api';
 import { AmiContextProviderPlugin } from '../../lib/context-providers/ami';
-import { FAKE_CREDENTIAL_CHAIN, MockSdkProvider, mockEC2Client } from '../util/mock-sdk';
-import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { FAKE_CREDENTIAL_CHAIN, MockSdkProvider, mockEC2Client } from '../_helpers/mock-sdk';
+import { TestIoHost } from '../_helpers/io-host';
 
 const mockSDK = new (class extends MockSdkProvider {
   public forEnvironment(): Promise<SdkForEnvironment> {

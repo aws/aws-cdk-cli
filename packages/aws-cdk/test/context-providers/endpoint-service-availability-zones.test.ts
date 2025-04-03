@@ -3,8 +3,8 @@ import { SDK, SdkForEnvironment } from '../../lib/api';
 import {
   EndpointServiceAZContextProviderPlugin,
 } from '../../lib/context-providers/endpoint-service-availability-zones';
-import { FAKE_CREDENTIAL_CHAIN, mockEC2Client, MockSdkProvider } from '../util/mock-sdk';
-import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { FAKE_CREDENTIAL_CHAIN, mockEC2Client, MockSdkProvider } from '../_helpers/mock-sdk';
+import { TestIoHost } from '../_helpers/io-host';
 
 const mockSDK = new (class extends MockSdkProvider {
   public forEnvironment(): Promise<SdkForEnvironment> {

@@ -14,8 +14,8 @@ import {
   MockSdkProvider,
   mockElasticLoadBalancingV2Client,
   restoreSdkMocksToDefault,
-} from '../util/mock-sdk';
-import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+} from '../_helpers/mock-sdk';
+import { TestIoHost } from '../_helpers/io-host';
 
 const mockSDK = new (class extends MockSdkProvider {
   public forEnvironment(): Promise<SdkForEnvironment> {

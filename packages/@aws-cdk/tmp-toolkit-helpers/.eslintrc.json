@@ -317,5 +317,14 @@
     ],
     "@cdklabs/no-throw-default-error": "error"
   },
-  "overrides": []
+  "overrides": [
+    {
+      "files": [
+        "./test/**"
+      ],
+      "rules": {
+        "@cdklabs/no-throw-default-error": "off"
+      }
+    }
+  ]
 }

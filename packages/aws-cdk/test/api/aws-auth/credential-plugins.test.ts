@@ -2,7 +2,7 @@ import type { PluginProviderResult, SDKv2CompatibleCredentials } from '@aws-cdk/
 import { CredentialPlugins } from '../../../lib/api/aws-auth/credential-plugins';
 import { PluginHost } from '../../../lib/api/plugin';
 import { Mode } from '../../../lib/api/plugin/mode';
-import { TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { TestIoHost } from '../../_helpers/io-host';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('deploy');

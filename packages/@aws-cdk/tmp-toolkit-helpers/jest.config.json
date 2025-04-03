@@ -5,7 +5,7 @@
     "js"
   ],
   "maxWorkers": "80%",
-  "testEnvironment": "node",
+  "testEnvironment": "./test/_helpers/jest-bufferedconsole.ts",
   "coverageThreshold": {
     "global": {
       "statements": 80,
@@ -47,6 +47,10 @@
     ]
   ],
   "randomize": true,
+  "testTimeout": 30000,
+  "setupFilesAfterEnv": [
+    "<rootDir>/test/_helpers/jest-setup-after-env.ts"
+  ],
   "clearMocks": true,
   "coverageDirectory": "coverage",
   "testPathIgnorePatterns": [

@@ -15,7 +15,7 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-} from '../../util/mock-sdk';
+} from '../../_helpers/mock-sdk';
 
 let sdk: MockSdk;
 let logsMockSdkProvider: SdkProvider;
