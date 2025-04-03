@@ -1,7 +1,7 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { StackProgress } from './progress';
-import type { ResourceMetadata } from '../../resource-metadata/resource-metadata';
+import type { ResourceMetadata } from '../api/resource-metadata/resource-metadata';
 
 /**
  * Payload when stack monitoring is starting or stopping for a given stack deployment.

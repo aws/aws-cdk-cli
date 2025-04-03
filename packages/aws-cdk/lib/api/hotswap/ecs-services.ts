@@ -6,7 +6,7 @@ import {
   classifyChanges,
   nonHotswappableChange,
 } from './common';
-import { NonHotswappableReason, type ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import { NonHotswappableReason, type ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/payloads/hotswap';
 import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../cloudformation';

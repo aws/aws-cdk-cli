@@ -4,7 +4,7 @@ import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } f
 import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import type { AffectedResource, ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/payloads/hotswap';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth';
 import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../cloudformation';

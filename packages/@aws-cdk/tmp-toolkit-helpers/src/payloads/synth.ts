@@ -1,4 +1,4 @@
-import type { StackSelector } from '../../cloud-assembly/stack-selector';
+import type { StackSelector } from '../api/cloud-assembly/stack-selector';
 
 export interface StackSelectionDetails {
   /**
