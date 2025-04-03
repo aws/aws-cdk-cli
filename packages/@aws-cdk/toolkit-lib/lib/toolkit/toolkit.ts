@@ -4,12 +4,13 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
+import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
-import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
+import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssetsFromWorkGraph } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '../actions/diff';
 import { DiffMethod } from '../actions/diff';
@@ -21,7 +22,7 @@ import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
+import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -39,14 +40,14 @@ export interface ToolkitOptions {
   /**
    * The IoHost implementation, handling the inline interactions between the Toolkit and an integration.
    */
-  ioHost?: IIoHost;
+  readonly ioHost?: IIoHost;
 
   /**
    * Allow emojis in messages sent to the IoHost.
    *
    * @default true
    */
-  emojis?: boolean;
+  readonly emojis?: boolean;
 
   /**
    * Whether to allow ANSI colors and formatting in IoHost messages.
@@ -56,32 +57,32 @@ export interface ToolkitOptions {
    *
    * @default - detects color from the TTY status of the IoHost
    */
-  color?: boolean;
+  readonly color?: boolean;
 
   /**
    * Configuration options for the SDK.
    */
-  sdkConfig?: SdkConfig;
+  readonly sdkConfig?: SdkConfig;
 
   /**
    * Name of the toolkit stack to be used.
    *
    * @default "CDKToolkit"
    */
-  toolkitStackName?: string;
+  readonly toolkitStackName?: string;
 
   /**
    * Fail Cloud Assemblies
    *
    * @default "error"
    */
-  assemblyFailureAt?: 'error' | 'warn' | 'none';
+  readonly assemblyFailureAt?: 'error' | 'warn' | 'none';
 }
 
 /**
  * The AWS CDK Programmatic Toolkit
  */
-export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposable {
+export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * The toolkit stack name used for bootstrapping resources.
    */
@@ -91,18 +92,17 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * The IoHost of this Toolkit
    */
   public readonly ioHost: IIoHost;
+
+  /**
+   * Cache of the internal SDK Provider instance
+   */
   private _sdkProvider?: SdkProvider;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
 
-    // Hacky way to re-use the global IoHost until we have fully removed the need for it
-    const globalIoHost = CliIoHost.instance();
-    if (props.ioHost) {
-      globalIoHost.registerIoHost(props.ioHost as any);
-    }
-    let ioHost = globalIoHost as IIoHost;
+    let ioHost = props.ioHost ?? new NonInteractiveIoHost();
     if (props.emojis === false) {
       ioHost = withoutEmojis(ioHost);
     }
@@ -114,23 +114,17 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     this.ioHost = withTrimmedWhitespace(ioHost);
   }
 
-  public async dispose(): Promise<void> {
-    // nothing to do yet
-  }
-
-  public async [Symbol.asyncDispose](): Promise<void> {
-    await this.dispose();
-  }
-
   /**
    * Access to the AWS SDK
    */
   private async sdkProvider(action: ToolkitAction): Promise<SdkProvider> {
     // @todo this needs to be different instance per action
     if (!this._sdkProvider) {
+      const ioHelper = asIoHelper(this.ioHost, action);
       this._sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
         ...this.props.sdkConfig,
-        logger: asSdkLogger(asIoHelper(this.ioHost, action)),
+        ioHelper,
+        logger: asSdkLogger(ioHelper),
       });
     }
 
@@ -485,7 +479,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         stack: assetNode.parentStack,
         roleArn: options.roleArn,
         stackName: assetNode.parentStack.stackName,
-        forcePublish: options.force,
+        forcePublish: options.forceAssetPublishing,
       });
       await publishAssetSpan.end();
     };
@@ -515,7 +509,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await this._destroy(assembly, 'deploy', {
           stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
           roleArn: options.roleArn,
-          ci: options.ci,
         });
 
         return;
@@ -582,7 +575,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             notificationArns,
             tags,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.forceDeployment,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.parameters?.keepExistingParameters,
             rollback,
@@ -603,22 +596,18 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
                 : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
               const question = `${motivation}. Perform a regular deployment`;
 
-              if (options.force) {
-                await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Rolling back first (--force).`));
-              } else {
-                const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
-                  motivation,
-                  concurrency,
-                }));
-                if (!confirmed) {
-                  throw new ToolkitError('Aborted by user');
-                }
+              const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
+                motivation,
+                concurrency,
+              }));
+              if (!confirmed) {
+                throw new ToolkitError('Aborted by user');
               }
 
               // Perform a rollback
               await this._rollback(assembly, action, {
                 stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
-                orphanFailedResources: options.force,
+                orphanFailedResources: options.orphanFailedResourcesDuringRollback,
               });
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -630,17 +619,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
               const question = `${motivation}. Perform a regular deployment`;
 
-              // @todo no force here
-              if (options.force) {
-                await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Proceeding with regular deployment (--force).`));
-              } else {
-                const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
-                  motivation,
-                  concurrency,
-                }));
-                if (!confirmed) {
-                  throw new ToolkitError('Aborted by user');
-                }
+              const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
+                motivation,
+                concurrency,
+              }));
+              if (!confirmed) {
+                throw new ToolkitError('Aborted by user');
               }
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -716,8 +700,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const workGraph = new WorkGraphBuilder(ioHelper, prebuildAssets).build(stacksAndTheirAssetManifests);
 
     // Unless we are running with '--force', skip already published assets
-    if (!options.force) {
-      await removePublishedAssets(workGraph, deployments, options);
+    if (!options.forceAssetPublishing) {
+      await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
     }
 
     const graphConcurrency: Concurrency = {
@@ -767,11 +751,19 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // 2. Any file whose name starts with a dot.
     // 3. Any directory's content whose name starts with a dot.
     // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = options.outdir ?? 'cdk.out';
+    const outdir = assembly.directory;
     const watchExcludes = patternsArrayForWatch(options.exclude, {
       rootDir,
       returnRootDirIfEmpty: false,
-    }).concat(`${outdir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
+    });
+
+    // only exclude the outdir if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, outdir);
+    if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
+      watchExcludes.push(`${relativeOutDir}/**`);
+    }
+
+    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([
@@ -890,7 +882,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stack,
           roleArn: options.roleArn,
           toolkitStackName: this.toolkitStackName,
-          force: options.orphanFailedResources,
+          orphanFailedResources: options.orphanFailedResources,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });
@@ -1003,7 +995,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const hotswap = options.hotswap ?? HotswapMode.HOTSWAP_ONLY;
     const deployOptions: ExtendedDeployOptions = {
       ...options,
-      requireApproval: RequireApproval.NEVER,
       cloudWatchLogMonitor,
       hotswap,
       extraUserAgent: `cdk-watch/hotswap-${hotswap === HotswapMode.FULL_DEPLOYMENT ? 'off' : 'on'}`,

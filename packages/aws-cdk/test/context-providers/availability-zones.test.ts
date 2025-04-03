@@ -2,10 +2,11 @@ import { DescribeAvailabilityZonesCommand } from '@aws-sdk/client-ec2';
 import { SDK, SdkForEnvironment } from '../../lib/api';
 import { AZContextProviderPlugin } from '../../lib/context-providers/availability-zones';
 import { FAKE_CREDENTIAL_CHAIN, mockEC2Client, MockSdkProvider } from '../util/mock-sdk';
+import { TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 const mockSDK = new (class extends MockSdkProvider {
   public forEnvironment(): Promise<SdkForEnvironment> {
-    return Promise.resolve({ sdk: new SDK(FAKE_CREDENTIAL_CHAIN, mockSDK.defaultRegion, {}), didAssumeRole: false });
+    return Promise.resolve({ sdk: new SDK(FAKE_CREDENTIAL_CHAIN, mockSDK.defaultRegion, {}, new TestIoHost().asHelper("deploy")), didAssumeRole: false });
   }
 })();
 

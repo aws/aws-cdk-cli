@@ -152,7 +152,7 @@ test("calls tryHotswapDeployment() if 'hotswap' is `HotswapMode.HOTSWAP_ONLY`", 
     ...standardDeployStackArguments(),
     hotswap: HotswapMode.HOTSWAP_ONLY,
     extraUserAgent: 'extra-user-agent',
-    force: true, // otherwise, deployment would be skipped
+    forceDeployment: true, // otherwise, deployment would be skipped
   });
 
   // THEN
@@ -250,7 +250,7 @@ test('call UpdateStack when method=direct and the stack exists already', async (
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'direct' },
-    force: true,
+    forceDeployment: true,
   });
 
   // THEN
@@ -270,7 +270,7 @@ test('method=direct and no updates to be performed', async () => {
   const ret = await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'direct' },
-    force: true,
+    forceDeployment: true,
   });
 
   // THEN
@@ -670,7 +670,7 @@ test('deploy not skipped if template did not change and --force is applied', asy
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    force: true,
+    forceDeployment: true,
   });
 
   // THEN
@@ -895,7 +895,7 @@ test('empty change set is deleted if --execute is given', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'change-set', execute: true },
-    force: true, // Necessary to bypass "skip deploy"
+    forceDeployment: true, // Necessary to bypass "skip deploy"
   });
 
   // THEN
@@ -1169,7 +1169,7 @@ test.each([
     ...standardDeployStackArguments(),
     stack: FAKE_STACK,
     rollback: rollback === 'rollback',
-    force: true, // Bypass 'canSkipDeploy'
+    forceDeployment: true, // Bypass 'canSkipDeploy'
   });
 
   // THEN
