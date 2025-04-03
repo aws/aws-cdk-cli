@@ -676,16 +676,53 @@ const tmpToolkitHelpers = configureProject(
     devDeps: [
       '@types/archiver',
       '@types/semver',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
       'fast-check',
+      'nock',
+      '@smithy/util-stream',
+      'xml-js',
     ],
     deps: [
       cloudAssemblySchema.name,
       cloudFormationDiff,
       cxApi,
+      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
+      '@smithy/middleware-endpoint',
+      '@smithy/node-http-handler',
+      '@smithy/property-provider',
+      '@smithy/shared-ini-file-loader',
+      '@smithy/types',
+      '@smithy/util-retry',
+      '@smithy/util-waiter',
+      cdkAssets,
       'archiver',
       'chalk@4',
+      'fs-extra@^9',
       'glob',
+      'p-limit@^3',
+      'promptly', // @todo remove this should only be in CLI
+      'proxy-agent', // @todo remove this should only be in CLI
       'semver',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
@@ -699,6 +736,24 @@ const tmpToolkitHelpers = configureProject(
         module: 'NodeNext',
       },
     },
+
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          // We want to improve our test coverage
+          // DO NOT LOWER THESE VALUES!
+          // If you need to break glass, open an issue to re-up the values with additional test coverage
+          statements: 83,
+          branches: 84,
+          functions: 82,
+          lines: 83,
+        },
+        // We have many tests here that commonly time out
+        testTimeout: 30_000,
+        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
+        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
+      },
+    }),
   }),
 );
 
@@ -713,7 +768,16 @@ tmpToolkitHelpers.package.addField('exports', {
 tmpToolkitHelpers.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
 });
+tmpToolkitHelpers.eslint?.addOverride({
+  files: ['./test/**'],
+  rules: {
+    '@cdklabs/no-throw-default-error': 'off',
+  },
+});
 
+tmpToolkitHelpers.preCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
+
+tmpToolkitHelpers.npmignore?.addPatterns('!lib/api/bootstrap/bootstrap-template.yaml');
 tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
 
 //////////////////////////////////////////////////////////////////////
@@ -756,37 +820,6 @@ const cli = configureProject(
       cxApi,
       '@aws-cdk/region-info',
       'archiver',
-      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      '@aws-sdk/middleware-endpoint',
-      '@aws-sdk/util-retry',
-      '@aws-sdk/util-waiter',
-      '@smithy/middleware-endpoint',
-      '@smithy/shared-ini-file-loader',
-      '@smithy/property-provider',
-      '@smithy/types',
-      '@smithy/util-retry',
-      '@smithy/util-stream',
-      '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
       // A version that is guaranteed to still work on Node 16
@@ -867,7 +900,7 @@ const cli = configureProject(
 
 // Eslint rules
 cli.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': ['error'],
+  '@cdklabs/no-throw-default-error': 'error',
 });
 cli.eslint?.addOverride({
   files: ['./test/**'],
@@ -1128,7 +1161,6 @@ const toolkitLib = configureProject(
       '@smithy/property-provider',
       '@smithy/shared-ini-file-loader',
       '@smithy/util-retry',
-      '@smithy/util-stream',
       '@smithy/util-waiter',
       'archiver',
       'camelcase@^6', // Non-ESM
@@ -1177,7 +1209,6 @@ const toolkitLib = configureProject(
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
-        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
         coverageThreshold: {
           // this is very sad but we will get better
           statements: 85,
@@ -1185,6 +1216,8 @@ const toolkitLib = configureProject(
           functions: 77,
           lines: 85,
         },
+        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
+        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
       },
     }),
     tsconfig: {
