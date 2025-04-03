@@ -595,7 +595,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   return hotswapMode;
 }
 
-/* istanbul ignore next: we never call this in unit tests */
+/* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
   exec(args)
     .then(async (value) => {
@@ -610,3 +610,4 @@ export function cli(args: string[] = process.argv.slice(2)) {
       process.exitCode = 1;
     });
 }
+/* c8 ignore stop */
