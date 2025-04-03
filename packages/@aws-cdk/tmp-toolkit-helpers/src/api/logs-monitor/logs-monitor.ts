@@ -146,10 +146,11 @@ export class CloudWatchLogEventMonitor {
   private async tick(): Promise<void> {
     // excluding from codecoverage because this
     // doesn't always run (depends on timing)
-    /* c8 ignore next */
+    /* c8 ignore start */
     if (!this.monitorId) {
       return;
     }
+    /* c8 ignore stop */
 
     try {
       const events = flatten(await this.readNewEvents());

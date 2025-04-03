@@ -96,6 +96,7 @@
     "chalk": "4",
     "fs-extra": "^9",
     "glob": "^11.0.1",
+    "minimatch": "^10.0.1",
     "p-limit": "^3",
     "promptly": "^3.2.0",
     "proxy-agent": "^6.5.0",

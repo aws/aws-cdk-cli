@@ -8,6 +8,7 @@ export * from './directories';
 export * from './format-error';
 export * from './json';
 export * from './objects';
+export * from './package-info';
 export * from './parallel';
 export * from './serialize';
 export * from './string-manipulation';

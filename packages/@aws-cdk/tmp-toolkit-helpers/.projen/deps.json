@@ -289,6 +289,10 @@
       "type": "runtime"
     },
     {
+      "name": "minimatch",
+      "type": "runtime"
+    },
+    {
       "name": "p-limit",
       "version": "^3",
       "type": "runtime"
