@@ -1270,6 +1270,7 @@ toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null');
 toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates

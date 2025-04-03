@@ -186,6 +186,9 @@
           "exec": "node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null"
         },
         {
+          "exec": "node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null"
+        },
+        {
           "exec": "node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null"
         }
       ]

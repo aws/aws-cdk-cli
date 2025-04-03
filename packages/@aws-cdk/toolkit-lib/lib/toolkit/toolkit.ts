@@ -30,9 +30,8 @@ import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } f
 import type { IIoHost, IoMessageLevel } from '../api/io';
 import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import type { IoHelper } from '../api/shared-private';
-import { asIoHelper } from '../api/shared-private';
-import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { DiffFormatter, RequireApproval, ToolkitError, removeNonImportResources } from '../api/shared-public';
+import { asIoHelper, DiffFormatter, RequireApproval, ToolkitError, removeNonImportResources } from '../api/shared-private';
+import type { ToolkitAction, AssemblyData, StackDetails } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';

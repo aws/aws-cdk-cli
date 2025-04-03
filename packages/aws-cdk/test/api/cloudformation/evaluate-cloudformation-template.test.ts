@@ -3,8 +3,8 @@ import {
   CfnEvaluationException,
   EvaluateCloudFormationTemplate,
   Template,
-} from '../../lib/api/cloudformation';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
+} from '../../../lib/api/cloudformation';
+import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 
 const sdk = new MockSdk();
 

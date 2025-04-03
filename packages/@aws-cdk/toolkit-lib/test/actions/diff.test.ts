@@ -1,10 +1,11 @@
 import * as path from 'path';
 import { format } from 'util';
 import * as chalk from 'chalk';
-import { RequireApproval } from '../../lib';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
-import { StackSelectionStrategy, Toolkit } from '../../lib/toolkit';
+import { RequireApproval } from '../../lib/api/shared-private';
+import { StackSelectionStrategy } from '../../lib/api/shared-public';
+import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
 
