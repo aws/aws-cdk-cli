@@ -18,6 +18,7 @@ export async function appFixture(toolkit: Toolkit, name: string, context?: { [ke
   }
   const app = `cat ${appPath} | node --input-type=module`;
   return toolkit.fromCdkApp(app, {
+    workingDirectory: path.join(__dirname, '..', '..'),
     outdir: tmpOutdir(),
     context,
   });
