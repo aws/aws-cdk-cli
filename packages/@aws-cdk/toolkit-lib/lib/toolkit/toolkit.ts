@@ -769,11 +769,19 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // 2. Any file whose name starts with a dot.
     // 3. Any directory's content whose name starts with a dot.
     // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = options.outdir ?? 'cdk.out';
+    const outdir = assembly.directory;
     const watchExcludes = patternsArrayForWatch(options.exclude, {
       rootDir,
       returnRootDirIfEmpty: false,
-    }).concat(`${outdir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
+    });
+
+    // only exclude the outdir if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, outdir);
+    if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
+      watchExcludes.push(`${relativeOutDir}/**`);
+    }
+
+    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([

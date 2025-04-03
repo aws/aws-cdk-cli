@@ -39,6 +39,7 @@ jest.mock('chokidar', () => ({
   watch: mockChokidarWatch,
 }));
 
+import * as path from 'node:path';
 import { HotswapMode } from '../../lib';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
@@ -80,7 +81,7 @@ describe('watch', () => {
     }));
   });
 
-  test('ignores output dir, dot files, dot directories, node_modules by default', async () => {
+  test('dot files, dot directories, node_modules by default', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     ioHost.level = 'debug';
@@ -92,7 +93,30 @@ describe('watch', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'watch',
       level: 'debug',
-      message: expect.stringContaining('\'exclude\' patterns for \'watch\': ["cdk.out/**","**/.*","**/.*/**","**/node_modules/**"]'),
+      code: 'CDK_TOOLKIT_I5310',
+      message: expect.stringContaining('\'exclude\' patterns for \'watch\': ["**/.*","**/.*/**","**/node_modules/**"]'),
+    }));
+  });
+
+  test('ignores outdir when under the watch dir', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const assembly = await toolkit.synth(cx);
+    const outdir = (await assembly.produce()).directory;
+    const watchDir = path.normalize(outdir + path.sep + '..');
+
+    ioHost.level = 'debug';
+    await toolkit.watch(assembly, {
+      watchDir,
+      exclude: [],
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'watch',
+      level: 'debug',
+      code: 'CDK_TOOLKIT_I5310',
+      message: expect.stringContaining(`'exclude' patterns for 'watch': ["${path.basename(outdir)}/**","**/.*","**/.*/**","**/node_modules/**"]`),
     }));
   });
 
