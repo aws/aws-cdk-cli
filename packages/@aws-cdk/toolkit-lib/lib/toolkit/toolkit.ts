@@ -517,7 +517,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await this._destroy(assembly, 'deploy', {
           stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
           roleArn: options.roleArn,
-          ci: options.ci,
         });
 
         return;
@@ -1005,7 +1004,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const hotswap = options.hotswap ?? HotswapMode.HOTSWAP_ONLY;
     const deployOptions: ExtendedDeployOptions = {
       ...options,
-      requireApproval: RequireApproval.NEVER,
       cloudWatchLogMonitor,
       hotswap,
       extraUserAgent: `cdk-watch/hotswap-${hotswap === HotswapMode.FULL_DEPLOYMENT ? 'off' : 'on'}`,

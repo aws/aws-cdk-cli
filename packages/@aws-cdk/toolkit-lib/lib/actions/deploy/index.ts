@@ -1,6 +1,5 @@
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/aws-cdk';
-import type { RequireApproval } from '../../api/shared-public';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 
@@ -104,14 +103,6 @@ export interface DeployOptions extends BaseDeployOptions {
   readonly notificationArns?: string[];
 
   /**
-   * Require a confirmation for security relevant changes before continuing with the deployment
-   *
-   * @default RequireApproval.NEVER
-   * @deprecated requireApproval is governed by the `IIoHost`. This property is no longer used.
-   */
-  readonly requireApproval?: RequireApproval;
-
-  /**
    * Tags to pass to CloudFormation for deployment
    */
   readonly tags?: Tag[];
@@ -145,20 +136,6 @@ export interface DeployOptions extends BaseDeployOptions {
    * @default AssetBuildTime.ALL_BEFORE_DEPLOY
    */
   readonly assetBuildTime?: AssetBuildTime;
-
-  /**
-   * Change stack watcher output to CI mode.
-   *
-   * @deprecated has no functionality, please implement in your IoHost
-   */
-  readonly ci?: boolean;
-
-  /**
-   * Display mode for stack deployment progress.
-   *
-   * @deprecated has no functionality, please implement in your IoHost
-   */
-  readonly progress?: any;
 
   /**
    * Represents configuration property overrides for hotswap deployments.
