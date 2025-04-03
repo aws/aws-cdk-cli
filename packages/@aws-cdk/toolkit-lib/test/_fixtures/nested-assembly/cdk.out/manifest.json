@@ -1,0 +1,18 @@
+{
+  "version": "40.0.0",
+  "artifacts": {
+    "assembly-Stage": {
+      "type": "cdk:cloud-assembly",
+      "properties": {
+        "directoryName": "assembly-Stage",
+        "displayName": "Stage"
+      }
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  }
+}
