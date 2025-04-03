@@ -60,13 +60,8 @@ describe('formatStackDiff', () => {
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
       templateInfo: {
-        oldTemplate: {},
-        newTemplate: {
-          template: {},
-          templateFile: 'template.json',
-          stackName: 'test-stack',
-          findMetadataByType: () => [],
-        } as any,
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
         stackName: 'test-stack',
       },
     });
@@ -228,13 +223,8 @@ describe('formatSecurityDiff', () => {
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
       templateInfo: {
-        oldTemplate: {},
-        newTemplate: {
-          template: {},
-          templateFile: 'template.json',
-          stackName: 'test-stack',
-          findMetadataByType: () => [],
-        } as any,
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
         stackName: 'test-stack',
       },
     });

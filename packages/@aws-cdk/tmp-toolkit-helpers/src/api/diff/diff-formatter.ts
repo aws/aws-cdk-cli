@@ -309,7 +309,7 @@ export class DiffFormatter {
       // `formatSecurityDiff` to decide what to do with it.
       const stream = new StringWriteStream();
 
-      stream.write(format(`Stack ${chalk.bold(options.stackName)}\n`));
+      stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
 
       // eslint-disable-next-line max-len
       ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);
