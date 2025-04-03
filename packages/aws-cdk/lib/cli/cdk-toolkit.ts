@@ -9,8 +9,11 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
+import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
+import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
@@ -139,6 +142,22 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
+class InternalToolkit extends Toolkit {
+  private readonly _sdkProvider: SdkProvider;
+  public constructor(sdkProvider: SdkProvider, options: ToolkitOptions) {
+    super(options);
+    this._sdkProvider = sdkProvider;
+  }
+
+  /**
+   * Access to the AWS SDK
+   * @internal
+   */
+  protected override async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
+    return this._sdkProvider;
+  }
+}
+
 /**
  * Toolkit logic
  *
@@ -148,10 +167,21 @@ export enum AssetBuildTime {
 export class CdkToolkit {
   private ioHost: CliIoHost;
   private toolkitStackName: string;
+  private toolkit: InternalToolkit;
 
   constructor(private readonly props: CdkToolkitProps) {
     this.ioHost = props.ioHost ?? CliIoHost.instance();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
+
+    this.toolkit = new InternalToolkit(props.sdkProvider, {
+      assemblyFailureAt: this.validateMetadataFailAt(),
+      color: true,
+      emojis: true,
+      ioHost: this.ioHost,
+      sdkConfig: {},
+      toolkitStackName: this.toolkitStackName,
+    });
+    this.toolkit; // aritifical use of this.toolkit to satisfy TS, we want to prepare usage of the new toolkit without using it just yet
   }
 
   public async metadata(stackName: string, json: boolean) {
@@ -1250,6 +1280,11 @@ export class CdkToolkit {
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
   private async validateStacks(stacks: StackCollection) {
+    const failAt = this.validateMetadataFailAt();
+    await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
+  }
+
+  private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
     let failAt: 'warn' | 'error' | 'none' = 'error';
     if (this.props.ignoreErrors) {
       failAt = 'none';
@@ -1258,7 +1293,7 @@ export class CdkToolkit {
       failAt = 'warn';
     }
 
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
+    return failAt;
   }
 
   /**

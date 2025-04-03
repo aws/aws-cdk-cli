@@ -1,5 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { CloudAssembly } from './cloud-assembly';
+import type { ICloudAssemblySource } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly';
 import { ToolkitError } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import { IO, type IoHelper } from '../api-private';
@@ -36,10 +37,14 @@ export interface CloudExecutableProps {
 /**
  * Represent the Cloud Executable and the synthesis we can do on it
  */
-export class CloudExecutable {
+export class CloudExecutable implements ICloudAssemblySource {
   private _cloudAssembly?: CloudAssembly;
 
   constructor(private readonly props: CloudExecutableProps) {
+  }
+
+  public async produce(): Promise<cxapi.CloudAssembly> {
+    return (await this.synthesize(true)).assembly;
   }
 
   /**

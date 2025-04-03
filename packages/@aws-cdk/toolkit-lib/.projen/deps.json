@@ -1,6 +1,10 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/aws-service-spec",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/tmp-toolkit-helpers",
       "type": "build"
     },

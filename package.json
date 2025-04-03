@@ -65,9 +65,9 @@
       "packages/@aws-cdk/cli-plugin-contract",
       "packages/cdk-assets",
       "packages/@aws-cdk/tmp-toolkit-helpers",
+      "packages/@aws-cdk/toolkit-lib",
       "packages/aws-cdk",
       "packages/@aws-cdk/cli-lib-alpha",
-      "packages/@aws-cdk/toolkit-lib",
       "packages/@aws-cdk/cdk-cli-wrapper",
       "packages/cdk",
       "packages/@aws-cdk/integ-runner"
@@ -88,9 +88,9 @@
       "<rootDir>/packages/@aws-cdk/cli-plugin-contract",
       "<rootDir>/packages/cdk-assets",
       "<rootDir>/packages/@aws-cdk/tmp-toolkit-helpers",
+      "<rootDir>/packages/@aws-cdk/toolkit-lib",
       "<rootDir>/packages/aws-cdk",
       "<rootDir>/packages/@aws-cdk/cli-lib-alpha",
-      "<rootDir>/packages/@aws-cdk/toolkit-lib",
       "<rootDir>/packages/@aws-cdk/cdk-cli-wrapper",
       "<rootDir>/packages/cdk",
       "<rootDir>/packages/@aws-cdk/integ-runner"

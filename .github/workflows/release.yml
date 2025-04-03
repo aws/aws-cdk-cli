@@ -14,9 +14,9 @@ jobs:
       publish-aws-cdk-cloudformation-diff: ${{ steps.check-publish-aws-cdk-cloudformation-diff.outputs.publish }}
       publish-aws-cdk-cli-plugin-contract: ${{ steps.check-publish-aws-cdk-cli-plugin-contract.outputs.publish }}
       publish-cdk-assets: ${{ steps.check-publish-cdk-assets.outputs.publish }}
+      publish-aws-cdk-toolkit-lib: ${{ steps.check-publish-aws-cdk-toolkit-lib.outputs.publish }}
       publish-aws-cdk: ${{ steps.check-publish-aws-cdk.outputs.publish }}
       publish-aws-cdk-cli-lib-alpha: ${{ steps.check-publish-aws-cdk-cli-lib-alpha.outputs.publish }}
-      publish-aws-cdk-toolkit-lib: ${{ steps.check-publish-aws-cdk-toolkit-lib.outputs.publish }}
       publish-cdk: ${{ steps.check-publish-cdk.outputs.publish }}
       publish-aws-cdk-integ-runner: ${{ steps.check-publish-aws-cdk-integ-runner.outputs.publish }}
     env:
@@ -50,15 +50,15 @@ jobs:
       - id: check-publish-cdk-assets
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/cdk-assets
+      - id: check-publish-aws-cdk-toolkit-lib
+        run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
+        working-directory: packages/@aws-cdk/toolkit-lib
       - id: check-publish-aws-cdk
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/aws-cdk
       - id: check-publish-aws-cdk-cli-lib-alpha
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/@aws-cdk/cli-lib-alpha
-      - id: check-publish-aws-cdk-toolkit-lib
-        run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
-        working-directory: packages/@aws-cdk/toolkit-lib
       - id: check-publish-cdk
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/cdk
@@ -116,6 +116,18 @@ jobs:
           name: cdk-assets_build-artifact
           path: packages/cdk-assets/dist
           overwrite: true
+      - name: "@aws-cdk/toolkit-lib: Backup artifact permissions"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        run: cd dist && getfacl -R . > permissions-backup.acl
+        continue-on-error: true
+        working-directory: packages/@aws-cdk/toolkit-lib
+      - name: "@aws-cdk/toolkit-lib: Upload artifact"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: aws-cdk-toolkit-lib_build-artifact
+          path: packages/@aws-cdk/toolkit-lib/dist
+          overwrite: true
       - name: "aws-cdk: Backup artifact permissions"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
         run: cd dist && getfacl -R . > permissions-backup.acl
@@ -139,18 +151,6 @@ jobs:
         with:
           name: aws-cdk-cli-lib-alpha_build-artifact
           path: packages/@aws-cdk/cli-lib-alpha/dist
-          overwrite: true
-      - name: "@aws-cdk/toolkit-lib: Backup artifact permissions"
-        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        run: cd dist && getfacl -R . > permissions-backup.acl
-        continue-on-error: true
-        working-directory: packages/@aws-cdk/toolkit-lib
-      - name: "@aws-cdk/toolkit-lib: Upload artifact"
-        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
-        with:
-          name: aws-cdk-toolkit-lib_build-artifact
-          path: packages/@aws-cdk/toolkit-lib/dist
           overwrite: true
       - name: "cdk: Backup artifact permissions"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
@@ -593,6 +593,60 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx -p publib@latest publib-npm
+  aws-cdk-toolkit-lib_release_github:
+    name: "@aws-cdk/toolkit-lib: Publish to GitHub Releases"
+    needs:
+      - release
+      - aws-cdk-toolkit-lib_release_npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-toolkit-lib_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.sha }}
+        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+  aws-cdk-toolkit-lib_release_npm:
+    name: "@aws-cdk/toolkit-lib: Publish to npm"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-toolkit-lib_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          NPM_DIST_TAG: latest
+          NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx -p publib@latest publib-npm
   aws-cdk_release_github:
     name: "aws-cdk: Publish to GitHub Releases"
     needs:
@@ -888,60 +942,6 @@ jobs:
           GIT_USER_EMAIL: github-actions@github.com
           GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
         run: npx -p publib@latest publib-golang
-  aws-cdk-toolkit-lib_release_github:
-    name: "@aws-cdk/toolkit-lib: Publish to GitHub Releases"
-    needs:
-      - release
-      - aws-cdk-toolkit-lib_release_npm
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-toolkit-lib_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF: ${{ github.sha }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_REF 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-  aws-cdk-toolkit-lib_release_npm:
-    name: "@aws-cdk/toolkit-lib: Publish to npm"
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-toolkit-lib_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Release
-        env:
-          NPM_DIST_TAG: latest
-          NPM_REGISTRY: registry.npmjs.org
-          NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx -p publib@latest publib-npm
   cdk_release_github:
     name: "cdk: Publish to GitHub Releases"
     needs:

@@ -15,6 +15,7 @@ import type { AssemblyBuilder } from '../source-builder';
 export abstract class CloudAssemblySourceBuilder {
   /**
    * Helper to provide the CloudAssemblySourceBuilder with required toolkit services
+   * @internal
    * @deprecated this should move to the toolkit really.
    */
   protected abstract sourceBuilderServices(): Promise<ToolkitServices>;
