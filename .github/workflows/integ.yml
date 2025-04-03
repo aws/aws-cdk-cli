@@ -118,7 +118,6 @@ jobs:
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
-          JEST_TEST_CONCURRENT: ${{ matrix.suite == 'cli-integ-tests' && 'true' || 'false' }}
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
