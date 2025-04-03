@@ -932,7 +932,7 @@ test('rollback stack fails in UPDATE_COMPLETE state', async () => {
   expect(response.notInRollbackableState).toBe(true);
 });
 
-test('continue rollback stack with force ignores any failed resources', async () => {
+test('continue rollback stack with orphanFailedResources ignores any failed resources', async () => {
   // GIVEN
   givenStacks({
     '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
@@ -954,7 +954,7 @@ test('continue rollback stack with force ignores any failed resources', async ()
   await deployments.rollbackStack({
     stack: testStack({ stackName: 'boop' }),
     validateBootstrapStackVersion: false,
-    force: true,
+    orphanFailedResources: true,
   });
 
   // THEN

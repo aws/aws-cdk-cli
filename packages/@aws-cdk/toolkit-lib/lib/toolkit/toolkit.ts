@@ -9,7 +9,7 @@ import { assemblyFromSource } from './private';
 import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
-import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
+import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssetsFromWorkGraph } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '../actions/diff';
 import { DiffMethod } from '../actions/diff';
@@ -487,7 +487,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         stack: assetNode.parentStack,
         roleArn: options.roleArn,
         stackName: assetNode.parentStack.stackName,
-        forcePublish: options.force,
+        forcePublish: options.forceAssetPublishing,
       });
       await publishAssetSpan.end();
     };
@@ -584,7 +584,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             notificationArns,
             tags,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.forceDeployment,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.parameters?.keepExistingParameters,
             rollback,
@@ -605,22 +605,18 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
                 : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
               const question = `${motivation}. Perform a regular deployment`;
 
-              if (options.force) {
-                await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Rolling back first (--force).`));
-              } else {
-                const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
-                  motivation,
-                  concurrency,
-                }));
-                if (!confirmed) {
-                  throw new ToolkitError('Aborted by user');
-                }
+              const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
+                motivation,
+                concurrency,
+              }));
+              if (!confirmed) {
+                throw new ToolkitError('Aborted by user');
               }
 
               // Perform a rollback
               await this._rollback(assembly, action, {
                 stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
-                orphanFailedResources: options.force,
+                orphanFailedResources: options.orphanFailedResourcesDuringRollback,
               });
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -632,17 +628,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
               const question = `${motivation}. Perform a regular deployment`;
 
-              // @todo no force here
-              if (options.force) {
-                await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Proceeding with regular deployment (--force).`));
-              } else {
-                const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
-                  motivation,
-                  concurrency,
-                }));
-                if (!confirmed) {
-                  throw new ToolkitError('Aborted by user');
-                }
+              const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
+                motivation,
+                concurrency,
+              }));
+              if (!confirmed) {
+                throw new ToolkitError('Aborted by user');
               }
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -718,8 +709,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const workGraph = new WorkGraphBuilder(ioHelper, prebuildAssets).build(stacksAndTheirAssetManifests);
 
     // Unless we are running with '--force', skip already published assets
-    if (!options.force) {
-      await removePublishedAssets(workGraph, deployments, options);
+    if (!options.forceAssetPublishing) {
+      await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
     }
 
     const graphConcurrency: Concurrency = {
@@ -892,7 +883,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stack,
           roleArn: options.roleArn,
           toolkitStackName: this.toolkitStackName,
-          force: options.orphanFailedResources,
+          orphanFailedResources: options.orphanFailedResources,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });

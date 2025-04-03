@@ -295,7 +295,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.bootstrap(args.ENVIRONMENTS, {
           source,
           roleArn: args.roleArn,
-          force: argv.force,
+          forceDeployment: argv.force,
           toolkitStackName: toolkitStackName,
           execute: args.execute,
           tags: configuration.settings.get(['tags']),
