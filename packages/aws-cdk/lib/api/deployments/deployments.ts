@@ -229,10 +229,10 @@ export interface RollbackStackOptions {
   readonly validateBootstrapStackVersion?: boolean;
 }
 
-export interface RollbackStackResult {
-  readonly notInRollbackableState?: boolean;
-  readonly success?: boolean;
-}
+export type RollbackStackResult = { readonly stackArn: string } & (
+  | { readonly notInRollbackableState: true }
+  | { readonly success: true; notInRollbackableState?: undefined }
+);
 
 interface AssetOptions {
   /**
@@ -467,14 +467,15 @@ export class Deployments {
     // We loop in case of `--force` and the stack ends up in `CONTINUE_UPDATE_ROLLBACK`.
     let maxLoops = 10;
     while (maxLoops--) {
-      let cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);
+      const cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);
+      const stackArn = cloudFormationStack.stackId;
 
       const executionRoleArn = await env.replacePlaceholders(options.roleArn ?? options.stack.cloudFormationExecutionRoleArn);
 
       switch (cloudFormationStack.stackStatus.rollbackChoice) {
         case RollbackChoice.NONE:
           await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`));
-          return { notInRollbackableState: true };
+          return { stackArn: cloudFormationStack.stackId, notInRollbackableState: true };
 
         case RollbackChoice.START_ROLLBACK:
           await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Initiating rollback of stack ${deployName}`));
@@ -516,7 +517,7 @@ export class Deployments {
           await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
             `Stack ${deployName} failed creation and rollback. This state cannot be rolled back. You can recreate this stack by running 'cdk deploy'.`,
           ));
-          return { notInRollbackableState: true };
+          return { stackArn, notInRollbackableState: true };
 
         default:
           throw new ToolkitError(`Unexpected rollback choice: ${cloudFormationStack.stackStatus.rollbackChoice}`);
@@ -552,7 +553,7 @@ export class Deployments {
       }
 
       if (finalStackState.stackStatus.isRollbackSuccess || !stackErrorMessage) {
-        return { success: true };
+        return { stackArn, success: true };
       }
 
       // Either we need to ignore some resources to continue the rollback, or something went wrong

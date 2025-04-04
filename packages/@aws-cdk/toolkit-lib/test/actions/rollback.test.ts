@@ -22,6 +22,7 @@ beforeEach(() => {
   mockRollbackStack.mockResolvedValue({
     notInRollbackableState: false,
     success: true,
+    stackArn: 'arn:stack',
   });
 });
 
@@ -29,10 +30,33 @@ describe('rollback', () => {
   test('successful rollback', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
-    await toolkit.rollback(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } });
+    const result = await toolkit.rollback(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } });
 
     // THEN
     successfulRollback();
+
+    expect(result).toEqual({
+      stacks: [
+        {
+          environment: {
+            account: 'unknown-account',
+            region: 'unknown-region',
+          },
+          result: 'rolled-back',
+          stackArn: 'arn:stack',
+          stackName: 'Stack1',
+        },
+        {
+          environment: {
+            account: 'unknown-account',
+            region: 'unknown-region',
+          },
+          result: 'rolled-back',
+          stackArn: 'arn:stack',
+          stackName: 'Stack2',
+        },
+      ],
+    });
   });
 
   test('rollback not in rollbackable state', async () => {
