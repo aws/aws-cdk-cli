@@ -3,7 +3,7 @@ import type { ResourceDescription } from '@aws-sdk/client-cloudcontrol';
 import { ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { ICloudControlClient } from '../api';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 import { findJsonValue, getResultObj } from '../util';
 

@@ -1,6 +1,6 @@
 import type { EndpointServiceAvailabilityZonesContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { IContextProviderMessages } from '.';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 
 /**

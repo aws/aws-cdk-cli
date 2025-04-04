@@ -1,7 +1,7 @@
 import * as path from 'path';
 import bockfs from '../../_helpers/bockfs';
 import * as fs from 'fs-extra';
-import { AccountAccessKeyCache } from '../../../lib/api/aws-auth/account-cache';
+import { AccountAccessKeyCache } from '../../../lib/api/aws-auth';
 import { withMocked } from '../../_helpers/as-mock';
 
 const noOp = async () => {

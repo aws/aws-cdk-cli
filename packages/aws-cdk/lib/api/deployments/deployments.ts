@@ -19,7 +19,7 @@ import type { DeployStackResult } from './deployment-result';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
-import type { SdkProvider } from '../aws-auth/sdk-provider';
+import type { SdkProvider } from '../aws-auth';
 import type {
   Template,
   RootTemplateWithNestedStacks,
