@@ -1116,8 +1116,8 @@ jobs:
         run: |-
           aws ssm put-parameter --name "/published/cdk/cli-npm/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
           aws ssm put-parameter --name "/published/cdk/cli-npm/timestamp" --type "String" --value "$(date +%s)" --overwrite
-  aws-cdk-toolkit-lib_release_docs:
-    name: "@aws-cdk/toolkit-lib: Publish docs to S3"
+  aws-cdk-toolkit-lib_release_typedoc:
+    name: "@aws-cdk/toolkit-lib: Publish typedoc to S3"
     needs: aws-cdk-toolkit-lib_release_npm
     runs-on: ubuntu-latest
     permissions:
@@ -1147,12 +1147,12 @@ jobs:
           role-session-name: s3-docs-publishing@aws-cdk-cli
           mask-aws-account-id: true
           role-chaining: true
-      - name: Publish docs
+      - name: Publish typedoc
         env:
           BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
           DOCS_STREAM: toolkit-lib
         run: |-
-          echo "Uploading docs to S3"
+          echo "Uploading typedoc to S3"
           echo "::add-mask::$BUCKET_NAME"
           S3_PATH="$DOCS_STREAM/aws-cdk-toolkit-lib-v$(cat dist/version.txt).zip"
           LATEST="latest-toolkit-lib"
@@ -1165,7 +1165,7 @@ jobs:
             --if-none-match "*" 2>&1); then
             
             # File was uploaded successfully, update the latest pointer
-            echo "New docs artifact uploaded successfully, updating latest pointer"
+            echo "New typedoc artifact uploaded successfully, updating latest pointer"
             echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
           elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
@@ -1175,6 +1175,68 @@ jobs:
 
           else
             # Any other error (permissions, etc)
-            echo "::error::Failed to upload docs artifact"
+            echo "::error::Failed to upload typedoc artifact"
+            exit 1
+          fi
+  aws-cdk-toolkit-lib_release_api_extractor:
+    name: "@aws-cdk/toolkit-lib: Publish api-extractor to S3"
+    needs: aws-cdk-toolkit-lib_release_npm
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: releasing
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-cdk-toolkit-lib_build-artifact
+          path: dist
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
+          role-session-name: s3-api-docs-publishing@aws-cdk-cli
+          mask-aws-account-id: true
+      - name: Assume the publishing role
+        id: publishing-creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
+          role-session-name: s3-api-docs-publishing@aws-cdk-cli
+          mask-aws-account-id: true
+          role-chaining: true
+      - name: Publish api-extractor
+        env:
+          BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
+          DOCS_STREAM: toolkit-lib
+        run: |-
+          echo "Uploading api-extractor to S3"
+          echo "::add-mask::$BUCKET_NAME"
+          S3_PATH="$DOCS_STREAM/aws-cdk-toolkit-lib-api-model-v$(cat dist/version.txt).zip"
+          LATEST="latest-api-model-toolkit-lib"
+
+          # Capture both stdout and stderr
+          if OUTPUT=$(aws s3api put-object \
+            --bucket "$BUCKET_NAME" \
+            --key "$S3_PATH" \
+            --body dist/api-extractor-docs.zip \
+            --if-none-match "*" 2>&1); then
+            
+            # File was uploaded successfully, update the latest pointer
+            echo "New api-extractor artifact uploaded successfully, updating latest pointer"
+            echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
+
+          elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
+            # Check specifically for PreconditionFailed in the error output
+            echo "::warning::File already exists in S3. Skipping upload."
+            exit 0
+
+          else
+            # Any other error (permissions, etc)
+            echo "::error::Failed to upload api-extractor artifact"
             exit 1
           fi

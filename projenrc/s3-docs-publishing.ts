@@ -1,6 +1,18 @@
 import type { Monorepo, TypeScriptWorkspace } from 'cdklabs-projen-project-types/lib/yarn';
 import { Component, github } from 'projen';
 
+export enum DocType {
+  /**
+   * TypeDoc documentation (HTML)
+   */
+  TYPEDOC = 'typedoc',
+
+  /**
+   * API Extractor documentation (JSON)
+   */
+  API_EXTRACTOR = 'api-extractor',
+}
+
 export interface S3DocsPublishingProps {
   /**
    * The docs stream to publish to.
@@ -21,6 +33,12 @@ export interface S3DocsPublishingProps {
    * The bucket name (or github expression) to publish to.
    */
   readonly bucketName: string;
+
+  /**
+   * The type of documentation to publish.
+   *
+   */
+  readonly docType: DocType;
 }
 
 export class S3DocsPublishing extends Component {
@@ -46,9 +64,16 @@ export class S3DocsPublishing extends Component {
     }
 
     const safeName = this.project.name.replace('@', '').replace('/', '-');
+    const isApiExtractor = this.props.docType === DocType.API_EXTRACTOR;
 
-    releaseWf.addJob(`${safeName}_release_docs`, {
-      name: `${this.project.name}: Publish docs to S3`,
+    // Determine job ID, name suffix, S3 path based on doc type
+    const jobIdSuffix = isApiExtractor ? '_api_extractor' : '_typedoc';
+    const nameSuffix = isApiExtractor ? 'api-extractor' : 'typedoc';
+    const s3PathPrefix = isApiExtractor ? `${safeName}-api-model-v` : `${safeName}-v`;
+    const latestPrefix = isApiExtractor ? 'latest-api-model-' : 'latest-';
+
+    releaseWf.addJob(`${safeName}_release${jobIdSuffix}`, {
+      name: `${this.project.name}: Publish ${nameSuffix} to S3`,
       environment: 'releasing', // <-- this has the configuration
       needs: [`${safeName}_release_npm`],
       runsOn: ['ubuntu-latest'],
@@ -72,7 +97,7 @@ export class S3DocsPublishing extends Component {
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-            'role-session-name': 's3-docs-publishing@aws-cdk-cli',
+            'role-session-name': `s3-${isApiExtractor ? 'api-' : ''}docs-publishing@aws-cdk-cli`,
             'mask-aws-account-id': true,
           },
         },
@@ -83,21 +108,21 @@ export class S3DocsPublishing extends Component {
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': this.props.roleToAssume,
-            'role-session-name': 's3-docs-publishing@aws-cdk-cli',
+            'role-session-name': `s3-${isApiExtractor ? 'api-' : ''}docs-publishing@aws-cdk-cli`,
             'mask-aws-account-id': true,
             'role-chaining': true,
           },
         },
         {
-          name: 'Publish docs',
+          name: `Publish ${nameSuffix}`,
           env: {
             BUCKET_NAME: this.props.bucketName,
             DOCS_STREAM: this.props.docsStream,
           },
-          run: `echo "Uploading docs to S3"
+          run: `echo "Uploading ${nameSuffix} to S3"
 echo "::add-mask::$BUCKET_NAME"
-S3_PATH="$DOCS_STREAM/${safeName}-v$(cat dist/version.txt).zip"
-LATEST="latest-${this.props.docsStream}"
+S3_PATH="$DOCS_STREAM/${s3PathPrefix}$(cat dist/version.txt).zip"
+LATEST="${latestPrefix}${this.props.docsStream}"
 
 # Capture both stdout and stderr
 if OUTPUT=$(aws s3api put-object \\
@@ -107,7 +132,7 @@ if OUTPUT=$(aws s3api put-object \\
   --if-none-match "*" 2>&1); then
   
   # File was uploaded successfully, update the latest pointer
-  echo "New docs artifact uploaded successfully, updating latest pointer"
+  echo "New ${nameSuffix} artifact uploaded successfully, updating latest pointer"
   echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
 elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
@@ -117,7 +142,7 @@ elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
 
 else
   # Any other error (permissions, etc)
-  echo "::error::Failed to upload docs artifact"
+  echo "::error::Failed to upload ${nameSuffix} artifact"
   exit 1
 fi`,
         },
