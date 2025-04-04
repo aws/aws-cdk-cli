@@ -100,7 +100,12 @@ export interface ArtifactManifest {
   readonly properties?: ArtifactProperties;
 
   /**
-   * A string that represents this artifact. Should only be used in user interfaces.
+   * A string that can be shown to a user to uniquely identify this artifact inside a cloud assembly tree
+   *
+   * Is used by the CLI to present a list of stacks to the user in a way that
+   * makes sense to them. Even though the property name "display name" doesn't
+   * imply it, this field is used to select stacks as well, so all stacks should
+   * have a unique display name.
    *
    * @default - no display name
    */

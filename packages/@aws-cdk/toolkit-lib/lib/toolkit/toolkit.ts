@@ -6,6 +6,7 @@ import * as fs from 'fs-extra';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
+import type { DeployResult } from './types';
 import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
@@ -322,7 +323,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Deploys the selected stacks into an AWS account
    */
-  public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<void> {
+  public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, 'deploy');
     const assembly = await assemblyFromSource(ioHelper, cx);
     return this._deploy(assembly, 'deploy', options);
@@ -331,7 +332,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Helper to allow deploy being called as part of the watch action.
    */
-  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}) {
+  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -339,9 +340,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await this.validateStacksMetadata(stackCollection, ioHelper);
     const synthDuration = await synthSpan.end();
 
+    const ret: DeployResult = {
+      stacks: [],
+    };
+
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('This app contains no stacks'));
-      return;
+      return ret;
     }
 
     const deployments = await this.deploymentsForAction('deploy');
@@ -564,6 +569,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await ioHelper.notify(IO.CDK_TOOLKIT_I5901.msg(buffer.join('\n')));
         }
         await ioHelper.notify(IO.CDK_TOOLKIT_I5901.msg(`Stack ARN:\n${deployResult.stackArn}`));
+
+        ret.stacks.push({
+          stackName: stack.stackName,
+          environment: {
+            account: stack.environment.account,
+            region: stack.environment.region,
+          },
+          stackArn: deployResult.stackArn,
+          outputs: deployResult.outputs,
+          hierarchicalId: stack.hierarchicalId,
+        });
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
@@ -624,6 +640,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       buildAsset,
       publishAsset,
     });
+
+    return ret;
   }
 
   /**
