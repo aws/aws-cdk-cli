@@ -6,6 +6,7 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
+import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
@@ -14,17 +15,10 @@ import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type {
-  CloudAssembly,
-  StackSelector,
-} from '../api/cxapp/cloud-assembly';
 import {
-  DefaultSelection,
   ExtendedStackSelection,
   StackCollection,
-} from '../api/cxapp/cloud-assembly';
-import type { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
+} from '../api/cloud-assembly';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
 import { createDiffChangeSet } from '../api/deployments/cfn-api';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
@@ -58,8 +52,9 @@ import {
   isThereAWarning,
   buildCfnClient,
 } from '../commands/migrate';
+import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
+import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { CliIoHost } from './io-host';
 import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
