@@ -13,7 +13,7 @@ export { type WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, Sta
 export { Bootstrapper } from '../../../../aws-cdk/lib/api/bootstrap';
 export { loadTree, some } from '../../../../aws-cdk/lib/api/tree';
 export { ResourcesToImport } from '../../../../aws-cdk/lib/api/resource-import';
-export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/rwlock';
+export { RWLock, type IReadLock as ILock } from '../../../../@aws-cdk/tmp-toolkit-helpers/lib/api/rwlock';
 export { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap';
 
 // Context Providers

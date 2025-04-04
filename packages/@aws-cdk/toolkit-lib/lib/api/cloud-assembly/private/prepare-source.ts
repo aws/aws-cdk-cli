@@ -10,9 +10,10 @@ import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailable
 import { splitBySize, versionNumber } from '../../../private/util';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import type { IoHelper } from '../../shared-private';
+import type { IoHelper, IReadLock } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
+import { associateLock } from './locking';
 
 type Env = { [key: string]: string };
 type Context = { [key: string]: any };
@@ -177,7 +178,7 @@ async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelp
 /**
  * Safely create an assembly from a cloud assembly directory
  */
-export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHelper, loadOptions: LoadAssemblyOptions = {}) {
+export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHelper, readLock: IReadLock, loadOptions: LoadAssemblyOptions = {}) {
   try {
     const assembly = new cxapi.CloudAssembly(assemblyDir, {
       skipVersionCheck: !(loadOptions.checkVersion ?? true),
@@ -186,7 +187,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHel
       topoSort: false,
     });
     await checkContextOverflowSupport(assembly, ioHelper);
-    return assembly;
+    return associateLock(assembly, readLock);
   } catch (err: any) {
     if (err.message.includes(cxschema.VERSION_MISMATCH)) {
       // this means the CLI version is too old.

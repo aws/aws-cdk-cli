@@ -7,3 +7,4 @@ export * from './plugin';
 export * from './require-approval';
 export * from './resource-import';
 export * from './toolkit-error';
+export * from './rwlock';
