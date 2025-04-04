@@ -7,11 +7,9 @@ import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..
 import { DiffMethod } from '..';
 import type { Deployments, ResourcesToImport, SdkProvider, StackCollection } from '../../../api/aws-cdk';
 import { createDiffChangeSet, ResourceMigrator } from '../../../api/aws-cdk';
-import { ToolkitError } from '../../../api/cloud-assembly';
-import type { IoHelper } from '../../../api/shared-private';
-import { IO } from '../../../api/shared-private';
-import type { TemplateInfo } from '../../../api/shared-public';
-import { PermissionChangeType, removeNonImportResources } from '../../../api/shared-public';
+import type { IoHelper, TemplateInfo } from '../../../api/shared-private';
+import { IO, removeNonImportResources } from '../../../api/shared-private';
+import { PermissionChangeType, ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
 
 export function makeTemplateInfos(
