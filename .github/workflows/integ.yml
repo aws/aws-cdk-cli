@@ -128,7 +128,7 @@ jobs:
           CDK_MAJOR_VERSION: "2"
           RELEASE_TAG: latest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bin/run-suite --maxWorkers=150 --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+        run: bin/run-suite --maxWorkers=80 --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
     strategy:
       fail-fast: false
       matrix:

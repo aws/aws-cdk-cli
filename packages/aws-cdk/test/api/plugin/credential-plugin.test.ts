@@ -1,8 +1,8 @@
 import { CredentialProviderSource, SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
-import { CredentialPlugins } from '../../../lib/api/aws-auth/credential-plugins';
-import { credentialsAboutToExpire } from '../../../lib/api/aws-auth/provider-caching';
-import { Mode } from '../../../lib/api/plugin/mode';
-import { PluginHost, markTesting } from '../../../lib/api/plugin/plugin';
+import { CredentialPlugins } from '../../../lib/api/aws-auth';
+import { credentialsAboutToExpire } from '../../../lib/api/aws-auth';
+import { Mode } from '../../../lib/api/plugin';
+import { PluginHost, markTesting } from '../../../lib/api/plugin';
 import { TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private/testing';
 
 markTesting();

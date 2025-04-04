@@ -8,7 +8,7 @@ import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/
 import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
 import type { SuccessfulDeployStackResult } from '../deployments';
-import { Mode } from '../plugin/mode';
+import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
 export type BootstrapSource = { source: 'legacy' } | { source: 'default' } | { source: 'custom'; templateFile: string };

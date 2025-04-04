@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import { ProxyAgent } from 'proxy-agent';
 import type { SdkHttpOptions } from './sdk-provider';
-import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO, type IoHelper } from '../io/private';
 
 export class ProxyAgentProvider {
   private readonly ioHelper: IoHelper;

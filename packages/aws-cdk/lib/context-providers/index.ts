@@ -18,7 +18,7 @@ import type { Context } from '../api/context';
 import { TRANSIENT_CONTEXT_KEY } from '../api/context';
 import { replaceEnvPlaceholders } from '../api/environment';
 import { PluginHost } from '../api/plugin';
-import type { ContextProviderPlugin } from '../api/plugin/context-provider-plugin';
+import type { ContextProviderPlugin } from '../api/plugin';
 import { formatErrorMessage } from '../util';
 
 type ContextProviderFactory = ((sdk: SdkProvider, io: IContextProviderMessages) => ContextProviderPlugin);

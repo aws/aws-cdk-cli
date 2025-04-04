@@ -35,7 +35,6 @@
     "<rootDir>/test/",
     ".warnings.jsii.js$",
     "/node_modules/",
-    "<rootDir>/lib/api/aws-auth/sdk.ts",
     "<rootDir>/lib/cli/parse-command-line-arguments.ts",
     "<rootDir>/lib/cli/user-input.ts",
     "<rootDir>/lib/cli/convert-to-user-input.ts"

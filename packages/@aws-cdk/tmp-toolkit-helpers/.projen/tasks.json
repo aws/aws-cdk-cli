@@ -37,7 +37,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/semver,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,projen,ts-jest,@aws-cdk/cloud-assembly-schema,@aws-cdk/cx-api,archiver,glob,semver,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/util-stream,@types/archiver,@types/jest,@types/semver,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,nock,projen,ts-jest,xml-js,@aws-cdk/cloud-assembly-schema,@aws-cdk/cx-api,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,glob,minimatch,promptly,proxy-agent,semver,uuid"
         }
       ]
     },
@@ -77,7 +77,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloudformation-diff=major",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloudformation-diff=major cdk-assets=major",
           "receiveArgs": true
         }
       ]

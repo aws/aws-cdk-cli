@@ -6,7 +6,7 @@ import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
 import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../cloudformation';
 import { EnvironmentAccess } from '../environment';
-import { Mode } from '../plugin/mode';
+import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
 // resource types that have associated CloudWatch Log Groups that should _not_ be monitored

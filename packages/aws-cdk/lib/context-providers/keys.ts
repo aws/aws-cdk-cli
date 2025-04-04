@@ -4,7 +4,7 @@ import type { AliasListEntry, ListAliasesCommandOutput } from '@aws-sdk/client-k
 import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IKMSClient } from '../api';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 
 export class KeyContextProviderPlugin implements ContextProviderPlugin {

@@ -1,5 +1,4 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { SDK } from '../aws-auth';
 import type { EnvironmentResources } from './environment-resources';
 import { EnvironmentResourcesRegistry } from './environment-resources';
 import type { StringWithoutPlaceholders } from './placeholders';
@@ -7,8 +6,8 @@ import { replaceEnvPlaceholders } from './placeholders';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
-import type { CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/sdk-provider';
-import { Mode } from '../plugin/mode';
+import type { SDK, CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth';
+import { Mode } from '../plugin';
 
 /**
  * Access particular AWS resources, based on information from the CX manifest
