@@ -9088,6 +9088,26 @@ projen@^0.91.18:
     yaml "^2.2.2"
     yargs "^17.7.2"
 
+projen@^0.91.19:
+  version "0.91.19"
+  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.19.tgz#60227ba703e7545da04ab71755d10127442dff8e"
+  integrity sha512-N+rI3vAr+tXcLaOxwGLQ3qdB5/7mvqvcz/8FqYGhm/QE/VUwv1NJj4jbu9kg2KTpTBOvgQQ1YydR+ZiosLoI2Q==
+  dependencies:
+    "@iarna/toml" "^2.2.5"
+    case "^1.6.3"
+    chalk "^4.1.2"
+    comment-json "4.2.2"
+    constructs "^10.0.0"
+    conventional-changelog-config-spec "^2.1.0"
+    fast-json-patch "^3.1.1"
+    glob "^8"
+    ini "^2.0.0"
+    semver "^7.7.1"
+    shx "^0.4.0"
+    xmlbuilder2 "^3.1.1"
+    yaml "^2.2.2"
+    yargs "^17.7.2"
+
 promptly@^3.2.0:
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/promptly/-/promptly-3.2.0.tgz#a5517fbbf59bd31c1751d4e1d9bef1714f42b9d8"
