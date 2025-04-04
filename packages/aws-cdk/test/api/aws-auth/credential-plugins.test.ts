@@ -1,7 +1,7 @@
 import type { PluginProviderResult, SDKv2CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
-import { CredentialPlugins } from '../../../lib/api/aws-auth/credential-plugins';
+import { CredentialPlugins } from '../../../lib/api/aws-auth';
 import { PluginHost } from '../../../lib/api/plugin';
-import { Mode } from '../../../lib/api/plugin/mode';
+import { Mode } from '../../../lib/api/plugin';
 import { TestIoHost } from '../../_helpers/io-host';
 
 const ioHost = new TestIoHost();

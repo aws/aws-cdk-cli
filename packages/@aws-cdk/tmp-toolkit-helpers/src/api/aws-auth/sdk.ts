@@ -346,9 +346,9 @@ import { cachedAsync } from './cached';
 import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
-import { AuthenticationError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
+import { IO, type IoHelper } from '../io/private';
+import { AuthenticationError } from '../toolkit-error';
 
 export interface S3ClientOptions {
   /**

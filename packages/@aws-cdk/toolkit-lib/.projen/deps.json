@@ -68,6 +68,7 @@
     },
     {
       "name": "dts-bundle-generator",
+      "version": "9.3.1",
       "type": "build"
     },
     {

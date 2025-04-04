@@ -1,22 +1,34 @@
 import { exec as _exec } from 'child_process';
 import { promisify } from 'util';
-import * as semver from 'semver';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { debug } from '../../logging';
 
 const exec = promisify(_exec);
 
-/* c8 ignore start */ // not called during unit tests
-export async function getLatestVersionFromNpm(): Promise<string> {
-  const { stdout, stderr } = await exec('npm view aws-cdk version', { timeout: 3000 });
-  if (stderr && stderr.trim().length > 0) {
-    debug(`The 'npm view' command generated an error stream with content [${stderr.trim()}]`);
-  }
-  const latestVersion = stdout.trim();
-  if (!semver.valid(latestVersion)) {
-    throw new ToolkitError(`npm returned an invalid semver ${latestVersion}`);
-  }
+/* c8 ignore start */
+export async function execNpmView(currentVersion: string) {
+  try {
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    const [latestResult, currentResult] = await Promise.all([
+      exec('npm view aws-cdk@latest version', { timeout: 3000 }),
+      exec(`npm view aws-cdk@${currentVersion} name version deprecated --json`, { timeout: 3000 }),
+    ]);
 
-  return latestVersion;
+    if (latestResult.stderr && latestResult.stderr.trim().length > 0) {
+      throw new ToolkitError(`npm view command for latest version failed: ${latestResult.stderr.trim()}`);
+    }
+    if (currentResult.stderr && currentResult.stderr.trim().length > 0) {
+      throw new ToolkitError(`npm view command for current version failed: ${currentResult.stderr.trim()}`);
+    }
+
+    const latestVersion = latestResult.stdout;
+    const currentInfo = JSON.parse(currentResult.stdout);
+
+    return {
+      latestVersion: latestVersion,
+      deprecated: currentInfo.deprecated,
+    };
+  } catch (err: unknown) {
+    throw err;
+  }
 }
 /* c8 ignore stop */

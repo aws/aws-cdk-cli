@@ -7,9 +7,8 @@
 export * from './legacy-logging-source';
 
 // API
-export { SdkProvider } from './legacy-aws-auth';
-export { setSdkTracing as enableTracing } from './api/aws-auth/tracing';
-export { cached } from './api/aws-auth/cached';
+export { enableTracing, SdkProvider } from './legacy-aws-auth';
+export { cached } from './api/aws-auth';
 export { CfnEvaluationException } from './api/cloudformation';
 export { CloudExecutable } from './api/cxapp/cloud-executable';
 export { execProgram } from './api/cxapp/exec';
@@ -24,7 +23,7 @@ export { cli, exec } from './cli/cli';
 export { cliRootDir as rootDir } from './cli/root-dir';
 export { Command, Configuration, PROJECT_CONTEXT } from './cli/user-configuration';
 export { formatAsBanner } from './cli/util/console-formatters';
-export { latestVersionIfHigher, versionNumber } from './cli/version';
+export { versionNumber } from './cli/version';
 
 // Commands
 export { RequireApproval } from './commands/diff';

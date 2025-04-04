@@ -65,7 +65,6 @@ export const {
   deepMerge,
   Deployments,
   rootDir,
-  latestVersionIfHigher,
   versionNumber,
   availableInitTemplates,
   cached,

@@ -1,7 +1,7 @@
 import type { AmiContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 
 /**

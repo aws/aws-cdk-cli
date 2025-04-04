@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { AwsCliCompatible } from '../../../lib/api/aws-auth/awscli-compatible';
+import { AwsCliCompatible } from '../../../lib/api/aws-auth';
 import { TestIoHost } from '../../_helpers/io-host';
 
 const ioHost = new TestIoHost();
