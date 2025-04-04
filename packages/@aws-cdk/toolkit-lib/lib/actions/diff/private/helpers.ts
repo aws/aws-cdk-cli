@@ -5,10 +5,8 @@ import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
-import type { Deployments, ResourcesToImport } from '../../../api/aws-cdk';
-import { createDiffChangeSet, ResourceMigrator } from '../../../api/aws-cdk';
-import type { IoHelper, SdkProvider, StackCollection, TemplateInfo } from '../../../api/shared-private';
-import { IO, removeNonImportResources } from '../../../api/shared-private';
+import type { Deployments, ResourcesToImport, IoHelper, SdkProvider, StackCollection, TemplateInfo } from '../../../api/shared-private';
+import { ResourceMigrator, IO, removeNonImportResources, cfnApi } from '../../../api/shared-private';
 import { PermissionChangeType, ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
 
@@ -115,7 +113,7 @@ async function changeSetDiff(
   }
 
   if (stackExists) {
-    return createDiffChangeSet(ioHelper, {
+    return cfnApi.createDiffChangeSet(ioHelper, {
       stack,
       uuid: uuid.v4(),
       deployments,

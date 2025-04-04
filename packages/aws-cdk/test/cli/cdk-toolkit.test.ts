@@ -79,7 +79,7 @@ import {
   RollbackStackOptions,
   RollbackStackResult,
 } from '../../lib/api/deployments';
-import { HotswapMode } from '../../lib/api/hotswap/common';
+import { HotswapMode } from '../../lib/api/hotswap';
 import { Mode } from '../../lib/api/plugin';
 import { Tag } from '../../lib/api/tags';
 import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';

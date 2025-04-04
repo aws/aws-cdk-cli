@@ -12,8 +12,8 @@ import {
   CreateChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
-import { deployStack } from '../../../lib/api/deployments/deploy-stack';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { cfnApi, deployStack } from '../../../lib/api-private';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
 import {
@@ -29,10 +29,9 @@ import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
 import { TestIoHost } from '../../_helpers/io-host';
 import { Deployments } from '../../../lib/api/deployments';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
-import { createChangeSet } from '../../../lib/api/deployments/cfn-api';
 
-jest.mock('../../../lib/api/deployments/deploy-stack');
-jest.mock('../../../lib/api/deployments/asset-publishing');
+jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack');
+jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/asset-publishing');
 
 let sdkProvider: MockSdkProvider;
 let sdk: MockSdk;
@@ -1159,7 +1158,7 @@ test('tags are passed along to create change set', async () => {
     stack[methodName] = jest.fn();
   }
 
-  await createChangeSet(
+  await cfnApi.createChangeSet(
     ioHelper,
     {
       stack: stack,

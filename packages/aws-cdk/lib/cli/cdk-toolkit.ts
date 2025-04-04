@@ -20,15 +20,15 @@ import {
   StackCollection,
 } from '../api/cloud-assembly';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { createDiffChangeSet } from '../api/deployments/cfn-api';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
-import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
+import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap';
 import { findCloudWatchLogGroups } from '../api/logs-monitor/find-cloudwatch-logs';
 import { CloudWatchLogEventMonitor } from '../api/logs-monitor/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
+import { cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
@@ -255,7 +255,7 @@ export class CdkToolkit {
           }
 
           if (stackExists) {
-            changeSet = await createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+            changeSet = await cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
               stack,
               uuid: uuid.v4(),
               deployments: this.props.deployments,

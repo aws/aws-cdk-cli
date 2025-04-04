@@ -786,6 +786,11 @@ tmpToolkitHelpers.eslint?.addOverride({
 
 tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
 
+tmpToolkitHelpers.npmignore?.addPatterns(
+  '!lib/api/bootstrap/bootstrap-template.yaml',
+);
+tmpToolkitHelpers.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
+
 //////////////////////////////////////////////////////////////////////
 
 const cli = configureProject(

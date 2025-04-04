@@ -10,7 +10,7 @@ import {
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { sdkStreamMixin } from '@smithy/util-stream';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { mockAppSyncClient, mockS3Client } from '../../_helpers/mock-sdk';
 
 

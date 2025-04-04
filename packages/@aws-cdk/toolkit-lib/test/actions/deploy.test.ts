@@ -1,6 +1,7 @@
 import { StackParameters } from '../../lib/actions/deploy';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
-import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
+import type { DeployStackOptions, DeployStackResult } from '../../lib/api/shared-private';
+import * as apis from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, TestIoHost } from '../_helpers';
@@ -19,21 +20,21 @@ beforeEach(() => {
   const sdk = new MockSdk();
 
   // Some default implementations
-  mockDeployStack = jest.spyOn(awsCdkApi.Deployments.prototype, 'deployStack').mockResolvedValue({
+  mockDeployStack = jest.spyOn(apis.Deployments.prototype, 'deployStack').mockResolvedValue({
     type: 'did-deploy-stack',
     stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
     outputs: {},
     noOp: false,
   });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
+  jest.spyOn(apis.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',
     region: 'aq-south-1',
     name: 'aws://11111111/aq-south-1',
   });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'buildSingleAsset').mockImplementation();
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+  jest.spyOn(apis.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
+  jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(apis.Deployments.prototype, 'buildSingleAsset').mockImplementation();
+  jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
   jest.spyOn(awsCdkApi, 'findCloudWatchLogGroups').mockResolvedValue({
     env: { name: 'Z', account: 'X', region: 'Y' },
@@ -200,7 +201,7 @@ describe('deploy', () => {
     });
 
     test('forceAssetPublishing: true option is used for asset publishing', async () => {
-      const publishSingleAsset = jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+      const publishSingleAsset = jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {

@@ -10,8 +10,7 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-
-import type { NestedStackTemplates } from '../cloudformation/nested-stack-templates';
+import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { RequireApproval } from '../require-approval';

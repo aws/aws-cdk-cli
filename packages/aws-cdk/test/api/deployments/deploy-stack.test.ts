@@ -17,10 +17,10 @@ import {
   UpdateTerminationProtectionCommand,
 } from '@aws-sdk/client-cloudformation';
 import { assertIsSuccessfulDeployStackResult } from '../../../lib/api/deployments';
-import { deployStack, DeployStackOptions } from '../../../lib/api/deployments/deploy-stack';
-import { tryHotswapDeployment } from '../../../lib/api/deployments/hotswap-deployments';
+import { deployStack, DeployStackApiOptions } from '../../../lib/api-private'
+import { tryHotswapDeployment } from '../../../lib/api/hotswap';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
@@ -34,12 +34,12 @@ import { TestIoHost } from '../../_helpers/io-host';
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
 
-function testDeployStack(options: DeployStackOptions) {
+function testDeployStack(options: DeployStackApiOptions) {
   return deployStack(options, ioHelper);
 }
 
-jest.mock('../../../lib/api/deployments/hotswap-deployments');
-jest.mock('../../../lib/api/deployments/checks', () => ({
+jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/hotswap/hotswap-deployments');
+jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
 
@@ -112,7 +112,7 @@ beforeEach(() => {
   });
 });
 
-function standardDeployStackArguments(): DeployStackOptions {
+function standardDeployStackArguments(): DeployStackApiOptions {
   const resolvedEnvironment = mockResolvedEnvironment();
   return {
     stack: FAKE_STACK,
