@@ -231,6 +231,13 @@ const repoProject = new yarn.Monorepo({
   githubOptions: {
     mergify: false,
     mergeQueue: true,
+    mergeQueueOptions: {
+      autoQueueOptions: {
+        // Only autoqueue for PRs targeting the 'main' branch
+        targetBranches: ['main'],
+      },
+    },
+    pullRequestLint: true,
     pullRequestLintOptions: {
       contributorStatement: 'By submitting this pull request, I confirm that my contribution is made under the terms of the Apache-2.0 license',
       contributorStatementOptions: {
