@@ -4652,10 +4652,10 @@ cdk-from-cfn@^0.205.0:
   resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.205.0.tgz#6479a1a753a54bfe2fbe45236624e046e8521370"
   integrity sha512-2bX+ASFFUdfn211++ElQXqf+V9zL8xe3UOm+m0aUkF3zp45aqdT8VjxFfI45dAYiPLYihgoqfo6W7MU0JkR4uQ==
 
-cdklabs-projen-project-types@^0.2.13:
-  version "0.2.13"
-  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.2.13.tgz#fcd19b1c006f74a4802f927492e6a0b4872806d9"
-  integrity sha512-tRY+ewbmPYhQEo9d32rQ2inUNG6vkjaFb4wAaKsjvycwBCkHhlb6KXuHH1olri8D8dx/QwC90WUo5cp7pxbzKg==
+cdklabs-projen-project-types@^0.2.14:
+  version "0.2.14"
+  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.2.14.tgz#8bc451b660687a1b20c0a7d3b4043fa56424b331"
+  integrity sha512-7iG53dZAgiXQ2xacrTuYjXqPjIFjmsYx90dYFAf2Qu2yIwDleSUQsUvc/uVHEv/C/pArhm4s8pKdskNi59t/HA==
   dependencies:
     yaml "^2.7.1"
 

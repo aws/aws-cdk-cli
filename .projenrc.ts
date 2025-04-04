@@ -1522,6 +1522,7 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
+  maxWorkers: '150',
 
   localPackages: [
     cloudAssemblySchema.name,
