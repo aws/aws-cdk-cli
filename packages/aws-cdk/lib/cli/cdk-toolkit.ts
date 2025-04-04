@@ -153,7 +153,7 @@ class InternalToolkit extends Toolkit {
    * Access to the AWS SDK
    * @internal
    */
-  protected override async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
+  protected async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
     return this._sdkProvider;
   }
 }
