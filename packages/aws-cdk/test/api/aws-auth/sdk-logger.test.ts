@@ -1,4 +1,4 @@
-import { formatSdkLoggerContent, SdkToCliLogger } from '../../../lib/api/aws-auth/sdk-logger';
+import { formatSdkLoggerContent, SdkToCliLogger } from '../../../lib/api/aws-auth';
 
 describe(SdkToCliLogger, () => {
   const ioHost = {

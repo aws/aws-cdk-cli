@@ -3,7 +3,7 @@ import type { HostedZone } from '@aws-sdk/client-route-53';
 import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IRoute53Client } from '../api';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 
 export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {

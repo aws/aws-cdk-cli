@@ -1,7 +1,7 @@
 import { inspect } from 'util';
 import type { CredentialProviderSource, IPluginHost, Plugin } from '@aws-cdk/cli-plugin-contract';
 import { type ContextProviderPlugin, isContextProviderPlugin } from './context-provider-plugin';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../toolkit-error';
 
 export let TESTING = false;
 

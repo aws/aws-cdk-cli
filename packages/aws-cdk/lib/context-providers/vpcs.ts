@@ -4,7 +4,7 @@ import type { Filter, RouteTable, Tag, Vpc } from '@aws-sdk/client-ec2';
 import type { IContextProviderMessages } from '.';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IEC2Client } from '../api';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 
 export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {

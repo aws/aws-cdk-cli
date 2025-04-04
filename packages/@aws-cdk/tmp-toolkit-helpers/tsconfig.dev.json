@@ -41,6 +41,9 @@
   "references": [
     {
       "path": "../cloudformation-diff"
+    },
+    {
+      "path": "../../cdk-assets"
     }
   ]
 }
