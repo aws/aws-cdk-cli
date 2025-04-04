@@ -12,6 +12,7 @@ const copyFromCli = (from, to = undefined) => {
 };
 
 // declaration bundling
+dtsBundleLogging(false);
 const bundleDeclarations = async (entryPoints) => {
   const results = generateDtsBundle(entryPoints.map(filePath => ({
     filePath,
@@ -68,3 +69,11 @@ await Promise.all([
   resources,
   declarations
 ]);
+
+
+function dtsBundleLogging(enable) {
+  if (enable) {
+    const { enableVerbose } = require('dts-bundle-generator/dist/logger');
+    enableVerbose();
+  }
+}

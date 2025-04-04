@@ -1222,7 +1222,7 @@ const toolkitLib = configureProject(
       tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
-      'dts-bundle-generator',
+      'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
       'esbuild',
       'typedoc',
     ],
