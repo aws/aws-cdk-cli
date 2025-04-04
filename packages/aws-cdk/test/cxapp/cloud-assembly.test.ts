@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import { DefaultSelection } from '../../../lib/api/cxapp/cloud-assembly';
-import { MockCloudExecutable } from '../../_helpers/assembly';
+import { DefaultSelection } from '../../lib/cxapp/cloud-assembly';
+import { MockCloudExecutable } from '../_helpers/assembly';
 import { cliAssemblyWithForcedVersion } from './assembly-versions';
 
 test('select all top level stacks in the presence of nested assemblies', async () => {
