@@ -45,7 +45,7 @@ jest.mock('chokidar', () => ({
 }));
 
 import * as path from 'node:path';
-import { HotswapMode } from '../../lib';
+import { HotswapMode } from '../../lib/actions/deploy';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 

@@ -5,13 +5,11 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import type { SdkProvider } from '../../../api/aws-cdk';
-import { loadTree, some } from '../../../api/aws-cdk';
-import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, guessExecutable } from '../../../api/shared-private';
+import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, guessExecutable } from '../../../api/shared-private';
+import { type SdkProvider, type IoHelper, loadTree, some, Settings } from '../../../api/shared-private';
 import { splitBySize, versionNumber } from '../../../private/util';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import type { IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 

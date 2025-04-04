@@ -6,7 +6,7 @@
  */
 
 import * as chalk from 'chalk';
-import { Toolkit } from '../../lib';
+import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost } from '../_helpers';
 
 describe('message formatting', () => {

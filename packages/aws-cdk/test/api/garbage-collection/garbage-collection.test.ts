@@ -19,8 +19,8 @@ import {
   ActiveAssetCache,
   BackgroundStackRefresh,
   BackgroundStackRefreshProps,
-} from '../../../lib/api/garbage-collection/stack-refresh';
-import { ProgressPrinter } from '../../../lib/api/garbage-collection/progress-printer';
+} from '../../../lib/api/garbage-collection';
+import { ProgressPrinter } from '../../../lib/api/garbage-collection';
 import {
   BatchDeleteImageCommand,
   BatchGetImageCommand,

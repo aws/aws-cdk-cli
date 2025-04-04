@@ -1,6 +1,6 @@
 import type { DeployOptions, HotswapProperties } from '..';
-import type { Deployments, WorkGraph } from '../../../api/aws-cdk';
-import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/aws-cdk';
+import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/shared-private';
+import type { Deployments, WorkGraph } from '../../../api/shared-private';
 
 export function buildParameterMap(parameters?: Map<string, string | undefined>): { [name: string]: { [name: string]: string | undefined } } {
   const parameterMap: {

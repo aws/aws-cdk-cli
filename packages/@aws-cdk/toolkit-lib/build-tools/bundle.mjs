@@ -20,7 +20,7 @@ const bundleDeclarations = async (entryPoints) => {
       noBanner: true,
       exportReferencedTypes: false,
     },
-  })), { preferredConfigPath: 'tsconfig.dev.json' });
+  })), { preferredConfigPath: 'tsconfig.dts.json' });
 
   const files = [];
   for (const [idx, declaration] of results.entries()) {
@@ -51,7 +51,6 @@ const resources = Promise.all([
 const bundle = esbuild.build({
   outdir: 'lib',
   entryPoints: [
-    'lib/api/aws-cdk.ts',
     'lib/api/shared-public.ts', 
     'lib/api/shared-private.ts', 
     'lib/private/util.ts',

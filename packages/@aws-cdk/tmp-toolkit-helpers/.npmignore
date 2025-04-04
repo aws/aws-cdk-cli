@@ -22,4 +22,5 @@ tsconfig.tsbuildinfo
 *.ts
 !*.d.ts
 build-tools
+!lib/api/bootstrap/bootstrap-template.yaml
 /.gitattributes

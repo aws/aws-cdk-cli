@@ -1,6 +1,6 @@
 /* eslint-disable import/order */
 
-import * as deployStack from '../../../lib/api/deployments/deploy-stack';
+import * as deployStack from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack';
 import { Stack } from '@aws-sdk/client-cloudformation';
 import { CreatePolicyCommand, GetPolicyCommand } from '@aws-sdk/client-iam';
 import { Bootstrapper, ToolkitInfo } from '../../../lib/api';

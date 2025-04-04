@@ -1,6 +1,6 @@
 import { UpdateProjectCommand } from '@aws-sdk/client-codebuild';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { mockCodeBuildClient } from '../../_helpers/mock-sdk';
 
 

@@ -1,5 +1,5 @@
 import * as chalk from 'chalk';
-import { StackSelectionStrategy } from '../../lib';
+import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 
@@ -9,9 +9,9 @@ jest.spyOn(toolkit, 'rollback').mockResolvedValue();
 
 let mockDestroyStack = jest.fn();
 
-jest.mock('../../lib/api/aws-cdk', () => {
+jest.mock('../../lib/api/shared-private', () => {
   return {
-    ...jest.requireActual('../../lib/api/aws-cdk'),
+    ...jest.requireActual('../../lib/api/shared-private'),
     Deployments: jest.fn().mockImplementation(() => ({
       destroyStack: mockDestroyStack,
     })),

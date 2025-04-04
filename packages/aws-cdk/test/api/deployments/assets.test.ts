@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import { AssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { testStack, withMocked } from '../../_helpers';
-import { addMetadataAssetsToManifest } from '../../../lib/api/deployments/assets';
+import { addMetadataAssetsToManifest } from '../../../lib/api/deployments';
 import { AssetManifestBuilder } from '../../../lib/api/deployments';
 import { EnvironmentResources, EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import { MockSdk } from '../../_helpers/mock-sdk';

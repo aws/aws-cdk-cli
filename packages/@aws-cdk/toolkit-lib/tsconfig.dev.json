@@ -28,6 +28,7 @@
     "target": "es2022",
     "incremental": true,
     "skipLibCheck": true,
+    "rootDir": ".",
     "composite": true,
     "outDir": "lib"
   },
@@ -48,9 +49,6 @@
     },
     {
       "path": "../../cdk-assets"
-    },
-    {
-      "path": "../../aws-cdk"
     },
     {
       "path": "../tmp-toolkit-helpers"

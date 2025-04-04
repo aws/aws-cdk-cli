@@ -1,6 +1,6 @@
 import { PublishVersionCommand, UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { testStack } from '../../_helpers/assembly';
 import { mockLambdaClient } from '../../_helpers/mock-sdk';
 

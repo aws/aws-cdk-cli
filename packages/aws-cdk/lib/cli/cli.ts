@@ -17,7 +17,7 @@ import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
-import { HotswapMode } from '../api/hotswap/common';
+import { HotswapMode } from '../api/hotswap';
 import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
 import type { ILock } from '../api/rwlock';

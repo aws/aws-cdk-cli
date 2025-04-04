@@ -6,7 +6,7 @@
 // API
 export { CfnEvaluationException } from './api/cloudformation';
 export { Deployments } from './api/deployments';
-export { deployStack } from './api/deployments/deploy-stack';
+export { deployStack } from './api-private';
 export { PluginHost } from './api/plugin';
 export { Settings } from './api/settings';
 export { Bootstrapper } from './api/bootstrap';

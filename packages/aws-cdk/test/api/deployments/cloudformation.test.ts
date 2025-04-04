@@ -3,7 +3,7 @@ import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk
 import { MockSdk, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 import type { ICloudFormationClient } from '../../../lib/api/aws-auth';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
-import { TemplateParameters } from '../../../lib/api/deployments/cfn-api';
+import { cfnApi } from '../../../lib/api-private';
 
 const PARAM = 'TheParameter';
 const DEFAULT = 'TheDefault';
@@ -102,7 +102,7 @@ test('default, prev, no override => use previous', () => {
 });
 
 test('if a parameter is retrieved from SSM, the parameters always count as changed', () => {
-  const params = TemplateParameters.fromTemplate({
+  const params = cfnApi.TemplateParameters.fromTemplate({
     Parameters: {
       Foo: {
         Type: 'AWS::SSM::Parameter::Name',
@@ -120,7 +120,7 @@ test('if a parameter is retrieved from SSM, the parameters always count as chang
 });
 
 test('if a parameter is retrieved from SSM, the parameters doesnt count as changed if it has the magic marker', () => {
-  const params = TemplateParameters.fromTemplate({
+  const params = cfnApi.TemplateParameters.fromTemplate({
     Parameters: {
       Foo: {
         Type: 'AWS::SSM::Parameter::Name',
@@ -142,7 +142,7 @@ test('if a parameter is retrieved from SSM, the parameters doesnt count as chang
 });
 
 test('empty string is a valid update value', () => {
-  const params = TemplateParameters.fromTemplate({
+  const params = cfnApi.TemplateParameters.fromTemplate({
     Parameters: {
       Foo: { Type: 'String', Default: 'Foo' },
     },
@@ -157,7 +157,7 @@ test('unknown parameter in overrides, pass it anyway', () => {
   // Not sure if we really want this. It seems like it would be nice
   // to not pass parameters that aren't expected, given that CFN will
   // just error out. But maybe we want to be warned of typos...
-  const params = TemplateParameters.fromTemplate({
+  const params = cfnApi.TemplateParameters.fromTemplate({
     Parameters: {
       Foo: { Type: 'String', Default: 'Foo' },
     },
@@ -170,7 +170,7 @@ test('unknown parameter in overrides, pass it anyway', () => {
 
 test('if an unsupplied parameter reverts to its default, it can still be dirty', () => {
   // GIVEN
-  const templateParams = TemplateParameters.fromTemplate({
+  const templateParams = cfnApi.TemplateParameters.fromTemplate({
     Parameters: {
       Foo: { Type: 'String', Default: 'Foo' },
     },
@@ -185,7 +185,7 @@ test('if an unsupplied parameter reverts to its default, it can still be dirty',
 });
 
 function makeParams(defaultValue: boolean, hasPrevValue: boolean, override: boolean) {
-  const params = TemplateParameters.fromTemplate({
+  const params = cfnApi.TemplateParameters.fromTemplate({
     Parameters: {
       [PARAM]: {
         Type: 'String',
