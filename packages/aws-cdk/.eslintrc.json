@@ -313,9 +313,7 @@
     "prettier/prettier": [
       "off"
     ],
-    "@cdklabs/no-throw-default-error": [
-      "error"
-    ]
+    "@cdklabs/no-throw-default-error": "error"
   },
   "overrides": [
     {

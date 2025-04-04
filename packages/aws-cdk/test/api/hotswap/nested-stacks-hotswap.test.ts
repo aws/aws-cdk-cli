@@ -2,13 +2,13 @@ import { PublishVersionCommand, UpdateFunctionCodeCommand } from '@aws-sdk/clien
 import * as setup from '../_helpers/hotswap-test-setup';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { testStack } from '../../_helpers/assembly';
-import { mockLambdaClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { mockLambdaClient } from '../../_helpers/mock-sdk';
+
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest('can hotswap a lambda function in a 1-level nested stack', async () => {
+  test('can hotswap a lambda function in a 1-level nested stack', async () => {
     // GIVEN
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('LambdaRoot');
 
@@ -76,7 +76,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest('hotswappable changes do not override hotswappable changes in their ancestors', async () => {
+  test('hotswappable changes do not override hotswappable changes in their ancestors', async () => {
     // GIVEN
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('TwoLevelLambdaRoot');
 
@@ -194,7 +194,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest(
+  test(
     'hotswappable changes in nested stacks do not override hotswappable changes in their parent stack',
     async () => {
       // GIVEN
@@ -285,7 +285,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `non-hotswappable changes in nested stacks result in a full deployment, even if their parent contains a hotswappable change in CLASSIC mode,
         but perform a hotswap deployment in HOTSWAP_ONLY`,
     async () => {
@@ -382,7 +382,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `deleting a nested stack results in a full deployment in CLASSIC mode, even if their parent contains a hotswappable change,
         but results in a hotswap deployment in HOTSWAP_ONLY mode`,
     async () => {
@@ -478,7 +478,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `creating a nested stack results in a full deployment in CLASSIC mode, even if their parent contains a hotswappable change,
         but results in a hotswap deployment in HOTSWAP_ONLY mode`,
     async () => {
@@ -543,7 +543,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `attempting to hotswap a newly created nested stack with the same logical ID as a resource with a different type results in a full deployment in CLASSIC mode
         and a hotswap deployment in HOTSWAP_ONLY mode`,
     async () => {
@@ -621,7 +621,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('multi-sibling + 3-layer nested stack structure is hotswappable', async () => {
+  test('multi-sibling + 3-layer nested stack structure is hotswappable', async () => {
     // GIVEN
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('MultiLayerRoot');
 
@@ -774,7 +774,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest('can hotswap a lambda function in a 1-level nested stack with asset parameters', async () => {
+  test('can hotswap a lambda function in a 1-level nested stack with asset parameters', async () => {
     // GIVEN
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('LambdaRoot');
 
@@ -863,7 +863,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest(
+  test(
     'can hotswap a lambda function in a 2-level nested stack with dependency on an output of 2nd level sibling stack',
     async () => {
       // GIVEN: RootStack has one child stack `FirstLevelNestedStack` which further has two child stacks
@@ -1023,7 +1023,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'can hotswap a lambda function in a 1-level nested stack and read default parameters value if not provided',
     async () => {
       // GIVEN: RootStack has one child stack `NestedStack`. `NestedStack` takes two
@@ -1118,7 +1118,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('can hotswap a lambda function in a 2-level nested stack with asset parameters', async () => {
+  test('can hotswap a lambda function in a 2-level nested stack with asset parameters', async () => {
     // GIVEN
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('LambdaRoot');
 
@@ -1269,7 +1269,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest('looking up objects in nested stacks works', async () => {
+  test('looking up objects in nested stacks works', async () => {
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('LambdaRoot');
 
     const rootStack = testStack({

@@ -9,7 +9,7 @@ import {
 import type { LoadBalancer, Listener, TagDescription } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { ContextProviderError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import type { IElasticLoadBalancingV2Client } from '../api';
-import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/sdk-provider';
+import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth';
 import type { ContextProviderPlugin } from '../api/plugin';
 
 /**

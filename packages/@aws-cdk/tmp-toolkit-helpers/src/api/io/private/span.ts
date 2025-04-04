@@ -2,8 +2,8 @@ import * as util from 'node:util';
 import * as uuid from 'uuid';
 import type { ActionLessMessage, IoHelper } from './io-helper';
 import type { IoMessageMaker } from './message-maker';
+import type { Duration } from '../../../payloads/types';
 import { formatTime } from '../../../util';
-import type { Duration } from '../payloads/types';
 
 export interface SpanEnd {
   readonly duration: number;

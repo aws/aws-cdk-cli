@@ -5,7 +5,7 @@ import type { ImportDeploymentOptions, ResourcesToImport } from './importer';
 import { ResourceImporter } from './importer';
 import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatTime } from '../../util';
-import type { StackCollection } from '../cxapp/cloud-assembly';
+import type { StackCollection } from '../cloud-assembly';
 import type { Deployments } from '../deployments';
 
 export interface ResourceMigratorProps {

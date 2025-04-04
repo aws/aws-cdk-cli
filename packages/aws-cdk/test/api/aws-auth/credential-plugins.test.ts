@@ -1,7 +1,11 @@
 import type { PluginProviderResult, SDKv2CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
-import { CredentialPlugins } from '../../../lib/api/aws-auth/credential-plugins';
+import { CredentialPlugins } from '../../../lib/api/aws-auth';
 import { PluginHost } from '../../../lib/api/plugin';
-import { Mode } from '../../../lib/api/plugin/mode';
+import { Mode } from '../../../lib/api/plugin';
+import { TestIoHost } from '../../_helpers/io-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('deploy');
 
 test('returns credential from plugin', async () => {
   // GIVEN
@@ -28,7 +32,7 @@ test('returns credential from plugin', async () => {
     },
   });
 
-  const plugins = new CredentialPlugins();
+  const plugins = new CredentialPlugins(host, ioHelper);
 
   // WHEN
   const pluginCredentials = await plugins.fetchCredentialsFor('aaa', Mode.ForReading);

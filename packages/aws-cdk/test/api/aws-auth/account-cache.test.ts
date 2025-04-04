@@ -1,8 +1,11 @@
 import * as path from 'path';
 import bockfs from '../../_helpers/bockfs';
 import * as fs from 'fs-extra';
-import { AccountAccessKeyCache } from '../../../lib/api/aws-auth/account-cache';
+import { AccountAccessKeyCache } from '../../../lib/api/aws-auth';
 import { withMocked } from '../../_helpers/as-mock';
+
+const noOp = async () => {
+};
 
 async function makeCache() {
   const dir = await fs.mkdtemp('/tmp/account-cache-test');
@@ -10,7 +13,7 @@ async function makeCache() {
   return {
     cacheDir: dir,
     cacheFile: file,
-    cache: new AccountAccessKeyCache(file),
+    cache: new AccountAccessKeyCache(file, noOp),
   };
 }
 
@@ -20,7 +23,7 @@ async function nukeCache(cacheDir: string) {
 
 test('default account cache uses CDK_HOME', () => {
   process.env.CDK_HOME = '/banana';
-  const cache = new AccountAccessKeyCache();
+  const cache = new AccountAccessKeyCache(undefined, noOp);
   expect((cache as any).cacheFile).toContain('/banana/');
 });
 
@@ -32,7 +35,7 @@ test('account cache does not fail when given a nonwritable directory', async () 
     // Have to do this because mkdirs has 2 overloads and it confuses TypeScript
     (mkdirs as unknown as jest.Mock<Promise<void>, [any]>).mockRejectedValue(accessError);
 
-    const cache = new AccountAccessKeyCache('/abc/xyz');
+    const cache = new AccountAccessKeyCache('/abc/xyz', noOp);
     await cache.fetch('xyz', () => Promise.resolve({ accountId: 'asdf', partition: 'swa' }));
 
     // No exception
@@ -58,7 +61,7 @@ test('put(k,v) and then get(k)', async () => {
     expect(await cache.get('key')).toEqual({ accountId: 'value', partition: 'aws' });
 
     // create another cache instance on the same file, should still work
-    const cache2 = new AccountAccessKeyCache(cacheFile);
+    const cache2 = new AccountAccessKeyCache(cacheFile, noOp);
     expect(await cache2.get('boo')).toEqual({ accountId: 'bar', partition: 'aws' });
 
     // whitebox: read the file
@@ -84,7 +87,6 @@ test('fetch(k, resolver) can be used to "atomically" get + resolve + put', async
 });
 
 test(`cache is nuked if it exceeds ${AccountAccessKeyCache.MAX_ENTRIES} entries`, async () => {
-
   const { cacheDir, cacheFile, cache } = await makeCache();
 
   try {
@@ -93,7 +95,7 @@ test(`cache is nuked if it exceeds ${AccountAccessKeyCache.MAX_ENTRIES} entries`
     }
 
     // verify all values are on disk
-    const otherCache = new AccountAccessKeyCache(cacheFile);
+    const otherCache = new AccountAccessKeyCache(cacheFile, noOp);
     for (let i = 0; i < AccountAccessKeyCache.MAX_ENTRIES; ++i) {
       expect(await otherCache.get(`key${i}`)).toEqual({ accountId: `value${i}`, partition: 'aws' });
     }
@@ -125,13 +127,12 @@ test('cache pretends to be empty if cache file does not contain JSON', async() =
 });
 
 describe('using cache file', () => {
-
   afterAll(() => {
     bockfs.restore();
   });
 
   test('uses the resolver when the file cannot be read', async () => {
-    const cache = new AccountAccessKeyCache('/foo/account-cache.json');
+    const cache = new AccountAccessKeyCache('/foo/account-cache.json', noOp);
     const account = {
       accountId: 'abc',
       partition: 'aws',
@@ -153,7 +154,7 @@ describe('using cache file', () => {
       })}`,
     });
 
-    const cache = new AccountAccessKeyCache(bockfs.path('/foo/account-cache.json'));
+    const cache = new AccountAccessKeyCache(bockfs.path('/foo/account-cache.json'), noOp);
     const result = await cache.fetch('abcdef', () => Promise.resolve({
       accountId: 'xyz',
       partition: 'aws',
@@ -161,5 +162,4 @@ describe('using cache file', () => {
 
     expect(result).toEqual(account);
   });
-
 });

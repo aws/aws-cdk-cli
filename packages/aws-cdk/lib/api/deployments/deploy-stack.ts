@@ -149,7 +149,7 @@ export interface DeployStackOptions {
    * Deploy even if the deployed template is identical to the one we are about to deploy.
    * @default false
    */
-  readonly force?: boolean;
+  readonly forceDeployment?: boolean;
 
   /**
    * Rollback failed deployments
@@ -414,7 +414,7 @@ class FullCloudFormationDeployment {
         });
       }
 
-      if (this.options.force) {
+      if (this.options.forceDeployment) {
         await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
           [
             'You used the --force flag, but CloudFormation reported that the deployment would not make any changes.',
@@ -713,7 +713,7 @@ async function canSkipDeploy(
   await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${deployName}: checking if we can skip deploy`));
 
   // Forced deploy
-  if (deployStackOptions.force) {
+  if (deployStackOptions.forceDeployment) {
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${deployName}: forced deployment`));
     return false;
   }

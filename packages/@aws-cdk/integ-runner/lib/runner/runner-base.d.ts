@@ -283,4 +283,5 @@ export declare function currentlyRecommendedAwsCdkLibFlags(): {
     "@aws-cdk/aws-lambda:createNewPoliciesWithAddToRolePolicy": boolean;
     "@aws-cdk/aws-s3:setUniqueReplicationRoleName": boolean;
     "@aws-cdk/aws-events:requireEventBusPolicySid": boolean;
+    "@aws-cdk/aws-dynamodb:retainTableReplica": boolean;
 };

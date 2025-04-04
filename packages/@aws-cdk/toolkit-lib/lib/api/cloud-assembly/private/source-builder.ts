@@ -7,8 +7,9 @@ import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
 import type { ILock } from '../../aws-cdk';
-import { Context, RWLock, Settings } from '../../aws-cdk';
+import { Context, RWLock } from '../../aws-cdk';
 import { IO } from '../../io/private';
+import { Settings } from '../../shared-private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
 import type { AssemblyBuilder } from '../source-builder';
 

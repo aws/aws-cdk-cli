@@ -5,4 +5,3 @@ export * from './message-maker';
 export * from './messages';
 export * from './types';
 export * from './io-default-messages';
-export * from './testing';

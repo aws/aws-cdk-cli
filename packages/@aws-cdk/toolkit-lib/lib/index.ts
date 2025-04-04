@@ -2,6 +2,9 @@
  * @module toolkit-lib
  */
 
+// Polyfills first
+import './private/dispose-polyfill';
+
 // The main show
 export * from './toolkit';
 export * from './actions';

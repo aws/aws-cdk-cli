@@ -1,0 +1,3 @@
+{
+  "app": "$(npx -c 'which tsx') app.ts"
+}

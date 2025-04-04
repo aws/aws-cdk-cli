@@ -13,8 +13,8 @@ import { parse } from 'yaml';
 import { Bootstrapper } from '../../../lib/api/bootstrap';
 import { legacyBootstrapTemplate } from '../../../lib/api/bootstrap/legacy-template';
 import { deserializeStructure, serializeStructure, toYAML } from '../../../lib/util';
-import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/io-host';
 
 const env = {
   account: '123456789012',
@@ -32,7 +32,7 @@ let sdk: MockSdkProvider;
 let changeSetTemplate: any | undefined;
 let bootstrapper: Bootstrapper;
 let ioHost = new TestIoHost();
-let ioHelper = asIoHelper(ioHost, 'bootstrap');
+let ioHelper = ioHost.asHelper('bootstrap');
 
 beforeEach(() => {
   sdk = new MockSdkProvider();

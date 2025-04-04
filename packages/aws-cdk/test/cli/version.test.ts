@@ -1,15 +1,16 @@
 /* eslint-disable import/order */
-import * as path from 'path';
-import { setTimeout as _setTimeout } from 'timers';
-import { promisify } from 'util';
 import * as fs from 'fs-extra';
 import * as os from 'os';
+import * as path from 'path';
 import * as sinon from 'sinon';
-import * as logging from '../../lib/logging';
+import { setTimeout as _setTimeout } from 'timers';
+import { promisify } from 'util';
 import * as npm from '../../lib/cli/util/npm';
-import { latestVersionIfHigher, VersionCheckTTL, displayVersionMessage, isDeveloperBuild } from '../../lib/cli/version';
+import { displayVersionMessage, getVersionMessages, isDeveloperBuild, VersionCheckTTL } from '../../lib/cli/version';
+import * as logging from '../../lib/logging';
 
 jest.setTimeout(10_000);
+
 
 const setTimeout = promisify(_setTimeout);
 
@@ -18,7 +19,6 @@ function tmpfile(): string {
 }
 
 beforeEach(() => {
-  jest.spyOn(npm, 'getLatestVersionFromNpm').mockRejectedValue(new Error('expected version cache to be used, but call to npm was attempted'));
   process.chdir(os.tmpdir()); // Need a chdir because in the workspace 'npm view' will take a long time
 });
 
@@ -49,25 +49,7 @@ test('cache file honours the specified TTL', async () => {
 test('Skip version check if cache has not expired', async () => {
   const cache = new VersionCheckTTL(tmpfile(), 100);
   await cache.update();
-  expect(await latestVersionIfHigher('0.0.0', cache)).toBeNull();
-});
-
-test('Return later version when exists & skip recent re-check', async () => {
-  const cache = new VersionCheckTTL(tmpfile(), 100);
-  jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
-  const result = await latestVersionIfHigher('0.0.0', cache);
-  expect(result).not.toBeNull();
-  expect((result as string).length).toBeGreaterThan(0);
-
-  const result2 = await latestVersionIfHigher('0.0.0', cache);
-  expect(result2).toBeNull();
-});
-
-test('Return null if version is higher than npm', async () => {
-  const cache = new VersionCheckTTL(tmpfile(), 100);
-  jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
-  const result = await latestVersionIfHigher('100.100.100', cache);
-  expect(result).toBeNull();
+  expect(await getVersionMessages('0.0.0', cache)).toEqual([]);
 });
 
 test('Version specified is stored in the TTL file', async () => {
@@ -104,45 +86,62 @@ describe('version message', () => {
     process.stdout.isTTY = previousIsTty;
   });
 
-  test('Prints a message when a new version is available', async () => {
-    // Given the current version is 1.0.0 and the latest version is 1.1.0
-    const currentVersion = '1.0.0';
-    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('1.1.0');
-    const printSpy = jest.spyOn(logging, 'info');
-
-    // When displayVersionMessage is called
-    await displayVersionMessage(currentVersion, new VersionCheckTTL(tmpfile(), 0));
-
-    // Then the new version message is printed to stdout
-    expect(printSpy).toHaveBeenCalledWith(expect.stringContaining('1.1.0'));
-  });
-
-  test('Includes major upgrade documentation when available', async() => {
-    // Given the current version is 1.0.0 and the latest version is 2.0.0
-    const currentVersion = '1.0.0';
-    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('2.0.0');
-    const printSpy = jest.spyOn(logging, 'info');
-
-    // When displayVersionMessage is called
-    await displayVersionMessage(currentVersion, new VersionCheckTTL(tmpfile(), 0));
-
-    // Then the V1 -> V2 documentation is printed
-    expect(printSpy).toHaveBeenCalledWith(expect.stringContaining('Information about upgrading from version 1.x to version 2.x is available here: https://docs.aws.amazon.com/cdk/v2/guide/migrating-v2.html'));
-  });
-
-  test('Does not include major upgrade documentation when unavailable', async() => {
-    // Given current version is 99.0.0 and the latest version is 100.0.0
-    const currentVersion = '99.0.0';
-    jest.spyOn(npm, 'getLatestVersionFromNpm').mockResolvedValueOnce('100.0.0');
-    const printSpy = jest.spyOn(logging, 'info');
-
-    // When displayVersionMessage is called
-    await displayVersionMessage(currentVersion, new VersionCheckTTL(tmpfile(), 0));
-
-    // Then no upgrade documentation is printed
-    expect(printSpy).toHaveBeenCalledWith(expect.stringContaining('100.0.0'));
-    expect(printSpy).not.toHaveBeenCalledWith(expect.stringContaining('Information about upgrading from 99.x to 100.x'));
-  });
+  test('Prints messages when a new version is available', async () => {
+    const mockCache = new VersionCheckTTL(tmpfile());
+    jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
+    
+    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+      latestVersion: '2.0.0',
+      deprecated: undefined,
+    });
+    
+    const messages = await getVersionMessages('1.0.0', mockCache);
+    expect(messages.some(msg => msg.includes('Newer version of CDK is available'))).toBeTruthy();
+    expect(messages.some(msg => msg.includes('Information about upgrading from version 1.x to version 2.x'))).toBeTruthy();
+    expect(messages.some(msg => msg.includes('Upgrade recommended (npm install -g aws-cdk)'))).toBeTruthy();
+  })
+  
+  test('Does not include major upgrade documentation when unavailable', async () => {
+    const mockCache = new VersionCheckTTL(tmpfile());
+    jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
+    
+    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+      latestVersion: '2.1000.0',
+      deprecated: undefined,
+    });
+    
+    const messages = await getVersionMessages('2.179.0', mockCache);
+    const hasUpgradeDoc = messages.some(msg => 
+      msg.includes('Information about upgrading from version 1.x to version 2.x')
+    );
+    expect(hasUpgradeDoc).toBeFalsy();
+  })
+  
+  test('Prints a message when a deprecated version is used', async () => {
+    const mockCache = new VersionCheckTTL(tmpfile());
+    jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
+    
+    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+      latestVersion: '2.0.0',
+      deprecated: 'This version is deprecated.',
+    });
+    
+    const messages = await getVersionMessages('1.0.0', mockCache);
+    expect(messages.some(msg => msg.includes('This version is deprecated'))).toBeTruthy();
+  })
+  
+  test('Does not print message when current version is up to date', async () => {
+    const mockCache = new VersionCheckTTL(tmpfile());
+    jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
+    
+    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+      latestVersion: '1.0.0',
+      deprecated: undefined,
+    });
+    
+    const messages = await getVersionMessages('1.0.0', mockCache);
+    expect(messages).toEqual([]);
+  })
 });
 
 test('isDeveloperBuild call does not throw an error', () => {

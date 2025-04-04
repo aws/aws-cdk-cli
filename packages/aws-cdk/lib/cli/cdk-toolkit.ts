@@ -6,6 +6,7 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
+import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
@@ -14,23 +15,16 @@ import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type {
-  CloudAssembly,
-  StackSelector,
-} from '../api/cxapp/cloud-assembly';
 import {
-  DefaultSelection,
   ExtendedStackSelection,
   StackCollection,
-} from '../api/cxapp/cloud-assembly';
-import type { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
+} from '../api/cloud-assembly';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
 import { createDiffChangeSet } from '../api/deployments/cfn-api';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
-import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
-import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
+import { findCloudWatchLogGroups } from '../api/logs-monitor/find-cloudwatch-logs';
+import { CloudWatchLogEventMonitor } from '../api/logs-monitor/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
@@ -58,8 +52,9 @@ import {
   isThereAWarning,
   buildCfnClient,
 } from '../commands/migrate';
+import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
+import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { CliIoHost } from './io-host';
 import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
@@ -197,8 +192,10 @@ export class CdkToolkit {
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),
-        oldTemplate: template,
-        newTemplate: stacks.firstStack,
+        templateInfo: {
+          oldTemplate: template,
+          newTemplate: stacks.firstStack,
+        },
       });
 
       if (options.securityOnly) {
@@ -227,11 +224,6 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
-        const formatter = new DiffFormatter({
-          ioHelper: asIoHelper(this.ioHost, 'diff'),
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        });
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -279,11 +271,21 @@ export class CdkToolkit {
           }
         }
 
+        const formatter = new DiffFormatter({
+          ioHelper: asIoHelper(this.ioHost, 'diff'),
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+            stackName: stack.displayName,
+            changeSet,
+            isImport: !!resourcesToImport,
+            nestedStacks,
+          },
+        });
+
         if (options.securityOnly) {
           const securityDiff = formatter.formatSecurityDiff({
             requireApproval: RequireApproval.BROADENING,
-            stackName: stack.displayName,
-            changeSet,
           });
           if (securityDiff.formattedDiff) {
             info(securityDiff.formattedDiff);
@@ -294,10 +296,6 @@ export class CdkToolkit {
             strict,
             context: contextLines,
             quiet,
-            stackName: stack.displayName,
-            changeSet,
-            isImport: !!resourcesToImport,
-            nestedStackTemplates: nestedStacks,
           });
           info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
@@ -424,8 +422,10 @@ export class CdkToolkit {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
           ioHelper: asIoHelper(this.ioHost, 'deploy'),
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+          },
         });
         const securityDiff = formatter.formatSecurityDiff({
           requireApproval,
@@ -487,7 +487,7 @@ export class CdkToolkit {
             execute: options.execute,
             changeSetName: options.changeSetName,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
             rollback,
@@ -670,7 +670,7 @@ export class CdkToolkit {
           stack,
           roleArn: options.roleArn,
           toolkitStackName: options.toolkitStackName,
-          force: options.force,
+          orphanFailedResources: options.force,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });

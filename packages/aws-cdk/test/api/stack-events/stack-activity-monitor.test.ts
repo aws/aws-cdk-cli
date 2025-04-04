@@ -4,7 +4,7 @@ import {
   type StackEvent,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
+import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { StackActivityMonitor } from '../../../lib/api/stack-events';
 import { testStack } from '../../_helpers/assembly';
 import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';

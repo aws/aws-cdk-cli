@@ -29,7 +29,7 @@ jest.mock('../../lib/cli/user-configuration', () => ({
   })),
 }));
 
-jest.mock('../../lib/notices', () => ({
+jest.mock('../../lib/api/notices', () => ({
   Notices: {
     create: jest.fn().mockReturnValue({
       refresh: jest.fn().mockResolvedValue(undefined),

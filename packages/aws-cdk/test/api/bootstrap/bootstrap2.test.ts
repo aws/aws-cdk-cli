@@ -9,7 +9,7 @@ import {
   mockIAMClient,
   MockSdkProvider,
   restoreSdkMocksToDefault, setDefaultSTSMocks,
-} from '../../util/mock-sdk';
+} from '../../_helpers/mock-sdk';
 import { IIoHost } from '../../../lib/cli/io-host';
 import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
@@ -23,7 +23,7 @@ let ioHost: IIoHost = {
   }),
   requestResponse: jest.fn().mockImplementation((msg) => {
     process.stderr.write(msg.message + '\n');
-    return msg.defaultResponses
+    return msg.defaultResponses;
   }),
 };
 let ioHelper = asIoHelper(ioHost, 'bootstrap');

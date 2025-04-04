@@ -2,8 +2,8 @@ import { DescribeServicesCommand, RegisterTaskDefinitionCommand, UpdateServiceCo
 import * as setup from '../_helpers/hotswap-test-setup';
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
 import { Configuration } from '../../../lib/cli/user-configuration';
-import { mockECSClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { mockECSClient } from '../../_helpers/mock-sdk';
+
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest(
+  test(
     'should call registerTaskDefinition and updateService for a difference only in the TaskDefinition with a Family property',
     async () => {
       // GIVEN
@@ -108,7 +108,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'any other TaskDefinition property change besides ContainerDefinition cannot be hotswapped in CLASSIC mode but does not block HOTSWAP_ONLY mode deployments',
     async () => {
       // GIVEN
@@ -195,7 +195,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'deleting any other TaskDefinition property besides ContainerDefinition results in a full deployment in CLASSIC mode and a hotswap deployment in HOTSWAP_ONLY mode',
     async () => {
       // GIVEN
@@ -281,7 +281,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'should call registerTaskDefinition and updateService for a difference only in the TaskDefinition without a Family property',
     async () => {
       // GIVEN
@@ -358,7 +358,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'a difference just in a TaskDefinition, without any services using it, is not hotswappable in FALL_BACK mode',
     async () => {
       // GIVEN
@@ -421,7 +421,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'if anything besides an ECS Service references the changed TaskDefinition, hotswapping is not possible in CLASSIC mode but is possible in HOTSWAP_ONLY',
     async () => {
       // GIVEN
@@ -525,7 +525,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('should call registerTaskDefinition with certain properties not lowercased', async () => {
+  test('should call registerTaskDefinition with certain properties not lowercased', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {

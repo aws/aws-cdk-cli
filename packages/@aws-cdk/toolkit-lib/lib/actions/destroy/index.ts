@@ -10,11 +10,4 @@ export interface DestroyOptions {
    * The arn of the IAM role to use
    */
   readonly roleArn?: string;
-
-  /**
-   * Change stack watcher output to CI mode.
-   *
-   * @deprecated has no effect, please implement in IoHost instead
-   */
-  readonly ci?: boolean;
 }

@@ -73,7 +73,6 @@ import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import {
   DeployStackResult,
   SuccessfulDeployStackResult,
-  Template,
   Deployments,
   DeployStackOptions,
   DestroyStackOptions,
@@ -96,9 +95,10 @@ import {
   MockSdkProvider,
   mockSSMClient,
   restoreSdkMocksToDefault,
-} from '../util/mock-sdk';
+} from '../_helpers/mock-sdk';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { StackActivityProgress } from '../../lib/commands/deploy';
+import { Template } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 markTesting();
 

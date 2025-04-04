@@ -83,7 +83,7 @@
                     ]
                 },
                 "displayName": {
-                    "description": "A string that represents this artifact. Should only be used in user interfaces. (Default - no display name)",
+                    "description": "A string that can be shown to a user to uniquely identify this artifact inside a cloud assembly tree\n\nIs used by the CLI to present a list of stacks to the user in a way that\nmakes sense to them. Even though the property name \"display name\" doesn't\nimply it, this field is used to select stacks as well, so all stacks should\nhave a unique display name. (Default - no display name)",
                     "type": "string"
                 }
             },

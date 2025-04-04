@@ -16,12 +16,11 @@ export interface BaseDeployOptions {
   readonly roleArn?: string;
 
   /**
-   * Always deploy, even if templates are identical.
+   * Deploy even if the deployed template is identical to the one we are about to deploy.
    *
    * @default false
-   * @deprecated the options currently covers multiple different functionalities and will be split out in future
    */
-  readonly force?: boolean;
+  readonly forceDeployment?: boolean;
 
   /**
    * Deployment method
@@ -43,6 +42,21 @@ export interface BaseDeployOptions {
    * @default true
    */
   readonly rollback?: boolean;
+
+  /**
+   * Automatically orphan resources that failed during rollback
+   *
+   * Has no effect if `rollback` is `false`.
+   *
+   * @default false
+   */
+  readonly orphanFailedResourcesDuringRollback?: boolean;
+
+  /**
+   * Force asset publishing even if the assets have not changed
+   * @default false
+   */
+  readonly forceAssetPublishing?: boolean;
 
   /**
    * Reuse the assets with the given asset IDs

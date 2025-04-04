@@ -4,8 +4,8 @@ import * as path from 'node:path';
 import type { AssemblyDirectoryProps, Toolkit } from '../../lib';
 import { ToolkitError } from '../../lib';
 
-export * from '../../lib/api/shared-private';
 export * from './test-cloud-assembly-source';
+export * from './test-io-host';
 
 function fixturePath(...parts: string[]): string {
   return path.normalize(path.join(__dirname, '..', '_fixtures', ...parts));
@@ -18,6 +18,7 @@ export async function appFixture(toolkit: Toolkit, name: string, context?: { [ke
   }
   const app = `cat ${appPath} | node --input-type=module`;
   return toolkit.fromCdkApp(app, {
+    workingDirectory: path.join(__dirname, '..', '..'),
     outdir: tmpOutdir(),
     context,
   });

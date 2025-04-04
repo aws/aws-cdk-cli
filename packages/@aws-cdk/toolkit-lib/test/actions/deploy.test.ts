@@ -1,8 +1,9 @@
-import { RequireApproval, StackParameters } from '../../lib';
+import { StackParameters } from '../../lib';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
+import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
+import { builderFixture, cdkOutFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
 
 let ioHost: TestIoHost;
@@ -198,12 +199,12 @@ describe('deploy', () => {
       successfulDeployment();
     });
 
-    test('force: true option is used for asset publishing', async () => {
+    test('forceAssetPublishing: true option is used for asset publishing', async () => {
       const publishSingleAsset = jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {
-        force: true,
+        forceAssetPublishing: true,
       });
 
       // THEN
@@ -277,6 +278,86 @@ describe('deploy', () => {
 
       // THEN
       successfulDeployment();
+    });
+  });
+
+  test('deploy returns stack information', async () => {
+    // GIVEN
+    mockDeployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      outputs: {
+        OutputKey1: 'OutputValue1',
+        OutputKey2: 'OutputValue2',
+      },
+      noOp: false,
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const result = await toolkit.deploy(cx);
+
+    // THEN
+    expect(result).toEqual({
+      stacks: [
+        {
+          stackName: 'Stack1',
+          hierarchicalId: 'Stack1',
+          environment: {
+            // This wouldn't normally work like this, but this is the information in the manifest so that's what we assert
+            account: 'unknown-account',
+            region: 'unknown-region',
+          },
+          // This just comes from the mocked function above
+          stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+          outputs: {
+            OutputKey1: 'OutputValue1',
+            OutputKey2: 'OutputValue2',
+          },
+        },
+        {
+          stackName: 'Stack2',
+          hierarchicalId: 'Stack2',
+          environment: {
+            // This wouldn't normally work like this, but this is the information in the manifest so that's what we assert
+            account: 'unknown-account',
+            region: 'unknown-region',
+          },
+          // This just comes from the mocked function above
+          stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+          outputs: {
+            OutputKey1: 'OutputValue1',
+            OutputKey2: 'OutputValue2',
+            // omg
+          },
+        },
+      ],
+    });
+  });
+
+  test('deploy contains nested assembly hierarchical id', async () => {
+    // GIVEN
+    mockDeployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      outputs: {
+        OutputKey1: 'OutputValue1',
+        OutputKey2: 'OutputValue2',
+      },
+      noOp: false,
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'nested-assembly');
+    const result = await toolkit.deploy(cx);
+
+    // THEN
+    expect(result).toEqual({
+      stacks: [
+        expect.objectContaining({
+          hierarchicalId: 'Stage/Stack1',
+        }),
+      ],
     });
   });
 });

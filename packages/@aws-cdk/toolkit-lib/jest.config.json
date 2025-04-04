@@ -47,6 +47,9 @@
     ]
   ],
   "randomize": true,
+  "setupFilesAfterEnv": [
+    "<rootDir>/test/_helpers/jest-setup-after-env.ts"
+  ],
   "clearMocks": true,
   "coverageDirectory": "coverage",
   "testPathIgnorePatterns": [

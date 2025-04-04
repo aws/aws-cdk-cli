@@ -17,7 +17,7 @@ import type { SuccessfulDeployStackResult } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { deployStack } from '../deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../environment';
-import { Mode } from '../plugin/mode';
+import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 
 /**
@@ -76,7 +76,7 @@ export class BootstrapStack {
     parameters: Record<string, string | undefined>,
     options: Omit<BootstrapEnvironmentOptions, 'parameters'>,
   ): Promise<SuccessfulDeployStackResult> {
-    if (this.currentToolkitInfo.found && !options.force) {
+    if (this.currentToolkitInfo.found && !options.forceDeployment) {
       // Safety checks
       const abortResponse = {
         type: 'did-deploy-stack',
@@ -136,7 +136,7 @@ export class BootstrapStack {
       resolvedEnvironment: this.resolvedEnvironment,
       sdk: this.sdk,
       sdkProvider: this.sdkProvider,
-      force: options.force,
+      forceDeployment: options.forceDeployment,
       roleArn: options.roleArn,
       tags: options.tags,
       deploymentMethod: { method: 'change-set', execute: options.execute },
