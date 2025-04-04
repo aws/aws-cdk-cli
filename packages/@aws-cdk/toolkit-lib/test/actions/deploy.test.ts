@@ -1,15 +1,16 @@
 import { StackParameters } from '../../lib/actions/deploy';
-import * as awsCdkApi from '../../lib/api/aws-cdk';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/shared-private';
 import * as apis from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, TestIoHost } from '../_helpers';
-import { MockSdk } from '../util/aws-cdk';
+import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOptions]>;
+
+jest.mock('../../lib/api/shared-private', () => ({ __esModule: true, ...jest.requireActual('../../lib/api/shared-private') }));
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -18,6 +19,12 @@ beforeEach(() => {
 
   toolkit = new Toolkit({ ioHost });
   const sdk = new MockSdk();
+
+  jest.spyOn(apis, 'findCloudWatchLogGroups').mockResolvedValue({
+    env: { name: 'Z', account: 'X', region: 'Y' },
+    sdk,
+    logGroupNames: ['/aws/lambda/lambda-function-name'],
+  });
 
   // Some default implementations
   mockDeployStack = jest.spyOn(apis.Deployments.prototype, 'deployStack').mockResolvedValue({
@@ -35,12 +42,6 @@ beforeEach(() => {
   jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
   jest.spyOn(apis.Deployments.prototype, 'buildSingleAsset').mockImplementation();
   jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
-
-  jest.spyOn(awsCdkApi, 'findCloudWatchLogGroups').mockResolvedValue({
-    env: { name: 'Z', account: 'X', region: 'Y' },
-    sdk,
-    logGroupNames: ['/aws/lambda/lambda-function-name'],
-  });
 });
 
 describe('deploy', () => {

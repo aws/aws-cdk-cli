@@ -1,11 +1,11 @@
 import type { CloudFormationStackArtifact, Environment } from '@aws-cdk/cx-api';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth';
 import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../cloudformation';
 import { EnvironmentAccess } from '../environment';
+import { IO } from '../io/private';
+import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 

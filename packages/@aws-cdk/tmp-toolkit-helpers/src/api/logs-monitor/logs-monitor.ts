@@ -2,11 +2,11 @@ import * as util from 'util';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as uuid from 'uuid';
-import type { IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { IO } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import type { CloudWatchLogEvent } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/payloads';
+import type { CloudWatchLogEvent } from '../../payloads/logs-monitor';
 import { flatten } from '../../util';
 import type { SDK } from '../aws-auth';
+import { IO } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 /**
  * Configuration tracking information on the log groups that are

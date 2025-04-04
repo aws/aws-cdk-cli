@@ -20,7 +20,6 @@ import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
-import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -28,7 +27,7 @@ import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } f
 import type { IIoHost, IoMessageLevel } from '../api/io';
 import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import type { SuccessfulDeployStackResult, Concurrency, AssetBuildNode, AssetPublishNode, StackNode, IoHelper, StackCollection } from '../api/shared-private';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, Deployments, ResourceMigrator, WorkGraphBuilder, HotswapMode, SdkProvider, asIoHelper, DiffFormatter, RequireApproval, ToolkitError, tagsForStack } from '../api/shared-private';
+import { CloudWatchLogEventMonitor, findCloudWatchLogGroups, DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, Deployments, ResourceMigrator, WorkGraphBuilder, HotswapMode, SdkProvider, asIoHelper, DiffFormatter, RequireApproval, ToolkitError, tagsForStack } from '../api/shared-private';
 import type { ToolkitAction, AssemblyData, StackDetails } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
 import { pLimit } from '../util/concurrency';

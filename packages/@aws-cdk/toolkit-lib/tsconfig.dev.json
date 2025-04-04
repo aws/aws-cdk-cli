@@ -51,9 +51,6 @@
       "path": "../../cdk-assets"
     },
     {
-      "path": "../../aws-cdk"
-    },
-    {
       "path": "../tmp-toolkit-helpers"
     }
   ]

@@ -45,15 +45,15 @@
       "type": "build"
     },
     {
-      "name": "aws-cdk",
-      "type": "build"
-    },
-    {
       "name": "aws-cdk-lib",
       "type": "build"
     },
     {
       "name": "aws-sdk-client-mock",
+      "type": "build"
+    },
+    {
+      "name": "aws-sdk-client-mock-jest",
       "type": "build"
     },
     {

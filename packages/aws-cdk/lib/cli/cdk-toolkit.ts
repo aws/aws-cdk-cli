@@ -20,10 +20,9 @@ import {
   StackCollection,
 } from '../api/cloud-assembly';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
+import { GarbageCollector } from '../api/garbage-collection';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap';
-import { findCloudWatchLogGroups } from '../api/logs-monitor/find-cloudwatch-logs';
-import { CloudWatchLogEventMonitor } from '../api/logs-monitor/logs-monitor';
+import { findCloudWatchLogGroups, CloudWatchLogEventMonitor } from '../api/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';

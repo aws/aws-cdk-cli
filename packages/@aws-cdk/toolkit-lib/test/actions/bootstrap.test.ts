@@ -21,7 +21,7 @@ import {
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-} from '../util/aws-cdk';
+} from '../_helpers/mock-sdk';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });

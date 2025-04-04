@@ -7,7 +7,7 @@ import { RequireApproval } from '../../lib/api/shared-private';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
-import { MockSdk } from '../util/aws-cdk';
+import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
