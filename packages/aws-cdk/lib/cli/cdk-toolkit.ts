@@ -28,7 +28,7 @@ import { CloudWatchLogEventMonitor } from '../api/logs-monitor/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
-import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
+import { WorkGraphBuilder } from '../api/work-graph';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';

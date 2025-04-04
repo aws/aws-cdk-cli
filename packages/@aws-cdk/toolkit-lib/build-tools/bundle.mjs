@@ -20,7 +20,7 @@ const bundleDeclarations = async (entryPoints) => {
       noBanner: true,
       exportReferencedTypes: false,
     },
-  })), { preferredConfigPath: 'tsconfig.dev.json' });
+  })), { preferredConfigPath: 'tsconfig.dts.json' });
 
   const files = [];
   for (const [idx, declaration] of results.entries()) {

@@ -28,6 +28,7 @@
     "target": "es2022",
     "incremental": true,
     "skipLibCheck": true,
+    "rootDir": ".",
     "composite": true,
     "outDir": "lib"
   },

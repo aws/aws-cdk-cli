@@ -1,5 +1,5 @@
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
-import { StackProgressMonitor } from '../../../lib/api/stack-events/stack-progress-monitor';
+import { StackProgressMonitor } from '../../../lib/api/stack-events';
 
 let TIMESTAMP: number;
 beforeAll(() => {

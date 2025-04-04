@@ -12,7 +12,7 @@ import { bold } from 'chalk';
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
-import { SdkProvider } from '../../lib/api/aws-cdk';
+import { SdkProvider } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import {

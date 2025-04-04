@@ -1,4 +1,4 @@
-import { StackSelectionStrategy } from '../../lib';
+import { StackSelectionStrategy } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 

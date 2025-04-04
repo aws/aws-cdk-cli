@@ -1,14 +1,13 @@
-
 import * as util from 'util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { StackActivity } from '@aws-cdk/tmp-toolkit-helpers';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
-import { resourceMetadata } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/resource-metadata/resource-metadata';
+import { StackProgressMonitor } from './stack-progress-monitor';
 import { stackEventHasErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth';
-import { StackProgressMonitor } from './stack-progress-monitor';
-import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { IO, type IoHelper } from '../io/private';
+import { resourceMetadata } from '../resource-metadata/resource-metadata';
 
 export interface StackActivityMonitorProps {
   /**

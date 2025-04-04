@@ -1162,6 +1162,11 @@ const toolkitLib = configureProject(
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
     srcdir: 'lib',
+    tsconfigDev: {
+      compilerOptions: {
+        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
+      },
+    },
     deps: [
       cloudAssemblySchema,
       // Purposely a ^ dependency so that clients selecting old toolkit library
