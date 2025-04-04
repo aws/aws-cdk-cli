@@ -1,19 +1,19 @@
 jest.mock('child_process');
-import bockfs from '../../_helpers/bockfs';
+import bockfs from '../_helpers/bockfs';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cdk from 'aws-cdk-lib';
 import * as semver from 'semver';
 import * as sinon from 'sinon';
 import { ImportMock } from 'ts-mock-imports';
-import { execProgram } from '../../../lib/api/cxapp/exec';
-import { Configuration } from '../../../lib/cli/user-configuration';
-import { testAssembly } from '../../_helpers/assembly';
-import { mockSpawn } from '../../util/mock-child_process';
-import { MockSdkProvider } from '../../_helpers/mock-sdk';
-import { RWLock } from '../../../lib/api/rwlock';
+import { execProgram } from '../../lib/cxapp/exec';
+import { Configuration } from '../../lib/cli/user-configuration';
+import { testAssembly } from '../_helpers/assembly';
+import { mockSpawn } from '../util/mock-child_process';
+import { MockSdkProvider } from '../_helpers/mock-sdk';
+import { RWLock } from '../../lib/api/rwlock';
 import { rewriteManifestMinimumCliVersion, rewriteManifestVersion } from './assembly-versions';
-import { TestIoHost } from '../../_helpers/io-host';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { TestIoHost } from '../_helpers/io-host';
+import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 let sdkProvider: MockSdkProvider;
 let config: Configuration;

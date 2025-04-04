@@ -1,8 +1,8 @@
 import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import type { ToolkitServices } from '../../../toolkit/private';
-import { type Context, contextproviders, PROJECT_CONTEXT } from '../../aws-cdk';
+import { contextproviders } from '../../aws-cdk';
 import { IO } from '../../io/private';
-import type { IoHelper } from '../../shared-private';
+import { PROJECT_CONTEXT, type Context, type IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import { LOCK_SYM, type ICloudAssemblySource, type MaybeLockedCloudAssembly } from '../types';
 

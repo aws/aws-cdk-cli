@@ -1,10 +1,10 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { CloudAssembly } from './cloud-assembly';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { IO, type IoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import type { Configuration } from '../../cli/user-configuration';
-import * as contextproviders from '../../context-providers';
-import type { SdkProvider } from '../aws-auth';
+import { ToolkitError } from '../api';
+import type { SdkProvider } from '../api/aws-auth';
+import { IO, type IoHelper } from '../api-private';
+import type { Configuration } from '../cli/user-configuration';
+import * as contextproviders from '../context-providers';
 
 /**
  * @returns output directory

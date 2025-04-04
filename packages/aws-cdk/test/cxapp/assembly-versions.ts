@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as cxapi from '@aws-cdk/cx-api';
-import { CloudAssembly } from '../../../lib/api/cxapp/cloud-assembly';
+import { CloudAssembly } from '../../lib/cxapp/cloud-assembly';
+import { TestIoHost } from '../_helpers/io-host';
 
 /**
  * The cloud-assembly-schema in the new monorepo will use its own package version as the schema version, which is always `0.0.0` when tests are running.
@@ -23,7 +24,7 @@ export function cxapiAssemblyWithForcedVersion(asm: cxapi.CloudAssembly, version
  */
 export function cliAssemblyWithForcedVersion(asm: CloudAssembly, version: string) {
   rewriteManifestVersion(asm.directory, version);
-  return new CloudAssembly(new cxapi.CloudAssembly(asm.directory, { skipVersionCheck: true }));
+  return new CloudAssembly(new cxapi.CloudAssembly(asm.directory, { skipVersionCheck: true }), new TestIoHost().asHelper('synth'));
 }
 
 export function rewriteManifestVersion(directory: string, version: string) {

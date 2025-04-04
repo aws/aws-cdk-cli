@@ -231,6 +231,13 @@ const repoProject = new yarn.Monorepo({
   githubOptions: {
     mergify: false,
     mergeQueue: true,
+    mergeQueueOptions: {
+      autoQueueOptions: {
+        // Only autoqueue for PRs targeting the 'main' branch
+        targetBranches: ['main'],
+      },
+    },
+    pullRequestLint: true,
     pullRequestLintOptions: {
       contributorStatement: 'By submitting this pull request, I confirm that my contribution is made under the terms of the Apache-2.0 license',
       contributorStatementOptions: {
@@ -1155,6 +1162,11 @@ const toolkitLib = configureProject(
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
     srcdir: 'lib',
+    tsconfigDev: {
+      compilerOptions: {
+        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
+      },
+    },
     deps: [
       cloudAssemblySchema,
       // Purposely a ^ dependency so that clients selecting old toolkit library

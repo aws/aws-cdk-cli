@@ -11,6 +11,32 @@ import { SdkProvider as SdkProviderCurrentVersion } from './api/aws-auth';
 import { CliIoHost } from './cli/io-host';
 
 /**
+ * @deprecated
+ */
+export function cached<A extends object, B>(obj: A, sym: symbol, fn: () => B): B {
+  if (!(sym in obj)) {
+    (obj as any)[sym] = fn();
+  }
+  return (obj as any)[sym];
+}
+
+/**
+ * @deprecated
+ */
+export interface ContextProviderPlugin {
+  getValue(args: {[key: string]: any}): Promise<any>;
+}
+
+/**
+ * An AWS account
+ * @deprecated
+ */
+export interface Account {
+  readonly accountId: string;
+  readonly partition: string;
+}
+
+/**
  * Enable tracing in the CDK
  *
  * @deprecated cannot be enabled from outside the CDK

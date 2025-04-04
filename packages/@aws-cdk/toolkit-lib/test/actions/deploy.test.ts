@@ -1,4 +1,4 @@
-import { StackParameters } from '../../lib';
+import { StackParameters } from '../../lib/actions/deploy';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
 import { RequireApproval } from '../../lib/api/shared-private';

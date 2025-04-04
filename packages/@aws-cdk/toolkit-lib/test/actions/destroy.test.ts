@@ -1,5 +1,5 @@
 import * as chalk from 'chalk';
-import { StackSelectionStrategy } from '../../lib';
+import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 

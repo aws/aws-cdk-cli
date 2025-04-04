@@ -1,4 +1,4 @@
-import { HotswapMode } from '../../lib';
+import { HotswapMode } from '../../lib/api/aws-cdk';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 

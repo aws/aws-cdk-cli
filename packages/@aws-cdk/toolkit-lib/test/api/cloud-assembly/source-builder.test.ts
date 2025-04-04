@@ -1,5 +1,5 @@
-import { ToolkitError } from '../../../lib';
-import { Toolkit } from '../../../lib/toolkit';
+import { ToolkitError } from '../../../lib/api/shared-public';
+import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { appFixture, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
 
 // these tests often run a bit longer than the default
