@@ -1,7 +1,7 @@
 
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { CachedCloudAssemblySource, StackAssembly } from '../../api/cloud-assembly/private';
-import type { SdkProvider, IoHelper } from '../../api/shared-private';
+import { type SdkProvider, type IoHelper, RWLock } from '../../api/shared-private';
 
 /**
  * Helper struct to pass internal services around.
@@ -23,8 +23,12 @@ export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICl
   }
 
   if (cache) {
-    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce(), ioHelper);
+    const cx = await new CachedCloudAssemblySource(assemblySource).produce();
+    const lock = await new RWLock(cx.directory).acquireRead();
+    return new StackAssembly(cx, ioHelper, lock);
   }
 
-  return new StackAssembly(await assemblySource.produce(), ioHelper);
+  const cx = await assemblySource.produce();
+  const lock = await new RWLock(cx.directory).acquireRead();
+  return new StackAssembly(cx, ioHelper, lock);
 }

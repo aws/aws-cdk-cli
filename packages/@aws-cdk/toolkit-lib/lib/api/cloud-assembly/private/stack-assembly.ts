@@ -1,5 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { major } from 'semver';
+import type { ILock, IoHelper } from '../../shared-private';
 import { BaseStackAssembly, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { StackSelector } from '../stack-selector';
@@ -9,7 +10,18 @@ import type { ICloudAssemblySource } from '../types';
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
  */
-export class StackAssembly extends BaseStackAssembly implements ICloudAssemblySource {
+export class StackAssembly extends BaseStackAssembly implements ICloudAssemblySource, AsyncDisposable {
+  private readonly lock: ILock;
+
+  public constructor(public readonly assembly: cxapi.CloudAssembly, ioHelper: IoHelper, lock: ILock) {
+    super(assembly, ioHelper);
+    this.lock = lock;
+  }
+
+  public async [Symbol.asyncDispose](): Promise<void> {
+    await this.lock.release();
+  }
+
   public async produce(): Promise<cxapi.CloudAssembly> {
     return this.assembly;
   }
