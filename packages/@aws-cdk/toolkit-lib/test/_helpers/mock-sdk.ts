@@ -1,8 +1,9 @@
 import 'aws-sdk-client-mock-jest';
-import { Environment } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cx-api';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
-import { CloudFormationClient, Stack, StackStatus } from '@aws-sdk/client-cloudformation';
+import type { Stack } from '@aws-sdk/client-cloudformation';
+import { CloudFormationClient, StackStatus } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { EC2Client } from '@aws-sdk/client-ec2';
@@ -19,12 +20,11 @@ import { SFNClient } from '@aws-sdk/client-sfn';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { AssumeRoleCommand, GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { createCredentialChain } from '@aws-sdk/credential-providers';
-import { AwsCredentialIdentity } from '@smithy/types';
+import type { AwsCredentialIdentity } from '@smithy/types';
 import { mockClient } from 'aws-sdk-client-mock';
 import { type Account } from 'cdk-assets';
-import { SDK, SdkProvider } from '../../lib/api/shared-private';
-import { CloudFormationStack } from '../../lib/api/shared-private';
 import { TestIoHost } from './test-io-host';
+import { SDK, SdkProvider, CloudFormationStack } from '../../lib/api/shared-private';
 
 export const FAKE_CREDENTIALS: AwsCredentialIdentity = {
   accessKeyId: 'ACCESS',
@@ -98,7 +98,7 @@ export const restoreSdkMocksToDefault = () => {
  */
 export function undoAllSdkMocks() {
   applyToAllMocks('restore');
-};
+}
 
 function applyToAllMocks(meth: 'reset' | 'restore') {
   mockAppSyncClient[meth]();
