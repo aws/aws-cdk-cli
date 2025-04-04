@@ -1,6 +1,5 @@
 import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/api/io';
-import { asIoHelper, isMessageRelevantForLevel, type IoHelper } from '../../lib/api/shared-private';
-import { RequireApproval } from '../../lib/toolkit';
+import { asIoHelper, isMessageRelevantForLevel, RequireApproval, type IoHelper } from '../../lib/api/shared-private';
 
 /**
  * A test implementation of IIoHost that does nothing but can be spied on.

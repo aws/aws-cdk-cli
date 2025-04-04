@@ -1,8 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { environmentsFromDescriptors } from './private';
 import type { Tag } from '../../api/aws-cdk';
-import type { ICloudAssemblySource, IIoHost } from '../../api/cloud-assembly';
+import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { ALL_STACKS } from '../../api/cloud-assembly/private';
+import type { IIoHost } from '../../api/io';
 import { asIoHelper } from '../../api/shared-private';
 import { assemblyFromSource } from '../../toolkit/private';
 

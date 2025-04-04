@@ -14,9 +14,9 @@ import { PROJECT_CONFIG, USER_DEFAULTS } from '../../cli/user-configuration';
 import { versionNumber } from '../../cli/version';
 import { splitBySize } from '../../util';
 import type { SdkProvider } from '../aws-auth';
+import type { ILock } from '../rwlock';
+import { RWLock } from '../rwlock';
 import type { Settings } from '../settings';
-import type { ILock } from '../util/rwlock';
-import { RWLock } from '../util/rwlock';
 
 export interface ExecProgramResult {
   readonly assembly: cxapi.CloudAssembly;

@@ -1,5 +1,5 @@
-import { result, success, highlight, error, warning, info, debug, trace } from '../../../lib/logging';
-import { CliIoHost } from '../../../lib/cli/io-host';
+import { result, success, highlight, error, warning, info, debug, trace } from '../lib/logging';
+import { CliIoHost } from '../lib/cli/io-host';
 
 describe('logging', () => {
   const ioHost = CliIoHost.instance({}, true);

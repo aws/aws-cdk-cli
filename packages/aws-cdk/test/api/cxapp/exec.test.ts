@@ -10,7 +10,7 @@ import { Configuration } from '../../../lib/cli/user-configuration';
 import { testAssembly } from '../../_helpers/assembly';
 import { mockSpawn } from '../../util/mock-child_process';
 import { MockSdkProvider } from '../../_helpers/mock-sdk';
-import { RWLock } from '../../../lib/api/util/rwlock';
+import { RWLock } from '../../../lib/api/rwlock';
 import { rewriteManifestMinimumCliVersion, rewriteManifestVersion } from './assembly-versions';
 import { TestIoHost } from '../../_helpers/io-host';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';

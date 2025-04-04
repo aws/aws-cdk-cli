@@ -1,6 +1,7 @@
-import { RequireApproval, StackParameters } from '../../lib';
+import { StackParameters } from '../../lib';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
+import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
