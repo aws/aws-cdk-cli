@@ -59,20 +59,13 @@ describe('formatStackDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: {
-        template: {},
-        templateFile: 'template.json',
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
         stackName: 'test-stack',
-        findMetadataByType: () => [],
-      } as any,
+      },
     });
-    const result = formatter.formatStackDiff({
-      strict: false,
-      context: 3,
-      quiet: false,
-      stackName: 'test-stack',
-    });
+    const result = formatter.formatStackDiff();
 
     // THEN
     expect(result.numStacksWithChanges).toBe(0);
@@ -88,12 +81,13 @@ describe('formatStackDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: mockNewTemplate,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        stackName: 'test-stack',
+      },
     });
-    const result = formatter.formatStackDiff({
-      stackName: 'test-stack',
-    });
+    const result = formatter.formatStackDiff();
 
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
@@ -110,13 +104,14 @@ describe('formatStackDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: mockNewTemplate,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        stackName: 'test-stack',
+        isImport: true,
+      },
     });
-    const result = formatter.formatStackDiff({
-      stackName: 'test-stack',
-      isImport: true,
-    });
+    const result = formatter.formatStackDiff();
 
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
@@ -132,7 +127,7 @@ describe('formatStackDiff', () => {
 
   test('handles nested stack templates', () => {
     // GIVEN
-    const nestedStackTemplates = {
+    const nestedStacks = {
       NestedStack1: {
         deployedTemplate: {},
         generatedTemplate: {},
@@ -151,13 +146,14 @@ describe('formatStackDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: mockNewTemplate,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        stackName: 'test-stack',
+        nestedStacks,
+      },
     });
-    const result = formatter.formatStackDiff({
-      stackName: 'test-stack',
-      nestedStackTemplates,
-    });
+    const result = formatter.formatStackDiff();
 
     // THEN
     expect(result.numStacksWithChanges).toBe(3);
@@ -226,16 +222,13 @@ describe('formatSecurityDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: {
-        template: {},
-        templateFile: 'template.json',
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
         stackName: 'test-stack',
-        findMetadataByType: () => [],
-      } as any,
+      },
     });
     const result = formatter.formatSecurityDiff({
-      stackName: 'test-stack',
       requireApproval: RequireApproval.BROADENING,
     });
 
@@ -248,11 +241,13 @@ describe('formatSecurityDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: mockNewTemplate,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        stackName: 'test-stack',
+      },
     });
     const result = formatter.formatSecurityDiff({
-      stackName: 'test-stack',
       requireApproval: RequireApproval.BROADENING,
     });
 
@@ -281,11 +276,13 @@ describe('formatSecurityDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: mockNewTemplate,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        stackName: 'test-stack',
+      },
     });
     const result = formatter.formatSecurityDiff({
-      stackName: 'test-stack',
       requireApproval: RequireApproval.ANY_CHANGE,
     });
 
@@ -317,11 +314,13 @@ describe('formatSecurityDiff', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
-      oldTemplate: {},
-      newTemplate: mockNewTemplate,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        stackName: 'test-stack',
+      },
     });
     const result = formatter.formatSecurityDiff({
-      stackName: 'test-stack',
       requireApproval: RequireApproval.NEVER,
     });
 

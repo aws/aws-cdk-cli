@@ -1,4 +1,4 @@
-import type { StackSelector } from '../../api/cloud-assembly';
+import type { StackSelector } from '../../../lib/api/shared-public';
 
 export interface CloudFormationDiffOptions {
   /**

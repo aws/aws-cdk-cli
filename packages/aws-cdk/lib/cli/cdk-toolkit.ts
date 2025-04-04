@@ -197,8 +197,10 @@ export class CdkToolkit {
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),
-        oldTemplate: template,
-        newTemplate: stacks.firstStack,
+        templateInfo: {
+          oldTemplate: template,
+          newTemplate: stacks.firstStack,
+        },
       });
 
       if (options.securityOnly) {
@@ -227,11 +229,6 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
-        const formatter = new DiffFormatter({
-          ioHelper: asIoHelper(this.ioHost, 'diff'),
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        });
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -279,11 +276,21 @@ export class CdkToolkit {
           }
         }
 
+        const formatter = new DiffFormatter({
+          ioHelper: asIoHelper(this.ioHost, 'diff'),
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+            stackName: stack.displayName,
+            changeSet,
+            isImport: !!resourcesToImport,
+            nestedStacks,
+          },
+        });
+
         if (options.securityOnly) {
           const securityDiff = formatter.formatSecurityDiff({
             requireApproval: RequireApproval.BROADENING,
-            stackName: stack.displayName,
-            changeSet,
           });
           if (securityDiff.formattedDiff) {
             info(securityDiff.formattedDiff);
@@ -294,10 +301,6 @@ export class CdkToolkit {
             strict,
             context: contextLines,
             quiet,
-            stackName: stack.displayName,
-            changeSet,
-            isImport: !!resourcesToImport,
-            nestedStackTemplates: nestedStacks,
           });
           info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
@@ -424,8 +427,10 @@ export class CdkToolkit {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
           ioHelper: asIoHelper(this.ioHost, 'deploy'),
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+          },
         });
         const securityDiff = formatter.formatSecurityDiff({
           requireApproval,

@@ -2,7 +2,6 @@ import { format } from 'node:util';
 import { Writable } from 'stream';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
-  type DescribeChangeSetOutput,
   type TemplateDiff,
   fullDiff,
   formatSecurityChanges,
@@ -75,14 +74,10 @@ interface DiffFormatterProps {
   readonly ioHelper: IoHelper;
 
   /**
-   * The old/current state of the stack.
+   * The relevant information for the Template that is being diffed.
+   * Includes the old/current state of the stack as well as the new state.
    */
-  readonly oldTemplate: any;
-
-  /**
-   * The new/target state of the stack.
-   */
-  readonly newTemplate: cxapi.CloudFormationStackArtifact;
+  readonly templateInfo: TemplateInfo;
 }
 
 /**
@@ -93,18 +88,6 @@ interface FormatSecurityDiffOptions {
    * The approval level of the security diff
    */
   readonly requireApproval: RequireApproval;
-
-  /**
-   * The name of the Stack.
-   */
-  readonly stackName?: string;
-
-  /**
-   * The changeSet for the Stack.
-   *
-   * @default undefined
-   */
-  readonly changeSet?: DescribeChangeSetOutput;
 }
 
 /**
@@ -131,30 +114,57 @@ interface FormatStackDiffOptions {
    * @default false
    */
   readonly quiet?: boolean;
+}
+
+interface ReusableStackDiffOptions extends FormatStackDiffOptions {
+  readonly ioDefaultHelper: IoDefaultMessages;
+}
+
+/**
+ * Information on a template's old/new state
+ * that is used for diff.
+ */
+export interface TemplateInfo {
+  /**
+   * The old/existing template
+   */
+  readonly oldTemplate: any;
+
+  /**
+   * The new template
+   */
+  readonly newTemplate: cxapi.CloudFormationStackArtifact;
+
+  /**
+   * A CloudFormation ChangeSet to help the diff operation.
+   * Probably created via `createDiffChangeSet`.
+   *
+   * @default undefined
+   */
+  readonly changeSet?: any;
 
   /**
    * The name of the stack
+   *
+   * @default undefined
    */
   readonly stackName?: string;
 
   /**
-   * @default undefined
-   */
-  readonly changeSet?: DescribeChangeSetOutput;
-
-  /**
+   * Whether or not there are any imported resources
+   *
    * @default false
    */
   readonly isImport?: boolean;
 
   /**
-   * @default undefined
+   * Any nested stacks included in the template
+   *
+   * @default {}
    */
-  readonly nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates };
-}
-
-interface ReusableStackDiffOptions extends Omit<FormatStackDiffOptions, 'stackName' | 'nestedStackTemplates'> {
-  readonly ioDefaultHelper: IoDefaultMessages;
+  readonly nestedStacks?: {
+    [nestedStackLogicalId: string]: NestedStackTemplates;
+  };
 }
 
 /**
@@ -164,22 +174,30 @@ export class DiffFormatter {
   private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
+  private readonly stackName?: string;
+  private readonly changeSet?: any;
+  private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
+  private readonly isImport: boolean;
 
   constructor(props: DiffFormatterProps) {
     this.ioHelper = props.ioHelper;
-    this.oldTemplate = props.oldTemplate;
-    this.newTemplate = props.newTemplate;
+    this.oldTemplate = props.templateInfo.oldTemplate;
+    this.newTemplate = props.templateInfo.newTemplate;
+    this.stackName = props.templateInfo.stackName;
+    this.changeSet = props.templateInfo.changeSet;
+    this.nestedStacks = props.templateInfo.nestedStacks;
+    this.isImport = props.templateInfo.isImport ?? false;
   }
 
   /**
    * Format the stack diff
    */
-  public formatStackDiff(options: FormatStackDiffOptions): FormatStackDiffOutput {
+  public formatStackDiff(options: FormatStackDiffOptions = {}): FormatStackDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
     return this.formatStackDiffHelper(
       this.oldTemplate,
-      options.stackName,
-      options.nestedStackTemplates,
+      this.stackName,
+      this.nestedStacks,
       {
         ...options,
         ioDefaultHelper,
@@ -193,7 +211,7 @@ export class DiffFormatter {
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
-    let diff = fullDiff(oldTemplate, this.newTemplate.template, options.changeSet, options.isImport);
+    let diff = fullDiff(oldTemplate, this.newTemplate.template, this.changeSet, this.isImport);
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
@@ -211,14 +229,14 @@ export class DiffFormatter {
         stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
       }
 
-      if (!options.quiet && options.isImport) {
+      if (!options.quiet && this.isImport) {
         stream.write('Parameters and rules created during migration do not affect resource configuration.\n');
       }
 
       // detect and filter out mangled characters from the diff
       if (diff.differenceCount && !options.strict) {
         const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(this.newTemplate.template)));
-        const mangledDiff = fullDiff(this.oldTemplate, mangledNewTemplate, options.changeSet);
+        const mangledDiff = fullDiff(this.oldTemplate, mangledNewTemplate, this.changeSet);
         filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
         if (filteredChangesCount > 0) {
           diff = mangledDiff;
@@ -281,7 +299,7 @@ export class DiffFormatter {
   public formatSecurityDiff(options: FormatSecurityDiffOptions): FormatSecurityDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
 
-    const diff = fullDiff(this.oldTemplate, this.newTemplate.template, options.changeSet);
+    const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
 
     if (diffRequiresApproval(diff, options.requireApproval)) {
       // The security diff is formatted via `Formatter`, which takes in a stream
@@ -291,7 +309,7 @@ export class DiffFormatter {
       // `formatSecurityDiff` to decide what to do with it.
       const stream = new StringWriteStream();
 
-      stream.write(format(`Stack ${chalk.bold(options.stackName)}\n`));
+      stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
 
       // eslint-disable-next-line max-len
       ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);

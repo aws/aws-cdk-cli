@@ -12,6 +12,7 @@ export { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../../../../
 export { type WorkGraph, WorkGraphBuilder, AssetBuildNode, AssetPublishNode, StackNode, Concurrency } from '../../../../aws-cdk/lib/api/work-graph';
 export { Bootstrapper } from '../../../../aws-cdk/lib/api/bootstrap';
 export { loadTree, some } from '../../../../aws-cdk/lib/api/tree';
+export { ResourcesToImport } from '../../../../aws-cdk/lib/api/resource-import';
 export { RWLock, type ILock } from '../../../../aws-cdk/lib/api/rwlock';
 export { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../../../../aws-cdk/lib/api/hotswap';
 
