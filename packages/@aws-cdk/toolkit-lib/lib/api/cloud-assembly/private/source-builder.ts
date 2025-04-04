@@ -1,16 +1,16 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
+import { type AssemblyDirectoryProps, type AssemblySourceProps, type ICloudAssemblySource } from '../';
 import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
-import { ContextAwareCloudAssembly } from './context-aware-source';
+import { ContextAwareCloudAssemblySource } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import type { ILock } from '../../shared-private';
 import { Context, RWLock, Settings } from '../../shared-private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
 import type { AssemblyBuilder } from '../source-builder';
+import { associateLock } from './locking';
 
 export abstract class CloudAssemblySourceBuilder {
   /**
@@ -21,6 +21,13 @@ export abstract class CloudAssemblySourceBuilder {
 
   /**
    * Create a Cloud Assembly from a Cloud Assembly builder function.
+   *
+   * A write lock will be acquired on the output directory for the duration of
+   * the CDK app synthesis (which means that no two apps can synthesize at the
+   * same time), and after synthesis a read lock will be acquired on the
+   * directory.  This means that while the CloudAssembly is being used, no CDK
+   * app synthesis can take place into that directory.
+   *
    * @param builder the builder function
    * @param props additional configuration properties
    * @returns the CloudAssembly source
@@ -37,10 +44,13 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
-    return new ContextAwareCloudAssembly(
+    return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
           const execution = new ExecutionEnvironment(services, { outdir: props.outdir });
+
+          const lock = await new RWLock(execution.outdir).acquireWrite();
+
           const env = await execution.defaultEnvVars();
           const assembly = await execution.changeDir(async () =>
             execution.withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
@@ -61,11 +71,13 @@ export abstract class CloudAssemblySourceBuilder {
               }),
             ), props.workingDirectory);
 
+          const readLock = await lock.convertToReaderLock();
+
           if (cxapi.CloudAssembly.isCloudAssembly(assembly)) {
-            return assembly;
+            return associateLock(assembly, readLock);
           }
 
-          return assemblyFromDirectory(assembly.directory, services.ioHelper, props.loadAssemblyOptions);
+          return assemblyFromDirectory(assembly.directory, services.ioHelper, readLock, props.loadAssemblyOptions);
         },
       },
       contextAssemblyProps,
@@ -74,6 +86,11 @@ export abstract class CloudAssemblySourceBuilder {
 
   /**
    * Creates a Cloud Assembly from an existing assembly directory.
+   *
+   * A read lock will be acquired for the directory. This means that while
+   * the CloudAssembly is being used, no CDK app synthesis can take place into
+   * that directory.
+   *
    * @param directory the directory of a already produced Cloud Assembly.
    * @returns the CloudAssembly source
    */
@@ -85,12 +102,14 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: false,
     };
 
-    return new ContextAwareCloudAssembly(
+    return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
+          const readLock = await new RWLock(directory).acquireRead();
+
           // @todo build
           await services.ioHelper.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
-          return assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
+          return assemblyFromDirectory(directory, services.ioHelper, readLock, props.loadAssemblyOptions);
         },
       },
       contextAssemblyProps,
@@ -98,6 +117,13 @@ export abstract class CloudAssemblySourceBuilder {
   }
   /**
    * Use a directory containing an AWS CDK app as source.
+   *
+   * A write lock will be acquired on the output directory for the duration of
+   * the CDK app synthesis (which means that no two apps can synthesize at the
+   * same time), and after synthesis a read lock will be acquired on the
+   * directory.  This means that while the CloudAssembly is being used, no CDK
+   * app synthesis can take place into that directory.
+   *
    * @param props additional configuration properties
    * @returns the CloudAssembly source
    */
@@ -111,49 +137,47 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
-    return new ContextAwareCloudAssembly(
+    return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
-          let lock: ILock | undefined = undefined;
+          // @todo build
+          // const build = this.props.configuration.settings.get(['build']);
+          // if (build) {
+          //   await execInChildProcess(build, { cwd: props.workingDirectory });
+          // }
+
+          const outdir = props.outdir ?? 'cdk.out';
           try {
-            // @todo build
-            // const build = this.props.configuration.settings.get(['build']);
-            // if (build) {
-            //   await execInChildProcess(build, { cwd: props.workingDirectory });
-            // }
-
-            const outdir = props.outdir ?? 'cdk.out';
-            try {
-              fs.mkdirpSync(outdir);
-            } catch (e: any) {
-              throw new ToolkitError(`Could not create output directory at '${outdir}' (${e.message}).`);
-            }
-
-            lock = await new RWLock(outdir).acquireWrite();
-
-            const execution = new ExecutionEnvironment(services, { outdir });
-            const commandLine = await execution.guessExecutable(app);
-            const env = await execution.defaultEnvVars();
-            return await execution.withContext(context.all, env, props.synthOptions, async (envWithContext, _ctx) => {
-              await execInChildProcess(commandLine.join(' '), {
-                eventPublisher: async (type, line) => {
-                  switch (type) {
-                    case 'data_stdout':
-                      await services.ioHelper.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
-                      break;
-                    case 'data_stderr':
-                      await services.ioHelper.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
-                      break;
-                  }
-                },
-                extraEnv: envWithContext,
-                cwd: props.workingDirectory,
-              });
-              return assemblyFromDirectory(outdir, services.ioHelper, props.loadAssemblyOptions);
-            });
-          } finally {
-            await lock?.release();
+            fs.mkdirpSync(outdir);
+          } catch (e: any) {
+            throw new ToolkitError(`Could not create output directory at '${outdir}' (${e.message}).`);
           }
+
+          const lock = await new RWLock(outdir).acquireWrite();
+
+          const execution = new ExecutionEnvironment(services, { outdir });
+          const commandLine = await execution.guessExecutable(app);
+          const env = await execution.defaultEnvVars();
+          return execution.withContext(context.all, env, props.synthOptions, async (envWithContext, _ctx) => {
+            await execInChildProcess(commandLine.join(' '), {
+              eventPublisher: async (type, line) => {
+                switch (type) {
+                  case 'data_stdout':
+                    await services.ioHelper.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
+                    break;
+                  case 'data_stderr':
+                    await services.ioHelper.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
+                    break;
+                }
+              },
+              extraEnv: envWithContext,
+              cwd: props.workingDirectory,
+            });
+
+            const readLock = await lock.convertToReaderLock();
+
+            return assemblyFromDirectory(outdir, services.ioHelper, readLock, props.loadAssemblyOptions);
+          });
         },
       },
       contextAssemblyProps,

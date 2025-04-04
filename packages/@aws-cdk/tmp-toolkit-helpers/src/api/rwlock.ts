@@ -29,7 +29,7 @@ export class RWLock {
    *
    * No other readers or writers must exist for the given directory.
    */
-  public async acquireWrite(): Promise<IWriterLock> {
+  public async acquireWrite(): Promise<IWriteLock> {
     await this.assertNoOtherWriters();
 
     const readers = await this.currentReaders();
@@ -58,7 +58,7 @@ export class RWLock {
    *
    * Will fail if there are any writers.
    */
-  public async acquireRead(): Promise<ILock> {
+  public async acquireRead(): Promise<IReadLock> {
     await this.assertNoOtherWriters();
     return this.doAcquireRead();
   }
@@ -77,7 +77,7 @@ export class RWLock {
   /**
    * Do the actual acquiring of a read lock.
    */
-  private async doAcquireRead(): Promise<ILock> {
+  private async doAcquireRead(): Promise<IReadLock> {
     const readerFile = this.readerFile();
     await writeFileAtomic(readerFile, this.pidString);
     return {
@@ -151,18 +151,18 @@ export class RWLock {
 /**
  * An acquired lock
  */
-export interface ILock {
+export interface IReadLock {
   release(): Promise<void>;
 }
 
 /**
  * An acquired writer lock
  */
-export interface IWriterLock extends ILock {
+export interface IWriteLock extends IReadLock {
   /**
    * Convert the writer lock to a reader lock
    */
-  convertToReaderLock(): Promise<ILock>;
+  convertToReaderLock(): Promise<IReadLock>;
 }
 
 /* c8 ignore start */ // code paths are unpredictable

@@ -12,6 +12,7 @@ export * from './rwlock';
 export * from './settings';
 export * from './stack-events';
 export * from './toolkit-error';
+export * from './rwlock';
 export * from './work-graph';
 export * from './tree';
 export * from './tags';
