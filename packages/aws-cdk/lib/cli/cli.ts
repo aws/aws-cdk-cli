@@ -24,16 +24,16 @@ import { execProgram } from '../api/cxapp/exec';
 import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap/common';
+import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
+import type { ILock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
-import type { ILock } from '../api/util/rwlock';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { Notices } from '../notices';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -117,6 +117,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       proxyAddress: configuration.settings.get(['proxy']),
       caBundlePath: configuration.settings.get(['caBundlePath']),
     },
+    cliVersion: version.versionNumber(),
   });
   await notices.refresh();
 
@@ -295,7 +296,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.bootstrap(args.ENVIRONMENTS, {
           source,
           roleArn: args.roleArn,
-          force: argv.force,
+          forceDeployment: argv.force,
           toolkitStackName: toolkitStackName,
           execute: args.execute,
           tags: configuration.settings.get(['tags']),
@@ -426,7 +427,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'watch':
         ioHost.currentAction = 'watch';
-        return cli.watch({
+        await cli.watch({
           selector,
           exclusively: args.exclusively,
           toolkitStackName,
@@ -443,6 +444,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });
+        return;
 
       case 'destroy':
         ioHost.currentAction = 'destroy';
@@ -594,7 +596,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   return hotswapMode;
 }
 
-/* istanbul ignore next: we never call this in unit tests */
+/* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
   exec(args)
     .then(async (value) => {
@@ -609,3 +611,4 @@ export function cli(args: string[] = process.argv.slice(2)) {
       process.exitCode = 1;
     });
 }
+/* c8 ignore stop */

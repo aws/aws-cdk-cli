@@ -110,6 +110,15 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cx-api",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-cloudformation",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "archiver",
       "type": "runtime"
     },
@@ -128,6 +137,11 @@
     },
     {
       "name": "uuid",
+      "type": "runtime"
+    },
+    {
+      "name": "wrap-ansi",
+      "version": "^7",
       "type": "runtime"
     },
     {

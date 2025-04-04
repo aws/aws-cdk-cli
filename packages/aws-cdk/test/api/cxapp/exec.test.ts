@@ -9,15 +9,16 @@ import { execProgram } from '../../../lib/api/cxapp/exec';
 import { Configuration } from '../../../lib/cli/user-configuration';
 import { testAssembly } from '../../_helpers/assembly';
 import { mockSpawn } from '../../util/mock-child_process';
-import { MockSdkProvider } from '../../util/mock-sdk';
-import { RWLock } from '../../../lib/api/util/rwlock';
-import { rewriteManifestVersion } from './assembly-versions';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { MockSdkProvider } from '../../_helpers/mock-sdk';
+import { RWLock } from '../../../lib/api/rwlock';
+import { rewriteManifestMinimumCliVersion, rewriteManifestVersion } from './assembly-versions';
+import { TestIoHost } from '../../_helpers/io-host';
+import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 
 let sdkProvider: MockSdkProvider;
 let config: Configuration;
 const ioHost = new TestIoHost();
-const ioHelper = asIoHelper(ioHost, 'synth');
+const ioHelper = ioHost.asHelper('synth');
 
 beforeEach(() => {
   ioHost.notifySpy.mockClear();
@@ -68,6 +69,7 @@ test('cli throws when manifest version > schema version', async () => {
   const app = createApp();
   const currentSchemaVersion = cxschema.Manifest.version();
   const mockManifestVersion = semver.inc(currentSchemaVersion, 'major');
+  const mockMinimumCliVersion = mockManifestVersion;
 
   // this mock will cause the framework to use a greater schema version than the real one,
   // and should cause the CLI to fail.
@@ -79,13 +81,14 @@ test('cli throws when manifest version > schema version', async () => {
   }
 
   rewriteManifestVersion('cdk.out', `${mockManifestVersion}`);
+  rewriteManifestMinimumCliVersion('cdk.out', `${mockMinimumCliVersion}`);
 
   const expectedError = 'This CDK CLI is not compatible with the CDK library used by your application. Please upgrade the CLI to the latest version.'
-    + `\n(Cloud assembly schema version mismatch: Maximum schema version supported is ${semver.major(currentSchemaVersion)}.x.x, but found ${mockManifestVersion})`;
+    + `\n(Cloud assembly schema version mismatch: Maximum schema version supported is ${semver.major(currentSchemaVersion)}.x.x, but found ${mockManifestVersion}. You need at least CLI version ${mockMinimumCliVersion} to read this manifest.)`;
 
   config.settings.set(['app'], 'cdk.out');
 
-  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new Error(expectedError));
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new ToolkitError(expectedError));
 
 }, TEN_SECOND_TIMEOUT);
 
@@ -241,10 +244,10 @@ test('cli does not throw when the `build` script succeeds', async () => {
     commandLine: 'real command', // `build` key is not split on whitespace
     exitCode: 0,
   },
-  {
-    commandLine: 'executable-app.js',
-    sideEffect: () => writeOutputAssembly(),
-  });
+    {
+      commandLine: 'executable-app.js',
+      sideEffect: () => writeOutputAssembly(),
+    });
 
   // WHEN
   const { lock } = await execProgram(sdkProvider, ioHelper, config);

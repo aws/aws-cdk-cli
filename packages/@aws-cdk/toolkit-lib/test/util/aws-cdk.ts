@@ -9,4 +9,4 @@ export {
   mockSTSClient,
   setDefaultSTSMocks,
   restoreSdkMocksToDefault,
-} from '../../../../aws-cdk/test/util/mock-sdk';
+} from '../../../../aws-cdk/test/_helpers/mock-sdk';

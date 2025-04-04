@@ -1,5 +1,5 @@
 import type { HotswapChange } from './common';
-import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/payloads/hotswap';
 import type { SDK } from '../aws-auth';
 import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 

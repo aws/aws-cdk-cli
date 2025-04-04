@@ -11,8 +11,8 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { sdkStreamMixin } from '@smithy/util-stream';
 import * as setup from '../_helpers/hotswap-test-setup';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { mockAppSyncClient, mockS3Client } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { mockAppSyncClient, mockS3Client } from '../../_helpers/mock-sdk';
+
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
@@ -29,7 +29,7 @@ const getBodyStream = (input: string) => {
 };
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest(
+  test(
     `A new Resolver being added to the Stack returns undefined in CLASSIC mode and
         returns a noOp in HOTSWAP_ONLY mode`,
     async () => {
@@ -60,7 +60,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateResolver() API when it receives only a mapping template difference in a Unit Resolver',
     async () => {
       // GIVEN
@@ -129,7 +129,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateResolver() API when it receives only a mapping template difference s3 location in a Unit Resolver',
     async () => {
       // GIVEN
@@ -206,7 +206,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateResolver() API when it receives only a code s3 location in a Pipeline Resolver',
     async () => {
       // GIVEN
@@ -280,7 +280,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateResolver() API when it receives only a code difference in a Pipeline Resolver',
     async () => {
       // GIVEN
@@ -346,7 +346,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateResolver() API when it receives only a mapping template difference in a Pipeline Resolver',
     async () => {
       // GIVEN
@@ -417,7 +417,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `when it receives a change that is not a mapping template difference in a Resolver, it does not call the updateResolver() API in CLASSIC mode
         but does call the updateResolver() API in HOTSWAP_ONLY mode`,
     async () => {
@@ -485,7 +485,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'does not call the updateResolver() API when a resource with type that is not AWS::AppSync::Resolver but has the same properties is changed',
     async () => {
       // GIVEN
@@ -533,7 +533,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateFunction() API when it receives only a mapping template difference in a Function',
     async () => {
       // GIVEN
@@ -597,7 +597,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateFunction() API with function version when it receives both function version and runtime with a mapping template in a Function',
     async () => {
       // GIVEN
@@ -663,7 +663,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateFunction() API with runtime when it receives both function version and runtime with code in a Function',
     async () => {
       // GIVEN
@@ -726,7 +726,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateFunction() API when it receives only a mapping template s3 location difference in a Function',
     async () => {
       // GIVEN
@@ -797,7 +797,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `when it receives a change that is not a mapping template difference in a Function, it does not call the updateFunction() API in CLASSIC mode
         but does in HOTSWAP_ONLY mode`,
     async () => {
@@ -861,7 +861,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'does not call the updateFunction() API when a resource with type that is not AWS::AppSync::FunctionConfiguration but has the same properties is changed',
     async () => {
       // GIVEN
@@ -911,7 +911,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the startSchemaCreation() API when it receives only a definition difference in a graphql schema',
     async () => {
       // GIVEN
@@ -969,7 +969,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'updateFunction() API recovers from failed update attempt through retry logic',
     async () => {
 
@@ -1044,7 +1044,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'updateFunction() API fails if it recieves 7 failed attempts in a row',
     async () => {
       // Ignore the wait times that the SDK tries to impose and always set timers for 1 ms
@@ -1134,7 +1134,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     320000,
   );
 
-  silentTest('calls the updateFunction() API with functionId when function is listed on second page', async () => {
+  test('calls the updateFunction() API with functionId when function is listed on second page', async () => {
     // GIVEN
     mockAppSyncClient
       .on(ListFunctionsCommand)
@@ -1209,7 +1209,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest(
+  test(
     'calls the startSchemaCreation() API when it receives only a definition difference in a graphql schema',
     async () => {
       // GIVEN
@@ -1264,7 +1264,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       });
     },
   );
-  silentTest(
+  test(
     'calls the startSchemaCreation() API when it receives only a definition s3 location difference in a graphql schema',
     async () => {
       // GIVEN
@@ -1326,7 +1326,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'does not call startSchemaCreation() API when a resource with type that is not AWS::AppSync::GraphQLSchema but has the same properties is change',
     async () => {
       // GIVEN
@@ -1383,7 +1383,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the startSchemaCreation() and waits for schema creation to stabilize before finishing',
     async () => {
       // GIVEN
@@ -1442,7 +1442,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('calls the startSchemaCreation() and throws if schema creation fails', async () => {
+  test('calls the startSchemaCreation() and throws if schema creation fails', async () => {
     // GIVEN
     mockAppSyncClient.on(StartSchemaCreationCommand).resolvesOnce({ status: 'PROCESSING' });
     mockAppSyncClient.on(GetSchemaCreationStatusCommand).resolvesOnce({ status: 'FAILED', details: 'invalid schema' });
@@ -1499,7 +1499,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest(
+  test(
     'calls the updateApiKey() API when it receives only a expires property difference in an AppSync ApiKey',
     async () => {
       // GIVEN
@@ -1556,7 +1556,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateApiKey() API when it receives only a expires property difference and no api-key-id in an AppSync ApiKey',
     async () => {
       // GIVEN

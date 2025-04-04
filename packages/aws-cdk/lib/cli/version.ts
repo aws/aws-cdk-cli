@@ -1,7 +1,7 @@
-/* istanbul ignore file */
+/* c8 ignore start */
+import * as path from 'path';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import * as path from 'path';
 import * as semver from 'semver';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { debug, info } from '../logging';
@@ -127,3 +127,4 @@ export async function displayVersionMessage(currentVersion = versionNumber(), ve
     debug(`Could not run version check - ${err.message}`);
   }
 }
+/* c8 ignore stop */

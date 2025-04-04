@@ -29,8 +29,8 @@ import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from 
 import { createDiffChangeSet } from '../api/deployments/cfn-api';
 import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
 import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
-import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
-import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
+import { findCloudWatchLogGroups } from '../api/logs-monitor/find-cloudwatch-logs';
+import { CloudWatchLogEventMonitor } from '../api/logs-monitor/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
@@ -487,7 +487,7 @@ export class CdkToolkit {
             execute: options.execute,
             changeSetName: options.changeSetName,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
             rollback,
@@ -670,7 +670,7 @@ export class CdkToolkit {
           stack,
           roleArn: options.roleArn,
           toolkitStackName: options.toolkitStackName,
-          force: options.force,
+          orphanFailedResources: options.force,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });

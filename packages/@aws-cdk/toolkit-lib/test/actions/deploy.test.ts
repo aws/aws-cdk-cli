@@ -1,6 +1,7 @@
-import { RequireApproval, StackParameters } from '../../lib';
+import { StackParameters } from '../../lib';
 import * as awsCdkApi from '../../lib/api/aws-cdk';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
+import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../util/aws-cdk';
@@ -198,12 +199,12 @@ describe('deploy', () => {
       successfulDeployment();
     });
 
-    test('force: true option is used for asset publishing', async () => {
+    test('forceAssetPublishing: true option is used for asset publishing', async () => {
       const publishSingleAsset = jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {
-        force: true,
+        forceAssetPublishing: true,
       });
 
       // THEN

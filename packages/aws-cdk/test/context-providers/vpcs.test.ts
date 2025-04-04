@@ -5,7 +5,7 @@ import {
   DescribeVpnGatewaysCommand,
 } from '@aws-sdk/client-ec2';
 import { VpcNetworkContextProviderPlugin } from '../../lib/context-providers/vpcs';
-import { MockSdkProvider, mockEC2Client, restoreSdkMocksToDefault } from '../util/mock-sdk';
+import { MockSdkProvider, mockEC2Client, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 const mockSDK = new MockSdkProvider();
 const mockMsg = {

@@ -21,7 +21,7 @@ export interface BootstrapEnvironmentOptions {
   readonly toolkitStackName?: string;
   readonly roleArn?: StringWithoutPlaceholders;
   readonly parameters?: BootstrappingParameters;
-  readonly force?: boolean;
+  readonly forceDeployment?: boolean;
 
   /**
    * The source of the bootstrap stack

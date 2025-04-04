@@ -4,7 +4,8 @@ import * as fs from 'fs-extra';
 import { AccountAccessKeyCache } from '../../../lib/api/aws-auth/account-cache';
 import { withMocked } from '../../_helpers/as-mock';
 
-const noOp = async () => {};
+const noOp = async () => {
+};
 
 async function makeCache() {
   const dir = await fs.mkdtemp('/tmp/account-cache-test');
@@ -86,7 +87,6 @@ test('fetch(k, resolver) can be used to "atomically" get + resolve + put', async
 });
 
 test(`cache is nuked if it exceeds ${AccountAccessKeyCache.MAX_ENTRIES} entries`, async () => {
-
   const { cacheDir, cacheFile, cache } = await makeCache();
 
   try {
@@ -127,7 +127,6 @@ test('cache pretends to be empty if cache file does not contain JSON', async() =
 });
 
 describe('using cache file', () => {
-
   afterAll(() => {
     bockfs.restore();
   });
@@ -163,5 +162,4 @@ describe('using cache file', () => {
 
     expect(result).toEqual(account);
   });
-
 });

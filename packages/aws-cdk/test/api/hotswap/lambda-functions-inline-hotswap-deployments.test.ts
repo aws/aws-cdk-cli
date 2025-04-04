@@ -2,8 +2,8 @@ import { UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import * as setup from '../_helpers/hotswap-test-setup';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { mockLambdaClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { mockLambdaClient } from '../../_helpers/mock-sdk';
+
 
 jest.mock('@aws-sdk/client-lambda', () => {
   const original = jest.requireActual('@aws-sdk/client-lambda');
@@ -23,7 +23,7 @@ beforeEach(() => {
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])(
   'these tests do not depend on the hotswap type',
   (hotswapMode) => {
-    silentTest(
+    test(
       'calls the updateLambdaCode() API when it receives only a code difference in a Lambda function (Inline Node.js code)',
       async () => {
         // GIVEN
@@ -71,7 +71,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])(
       },
     );
 
-    silentTest(
+    test(
       'calls the updateLambdaCode() API when it receives only a code difference in a Lambda function (Inline Python code)',
       async () => {
         // GIVEN
@@ -118,7 +118,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])(
       },
     );
 
-    silentTest('throw a CfnEvaluationException when it receives an unsupported function runtime', async () => {
+    test('throw a CfnEvaluationException when it receives an unsupported function runtime', async () => {
       // GIVEN
       setup.setCurrentCfnStackTemplate({
         Resources: {

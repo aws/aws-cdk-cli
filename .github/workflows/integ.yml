@@ -76,8 +76,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-duration-seconds: 14400
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
       - name: Set git identity
@@ -118,12 +118,13 @@ jobs:
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
-          JEST_TEST_CONCURRENT: ${{ matrix.suite == 'cli-integ-tests' && 'true' || 'false' }}
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
           DOCKERHUB_DISABLED: "true"
-          AWS_REGIONS: us-east-2,eu-west-1,eu-north-1,ap-northeast-1,ap-south-1
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
           CDK_MAJOR_VERSION: "2"
           RELEASE_TAG: latest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

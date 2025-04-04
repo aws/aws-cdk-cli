@@ -1,6 +1,6 @@
 import { GetResourceCommand, InvalidRequestException, ListResourcesCommand, ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 import { CcApiContextProviderPlugin } from '../../lib/context-providers/cc-api-provider';
-import { mockCloudControlClient, MockSdkProvider, restoreSdkMocksToDefault } from '../util/mock-sdk';
+import { mockCloudControlClient, MockSdkProvider, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 let provider: CcApiContextProviderPlugin;
 

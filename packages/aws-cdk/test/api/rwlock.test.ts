@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import * as os from 'os';
 import * as path from 'path';
-import { RWLock } from '../../lib/api/util/rwlock';
+import { RWLock } from '../../lib/api/rwlock';
 
 function testDir() {
   return path.join(os.tmpdir(), 'rwlock-tests');

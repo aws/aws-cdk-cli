@@ -1,8 +1,8 @@
 import { PublishVersionCommand, UpdateAliasCommand } from '@aws-sdk/client-lambda';
 import * as setup from '../_helpers/hotswap-test-setup';
 import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { mockLambdaClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { mockLambdaClient } from '../../_helpers/mock-sdk';
+
 
 jest.mock('@aws-sdk/client-lambda', () => {
   const original = jest.requireActual('@aws-sdk/client-lambda');
@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest('hotswaps a Version if it points to a changed Function, even if it itself is unchanged', async () => {
+  test('hotswaps a Version if it points to a changed Function, even if it itself is unchanged', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -75,7 +75,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest('hotswaps a Version if it points to a changed Function, even if it itself is replaced', async () => {
+  test('hotswaps a Version if it points to a changed Function, even if it itself is replaced', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -130,7 +130,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest('hotswaps a Version and an Alias if the Function they point to changed', async () => {
+  test('hotswaps a Version and an Alias if the Function they point to changed', async () => {
     // GIVEN
     mockLambdaClient.on(PublishVersionCommand).resolves({
       Version: 'v2',

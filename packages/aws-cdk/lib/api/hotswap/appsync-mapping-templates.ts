@@ -7,7 +7,7 @@ import {
   classifyChanges,
 } from './common';
 import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/payloads/hotswap';
+import type { ResourceChange } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/payloads/hotswap';
 import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth';
 

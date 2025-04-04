@@ -3,11 +3,12 @@ import * as path from 'path';
 import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cx-api';
 import { cxapiAssemblyWithForcedVersion } from '../api/cxapp/assembly-versions';
-import { MockSdkProvider } from '../util/mock-sdk';
+import { MockSdkProvider } from '../_helpers/mock-sdk';
 import { CloudExecutable } from '../../lib/api/cxapp/cloud-executable';
 import { Configuration } from '../../lib/cli/user-configuration';
-import { asIoHelper, TestIoHost } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { TestIoHost } from './io-host';
 import { IIoHost } from '../../lib/cli/io-host';
+import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 
 export const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 
@@ -118,7 +119,7 @@ function addNestedStacks(templatePath: string, outdir: string, rootStackTemplate
 
   if (!template) {
     const templatePathWithDir = path.join('nested-stack-templates', templatePath);
-    template = JSON.parse(fs.readFileSync(path.join(__dirname, '..', templatePathWithDir)).toString());
+    template = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '_fixtures', templatePathWithDir)).toString());
     fs.writeFileSync(path.join(outdir, templatePath), JSON.stringify(template, undefined, 2));
   }
 

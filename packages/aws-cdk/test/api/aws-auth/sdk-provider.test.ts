@@ -25,8 +25,8 @@ import { defaultCliUserAgent } from '../../../lib/api/aws-auth/user-agent';
 import { PluginHost } from '../../../lib/api/plugin';
 import { Mode } from '../../../lib/api/plugin/mode';
 import { instanceMockFrom, withMocked } from '../../_helpers/as-mock';
-import { undoAllSdkMocks } from '../../util/mock-sdk';
-import { TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { undoAllSdkMocks } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/io-host';
 
 // As part of the imports above we import `mock-sdk.ts` which automatically mocks
 // all SDK clients. We don't want that for this test suite, so undo it.
