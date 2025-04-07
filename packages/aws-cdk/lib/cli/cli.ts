@@ -280,6 +280,17 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName: toolkitStackName,
         });
 
+      case 'refactor':
+        if (!configuration.settings.get(['unstable']).includes('refactor')) {
+          throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
+        }
+
+        ioHost.currentAction = 'refactor';
+        return cli.refactor({
+          dryRun: args.dryRun,
+          selector,
+        });
+
       case 'bootstrap':
         ioHost.currentAction = 'bootstrap';
         const source: BootstrapSource = determineBootstrapVersion(ioHost, args);
