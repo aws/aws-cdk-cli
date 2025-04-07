@@ -1,12 +1,11 @@
 import { format } from 'node:util';
-import { Writable } from 'stream';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
-  type TemplateDiff,
-  fullDiff,
-  formatSecurityChanges,
   formatDifferences,
+  formatSecurityChanges,
+  fullDiff,
   mangleLikeCloudFormation,
+  type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
@@ -14,29 +13,8 @@ import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { RequireApproval } from '../require-approval';
+import { StringWriteStream } from '../streams';
 import { ToolkitError } from '../toolkit-error';
-
-/*
- * Custom writable stream that collects text into a string buffer.
- * Used on classes that take in and directly write to a stream, but
- * we intend to capture the output rather than print.
- */
-class StringWriteStream extends Writable {
-  private buffer: string[] = [];
-
-  constructor() {
-    super();
-  }
-
-  _write(chunk: any, _encoding: string, callback: (error?: Error | null) => void): void {
-    this.buffer.push(chunk.toString());
-    callback();
-  }
-
-  toString(): string {
-    return this.buffer.join('');
-  }
-}
 
 /**
  * Output of formatSecurityDiff
