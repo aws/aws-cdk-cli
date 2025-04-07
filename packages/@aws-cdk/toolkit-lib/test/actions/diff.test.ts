@@ -2,12 +2,12 @@ import * as path from 'path';
 import { format } from 'util';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
-import * as awsCdkApi from '../../lib/api/aws-cdk';
+import * as apis from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/shared-private';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
-import { MockSdk } from '../util/aws-cdk';
+import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -21,15 +21,15 @@ beforeEach(() => {
   const sdk = new MockSdk();
 
   // Some default implementations
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+  jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
       Parameters: {},
       Resources: {},
     },
     nestedStacks: [] as any,
   });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'stackExists').mockResolvedValue(true);
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
+  jest.spyOn(apis.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+  jest.spyOn(apis.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     name: 'aws://123456789012/us-east-1',
     account: '123456789012',
     region: 'us-east-1',

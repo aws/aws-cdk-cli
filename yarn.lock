@@ -39,6 +39,14 @@
     "@aws-cdk/service-spec-types" "^0.0.132"
     "@cdklabs/tskb" "^0.0.3"
 
+"@aws-cdk/aws-service-spec@^0.1.67":
+  version "0.1.67"
+  resolved "https://registry.yarnpkg.com/@aws-cdk/aws-service-spec/-/aws-service-spec-0.1.67.tgz#61c265fe9a1363de473d06b22a72cde8767da00b"
+  integrity sha512-X02ntivyBSPM/V3yfxmWi4DiXKVQ7sAmSkvl5o5mRr4lt4GCIfIsuLyElNSlrRhYm6wAX4HdWDtnbZEaly1e0g==
+  dependencies:
+    "@aws-cdk/service-spec-types" "^0.0.133"
+    "@cdklabs/tskb" "^0.0.3"
+
 "@aws-cdk/cloud-assembly-schema@^41.0.0":
   version "41.2.0"
   resolved "https://registry.yarnpkg.com/@aws-cdk/cloud-assembly-schema/-/cloud-assembly-schema-41.2.0.tgz#c1ef513e1cc0528dbc05948ae39d5631306af423"
@@ -68,6 +76,13 @@
   version "0.0.132"
   resolved "https://registry.yarnpkg.com/@aws-cdk/service-spec-types/-/service-spec-types-0.0.132.tgz#de30ad27c951f182299365fb680e9a7ae6d74000"
   integrity sha512-DuBsNUgiAlXUpo1MLKvD44iIjKxdfqKd181blPdzvVQ0AYGOoP0OIBxAElLsqyVhUhsRDLli0nA2RoRmAjnaUQ==
+  dependencies:
+    "@cdklabs/tskb" "^0.0.3"
+
+"@aws-cdk/service-spec-types@^0.0.133":
+  version "0.0.133"
+  resolved "https://registry.yarnpkg.com/@aws-cdk/service-spec-types/-/service-spec-types-0.0.133.tgz#a2e5a14e9dcd359a67800e9db1c982627f7e189c"
+  integrity sha512-pFcKB8DL02/QCZfSv0KxvIdx9J5606VG9i/wCRtSRBwkFMj152MZEx4GSo3iH3rlcxYd9R+O84Yvv85KtqmwWA==
   dependencies:
     "@cdklabs/tskb" "^0.0.3"
 
@@ -9072,6 +9087,26 @@ projen@^0.91.18:
   version "0.91.18"
   resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.18.tgz#b3f42ec06330475bce05d09d7a7840017fa21438"
   integrity sha512-Hzvxc/lXRD9E6vcrNf6VrO/XmLshxa861d4A6t8RAAmSJ5/N+FDm7EvTQxZwGEiIZEqmQR2mttHaULdU3EWimg==
+  dependencies:
+    "@iarna/toml" "^2.2.5"
+    case "^1.6.3"
+    chalk "^4.1.2"
+    comment-json "4.2.2"
+    constructs "^10.0.0"
+    conventional-changelog-config-spec "^2.1.0"
+    fast-json-patch "^3.1.1"
+    glob "^8"
+    ini "^2.0.0"
+    semver "^7.7.1"
+    shx "^0.4.0"
+    xmlbuilder2 "^3.1.1"
+    yaml "^2.2.2"
+    yargs "^17.7.2"
+
+projen@^0.91.19:
+  version "0.91.19"
+  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.19.tgz#60227ba703e7545da04ab71755d10127442dff8e"
+  integrity sha512-N+rI3vAr+tXcLaOxwGLQ3qdB5/7mvqvcz/8FqYGhm/QE/VUwv1NJj4jbu9kg2KTpTBOvgQQ1YydR+ZiosLoI2Q==
   dependencies:
     "@iarna/toml" "^2.2.5"
     case "^1.6.3"

@@ -1,6 +1,6 @@
 import { DescribeServicesCommand, RegisterTaskDefinitionCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
+import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap';
 import { Configuration } from '../../../lib/cli/user-configuration';
 import { mockECSClient } from '../../_helpers/mock-sdk';
 

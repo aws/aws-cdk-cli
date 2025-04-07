@@ -40,7 +40,7 @@
     "jest-junit": "^16",
     "nx": "^20.7.1",
     "prettier": "^2.8",
-    "projen": "^0.91.18",
+    "projen": "^0.91.19",
     "semver": "^7.7.1",
     "ts-node": "^10.9.2",
     "typescript": "5.6"
@@ -65,9 +65,9 @@
       "packages/@aws-cdk/cli-plugin-contract",
       "packages/cdk-assets",
       "packages/@aws-cdk/tmp-toolkit-helpers",
+      "packages/@aws-cdk/toolkit-lib",
       "packages/aws-cdk",
       "packages/@aws-cdk/cli-lib-alpha",
-      "packages/@aws-cdk/toolkit-lib",
       "packages/@aws-cdk/cdk-cli-wrapper",
       "packages/cdk",
       "packages/@aws-cdk/integ-runner"
@@ -88,9 +88,9 @@
       "<rootDir>/packages/@aws-cdk/cli-plugin-contract",
       "<rootDir>/packages/cdk-assets",
       "<rootDir>/packages/@aws-cdk/tmp-toolkit-helpers",
+      "<rootDir>/packages/@aws-cdk/toolkit-lib",
       "<rootDir>/packages/aws-cdk",
       "<rootDir>/packages/@aws-cdk/cli-lib-alpha",
-      "<rootDir>/packages/@aws-cdk/toolkit-lib",
       "<rootDir>/packages/@aws-cdk/cdk-cli-wrapper",
       "<rootDir>/packages/cdk",
       "<rootDir>/packages/@aws-cdk/integ-runner"

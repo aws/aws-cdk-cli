@@ -22,17 +22,16 @@ import { legacy } from './index';
 
 // We also need to re-export some types
 // These don't need to participate in the bundling, so we can just put them here
-export type { Obj } from './util';
-export type { Account } from './api/aws-auth';
-export type { ContextProviderPlugin } from './api/plugin';
 export type { BootstrapEnvironmentOptions, BootstrapSource } from './api/bootstrap';
-export type { StackSelector } from './api/cxapp/cloud-assembly';
 export type { DeployStackResult } from './api/deployments';
-export type { Component } from './api/notices';
+
+// Legacy copies
+export type * from './legacy-types';
+export type { Account, ContextProviderPlugin } from './legacy-aws-auth';
 export type { LoggerFunction } from './legacy-logging-source';
 
 // Re-export all symbols via index.js
-// We do this, because index.js is the the fail that will end up with all dependencies bundled
+// We do this, because index.js is the file that will end up with all dependencies bundled
 export const {
   deepClone,
   flatten,

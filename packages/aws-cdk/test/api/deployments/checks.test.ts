@@ -1,5 +1,5 @@
 import { DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
-import { determineAllowCrossAccountAssetPublishing, getBootstrapStackInfo } from '../../../lib/api/deployments/checks';
+import { determineAllowCrossAccountAssetPublishing, getBootstrapStackInfo } from '../../../lib/api/deployments';
 import { mockCloudFormationClient, MockSdk } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/io-host';
 

@@ -15,13 +15,9 @@ import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/pri
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type { StackSelector } from '../api/cxapp/cloud-assembly';
-import type { Synthesizer } from '../api/cxapp/cloud-executable';
-import { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { execProgram } from '../api/cxapp/exec';
 import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
-import { HotswapMode } from '../api/hotswap/common';
+import { HotswapMode } from '../api/hotswap';
 import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
 import type { ILock } from '../api/rwlock';
@@ -32,6 +28,8 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
+import { execProgram, CloudExecutable } from '../cxapp';
+import type { StackSelector, Synthesizer } from '../cxapp';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 

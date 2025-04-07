@@ -20,16 +20,14 @@ import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
-import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, ResourceMigrator, tagsForStack, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, HotswapMode } from '../api/aws-cdk';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } from '../api/cloud-assembly/private';
 import type { IIoHost, IoMessageLevel } from '../api/io';
 import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
-import type { IoHelper } from '../api/shared-private';
-import { asIoHelper, DiffFormatter, RequireApproval, ToolkitError } from '../api/shared-private';
+import type { SuccessfulDeployStackResult, Concurrency, AssetBuildNode, AssetPublishNode, StackNode, IoHelper, StackCollection } from '../api/shared-private';
+import { CloudWatchLogEventMonitor, findCloudWatchLogGroups, DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, Deployments, ResourceMigrator, WorkGraphBuilder, HotswapMode, SdkProvider, asIoHelper, DiffFormatter, RequireApproval, ToolkitError, tagsForStack } from '../api/shared-private';
 import type { ToolkitAction, AssemblyData, StackDetails } from '../api/shared-public';
 import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage } from '../private/util';
 import { pLimit } from '../util/concurrency';
@@ -95,7 +93,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Cache of the internal SDK Provider instance
    */
-  private _sdkProvider?: SdkProvider;
+  private sdkProviderCache?: SdkProvider;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
@@ -115,23 +113,25 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   /**
    * Access to the AWS SDK
+   * @internal
    */
-  private async sdkProvider(action: ToolkitAction): Promise<SdkProvider> {
+  protected async sdkProvider(action: ToolkitAction): Promise<SdkProvider> {
     // @todo this needs to be different instance per action
-    if (!this._sdkProvider) {
+    if (!this.sdkProviderCache) {
       const ioHelper = asIoHelper(this.ioHost, action);
-      this._sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
+      this.sdkProviderCache = await SdkProvider.withAwsCliCompatibleDefaults({
         ...this.props.sdkConfig,
         ioHelper,
         logger: asSdkLogger(ioHelper),
       });
     }
 
-    return this._sdkProvider;
+    return this.sdkProviderCache;
   }
 
   /**
    * Helper to provide the CloudAssemblySourceBuilder with required toolkit services
+   * @internal
    */
   protected override async sourceBuilderServices(): Promise<ToolkitServices> {
     return {

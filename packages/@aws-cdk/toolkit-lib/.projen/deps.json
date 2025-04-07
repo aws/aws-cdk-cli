@@ -1,6 +1,10 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/aws-service-spec",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/tmp-toolkit-helpers",
       "type": "build"
     },
@@ -45,15 +49,15 @@
       "type": "build"
     },
     {
-      "name": "aws-cdk",
-      "type": "build"
-    },
-    {
       "name": "aws-cdk-lib",
       "type": "build"
     },
     {
       "name": "aws-sdk-client-mock",
+      "type": "build"
+    },
+    {
+      "name": "aws-sdk-client-mock-jest",
       "type": "build"
     },
     {

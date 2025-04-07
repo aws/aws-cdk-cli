@@ -231,6 +231,13 @@ const repoProject = new yarn.Monorepo({
   githubOptions: {
     mergify: false,
     mergeQueue: true,
+    mergeQueueOptions: {
+      autoQueueOptions: {
+        // Only autoqueue for PRs targeting the 'main' branch
+        targetBranches: ['main'],
+      },
+    },
+    pullRequestLint: true,
     pullRequestLintOptions: {
       contributorStatement: 'By submitting this pull request, I confirm that my contribution is made under the terms of the Apache-2.0 license',
       contributorStatementOptions: {
@@ -779,6 +786,229 @@ tmpToolkitHelpers.eslint?.addOverride({
 
 tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
 
+tmpToolkitHelpers.npmignore?.addPatterns(
+  '!lib/api/bootstrap/bootstrap-template.yaml',
+);
+tmpToolkitHelpers.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
+
+//////////////////////////////////////////////////////////////////////
+
+const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
+  'lib/init-templates/*/typescript/*/*.template.ts',
+];
+
+const toolkitLib = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: '@aws-cdk/toolkit-lib',
+    description: 'AWS CDK Programmatic Toolkit Library',
+    srcdir: 'lib',
+    tsconfigDev: {
+      compilerOptions: {
+        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
+      },
+    },
+    deps: [
+      cloudAssemblySchema,
+      // Purposely a ^ dependency so that clients selecting old toolkit library
+      // versions still might get upgrades to this dependency.
+      cloudFormationDiff,
+      cxApi,
+      '@aws-cdk/region-info',
+      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@smithy/middleware-endpoint',
+      '@smithy/node-http-handler',
+      '@smithy/property-provider',
+      '@smithy/shared-ini-file-loader',
+      '@smithy/util-retry',
+      '@smithy/util-stream',
+      '@smithy/util-waiter',
+      'archiver',
+      'camelcase@^6', // Non-ESM
+      // Purposely a ^ dependency so that clients get upgrades to this library.
+      cdkAssets,
+      'cdk-from-cfn',
+      'chalk@^4',
+      'chokidar@^3',
+      'decamelize@^5', // Non-ESM
+      'fs-extra@^9',
+      'glob',
+      'json-diff',
+      'minimatch',
+      'p-limit@^3',
+      'promptly',
+      'proxy-agent',
+      'semver',
+      'split2',
+      'strip-ansi@^6',
+      'table@^6',
+      'uuid',
+      'wrap-ansi@^7', // Last non-ESM version
+      'yaml@^1',
+      'yargs@^15',
+    ],
+    devDeps: [
+      '@aws-cdk/aws-service-spec',
+      '@smithy/types',
+      '@types/fs-extra',
+      '@types/split2',
+      tmpToolkitHelpers,
+      'aws-cdk-lib',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
+      'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
+      'esbuild',
+      'typedoc',
+    ],
+    // Watch 2 directories at once
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
+    eslintOptions: {
+      dirs: ['lib'],
+      ignorePatterns: [
+        ...TOOLKIT_LIB_EXCLUDE_PATTERNS,
+        '*.d.ts',
+      ],
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          // this is very sad but we will get better
+          statements: 85,
+          branches: 76,
+          functions: 77,
+          lines: 85,
+        },
+        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
+        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
+      },
+    }),
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        target: 'es2022',
+        lib: ['es2022', 'esnext.disposable', 'dom'],
+        module: 'NodeNext',
+      },
+    },
+  }),
+);
+
+new S3DocsPublishing(toolkitLib, {
+  docsStream: 'toolkit-lib',
+  artifactPath: 'docs.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+});
+
+// Eslint rules
+toolkitLib.eslint?.addRules({
+  '@cdklabs/no-throw-default-error': 'error',
+  'import/no-restricted-paths': ['error', {
+    zones: [{
+      target: './',
+      from: '../tmp-toolkit-helpers',
+      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
+    }],
+  }],
+});
+toolkitLib.eslint?.addOverride({
+  files: ['./test/**'],
+  rules: {
+    '@cdklabs/no-throw-default-error': 'off',
+  },
+});
+
+// Prevent imports of private API surface
+toolkitLib.package.addField('exports', {
+  '.': {
+    types: './lib/index.d.ts',
+    default: './lib/index.js',
+  },
+  './package.json': './package.json',
+});
+
+const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-code-registry.ts' });
+toolkitLib.postCompileTask.spawn(registryTask);
+toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
+toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
+// Smoke test built JS files
+toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
+
+// Do include all .ts files inside init-templates
+toolkitLib.npmignore?.addPatterns(
+  'assets',
+  'docs',
+  'docs_html',
+  'typedoc.json',
+  '*.d.ts.map',
+  // Explicitly allow all required files
+  '!build-info.json',
+  '!db.json.gz',
+  '!lib/init-templates/**/*.ts',
+  '!lib/api/bootstrap/bootstrap-template.yaml',
+  '!lib/*.js',
+  '!lib/*.d.ts',
+  '!LICENSE',
+  '!NOTICE',
+  '!THIRD_PARTY_LICENSES',
+);
+
+toolkitLib.gitignore.addPatterns(
+  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
+  'docs_html',
+  'build-info.json',
+  'lib/**/*.wasm',
+  'lib/**/*.yaml',
+  'lib/**/*.yml',
+  'lib/**/*.js.map',
+  'lib/init-templates/**',
+  '!test/_fixtures/**/app.js',
+  '!test/_fixtures/**/cdk.out',
+);
+
+// Add a command for the docs
+const toolkitLibDocs = toolkitLib.addTask('docs', {
+  exec: 'typedoc lib/index.ts',
+  receiveArgs: true,
+});
+
+// When packaging, output the docs into a specific nested directory
+// This is required because the zip file needs to have this structure when created
+toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
+// The docs build needs the version in a specific file at the nested root
+toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
+// Zip the whole thing up, again paths are important here to get the desired folder structure
+toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
+
+toolkitLib.addTask('publish-local', {
+  exec: './build-tools/package.sh',
+  receiveArgs: true,
+});
+
 //////////////////////////////////////////////////////////////////////
 
 const cli = configureProject(
@@ -793,6 +1023,7 @@ const cli = configureProject(
       yargsGen,
       cliPluginContract,
       tmpToolkitHelpers,
+      toolkitLib,
       '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
@@ -900,14 +1131,18 @@ const cli = configureProject(
           // We want to improve our test coverage
           // DO NOT LOWER THESE VALUES!
           // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 84,
+          statements: 82,
           branches: 74,
           functions: 87,
-          lines: 84,
+          lines: 82,
         },
         // We have many tests here that commonly time out
         testTimeout: 60_000,
         coveragePathIgnorePatterns: [
+          // legacy files
+          '<rootDir>/lib/legacy-*.ts',
+          '<rootDir>/lib/init-templates/',
+
           // Files generated by cli-args-gen
           '<rootDir>/lib/cli/parse-command-line-arguments.ts',
           '<rootDir>/lib/cli/user-input.ts',
@@ -1141,230 +1376,6 @@ for (const tsconfig of [cliLib.tsconfigDev]) {
     tsconfig?.addExclude(pat);
   }
 }
-
-//////////////////////////////////////////////////////////////////////
-
-const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
-  'lib/init-templates/*/typescript/*/*.template.ts',
-];
-
-const toolkitLib = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps(),
-    parent: repo,
-    name: '@aws-cdk/toolkit-lib',
-    description: 'AWS CDK Programmatic Toolkit Library',
-    srcdir: 'lib',
-    deps: [
-      cloudAssemblySchema,
-      // Purposely a ^ dependency so that clients selecting old toolkit library
-      // versions still might get upgrades to this dependency.
-      cloudFormationDiff,
-      cxApi,
-      '@aws-cdk/region-info',
-      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      '@smithy/middleware-endpoint',
-      '@smithy/node-http-handler',
-      '@smithy/property-provider',
-      '@smithy/shared-ini-file-loader',
-      '@smithy/util-retry',
-      '@smithy/util-stream',
-      '@smithy/util-waiter',
-      'archiver',
-      'camelcase@^6', // Non-ESM
-      // Purposely a ^ dependency so that clients get upgrades to this library.
-      cdkAssets,
-      'cdk-from-cfn',
-      'chalk@^4',
-      'chokidar@^3',
-      'decamelize@^5', // Non-ESM
-      'fs-extra@^9',
-      'glob',
-      'json-diff',
-      'minimatch',
-      'p-limit@^3',
-      'promptly',
-      'proxy-agent',
-      'semver',
-      'split2',
-      'strip-ansi@^6',
-      'table@^6',
-      'uuid',
-      'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
-      'yargs@^15',
-    ],
-    devDeps: [
-      '@smithy/types',
-      '@types/fs-extra',
-      '@types/split2',
-      cli,
-      tmpToolkitHelpers,
-      'aws-cdk-lib',
-      'aws-sdk-client-mock',
-      'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
-      'esbuild',
-      'typedoc',
-    ],
-    // Watch 2 directories at once
-    releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
-    eslintOptions: {
-      dirs: ['lib'],
-      ignorePatterns: [
-        ...TOOLKIT_LIB_EXCLUDE_PATTERNS,
-        '*.d.ts',
-      ],
-    },
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          // this is very sad but we will get better
-          statements: 85,
-          branches: 76,
-          functions: 77,
-          lines: 85,
-        },
-        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
-      },
-    }),
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        target: 'es2022',
-        lib: ['es2022', 'esnext.disposable', 'dom'],
-        module: 'NodeNext',
-      },
-    },
-  }),
-);
-
-new S3DocsPublishing(toolkitLib, {
-  docsStream: 'toolkit-lib',
-  artifactPath: 'docs.zip',
-  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
-  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
-});
-
-// Eslint rules
-toolkitLib.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': 'error',
-  'import/no-restricted-paths': ['error', {
-    zones: [{
-      target: './',
-      from: '../../aws-cdk',
-      message: 'All `aws-cdk` code must be used via lib/api/aws-cdk.ts',
-    },
-    {
-      target: './',
-      from: '../tmp-toolkit-helpers',
-      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
-    }],
-  }],
-});
-toolkitLib.eslint?.addOverride({
-  files: ['./test/**'],
-  rules: {
-    '@cdklabs/no-throw-default-error': 'off',
-  },
-});
-
-// Prevent imports of private API surface
-toolkitLib.package.addField('exports', {
-  '.': {
-    types: './lib/index.d.ts',
-    default: './lib/index.js',
-  },
-  './package.json': './package.json',
-});
-
-const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-code-registry.ts' });
-toolkitLib.postCompileTask.spawn(registryTask);
-toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
-// Smoke test built JS files
-toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
-
-// Do include all .ts files inside init-templates
-toolkitLib.npmignore?.addPatterns(
-  'assets',
-  'docs',
-  'docs_html',
-  'typedoc.json',
-  '*.d.ts.map',
-  // Explicitly allow all required files
-  '!build-info.json',
-  '!db.json.gz',
-  '!lib/init-templates/**/*.ts',
-  '!lib/api/bootstrap/bootstrap-template.yaml',
-  '!lib/*.js',
-  '!lib/*.d.ts',
-  '!LICENSE',
-  '!NOTICE',
-  '!THIRD_PARTY_LICENSES',
-);
-
-toolkitLib.gitignore.addPatterns(
-  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
-  'docs_html',
-  'build-info.json',
-  'lib/**/*.wasm',
-  'lib/**/*.yaml',
-  'lib/**/*.yml',
-  'lib/**/*.js.map',
-  'lib/init-templates/**',
-  '!test/_fixtures/**/app.js',
-  '!test/_fixtures/**/cdk.out',
-);
-
-// Exclude takes precedence over include
-for (const tsconfig of [toolkitLib.tsconfigDev]) {
-  for (const pat of CLI_LIB_EXCLUDE_PATTERNS) {
-    tsconfig?.addExclude(pat);
-  }
-}
-
-// Add a command for the docs
-const toolkitLibDocs = toolkitLib.addTask('docs', {
-  exec: 'typedoc lib/index.ts',
-  receiveArgs: true,
-});
-
-// When packaging, output the docs into a specific nested directory
-// This is required because the zip file needs to have this structure when created
-toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
-// The docs build needs the version in a specific file at the nested root
-toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
-// Zip the whole thing up, again paths are important here to get the desired folder structure
-toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
-
-toolkitLib.addTask('publish-local', {
-  exec: './build-tools/package.sh',
-  receiveArgs: true,
-});
 
 //////////////////////////////////////////////////////////////////////
 

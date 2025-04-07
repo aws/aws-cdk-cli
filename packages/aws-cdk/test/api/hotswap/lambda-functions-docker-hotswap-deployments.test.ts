@@ -10,7 +10,7 @@ jest.mock('@aws-sdk/client-lambda', () => {
 
 import { UpdateFunctionCodeCommand, waitUntilFunctionUpdatedV2 } from '@aws-sdk/client-lambda';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { mockLambdaClient } from '../../_helpers/mock-sdk';
 
 

@@ -6,7 +6,7 @@ import {
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
 import { SdkProvider } from '../../../lib/api';
-import { findCloudWatchLogGroups } from '../../../lib/api/logs-monitor/find-cloudwatch-logs';
+import { findCloudWatchLogGroups } from '../../../lib/api/logs-monitor';
 import { testStack, TestStackArtifact } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,

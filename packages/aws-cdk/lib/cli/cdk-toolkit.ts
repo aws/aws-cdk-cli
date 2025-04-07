@@ -6,35 +6,31 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
+import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
+import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
+import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type {
-  CloudAssembly,
-  StackSelector,
-} from '../api/cxapp/cloud-assembly';
 import {
-  DefaultSelection,
   ExtendedStackSelection,
   StackCollection,
-} from '../api/cxapp/cloud-assembly';
-import type { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
+} from '../api/cloud-assembly';
 import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { createDiffChangeSet } from '../api/deployments/cfn-api';
-import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
-import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
-import { findCloudWatchLogGroups } from '../api/logs-monitor/find-cloudwatch-logs';
-import { CloudWatchLogEventMonitor } from '../api/logs-monitor/logs-monitor';
+import { GarbageCollector } from '../api/garbage-collection';
+import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap';
+import { findCloudWatchLogGroups, CloudWatchLogEventMonitor } from '../api/logs-monitor';
 import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
 import { tagsForStack, type Tag } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
-import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
+import { WorkGraphBuilder } from '../api/work-graph';
+import { cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
@@ -58,8 +54,9 @@ import {
   isThereAWarning,
   buildCfnClient,
 } from '../commands/migrate';
+import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
+import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
 import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { CliIoHost } from './io-host';
 import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
@@ -145,6 +142,22 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
+class InternalToolkit extends Toolkit {
+  private readonly _sdkProvider: SdkProvider;
+  public constructor(sdkProvider: SdkProvider, options: ToolkitOptions) {
+    super(options);
+    this._sdkProvider = sdkProvider;
+  }
+
+  /**
+   * Access to the AWS SDK
+   * @internal
+   */
+  protected async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
+    return this._sdkProvider;
+  }
+}
+
 /**
  * Toolkit logic
  *
@@ -154,10 +167,21 @@ export enum AssetBuildTime {
 export class CdkToolkit {
   private ioHost: CliIoHost;
   private toolkitStackName: string;
+  private toolkit: InternalToolkit;
 
   constructor(private readonly props: CdkToolkitProps) {
     this.ioHost = props.ioHost ?? CliIoHost.instance();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
+
+    this.toolkit = new InternalToolkit(props.sdkProvider, {
+      assemblyFailureAt: this.validateMetadataFailAt(),
+      color: true,
+      emojis: true,
+      ioHost: this.ioHost,
+      sdkConfig: {},
+      toolkitStackName: this.toolkitStackName,
+    });
+    this.toolkit; // aritifical use of this.toolkit to satisfy TS, we want to prepare usage of the new toolkit without using it just yet
   }
 
   public async metadata(stackName: string, json: boolean) {
@@ -260,7 +284,7 @@ export class CdkToolkit {
           }
 
           if (stackExists) {
-            changeSet = await createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+            changeSet = await cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
               stack,
               uuid: uuid.v4(),
               deployments: this.props.deployments,
@@ -1256,6 +1280,11 @@ export class CdkToolkit {
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
   private async validateStacks(stacks: StackCollection) {
+    const failAt = this.validateMetadataFailAt();
+    await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
+  }
+
+  private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
     let failAt: 'warn' | 'error' | 'none' = 'error';
     if (this.props.ignoreErrors) {
       failAt = 'none';
@@ -1264,7 +1293,7 @@ export class CdkToolkit {
       failAt = 'warn';
     }
 
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
+    return failAt;
   }
 
   /**

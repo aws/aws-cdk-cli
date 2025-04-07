@@ -1,5 +1,5 @@
 import type { BaseDeployOptions } from './private/deploy-options';
-import type { Tag } from '../../api/aws-cdk';
+import type { Tag } from '../../api/shared-private';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 

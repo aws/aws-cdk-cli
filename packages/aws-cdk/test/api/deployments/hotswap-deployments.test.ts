@@ -2,7 +2,7 @@ import { ListExportsCommand } from '@aws-sdk/client-cloudformation';
 import { UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda';
 import { UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
 import { CfnEvaluationException } from '../../../lib/api/cloudformation';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { MockSdk, mockCloudFormationClient, mockLambdaClient, mockStepFunctionsClient } from '../../_helpers/mock-sdk';
 
 import * as setup from '../_helpers/hotswap-test-setup';
