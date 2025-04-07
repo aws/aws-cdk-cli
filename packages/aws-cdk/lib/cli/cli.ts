@@ -10,6 +10,7 @@ import { prettyPrintError } from './pretty-print-error';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
+import type { IReadLock } from '../../../@aws-cdk/tmp-toolkit-helpers/lib/api/rwlock';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
@@ -20,7 +21,6 @@ import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
-import type { ILock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
 import { contextHandler as context } from '../commands/context';
@@ -128,7 +128,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
   });
 
-  let outDirLock: ILock | undefined;
+  let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
     configuration,
     sdkProvider,

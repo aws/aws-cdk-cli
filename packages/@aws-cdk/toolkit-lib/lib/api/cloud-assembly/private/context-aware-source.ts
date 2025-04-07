@@ -1,11 +1,10 @@
 import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
 import { contextproviders } from '../../shared-private';
 import { PROJECT_CONTEXT, type Context, type IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
-import type { ICloudAssemblySource } from '../types';
+import { LOCK_SYM, type ICloudAssemblySource, type MaybeLockedCloudAssembly } from '../types';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -39,7 +38,7 @@ export interface ContextAwareCloudAssemblyProps {
 /**
  * Represent the Cloud Executable and the synthesis we can do on it
  */
-export class ContextAwareCloudAssembly implements ICloudAssemblySource {
+export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
   private canLookup: boolean;
   private context: Context;
   private contextFile: string;
@@ -55,7 +54,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
   /**
    * Produce a Cloud Assembly, i.e. a set of stacks
    */
-  public async produce(): Promise<cxapi.CloudAssembly> {
+  public async produce(): Promise<MaybeLockedCloudAssembly> {
     // We may need to run the cloud assembly source multiple times in order to satisfy all missing context
     // (When the source producer runs, it will tell us about context it wants to use
     // but it missing. We'll then look up the context and run the executable again, and
@@ -99,7 +98,8 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
           }));
           await this.context.save(this.contextFile);
 
-          // Execute again
+          // Execute again. If the returned assembly was locked, unlock it now so that the lock can be acquired again.
+          await assembly[LOCK_SYM]?.release();
           continue;
         }
       }

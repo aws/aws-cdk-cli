@@ -1,5 +1,5 @@
 import type { CloudAssembly } from '@aws-cdk/cx-api';
-import type { ICloudAssemblySource } from '../types';
+import type { ICloudAssemblySource, MaybeLockedCloudAssembly } from '../types';
 
 /**
  * A CloudAssemblySource that is caching its result once produced.
@@ -16,7 +16,7 @@ export class CachedCloudAssemblySource implements ICloudAssemblySource {
     this.source = source;
   }
 
-  public async produce(): Promise<CloudAssembly> {
+  public async produce(): Promise<MaybeLockedCloudAssembly> {
     if (!this.cloudAssembly) {
       this.cloudAssembly = await this.source.produce();
     }
