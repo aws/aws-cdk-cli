@@ -63,7 +63,7 @@
     "license-checker": "^25.0.1",
     "mock-fs": "^5.5.0",
     "prettier": "^2.8",
-    "projen": "^0.91.18",
+    "projen": "^0.91.20",
     "ts-jest": "^29.3.1",
     "tsx": "^4.19.3",
     "typescript": "5.6",

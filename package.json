@@ -40,7 +40,7 @@
     "jest-junit": "^16",
     "nx": "^20.7.1",
     "prettier": "^2.8",
-    "projen": "^0.91.19",
+    "projen": "^0.91.20",
     "semver": "^7.7.1",
     "ts-node": "^10.9.2",
     "typescript": "5.6"
