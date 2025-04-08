@@ -26,7 +26,7 @@ export interface HotswapOperation {
   /**
    * Applies the hotswap operation
    */
-  readonly apply: (sdk: SDK) => Promise<void>;
+  readonly apply: (sdk: SDK, hotswapOperationTimeoutSeconds?: number) => Promise<void>;
 }
 
 export interface RejectedChange {

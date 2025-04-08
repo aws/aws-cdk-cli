@@ -168,6 +168,14 @@ export interface DeployStackOptions {
   readonly hotswap?: HotswapMode;
 
   /**
+   * Number of seconds to wait for a hotswap operation to complete.
+   * This normally controls the amount of time to wait for resource stabilization.
+   *
+   * @default - operation dependant
+   */
+  readonly hotswapOperationTimeoutSeconds?: number;
+
+  /**
    * Extra properties that configure hotswap behavior
    */
   readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
@@ -301,6 +309,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
         stackArtifact,
         hotswapMode,
         hotswapPropertyOverrides,
+        options.hotswapOperationTimeoutSeconds,
       );
 
       if (hotswapDeploymentResult) {

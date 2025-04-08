@@ -146,6 +146,14 @@ export interface DeployStackOptions {
   readonly hotswap?: HotswapMode;
 
   /**
+   * Number of seconds to wait for a hotswap operation to complete.
+   * This normally controls the amount of time to wait for resource stabilization.
+   *
+   * @default - operation dependant
+   */
+  readonly hotswapOperationTimeoutSeconds?: number;
+
+  /**
    * Properties that configure hotswap behavior
    */
   readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
@@ -436,6 +444,7 @@ export class Deployments {
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
       hotswap: options.hotswap,
+      hotswapOperationTimeoutSeconds: options.hotswapOperationTimeoutSeconds,
       hotswapPropertyOverrides: options.hotswapPropertyOverrides,
       extraUserAgent: options.extraUserAgent,
       resourcesToImport: options.resourcesToImport,

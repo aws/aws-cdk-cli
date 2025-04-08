@@ -521,6 +521,7 @@ export class CdkToolkit {
             usePreviousParameters: options.usePreviousParameters,
             rollback,
             hotswap: options.hotswap,
+            hotswapOperationTimeoutSeconds: options.hotswapOperationTimeoutSeconds,
             hotswapPropertyOverrides: hotswapPropertyOverrides,
             extraUserAgent: options.extraUserAgent,
             assetParallelism: options.assetParallelism,
@@ -1553,6 +1554,14 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
    * @default - `HotswapMode.FALL_BACK` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
    */
   readonly hotswap: HotswapMode;
+
+  /**
+   * Number of seconds to wait for a hotswap operation to complete.
+   * This normally controls the amount of time to wait for resource stabilization.
+   *
+   * @default - operation dependant
+   */
+  readonly hotswapOperationTimeoutSeconds?: number;
 
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.

@@ -37,6 +37,14 @@ export interface BaseDeployOptions {
   readonly hotswap?: HotswapMode;
 
   /**
+   * Number of seconds to wait for a hotswap operation to complete.
+   * This normally controls the amount of time to wait for resource stabilization.
+   *
+   * @default - operation dependant
+   */
+  readonly hotswapOperationTimeoutSeconds?: number;
+
+  /**
    * Rollback failed deployments
    *
    * @default true
