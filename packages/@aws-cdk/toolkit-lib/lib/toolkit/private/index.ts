@@ -1,6 +1,6 @@
 
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
-import { CachedCloudAssemblySource, StackAssembly } from '../../api/cloud-assembly/private';
+import { CachedCloudAssembly, StackAssembly } from '../../api/cloud-assembly/private';
 import type { SdkProvider, IoHelper } from '../../api/shared-private';
 
 /**
@@ -23,7 +23,7 @@ export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICl
   }
 
   if (cache) {
-    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce(), ioHelper);
+    return new StackAssembly(await new CachedCloudAssembly(assemblySource).produce(), ioHelper);
   }
 
   return new StackAssembly(await assemblySource.produce(), ioHelper);
