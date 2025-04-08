@@ -7,6 +7,7 @@
     "directory": "packages/@aws-cdk/toolkit-lib"
   },
   "scripts": {
+    "api-extractor-docs": "npx projen api-extractor-docs",
     "build": "npx projen build",
     "bump": "npx projen bump",
     "check-for-updates": "npx projen check-for-updates",
@@ -37,6 +38,7 @@
     "@aws-cdk/aws-service-spec": "^0.1.67",
     "@aws-cdk/tmp-toolkit-helpers": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
+    "@microsoft/api-extractor": "^7.52.3",
     "@smithy/types": "^4.2.0",
     "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^11.0.4",

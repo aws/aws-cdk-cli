@@ -45,6 +45,7 @@ jspm_packages/
 /dist/changelog.md
 /dist/version.txt
 !/.eslintrc.js
+!/api-extractor.json
 db.json.gz
 .init-version.json
 index_bg.wasm

@@ -94,7 +94,7 @@ export class CloudFormationStack {
   }
 
   /**
-   * The stack's ID
+   * The stack's ID (which is the same as its ARN)
    *
    * Throws if the stack doesn't exist.
    */

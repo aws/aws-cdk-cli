@@ -6,7 +6,7 @@ import * as fs from 'fs-extra';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import type { DeployResult } from './types';
+import type { DeployResult, DestroyResult, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -841,7 +841,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Rolls back the selected stacks.
    */
-  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<void> {
+  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
     const assembly = await assemblyFromSource(ioHelper, cx);
     return this._rollback(assembly, 'rollback', options);
@@ -850,16 +850,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Helper to allow rollback being called as part of the deploy or watch action.
    */
-  private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<void> {
+  private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     const stacks = await assembly.selectStacksV2(options.stacks);
     await this.validateStacksMetadata(stacks, ioHelper);
     await synthSpan.end();
 
+    const ret: RollbackResult = {
+      stacks: [],
+    };
+
     if (stacks.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E6001.msg('No stacks selected'));
-      return;
+      return ret;
     }
 
     let anyRollbackable = false;
@@ -884,6 +888,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           anyRollbackable = true;
         }
         await rollbackSpan.end();
+
+        ret.stacks.push({
+          environment: {
+            account: stack.environment.account,
+            region: stack.environment.region,
+          },
+          stackName: stack.stackName,
+          stackArn: stackResult.stackArn,
+          result: stackResult.notInRollbackableState ? 'already-stable' : 'rolled-back',
+        });
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
         throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
@@ -892,6 +906,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (!anyRollbackable) {
       throw new ToolkitError('No stacks were in a state that could be rolled back');
     }
+
+    return ret;
   }
 
   /**
@@ -940,7 +956,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Destroys the selected Stacks.
    */
-  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<void> {
+  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
     const assembly = await assemblyFromSource(ioHelper, cx);
     return this._destroy(assembly, 'destroy', options);
@@ -949,18 +965,23 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Helper to allow destroy being called as part of the deploy action.
    */
-  private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<void> {
+  private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await assembly.selectStacksV2(options.stacks)).reversed();
     await synthSpan.end();
 
+    const ret: DestroyResult = {
+      stacks: [],
+    };
+
     const motivation = 'Destroying stacks is an irreversible action';
     const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
     const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
     if (!confirmed) {
-      return ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+      await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+      return ret;
     }
 
     const destroySpan = await ioHelper.span(SPAN.DESTROY_ACTION).begin({
@@ -976,11 +997,22 @@ export class Toolkit extends CloudAssemblySourceBuilder {
               stack,
             });
           const deployments = await this.deploymentsForAction(action);
-          await deployments.destroyStack({
+          const result = await deployments.destroyStack({
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
           });
+
+          ret.stacks.push({
+            environment: {
+              account: stack.environment.account,
+              region: stack.environment.region,
+            },
+            stackName: stack.stackName,
+            stackArn: result.stackArn,
+            stackExisted: result.stackArn !== undefined,
+          });
+
           await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
           await singleDestroySpan.end();
         } catch (e: any) {
@@ -988,6 +1020,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           throw e;
         }
       }
+
+      return ret;
     } finally {
       await destroySpan.end();
     }

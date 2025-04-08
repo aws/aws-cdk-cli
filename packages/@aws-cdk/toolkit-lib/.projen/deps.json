@@ -13,6 +13,10 @@
       "type": "build"
     },
     {
+      "name": "@microsoft/api-extractor",
+      "type": "build"
+    },
+    {
       "name": "@smithy/types",
       "type": "build"
     },
