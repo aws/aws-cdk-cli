@@ -49,6 +49,7 @@ export class CodeCovWorkflow extends Component {
           name: 'Upload results to Codecov',
           uses: 'codecov/codecov-action@v5',
           with: {
+            disable_search: true,
             files: props.packages.map(p => `packages/${p}/coverage/cobertura-coverage.xml`).join(','),
             fail_ci_if_error: true,
             flags: 'suite.unit',
