@@ -107,7 +107,7 @@ describe('watch', () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     const assembly = await toolkit.synth(cx);
-    const outdir = (await assembly.produce()).directory;
+    const outdir = (await assembly.produce()).cloudAssembly.directory;
     const watchDir = path.normalize(outdir + path.sep + '..');
 
     ioHost.level = 'debug';

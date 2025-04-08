@@ -6,7 +6,7 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import type { SdkProvider, ILock } from '../api';
+import type { SdkProvider, IReadLock } from '../api';
 import { RWLock, ToolkitError, guessExecutable, loadTree, prepareContext, prepareDefaultEnvironment, some, spaceAvailableForContext } from '../api';
 import { IO, type IoHelper } from '../api-private';
 import type { Configuration } from '../cli/user-configuration';
@@ -16,7 +16,7 @@ import { splitBySize } from '../util';
 
 export interface ExecProgramResult {
   readonly assembly: cxapi.CloudAssembly;
-  readonly lock: ILock;
+  readonly lock: IReadLock;
 }
 
 /** Invokes the cloud executable and returns JSON output */
