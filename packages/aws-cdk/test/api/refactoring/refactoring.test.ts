@@ -649,7 +649,7 @@ describe('environment grouping', () => {
   test('produces mappings for the same environment', async () => {
     const environment = {
       name: 'test',
-      account: '999999999999',
+      account: '333333333333',
       region: 'us-east-1',
     };
 
@@ -688,13 +688,13 @@ describe('environment grouping', () => {
       StackSummaries: [
         {
           StackName: 'Foo',
-          StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Foo',
+          StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Foo',
           StackStatus: 'CREATE_COMPLETE',
           CreationTime: new Date(),
         },
         {
           StackName: 'Bar',
-          StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Bar',
+          StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Bar',
           StackStatus: 'CREATE_COMPLETE',
           CreationTime: new Date(),
         },
@@ -756,7 +756,7 @@ describe('environment grouping', () => {
   test('does not produce cross-environment mappings', async () => {
     const environment1 = {
       name: 'test',
-      account: '999999999999',
+      account: '333333333333',
       region: 'us-east-1',
     };
 
@@ -806,7 +806,7 @@ describe('environment grouping', () => {
         StackSummaries: [
           {
             StackName: 'Foo',
-            StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Foo',
+            StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Foo',
             StackStatus: 'CREATE_COMPLETE',
             CreationTime: new Date(),
           },
