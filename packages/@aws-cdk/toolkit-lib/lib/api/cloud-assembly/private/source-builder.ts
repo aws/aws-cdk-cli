@@ -2,7 +2,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
 import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
-import { ContextAwareCloudAssembly } from './context-aware-source';
+import { ContextAwareCloudAssemblySource } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
@@ -38,7 +38,7 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
-    return new ContextAwareCloudAssembly(
+    return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
           const execution = new ExecutionEnvironment(services, { outdir: props.outdir });
@@ -86,7 +86,7 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: false,
     };
 
-    return new ContextAwareCloudAssembly(
+    return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
           // @todo build
@@ -112,7 +112,7 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
-    return new ContextAwareCloudAssembly(
+    return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
           let lock: ILock | undefined = undefined;

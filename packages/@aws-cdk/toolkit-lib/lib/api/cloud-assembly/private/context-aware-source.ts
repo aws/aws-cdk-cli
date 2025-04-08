@@ -37,9 +37,23 @@ export interface ContextAwareCloudAssemblyProps {
 }
 
 /**
- * Represent the Cloud Executable and the synthesis we can do on it
+ * A CloudAssemblySource that wraps another CloudAssemblySource and runs a lookup loop on it
+ *
+ * This means that if the underlying CloudAssemblySource produces a manifest
+ * with provider queries in it, the `ContextAwareCloudAssemblySource` will
+ * perform the necessary context lookups and invoke the underlying
+ * `CloudAssemblySource` again with thew missing context information.
+ *
+ * This is only useful if the underlying `CloudAssemblySource` can respond to
+ * this new context information (it must be a CDK app source); if it is just a
+ * static directory, then the contents of the assembly won't change in response
+ * to context.
+ *
+ * The context is passed between `ContextAwareCloudAssemblySource` and the wrapped
+ * cloud assembly source via a contex file on disk, so the wrapped assembly source
+ * should re-read the context file on every invocation.
  */
-export class ContextAwareCloudAssembly implements ICloudAssemblySource {
+export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
   private canLookup: boolean;
   private context: Context;
   private contextFile: string;
