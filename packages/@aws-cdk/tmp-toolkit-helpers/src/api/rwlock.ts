@@ -39,9 +39,14 @@ export class RWLock {
 
     await writeFileAtomic(this.writerFile, this.pidString);
 
+    let released = false;
     return {
       release: async () => {
-        await deleteFile(this.writerFile);
+        // Releasing needs a flag, otherwise we might delete a file that some other lock has created in the mean time.
+        if (!released) {
+          await deleteFile(this.writerFile);
+          released = true;
+        }
       },
       convertToReaderLock: async () => {
         // Acquire the read lock before releasing the write lock. Slightly less
@@ -80,9 +85,15 @@ export class RWLock {
   private async doAcquireRead(): Promise<IReadLock> {
     const readerFile = this.readerFile();
     await writeFileAtomic(readerFile, this.pidString);
+
+    let released = false;
     return {
       release: async () => {
-        await deleteFile(readerFile);
+        // Releasing needs a flag, otherwise we might delete a file that some other lock has created in the mean time.
+        if (!released) {
+          await deleteFile(readerFile);
+          released = true;
+        }
       },
     };
   }
@@ -152,6 +163,9 @@ export class RWLock {
  * An acquired lock
  */
 export interface IReadLock {
+  /**
+   * Release the lock. Can be called more than once.
+   */
   release(): Promise<void>;
 }
 
