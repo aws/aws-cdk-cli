@@ -22,7 +22,6 @@ interface CloudFormationTemplate {
   };
 }
 
-// TODO Find a better name
 export interface BasicStack {
   readonly environment: cxapi.Environment;
   readonly stackName: string;
@@ -66,6 +65,9 @@ export class ResourceLocation {
   }
 }
 
+/**
+ * A mapping between a source and a destination location.
+ */
 export class ResourceMapping {
   constructor(public readonly source: ResourceLocation, public readonly destination: ResourceLocation) {
   }
@@ -165,6 +167,9 @@ function zip(
   return result;
 }
 
+/**
+ * Computes a list of pairs [digest, location] for each resource in the stack.
+ */
 function index(stack: BasicStack): [string, ResourceLocation][] {
   const digests = computeResourceDigests(stack.template);
 
@@ -174,6 +179,14 @@ function index(stack: BasicStack): [string, ResourceLocation][] {
   });
 }
 
+/**
+ * Detects refactor mappings by comparing the stacks in the given environment
+ * with the stacks deployed to the same environment.
+ *
+ * @param stacks - The stacks to compare.
+ * @param sdkProvider - The SDK provider to use for fetching deployed stacks.
+ * @returns A promise that resolves to an array of resource mappings.
+ */
 export async function detectRefactorMappings(
   stacks: BasicStack[],
   sdkProvider: SdkProvider,
