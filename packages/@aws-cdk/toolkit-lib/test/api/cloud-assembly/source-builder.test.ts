@@ -17,7 +17,7 @@ describe('fromAssemblyBuilder', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
-    const assembly = await cx.produce();
+    const assembly = (await cx.produce()).cloudAssembly;
 
     // THEN
     expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -29,7 +29,7 @@ describe('fromAssemblyBuilder', () => {
       'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
     });
     const assembly = await cx.produce();
-    const stack = assembly.getStackByName('Stack1').template;
+    const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
@@ -59,7 +59,7 @@ describe('fromCdkApp', () => {
     const assembly = await cx.produce();
 
     // THEN
-    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
   });
 
   test('can provide context', async () => {
@@ -68,7 +68,7 @@ describe('fromCdkApp', () => {
       'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
     });
     const assembly = await cx.produce();
-    const stack = assembly.getStackByName('Stack1').template;
+    const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
@@ -114,7 +114,7 @@ describe('fromAssemblyDirectory', () => {
     const assembly = await cx.produce();
 
     // THEN
-    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
   });
 
   test('validates manifest version', async () => {
@@ -135,6 +135,6 @@ describe('fromAssemblyDirectory', () => {
     const assembly = await cx.produce();
 
     // THEN
-    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
   });
 });

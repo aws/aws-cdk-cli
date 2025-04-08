@@ -15,6 +15,12 @@ export interface AssemblyBuilderProps {
   readonly context?: { [key: string]: any };
 }
 
+/**
+ * A function that takes synthesis parameters and produces a Cloud Assembly
+ *
+ * Most typically, the properties passed here will be used to construct a
+ * `cdk.App`, and the return value is the return value of `app.synth()`.
+ */
 export type AssemblyBuilder = (props: AssemblyBuilderProps) => Promise<cxschema.ICloudAssembly>;
 
 /**

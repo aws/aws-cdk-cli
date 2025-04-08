@@ -1,6 +1,6 @@
 
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
-import { CachedCloudAssemblySource, StackAssembly } from '../../api/cloud-assembly/private';
+import { StackAssembly } from '../../api/cloud-assembly/private';
 import type { SdkProvider, IoHelper } from '../../api/shared-private';
 
 /**
@@ -13,6 +13,10 @@ export interface ToolkitServices {
 
 /**
  * Creates a Toolkit internal CloudAssembly from a CloudAssemblySource.
+ *
+ * The caller assumes ownership of the returned `StackAssembly`, and `dispose()`
+ * should be called on this object after use.
+ *
  * @param assemblySource the source for the cloud assembly
  * @param cache if the assembly should be cached, default: `true`
  * @returns the CloudAssembly object
@@ -23,7 +27,8 @@ export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICl
   }
 
   if (cache) {
-    return new StackAssembly(await new CachedCloudAssemblySource(assemblySource).produce(), ioHelper);
+    const ret = new StackAssembly(await assemblySource.produce(), ioHelper);
+    return ret;
   }
 
   return new StackAssembly(await assemblySource.produce(), ioHelper);

@@ -20,7 +20,7 @@ import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
-import type { ILock } from '../api/rwlock';
+import type { IReadLock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
 import { contextHandler as context } from '../commands/context';
@@ -128,7 +128,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
   });
 
-  let outDirLock: ILock | undefined;
+  let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
     configuration,
     sdkProvider,

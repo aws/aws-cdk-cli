@@ -1,4 +1,5 @@
 /* eslint-disable import/order */
+import { promises as fs } from 'node:fs';
 import * as os from 'os';
 import * as path from 'path';
 import { RWLock } from '../../lib/api/rwlock';
@@ -50,4 +51,34 @@ test('can convert writer to reader lock', async () => {
   } finally {
     await r.release();
   }
+});
+
+test('can release writer lock more than once, second invocation does nothing', async () => {
+  const unlink = jest.spyOn(fs, 'unlink');
+
+  // GIVEN
+  const lock = new RWLock(testDir());
+  const r = await lock.acquireWrite();
+
+  // WHEN
+  await r.release();
+  expect(unlink).toHaveBeenCalledTimes(1);
+
+  await r.release();
+  expect(unlink).toHaveBeenCalledTimes(1);
+});
+
+test('can release reader lock more than once, second invocation does nothing', async () => {
+  const unlink = jest.spyOn(fs, 'unlink');
+
+  // GIVEN
+  const lock = new RWLock(testDir());
+  const r = await lock.acquireRead();
+
+  // WHEN
+  await r.release();
+  expect(unlink).toHaveBeenCalledTimes(1);
+
+  await r.release();
+  expect(unlink).toHaveBeenCalledTimes(1);
 });

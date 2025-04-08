@@ -21,9 +21,9 @@ import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { type SdkConfig } from '../api/aws-auth';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
-import { StackSelectionStrategy } from '../api/cloud-assembly';
+import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
-import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } from '../api/cloud-assembly/private';
+import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
 import type { IIoHost, IoMessageLevel } from '../api/io';
 import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import type { SuccessfulDeployStackResult, Concurrency, AssetBuildNode, AssetPublishNode, StackNode, IoHelper, StackCollection } from '../api/shared-private';
@@ -203,12 +203,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   /**
    * Synth Action
+   *
+   * The caller assumes ownership of the `CachedCloudAssembly` and is responsible for calling `dispose()` on
+   * it after use.
    */
-  public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<ICloudAssemblySource> {
+  public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+
+    // NOTE: NOT 'await using' because we return ownership to the caller
     const assembly = await assemblyFromSource(ioHelper, cx);
+
     const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
@@ -242,7 +248,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`));
     }
 
-    return new IdentityCloudAssemblySource(assembly.assembly);
+    return new CachedCloudAssembly(assembly);
   }
 
   /**
@@ -252,7 +258,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -307,7 +313,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
     const stackCollection = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -325,8 +331,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, 'deploy');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._deploy(assembly, 'deploy', options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._deploy(assembly, 'deploy', options);
   }
 
   /**
@@ -654,7 +660,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
-    const assembly = await assemblyFromSource(ioHelper, cx, false);
+    await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
     if (options.include === undefined && options.exclude === undefined) {
@@ -798,8 +804,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._rollback(assembly, 'rollback', options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._rollback(assembly, 'rollback', options);
   }
 
   /**
@@ -872,8 +878,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._destroy(assembly, 'destroy', options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._destroy(assembly, 'destroy', options);
   }
 
   /**
