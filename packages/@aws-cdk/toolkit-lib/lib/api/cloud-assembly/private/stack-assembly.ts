@@ -1,19 +1,13 @@
-import type * as cxapi from '@aws-cdk/cx-api';
 import { major } from 'semver';
 import { BaseStackAssembly, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { StackSelector } from '../stack-selector';
 import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector';
-import type { ICloudAssemblySource } from '../types';
 
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
  */
-export class StackAssembly extends BaseStackAssembly implements ICloudAssemblySource {
-  public async produce(): Promise<cxapi.CloudAssembly> {
-    return this.assembly;
-  }
-
+export class StackAssembly extends BaseStackAssembly {
   /**
    * Improved stack selection interface with a single selector
    * @throws when the assembly does not contain any stacks, unless `selector.failOnEmpty` is `false`
