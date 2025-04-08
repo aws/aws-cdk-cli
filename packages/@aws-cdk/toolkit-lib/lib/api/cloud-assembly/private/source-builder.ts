@@ -7,7 +7,7 @@ import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import type { ILock } from '../../shared-private';
+import type { IReadLock } from '../../shared-private';
 import { Context, RWLock, Settings } from '../../shared-private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
 import type { AssemblyBuilder } from '../source-builder';
@@ -115,7 +115,7 @@ export abstract class CloudAssemblySourceBuilder {
     return new ContextAwareCloudAssembly(
       {
         produce: async () => {
-          let lock: ILock | undefined = undefined;
+          let lock: IReadLock | undefined = undefined;
           try {
             // @todo build
             // const build = this.props.configuration.settings.get(['build']);
