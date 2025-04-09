@@ -263,6 +263,11 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+// This is necessary to make Symbol.dispose and Symbol.asyncDispose accessible
+// in Jest worker processes. It will complain about incompatibility during install
+// but work in practice all the same.
+repoProject.package.addPackageResolutions('jest-environment-node@30.0.0-alpha.7');
+
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 
