@@ -6,7 +6,7 @@ import * as apis from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/shared-private';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
+import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
@@ -261,5 +261,19 @@ describe('diff', () => {
     //     }),
     //   }));
     // });
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.diff(assemblySource, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });

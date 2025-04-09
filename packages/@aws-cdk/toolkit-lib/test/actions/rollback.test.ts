@@ -1,6 +1,6 @@
 import { StackSelectionStrategy } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
+import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -81,6 +81,20 @@ describe('rollback', () => {
     await expect(async () => toolkit.rollback(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     })).rejects.toThrow(/Rollback failed/);
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.rollback(assemblySource, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 

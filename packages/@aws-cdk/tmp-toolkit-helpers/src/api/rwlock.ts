@@ -32,7 +32,7 @@ export class RWLock {
   public async acquireWrite(): Promise<IWriteLock> {
     await this.assertNoOtherWriters();
 
-    const readers = await this.currentReaders();
+    const readers = await this._currentReaders();
     if (readers.length > 0) {
       throw new ToolkitError(`Other CLIs (PID=${readers}) are currently reading from ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
@@ -99,7 +99,7 @@ export class RWLock {
   }
 
   private async assertNoOtherWriters() {
-    const writer = await this.currentWriter();
+    const writer = await this._currentWriter();
     if (writer) {
       throw new ToolkitError(`Another CLI (PID=${writer}) is currently synthing to ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
@@ -107,8 +107,12 @@ export class RWLock {
 
   /**
    * Check the current writer (if any)
+   *
+   * Publicly accessible for testing purposes. Do not use.
+   *
+   * @internal
    */
-  private async currentWriter(): Promise<number | undefined> {
+  public async _currentWriter(): Promise<number | undefined> {
     const contents = await readFileIfExists(this.writerFile);
     if (!contents) {
       return undefined;
@@ -126,8 +130,12 @@ export class RWLock {
 
   /**
    * Check the current readers (if any)
+   *
+   * Publicly accessible for testing purposes. Do not use.
+   *
+   * @internal
    */
-  private async currentReaders(): Promise<number[]> {
+  public async _currentReaders(): Promise<number[]> {
     const re = /^read\.([^.]+)\.[^.]+\.lock$/;
     const ret = new Array<number>();
 
