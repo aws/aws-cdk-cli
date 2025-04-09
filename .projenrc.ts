@@ -1239,6 +1239,7 @@ const cli = configureProject(
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
+    majorVersion: 2,
   }),
 );
 
@@ -1375,6 +1376,7 @@ const cliLib = configureProject(
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
+    majorVersion: 2,
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1511,6 +1513,7 @@ const cdkAliasPackage = configureProject(
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
+    majorVersion: 2,
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
