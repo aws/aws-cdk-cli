@@ -112,8 +112,13 @@ export abstract class CloudAssemblySourceBuilder {
           await services.ioHelper.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
 
           const readLock = await new RWLock(directory).acquireRead();
-          const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
-          return new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
+          try {
+            const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
+            return new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
+          } catch (e) {
+            await readLock.release();
+            throw e;
+          }
         },
       },
       contextAssemblyProps,

@@ -47,7 +47,7 @@ jest.mock('chokidar', () => ({
 import * as path from 'node:path';
 import { HotswapMode } from '../../lib/actions/deploy';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
+import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -237,6 +237,22 @@ describe('watch', () => {
       hotswap: HotswapMode.HOTSWAP_ONLY,
       extraUserAgent: 'cdk-watch/hotswap-on',
     }));
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    const watcher = await toolkit.watch(assemblySource, {
+      include: [],
+      hotswap: undefined, // force the default
+    });
+    await watcher.dispose();
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 
