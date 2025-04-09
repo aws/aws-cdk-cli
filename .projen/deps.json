@@ -105,6 +105,11 @@
       "type": "build"
     },
     {
+      "name": "@jest/environment",
+      "version": "30.0.0-alpha.7",
+      "type": "override"
+    },
+    {
       "name": "jest-environment-node",
       "version": "30.0.0-alpha.7",
       "type": "override"
