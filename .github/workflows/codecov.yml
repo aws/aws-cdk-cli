@@ -26,7 +26,7 @@ jobs:
       - name: Build and test CLI
         run: yarn nx run aws-cdk:build
       - name: Upload results to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v5.1.2
         with:
           files: packages/aws-cdk/coverage/cobertura-coverage.xml
           fail_ci_if_error: true
