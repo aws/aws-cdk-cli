@@ -87,8 +87,10 @@ import type {
   UpdateStackCommandOutput,
   UpdateTerminationProtectionCommandInput,
   UpdateTerminationProtectionCommandOutput,
+  StackSummary,
 } from '@aws-sdk/client-cloudformation';
 import {
+  paginateListStacks,
   CloudFormationClient,
   ContinueUpdateRollbackCommand,
   CreateChangeSetCommand,
@@ -440,6 +442,7 @@ export interface ICloudFormationClient {
   // Pagination functions
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
+  paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -727,6 +730,14 @@ export class SDK {
         const paginator = paginateListStackResources({ client }, input);
         for await (const page of paginator) {
           stackResources.push(...(page?.StackResourceSummaries || []));
+        }
+        return stackResources;
+      },
+      paginatedListStacks: async (input: ListStacksCommandInput): Promise<StackSummary[]> => {
+        const stackResources = Array<StackSummary>();
+        const paginator = paginateListStacks({ client }, input);
+        for await (const page of paginator) {
+          stackResources.push(...(page?.StackSummaries || []));
         }
         return stackResources;
       },

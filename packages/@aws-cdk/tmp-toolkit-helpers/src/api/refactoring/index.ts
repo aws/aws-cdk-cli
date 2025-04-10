@@ -201,21 +201,15 @@ export async function detectRefactorMappings(
 
 async function getDeployedStacks(sdkProvider: SdkProvider, environment: cxapi.Environment): Promise<CloudFormationStack[]> {
   const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
-  const summaries: StackSummary[] = [];
-  await paginateSdkCall(async (nextToken) => {
-    const output = await cfn.listStacks({
-      StackStatusFilter: [
-        'CREATE_COMPLETE',
-        'UPDATE_COMPLETE',
-        'UPDATE_ROLLBACK_COMPLETE',
-        'IMPORT_COMPLETE',
-        'ROLLBACK_COMPLETE',
-      ],
-      NextToken: nextToken,
-    });
 
-    summaries.push(...(output.StackSummaries ?? []));
-    return output.NextToken;
+  const summaries = await cfn.paginatedListStacks({
+    StackStatusFilter: [
+      'CREATE_COMPLETE',
+      'UPDATE_COMPLETE',
+      'UPDATE_ROLLBACK_COMPLETE',
+      'IMPORT_COMPLETE',
+      'ROLLBACK_COMPLETE',
+    ],
   });
 
   const normalize = async (summary: StackSummary) => {
@@ -230,17 +224,6 @@ async function getDeployedStacks(sdkProvider: SdkProvider, environment: cxapi.En
 
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(summaries.map(normalize));
-}
-
-async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | undefined>) {
-  let finished = false;
-  let nextToken: string | undefined;
-  while (!finished) {
-    nextToken = await cb(nextToken);
-    if (nextToken === undefined) {
-      finished = true;
-    }
-  }
 }
 
 export function formatTypedMappings(mappings: TypedMapping[]): string {
