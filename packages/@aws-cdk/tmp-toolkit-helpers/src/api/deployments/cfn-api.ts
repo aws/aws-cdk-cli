@@ -142,6 +142,14 @@ export type PrepareChangeSetOptions = {
   sdkProvider: SdkProvider;
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
+  /**
+   * Enable falling back to template-based diff in case creating the changeset is not possible or results in an error.
+   *
+   * Should be used for stacks containing nested stacks or when change set permissions aren't available.
+   *
+   * @default true
+   */
+  fallBackToTemplate?: boolean;
 }
 
 export type CreateChangeSetOptions = {
@@ -240,12 +248,16 @@ async function uploadBodyParameterAndCreateChangeSet(
       role: executionRoleArn,
     });
   } catch (e: any) {
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(String(e)));
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
-      'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
-    ));
+    if (options.fallBackToTemplate ?? true) {
+      await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(String(e)));
+      await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
+        'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
+      ));
 
-    return undefined;
+      return undefined;
+    }
+
+    throw new ToolkitError('Could not create a change set, set fallBackToTemplate=true to base the diff on template differences\n', e);
   }
 }
 
