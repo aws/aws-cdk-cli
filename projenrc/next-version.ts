@@ -41,8 +41,7 @@ async function main() {
         break;
       }
       case 'maybeRcOrMinor':
-        const rc = maybeRc(version);
-        version = rc ?? 'minor';
+        version = maybeRc(version) ?? 'minor';
         break;
 
       default:
