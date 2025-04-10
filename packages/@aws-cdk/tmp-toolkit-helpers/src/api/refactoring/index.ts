@@ -1,9 +1,7 @@
-import * as crypto from 'crypto';
-import { createHash } from 'node:crypto';
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import {
-  formatTypedMappings as fmtTypedMappings,
   formatAmbiguousMappings as fmtAmbiguousMappings,
+  formatTypedMappings as fmtTypedMappings,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
@@ -11,22 +9,8 @@ import { deserializeStructure } from '../../util';
 import type { SdkProvider } from '../aws-auth';
 import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
-
-interface CloudFormationTemplate {
-  Resources?: {
-    [logicalId: string]: {
-      Type: string;
-      Properties?: any;
-      Metadata?: Record<string, any>;
-    };
-  };
-}
-
-export interface BasicStack {
-  readonly environment: cxapi.Environment;
-  readonly stackName: string;
-  readonly template: CloudFormationTemplate;
-}
+import type { CloudFormationStack } from './cloudformation';
+import { computeResourceDigests, hashObject } from './digest';
 
 export class AmbiguityError extends Error {
   constructor(public readonly pairs: [ResourceLocation[], ResourceLocation[]][]) {
@@ -48,12 +32,12 @@ export class AmbiguityError extends Error {
  * merely the stack name.
  */
 export class ResourceLocation {
-  constructor(readonly stack: BasicStack, readonly logicalResourceId?: string) {
+  constructor(readonly stack: CloudFormationStack, readonly logicalResourceId: string) {
   }
 
   public toPath(): string {
     const stack = this.stack;
-    const resource = stack.template.Resources?.[this.logicalResourceId ?? ''];
+    const resource = stack.template.Resources?.[this.logicalResourceId];
     const result = resource?.Metadata?.['aws:cdk:path'];
 
     if (result != null) {
@@ -62,6 +46,11 @@ export class ResourceLocation {
 
     // If the path is not available, we can use stack name and logical ID
     return `${stack.stackName}.${this.logicalResourceId}`;
+  }
+
+  public getType(): string {
+    const resource = this.stack.template.Resources?.[this.logicalResourceId ?? ''];
+    return resource?.Type ?? 'Unknown';
   }
 }
 
@@ -76,20 +65,15 @@ export class ResourceMapping {
     return {
       // the type is the same in both source and destination,
       // so we can use either one
-      type: this.getType(this.source),
+      type: this.source.getType(),
       sourcePath: this.source.toPath(),
       destinationPath: this.destination.toPath(),
     };
   }
-
-  private getType(location: ResourceLocation): string {
-    const resource = location.stack.template.Resources?.[location.logicalResourceId ?? ''];
-    return resource?.Type ?? 'Unknown';
-  }
 }
 
-function buildRecord(entries: [string, ResourceLocation][]): Record<string, ResourceLocation[]> {
-  const result: Record<string, ResourceLocation[]> = {};
+function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
+  const result: Record<string, A[]> = {};
 
   for (const [hash, location] of entries) {
     if (hash in result) {
@@ -102,8 +86,10 @@ function buildRecord(entries: [string, ResourceLocation][]): Record<string, Reso
   return result;
 }
 
-export function computeMappings(before: BasicStack[], after: BasicStack[]): ResourceMapping[] {
-  const pairs = removeCommonResources(zip(buildRecord(before.flatMap(index)), buildRecord(after.flatMap(index))));
+export function computeMappings(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMapping[] {
+  const pairs = removeUnmovedResources(
+    zip(groupByKey(before.flatMap(resourceDigests)), groupByKey(after.flatMap(resourceDigests))),
+  );
 
   // A mapping is considered ambiguous if these two conditions are met:
   //  1. Both sides have at least one element (otherwise, it's just addition or deletion)
@@ -121,7 +107,7 @@ export function computeMappings(before: BasicStack[], after: BasicStack[]): Reso
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]));
 }
 
-function removeCommonResources(
+function removeUnmovedResources(
   m: Record<string, [ResourceLocation[], ResourceLocation[]]>,
 ): Record<string, [ResourceLocation[], ResourceLocation[]]> {
   const result: Record<string, [ResourceLocation[], ResourceLocation[]]> = {};
@@ -170,7 +156,7 @@ function zip(
 /**
  * Computes a list of pairs [digest, location] for each resource in the stack.
  */
-function index(stack: BasicStack): [string, ResourceLocation][] {
+function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation][] {
   const digests = computeResourceDigests(stack.template);
 
   return Object.entries(digests).map(([logicalId, digest]) => {
@@ -188,10 +174,10 @@ function index(stack: BasicStack): [string, ResourceLocation][] {
  * @returns A promise that resolves to an array of resource mappings.
  */
 export async function detectRefactorMappings(
-  stacks: BasicStack[],
+  stacks: CloudFormationStack[],
   sdkProvider: SdkProvider,
 ): Promise<ResourceMapping[]> {
-  const stackGroups: Map<string, [BasicStack[], BasicStack[]]> = new Map();
+  const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
   // Group stacks by environment
   for (const stack of stacks) {
@@ -213,7 +199,7 @@ export async function detectRefactorMappings(
   return result;
 }
 
-async function getDeployedStacks(sdkProvider: SdkProvider, environment: cxapi.Environment): Promise<BasicStack[]> {
+async function getDeployedStacks(sdkProvider: SdkProvider, environment: cxapi.Environment): Promise<CloudFormationStack[]> {
   const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
   const summaries: StackSummary[] = [];
   await paginateSdkCall(async (nextToken) => {
@@ -244,151 +230,6 @@ async function getDeployedStacks(sdkProvider: SdkProvider, environment: cxapi.En
 
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(summaries.map(normalize));
-}
-
-/**
- * Computes the digest for each resource in the template.
- *
- * Conceptually, the digest is computed as:
- *
- *     digest(resource) = hash(type + properties + dependencies.map(d))
- *
- * where `hash` is a cryptographic hash function. In other words, the digest of a
- * resource is computed from its type, its own properties (that is, excluding
- * properties that refer to other resources), and the digests of each of its
- * dependencies.
- *
- * The digest of a resource, defined recursively this way, remains stable even if
- * one or more of its dependencies gets renamed. Since the resources in a
- * CloudFormation template form a directed acyclic graph, this function is
- * well-defined.
- */
-export function computeResourceDigests(template: CloudFormationTemplate): Record<string, string> {
-  const resources = template.Resources || {};
-  const graph: Record<string, Set<string>> = {};
-  const reverseGraph: Record<string, Set<string>> = {};
-
-  // 1. Build adjacency lists
-  for (const id of Object.keys(resources)) {
-    graph[id] = new Set();
-    reverseGraph[id] = new Set();
-  }
-
-  // 2. Detect dependencies by searching for Ref/Fn::GetAtt
-  const findDependencies = (value: any): string[] => {
-    if (!value || typeof value !== 'object') return [];
-    if (Array.isArray(value)) {
-      return value.flatMap(findDependencies);
-    }
-    if ('Ref' in value) {
-      return [value.Ref];
-    }
-    if ('Fn::GetAtt' in value) {
-      const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
-      return [refTarget];
-    }
-    return Object.values(value).flatMap(findDependencies);
-  };
-
-  for (const [id, res] of Object.entries(resources)) {
-    const deps = findDependencies(res.Properties || {});
-    for (const dep of deps) {
-      if (dep in resources && dep !== id) {
-        graph[id].add(dep);
-        reverseGraph[dep].add(id);
-      }
-    }
-  }
-
-  // 3. Topological sort
-  const inDegree = Object.keys(graph).reduce((acc, k) => {
-    acc[k] = graph[k].size;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const queue = Object.keys(inDegree).filter((k) => inDegree[k] === 0);
-  const order: string[] = [];
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const nxt of reverseGraph[node]) {
-      inDegree[nxt]--;
-      if (inDegree[nxt] === 0) {
-        queue.push(nxt);
-      }
-    }
-  }
-
-  // 4. Compute digests in sorted order
-  const result: Record<string, string> = {};
-  for (const id of order) {
-    const resource = resources[id];
-    const depDigests = Array.from(graph[id]).map((d) => result[d]);
-    const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource.Properties)));
-    const toHash = resource.Type + propsWithoutRefs + depDigests.join('');
-    result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
-  }
-
-  return result;
-}
-
-function hashObject(obj: any): string {
-  const hash = createHash('sha256');
-
-  function addToHash(value: any) {
-    if (value == null) {
-      addToHash('null');
-    } else if (typeof value === 'object') {
-      if (Array.isArray(value)) {
-        value.forEach(addToHash);
-      } else {
-        Object.keys(value)
-          .sort()
-          .forEach((key) => {
-            hash.update(key);
-            addToHash(value[key]);
-          });
-      }
-    } else {
-      hash.update(typeof value + value.toString());
-    }
-  }
-
-  addToHash(obj);
-  return hash.digest('hex');
-}
-
-/**
- * Removes sub-properties containing Ref or Fn::GetAtt to avoid hashing
- * references themselves but keeps the property structure.
- */
-function stripReferences(value: any): any {
-  if (!value || typeof value !== 'object') return value;
-  if (Array.isArray(value)) {
-    return value.map(stripReferences);
-  }
-  if ('Ref' in value) {
-    return { __cloud_ref__: 'Ref' };
-  }
-  if ('Fn::GetAtt' in value) {
-    return { __cloud_ref__: 'Fn::GetAtt' };
-  }
-  const result: any = {};
-  for (const [k, v] of Object.entries(value)) {
-    result[k] = stripReferences(v);
-  }
-  return result;
-}
-
-function stripConstructPath(resource: any): any {
-  if (resource?.Metadata?.['aws:cdk:path'] == null) {
-    return resource;
-  }
-
-  const copy = JSON.parse(JSON.stringify(resource));
-  delete copy.Metadata['aws:cdk:path'];
-  return copy;
 }
 
 async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | undefined>) {

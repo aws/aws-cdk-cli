@@ -5,13 +5,17 @@ import {
   ResourceMapping as CfnResourceMapping,
 } from '@aws-sdk/client-cloudformation';
 import {
-  BasicStack,
   computeMappings,
-  computeResourceDigests,
   detectRefactorMappings,
   ResourceLocation,
   ResourceMapping,
 } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+import {
+  CloudFormationStack
+} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
+import {
+  computeResourceDigests
+} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
@@ -901,7 +905,7 @@ describe('environment grouping', () => {
 
 // Calls the function to compute the mappings and then convert the result
 // to the CloudFormation ResourceMapping type to make tests easier
-function computeMappingsForCloudFormation(before: BasicStack[], after: BasicStack[]): CfnResourceMapping[] {
+function computeMappingsForCloudFormation(before: CloudFormationStack[], after: CloudFormationStack[]): CfnResourceMapping[] {
   return computeMappings(before, after).map(toCfnMapping);
 }
 
