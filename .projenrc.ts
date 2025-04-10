@@ -1240,7 +1240,7 @@ const cli = configureProject(
 
     // Append a specific version string for testing
 
-    // force a minor for the time being
+    // force a minor for the time being. This will never release a patch but that's fine for a while.
     nextVersionCommand: 'echo minor',
 
     // re-enable this once we refactor the release tasks to prevent
