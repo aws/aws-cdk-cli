@@ -37,23 +37,13 @@ async function main() {
         break;
 
       case 'maybeRc': {
-        if (process.env.TESTING_CANDIDATE === 'true') {
-          // To make an rc version for testing, we set the last component (either
-          // patch or prerelease version) to 999.
-          //
-          // Adding `rc.0` causes problems for Amplify tests, which install
-          // `aws-cdk@^2` which won't match the prerelease version.
-          const originalPre = semver.prerelease(version);
-
-          if (originalPre) {
-            version = version.replace(new RegExp('\\.' + originalPre[1] + '$'), '.999');
-          } else {
-            const patch = semver.patch(version);
-            version = version.replace(new RegExp('\\.' + patch + '$'), '.999');
-          }
-        }
+        version = maybeRc(version) ?? version;
         break;
       }
+      case 'maybeRcOrMinor':
+        const rc = maybeRc(version);
+        version = rc ?? 'minor';
+        break;
 
       default:
         throw new Error(`Unknown command: ${cmd}`);
@@ -64,6 +54,24 @@ async function main() {
     // this is a cli
     // eslint-disable-next-line no-console
     console.log(version);
+  }
+}
+
+function maybeRc(version: string) {
+  if (process.env.TESTING_CANDIDATE === 'true') {
+    // To make an rc version for testing, we set the last component (either
+    // patch or prerelease version) to 999.
+    //
+    // Adding `rc.0` causes problems for Amplify tests, which install
+    // `aws-cdk@^2` which won't match the prerelease version.
+    const originalPre = semver.prerelease(version);
+
+    if (originalPre) {
+      return version.replace(new RegExp('\\.' + originalPre[1] + '$'), '.999');
+    } else {
+      const patch = semver.patch(version);
+      return version.replace(new RegExp('\\.' + patch + '$'), '.999');
+    }
   }
 }
 
