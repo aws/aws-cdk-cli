@@ -1241,7 +1241,7 @@ const cli = configureProject(
     // Append a specific version string for testing
 
     // force a minor for the time being
-    nextVersionCommand: 'node -e "console.log(\'minor\')"',
+    nextVersionCommand: 'echo minor',
 
     // re-enable this once we refactor the release tasks to prevent
     // major version bumps caused by breaking commits in dependencies.
