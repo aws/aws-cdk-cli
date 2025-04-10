@@ -325,7 +325,7 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
   for (const id of order) {
     const resource = resources[id];
     const depDigests = Array.from(graph[id]).map((d) => result[d]);
-    const propsWithoutRefs = JSON.stringify(stripReferences(stripConstructPath(resource.Properties)));
+    const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource.Properties)));
     const toHash = resource.Type + propsWithoutRefs + depDigests.join('');
     result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
   }

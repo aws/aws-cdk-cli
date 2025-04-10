@@ -37,6 +37,24 @@ describe('computeResourceDigests', () => {
     expect(result['MyResource']).toBeDefined();
   });
 
+  test('order of properties does not matter', () => {
+    const template = {
+      Resources: {
+        MyResource1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'example-bucket', AnotherProp: 'another-value' },
+        },
+        MyResource2: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { AnotherProp: 'another-value', Prop: 'example-bucket' },
+        },
+      },
+    };
+    const result = computeResourceDigests(template);
+    expect(Object.keys(result).length).toBe(2);
+    expect(result['MyResource1']).toEqual(result['MyResource2']);
+  });
+
   test('computes digests with multiple resources referencing each other', () => {
     const template = {
       Resources: {
@@ -870,10 +888,7 @@ describe('environment grouping', () => {
 
 // Calls the function to compute the mappings and then convert the result
 // to the CloudFormation ResourceMapping type to make tests easier
-function computeMappingsForCloudFormation(
-  before: BasicStack[],
-  after: BasicStack[],
-): CfnResourceMapping[] {
+function computeMappingsForCloudFormation(before: BasicStack[], after: BasicStack[]): CfnResourceMapping[] {
   return computeMappings(before, after).map(toCfnMapping);
 }
 
