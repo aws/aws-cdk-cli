@@ -23,6 +23,19 @@ describe('computeResourceDigests', () => {
     expect(Object.keys(result).length).toBe(0);
   });
 
+  test('computes digest for single resource without properties', () => {
+    const template = {
+      Resources: {
+        MyResource: {
+          Type: 'AWS::S3::Bucket',
+        },
+      },
+    };
+    const result = computeResourceDigests(template);
+    expect(Object.keys(result).length).toBe(1);
+    expect(result['MyResource']).toBeDefined();
+  });
+
   test('computes digest for single resource without dependencies', () => {
     const template = {
       Resources: {

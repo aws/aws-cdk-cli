@@ -337,10 +337,10 @@ function hashObject(obj: any): string {
   const hash = createHash('sha256');
 
   function addToHash(value: any) {
-    if (typeof value === 'object') {
-      if (value == null) {
-        addToHash('null');
-      } else if (Array.isArray(value)) {
+    if (value == null) {
+      addToHash('null');
+    } else if (typeof value === 'object') {
+      if (Array.isArray(value)) {
         value.forEach(addToHash);
       } else {
         Object.keys(value)
