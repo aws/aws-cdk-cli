@@ -40,6 +40,11 @@ async function main() {
         version = maybeRc(version) ?? version;
         break;
       }
+      // this is a temporary case in order to support forcing a minor
+      // version while still preserving rc capabilities for integ testing purposes.
+      // once we refactor the release process to prevent incorporating breaking
+      // changes from dependencies, this can (and should) be removed.
+      // see https://github.com/projen/projen/pull/4156
       case 'maybeRcOrMinor':
         version = maybeRc(version) ?? 'minor';
         break;
