@@ -83,9 +83,33 @@ async function dotnetAddProject(targetDirectory: string, context: HookContext, e
   const pname = context.placeholder('name.PascalCased');
   const slnPath = path.join(targetDirectory, 'src', `${pname}.sln`);
   const csprojPath = path.join(targetDirectory, 'src', pname, `${pname}.${ext}`);
-  try {
-    await shell(['dotnet', 'sln', slnPath, 'add', csprojPath]);
-  } catch (e: any) {
-    throw new ToolkitError(`Could not add project ${pname}.${ext} to solution ${pname}.sln. ${formatErrorMessage(e)}`);
+
+  // We retry this command a couple of times. It usually never fails, except on CI where
+  // we sometimes see:
+  //
+  //   System.IO.IOException: The system cannot open the device or file specified. : 'NuGet-Migrations'
+  //
+  // This error can be caused by lack of permissions on a temporary directory,
+  // but in our case it's intermittent so my guess is it is caused by multiple
+  // invocations of the .NET CLI running in parallel, and trampling on each
+  // other creating a Mutex. There is no fix, and it is annoyingly breaking our
+  // CI regularly. Retry a couple of times to increase reliability.
+  //
+  // - https://github.com/dotnet/sdk/issues/43750
+  // - https://github.com/dotnet/runtime/issues/80619
+  // - https://github.com/dotnet/runtime/issues/91987
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await shell(['dotnet', 'sln', slnPath, 'add', csprojPath]);
+      return;
+    } catch (e: any) {
+      if (attempt === MAX_ATTEMPTS) {
+        throw new ToolkitError(`Could not add project ${pname}.${ext} to solution ${pname}.sln. ${formatErrorMessage(e)}`);
+      }
+
+      // Sleep for a bit then try again
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
 }
