@@ -11,9 +11,14 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import {
+  ambiguousMovements,
+  findResourceMovements,
+  resourceMappings,
+  ToolkitError,
+} from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { AmbiguityError, detectRefactorMappings } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
@@ -1225,16 +1230,14 @@ export class CdkToolkit {
     }
 
     const stacks = await this.selectStacksForList([]);
-    try {
-      const mappings = await detectRefactorMappings(stacks.stackArtifacts, this.props.sdkProvider);
-      formatTypedMappings(process.stdout, mappings.map(m => m.toTypedMapping()));
-    } catch (e) {
-      if (e instanceof AmbiguityError) {
-        formatAmbiguousMappings(process.stdout, e.paths());
-        // In dry-run mode, ambiguity is not a failure. Just information for the user
-        return 0;
-      }
-      throw e;
+    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider);
+    const ambiguous = ambiguousMovements(movements);
+    if (ambiguous.length === 0) {
+      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
+      formatTypedMappings(process.stdout, typedMappings);
+    } else {
+      const e = new AmbiguityError(ambiguous);
+      formatAmbiguousMappings(process.stdout, e.paths());
     }
     return 0;
   }

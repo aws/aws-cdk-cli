@@ -42,20 +42,20 @@ import type {
   AssetPublishNode,
   Concurrency,
   IoHelper,
-  ResourceMapping,
   StackCollection,
   StackNode,
   SuccessfulDeployStackResult,
 } from '../api/shared-private';
 import {
   AmbiguityError,
+  ambiguousMovements,
   asIoHelper,
   Bootstrapper,
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   Deployments,
-  detectRefactorMappings,
   DiffFormatter,
+  findResourceMovements,
   findCloudWatchLogGroups,
   formatAmbiguousMappings,
   formatTypedMappings,
@@ -65,6 +65,7 @@ import {
   SdkProvider,
   tagsForStack,
   ToolkitError,
+  resourceMappings,
   WorkGraphBuilder,
 } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
@@ -931,23 +932,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       ));
     }
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-    try {
-      const sdkProvider = await this.sdkProvider('refactor');
-      const mappings: ResourceMapping[] = await detectRefactorMappings(stacks.stackArtifacts, sdkProvider);
-      const typedMappings = mappings.map(m => m.toTypedMapping());
+
+    const sdkProvider = await this.sdkProvider('refactor');
+    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider);
+    const ambiguous = ambiguousMovements(movements);
+    if (ambiguous.length === 0) {
+      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
       }));
-    } catch (e) {
-      if (e instanceof AmbiguityError) {
-        // In dry-run mode, ambiguity is not a failure. Just information for the user
-        const paths = e.paths();
-        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
-          ambiguousPaths: paths,
-        }));
-        return;
-      }
-      throw e;
+    } else {
+      const error = new AmbiguityError(ambiguous);
+      const paths = error.paths();
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
+        ambiguousPaths: paths,
+      }));
     }
   }
 

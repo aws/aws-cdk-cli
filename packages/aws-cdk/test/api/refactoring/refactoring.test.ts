@@ -5,18 +5,19 @@ import {
   ResourceMapping as CfnResourceMapping,
 } from '@aws-sdk/client-cloudformation';
 import {
-  computeMappings,
-  detectRefactorMappings,
+  ambiguousMovements,
+  findResourceMovements,
   ResourceLocation,
   ResourceMapping,
+  resourceMappings,
+  resourceMovements,
 } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
-import {
-  CloudFormationStack
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
-import {
-  computeResourceDigests
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
+import { computeResourceDigests } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
+import { expect } from '@jest/globals';
+// import {
+//   ambiguousMovements, findResourceMovements, resourceMappings
+// } from '@aws-cdk/tmp-toolkit-helpers';
 
 const cloudFormationClient = mockCloudFormationClient;
 
@@ -248,7 +249,9 @@ describe('typed mappings', () => {
       },
     };
 
-    expect(Object.keys(computeMappingsForCloudFormation([stack1], [stack2]))).toEqual([]);
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([]);
   });
 
   test('returns empty mappings when there are only removals', () => {
@@ -274,7 +277,9 @@ describe('typed mappings', () => {
       },
     };
 
-    expect(Object.keys(computeMappingsForCloudFormation([stack1], [stack2]))).toEqual([]);
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([]);
   });
 
   test('returns empty mappings when there are only additions', () => {
@@ -299,8 +304,9 @@ describe('typed mappings', () => {
         },
       },
     };
-
-    expect(Object.keys(computeMappingsForCloudFormation([stack1], [stack2]))).toEqual([]);
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([])
   });
 
   test('normal updates are not mappings', () => {
@@ -332,8 +338,9 @@ describe('typed mappings', () => {
         },
       },
     };
-
-    expect(computeMappingsForCloudFormation([stack1], [stack2])).toEqual([]);
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([]);
   });
 
   test('moving resources across stacks', () => {
@@ -363,7 +370,9 @@ describe('typed mappings', () => {
       },
     };
 
-    expect(computeMappingsForCloudFormation([stack1], [stack2])).toEqual([
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([
       {
         Source: { LogicalResourceId: 'Bucket1', StackName: 'Foo' },
         Destination: { LogicalResourceId: 'Bucket1', StackName: 'Bar' },
@@ -397,8 +406,9 @@ describe('typed mappings', () => {
         },
       },
     };
-
-    expect(computeMappingsForCloudFormation([stack1], [stack2])).toEqual([
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([
       {
         Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
         Destination: { LogicalResourceId: 'NewName', StackName: 'Foo' },
@@ -433,7 +443,9 @@ describe('typed mappings', () => {
       },
     };
 
-    expect(computeMappingsForCloudFormation([stack1], [stack2])).toEqual([
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([
       {
         Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
         Destination: { LogicalResourceId: 'NewName', StackName: 'Bar' },
@@ -472,10 +484,14 @@ describe('typed mappings', () => {
       },
     };
 
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+
     // We don't consider that a resource was moved from Foo.OldName to Bar.NewName,
     // even though they have the same properties. Since they have different types,
     // they are considered different resources.
-    expect(computeMappingsForCloudFormation([stack1], [stack2])).toEqual([]);
+    expect(mappings).toEqual([]);
+
   });
 
   test('ambiguous resources from multiple stacks', () => {
@@ -517,37 +533,34 @@ describe('typed mappings', () => {
         },
       },
     };
-
-    expect(() => computeMappingsForCloudFormation([stack1, stack2], [stack3])).toThrow(
-      expect.objectContaining({
-        pairs: [
-          [
-            [
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Stack1',
-                }),
-                logicalResourceId: 'Bucket1',
-              },
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Stack2',
-                }),
-                logicalResourceId: 'Bucket2',
-              },
-            ],
-            [
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Stack3',
-                }),
-                logicalResourceId: 'Bucket3',
-              },
-            ],
-          ],
+    const movements = resourceMovements([stack1, stack2], [stack3]);
+    const ambiguous = ambiguousMovements(movements);
+    expect(ambiguous).toEqual([
+      [
+        [
+          {
+            stack: expect.objectContaining({
+              stackName: 'Stack1',
+            }),
+            logicalResourceId: 'Bucket1',
+          },
+          {
+            stack: expect.objectContaining({
+              stackName: 'Stack2',
+            }),
+            logicalResourceId: 'Bucket2',
+          },
         ],
-      }),
-    );
+        [
+          {
+            stack: expect.objectContaining({
+              stackName: 'Stack3',
+            }),
+            logicalResourceId: 'Bucket3',
+          },
+        ],
+      ],
+    ]);
   });
 
   test('ambiguous pairs', () => {
@@ -585,42 +598,40 @@ describe('typed mappings', () => {
       },
     };
 
-    expect(() => computeMappingsForCloudFormation([stack1], [stack2])).toThrow(
-      expect.objectContaining({
-        pairs: [
-          [
-            [
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Foo',
-                }),
-                logicalResourceId: 'Bucket1',
-              },
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Foo',
-                }),
-                logicalResourceId: 'Bucket2',
-              },
-            ],
-            [
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Bar',
-                }),
-                logicalResourceId: 'Bucket3',
-              },
-              {
-                stack: expect.objectContaining({
-                  stackName: 'Bar',
-                }),
-                logicalResourceId: 'Bucket4',
-              },
-            ],
-          ],
+    const movements = resourceMovements([stack1], [stack2]);
+    const ambiguous = ambiguousMovements(movements);
+    expect(ambiguous).toEqual([
+      [
+        [
+          {
+            stack: expect.objectContaining({
+              stackName: 'Foo',
+            }),
+            logicalResourceId: 'Bucket1',
+          },
+          {
+            stack: expect.objectContaining({
+              stackName: 'Foo',
+            }),
+            logicalResourceId: 'Bucket2',
+          },
         ],
-      }),
-    );
+        [
+          {
+            stack: expect.objectContaining({
+              stackName: 'Bar',
+            }),
+            logicalResourceId: 'Bucket3',
+          },
+          {
+            stack: expect.objectContaining({
+              stackName: 'Bar',
+            }),
+            logicalResourceId: 'Bucket4',
+          },
+        ],
+      ],
+    ])
   });
 
   test('combines addition, deletion, update, and rename', () => {
@@ -666,7 +677,9 @@ describe('typed mappings', () => {
       },
     };
 
-    expect(computeMappingsForCloudFormation([stack1], [stack2])).toEqual([
+    const pairs = resourceMovements([stack1], [stack2]);
+    const mappings = resourceMappings(pairs).map(toCfnMapping);
+    expect(mappings).toEqual([
       {
         Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
         Destination: { LogicalResourceId: 'NewName', StackName: 'Foo' },
@@ -772,9 +785,11 @@ describe('environment grouping', () => {
 
     const provider = new MockSdkProvider();
     provider.returnsDefaultAccounts(environment.account);
-    const resourceMappings = await detectRefactorMappings([stack1, stack2], provider);
 
-    expect(resourceMappings.map(toCfnMapping)).toEqual([
+    const movements = await findResourceMovements([stack1, stack2], provider);
+    expect(ambiguousMovements((movements))).toEqual([]);
+
+    expect(resourceMappings(movements).map(toCfnMapping)).toEqual([
       {
         Destination: {
           LogicalResourceId: 'Bucket',
@@ -897,17 +912,13 @@ describe('environment grouping', () => {
 
     const provider = new MockSdkProvider();
     provider.returnsDefaultAccounts(environment1.account, environment2.account);
-    const resourceMappings = await detectRefactorMappings([stack1, stack2], provider);
 
-    expect(resourceMappings.map(toCfnMapping)).toEqual([]);
+    const movements = await findResourceMovements([stack1, stack2], provider);
+    expect(ambiguousMovements((movements))).toEqual([]);
+
+    expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);
   });
 });
-
-// Calls the function to compute the mappings and then convert the result
-// to the CloudFormation ResourceMapping type to make tests easier
-function computeMappingsForCloudFormation(before: CloudFormationStack[], after: CloudFormationStack[]): CfnResourceMapping[] {
-  return computeMappings(before, after).map(toCfnMapping);
-}
 
 function toCfnMapping(m: ResourceMapping): CfnResourceMapping {
   return {

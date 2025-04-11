@@ -12,13 +12,20 @@ import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 
+/**
+ * Represents a set of possible movements of a resource from one location
+ * to another. In the ideal case, there is only one source and only one
+ * destination.
+ */
+export type ResourceMovement = [ResourceLocation[], ResourceLocation[]];
+
 export class AmbiguityError extends Error {
-  constructor(public readonly pairs: [ResourceLocation[], ResourceLocation[]][]) {
+  constructor(public readonly movements: ResourceMovement[]) {
     super('Ambiguous resource mappings');
   }
 
   public paths(): [string[], string[]][] {
-    return this.pairs.map(([a, b]) => [convert(a), convert(b)]);
+    return this.movements.map(([a, b]) => [convert(a), convert(b)]);
 
     function convert(locations: ResourceLocation[]): string[] {
       return locations.map((l) => l.toPath());
@@ -51,6 +58,10 @@ export class ResourceLocation {
   public getType(): string {
     const resource = this.stack.template.Resources?.[this.logicalResourceId ?? ''];
     return resource?.Type ?? 'Unknown';
+  }
+
+  public equalTo(other: ResourceLocation): boolean {
+    return this.logicalResourceId === other.logicalResourceId && this.stack.stackName === other.stack.stackName;
   }
 }
 
@@ -86,55 +97,57 @@ function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
   return result;
 }
 
-export function computeMappings(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMapping[] {
-  const pairs = removeUnmovedResources(
-    zip(groupByKey(before.flatMap(resourceDigests)), groupByKey(after.flatMap(resourceDigests))),
+export function resourceMovements(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMovement[] {
+  return Object.values(
+    removeUnmovedResources(
+      zip(groupByKey(before.flatMap(resourceDigests)), groupByKey(after.flatMap(resourceDigests))),
+    ),
   );
+}
 
-  // A mapping is considered ambiguous if these two conditions are met:
+export function ambiguousMovements(movements: ResourceMovement[]) {
+  // A movement is considered ambiguous if these two conditions are met:
   //  1. Both sides have at least one element (otherwise, it's just addition or deletion)
   //  2. At least one side has more than one element
-  const ambiguousPairs = Object.values(pairs)
+  return movements
     .filter(([pre, post]) => pre.length > 0 && post.length > 0)
     .filter(([pre, post]) => pre.length > 1 || post.length > 1);
+}
 
-  if (ambiguousPairs.length > 0) {
-    throw new AmbiguityError(ambiguousPairs);
-  }
-
-  return Object.values(pairs)
-    .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !equalLocations(pre[0], post[0]))
+/**
+ * Converts a list of unambiguous resource movements into a list of resource mappings.
+ *
+ */
+export function resourceMappings(movements: ResourceMovement[]): ResourceMapping[] {
+  return movements
+    .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]));
 }
 
 function removeUnmovedResources(
-  m: Record<string, [ResourceLocation[], ResourceLocation[]]>,
-): Record<string, [ResourceLocation[], ResourceLocation[]]> {
-  const result: Record<string, [ResourceLocation[], ResourceLocation[]]> = {};
+  m: Record<string, ResourceMovement>,
+): Record<string, ResourceMovement> {
+  const result: Record<string, ResourceMovement> = {};
   for (const [hash, [before, after]] of Object.entries(m)) {
-    const common = before.filter((b) => after.some((a) => equalLocations(a, b)));
+    const common = before.filter((b) => after.some((a) => a.equalTo(b)));
     result[hash] = [
-      before.filter((b) => !common.some((c) => equalLocations(b, c))),
-      after.filter((a) => !common.some((c) => equalLocations(a, c))),
+      before.filter((b) => !common.some((c) => b.equalTo(c))),
+      after.filter((a) => !common.some((c) => a.equalTo(c))),
     ];
   }
 
   return result;
 }
 
-function equalLocations(a: ResourceLocation, b: ResourceLocation): boolean {
-  return a.logicalResourceId === b.logicalResourceId && a.stack.stackName === b.stack.stackName;
-}
-
 /**
  * For each hash, identifying a single resource, zip the two lists of locations,
- * to produce a pair of arrays of locations, in the same order as the parameters.
+ * producing a resource movement
  */
 function zip(
   m1: Record<string, ResourceLocation[]>,
   m2: Record<string, ResourceLocation[]>,
-): Record<string, [ResourceLocation[], ResourceLocation[]]> {
-  const result: Record<string, [ResourceLocation[], ResourceLocation[]]> = {};
+): Record<string, ResourceMovement> {
+  const result: Record<string, ResourceMovement> = {};
 
   for (const [hash, locations] of Object.entries(m1)) {
     if (hash in m2) {
@@ -166,17 +179,14 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
 }
 
 /**
- * Detects refactor mappings by comparing the stacks in the given environment
- * with the stacks deployed to the same environment.
- *
- * @param stacks - The stacks to compare.
- * @param sdkProvider - The SDK provider to use for fetching deployed stacks.
- * @returns A promise that resolves to an array of resource mappings.
+ * Compares the deployed state to the cloud assembly state, and finds all resources
+ * that were moved from one location (stack + logical ID) to another. The comparison
+ * is done per environment.
  */
-export async function detectRefactorMappings(
+export async function findResourceMovements(
   stacks: CloudFormationStack[],
   sdkProvider: SdkProvider,
-): Promise<ResourceMapping[]> {
+): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
   // Group stacks by environment
@@ -192,14 +202,17 @@ export async function detectRefactorMappings(
     }
   }
 
-  const result: ResourceMapping[] = [];
+  const result: ResourceMovement[] = [];
   for (const [_, [before, after]] of stackGroups) {
-    result.push(...computeMappings(before, after));
+    result.push(...resourceMovements(before, after));
   }
   return result;
 }
 
-async function getDeployedStacks(sdkProvider: SdkProvider, environment: cxapi.Environment): Promise<CloudFormationStack[]> {
+async function getDeployedStacks(
+  sdkProvider: SdkProvider,
+  environment: cxapi.Environment,
+): Promise<CloudFormationStack[]> {
   const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
 
   const summaries = await cfn.paginatedListStacks({
