@@ -200,7 +200,7 @@ describe('diff', () => {
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
-      })).rejects.toThrow(/Could not create a change set, set fallBackToTemplate=true/);
+      })).rejects.toThrow(/Could not create a change set and failOnError is set/);
     });
 
     test('ChangeSet diff method throws if stack not found and fallBackToTemplate = false', async () => {

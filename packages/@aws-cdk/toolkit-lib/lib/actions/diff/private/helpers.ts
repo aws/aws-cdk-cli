@@ -136,7 +136,7 @@ async function changeSetDiff(
       sdkProvider,
       parameters: parameters,
       resourcesToImport,
-      fallBackToTemplate,
+      failOnError: !fallBackToTemplate,
     });
   } else {
     if (!fallBackToTemplate) {

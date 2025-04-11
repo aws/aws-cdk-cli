@@ -143,13 +143,12 @@ export type PrepareChangeSetOptions = {
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
   /**
-   * Enable falling back to template-based diff in case creating the changeset is not possible or results in an error.
+   * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
+   * fail on errors received by AWS CloudFormation.
    *
-   * Should be used for stacks containing nested stacks or when change set permissions aren't available.
-   *
-   * @default true
+   * @default false
    */
-  fallBackToTemplate?: boolean;
+  failOnError?: boolean;
 }
 
 export type CreateChangeSetOptions = {
@@ -248,7 +247,8 @@ async function uploadBodyParameterAndCreateChangeSet(
       role: executionRoleArn,
     });
   } catch (e: any) {
-    if (options.fallBackToTemplate ?? true) {
+    // This function is currently only used by diff so these messages are diff-specific
+    if (!options.failOnError) {
       await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(String(e)));
       await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
         'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
@@ -257,7 +257,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       return undefined;
     }
 
-    throw new ToolkitError('Could not create a change set, set fallBackToTemplate=true to base the diff on template differences\n', e);
+    throw new ToolkitError('Could not create a change set and failOnError is set. (run again with failOnError off to base the diff on template differences)\n', e);
   }
 }
 
