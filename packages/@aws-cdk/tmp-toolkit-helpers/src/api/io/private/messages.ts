@@ -9,6 +9,7 @@ import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destr
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
+import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { SdkTrace } from '../../../payloads/sdk-trace';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
@@ -347,6 +348,18 @@ export const IO = {
     code: 'CDK_TOOLKIT_E7900',
     description: 'Stack deletion failed',
     interface: 'ErrorPayload',
+  }),
+
+  // 8. Refactor (8xxx)
+  CDK_TOOLKIT_I8900: make.result<RefactorResult>({
+    code: 'CDK_TOOLKIT_I8900',
+    description: 'Refactor result',
+    interface: 'RefactorResult',
+  }),
+
+  CDK_TOOLKIT_W8010: make.warn({
+    code: 'CDK_TOOLKIT_W8010',
+    description: 'Refactor execution not yet supported',
   }),
 
   // 9: Bootstrap (9xxx)

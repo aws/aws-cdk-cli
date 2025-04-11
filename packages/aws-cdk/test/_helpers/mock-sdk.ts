@@ -143,12 +143,21 @@ export const setDefaultSTSMocks = () => {
  * clients may be used.
  */
 export class MockSdkProvider extends SdkProvider {
+  private defaultAccounts: string[] = [];
+
   constructor() {
     super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
   }
 
+  public returnsDefaultAccounts(...accounts: string[]) {
+    this.defaultAccounts = accounts;
+  }
+
   public defaultAccount(): Promise<Account | undefined> {
-    return Promise.resolve({ accountId: '123456789012', partition: 'aws' });
+    const accountId = this.defaultAccounts.length === 0
+      ? '123456789012'
+      : this.defaultAccounts.shift();
+    return Promise.resolve({ accountId, partition: 'aws' });
   }
 }
 

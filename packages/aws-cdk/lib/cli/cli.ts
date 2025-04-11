@@ -20,7 +20,7 @@ import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import { Notices } from '../api/notices';
 import { PluginHost } from '../api/plugin';
-import type { ILock } from '../api/rwlock';
+import type { IReadLock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
 import { contextHandler as context } from '../commands/context';
@@ -128,7 +128,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
   });
 
-  let outDirLock: ILock | undefined;
+  let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
     configuration,
     sdkProvider,
@@ -278,6 +278,17 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           quiet: args.quiet,
           changeSet: args['change-set'],
           toolkitStackName: toolkitStackName,
+        });
+
+      case 'refactor':
+        if (!configuration.settings.get(['unstable']).includes('refactor')) {
+          throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
+        }
+
+        ioHost.currentAction = 'refactor';
+        return cli.refactor({
+          dryRun: args.dryRun,
+          selector,
         });
 
       case 'bootstrap':

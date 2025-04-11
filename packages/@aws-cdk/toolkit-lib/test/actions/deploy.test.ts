@@ -3,7 +3,7 @@ import type { DeployStackOptions, DeployStackResult } from '../../lib/api/shared
 import * as apis from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, cdkOutFixture, TestIoHost } from '../_helpers';
+import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
@@ -361,6 +361,18 @@ describe('deploy', () => {
         }),
       ],
     });
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.deploy(assemblySource);
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 
