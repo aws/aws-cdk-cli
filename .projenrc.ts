@@ -583,7 +583,7 @@ const cdkAssets = configureProject(
     description: 'CDK Asset Publishing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cxApi,
       'archiver',
       'glob',
@@ -1130,7 +1130,7 @@ const cli = configureProject(
       'xml-js',
     ],
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
       '@aws-cdk/region-info',
@@ -1536,7 +1536,7 @@ const integRunner = configureProject(
     description: 'CDK Integration Testing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cxApi,
       cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
