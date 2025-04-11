@@ -102,7 +102,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/node-bundle=exact @aws-cdk/tmp-toolkit-helpers=exact @aws-cdk/toolkit-lib=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=exact @aws-cdk/cloudformation-diff=exact cdk-assets=major",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/node-bundle=exact @aws-cdk/tmp-toolkit-helpers=exact @aws-cdk/toolkit-lib=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=minimal @aws-cdk/cloudformation-diff=exact cdk-assets=major",
           "receiveArgs": true
         }
       ]
