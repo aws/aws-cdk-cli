@@ -15,9 +15,6 @@ import {
 import { computeResourceDigests } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { expect } from '@jest/globals';
-// import {
-//   ambiguousMovements, findResourceMovements, resourceMappings
-// } from '@aws-cdk/tmp-toolkit-helpers';
 
 const cloudFormationClient = mockCloudFormationClient;
 
@@ -95,6 +92,27 @@ describe('computeResourceDigests', () => {
     expect(result['Topic']).toBeDefined();
   });
 
+  test('computes different digests if top-level properties are different', () => {
+    const template = {
+      Resources: {
+        Q1: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { QueueName: 'YYYYYYYYYY' },
+          UpdateReplacePolicy: 'Retain',
+          DeletionPolicy: 'Retain',
+        },
+        Q2: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { QueueName: 'YYYYYYYYYY' },
+          UpdateReplacePolicy: 'Delete',
+          DeletionPolicy: 'Retain',
+        },
+      },
+    };
+    const result = computeResourceDigests(template);
+    expect(result['Q1']).not.toBe(result['Q2']);
+  });
+
   test('computes the same digest for identical resources', () => {
     const template = {
       Resources: {
@@ -138,6 +156,68 @@ describe('computeResourceDigests', () => {
     };
     const result = computeResourceDigests(template);
     expect(result['Bucket1']).toBe(result['Bucket2']);
+  });
+
+  test('identical resources up to dependency names - DependsOn', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        Topic1: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'my-topic',
+          },
+        },
+        Topic2: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket2',
+          Properties: {
+            DisplayName: 'my-topic',
+          },
+        },
+      },
+    };
+    const result = computeResourceDigests(template);
+    expect(result['Topic1']).toEqual(result['Topic2']);
+  });
+
+  test('different resources - DependsOn', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'foo' },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'bar' },
+        },
+        Topic1: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'my-topic',
+          },
+        },
+        Topic2: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket2',
+          Properties: {
+            DisplayName: 'my-topic',
+          },
+        },
+      },
+    };
+    const result = computeResourceDigests(template);
+    expect(result['Topic1']).not.toEqual(result['Topic2']);
   });
 
   test('almost identical resources - dependency via different intrinsic functions', () => {
@@ -193,17 +273,19 @@ describe('computeResourceDigests', () => {
         Q1: {
           Type: 'AWS::SQS::Queue',
           Properties: {
-            Metadata: {
-              'aws:cdk:path': 'Stack/Q1/Resource',
-            },
+            Foo: 'Bar',
+          },
+          Metadata: {
+            'aws:cdk:path': 'Stack/Q1/Resource',
           },
         },
         Q2: {
           Type: 'AWS::SQS::Queue',
           Properties: {
-            Metadata: {
-              'aws:cdk:path': 'Stack/Q2/Resource',
-            },
+            Foo: 'Bar',
+          },
+          Metadata: {
+            'aws:cdk:path': 'Stack/Q2/Resource',
           },
         },
       },

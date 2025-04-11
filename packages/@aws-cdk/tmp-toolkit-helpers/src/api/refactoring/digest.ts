@@ -42,11 +42,14 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
       const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
       return [refTarget];
     }
+    if ('DependsOn' in value) {
+      return [value.DependsOn];
+    }
     return Object.values(value).flatMap(findDependencies);
   };
 
   for (const [id, res] of Object.entries(resources)) {
-    const deps = findDependencies(res.Properties || {});
+    const deps = findDependencies(res || {});
     for (const dep of deps) {
       if (dep in resources && dep !== id) {
         graph[id].add(dep);
@@ -56,20 +59,20 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
   }
 
   // 3. Topological sort
-  const inDegree = Object.keys(graph).reduce((acc, k) => {
+  const outDegree = Object.keys(graph).reduce((acc, k) => {
     acc[k] = graph[k].size;
     return acc;
   }, {} as Record<string, number>);
 
-  const queue = Object.keys(inDegree).filter((k) => inDegree[k] === 0);
+  const queue = Object.keys(outDegree).filter((k) => outDegree[k] === 0);
   const order: string[] = [];
 
   while (queue.length > 0) {
     const node = queue.shift()!;
     order.push(node);
     for (const nxt of reverseGraph[node]) {
-      inDegree[nxt]--;
-      if (inDegree[nxt] === 0) {
+      outDegree[nxt]--;
+      if (outDegree[nxt] === 0) {
         queue.push(nxt);
       }
     }
@@ -80,7 +83,7 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
   for (const id of order) {
     const resource = resources[id];
     const depDigests = Array.from(graph[id]).map((d) => result[d]);
-    const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource.Properties)));
+    const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource)));
     const toHash = resource.Type + propsWithoutRefs + depDigests.join('');
     result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
   }
@@ -128,6 +131,9 @@ function stripReferences(value: any): any {
   }
   if ('Fn::GetAtt' in value) {
     return { __cloud_ref__: 'Fn::GetAtt' };
+  }
+  if ('DependsOn' in value) {
+    return { __cloud_ref__: 'DependsOn' };
   }
   const result: any = {};
   for (const [k, v] of Object.entries(value)) {
