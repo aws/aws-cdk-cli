@@ -934,7 +934,7 @@ new S3DocsPublishing(toolkitLib, {
 
 // API Extractor documentation publishing
 new S3DocsPublishing(toolkitLib, {
-  docsStream: 'toolkit-lib',
+  docsStream: 'toolkit-lib-api-model',
   artifactPath: 'api-extractor-docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',

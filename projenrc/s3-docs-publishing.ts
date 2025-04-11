@@ -70,7 +70,6 @@ export class S3DocsPublishing extends Component {
     const jobIdSuffix = isApiExtractor ? '_api_extractor' : '_typedoc';
     const nameSuffix = isApiExtractor ? 'api-extractor' : 'typedoc';
     const s3PathPrefix = isApiExtractor ? `${safeName}-api-model-v` : `${safeName}-v`;
-    const latestPrefix = isApiExtractor ? 'latest-api-model-' : 'latest-';
 
     releaseWf.addJob(`${safeName}_release${jobIdSuffix}`, {
       name: `${this.project.name}: Publish ${nameSuffix} to S3`,
@@ -97,7 +96,7 @@ export class S3DocsPublishing extends Component {
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-            'role-session-name': `s3-${isApiExtractor ? 'api-' : ''}docs-publishing@aws-cdk-cli`,
+            'role-session-name': `s3-${isApiExtractor ? 'api-model-' : ''}docs-publishing@aws-cdk-cli`,
             'mask-aws-account-id': true,
           },
         },
@@ -108,7 +107,7 @@ export class S3DocsPublishing extends Component {
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': this.props.roleToAssume,
-            'role-session-name': `s3-${isApiExtractor ? 'api-' : ''}docs-publishing@aws-cdk-cli`,
+            'role-session-name': `s3-${isApiExtractor ? 'api-model-' : ''}docs-publishing@aws-cdk-cli`,
             'mask-aws-account-id': true,
             'role-chaining': true,
           },
@@ -122,7 +121,7 @@ export class S3DocsPublishing extends Component {
           run: `echo "Uploading ${nameSuffix} to S3"
 echo "::add-mask::$BUCKET_NAME"
 S3_PATH="$DOCS_STREAM/${s3PathPrefix}$(cat dist/version.txt).zip"
-LATEST="${latestPrefix}${this.props.docsStream}"
+LATEST="latest-${this.props.docsStream}"
 
 # Capture both stdout and stderr
 if OUTPUT=$(aws s3api put-object \\

@@ -1198,7 +1198,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: s3-api-docs-publishing@aws-cdk-cli
+          role-session-name: s3-api-model-docs-publishing@aws-cdk-cli
           mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
@@ -1206,18 +1206,18 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
-          role-session-name: s3-api-docs-publishing@aws-cdk-cli
+          role-session-name: s3-api-model-docs-publishing@aws-cdk-cli
           mask-aws-account-id: true
           role-chaining: true
       - name: Publish api-extractor
         env:
           BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
-          DOCS_STREAM: toolkit-lib
+          DOCS_STREAM: toolkit-lib-api-model
         run: |-
           echo "Uploading api-extractor to S3"
           echo "::add-mask::$BUCKET_NAME"
           S3_PATH="$DOCS_STREAM/aws-cdk-toolkit-lib-api-model-v$(cat dist/version.txt).zip"
-          LATEST="latest-api-model-toolkit-lib"
+          LATEST="latest-toolkit-lib-api-model"
 
           # Capture both stdout and stderr
           if OUTPUT=$(aws s3api put-object \
