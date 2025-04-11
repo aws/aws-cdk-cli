@@ -103,6 +103,7 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
             assembly.manifest.missing,
             this.context,
             this.props.services.sdkProvider,
+            this.props.services.pluginHost,
             this.ioHelper,
           );
 

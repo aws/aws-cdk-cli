@@ -4,8 +4,8 @@ import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smit
 import { credentialsAboutToExpire, makeCachingProvider } from './provider-caching';
 import { formatErrorMessage } from '../../util';
 import { IO, type IoHelper } from '../io/private';
+import type { PluginHost } from '../plugin';
 import type { Mode } from '../plugin/mode';
-import type { PluginHost } from '../plugin/plugin';
 import { AuthenticationError } from '../toolkit-error';
 
 /**
@@ -22,12 +22,8 @@ import { AuthenticationError } from '../toolkit-error';
  */
 export class CredentialPlugins {
   private readonly cache: { [key: string]: PluginCredentialsFetchResult | undefined } = {};
-  private readonly host: PluginHost;
-  private readonly ioHelper: IoHelper;
 
-  constructor(host: PluginHost, ioHelper: IoHelper) {
-    this.host = host;
-    this.ioHelper = ioHelper;
+  constructor(private readonly host: PluginHost, private readonly ioHelper: IoHelper) {
   }
 
   public async fetchCredentialsFor(awsAccountId: string, mode: Mode): Promise<PluginCredentialsFetchResult | undefined> {

@@ -60,8 +60,7 @@ export class SecurityGroupContextProviderPlugin implements ContextProviderPlugin
 }
 
 /**
- * TODO: We intend this to be @*internal but a test in aws-cdk depends on it.
- * Put the tag back later.
+ * @internal
  */
 export function hasAllTrafficEgress(securityGroup: SecurityGroup) {
   let hasAllTrafficCidrV4 = false;

@@ -14,7 +14,7 @@ import { SDK } from './sdk';
 import { callTrace, traceMemberMethods } from './tracing';
 import { formatErrorMessage } from '../../util';
 import { IO, type IoHelper } from '../io/private';
-import { Mode, PluginHost } from '../plugin';
+import { PluginHost, Mode } from '../plugin';
 import { AuthenticationError } from '../toolkit-error';
 
 export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>>;
@@ -44,6 +44,13 @@ export interface SdkProviderOptions {
    * The logger for sdk calls.
    */
   readonly logger?: Logger;
+
+  /**
+   * The plugin host to use
+   *
+   * @default - an empty plugin host
+   */
+  readonly pluginHost?: PluginHost;
 }
 
 /**
@@ -136,7 +143,7 @@ export class SdkProvider {
 
     const region = await builder.region(options.profile);
     const requestHandler = await builder.requestHandlerBuilder(options.httpOptions);
-    return new SdkProvider(credentialProvider, region, requestHandler, options.ioHelper, options.logger);
+    return new SdkProvider(credentialProvider, region, requestHandler, options.pluginHost ?? new PluginHost(), options.ioHelper, options.logger);
   }
 
   private readonly plugins;
@@ -148,10 +155,11 @@ export class SdkProvider {
      */
     public readonly defaultRegion: string,
     private readonly requestHandler: NodeHttpHandlerOptions = {},
+    pluginHost: PluginHost,
     private readonly ioHelper: IoHelper,
     private readonly logger?: Logger,
   ) {
-    this.plugins = new CredentialPlugins(PluginHost.instance, ioHelper);
+    this.plugins = new CredentialPlugins(pluginHost, ioHelper);
   }
 
   /**
@@ -183,7 +191,7 @@ export class SdkProvider {
 
       // Our current credentials must be valid and not expired. Confirm that before we get into doing
       // actual CloudFormation calls, which might take a long time to hang.
-      const sdk = new SDK(baseCreds.credentials, env.region, this.requestHandler, this.ioHelper, this.logger);
+      const sdk = this._makeSdk(baseCreds.credentials, env.region);
       await sdk.validateCredentials();
       return { sdk, didAssumeRole: false };
     }
@@ -216,7 +224,7 @@ export class SdkProvider {
           `${fmtObtainedCredentials(baseCreds)} could not be used to assume '${options.assumeRoleArn}', but are for the right account. Proceeding anyway.`,
         ));
         return {
-          sdk: new SDK(baseCreds.credentials, env.region, this.requestHandler, this.ioHelper, this.logger),
+          sdk: this._makeSdk(baseCreds.credentials, env.region),
           didAssumeRole: false,
         };
       }
@@ -236,7 +244,7 @@ export class SdkProvider {
     if (baseCreds.source === 'none') {
       return undefined;
     }
-    return (await new SDK(baseCreds.credentials, env.region, this.requestHandler, this.ioHelper, this.logger).currentAccount()).partition;
+    return (await this._makeSdk(baseCreds.credentials, env.region).currentAccount()).partition;
   }
 
   /**
@@ -282,7 +290,7 @@ export class SdkProvider {
   public async defaultAccount(): Promise<Account | undefined> {
     return cached(this, CACHED_ACCOUNT, async () => {
       try {
-        return await new SDK(this.defaultCredentialProvider, this.defaultRegion, this.requestHandler, this.ioHelper, this.logger).currentAccount();
+        return await this._makeSdk(this.defaultCredentialProvider, this.defaultRegion).currentAccount();
       } catch (e: any) {
         // Treat 'ExpiredToken' specially. This is a common situation that people may find themselves in, and
         // they are complaining about if we fail 'cdk synth' on them. We loudly complain in order to show that
@@ -384,7 +392,7 @@ export class SdkProvider {
       // Call the provider at least once here, to catch an error if it occurs
       await credentials();
 
-      return new SDK(credentials, region, this.requestHandler, this.ioHelper, this.logger);
+      return this._makeSdk(credentials, region);
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
         throw err;
@@ -401,6 +409,29 @@ export class SdkProvider {
         ].join(' '),
       );
     }
+  }
+
+  /**
+   * Factory function that creates a new SDK instance
+   *
+   * This is a function here, instead of all the places where this is used creating a `new SDK`
+   * instance, so that it is trivial to mock from tests.
+   *
+   * Use like this:
+   *
+   * ```ts
+   * const mockSdk = jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+   * // ...
+   * mockSdk.mockRestore();
+   * ```
+   *
+   * @internal
+   */
+  public _makeSdk(
+    credProvider: AwsCredentialIdentityProvider,
+    region: string,
+  ) {
+    return new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger);
   }
 }
 

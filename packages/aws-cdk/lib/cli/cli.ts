@@ -19,7 +19,6 @@ import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import { Notices } from '../api/notices';
-import { PluginHost } from '../api/plugin';
 import type { IReadLock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
@@ -30,6 +29,7 @@ import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
+import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -126,6 +126,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       caBundlePath: argv['ca-bundle-path'],
     },
     logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
+    pluginHost: GLOBAL_PLUGIN_HOST,
   });
 
   let outDirLock: IReadLock | undefined;
@@ -148,29 +149,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   /** Function to load plug-ins, using configurations additively. */
   function loadPlugins(...settings: Settings[]) {
-    const loaded = new Set<string>();
     for (const source of settings) {
       const plugins: string[] = source.get(['plugin']) || [];
       for (const plugin of plugins) {
-        const resolved = tryResolve(plugin);
-        if (loaded.has(resolved)) {
-          continue;
-        }
-        ioHost.defaults.debug(`Loading plug-in: ${chalk.green(plugin)} from ${chalk.blue(resolved)}`);
-        PluginHost.instance.load(plugin);
-        loaded.add(resolved);
-      }
-    }
-
-    function tryResolve(plugin: string): string {
-      try {
-        return require.resolve(plugin);
-      } catch (e: any) {
-        // according to Node.js docs `MODULE_NOT_FOUND` is the only possible error here
-        // @see https://nodejs.org/api/modules.html#requireresolverequest-options
-        // Not using `withCause()` here, since the node error contains a "Require Stack"
-        // as part of the error message that is inherently useless to our users.
-        throw new ToolkitError(`Unable to resolve plug-in: Cannot find module '${plugin}'`);
+        GLOBAL_PLUGIN_HOST.load(plugin, ioHost);
       }
     }
   }

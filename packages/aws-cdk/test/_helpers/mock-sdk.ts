@@ -25,6 +25,7 @@ import { type Account } from 'cdk-assets';
 import { SDK, SdkProvider } from '../../lib/api/aws-auth';
 import { CloudFormationStack } from '../../lib/api/cloudformation';
 import { TestIoHost } from './io-host';
+import { PluginHost } from '../../lib/api/plugin';
 
 export const FAKE_CREDENTIALS: AwsCredentialIdentity = {
   accessKeyId: 'ACCESS',
@@ -146,7 +147,7 @@ export class MockSdkProvider extends SdkProvider {
   private defaultAccounts: string[] = [];
 
   constructor() {
-    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
+    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new PluginHost(), new TestIoHost().asHelper('sdk'));
   }
 
   public returnsDefaultAccounts(...accounts: string[]) {

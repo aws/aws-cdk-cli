@@ -756,6 +756,12 @@ const tmpToolkitHelpers = configureProject(
         target: 'es2022',
         lib: ['es2022', 'esnext.disposable', 'dom'],
         module: 'NodeNext',
+
+        // Temporarily, because it makes it impossible for us to use @internal functions
+        // from other packages. Annoyingly, VSCode won't show an error if you use @internal
+        // because it looks at the .ts, but the compilation will fail because it will use
+        // the .d.ts.
+        stripInternal: false,
       },
     },
 

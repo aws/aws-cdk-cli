@@ -20,7 +20,7 @@ test('load a plugin using the PluginHost', () => {
     };
   }, { virtual: true });
 
-  host.load(THE_PLUGIN);
+  host._doLoad(THE_PLUGIN);
 });
 
 test('fail to load a plugin using the PluginHost', () => {
@@ -31,7 +31,7 @@ test('fail to load a plugin using the PluginHost', () => {
     return {};
   }, { virtual: true });
 
-  expect(() => host.load(THE_PLUGIN)).toThrow(/Unable to load plug-in/);
+  expect(() => host._doLoad(THE_PLUGIN)).toThrow(/Unable to load plug-in/);
 });
 
 test('plugin that registers a Credential Provider', () => {
@@ -52,7 +52,7 @@ test('plugin that registers a Credential Provider', () => {
     };
   }, { virtual: true });
 
-  host.load(THE_PLUGIN);
+  host._doLoad(THE_PLUGIN);
 
   expect(host.credentialProviderSources).toHaveLength(1);
 });
@@ -73,7 +73,7 @@ test('plugin that registers a Context Provider', () => {
     };
   }, { virtual: true });
 
-  host.load(THE_PLUGIN);
+  host._doLoad(THE_PLUGIN);
 
   expect(Object.keys(host.contextProviderPlugins)).toHaveLength(1);
 });
@@ -91,7 +91,7 @@ test('plugin that registers an invalid Context Provider throws', () => {
   }, { virtual: true });
 
   try {
-    host.load(THE_PLUGIN);
+    host._doLoad(THE_PLUGIN);
     expect(true).toBe(false); // should not happen
   } catch(e: any) {
     expect(e).toHaveProperty('cause');

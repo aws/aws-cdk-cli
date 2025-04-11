@@ -71,6 +71,7 @@ import {
   WorkGraphBuilder,
 } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
+import { PluginHost } from '../api/shared-public';
 import {
   formatErrorMessage,
   formatTime,
@@ -122,6 +123,17 @@ export interface ToolkitOptions {
    * @default "error"
    */
   readonly assemblyFailureAt?: 'error' | 'warn' | 'none';
+
+  /**
+   * The plugin host to use for loading and querying plugins
+   *
+   * By default, a unique instance of a plugin managing class will be used.
+   *
+   * Use `toolkit.pluginHost.load()` to load plugins into the plugin host from disk.
+   *
+   * @default - A fresh plugin host
+   */
+  readonly pluginHost?: PluginHost;
 }
 
 /**
@@ -139,6 +151,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public readonly ioHost: IIoHost;
 
   /**
+   * The plugin host for loading and managing plugins
+   */
+  public readonly pluginHost: PluginHost;
+
+  /**
    * Cache of the internal SDK Provider instance
    */
   private sdkProviderCache?: SdkProvider;
@@ -146,6 +163,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
+
+    this.pluginHost = props.pluginHost ?? new PluginHost();
 
     let ioHost = props.ioHost ?? new NonInteractiveIoHost();
     if (props.emojis === false) {
@@ -171,6 +190,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ...this.props.sdkConfig,
         ioHelper,
         logger: asSdkLogger(ioHelper),
+        pluginHost: this.pluginHost,
       });
     }
 
@@ -185,6 +205,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     return {
       ioHelper: asIoHelper(this.ioHost, 'assembly'),
       sdkProvider: await this.sdkProvider('assembly'),
+      pluginHost: this.pluginHost,
     };
   }
 
@@ -910,7 +931,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         });
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
-        throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
+        throw ToolkitError.withCause('Rollback failed (use --force to orphan failing resources)', e);
       }
     }
     if (!anyRollbackable) {

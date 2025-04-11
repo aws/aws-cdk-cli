@@ -26,7 +26,7 @@ test('errors are reported into the context value', async () => {
   // WHEN
   await contextproviders.provideContextValues([
     { key: 'asdf', props: { account: '1234', region: 'us-east-1' }, provider: TEST_PROVIDER },
-  ], context, mockSDK, ioHelper);
+  ], context, mockSDK, new PluginHost(), ioHelper);
 
   // THEN - error is now in context
 
@@ -63,7 +63,7 @@ test('lookup role ARN is resolved', async () => {
       },
       provider: TEST_PROVIDER,
     },
-  ], context, mockSDK, ioHelper);
+  ], context, mockSDK, new PluginHost(), ioHelper);
 
   // THEN - Value gets resolved
   expect(context.get('asdf')).toEqual('some resolved value');
@@ -81,7 +81,7 @@ test('errors are marked transient', async () => {
   // WHEN
   await contextproviders.provideContextValues([
     { key: 'asdf', props: { account: '1234', region: 'us-east-1' }, provider: TEST_PROVIDER },
-  ], context, mockSDK, ioHelper);
+  ], context, mockSDK, new PluginHost(), ioHelper);
 
   // THEN - error is marked transient
   expect(context.get('asdf')[TRANSIENT_CONTEXT_KEY]).toBeTruthy();
@@ -91,7 +91,8 @@ test('context provider can be registered using PluginHost', async () => {
   let called = false;
 
   // GIVEN
-  PluginHost.instance.registerContextProviderAlpha('prov', {
+  const ph = new PluginHost();
+  ph.registerContextProviderAlpha('prov', {
     async getValue(_: {[key: string]: any}): Promise<any> {
       called = true;
       return '';
@@ -102,7 +103,7 @@ test('context provider can be registered using PluginHost', async () => {
   // WHEN
   await contextproviders.provideContextValues([
     { key: 'asdf', props: { account: '1234', region: 'us-east-1', pluginName: 'prov' }, provider: PLUGIN_PROVIDER },
-  ], context, mockSDK, ioHelper);
+  ], context, mockSDK, ph, ioHelper);
 
   // THEN - error is marked transient
   expect(called).toEqual(true);
@@ -110,7 +111,8 @@ test('context provider can be registered using PluginHost', async () => {
 
 test('plugin context provider can be called without account/region', async () => {
   // GIVEN
-  PluginHost.instance.registerContextProviderAlpha('prov', {
+  const ph = new PluginHost();
+  ph.registerContextProviderAlpha('prov', {
     async getValue(_: {[key: string]: any}): Promise<any> {
       return 'yay';
     },
@@ -120,7 +122,7 @@ test('plugin context provider can be called without account/region', async () =>
   // WHEN
   await contextproviders.provideContextValues([
     { key: 'asdf', props: { banana: 'yellow', pluginName: 'prov' } as any, provider: PLUGIN_PROVIDER },
-  ], context, mockSDK, ioHelper);
+  ], context, mockSDK, ph, ioHelper);
 
   // THEN - error is marked transient
   expect(context.get('asdf')).toEqual('yay');

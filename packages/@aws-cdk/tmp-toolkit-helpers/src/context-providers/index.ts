@@ -16,8 +16,7 @@ import { TRANSIENT_CONTEXT_KEY } from '../api/context';
 import { replaceEnvPlaceholders } from '../api/environment';
 import { IO } from '../api/io/private';
 import type { IoHelper } from '../api/io/private';
-import { PluginHost } from '../api/plugin';
-import type { ContextProviderPlugin } from '../api/plugin';
+import type { PluginHost, ContextProviderPlugin } from '../api/plugin';
 import { ContextProviderError } from '../api/toolkit-error';
 import { formatErrorMessage } from '../util';
 
@@ -72,6 +71,7 @@ export async function provideContextValues(
   missingValues: cxschema.MissingContext[],
   context: Context,
   sdk: SdkProvider,
+  pluginHost: PluginHost,
   ioHelper: IoHelper,
 ) {
   for (const missingContext of missingValues) {
@@ -83,7 +83,7 @@ export async function provideContextValues(
 
     let factory;
     if (providerName.startsWith(`${PLUGIN_PROVIDER_PREFIX}:`)) {
-      const plugin = PluginHost.instance.contextProviderPlugins[providerName.substring(PLUGIN_PROVIDER_PREFIX.length + 1)];
+      const plugin = pluginHost.contextProviderPlugins[providerName.substring(PLUGIN_PROVIDER_PREFIX.length + 1)];
       if (!plugin) {
         // eslint-disable-next-line max-len
         throw new ContextProviderError(`Unrecognized plugin context provider name: ${missingContext.provider}.`);

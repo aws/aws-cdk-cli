@@ -20,5 +20,6 @@ export type {
 } from '../../../tmp-toolkit-helpers/src/api/io/io-message';
 export type { IIoHost } from '../../../tmp-toolkit-helpers/src/api/io/io-host';
 export type { ToolkitAction } from '../../../tmp-toolkit-helpers/src/api/io/toolkit-action';
+export { PluginHost } from '../../../tmp-toolkit-helpers/src/api/plugin/plugin';
 
 export * from '../../../tmp-toolkit-helpers/src/payloads';
