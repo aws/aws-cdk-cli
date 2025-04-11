@@ -29,19 +29,24 @@ export class RWLock {
    *
    * No other readers or writers must exist for the given directory.
    */
-  public async acquireWrite(): Promise<IWriterLock> {
+  public async acquireWrite(): Promise<IWriteLock> {
     await this.assertNoOtherWriters();
 
-    const readers = await this.currentReaders();
+    const readers = await this._currentReaders();
     if (readers.length > 0) {
       throw new ToolkitError(`Other CLIs (PID=${readers}) are currently reading from ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
 
     await writeFileAtomic(this.writerFile, this.pidString);
 
+    let released = false;
     return {
       release: async () => {
-        await deleteFile(this.writerFile);
+        // Releasing needs a flag, otherwise we might delete a file that some other lock has created in the mean time.
+        if (!released) {
+          await deleteFile(this.writerFile);
+          released = true;
+        }
       },
       convertToReaderLock: async () => {
         // Acquire the read lock before releasing the write lock. Slightly less
@@ -58,7 +63,7 @@ export class RWLock {
    *
    * Will fail if there are any writers.
    */
-  public async acquireRead(): Promise<ILock> {
+  public async acquireRead(): Promise<IReadLock> {
     await this.assertNoOtherWriters();
     return this.doAcquireRead();
   }
@@ -77,18 +82,24 @@ export class RWLock {
   /**
    * Do the actual acquiring of a read lock.
    */
-  private async doAcquireRead(): Promise<ILock> {
+  private async doAcquireRead(): Promise<IReadLock> {
     const readerFile = this.readerFile();
     await writeFileAtomic(readerFile, this.pidString);
+
+    let released = false;
     return {
       release: async () => {
-        await deleteFile(readerFile);
+        // Releasing needs a flag, otherwise we might delete a file that some other lock has created in the mean time.
+        if (!released) {
+          await deleteFile(readerFile);
+          released = true;
+        }
       },
     };
   }
 
   private async assertNoOtherWriters() {
-    const writer = await this.currentWriter();
+    const writer = await this._currentWriter();
     if (writer) {
       throw new ToolkitError(`Another CLI (PID=${writer}) is currently synthing to ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
@@ -96,8 +107,12 @@ export class RWLock {
 
   /**
    * Check the current writer (if any)
+   *
+   * Publicly accessible for testing purposes. Do not use.
+   *
+   * @internal
    */
-  private async currentWriter(): Promise<number | undefined> {
+  public async _currentWriter(): Promise<number | undefined> {
     const contents = await readFileIfExists(this.writerFile);
     if (!contents) {
       return undefined;
@@ -115,8 +130,12 @@ export class RWLock {
 
   /**
    * Check the current readers (if any)
+   *
+   * Publicly accessible for testing purposes. Do not use.
+   *
+   * @internal
    */
-  private async currentReaders(): Promise<number[]> {
+  public async _currentReaders(): Promise<number[]> {
     const re = /^read\.([^.]+)\.[^.]+\.lock$/;
     const ret = new Array<number>();
 
@@ -151,18 +170,21 @@ export class RWLock {
 /**
  * An acquired lock
  */
-export interface ILock {
+export interface IReadLock {
+  /**
+   * Release the lock. Can be called more than once.
+   */
   release(): Promise<void>;
 }
 
 /**
  * An acquired writer lock
  */
-export interface IWriterLock extends ILock {
+export interface IWriteLock extends IReadLock {
   /**
    * Convert the writer lock to a reader lock
    */
-  convertToReaderLock(): Promise<ILock>;
+  convertToReaderLock(): Promise<IReadLock>;
 }
 
 /* c8 ignore start */ // code paths are unpredictable
