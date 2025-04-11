@@ -1,4 +1,5 @@
 import * as crypto from 'node:crypto';
+import { loadResourceModel } from '@aws-cdk/cloudformation-diff/lib/diff/util';
 import type { CloudFormationTemplate } from './cloudformation';
 
 /**
@@ -6,12 +7,18 @@ import type { CloudFormationTemplate } from './cloudformation';
  *
  * Conceptually, the digest is computed as:
  *
- *     digest(resource) = hash(type + properties + dependencies.map(d))
+ *     d(resource) = hash(type + physicalId)                       , if physicalId is defined
+ *                 = hash(type + properties + dependencies.map(d)) , otherwise
  *
- * where `hash` is a cryptographic hash function. In other words, the digest of a
- * resource is computed from its type, its own properties (that is, excluding
- * properties that refer to other resources), and the digests of each of its
- * dependencies.
+ * where `hash` is a cryptographic hash function. In other words, if a resource has
+ * a physical ID, we use the physical ID plus its type to uniquely identify
+ * that resource. In this case, the digest can be computed from these two fields
+ * alone. A corollary is that such resources can be renamed and have their
+ * properties updated at the same time, and still be considered equivalent.
+ *
+ * Otherwise, the digest is computed from its type, its own properties (that is,
+ * excluding properties that refer to other resources), and the digests of each of
+ * its dependencies.
  *
  * The digest of a resource, defined recursively this way, remains stable even if
  * one or more of its dependencies gets renamed. Since the resources in a
@@ -82,10 +89,29 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
   const result: Record<string, string> = {};
   for (const id of order) {
     const resource = resources[id];
-    const depDigests = Array.from(graph[id]).map((d) => result[d]);
-    const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource)));
-    const toHash = resource.Type + propsWithoutRefs + depDigests.join('');
-    result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
+
+    const model = loadResourceModel(resource.Type);
+    const primaryIdentifier = intersection(Object.keys(resource.Properties ?? {}), model?.primaryIdentifier ?? []);
+    if (primaryIdentifier.length > 0) {
+      // The resource has a physical ID defined, so we can
+      // use the ID and the type as the identity of the resource.
+
+      const toHash =
+        resource.Type +
+        primaryIdentifier
+          .sort()
+          .map((attr) => JSON.stringify(resource.Properties[attr]))
+          .join('');
+      result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
+    } else {
+      // The resource does not have a physical ID defined, so we need to
+      // compute the digest based on its properties and dependencies.
+
+      const depDigests = Array.from(graph[id]).map((d) => result[d]);
+      const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource)));
+      const toHash = resource.Type + propsWithoutRefs + depDigests.join('');
+      result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
+    }
   }
 
   return result;
@@ -150,4 +176,8 @@ function stripConstructPath(resource: any): any {
   const copy = JSON.parse(JSON.stringify(resource));
   delete copy.Metadata['aws:cdk:path'];
   return copy;
+}
+
+function intersection<T>(a: T[], b: T[]): T[] {
+  return a.filter((value) => b.includes(value));
 }

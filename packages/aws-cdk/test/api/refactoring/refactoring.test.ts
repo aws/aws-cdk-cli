@@ -1,3 +1,8 @@
+const mockLoadResourceModel = jest.fn();
+jest.mock('@aws-cdk/cloudformation-diff/lib/diff/util', () => ({
+  loadResourceModel: mockLoadResourceModel,
+}));
+
 import {
   GetTemplateCommand,
   ListStacksCommand,
@@ -292,6 +297,210 @@ describe('computeResourceDigests', () => {
     };
     const result = computeResourceDigests(template);
     expect(result['Q1']).toBe(result['Q2']);
+  });
+
+  test('uses physical ID if present', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldAlsoBeIgnored: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).toBe(result['Foo2']);
+  });
+
+  test('uses physical ID if present - with dependencies', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldAlsoBeIgnored: true,
+          },
+        },
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Dep: { Ref: 'Foo1' } },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Dep: { Ref: 'Foo2' } },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Bucket1']).toBe(result['Bucket2']);
+  });
+
+  test('different physical IDs lead to different digests', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'YYYYYYYYY',
+            ShouldAlsoBeIgnored: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).not.toBe(result['Foo2']);
+  });
+
+  test('primaryIdentifier is a composite field - different values', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName', 'BarName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            BarName: 'YYYYYYYYY',
+            ShouldBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            BarName: 'ZZZZZZZZZ',
+            ShouldAlsoBeIgnored: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).not.toBe(result['Foo2']);
+  });
+
+  test('primaryIdentifier is a composite field - same value', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName', 'BarName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            BarName: 'YYYYYYYYY',
+            ShouldBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            BarName: 'YYYYYYYYY',
+            ShouldAlsoBeIgnored: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).toBe(result['Foo2']);
+  });
+
+  test('resource properties does not contain primaryIdentifier - different values', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            ShouldNotBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            ShouldNotBeIgnoredEither: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).not.toBe(result['Foo2']);
+  });
+
+  test('resource properties does not contain primaryIdentifier - same value', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            SomeProp: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            SomeProp: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).toBe(result['Foo2']);
   });
 });
 
