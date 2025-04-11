@@ -7,12 +7,18 @@ import type { CloudFormationTemplate } from './cloudformation';
  *
  * Conceptually, the digest is computed as:
  *
- *     digest(resource) = hash(type + properties + dependencies.map(d))
+ *     d(resource) = hash(type + physicalId)                       , if physicalId is defined
+ *                 = hash(type + properties + dependencies.map(d)) , otherwise
  *
- * where `hash` is a cryptographic hash function. In other words, the digest of a
- * resource is computed from its type, its own properties (that is, excluding
- * properties that refer to other resources), and the digests of each of its
- * dependencies.
+ * where `hash` is a cryptographic hash function. In other words, if a resource has
+ * a physical ID, we use the physical ID plus its type to uniquely identify
+ * that resource. In this case, the digest can be computed from these two fields
+ * alone. A corollary is that such resources can be renamed and have their
+ * properties updated at the same time, and still be considered equivalent.
+ *
+ * Otherwise, the digest is computed from its type, its own properties (that is,
+ * excluding properties that refer to other resources), and the digests of each of
+ * its dependencies.
  *
  * The digest of a resource, defined recursively this way, remains stable even if
  * one or more of its dependencies gets renamed. Since the resources in a
