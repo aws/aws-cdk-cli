@@ -9,6 +9,7 @@ export * from './stack-activity';
 export * from './synth';
 export * from './types';
 export * from './progress';
+export * from './refactor';
 export * from './watch';
 export * from './stack-details';
 export * from './diff';

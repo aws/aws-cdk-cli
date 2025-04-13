@@ -37,23 +37,17 @@ async function main() {
         break;
 
       case 'maybeRc': {
-        if (process.env.TESTING_CANDIDATE === 'true') {
-          // To make an rc version for testing, we set the last component (either
-          // patch or prerelease version) to 999.
-          //
-          // Adding `rc.0` causes problems for Amplify tests, which install
-          // `aws-cdk@^2` which won't match the prerelease version.
-          const originalPre = semver.prerelease(version);
-
-          if (originalPre) {
-            version = version.replace(new RegExp('\\.' + originalPre[1] + '$'), '.999');
-          } else {
-            const patch = semver.patch(version);
-            version = version.replace(new RegExp('\\.' + patch + '$'), '.999');
-          }
-        }
+        version = maybeRc(version) ?? version;
         break;
       }
+      // this is a temporary case in order to support forcing a minor
+      // version while still preserving rc capabilities for integ testing purposes.
+      // once we refactor the release process to prevent incorporating breaking
+      // changes from dependencies, this can (and should) be removed.
+      // see https://github.com/projen/projen/pull/4156
+      case 'maybeRcOrMinor':
+        version = maybeRc(version) ?? 'minor';
+        break;
 
       default:
         throw new Error(`Unknown command: ${cmd}`);
@@ -64,6 +58,24 @@ async function main() {
     // this is a cli
     // eslint-disable-next-line no-console
     console.log(version);
+  }
+}
+
+function maybeRc(version: string) {
+  if (process.env.TESTING_CANDIDATE === 'true') {
+    // To make an rc version for testing, we set the last component (either
+    // patch or prerelease version) to 999.
+    //
+    // Adding `rc.0` causes problems for Amplify tests, which install
+    // `aws-cdk@^2` which won't match the prerelease version.
+    const originalPre = semver.prerelease(version);
+
+    if (originalPre) {
+      return version.replace(new RegExp('\\.' + originalPre[1] + '$'), '.999');
+    } else {
+      const patch = semver.patch(version);
+      return version.replace(new RegExp('\\.' + patch + '$'), '.999');
+    }
   }
 }
 

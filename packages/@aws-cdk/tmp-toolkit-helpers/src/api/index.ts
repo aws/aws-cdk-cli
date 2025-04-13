@@ -12,6 +12,7 @@ export * from './io';
 export * from './logs-monitor';
 export * from './notices';
 export * from './plugin';
+export * from './refactoring';
 export * from './require-approval';
 export * from './resource-import';
 export * from './rwlock';

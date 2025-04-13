@@ -25,7 +25,7 @@ export class BootstrapEnvironments {
   static fromCloudAssemblySource(cx: ICloudAssemblySource): BootstrapEnvironments {
     return new BootstrapEnvironments(async (ioHost: IIoHost) => {
       const ioHelper = asIoHelper(ioHost, 'bootstrap');
-      const assembly = await assemblyFromSource(ioHelper, cx);
+      await using assembly = await assemblyFromSource(ioHelper, cx);
       const stackCollection = await assembly.selectStacksV2(ALL_STACKS);
       return stackCollection.stackArtifacts.map(stack => stack.environment);
     });

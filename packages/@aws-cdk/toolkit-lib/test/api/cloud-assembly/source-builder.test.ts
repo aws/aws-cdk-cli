@@ -1,6 +1,7 @@
+import { RWLock, contextproviders } from '../../../lib/api/shared-private';
 import { ToolkitError } from '../../../lib/api/shared-public';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
-import { appFixture, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
+import { appFixture, autoCleanOutDir, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
 
 // these tests often run a bit longer than the default
 jest.setTimeout(10_000);
@@ -17,7 +18,8 @@ describe('fromAssemblyBuilder', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
-    const assembly = await cx.produce();
+    await using result = await cx.produce();
+    const assembly = result.cloudAssembly;
 
     // THEN
     expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -28,8 +30,8 @@ describe('fromAssemblyBuilder', () => {
     const cx = await builderFixture(toolkit, 'external-context', {
       'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
     });
-    const assembly = await cx.produce();
-    const stack = assembly.getStackByName('Stack1').template;
+    await using assembly = await cx.produce();
+    const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
@@ -50,16 +52,59 @@ describe('fromAssemblyBuilder', () => {
       expect(err.cause?.message).toContain('a wild error appeared');
     }
   });
+
+  test('fromAssemblyBuilder can successfully loop', async () => {
+    // GIVEN
+    const provideContextValues = jest.spyOn(contextproviders, 'provideContextValues').mockImplementation(async (
+      missingValues,
+      context,
+      _sdk,
+      _ioHelper,
+    ) => {
+      for (const missing of missingValues) {
+        context.set(missing.key, 'provided');
+      }
+    });
+
+    const cx = await appFixture(toolkit, 'uses-context-provider');
+
+    // WHEN
+    await using _ = await cx.produce();
+
+    // THEN - no exception
+
+    provideContextValues.mockRestore();
+  });
+
+  test('builder directory is locked, and builder failure cleans up the lock', async () => {
+    let lock: RWLock;
+
+    // GIVEN
+    const cx = await toolkit.fromAssemblyBuilder(async (props) => {
+      lock = new RWLock(props.outdir!);
+      if (!await lock._currentWriter()) {
+        throw new Error('Expected the directory to be locked during synth');
+      }
+      throw new Error('a wild error appeared');
+    });
+
+    // WHEN
+    await expect(cx.produce()).rejects.toThrow(/wild error/);
+
+    // THEN: Don't expect either a read or write lock on the directory afterwards
+    expect(await lock!._currentWriter()).toBeUndefined();
+    expect(await lock!._currentReaders()).toEqual([]);
+  });
 });
 
 describe('fromCdkApp', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'two-empty-stacks');
-    const assembly = await cx.produce();
+    await using assembly = await cx.produce();
 
     // THEN
-    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
   });
 
   test('can provide context', async () => {
@@ -67,8 +112,8 @@ describe('fromCdkApp', () => {
     const cx = await appFixture(toolkit, 'external-context', {
       'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
     });
-    const assembly = await cx.produce();
-    const stack = assembly.getStackByName('Stack1').template;
+    await using assembly = await cx.produce();
+    const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
@@ -94,7 +139,7 @@ describe('fromCdkApp', () => {
   test('will capture all output', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'console-output');
-    await cx.produce();
+    await using _ = await cx.produce();
 
     // THEN
     ['one', 'two', 'three', 'four'].forEach((line) => {
@@ -105,16 +150,31 @@ describe('fromCdkApp', () => {
       }));
     });
   });
+
+  test('cdk app failure leaves the directory unlocked', async () => {
+    using out = autoCleanOutDir();
+    const lock = new RWLock(out.dir);
+
+    // GIVEN
+    const cx = await toolkit.fromCdkApp('false', { outdir: out.dir });
+
+    // WHEN
+    await expect(cx.produce()).rejects.toThrow(/error 1/);
+
+    // THEN: Don't expect either a read or write lock on the directory afterwards
+    expect(await lock!._currentWriter()).toBeUndefined();
+    expect(await lock!._currentReaders()).toEqual([]);
+  });
 });
 
 describe('fromAssemblyDirectory', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
-    const assembly = await cx.produce();
+    await using assembly = await cx.produce();
 
     // THEN
-    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
   });
 
   test('validates manifest version', async () => {
@@ -132,9 +192,9 @@ describe('fromAssemblyDirectory', () => {
         checkVersion: false,
       },
     });
-    const assembly = await cx.produce();
+    await using assembly = await cx.produce();
 
     // THEN
-    expect(assembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
   });
 });

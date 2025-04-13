@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { format } from 'util';
+import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -10,54 +11,62 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import {
+  ambiguousMovements,
+  findResourceMovements,
+  resourceMappings,
+  ToolkitError,
+} from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import {
-  ExtendedStackSelection,
-  StackCollection,
-} from '../api/cloud-assembly';
-import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
+import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { GarbageCollector } from '../api/garbage-collection';
-import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap';
-import { findCloudWatchLogGroups, CloudWatchLogEventMonitor } from '../api/logs-monitor';
-import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
-import { tagsForStack, type Tag } from '../api/tags';
+import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
+import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
+import { removeNonImportResources, ResourceImporter, ResourceMigrator } from '../api/resource-import';
+import { type Tag, tagsForStack } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
 import { cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
-import type {
-  FromScan,
-  GenerateTemplateOutput,
-} from '../commands/migrate';
+import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
+  appendWarningsToReadme,
+  buildCfnClient,
+  buildGenertedTemplateOutput,
+  CfnTemplateGeneratorProvider,
   generateCdkApp,
   generateStack,
+  generateTemplate,
+  isThereAWarning,
+  parseSourceOptions,
   readFromPath,
   readFromStack,
   setEnvironment,
-  parseSourceOptions,
-  generateTemplate,
   TemplateSourceOptions,
-  CfnTemplateGeneratorProvider,
   writeMigrateJsonFile,
-  buildGenertedTemplateOutput,
-  appendWarningsToReadme,
-  isThereAWarning,
-  buildCfnClient,
 } from '../commands/migrate';
 import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
 import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
-import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
+import { debug, error, highlight, info, result as logResult, success, warning } from '../logging';
+import {
+  deserializeStructure,
+  formatErrorMessage,
+  formatTime,
+  obscureTemplate,
+  partition,
+  serializeStructure,
+  validateSnsTopicArn,
+} from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -1210,6 +1219,29 @@ export class CdkToolkit {
     }
   }
 
+  public async refactor(options: RefactorOptions): Promise<number> {
+    if (!options.dryRun) {
+      info('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+      return 1;
+    }
+
+    if (options.selector.patterns.length > 0) {
+      warning('Refactor does not yet support stack selection. Proceeding with the default behavior (considering all stacks).');
+    }
+
+    const stacks = await this.selectStacksForList([]);
+    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider);
+    const ambiguous = ambiguousMovements(movements);
+    if (ambiguous.length === 0) {
+      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
+      formatTypedMappings(process.stdout, typedMappings);
+    } else {
+      const e = new AmbiguityError(ambiguous);
+      formatAmbiguousMappings(process.stdout, e.paths());
+    }
+    return 0;
+  }
+
   private async selectStacksForList(patterns: string[]) {
     const assembly = await this.assembly();
     const stacks = await assembly.selectStacks({ patterns }, { defaultBehavior: DefaultSelection.AllStacks });
@@ -1889,6 +1921,18 @@ export interface MigrateOptions {
    * @default false
    */
   readonly compress?: boolean;
+}
+
+export interface RefactorOptions {
+  /**
+   * Whether to only show the proposed refactor, without applying it
+   */
+  readonly dryRun: boolean;
+
+  /**
+   * Criteria for selecting stacks to deploy
+   */
+  selector: StackSelector;
 }
 
 function buildParameterMap(

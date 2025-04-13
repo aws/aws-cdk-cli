@@ -1239,9 +1239,15 @@ const cli = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    // force a minor for the time being. This will never release a patch but that's fine for a while.
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRcOrMinor',
+
+    // re-enable this once we refactor the release tasks to prevent
+    // major version bumps caused by breaking commits in dependencies.
+    // nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
+    majorVersion: 2,
   }),
 );
 
@@ -1378,6 +1384,7 @@ const cliLib = configureProject(
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
+    majorVersion: 2,
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1514,6 +1521,7 @@ const cdkAliasPackage = configureProject(
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
+    majorVersion: 2,
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
