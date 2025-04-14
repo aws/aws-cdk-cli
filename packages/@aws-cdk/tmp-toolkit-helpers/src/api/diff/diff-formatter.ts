@@ -122,10 +122,8 @@ export interface TemplateInfo {
 
   /**
    * The name of the stack
-   *
-   * @default undefined
    */
-  readonly stackName?: string;
+  readonly stackName: string;
 
   /**
    * Whether or not there are any imported resources
@@ -151,10 +149,16 @@ export class DiffFormatter {
   private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
-  private readonly stackName?: string;
+  private readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
+
+  /**
+   * Stores the TemplateDiffs that get calculated in this DiffFormatter,
+   * indexed by the stack name.
+   */
+  private _diffs: { [name: string]: TemplateDiff } = {};
 
   constructor(props: DiffFormatterProps) {
     this.ioHelper = props.ioHelper;
@@ -164,6 +168,10 @@ export class DiffFormatter {
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;
+  }
+
+  public get diffs() {
+    return this._diffs;
   }
 
   /**
@@ -184,11 +192,12 @@ export class DiffFormatter {
 
   private formatStackDiffHelper(
     oldTemplate: any,
-    stackName: string | undefined,
+    stackName: string,
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
     let diff = fullDiff(oldTemplate, this.newTemplate.template, this.changeSet, this.isImport);
+    this._diffs[stackName] = diff;
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
@@ -277,6 +286,7 @@ export class DiffFormatter {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
 
     const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
+    this._diffs[this.stackName] = diff;
 
     if (diffRequiresApproval(diff, options.requireApproval)) {
       // The security diff is formatted via `Formatter`, which takes in a stream

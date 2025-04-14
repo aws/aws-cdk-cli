@@ -49,6 +49,7 @@ async function localFileDiff(stacks: StackCollection, options: DiffOptions): Pro
   return [{
     oldTemplate: template,
     newTemplate: stacks.firstStack,
+    stackName: stacks.firstStack.stackName,
   }];
 }
 
@@ -166,4 +167,17 @@ export function determinePermissionType(
   } else {
     return PermissionChangeType.NONE;
   }
+}
+
+export function appendObject<T>(
+  obj1: { [name: string]: T },
+  obj2: { [name: string]: T },
+): { [name: string]: T } {
+  // Directly modify obj1 by adding all properties from obj2
+  for (const key in obj2) {
+    obj1[key] = obj2[key];
+  }
+
+  // Return the modified obj1
+  return obj1;
 }
