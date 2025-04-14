@@ -1,5 +1,4 @@
 import * as path from 'path';
-import { format } from 'util';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as apis from '../../lib/api/shared-private';
@@ -18,7 +17,6 @@ beforeEach(() => {
   ioHost.requireDeployApproval = RequireApproval.NEVER;
 
   toolkit = new Toolkit({ ioHost });
-  const sdk = new MockSdk();
 
   // Some default implementations
   jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
@@ -177,7 +175,48 @@ describe('diff', () => {
     }));
   });
 
-  describe('templatePath', () => {
+  describe('DiffMethod.ChangeSet', () => {
+    test('ChangeSet diff method falls back to template only if changeset not found', async () => {
+      // WHEN
+      ioHost.level = 'debug';
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet(),
+      });
+
+      // THEN
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'diff',
+        level: 'info',
+        code: 'CDK_TOOLKIT_I0000',
+        message: expect.stringContaining('Could not create a change set, will base the diff on template differences'),
+      }));
+    });
+
+    test('ChangeSet diff method throws if changeSet fails and fallBackToTemplate = false', async () => {
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      await expect(async () => toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      })).rejects.toThrow(/Could not create a change set and failOnError is set/);
+    });
+
+    test('ChangeSet diff method throws if stack not found and fallBackToTemplate = false', async () => {
+      // GIVEN
+      jest.spyOn(apis.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      await expect(async () => toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      })).rejects.toThrow(/the stack 'Stack1' has not been deployed to CloudFormation/);
+    });
+  });
+
+  describe('DiffMethod.LocalFile', () => {
     test('fails with multiple stacks', async () => {
       // WHEN + THEN
       const cx = await builderFixture(toolkit, 'two-empty-stacks');
