@@ -89,29 +89,29 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
   const result: Record<string, string> = {};
   for (const id of order) {
     const resource = resources[id];
-
+    const resourceProperties = resource.Properties ?? {};
     const model = loadResourceModel(resource.Type);
-    const primaryIdentifier = intersection(Object.keys(resource.Properties ?? {}), model?.primaryIdentifier ?? []);
-    if (primaryIdentifier.length > 0) {
+    const identifier = intersection(Object.keys(resourceProperties), model?.primaryIdentifier ?? []);
+    let toHash: string;
+
+    if (identifier.length === model?.primaryIdentifier?.length) {
       // The resource has a physical ID defined, so we can
       // use the ID and the type as the identity of the resource.
-
-      const toHash =
+      toHash =
         resource.Type +
-        primaryIdentifier
+        identifier
           .sort()
-          .map((attr) => JSON.stringify(resource.Properties[attr]))
+          .map((attr) => JSON.stringify(resourceProperties[attr]))
           .join('');
-      result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
     } else {
       // The resource does not have a physical ID defined, so we need to
       // compute the digest based on its properties and dependencies.
-
       const depDigests = Array.from(graph[id]).map((d) => result[d]);
-      const propsWithoutRefs = hashObject(stripReferences(stripConstructPath(resource)));
-      const toHash = resource.Type + propsWithoutRefs + depDigests.join('');
-      result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
+      const propertiesHash = hashObject(stripReferences(stripConstructPath(resource)));
+      toHash = resource.Type + propertiesHash + depDigests.join('');
     }
+
+    result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
   }
 
   return result;

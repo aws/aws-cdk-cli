@@ -451,6 +451,34 @@ describe('computeResourceDigests', () => {
     expect(result['Foo1']).toBe(result['Foo2']);
   });
 
+  test('primaryIdentifier is a composite field but not all of them are set in the resource', () => {
+    mockLoadResourceModel.mockReturnValue({
+      primaryIdentifier: ['FooName', 'BarName']
+    });
+
+    const template = {
+      Resources: {
+        Foo1: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldBeIgnored: true,
+          },
+        },
+        Foo2: {
+          Type: 'AWS::S3::Foo',
+          Properties: {
+            FooName: 'XXXXXXXXX',
+            ShouldAlsoBeIgnored: true,
+          },
+        },
+      },
+    };
+
+    const result = computeResourceDigests(template);
+    expect(result['Foo1']).not.toBe(result['Foo2']);
+  });
+
   test('resource properties does not contain primaryIdentifier - different values', () => {
     mockLoadResourceModel.mockReturnValue({
       primaryIdentifier: ['FooName']
