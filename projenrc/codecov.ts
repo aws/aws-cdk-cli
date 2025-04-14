@@ -51,7 +51,7 @@ export class CodeCovWorkflow extends Component {
           with: {
             disable_search: true,
             files: props.packages.map(p => `packages/${p}/coverage/cobertura-coverage.xml`).join(','),
-            fail_ci_if_error: true,
+            fail_ci_if_error: false, // temporary until https://github.com/codecov/codecov-action/issues/1806 is fixed
             flags: 'suite.unit',
             use_oidc: true,
 
