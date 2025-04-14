@@ -31,7 +31,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudformation": "^3.777.0",
+    "@aws-sdk/client-cloudformation": "^3.787.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
@@ -41,7 +41,7 @@
     "commit-and-tag-version": "^12",
     "constructs": "^10.0.0",
     "eslint": "^9",
-    "eslint-config-prettier": "^10.1.1",
+    "eslint-config-prettier": "^10.1.2",
     "eslint-import-resolver-typescript": "^3.10.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jest": "^28.11.0",
@@ -52,13 +52,13 @@
     "jest-junit": "^16",
     "license-checker": "^25.0.1",
     "prettier": "^2.8",
-    "projen": "^0.91.18",
-    "ts-jest": "^29.3.1",
+    "projen": "^0.91.20",
+    "ts-jest": "^29.3.2",
     "typescript": "5.6"
   },
   "dependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.66",
-    "@aws-cdk/service-spec-types": "^0.0.132",
+    "@aws-cdk/aws-service-spec": "^0.1.67",
+    "@aws-cdk/service-spec-types": "^0.0.133",
     "chalk": "^4",
     "diff": "^7.0.0",
     "fast-deep-equal": "^3.1.3",
