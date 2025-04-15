@@ -49,7 +49,6 @@ async function localFileDiff(stacks: StackCollection, options: DiffOptions): Pro
   return [{
     oldTemplate: template,
     newTemplate: stacks.firstStack,
-    stackName: stacks.firstStack.stackName,
   }];
 }
 
@@ -92,7 +91,6 @@ async function cfnDiff(
     templateInfos.push({
       oldTemplate: currentTemplate,
       newTemplate: stack,
-      stackName: stack.stackName,
       isImport: !!resourcesToImport,
       nestedStacks,
       changeSet,

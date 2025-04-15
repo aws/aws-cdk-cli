@@ -121,11 +121,6 @@ export interface TemplateInfo {
   readonly changeSet?: any;
 
   /**
-   * The name of the stack
-   */
-  readonly stackName: string;
-
-  /**
    * Whether or not there are any imported resources
    *
    * @default false
@@ -164,7 +159,7 @@ export class DiffFormatter {
     this.ioHelper = props.ioHelper;
     this.oldTemplate = props.templateInfo.oldTemplate;
     this.newTemplate = props.templateInfo.newTemplate;
-    this.stackName = props.templateInfo.stackName;
+    this.stackName = props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;

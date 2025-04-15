@@ -61,7 +61,7 @@ describe('diff', () => {
     });
 
     // THEN
-    expect(result['Stack1']).toMatchObject(expect.objectContaining({
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
       resources: {
         diffs: expect.objectContaining({
           MyBucketF68F3FF0: expect.objectContaining({
@@ -88,7 +88,7 @@ describe('diff', () => {
     });
 
     // THEN
-    expect(result['Stack1']).toMatchObject(expect.objectContaining({
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
       resources: {
         diffs: expect.objectContaining({
           MyBucketF68F3FF0: expect.objectContaining({
@@ -105,7 +105,7 @@ describe('diff', () => {
         }),
       },
     }));
-    expect(result['Stack2']).toMatchObject(expect.objectContaining({
+    expect(result.Stack2).toMatchObject(expect.objectContaining({
       resources: {
         diffs: expect.objectContaining({
           MyQueueE6CA6235: expect.objectContaining({
@@ -150,7 +150,7 @@ describe('diff', () => {
       }),
     }));
 
-    expect(result['Stack1']).toMatchObject(expect.objectContaining({
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
       iamChanges: expect.objectContaining({
         statements: expect.objectContaining({
           additions: [expect.objectContaining({
@@ -286,7 +286,7 @@ describe('diff', () => {
       });
 
       // THEN
-      expect(result['Stack1']).toMatchObject(expect.objectContaining({
+      expect(result.Stack1).toMatchObject(expect.objectContaining({
         resources: {
           diffs: expect.objectContaining({
             MyBucketF68F3FF0: expect.objectContaining({
@@ -321,7 +321,7 @@ describe('diff', () => {
         code: 'CDK_TOOLKIT_W0000',
         message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level (--require-approval broadening)'),
       }));
-      expect(result['Stack1']).toMatchObject(expect.objectContaining({
+      expect(result.Stack1).toMatchObject(expect.objectContaining({
         iamChanges: expect.objectContaining({
           statements: expect.objectContaining({
             additions: [expect.objectContaining({
