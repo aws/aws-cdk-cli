@@ -169,6 +169,15 @@ export function determinePermissionType(
   }
 }
 
+/**
+ * Appends all properties from obj2 to obj1.
+ * obj2 values take priority in the case of collisions.
+ *
+ * @param obj1 The object to modify
+ * @param obj2 The object to consume
+ *
+ * @returns obj1 with all properties from obj2
+ */
 export function appendObject<T>(
   obj1: { [name: string]: T },
   obj2: { [name: string]: T },

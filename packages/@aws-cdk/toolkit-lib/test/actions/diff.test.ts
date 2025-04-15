@@ -82,14 +82,48 @@ describe('diff', () => {
 
   test('returns multiple template diffs', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await builderFixture(toolkit, 'two-different-stacks');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
+    console.log(JSON.stringify(result));
+
     // THEN
-    expect(result['Stack1']).toBeDefined();
-    expect(result['Stack2']).toBeDefined();
+    expect(result['Stack1']).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyBucketF68F3FF0: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
+              Type: 'AWS::S3::Bucket',
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
+    expect(result['Stack2']).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyQueueE6CA6235: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
+              Type: 'AWS::SQS::Queue',
+              UpdateReplacePolicy: 'Delete',
+              DeletionPolicy: 'Delete',
+              Metadata: { 'aws:cdk:path': 'Stack2/MyQueue/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
   });
 
   test('only security diff', async () => {
