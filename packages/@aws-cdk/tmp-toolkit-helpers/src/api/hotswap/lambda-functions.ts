@@ -73,7 +73,7 @@ export async function isHotswappableLambdaFunctionChange(
       },
       hotswappable: true,
       service: 'lambda',
-      apply: async (sdk: SDK) => {
+      apply: async (sdk: SDK, timeoutSeconds?: number) => {
         const lambda = sdk.lambda();
         const operations: Promise<any>[] = [];
 
@@ -88,7 +88,7 @@ export async function isHotswappableLambdaFunctionChange(
               S3ObjectVersion: lambdaCodeChange.code.s3ObjectVersion,
             });
 
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
+            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName, timeoutSeconds);
           }
 
           if (lambdaCodeChange.configurations !== undefined) {
@@ -102,7 +102,7 @@ export async function isHotswappableLambdaFunctionChange(
               updateRequest.Environment = lambdaCodeChange.configurations.environment;
             }
             const updateFunctionCodeResponse = await lambda.updateFunctionConfiguration(updateRequest);
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
+            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName, timeoutSeconds);
           }
 
           // only if the code changed is there any point in publishing a new Version
@@ -307,6 +307,7 @@ async function waitForLambdasPropertiesUpdateToFinish(
   currentFunctionConfiguration: FunctionConfiguration,
   lambda: ILambdaClient,
   functionName: string,
+  timeoutSeconds?: number,
 ): Promise<void> {
   const functionIsInVpcOrUsesDockerForCode =
     currentFunctionConfiguration.VpcConfig?.VpcId || currentFunctionConfiguration.PackageType === 'Image';
@@ -318,7 +319,7 @@ async function waitForLambdasPropertiesUpdateToFinish(
 
   await lambda.waitUntilFunctionUpdated(delaySeconds, {
     FunctionName: functionName,
-  });
+  }, timeoutSeconds);
 }
 
 /**

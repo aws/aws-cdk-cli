@@ -43,7 +43,7 @@ export async function isHotswappableStateMachineChange(
       },
       hotswappable: true,
       service: 'stepfunctions-service',
-      apply: async (sdk: SDK) => {
+      apply: async (sdk: SDK, _timeoutSeconds?: number /* unused because we don't currently wait for anything */) => {
         // not passing the optional properties leaves them unchanged
         await sdk.stepFunctions().updateStateMachine({
           stateMachineArn,
