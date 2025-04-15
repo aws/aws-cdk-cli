@@ -87,8 +87,6 @@ describe('diff', () => {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
-    console.log(JSON.stringify(result));
-
     // THEN
     expect(result['Stack1']).toMatchObject(expect.objectContaining({
       resources: {
