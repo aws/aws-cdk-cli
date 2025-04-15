@@ -13,7 +13,6 @@ import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { StringWriteStream } from '../streams';
-import { ToolkitError } from '../toolkit-error';
 import { PermissionChangeType } from '../../payloads';
 
 /**
@@ -146,7 +145,7 @@ export class DiffFormatter {
   private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
-  private readonly stackName?: string;
+  private readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
@@ -161,7 +160,7 @@ export class DiffFormatter {
     this.ioHelper = props.ioHelper;
     this.oldTemplate = props.templateInfo.oldTemplate;
     this.newTemplate = props.templateInfo.newTemplate;
-    this.stackName = props.templateInfo.stackName;
+    this.stackName = props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;
@@ -171,15 +170,27 @@ export class DiffFormatter {
     return this._diffs;
   }
 
+  private diff(stackName?: string, oldTemplate?: any) {
+    const realStackName = stackName ?? this.stackName;
+
+    if (!this._diffs[realStackName]) {
+      this._diffs[realStackName] = fullDiff(
+        oldTemplate ?? this.oldTemplate,
+        this.newTemplate.template,
+        this.changeSet,
+        this.isImport,
+      );
+    }
+    return this._diffs[realStackName];
+  }
+
   /**
    * Return whether the diff has security-impacting changes that need confirmation.
+   *
+   * If no stackName is given, then the root stack name is used.
    */
-  public determinePermissionType(stackName: string): PermissionChangeType {
-    const diff = this._diffs[stackName];
-
-    if (!diff) {
-      throw new ToolkitError(`No diff found for stack ${stackName}`);
-    }
+  public determinePermissionType(stackName?: string): PermissionChangeType {
+    const diff = this.diff(stackName);
 
     if (diff.permissionsBroadened) {
       return PermissionChangeType.BROADENING;
@@ -208,11 +219,11 @@ export class DiffFormatter {
 
   private formatStackDiffHelper(
     oldTemplate: any,
-    stackName: string | undefined,
+    stackName: string,
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
-    let diff = fullDiff(oldTemplate, this.newTemplate.template, this.changeSet, this.isImport);
+    let diff = this.diff(stackName, oldTemplate);
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
@@ -300,7 +311,7 @@ export class DiffFormatter {
   public formatSecurityDiff(_options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
 
-    const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
+    const diff = this.diff();
 
     // The security diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
