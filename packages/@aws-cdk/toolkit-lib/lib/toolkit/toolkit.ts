@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -23,7 +24,7 @@ import {
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
-import { makeTemplateInfos as prepareDiff } from '../actions/diff/private';
+import { appendObject, makeTemplateInfos as prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
@@ -299,7 +300,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<void> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff}> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -318,7 +319,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     let formattedStackDiff = '';
 
     const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
-
+    const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({
         ioHelper,
@@ -337,6 +338,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         formattedStackDiff = diff.formattedDiff;
         diffs = diff.numStacksWithChanges;
       }
+      appendObject(templateDiffs, formatter.diffs);
     }
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
@@ -344,7 +346,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       formattedStackDiff,
     });
 
-    return;
+    return templateDiffs;
   }
 
   /**

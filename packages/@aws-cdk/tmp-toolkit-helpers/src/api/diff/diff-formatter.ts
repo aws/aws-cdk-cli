@@ -115,13 +115,6 @@ export interface TemplateInfo {
   readonly changeSet?: any;
 
   /**
-   * The name of the stack
-   *
-   * @default undefined
-   */
-  readonly stackName?: string;
-
-  /**
    * Whether or not there are any imported resources
    *
    * @default false

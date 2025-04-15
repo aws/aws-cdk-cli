@@ -6,7 +6,6 @@ import { RequireApproval } from '../../lib/api/shared-private';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -54,38 +53,81 @@ describe('diff', () => {
     }));
   });
 
-  // TODO: uncomment when diff returns a value
-  // test('returns diff', async () => {
-  //   // WHEN
-  //   const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  //   const result = await toolkit.diff(cx, {
-  //     stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-  //   });
+  test('returns diff', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
 
-  //   // THEN
-  //   expect(result).toMatchObject(expect.objectContaining({
-  //     resources: {
-  //       diffs: expect.objectContaining({
-  //         MyBucketF68F3FF0: expect.objectContaining({
-  //           isAddition: true,
-  //           isRemoval: false,
-  //           oldValue: undefined,
-  //           newValue: {
-  //             Type: 'AWS::S3::Bucket',
-  //             UpdateReplacePolicy: 'Retain',
-  //             DeletionPolicy: 'Retain',
-  //             Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
-  //           },
-  //         }),
-  //       }),
-  //     },
-  //   }));
-  // });
+    // THEN
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyBucketF68F3FF0: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
+              Type: 'AWS::S3::Bucket',
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
+  });
+
+  test('returns multiple template diffs', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-different-stacks');
+    const result = await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyBucketF68F3FF0: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
+              Type: 'AWS::S3::Bucket',
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
+    expect(result.Stack2).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyQueueE6CA6235: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            newValue: {
+              Type: 'AWS::SQS::Queue',
+              UpdateReplacePolicy: 'Delete',
+              DeletionPolicy: 'Delete',
+              Metadata: { 'aws:cdk:path': 'Stack2/MyQueue/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
+  });
 
   test('only security diff', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
-    await toolkit.diff(cx, {
+    const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
       securityOnly: true,
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
@@ -107,26 +149,26 @@ describe('diff', () => {
         formattedSecurityDiff: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
       }),
     }));
-    // TODO: uncomment when diff returns a value
-    // expect(result).toMatchObject(expect.objectContaining({
-    //   iamChanges: expect.objectContaining({
-    //     statements: expect.objectContaining({
-    //       additions: [expect.objectContaining({
-    //         actions: expect.objectContaining({
-    //           not: false,
-    //           values: ['sts:AssumeRole'],
-    //         }),
-    //         condition: undefined,
-    //         effect: 'Allow',
-    //         principals: expect.objectContaining({
-    //           not: false,
-    //           values: ['AWS:arn'],
-    //         }),
-    //       })],
-    //       removals: [],
-    //     }),
-    //   }),
-    // }));
+
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
+      iamChanges: expect.objectContaining({
+        statements: expect.objectContaining({
+          additions: [expect.objectContaining({
+            actions: expect.objectContaining({
+              not: false,
+              values: ['sts:AssumeRole'],
+            }),
+            condition: undefined,
+            effect: 'Allow',
+            principals: expect.objectContaining({
+              not: false,
+              values: ['AWS:arn'],
+            }),
+          })],
+          removals: [],
+        }),
+      }),
+    }));
   });
 
   test('no security diff', async () => {
@@ -152,7 +194,7 @@ describe('diff', () => {
   test('TemplateOnly diff method does not try to find changeSet', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.diff(cx, {
+    await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
     });
@@ -235,71 +277,70 @@ describe('diff', () => {
       })).rejects.toThrow(/There is no file at/);
     });
 
-    // TODO: uncomment when diff returns a value
-    // test('returns regular diff', async () => {
-    //   // WHEN
-    //   const cx = await builderFixture(toolkit, 'stack-with-bucket');
-    //   const result = await toolkit.diff(cx, {
-    //     stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-    //     method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
-    //   });
+    test('returns regular diff', async () => {
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
+      });
 
-    //   // THEN
-    //   expect(result).toMatchObject(expect.objectContaining({
-    //     resources: {
-    //       diffs: expect.objectContaining({
-    //         MyBucketF68F3FF0: expect.objectContaining({
-    //           isAddition: true,
-    //           isRemoval: false,
-    //           oldValue: undefined,
-    //           newValue: {
-    //             Type: 'AWS::S3::Bucket',
-    //             UpdateReplacePolicy: 'Retain',
-    //             DeletionPolicy: 'Retain',
-    //             Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
-    //           },
-    //         }),
-    //       }),
-    //     },
-    //   }));
-    // });
+      // THEN
+      expect(result.Stack1).toMatchObject(expect.objectContaining({
+        resources: {
+          diffs: expect.objectContaining({
+            MyBucketF68F3FF0: expect.objectContaining({
+              isAddition: true,
+              isRemoval: false,
+              oldValue: undefined,
+              newValue: {
+                Type: 'AWS::S3::Bucket',
+                UpdateReplacePolicy: 'Retain',
+                DeletionPolicy: 'Retain',
+                Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+              },
+            }),
+          }),
+        },
+      }));
+    });
 
-    // test('returns security diff', async () => {
-    //   // WHEN
-    //   const cx = await builderFixture(toolkit, 'stack-with-role');
-    //   const result = await toolkit.diff(cx, {
-    //     stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-    //     securityOnly: true,
-    //     method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
-    //   });
+    test('returns security diff', async () => {
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        securityOnly: true,
+        method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
+      });
 
-    //   // THEN
-    //   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-    //     action: 'diff',
-    //     level: 'warn',
-    //     code: 'CDK_TOOLKIT_W0000',
-    //     message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level (--require-approval broadening)'),
-    //   }));
-    //   expect(result).toMatchObject(expect.objectContaining({
-    //     iamChanges: expect.objectContaining({
-    //       statements: expect.objectContaining({
-    //         additions: [expect.objectContaining({
-    //           actions: expect.objectContaining({
-    //             not: false,
-    //             values: ['sts:AssumeRole'],
-    //           }),
-    //           condition: undefined,
-    //           effect: 'Allow',
-    //           principals: expect.objectContaining({
-    //             not: false,
-    //             values: ['AWS:arn'],
-    //           }),
-    //         })],
-    //         removals: [],
-    //       }),
-    //     }),
-    //   }));
-    // });
+      // THEN
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'diff',
+        level: 'warn',
+        code: 'CDK_TOOLKIT_W0000',
+        message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level (--require-approval broadening)'),
+      }));
+      expect(result.Stack1).toMatchObject(expect.objectContaining({
+        iamChanges: expect.objectContaining({
+          statements: expect.objectContaining({
+            additions: [expect.objectContaining({
+              actions: expect.objectContaining({
+                not: false,
+                values: ['sts:AssumeRole'],
+              }),
+              condition: undefined,
+              effect: 'Allow',
+              principals: expect.objectContaining({
+                not: false,
+                values: ['AWS:arn'],
+              }),
+            })],
+            removals: [],
+          }),
+        }),
+      }));
+    });
   });
 
   test('action disposes of assembly produced by source', async () => {

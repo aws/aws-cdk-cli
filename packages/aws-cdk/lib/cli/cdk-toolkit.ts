@@ -314,7 +314,6 @@ export class CdkToolkit {
           templateInfo: {
             oldTemplate: currentTemplate,
             newTemplate: stack,
-            stackName: stack.displayName,
             changeSet,
             isImport: !!resourcesToImport,
             nestedStacks,
