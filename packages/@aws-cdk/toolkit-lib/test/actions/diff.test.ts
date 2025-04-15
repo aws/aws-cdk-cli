@@ -172,6 +172,9 @@ describe('diff', () => {
   });
 
   test('no security diff', async () => {
+    // GIVEN
+    ioHost.requireDeployApproval = RequireApproval.BROADENING;
+
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.diff(cx, {
@@ -319,7 +322,7 @@ describe('diff', () => {
         action: 'diff',
         level: 'warn',
         code: 'CDK_TOOLKIT_W0000',
-        message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level (--require-approval broadening)'),
+        message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
       }));
       expect(result.Stack1).toMatchObject(expect.objectContaining({
         iamChanges: expect.objectContaining({

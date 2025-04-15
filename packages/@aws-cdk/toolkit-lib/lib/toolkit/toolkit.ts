@@ -24,7 +24,7 @@ import {
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
-import { appendObject, makeTemplateInfos as prepareDiff } from '../actions/diff/private';
+import { appendObject, prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';

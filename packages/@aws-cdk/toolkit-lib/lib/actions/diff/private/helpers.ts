@@ -8,7 +8,7 @@ import { ResourceMigrator, IO, removeNonImportResources, cfnApi } from '../../..
 import { ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
 
-export function makeTemplateInfos(
+export function prepareDiff(
   ioHelper: IoHelper,
   stacks: StackCollection,
   deployments: Deployments,
