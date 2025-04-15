@@ -73,6 +73,9 @@
         {
           "exec": "tsc --build",
           "receiveArgs": true
+        },
+        {
+          "exec": "tsc --build test"
         }
       ]
     },

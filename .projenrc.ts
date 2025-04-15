@@ -13,6 +13,7 @@ import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -269,6 +270,7 @@ const repoProject = new yarn.Monorepo({
 repoProject.package.addPackageResolutions(
   'jest-environment-node@30.0.0-alpha.7',
   '@jest/environment@30.0.0-alpha.7',
+  '@jest/types@30.0.0-alpha.7',
 );
 
 new AdcPublishing(repoProject);
@@ -653,6 +655,8 @@ const cdkAssets = configureProject(
   }),
 );
 
+new TypecheckTests(cdkAssets);
+
 cdkAssets.addTask('shrinkwrap', {
   steps: [
     {
@@ -773,6 +777,8 @@ const tmpToolkitHelpers = configureProject(
     }),
   }),
 );
+
+new TypecheckTests(tmpToolkitHelpers);
 
 // Prevent imports of private API surface
 tmpToolkitHelpers.package.addField('exports', {
@@ -922,6 +928,8 @@ const toolkitLib = configureProject(
     },
   }),
 );
+
+new TypecheckTests(toolkitLib);
 
 // TypeDoc documentation publishing
 new S3DocsPublishing(toolkitLib, {
@@ -1250,6 +1258,8 @@ const cli = configureProject(
     majorVersion: 2,
   }),
 );
+
+new TypecheckTests(cli);
 
 // Eslint rules
 cli.eslint?.addRules({
