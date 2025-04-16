@@ -6,6 +6,7 @@ import { RequireApproval } from '../../lib/api/shared-private';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { MockSdkProvider } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -18,6 +19,8 @@ beforeEach(() => {
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
+  jest.spyOn(apis.SdkProvider, 'withAwsCliCompatibleDefaults').mockResolvedValue(new MockSdkProvider());
+
   jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
       Parameters: {},
