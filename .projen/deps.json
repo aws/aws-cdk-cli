@@ -110,6 +110,11 @@
       "type": "override"
     },
     {
+      "name": "@jest/types",
+      "version": "30.0.0-alpha.7",
+      "type": "override"
+    },
+    {
       "name": "jest-environment-node",
       "version": "30.0.0-alpha.7",
       "type": "override"

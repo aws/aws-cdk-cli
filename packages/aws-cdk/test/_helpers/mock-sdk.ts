@@ -156,7 +156,7 @@ export class MockSdkProvider extends SdkProvider {
   public defaultAccount(): Promise<Account | undefined> {
     const accountId = this.defaultAccounts.length === 0
       ? '123456789012'
-      : this.defaultAccounts.shift();
+      : this.defaultAccounts.shift()!;
     return Promise.resolve({ accountId, partition: 'aws' });
   }
 }

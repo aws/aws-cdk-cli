@@ -5,7 +5,7 @@ describe(SdkToCliLogger, () => {
     notify: jest.fn(),
     requestResponse: jest.fn(),
   };
-  const logger = new SdkToCliLogger(ioHost);
+  const logger = new SdkToCliLogger(ioHost as any);
 
   beforeEach(() => {
     ioHost.notify.mockReset();

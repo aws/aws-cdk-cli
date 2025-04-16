@@ -93,7 +93,7 @@ test('plugin that registers an invalid Context Provider throws', () => {
   try {
     host.load(THE_PLUGIN);
     expect(true).toBe(false); // should not happen
-  } catch(e) {
+  } catch(e: any) {
     expect(e).toHaveProperty('cause');
     expect(e.cause?.message).toMatch(/does not look like a ContextProviderPlugin/);
   }
