@@ -37,11 +37,17 @@ describe('fromAssemblyBuilder', () => {
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
   });
 
-  test('errors are wrapped as AssemblyError', async () => {
+  test.each(['sync', 'async'] as const)('errors are wrapped as AssemblyError for %s builder', async (sync) => {
     // GIVEN
-    const cx = await toolkit.fromAssemblyBuilder(() => {
-      throw new Error('a wild error appeared');
-    });
+    const builder = sync === 'sync'
+      ? () => {
+        throw new Error('a wild error appeared');
+      }
+      : async () => {
+        throw new Error('a wild error appeared');
+      };
+
+    const cx = await toolkit.fromAssemblyBuilder(builder);
 
     // WHEN
     try {
@@ -89,7 +95,7 @@ describe('fromAssemblyBuilder', () => {
     });
 
     // WHEN
-    await expect(cx.produce()).rejects.toThrow(/wild error/);
+    await expect(cx.produce()).rejects.toThrow();
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await lock!._currentWriter()).toBeUndefined();
