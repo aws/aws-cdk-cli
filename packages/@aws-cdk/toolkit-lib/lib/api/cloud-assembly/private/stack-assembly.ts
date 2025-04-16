@@ -1,3 +1,4 @@
+import '../../../private/dispose-polyfill';
 import { major } from 'semver';
 import type { IoHelper } from '../../shared-private';
 import { BaseStackAssembly, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../shared-private';
@@ -5,11 +6,6 @@ import { ToolkitError } from '../../shared-public';
 import type { StackSelector } from '../stack-selector';
 import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector';
 import type { IReadableCloudAssembly } from '../types';
-
-if (!Symbol.asyncDispose) {
-  // eslint-disable-next-line @cdklabs/no-throw-default-error
-  throw new Error('Symbol.asyncDispose is not defined on the current JavaScript platform!');
-}
 
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
