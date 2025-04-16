@@ -175,6 +175,7 @@ function transitiveToolkitPackages(thisPkg: string) {
     '@aws-cdk/tmp-toolkit-helpers',
     '@aws-cdk/cloud-assembly-schema',
     '@aws-cdk/cloudformation-diff',
+    '@aws-cdk/toolkit-lib',
   ];
 
   return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg));
