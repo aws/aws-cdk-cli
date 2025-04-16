@@ -165,7 +165,7 @@ function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
 }
 
 /**
- * Returns all packages that are considered part of the toolkit,
+ * Returns all packages that are considered part of the toolkit and are a dependency of the provided package,
  * as relative paths from the provided package.
  */
 function transitiveToolkitPackages(thisPkg: string) {
@@ -174,9 +174,17 @@ function transitiveToolkitPackages(thisPkg: string) {
     '@aws-cdk/tmp-toolkit-helpers',
     '@aws-cdk/cloud-assembly-schema',
     '@aws-cdk/cloudformation-diff',
+    '@aws-cdk/toolkit-lib',
   ];
 
-  return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg));
+  const manifest = require(`${__dirname}/packages/${thisPkg}/package.json`);
+  const deps = Array.from(new Set(
+    [
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.devDependencies ?? {}),
+    ]));
+
+  return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg && deps.includes(name)));
 }
 
 const repoProject = new yarn.Monorepo({
