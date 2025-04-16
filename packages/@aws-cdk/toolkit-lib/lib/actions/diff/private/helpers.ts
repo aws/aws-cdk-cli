@@ -1,5 +1,3 @@
-import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
-import { fullDiff } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
@@ -7,10 +5,10 @@ import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..
 import { DiffMethod } from '..';
 import type { Deployments, ResourcesToImport, IoHelper, SdkProvider, StackCollection, TemplateInfo } from '../../../api/shared-private';
 import { ResourceMigrator, IO, removeNonImportResources, cfnApi } from '../../../api/shared-private';
-import { PermissionChangeType, ToolkitError } from '../../../api/shared-public';
+import { ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
 
-export function makeTemplateInfos(
+export function prepareDiff(
   ioHelper: IoHelper,
   stacks: StackCollection,
   deployments: Deployments,
@@ -144,26 +142,6 @@ async function changeSetDiff(
 
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`));
     return;
-  }
-}
-
-/**
- * Return whether the diff has security-impacting changes that need confirmation.
- */
-export function determinePermissionType(
-  oldTemplate: any,
-  newTemplate: cxapi.CloudFormationStackArtifact,
-  changeSet?: DescribeChangeSetOutput,
-): PermissionChangeType {
-  // @todo return a printable version of the full diff.
-  const diff = fullDiff(oldTemplate, newTemplate.template, changeSet);
-
-  if (diff.permissionsBroadened) {
-    return PermissionChangeType.BROADENING;
-  } else if (diff.permissionsAnyChanges) {
-    return PermissionChangeType.NON_BROADENING;
-  } else {
-    return PermissionChangeType.NONE;
   }
 }
 

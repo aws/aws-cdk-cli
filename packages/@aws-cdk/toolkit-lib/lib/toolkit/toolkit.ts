@@ -25,7 +25,7 @@ import {
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
-import { appendObject, determinePermissionType, makeTemplateInfos as prepareDiff } from '../actions/diff/private';
+import { appendObject, prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
@@ -62,7 +62,6 @@ import {
   formatAmbiguousMappings,
   formatTypedMappings,
   HotswapMode,
-  RequireApproval,
   ResourceMigrator,
   SdkProvider,
   tagsForStack,
@@ -329,9 +328,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       });
 
       if (options.securityOnly) {
-        const securityDiff = formatter.formatSecurityDiff({
-          requireApproval: RequireApproval.BROADENING,
-        });
+        const securityDiff = formatter.formatSecurityDiff();
         formattedSecurityDiff = securityDiff.formattedDiff ?? '';
         diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
       } else {
@@ -484,7 +481,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
 
       const currentTemplate = await deployments.readCurrentTemplate(stack);
-      const permissionChangeType = determinePermissionType(currentTemplate, stack);
+
+      const formatter = new DiffFormatter({
+        ioHelper,
+        templateInfo: {
+          oldTemplate: currentTemplate,
+          newTemplate: stack,
+        },
+      });
+
+      const permissionChangeType = formatter.determinePermissionType(stack.stackName);
       const deployMotivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
       const deployQuestion = `${deployMotivation}\nDo you wish to deploy these changes`;
       const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
