@@ -1,3 +1,4 @@
+import '../../../private/dispose-polyfill';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { format } from 'node:util';
