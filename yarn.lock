@@ -2441,25 +2441,13 @@
     slash "^3.0.0"
     write-file-atomic "^4.0.2"
 
-"@jest/types@30.0.0-alpha.7":
+"@jest/types@30.0.0-alpha.7", "@jest/types@^29.6.3":
   version "30.0.0-alpha.7"
   resolved "https://registry.yarnpkg.com/@jest/types/-/types-30.0.0-alpha.7.tgz#10b8d41c2c5284202d76d66808eca357c74096f5"
   integrity sha512-hrdUqtIjUMpoNlpmo4DQfe6fvD0Rk02kdOv0+AsAbO689llpzNmb+kLcojzKp/H2jVGqcYrUb0wNSRgn4KcuqA==
   dependencies:
     "@jest/pattern" "30.0.0-alpha.7"
     "@jest/schemas" "30.0.0-alpha.7"
-    "@types/istanbul-lib-coverage" "^2.0.0"
-    "@types/istanbul-reports" "^3.0.0"
-    "@types/node" "*"
-    "@types/yargs" "^17.0.8"
-    chalk "^4.0.0"
-
-"@jest/types@^29.6.3":
-  version "29.6.3"
-  resolved "https://registry.yarnpkg.com/@jest/types/-/types-29.6.3.tgz#1131f8cf634e7e84c5e77bab12f052af585fba59"
-  integrity sha512-u3UPsIilWKOM3F9CXtrG8LEJmNxwoCQC/XVj4IKYXvvpx7QIi/Kg1LI5uDmDpKlac62NUtX7eLjRh+jVZcLOzw==
-  dependencies:
-    "@jest/schemas" "^29.6.3"
     "@types/istanbul-lib-coverage" "^2.0.0"
     "@types/istanbul-reports" "^3.0.0"
     "@types/node" "*"

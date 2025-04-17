@@ -1,3 +1,4 @@
+import '../../private/dispose-polyfill';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { BorrowedAssembly } from './private/borrowed-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from './types';

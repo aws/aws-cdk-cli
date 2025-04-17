@@ -88,7 +88,7 @@ describe('fromAssemblyBuilder', () => {
     // GIVEN
     const cx = await toolkit.fromAssemblyBuilder(async (props) => {
       lock = new RWLock(props.outdir!);
-      if (!await lock._currentWriter()) {
+      if (!await (lock as any)._currentWriter()) {
         throw new Error('Expected the directory to be locked during synth');
       }
       throw new Error('a wild error appeared');
@@ -98,8 +98,8 @@ describe('fromAssemblyBuilder', () => {
     await expect(cx.produce()).rejects.toThrow();
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
-    expect(await lock!._currentWriter()).toBeUndefined();
-    expect(await lock!._currentReaders()).toEqual([]);
+    expect(await (lock! as any)._currentWriter()).toBeUndefined();
+    expect(await (lock! as any)._currentReaders()).toEqual([]);
   });
 });
 
@@ -168,8 +168,8 @@ describe('fromCdkApp', () => {
     await expect(cx.produce()).rejects.toThrow(/error 1/);
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
-    expect(await lock!._currentWriter()).toBeUndefined();
-    expect(await lock!._currentReaders()).toEqual([]);
+    expect(await (lock! as any)._currentWriter()).toBeUndefined();
+    expect(await (lock! as any)._currentReaders()).toEqual([]);
   });
 });
 

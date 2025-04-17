@@ -41,4 +41,5 @@ jspm_packages/
 /dist/
 !/.eslintrc.json
 !/.eslintrc.js
+!/test/tsconfig.json
 test/**/*.map

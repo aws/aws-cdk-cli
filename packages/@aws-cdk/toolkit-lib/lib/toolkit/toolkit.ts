@@ -1,3 +1,4 @@
+import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
