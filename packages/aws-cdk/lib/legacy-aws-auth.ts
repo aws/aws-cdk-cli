@@ -107,13 +107,11 @@ export class SdkProvider {
     requestHandler: NodeHttpHandlerOptions = {},
     logger?: Logger,
   ) {
-    return new SdkProviderCurrentVersion(
-      defaultCredentialProvider,
-      defaultRegion,
+    return new SdkProviderCurrentVersion(defaultCredentialProvider, defaultRegion, {
+      pluginHost: GLOBAL_PLUGIN_HOST,
+      ioHelper: CliIoHost.instance().asIoHelper(),
       requestHandler,
-      GLOBAL_PLUGIN_HOST,
-      CliIoHost.instance().asIoHelper(),
       logger,
-    );
+    });
   }
 }

@@ -32,7 +32,7 @@ import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
-import { type SdkConfig } from '../api/aws-auth';
+import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -47,8 +47,10 @@ import type {
   StackCollection,
   StackNode,
   SuccessfulDeployStackResult,
+  SdkProviderServices,
 } from '../api/shared-private';
 import {
+  SdkProvider,
   AmbiguityError,
   ambiguousMovements,
   asIoHelper,
@@ -64,11 +66,11 @@ import {
   HotswapMode,
   RequireApproval,
   ResourceMigrator,
-  SdkProvider,
   tagsForStack,
   ToolkitError,
   resourceMappings,
   WorkGraphBuilder,
+  makeRequestHandler,
 } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
 import { PluginHost } from '../api/shared-public';
@@ -160,6 +162,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   private sdkProviderCache?: SdkProvider;
 
+  private baseCredentials: BaseCredentials;
+
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
@@ -176,6 +180,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // After removing emojis and color, we might end up with floating whitespace at either end of the message
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
+
+    if (props.sdkConfig?.profile && props.sdkConfig?.baseCredentials) {
+      throw new ToolkitError('Specify at most one of \'sdkConfig.profile\' and \'sdkConfig.baseCredentials\'');
+    }
+    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible({ profile: props.sdkConfig?.profile });
   }
 
   /**
@@ -186,12 +195,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // @todo this needs to be different instance per action
     if (!this.sdkProviderCache) {
       const ioHelper = asIoHelper(this.ioHost, action);
-      this.sdkProviderCache = await SdkProvider.withAwsCliCompatibleDefaults({
-        ...this.props.sdkConfig,
+      const services: SdkProviderServices = {
         ioHelper,
+        requestHandler: await makeRequestHandler(ioHelper, this.props.sdkConfig?.httpOptions),
         logger: asSdkLogger(ioHelper),
         pluginHost: this.pluginHost,
-      });
+      };
+
+      const config = await this.baseCredentials.makeSdkConfig(services);
+      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, services);
     }
 
     return this.sdkProviderCache;

@@ -24,7 +24,7 @@ import type { AwsCredentialIdentity } from '@smithy/types';
 import { mockClient } from 'aws-sdk-client-mock';
 import { type Account } from 'cdk-assets';
 import { TestIoHost } from './test-io-host';
-import { SDK, SdkProvider, CloudFormationStack, PluginHost } from '../../lib/api/shared-private';
+import { SDK, SdkProvider, CloudFormationStack } from '../../lib/api/shared-private';
 
 export const FAKE_CREDENTIALS: AwsCredentialIdentity = {
   accessKeyId: 'ACCESS',
@@ -144,7 +144,9 @@ export const setDefaultSTSMocks = () => {
  */
 export class MockSdkProvider extends SdkProvider {
   constructor() {
-    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new PluginHost(), new TestIoHost().asHelper('sdk'));
+    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {
+      ioHelper: new TestIoHost().asHelper('sdk'),
+    });
   }
 
   public defaultAccount(): Promise<Account | undefined> {
@@ -161,6 +163,13 @@ export class MockSdkProvider extends SdkProvider {
 export class MockSdk extends SDK {
   constructor() {
     super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
+  }
+
+  public async currentAccount(): Promise<Account> {
+    return {
+      accountId: '123456789012',
+      partition: 'aws',
+    };
   }
 }
 

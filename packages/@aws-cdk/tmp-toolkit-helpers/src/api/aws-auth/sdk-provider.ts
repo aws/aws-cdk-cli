@@ -22,35 +22,13 @@ export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, '
 /**
  * Options for the default SDK provider
  */
-export interface SdkProviderOptions {
-  /**
-   * IoHelper for messaging
-   */
-  readonly ioHelper: IoHelper;
-
+export interface SdkProviderOptions extends SdkProviderServices {
   /**
    * Profile to read from ~/.aws
    *
    * @default - No profile
    */
   readonly profile?: string;
-
-  /**
-   * HTTP options for SDK
-   */
-  readonly httpOptions?: SdkHttpOptions;
-
-  /**
-   * The logger for sdk calls.
-   */
-  readonly logger?: Logger;
-
-  /**
-   * The plugin host to use
-   *
-   * @default - an empty plugin host
-   */
-  readonly pluginHost?: PluginHost;
 }
 
 /**
@@ -133,33 +111,29 @@ export class SdkProvider {
    * class `AwsCliCompatible` for the details.
    */
   public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions) {
-    const builder = new AwsCliCompatible(options.ioHelper);
     callTrace(SdkProvider.withAwsCliCompatibleDefaults.name, SdkProvider.constructor.name, options.logger);
-    const credentialProvider = await builder.credentialChainBuilder({
-      profile: options.profile,
-      httpOptions: options.httpOptions,
-      logger: options.logger,
-    });
-
-    const region = await builder.region(options.profile);
-    const requestHandler = await builder.requestHandlerBuilder(options.httpOptions);
-    return new SdkProvider(credentialProvider, region, requestHandler, options.pluginHost ?? new PluginHost(), options.ioHelper, options.logger);
+    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(options.profile);
+    return new SdkProvider(config.credentialProvider, config.defaultRegion, options);
   }
 
+  public readonly defaultRegion: string;
+  private readonly defaultCredentialProvider: AwsCredentialIdentityProvider;
   private readonly plugins;
+  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly ioHelper: IoHelper;
+  private readonly logger?: Logger;
 
   public constructor(
-    private readonly defaultCredentialProvider: AwsCredentialIdentityProvider,
-    /**
-     * Default region
-     */
-    public readonly defaultRegion: string,
-    private readonly requestHandler: NodeHttpHandlerOptions = {},
-    pluginHost: PluginHost,
-    private readonly ioHelper: IoHelper,
-    private readonly logger?: Logger,
+    defaultCredentialProvider: AwsCredentialIdentityProvider,
+    defaultRegion: string | undefined,
+    services: SdkProviderServices,
   ) {
-    this.plugins = new CredentialPlugins(pluginHost, ioHelper);
+    this.defaultCredentialProvider = defaultCredentialProvider;
+    this.defaultRegion = defaultRegion ?? 'us-east-1';
+    this.requestHandler = services.requestHandler ?? {};
+    this.ioHelper = services.ioHelper;
+    this.logger = services.logger;
+    this.plugins = new CredentialPlugins(services.pluginHost ?? new PluginHost(), this.ioHelper);
   }
 
   /**
@@ -571,4 +545,26 @@ export async function initContextProviderSdk(aws: SdkProvider, options: ContextL
   };
 
   return (await aws.forEnvironment(EnvironmentUtils.make(account, region), Mode.ForReading, creds)).sdk;
+}
+
+export interface SdkProviderServices {
+  /**
+   * An IO helper for emitting messages
+   */
+  readonly ioHelper: IoHelper;
+
+  /**
+   * The request handler settings
+   */
+  readonly requestHandler?: NodeHttpHandlerOptions;
+
+  /**
+   * A plugin host
+   */
+  readonly pluginHost?: PluginHost;
+
+  /**
+   * An SDK logger
+   */
+  readonly logger?: Logger;
 }

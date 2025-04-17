@@ -2,17 +2,15 @@ import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudform
 import { StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/shared-private';
 import { builderFixture, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdkProvider } from '../_helpers/mock-sdk';
+import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
 
 // these tests often run a bit longer than the default
 jest.setTimeout(10_000);
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
-const mockSdkProvider = new MockSdkProvider();
 
-// we don't need to use AWS CLI compatible defaults here, since everything is mocked anyway
-jest.spyOn(SdkProvider, 'withAwsCliCompatibleDefaults').mockResolvedValue(mockSdkProvider);
+jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
 
 beforeEach(() => {
   ioHost.notifySpy.mockClear();

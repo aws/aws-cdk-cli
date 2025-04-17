@@ -226,7 +226,7 @@ async function region(opts: {
       process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
     }
 
-    return await new AwsCliCompatible(ioHelper).region(opts.profile);
+    return await new AwsCliCompatible(ioHelper, {}).region(opts.profile);
   } finally {
     fs.removeSync(workdir);
   }
@@ -243,7 +243,7 @@ describe('Session token', () => {
     delete process.env.AWS_SESSION_TOKEN;
     delete process.env.AMAZON_SESSION_TOKEN;
 
-    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toBeUndefined();
   });
@@ -252,7 +252,7 @@ describe('Session token', () => {
     process.env.AWS_SESSION_TOKEN = 'aaa';
     delete process.env.AMAZON_SESSION_TOKEN;
 
-    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });
@@ -261,7 +261,7 @@ describe('Session token', () => {
     delete process.env.AWS_SESSION_TOKEN;
     process.env.AMAZON_SESSION_TOKEN = 'aaa';
 
-    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });
@@ -270,7 +270,7 @@ describe('Session token', () => {
     process.env.AWS_SESSION_TOKEN = 'aaa';
     process.env.AMAZON_SESSION_TOKEN = 'bbb';
 
-    await new AwsCliCompatible(ioHelper).credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });

@@ -163,7 +163,7 @@ describe('with intercepted network calls', () => {
       const error = new Error('Expired Token');
       error.name = 'ExpiredToken';
       const identityProvider = () => Promise.reject(error);
-      const provider = new SdkProvider(identityProvider, 'rgn', {}, GLOBAL_PLUGIN_HOST, ioHelper);
+      const provider = new SdkProvider(identityProvider, 'rgn', { ioHelper, pluginHost: GLOBAL_PLUGIN_HOST });
       const creds = await provider.baseCredentialsPartition({ ...env(account), region: 'rgn' }, Mode.ForReading);
 
       expect(creds).toBeUndefined();

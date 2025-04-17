@@ -30,6 +30,7 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
+import { makeRequestHandler } from '../../../@aws-cdk/toolkit-lib/lib/api/shared-private';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -121,10 +122,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
     profile: configuration.settings.get(['profile']),
-    httpOptions: {
+    requestHandler: await makeRequestHandler(ioHelper, {
       proxyAddress: argv.proxy,
       caBundlePath: argv['ca-bundle-path'],
-    },
+    }),
     logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
   });
