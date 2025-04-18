@@ -1,0 +1,286 @@
+{
+  "dependencies": [
+    {
+      "name": "@cdklabs/eslint-plugin",
+      "type": "build"
+    },
+    {
+      "name": "@stylistic/eslint-plugin",
+      "version": "^3",
+      "type": "build"
+    },
+    {
+      "name": "@types/fs-extra",
+      "version": "^9",
+      "type": "build"
+    },
+    {
+      "name": "@types/glob",
+      "version": "^7",
+      "type": "build"
+    },
+    {
+      "name": "@types/jest",
+      "type": "build"
+    },
+    {
+      "name": "@types/node",
+      "version": "^16",
+      "type": "build"
+    },
+    {
+      "name": "@types/semver",
+      "version": "^7",
+      "type": "build"
+    },
+    {
+      "name": "@types/yargs",
+      "version": "^15",
+      "type": "build"
+    },
+    {
+      "name": "@typescript-eslint/eslint-plugin",
+      "version": "^8",
+      "type": "build"
+    },
+    {
+      "name": "@typescript-eslint/parser",
+      "version": "^8",
+      "type": "build"
+    },
+    {
+      "name": "commit-and-tag-version",
+      "version": "^12",
+      "type": "build"
+    },
+    {
+      "name": "constructs",
+      "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "eslint-config-prettier",
+      "type": "build"
+    },
+    {
+      "name": "eslint-import-resolver-typescript",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-import",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-jest",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-jsdoc",
+      "type": "build"
+    },
+    {
+      "name": "eslint-plugin-prettier",
+      "type": "build"
+    },
+    {
+      "name": "eslint",
+      "version": "^9",
+      "type": "build"
+    },
+    {
+      "name": "jest",
+      "type": "build"
+    },
+    {
+      "name": "jest-junit",
+      "version": "^16",
+      "type": "build"
+    },
+    {
+      "name": "license-checker",
+      "type": "build"
+    },
+    {
+      "name": "prettier",
+      "version": "^2.8",
+      "type": "build"
+    },
+    {
+      "name": "projen",
+      "type": "build"
+    },
+    {
+      "name": "ts-jest",
+      "type": "build"
+    },
+    {
+      "name": "typescript",
+      "version": "5.6",
+      "type": "build"
+    },
+    {
+      "name": "@aws-sdk/client-cloudformation",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-codeartifact",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ecr-public",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ecr",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ecs",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-iam",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-lambda",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sns",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sso",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sts",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/credential-providers",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@cdklabs/cdk-atmosphere-client",
+      "type": "runtime"
+    },
+    {
+      "name": "@octokit/rest",
+      "version": "^18.12.0",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/types",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@smithy/util-retry",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "axios",
+      "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "chalk",
+      "version": "^4",
+      "type": "runtime"
+    },
+    {
+      "name": "fs-extra",
+      "version": "^9",
+      "type": "runtime"
+    },
+    {
+      "name": "glob",
+      "version": "^7",
+      "type": "runtime"
+    },
+    {
+      "name": "jest-junit",
+      "version": "^15",
+      "type": "runtime"
+    },
+    {
+      "name": "jest",
+      "version": "^29",
+      "type": "runtime"
+    },
+    {
+      "name": "make-runnable",
+      "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "mockttp",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "node-pty",
+      "type": "runtime"
+    },
+    {
+      "name": "npm",
+      "version": "^8",
+      "type": "runtime"
+    },
+    {
+      "name": "p-queue",
+      "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "semver",
+      "version": "^7",
+      "type": "runtime"
+    },
+    {
+      "name": "sinon",
+      "version": "^9",
+      "type": "runtime"
+    },
+    {
+      "name": "ts-jest",
+      "version": "^29",
+      "type": "runtime"
+    },
+    {
+      "name": "ts-mock-imports",
+      "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "yaml",
+      "version": "1",
+      "type": "runtime"
+    },
+    {
+      "name": "yargs",
+      "version": "^17",
+      "type": "runtime"
+    }
+  ],
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+}
