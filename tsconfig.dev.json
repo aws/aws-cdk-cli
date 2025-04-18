@@ -71,6 +71,9 @@
     },
     {
       "path": "packages/@aws-cdk/integ-runner"
+    },
+    {
+      "path": "packages/@aws-cdk-testing/cli-integ"
     }
   ]
 }
