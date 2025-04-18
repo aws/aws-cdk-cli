@@ -347,7 +347,7 @@ function genericCdkProps(props: GenericProps = {}) {
     },
     typescriptVersion: TYPESCRIPT_VERSION,
     checkLicenses: props.private ? undefined : {
-      allow: ['Apache-2.0', 'MIT', 'ISC'],
+      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause'],
     },
     ...props,
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
@@ -1648,6 +1648,100 @@ new BundleCli(integRunner, {
 
 //////////////////////////////////////////////////////////////////////
 
+const cliInteg = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: '@aws-cdk-testing/cli-integ',
+    description: 'Integration tests for the AWS CDK CLI',
+
+    // We set the majorVersion of this to 3.x, so that we can release
+    // it already without interfering with the current crop of CDK
+    // integ tests.
+    majorVersion: 3,
+
+    srcdir: '.',
+    libdir: '.',
+    deps: [
+      '@octokit/rest@^18.12.0',
+      `@aws-sdk/client-codeartifact@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr-public@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sns@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sso@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@smithy/util-retry@${CLI_SDK_V3_RANGE}`,
+      `@smithy/types@${CLI_SDK_V3_RANGE}`,
+      '@cdklabs/cdk-atmosphere-client',
+      'axios@^1',
+      'chalk@^4',
+      'fs-extra@^9',
+      'glob@^7',
+      'make-runnable@^1',
+      'mockttp@^3',
+      'npm@^8',
+      'p-queue@^6',
+      'semver@^7',
+      'sinon@^9',
+      'ts-mock-imports@^1',
+      'yaml@1',
+      'yargs@^17',
+      // Jest is a runtime dependency here!
+      'jest@^29',
+      'jest-junit@^15',
+      'ts-jest@^29',
+      'node-pty',
+    ],
+    devDeps: [
+      '@types/semver@^7',
+      '@types/yargs@^15',
+      '@types/fs-extra@^9',
+      '@types/glob@^7',
+    ],
+    bin: {
+      'run-suite': 'bin/run-suite',
+      'download-and-run-old-tests': 'bin/download-and-run-old-tests',
+      'query-github': 'bin/query-github',
+      'apply-patches': 'bin/apply-patches',
+      'test-root': 'bin/test-root',
+      'stage-distribution': 'bin/stage-distribution',
+    },
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        esModuleInterop: false,
+      },
+      include: ['**/*.ts'],
+      exclude: ['resources/**/*'],
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 40,
+          lines: 40,
+          functions: 10,
+          branches: 40,
+        },
+      },
+    }),
+  }),
+);
+
+const compiledDirs = ['tests', 'test', 'lib'];
+for (const compiledDir of compiledDirs) {
+  cliInteg.gitignore.addPatterns(`${compiledDir}/**/*.js`);
+  cliInteg.gitignore.addPatterns(`${compiledDir}/**/*.d.ts`);
+}
+cliInteg.gitignore.addPatterns('!resources/**/*.js');
+
+//////////////////////////////////////////////////////////////////////
+
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects
 new pj.YamlFile(repo, '.github/dependabot.yml', {
@@ -1687,6 +1781,7 @@ new CdkCliIntegTestsWorkflow(repo, {
     cli.name,
     cliLib.name,
     cdkAliasPackage.name,
+    cliInteg.name,
   ],
 
   allowUpstreamVersions: [
