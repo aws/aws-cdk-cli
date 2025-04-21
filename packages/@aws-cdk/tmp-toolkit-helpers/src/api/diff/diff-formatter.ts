@@ -164,6 +164,11 @@ export class DiffFormatter {
     return this._diffs;
   }
 
+  /**
+   * Get or creates the diff of a stack.
+   * If it creates the diff, it stores the result in a map for
+   * easier retreval later.
+   */
   private diff(stackName?: string, oldTemplate?: any) {
     const realStackName = stackName ?? this.stackName;
 

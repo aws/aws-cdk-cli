@@ -229,39 +229,7 @@ describe('formatSecurityDiff', () => {
     expect(mockIoDefaultMessages.warning).not.toHaveBeenCalled();
   });
 
-  test('returns broadening diff', () => {
-    // WHEN
-    const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
-      templateInfo: {
-        oldTemplate: {},
-        newTemplate: mockNewTemplate,
-      },
-    });
-    const result = formatter.formatSecurityDiff();
-
-    // THEN
-    expect(result.permissionChangeType).toEqual('broadening');
-    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
-    expect(sanitizedDiff).toBe(
-      'Stack test-stack\n' +
-      'IAM Statement Changes\n' +
-      '┌───┬─────────────┬────────┬────────────────┬──────────────────────────────┬───────────┐\n' +
-      '│   │ Resource    │ Effect │ Action         │ Principal                    │ Condition │\n' +
-      '├───┼─────────────┼────────┼────────────────┼──────────────────────────────┼───────────┤\n' +
-      '│ + │ ${Role.Arn} │ Allow  │ sts:AssumeRole │ Service:lambda.amazonaws.com │           │\n' +
-      '└───┴─────────────┴────────┴────────────────┴──────────────────────────────┴───────────┘\n' +
-      'IAM Policy Changes\n' +
-      '┌───┬──────────┬──────────────────────────────────────────────────────────────────┐\n' +
-      '│   │ Resource │ Managed Policy ARN                                               │\n' +
-      '├───┼──────────┼──────────────────────────────────────────────────────────────────┤\n' +
-      '│ + │ ${Role}  │ arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole │\n' +
-      '└───┴──────────┴──────────────────────────────────────────────────────────────────┘\n' +
-      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)',
-    );
-  });
-
-  test('formats diff for any security change when approval level is ANY_CHANGE', () => {
+  test('returns formatted diff for broadening security changes', () => {
     // WHEN
     const formatter = new DiffFormatter({
       ioHelper: mockIoHelper,
