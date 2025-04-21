@@ -175,9 +175,6 @@ describe('diff', () => {
   });
 
   test('no security diff', async () => {
-    // GIVEN
-    ioHost.requireDeployApproval = RequireApproval.BROADENING;
-
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.diff(cx, {
