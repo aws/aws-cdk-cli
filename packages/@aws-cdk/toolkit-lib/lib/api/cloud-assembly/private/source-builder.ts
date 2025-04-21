@@ -57,9 +57,9 @@ export abstract class CloudAssemblySourceBuilder {
           const env = await execution.defaultEnvVars();
           const assembly = await execution.changeDir(async () =>
             execution.withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
-              execution.withEnv(envWithContext, () => {
+              execution.withEnv(envWithContext, async () => {
                 try {
-                  return builder({
+                  return await builder({
                     outdir: execution.outdir,
                     context: ctx,
                   });

@@ -2441,25 +2441,13 @@
     slash "^3.0.0"
     write-file-atomic "^4.0.2"
 
-"@jest/types@30.0.0-alpha.7":
+"@jest/types@30.0.0-alpha.7", "@jest/types@^29.6.3":
   version "30.0.0-alpha.7"
   resolved "https://registry.yarnpkg.com/@jest/types/-/types-30.0.0-alpha.7.tgz#10b8d41c2c5284202d76d66808eca357c74096f5"
   integrity sha512-hrdUqtIjUMpoNlpmo4DQfe6fvD0Rk02kdOv0+AsAbO689llpzNmb+kLcojzKp/H2jVGqcYrUb0wNSRgn4KcuqA==
   dependencies:
     "@jest/pattern" "30.0.0-alpha.7"
     "@jest/schemas" "30.0.0-alpha.7"
-    "@types/istanbul-lib-coverage" "^2.0.0"
-    "@types/istanbul-reports" "^3.0.0"
-    "@types/node" "*"
-    "@types/yargs" "^17.0.8"
-    chalk "^4.0.0"
-
-"@jest/types@^29.6.3":
-  version "29.6.3"
-  resolved "https://registry.yarnpkg.com/@jest/types/-/types-29.6.3.tgz#1131f8cf634e7e84c5e77bab12f052af585fba59"
-  integrity sha512-u3UPsIilWKOM3F9CXtrG8LEJmNxwoCQC/XVj4IKYXvvpx7QIi/Kg1LI5uDmDpKlac62NUtX7eLjRh+jVZcLOzw==
-  dependencies:
-    "@jest/schemas" "^29.6.3"
     "@types/istanbul-lib-coverage" "^2.0.0"
     "@types/istanbul-reports" "^3.0.0"
     "@types/node" "*"
@@ -4517,10 +4505,10 @@ available-typed-arrays@^1.0.7:
   dependencies:
     possible-typed-array-names "^1.0.0"
 
-aws-cdk-lib@^2.189.0:
-  version "2.189.0"
-  resolved "https://registry.yarnpkg.com/aws-cdk-lib/-/aws-cdk-lib-2.189.0.tgz#b5964f1686215834b9f8497c131901c120355147"
-  integrity sha512-B5Uha7uRntOAyuKfU0eFtxij3ZVTzGAbetw5qaXlURa68wsWpKlU72/OyKugB6JYkhjCZkSTVVBxd1pVTosxEw==
+aws-cdk-lib@^2.189.1:
+  version "2.189.1"
+  resolved "https://registry.yarnpkg.com/aws-cdk-lib/-/aws-cdk-lib-2.189.1.tgz#57681865d0ff138a26299066695c06c46329bcb7"
+  integrity sha512-9JU0yUr2iRTJ1oCPrHyx7hOtBDWyUfyOcdb6arlumJnMcQr2cyAMASY8HuAXHc8Y10ipVp8dRTW+J4/132IIYA==
   dependencies:
     "@aws-cdk/asset-awscli-v1" "^2.2.229"
     "@aws-cdk/asset-node-proxy-agent-v6" "^2.1.0"

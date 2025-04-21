@@ -24,7 +24,7 @@ export default class TestEnvironment extends NodeEnvironment implements JestEnvi
     // We need to set the event handler by assignment in the constructor,
     // because if we declare it as an async member TypeScript's type derivation
     // doesn't work properly.
-    (this as JestEnvironment<unknown>).handleTestEvent = (async (event, _state) => {
+    (this as JestEnvironment<unknown>).handleTestEvent = (async (event) => {
       if (event.name === 'test_done' && event.test.errors.length > 0 && this.log.length > 0) {
         this.stopCapture();
 

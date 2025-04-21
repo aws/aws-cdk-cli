@@ -9,6 +9,7 @@
 import type { AwsCredentialIdentityProvider, Logger, NodeHttpHandlerOptions } from '@smithy/types';
 import { SdkProvider as SdkProviderCurrentVersion } from './api/aws-auth';
 import { CliIoHost } from './cli/io-host';
+import { GLOBAL_PLUGIN_HOST } from './cli/singleton-plugin-host';
 
 /**
  * @deprecated
@@ -96,6 +97,7 @@ export class SdkProvider {
     return SdkProviderCurrentVersion.withAwsCliCompatibleDefaults({
       ...options,
       ioHelper: CliIoHost.instance().asIoHelper(),
+      pluginHost: GLOBAL_PLUGIN_HOST,
     });
   }
 
@@ -105,6 +107,11 @@ export class SdkProvider {
     requestHandler: NodeHttpHandlerOptions = {},
     logger?: Logger,
   ) {
-    return new SdkProviderCurrentVersion(defaultCredentialProvider, defaultRegion, requestHandler, CliIoHost.instance().asIoHelper(), logger);
+    return new SdkProviderCurrentVersion(defaultCredentialProvider, defaultRegion, {
+      pluginHost: GLOBAL_PLUGIN_HOST,
+      ioHelper: CliIoHost.instance().asIoHelper(),
+      requestHandler,
+      logger,
+    });
   }
 }

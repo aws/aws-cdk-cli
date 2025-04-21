@@ -5,6 +5,7 @@ import { BorrowedAssembly } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-as
 import { ToolkitError } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import { IO, type IoHelper } from '../api-private';
+import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
 
@@ -109,6 +110,7 @@ export class CloudExecutable implements ICloudAssemblySource {
             assembly.manifest.missing,
             this.props.configuration.context,
             this.props.sdkProvider,
+            GLOBAL_PLUGIN_HOST,
             this.props.ioHelper,
           );
 

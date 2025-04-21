@@ -24,9 +24,22 @@ const DEFAULT_TIMEOUT = 300000;
  */
 export class AwsCliCompatible {
   private readonly ioHelper: IoHelper;
+  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly logger?: Logger;
 
-  public constructor(ioHelper: IoHelper) {
+  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: Logger) {
     this.ioHelper = ioHelper;
+    this.requestHandler = requestHandler;
+    this.logger = logger;
+  }
+
+  public async baseConfig(profile?: string): Promise<{ credentialProvider: AwsCredentialIdentityProvider; defaultRegion: string }> {
+    const credentialProvider = await this.credentialChainBuilder({
+      profile,
+      logger: this.logger,
+    });
+    const defaultRegion = await this.region(profile);
+    return { credentialProvider, defaultRegion };
   }
 
   /**
@@ -38,7 +51,7 @@ export class AwsCliCompatible {
     options: CredentialChainOptions = {},
   ): Promise<AwsCredentialIdentityProvider> {
     const clientConfig = {
-      requestHandler: await this.requestHandlerBuilder(options.httpOptions),
+      requestHandler: this.requestHandler,
       customUserAgent: 'aws-cdk',
       logger: options.logger,
     };
@@ -113,17 +126,6 @@ export class AwsCliCompatible {
     return shouldPrioritizeEnv()
       ? createCredentialChain(fromEnv(), nodeProviderChain).expireAfter(60 * 60_000)
       : nodeProviderChain;
-  }
-
-  public async requestHandlerBuilder(options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
-    const agent = await new ProxyAgentProvider(this.ioHelper).create(options);
-
-    return {
-      connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
-      requestTimeout: DEFAULT_TIMEOUT,
-      httpsAgent: agent,
-      httpAgent: agent,
-    };
   }
 
   /**
@@ -265,6 +267,16 @@ function shouldPrioritizeEnv() {
 
 export interface CredentialChainOptions {
   readonly profile?: string;
-  readonly httpOptions?: SdkHttpOptions;
   readonly logger?: Logger;
+}
+
+export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
+  const agent = await new ProxyAgentProvider(ioHelper).create(options);
+
+  return {
+    connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
+    requestTimeout: DEFAULT_TIMEOUT,
+    httpsAgent: agent,
+    httpAgent: agent,
+  };
 }

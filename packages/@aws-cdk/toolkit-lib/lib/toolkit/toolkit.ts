@@ -32,7 +32,7 @@ import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
-import { type SdkConfig } from '../api/aws-auth';
+import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
@@ -47,8 +47,10 @@ import type {
   StackCollection,
   StackNode,
   SuccessfulDeployStackResult,
+  SdkProviderServices,
 } from '../api/shared-private';
 import {
+  SdkProvider,
   AmbiguityError,
   ambiguousMovements,
   asIoHelper,
@@ -63,13 +65,14 @@ import {
   formatTypedMappings,
   HotswapMode,
   ResourceMigrator,
-  SdkProvider,
   tagsForStack,
   ToolkitError,
   resourceMappings,
   WorkGraphBuilder,
+  makeRequestHandler,
 } from '../api/shared-private';
-import { PermissionChangeType, type AssemblyData, type StackDetails, type ToolkitAction } from '../api/shared-public';
+import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
+import { PermissionChangeType, PluginHost } from '../api/shared-public';
 import {
   formatErrorMessage,
   formatTime,
@@ -121,6 +124,17 @@ export interface ToolkitOptions {
    * @default "error"
    */
   readonly assemblyFailureAt?: 'error' | 'warn' | 'none';
+
+  /**
+   * The plugin host to use for loading and querying plugins
+   *
+   * By default, a unique instance of a plugin managing class will be used.
+   *
+   * Use `toolkit.pluginHost.load()` to load plugins into the plugin host from disk.
+   *
+   * @default - A fresh plugin host
+   */
+  readonly pluginHost?: PluginHost;
 }
 
 /**
@@ -138,13 +152,22 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public readonly ioHost: IIoHost;
 
   /**
+   * The plugin host for loading and managing plugins
+   */
+  public readonly pluginHost: PluginHost;
+
+  /**
    * Cache of the internal SDK Provider instance
    */
   private sdkProviderCache?: SdkProvider;
 
+  private baseCredentials: BaseCredentials;
+
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
+
+    this.pluginHost = props.pluginHost ?? new PluginHost();
 
     let ioHost = props.ioHost ?? new NonInteractiveIoHost();
     if (props.emojis === false) {
@@ -156,6 +179,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // After removing emojis and color, we might end up with floating whitespace at either end of the message
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
+
+    if (props.sdkConfig?.profile && props.sdkConfig?.baseCredentials) {
+      throw new ToolkitError('Specify at most one of \'sdkConfig.profile\' and \'sdkConfig.baseCredentials\'');
+    }
+    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible({ profile: props.sdkConfig?.profile });
   }
 
   /**
@@ -166,11 +194,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // @todo this needs to be different instance per action
     if (!this.sdkProviderCache) {
       const ioHelper = asIoHelper(this.ioHost, action);
-      this.sdkProviderCache = await SdkProvider.withAwsCliCompatibleDefaults({
-        ...this.props.sdkConfig,
+      const services: SdkProviderServices = {
         ioHelper,
+        requestHandler: await makeRequestHandler(ioHelper, this.props.sdkConfig?.httpOptions),
         logger: asSdkLogger(ioHelper),
-      });
+        pluginHost: this.pluginHost,
+      };
+
+      const config = await this.baseCredentials.makeSdkConfig(services);
+      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, services);
     }
 
     return this.sdkProviderCache;
@@ -184,6 +216,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     return {
       ioHelper: asIoHelper(this.ioHost, 'assembly'),
       sdkProvider: await this.sdkProvider('assembly'),
+      pluginHost: this.pluginHost,
     };
   }
 
@@ -922,7 +955,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         });
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
-        throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
+        throw ToolkitError.withCause('Rollback failed (use --force to orphan failing resources)', e);
       }
     }
     if (!anyRollbackable) {

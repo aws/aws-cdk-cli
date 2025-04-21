@@ -170,7 +170,7 @@ function mockCredentialPlugin(p: CredentialProviderSource) {
     };
   }, { virtual: true });
 
-  host.load(THE_PLUGIN);
+  host._doLoad(THE_PLUGIN);
 }
 
 async function fetchNow() {

@@ -1,7 +1,7 @@
 
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { StackAssembly } from '../../api/cloud-assembly/private';
-import type { SdkProvider, IoHelper } from '../../api/shared-private';
+import type { SdkProvider, IoHelper, PluginHost } from '../../api/shared-private';
 
 /**
  * Helper struct to pass internal services around.
@@ -9,6 +9,7 @@ import type { SdkProvider, IoHelper } from '../../api/shared-private';
 export interface ToolkitServices {
   sdkProvider: SdkProvider;
   ioHelper: IoHelper;
+  pluginHost: PluginHost;
 }
 
 /**

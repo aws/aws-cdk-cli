@@ -47,6 +47,7 @@
   },
   "resolutions": {
     "@jest/environment": "30.0.0-alpha.7",
+    "@jest/types": "30.0.0-alpha.7",
     "jest-environment-node": "30.0.0-alpha.7"
   },
   "engines": {

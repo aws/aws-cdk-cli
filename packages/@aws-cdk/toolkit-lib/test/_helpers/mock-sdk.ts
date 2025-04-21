@@ -144,7 +144,9 @@ export const setDefaultSTSMocks = () => {
  */
 export class MockSdkProvider extends SdkProvider {
   constructor() {
-    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
+    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {
+      ioHelper: new TestIoHost().asHelper('sdk'),
+    });
   }
 
   public defaultAccount(): Promise<Account | undefined> {
@@ -161,6 +163,13 @@ export class MockSdkProvider extends SdkProvider {
 export class MockSdk extends SDK {
   constructor() {
     super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
+  }
+
+  public async currentAccount(): Promise<Account> {
+    return {
+      accountId: '123456789012',
+      partition: 'aws',
+    };
   }
 }
 

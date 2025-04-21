@@ -16,7 +16,6 @@ import { SdkProvider } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
 import {
-  MockSdkProvider,
   MockSdk,
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
@@ -25,18 +24,16 @@ import {
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
-const mockSdkProvider = new MockSdkProvider();
-
-// we don't need to use AWS CLI compatible defaults here, since everything is mocked anyway
-jest.spyOn(SdkProvider, 'withAwsCliCompatibleDefaults').mockResolvedValue(mockSdkProvider);
 
 beforeEach(() => {
   restoreSdkMocksToDefault();
   setDefaultSTSMocks();
   ioHost.notifySpy.mockClear();
 
-  mockSdkProvider.forEnvironment = jest.fn().mockImplementation(() => {
-    return { sdk: new MockSdk() };
+  jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  jest.spyOn(SdkProvider.prototype, 'forEnvironment').mockResolvedValue({
+    sdk: new MockSdk(),
+    didAssumeRole: false,
   });
 });
 

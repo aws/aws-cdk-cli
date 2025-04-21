@@ -17,6 +17,7 @@ const createEvaluateCloudFormationTemplate = (template: Template) =>
     region: 'ap-south-east-2',
     partition: 'aws',
     sdk,
+    stackArtifact: {} as any,
   });
 
 describe('evaluateCfnExpression', () => {

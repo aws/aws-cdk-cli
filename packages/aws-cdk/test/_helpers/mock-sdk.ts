@@ -146,7 +146,9 @@ export class MockSdkProvider extends SdkProvider {
   private defaultAccounts: string[] = [];
 
   constructor() {
-    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {}, new TestIoHost().asHelper('sdk'));
+    super(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', {
+      ioHelper: new TestIoHost().asHelper('sdk'),
+    });
   }
 
   public returnsDefaultAccounts(...accounts: string[]) {
@@ -156,7 +158,7 @@ export class MockSdkProvider extends SdkProvider {
   public defaultAccount(): Promise<Account | undefined> {
     const accountId = this.defaultAccounts.length === 0
       ? '123456789012'
-      : this.defaultAccounts.shift();
+      : this.defaultAccounts.shift()!;
     return Promise.resolve({ accountId, partition: 'aws' });
   }
 }
