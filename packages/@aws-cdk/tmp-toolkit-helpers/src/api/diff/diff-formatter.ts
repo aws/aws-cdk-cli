@@ -9,20 +9,26 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
+import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { StringWriteStream } from '../streams';
-import { PermissionChangeType } from '../../payloads';
 
 /**
  * Output of formatSecurityDiff
  */
 interface FormatSecurityDiffOutput {
   /**
-   * Complete formatted security diff, if it is prompt-worthy
+   * Complete formatted security diff
    */
-  readonly formattedDiff?: string;
+  readonly formattedDiff: string;
+
+  /**
+   * The type of permission changes in the security diff.
+   * The IoHost will use this to decide whether or not to print.
+   */
+  readonly permissionChangeType: PermissionChangeType;
 }
 
 /**
@@ -55,11 +61,6 @@ interface DiffFormatterProps {
    */
   readonly templateInfo: TemplateInfo;
 }
-
-/**
- * Properties specific to formatting the security diff
- */
-interface FormatSecurityDiffOptions {}
 
 /**
  * PRoperties specific to formatting the stack diff
@@ -182,7 +183,7 @@ export class DiffFormatter {
    *
    * If no stackName is given, then the root stack name is used.
    */
-  public determinePermissionType(stackName?: string): PermissionChangeType {
+  private permissionType(stackName?: string): PermissionChangeType {
     const diff = this.diff(stackName);
 
     if (diff.permissionsBroadened) {
@@ -301,9 +302,7 @@ export class DiffFormatter {
   /**
    * Format the security diff
    */
-  public formatSecurityDiff(_options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
-    const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
-
+  public formatSecurityDiff(): FormatSecurityDiffOutput {
     const diff = this.diff();
 
     // The security diff is formatted via `Formatter`, which takes in a stream
@@ -315,9 +314,6 @@ export class DiffFormatter {
 
     stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
 
-    // eslint-disable-next-line max-len
-    ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level.`);
-    ioDefaultHelper.warning('Please confirm you intend to make the following modifications:\n');
     try {
       // formatSecurityChanges updates the stream with the formatted security diff
       formatSecurityChanges(stream, diff, buildLogicalToPathMap(this.newTemplate));
@@ -326,7 +322,7 @@ export class DiffFormatter {
     }
     // store the stream containing a formatted stack diff
     const formattedDiff = stream.toString();
-    return { formattedDiff };
+    return { formattedDiff, permissionChangeType: this.permissionType() };
   }
 }
 

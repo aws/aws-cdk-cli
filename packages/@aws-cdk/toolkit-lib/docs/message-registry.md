@@ -20,6 +20,7 @@ group: Documents
 | `CDK_TOOLKIT_E3900` | Resource import failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I4000` | Diff stacks is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I4001` | Output of the diff command | `info` | {@link DiffResult} |
+| `CDK_TOOLKIT_I4100` | Warning message | `warn` | {@link PermissionChangeType} |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5001` | Provides total time in deploy action, including synth and rollback | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |

@@ -2,6 +2,7 @@ import * as path from 'path';
 import { format } from 'util';
 import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
+import { PermissionChangeType } from '@aws-cdk/tmp-toolkit-helpers';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -237,10 +238,10 @@ export class CdkToolkit {
       });
 
       if (options.securityOnly) {
-        const securityDiff = formatter.formatSecurityDiff({
-          requireApproval: RequireApproval.BROADENING,
-        });
-        if (securityDiff.formattedDiff) {
+        const securityDiff = formatter.formatSecurityDiff();
+        // Warn, count, and display the diff only if the reported changes are broadening permissions
+        if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
+          warning('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
           info(securityDiff.formattedDiff);
           diffs += 1;
         }
@@ -321,10 +322,10 @@ export class CdkToolkit {
         });
 
         if (options.securityOnly) {
-          const securityDiff = formatter.formatSecurityDiff({
-            requireApproval: RequireApproval.BROADENING,
-          });
-          if (securityDiff.formattedDiff) {
+          const securityDiff = formatter.formatSecurityDiff();
+          // Warn, count, and display the diff only if the reported changes are broadening permissions
+          if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
+            warning('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
             info(securityDiff.formattedDiff);
             diffs += 1;
           }
@@ -464,10 +465,8 @@ export class CdkToolkit {
             newTemplate: stack,
           },
         });
-        const securityDiff = formatter.formatSecurityDiff({
-          requireApproval,
-        });
-        if (securityDiff.formattedDiff) {
+        const securityDiff = formatter.formatSecurityDiff();
+        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
           info(securityDiff.formattedDiff);
           await askUserConfirmation(
             this.ioHost,
@@ -2014,4 +2013,14 @@ function stackMetadataLogger(verbose?: boolean): (level: 'info' | 'error' | 'war
       logFn(`  ${msg.entry.trace.join('\n  ')}`);
     }
   };
+}
+
+/**
+ * Determine if manual approval is required or not. Requires approval for
+ * - RequireApproval.ANY_CHANGE
+ * - RequireApproval.BROADENING and the changes are indeed broadening permissions
+ */
+function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
+  return requireApproval === RequireApproval.ANY_CHANGE ||
+  requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }

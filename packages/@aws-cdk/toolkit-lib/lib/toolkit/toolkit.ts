@@ -69,7 +69,7 @@ import {
   resourceMappings,
   WorkGraphBuilder,
 } from '../api/shared-private';
-import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
+import { PermissionChangeType, type AssemblyData, type StackDetails, type ToolkitAction } from '../api/shared-public';
 import {
   formatErrorMessage,
   formatTime,
@@ -329,8 +329,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       if (options.securityOnly) {
         const securityDiff = formatter.formatSecurityDiff();
-        formattedSecurityDiff = securityDiff.formattedDiff ?? '';
-        diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
+        // In Diff, we only care about BROADENING security diffs
+        if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
+          const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
+          await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(warningMessage));
+          formattedSecurityDiff = securityDiff.formattedDiff;
+          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
+        }
       } else {
         const diff = formatter.formatStackDiff({
           strict,
@@ -490,7 +495,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         },
       });
 
-      const permissionChangeType = formatter.determinePermissionType(stack.stackName);
+      const securityDiff = formatter.formatSecurityDiff();
+      const permissionChangeType = securityDiff.permissionChangeType;
       const deployMotivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
       const deployQuestion = `${deployMotivation}\nDo you wish to deploy these changes`;
       const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
