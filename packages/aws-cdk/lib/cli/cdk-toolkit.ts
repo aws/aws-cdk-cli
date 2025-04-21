@@ -2,7 +2,6 @@ import * as path from 'path';
 import { format } from 'util';
 import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
-import { PermissionChangeType } from '@aws-cdk/tmp-toolkit-helpers';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -20,6 +19,7 @@ import {
 } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+import { PermissionChangeType } from '../../../@aws-cdk/tmp-toolkit-helpers/src/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
