@@ -73,14 +73,13 @@ import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import {
   DeployStackResult,
   SuccessfulDeployStackResult,
-  Template,
   Deployments,
   DeployStackOptions,
   DestroyStackOptions,
   RollbackStackOptions,
   RollbackStackResult,
 } from '../../lib/api/deployments';
-import { HotswapMode } from '../../lib/api/hotswap/common';
+import { HotswapMode } from '../../lib/api/hotswap';
 import { Mode } from '../../lib/api/plugin';
 import { Tag } from '../../lib/api/tags';
 import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';
@@ -96,9 +95,11 @@ import {
   MockSdkProvider,
   mockSSMClient,
   restoreSdkMocksToDefault,
-} from '../util/mock-sdk';
+} from '../_helpers/mock-sdk';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { StackActivityProgress } from '../../lib/commands/deploy';
+import { Template } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { DestroyStackResult } from '@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack';
 
 markTesting();
 
@@ -682,11 +683,11 @@ describe('deploy', () => {
           ],
         });
     });
-  
+
     test('lookup role is used', async () => {
       // GIVEN
       mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '6' } });
-  
+
       const cdkToolkit = new CdkToolkit({
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
@@ -696,13 +697,13 @@ describe('deploy', () => {
           ioHelper,
         }),
       });
-  
+
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
         hotswap: HotswapMode.FULL_DEPLOYMENT,
       });
-  
+
       // THEN
       expect(mockSSMClient).toHaveReceivedCommandWith(GetParameterCommand, {
         Name: '/bootstrap/parameter',
@@ -722,11 +723,11 @@ describe('deploy', () => {
         },
       );
     });
-  
+
     test('fallback to deploy role if bootstrap stack version is not valid', async () => {
       // GIVEN
       mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '1' } });
-  
+
       const cdkToolkit = new CdkToolkit({
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
@@ -736,17 +737,17 @@ describe('deploy', () => {
           ioHelper,
         }),
       });
-  
+
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
         hotswap: HotswapMode.FULL_DEPLOYMENT,
       });
-  
+
       // THEN
       expect(flatten(stderrMock.mock.calls)).toEqual(
         expect.arrayContaining([
-  
+
           expect.stringContaining(
             "Bootstrap stack version '5' is required, found version '1'. To get rid of this error, please upgrade to bootstrap version >= 5",
           ),
@@ -783,7 +784,7 @@ describe('deploy', () => {
         },
       );
     });
-  
+
     test('fallback to deploy role if bootstrap version parameter not found', async () => {
       // GIVEN
       mockSSMClient.on(GetParameterCommand).callsFake(() => {
@@ -791,7 +792,7 @@ describe('deploy', () => {
         e.code = e.name = 'ParameterNotFound';
         throw e;
       });
-  
+
       const cdkToolkit = new CdkToolkit({
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
@@ -801,13 +802,13 @@ describe('deploy', () => {
           ioHelper,
         }),
       });
-  
+
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
         hotswap: HotswapMode.FULL_DEPLOYMENT,
       });
-  
+
       // THEN
       expect(flatten(stderrMock.mock.calls)).toEqual(
         expect.arrayContaining([expect.stringMatching(/SSM parameter.*not found./)]),
@@ -840,14 +841,14 @@ describe('deploy', () => {
         },
       );
     });
-  
+
     test('fallback to deploy role if forEnvironment throws', async () => {
       // GIVEN
       // throw error first for the 'prepareSdkWithLookupRoleFor' call and succeed for the rest
       mockForEnvironment = jest.spyOn(sdkProvider, 'forEnvironment').mockImplementationOnce(() => {
         throw new Error('TheErrorThatGetsThrown');
       });
-  
+
       const cdkToolkit = new CdkToolkit({
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
@@ -857,13 +858,13 @@ describe('deploy', () => {
           ioHelper,
         }),
       });
-  
+
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
         hotswap: HotswapMode.FULL_DEPLOYMENT,
       });
-  
+
       // THEN
       expect(mockSSMClient).not.toHaveReceivedAnyCommand();
       expect(flatten(stderrMock.mock.calls)).toEqual(
@@ -897,7 +898,7 @@ describe('deploy', () => {
         },
       );
     });
-  
+
     test('dont lookup bootstrap version parameter if default credentials are used', async () => {
       // GIVEN
       mockForEnvironment = jest.fn().mockImplementation(() => {
@@ -913,13 +914,13 @@ describe('deploy', () => {
           ioHelper,
         }),
       });
-  
+
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
         hotswap: HotswapMode.FULL_DEPLOYMENT,
       });
-  
+
       // THEN
       expect(flatten(stderrMock.mock.calls)).toEqual(
         expect.arrayContaining([
@@ -954,7 +955,7 @@ describe('deploy', () => {
         },
       );
     });
-  
+
     test('do not print warnings if lookup role not provided in stack artifact', async () => {
       // GIVEN
       const cdkToolkit = new CdkToolkit({
@@ -966,13 +967,13 @@ describe('deploy', () => {
           ioHelper,
         }),
       });
-  
+
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-A'] },
         hotswap: HotswapMode.FULL_DEPLOYMENT,
       });
-  
+
       // THEN
       expect(flatten(stderrMock.mock.calls)).not.toEqual(
         expect.arrayContaining([
@@ -1563,6 +1564,7 @@ describe('rollback', () => {
 
     const mockedRollback = jest.spyOn(Deployments.prototype, 'rollbackStack').mockResolvedValue({
       success: true,
+      stackArn: 'arn',
     });
 
     const toolkit = new CdkToolkit({
@@ -1602,7 +1604,7 @@ describe('rollback', () => {
     });
 
     // Rollback might be called -- just don't do anything.
-    const mockRollbackStack = jest.spyOn(deployments, 'rollbackStack').mockResolvedValue({});
+    const mockRollbackStack = jest.spyOn(deployments, 'rollbackStack').mockResolvedValue({ success: true, stackArn: 'arn' });
 
     const mockedDeployStack = jest
       .spyOn(deployments, 'deployStack')
@@ -1828,12 +1830,13 @@ class FakeCloudFormation extends Deployments {
   public rollbackStack(_options: RollbackStackOptions): Promise<RollbackStackResult> {
     return Promise.resolve({
       success: true,
-    });
+      stackArn: 'arn',
+    } satisfies RollbackStackResult);
   }
 
-  public destroyStack(options: DestroyStackOptions): Promise<void> {
+  public destroyStack(options: DestroyStackOptions): Promise<DestroyStackResult> {
     expect(options.stack).toBeDefined();
-    return Promise.resolve();
+    return Promise.resolve({ stackArn: 'arn' });
   }
 
   public readCurrentTemplate(stack: cxapi.CloudFormationStackArtifact): Promise<Template> {

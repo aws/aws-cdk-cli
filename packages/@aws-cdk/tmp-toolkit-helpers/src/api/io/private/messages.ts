@@ -1,20 +1,21 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
-import type { DiffResult } from '../payloads';
-import type { BootstrapEnvironmentProgress } from '../payloads/bootstrap-environment-progress';
-import type { MissingContext, UpdatedContext } from '../payloads/context';
-import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../payloads/deploy';
-import type { StackDestroy, StackDestroyProgress } from '../payloads/destroy';
-import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../payloads/hotswap';
-import type { StackDetailsPayload } from '../payloads/list';
-import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../payloads/logs-monitor';
-import type { StackRollbackProgress } from '../payloads/rollback';
-import type { SdkTrace } from '../payloads/sdk-trace';
-import type { StackActivity, StackMonitoringControlEvent } from '../payloads/stack-activity';
-import type { StackSelectionDetails } from '../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../payloads/types';
-import type { FileWatchEvent, WatchSettings } from '../payloads/watch';
+import type { DiffResult } from '../../../payloads';
+import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
+import type { MissingContext, UpdatedContext } from '../../../payloads/context';
+import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
+import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
+import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
+import type { StackDetailsPayload } from '../../../payloads/list';
+import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
+import type { RefactorResult } from '../../../payloads/refactor';
+import type { StackRollbackProgress } from '../../../payloads/rollback';
+import type { SdkTrace } from '../../../payloads/sdk-trace';
+import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
+import type { StackSelectionDetails } from '../../../payloads/synth';
+import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../../../payloads/types';
+import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
 
 /**
  * We have a rough system by which we assign message codes:
@@ -43,6 +44,12 @@ export const IO = {
   DEFAULT_TOOLKIT_TRACE: make.trace({
     code: 'CDK_TOOLKIT_I0000',
     description: 'Default trace messages emitted from the Toolkit',
+  }),
+
+  // warnings & errors
+  CDK_TOOLKIT_W0100: make.warn({
+    code: 'CDK_TOOLKIT_W0100',
+    description: 'Credential plugin warnings',
   }),
 
   // 1: Synth (1xxx)
@@ -268,7 +275,6 @@ export const IO = {
     description: 'Hotswap disclosure message',
   }),
 
-  // errors
   CDK_TOOLKIT_E5001: make.error({
     code: 'CDK_TOOLKIT_E5001',
     description: 'No stacks found',
@@ -342,6 +348,18 @@ export const IO = {
     code: 'CDK_TOOLKIT_E7900',
     description: 'Stack deletion failed',
     interface: 'ErrorPayload',
+  }),
+
+  // 8. Refactor (8xxx)
+  CDK_TOOLKIT_I8900: make.result<RefactorResult>({
+    code: 'CDK_TOOLKIT_I8900',
+    description: 'Refactor result',
+    interface: 'RefactorResult',
+  }),
+
+  CDK_TOOLKIT_W8010: make.warn({
+    code: 'CDK_TOOLKIT_W8010',
+    description: 'Refactor execution not yet supported',
   }),
 
   // 9: Bootstrap (9xxx)
@@ -482,9 +500,17 @@ export const IO = {
   }),
 
   // SDK codes
-  CDK_SDK_I0000: make.trace({
+  DEFAULT_SDK_TRACE: make.trace({
     code: 'CDK_SDK_I0000',
-    description: 'An SDK message.',
+    description: 'An SDK trace message.',
+  }),
+  DEFAULT_SDK_DEBUG: make.debug({
+    code: 'CDK_SDK_I0000',
+    description: 'An SDK debug message.',
+  }),
+  DEFAULT_SDK_WARN: make.warn({
+    code: 'CDK_SDK_W0000',
+    description: 'An SDK warning message.',
   }),
   CDK_SDK_I0100: make.trace<SdkTrace>({
     code: 'CDK_SDK_I0100',

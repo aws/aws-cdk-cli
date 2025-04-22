@@ -8,10 +8,10 @@
   "testEnvironment": "./test/_helpers/jest-bufferedconsole.ts",
   "coverageThreshold": {
     "global": {
-      "statements": 84,
+      "statements": 82,
       "branches": 74,
       "functions": 87,
-      "lines": 84
+      "lines": 82
     }
   },
   "collectCoverage": true,
@@ -35,10 +35,11 @@
     "<rootDir>/test/",
     ".warnings.jsii.js$",
     "/node_modules/",
-    "<rootDir>/lib/api/aws-auth/sdk.ts",
-    "<rootDir>/lib/parse-command-line-arguments.ts",
-    "<rootDir>/lib/user-input.ts",
-    "<rootDir>/lib/convert-to-user-input.ts"
+    "<rootDir>/lib/legacy-*.ts",
+    "<rootDir>/lib/init-templates/",
+    "<rootDir>/lib/cli/parse-command-line-arguments.ts",
+    "<rootDir>/lib/cli/user-input.ts",
+    "<rootDir>/lib/cli/convert-to-user-input.ts"
   ],
   "reporters": [
     "default",

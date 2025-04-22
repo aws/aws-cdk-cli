@@ -1,6 +1,6 @@
 import type { DeployOptions, HotswapProperties } from '..';
-import type { Deployments, WorkGraph } from '../../../api/aws-cdk';
-import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/aws-cdk';
+import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/shared-private';
+import type { Deployments, WorkGraph } from '../../../api/shared-private';
 
 export function buildParameterMap(parameters?: Map<string, string | undefined>): { [name: string]: { [name: string]: string | undefined } } {
   const parameterMap: {
@@ -27,7 +27,7 @@ export function buildParameterMap(parameters?: Map<string, string | undefined>):
 /**
  * Remove the asset publishing and building from the work graph for assets that are already in place
  */
-export async function removePublishedAssets(graph: WorkGraph, deployments: Deployments, options: DeployOptions) {
+export async function removePublishedAssetsFromWorkGraph(graph: WorkGraph, deployments: Deployments, options: DeployOptions) {
   await graph.removeUnnecessaryAssets(assetNode => deployments.isSingleAssetPublished(assetNode.assetManifest, assetNode.asset, {
     stack: assetNode.parentStack,
     roleArn: options.roleArn,

@@ -18,8 +18,8 @@ import * as promptly from 'promptly';
 import { Deployments } from '../../../lib/api/deployments';
 import { ResourceImporter, ImportMap, ResourceImporterProps } from '../../../lib/api/resource-import';
 import { testStack } from '../../_helpers/assembly';
-import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../util/mock-sdk';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/io-host';
 
 const promptlyConfirm = promptly.confirm as jest.Mock;
 const promptlyPrompt = promptly.prompt as jest.Mock;
@@ -75,6 +75,7 @@ function stackWithKeySigningKey(props: Record<string, unknown>) {
 let sdkProvider: MockSdkProvider;
 let deployments: Deployments;
 let ioHost = new TestIoHost();
+let ioHelper = ioHost.asHelper('deploy');
 let props: ResourceImporterProps;
 beforeEach(() => {
   restoreSdkMocksToDefault();
@@ -82,11 +83,11 @@ beforeEach(() => {
   sdkProvider = new MockSdkProvider();
   deployments = new Deployments({
     sdkProvider,
-    ioHelper: asIoHelper(ioHost, 'deploy'),
+    ioHelper,
   });
   props = {
     deployments,
-    ioHelper: asIoHelper(ioHost, 'deploy'),
+    ioHelper,
   };
 });
 

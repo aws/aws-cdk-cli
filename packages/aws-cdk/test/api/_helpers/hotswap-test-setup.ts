@@ -2,8 +2,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { ListStackResourcesCommand, StackResourceSummary, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetFunctionCommand } from '@aws-sdk/client-lambda';
 import { ICloudFormationClient, SuccessfulDeployStackResult } from '../../../lib/api';
-import * as deployments from '../../../lib/api/deployments/hotswap-deployments';
-import { HotswapMode, HotswapPropertyOverrides } from '../../../lib/api/hotswap/common';
+import { HotswapMode, HotswapPropertyOverrides, tryHotswapDeployment } from '../../../lib/api/hotswap';
 import { testStack, TestStackArtifact } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
@@ -11,10 +10,10 @@ import {
   MockSdkProvider,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-} from '../../util/mock-sdk';
+} from '../../_helpers/mock-sdk';
 import { FakeCloudformationStack } from './fake-cloudformation-stack';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { CloudFormationStack, Template } from '../../../lib/api/cloudformation';
+import { TestIoHost } from '../../_helpers/io-host';
 
 const STACK_NAME = 'withouterrors';
 export const STACK_ID = 'stackId';
@@ -145,6 +144,6 @@ export class HotswapMockSdkProvider extends MockSdkProvider {
     hotswapPropertyOverrides?: HotswapPropertyOverrides,
   ): Promise<SuccessfulDeployStackResult | undefined> {
     let hotswapProps = hotswapPropertyOverrides || new HotswapPropertyOverrides();
-    return deployments.tryHotswapDeployment(this, asIoHelper(ioHost, 'deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode, hotswapProps);
+    return tryHotswapDeployment(this, ioHost.asHelper('deploy'), assetParams, currentCfnStack, stackArtifact, hotswapMode as any, hotswapProps);
   }
 }

@@ -12,32 +12,33 @@ import { bold } from 'chalk';
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
-import { SdkProvider } from '../../lib/api/aws-cdk';
+import { SdkProvider } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { TestIoHost, builderFixture } from '../_helpers';
+import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
 import {
-  MockSdkProvider,
   MockSdk,
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
   setDefaultSTSMocks,
-} from '../util/aws-cdk';
+} from '../_helpers/mock-sdk';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
-const mockSdkProvider = new MockSdkProvider();
-
-// we don't need to use AWS CLI compatible defaults here, since everything is mocked anyway
-jest.spyOn(SdkProvider, 'withAwsCliCompatibleDefaults').mockResolvedValue(mockSdkProvider);
 
 beforeEach(() => {
   restoreSdkMocksToDefault();
   setDefaultSTSMocks();
   ioHost.notifySpy.mockClear();
+
+  jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  jest.spyOn(SdkProvider.prototype, 'forEnvironment').mockResolvedValue({
+    sdk: new MockSdk(),
+    didAssumeRole: false,
+  });
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  jest.clearAllMocks();
 });
 
 function setupMockCloudFormationClient(mockStack: Stack) {
@@ -111,20 +112,8 @@ function expectSuccessfulBootstrap() {
 
 describe('bootstrap', () => {
   describe('with user-specified environments', () => {
-    const originalSdk = mockSdkProvider.forEnvironment.bind(mockSdkProvider);
-    beforeEach(() => {
-      const mockForEnvironment = jest.fn().mockImplementation(() => {
-        return { sdk: new MockSdk() };
-      });
-      mockSdkProvider.forEnvironment = mockForEnvironment;
-    });
-
-    afterAll(() => {
-      mockSdkProvider.forEnvironment = originalSdk;
-    });
-
     test('bootstraps specified environments', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack1 = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_1' },
         { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_1' },
@@ -177,7 +166,7 @@ describe('bootstrap', () => {
     });
 
     test('handles errors in user-specified environments', async () => {
-      // GIVEN
+    // GIVEN
       const error = new Error('Access Denied');
       error.name = 'AccessDeniedException';
       mockCloudFormationClient
@@ -198,7 +187,7 @@ describe('bootstrap', () => {
     });
 
     test('throws error for invalid environment format', async () => {
-      // WHEN/THEN
+    // WHEN/THEN
       await expect(runBootstrap({ environments: ['invalid-format'] }))
         .rejects.toThrow('Expected environment name in format \'aws://<account>/<region>\', got: invalid-format');
     });
@@ -206,7 +195,7 @@ describe('bootstrap', () => {
 
   describe('bootstrap parameters', () => {
     test('bootstrap with default parameters', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
         { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
@@ -248,7 +237,7 @@ describe('bootstrap', () => {
     });
 
     test('bootstrap with exact parameters', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'CUSTOM_BUCKET' },
         { OutputKey: 'BucketDomainName', OutputValue: 'CUSTOM_ENDPOINT' },
@@ -288,7 +277,7 @@ describe('bootstrap', () => {
     });
 
     test('bootstrap with additional parameters', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'EXISTING_BUCKET' },
         { OutputKey: 'BucketDomainName', OutputValue: 'EXISTING_ENDPOINT' },
@@ -328,7 +317,7 @@ describe('bootstrap', () => {
     });
 
     test('bootstrap with only existing parameters', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'EXISTING_BUCKET' },
         { OutputKey: 'BucketDomainName', OutputValue: 'EXISTING_ENDPOINT' },
@@ -374,7 +363,7 @@ describe('bootstrap', () => {
 
   describe('template sources', () => {
     test('uses default template when no source is specified', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
         { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
@@ -390,7 +379,7 @@ describe('bootstrap', () => {
     });
 
     test('uses custom template when specified', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
         { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
@@ -410,7 +399,7 @@ describe('bootstrap', () => {
     });
 
     test('handles errors with custom template', async () => {
-      // GIVEN
+    // GIVEN
       const templateError = new Error('Invalid template file');
       mockCloudFormationClient
         .on(DescribeStacksCommand)
@@ -430,7 +419,7 @@ describe('bootstrap', () => {
   });
 
   test('bootstrap handles no-op scenarios', async () => {
-    // GIVEN
+  // GIVEN
     const mockExistingStack = {
       StackId: 'mock-stack-id',
       StackName: 'CDKToolkit',
@@ -486,9 +475,28 @@ describe('bootstrap', () => {
     }));
   });
 
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const mockStack1 = createMockStack([
+      { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_1' },
+      { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_1' },
+      { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+    ]);
+    setupMockCloudFormationClient(mockStack1);
+
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.bootstrap(BootstrapEnvironments.fromCloudAssemblySource(assemblySource), { });
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
+  });
+
   describe('error handling', () => {
     test('returns correct BootstrapResult for successful bootstraps', async () => {
-      // GIVEN
+    // GIVEN
       const mockStack = createMockStack([
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
         { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
@@ -508,7 +516,7 @@ describe('bootstrap', () => {
     });
 
     test('returns correct BootstrapResult for no-op scenarios', async () => {
-      // GIVEN
+    // GIVEN
       const mockExistingStack = {
         StackId: 'mock-stack-id',
         StackName: 'CDKToolkit',
@@ -546,7 +554,7 @@ describe('bootstrap', () => {
     });
 
     test('returns correct BootstrapResult for failure', async () => {
-      // GIVEN
+    // GIVEN
       const error = new Error('Access Denied');
       error.name = 'AccessDeniedException';
       mockCloudFormationClient
@@ -563,7 +571,7 @@ describe('bootstrap', () => {
     });
 
     test('handles generic bootstrap errors', async () => {
-      // GIVEN
+    // GIVEN
       const error = new Error('Bootstrap failed');
       mockCloudFormationClient
         .on(DescribeStacksCommand)
@@ -579,7 +587,7 @@ describe('bootstrap', () => {
     });
 
     test('handles permission errors', async () => {
-      // GIVEN
+    // GIVEN
       const error = new Error('Access Denied');
       error.name = 'AccessDeniedException';
       mockCloudFormationClient

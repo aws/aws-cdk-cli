@@ -17,10 +17,10 @@ import {
   UpdateTerminationProtectionCommand,
 } from '@aws-sdk/client-cloudformation';
 import { assertIsSuccessfulDeployStackResult } from '../../../lib/api/deployments';
-import { deployStack, DeployStackOptions } from '../../../lib/api/deployments/deploy-stack';
-import { tryHotswapDeployment } from '../../../lib/api/deployments/hotswap-deployments';
+import { deployStack, DeployStackApiOptions } from '../../../lib/api-private'
+import { tryHotswapDeployment } from '../../../lib/api/hotswap';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
+import { HotswapMode } from '../../../lib/api/hotswap';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
@@ -28,18 +28,18 @@ import {
   MockSdk,
   MockSdkProvider,
   restoreSdkMocksToDefault,
-} from '../../util/mock-sdk';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+} from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/io-host';
 
 let ioHost = new TestIoHost();
-let ioHelper = asIoHelper(ioHost, 'deploy');
+let ioHelper = ioHost.asHelper('deploy');
 
-function testDeployStack(options: DeployStackOptions) {
+function testDeployStack(options: DeployStackApiOptions) {
   return deployStack(options, ioHelper);
 }
 
-jest.mock('../../../lib/api/deployments/hotswap-deployments');
-jest.mock('../../../lib/api/deployments/checks', () => ({
+jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/hotswap/hotswap-deployments');
+jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
 
@@ -112,7 +112,7 @@ beforeEach(() => {
   });
 });
 
-function standardDeployStackArguments(): DeployStackOptions {
+function standardDeployStackArguments(): DeployStackApiOptions {
   const resolvedEnvironment = mockResolvedEnvironment();
   return {
     stack: FAKE_STACK,
@@ -152,7 +152,7 @@ test("calls tryHotswapDeployment() if 'hotswap' is `HotswapMode.HOTSWAP_ONLY`", 
     ...standardDeployStackArguments(),
     hotswap: HotswapMode.HOTSWAP_ONLY,
     extraUserAgent: 'extra-user-agent',
-    force: true, // otherwise, deployment would be skipped
+    forceDeployment: true, // otherwise, deployment would be skipped
   });
 
   // THEN
@@ -250,7 +250,7 @@ test('call UpdateStack when method=direct and the stack exists already', async (
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'direct' },
-    force: true,
+    forceDeployment: true,
   });
 
   // THEN
@@ -270,7 +270,7 @@ test('method=direct and no updates to be performed', async () => {
   const ret = await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'direct' },
-    force: true,
+    forceDeployment: true,
   });
 
   // THEN
@@ -670,7 +670,7 @@ test('deploy not skipped if template did not change and --force is applied', asy
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    force: true,
+    forceDeployment: true,
   });
 
   // THEN
@@ -895,14 +895,14 @@ test('empty change set is deleted if --execute is given', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'change-set', execute: true },
-    force: true, // Necessary to bypass "skip deploy"
+    forceDeployment: true, // Necessary to bypass "skip deploy"
   });
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
 
-  //the first deletion is for any existing cdk change sets, the second is for the deleting the new empty change set
+  // the first deletion is for any existing cdk change sets, the second is for the deleting the new empty change set
   expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DeleteChangeSetCommand, 2);
 });
 
@@ -927,7 +927,7 @@ test('empty change set is not deleted if --no-execute is given', async () => {
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
 
-  //the first deletion is for any existing cdk change sets
+  // the first deletion is for any existing cdk change sets
   expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DeleteChangeSetCommand, 1);
 });
 
@@ -1169,7 +1169,7 @@ test.each([
     ...standardDeployStackArguments(),
     stack: FAKE_STACK,
     rollback: rollback === 'rollback',
-    force: true, // Bypass 'canSkipDeploy'
+    forceDeployment: true, // Bypass 'canSkipDeploy'
   });
 
   // THEN

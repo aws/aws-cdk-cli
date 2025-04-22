@@ -1,17 +1,18 @@
 import * as chalk from 'chalk';
-import { StackSelectionStrategy } from '../../lib';
+import { StackSelectionStrategy } from '../../lib/api/shared-public';
+import type { RollbackResult } from '../../lib/toolkit';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
+import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
-jest.spyOn(toolkit, 'rollback').mockResolvedValue();
+jest.spyOn(toolkit, 'rollback').mockResolvedValue({ stacks: [] } satisfies RollbackResult);
 
 let mockDestroyStack = jest.fn();
 
-jest.mock('../../lib/api/aws-cdk', () => {
+jest.mock('../../lib/api/shared-private', () => {
   return {
-    ...jest.requireActual('../../lib/api/aws-cdk'),
+    ...jest.requireActual('../../lib/api/shared-private'),
     Deployments: jest.fn().mockImplementation(() => ({
       destroyStack: mockDestroyStack,
     })),
@@ -85,6 +86,20 @@ describe('destroy', () => {
       level: 'error',
       message: expect.stringContaining('destroy failed'),
     }));
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.destroy(assemblySource, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 

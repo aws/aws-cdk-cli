@@ -12,28 +12,25 @@ import { Configuration } from './user-configuration';
 import * as version from './version';
 import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { SdkProvider } from '../api/aws-auth';
-import { SdkToCliLogger } from '../api/aws-auth/sdk-logger';
-import { setSdkTracing } from '../api/aws-auth/tracing';
+import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type { StackSelector } from '../api/cxapp/cloud-assembly';
-import type { Synthesizer } from '../api/cxapp/cloud-executable';
-import { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { execProgram } from '../api/cxapp/exec';
 import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
-import { HotswapMode } from '../api/hotswap/common';
-import { PluginHost } from '../api/plugin';
+import { HotswapMode } from '../api/hotswap';
+import { Notices } from '../api/notices';
+import type { IReadLock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
 import { ToolkitInfo } from '../api/toolkit-info';
-import type { ILock } from '../api/util/rwlock';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
-import { Notices } from '../notices';
+import { execProgram, CloudExecutable } from '../cxapp';
+import type { StackSelector, Synthesizer } from '../cxapp';
+import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
+import { makeRequestHandler } from '../../../@aws-cdk/toolkit-lib/lib/api/shared-private';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -117,19 +114,23 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       proxyAddress: configuration.settings.get(['proxy']),
       caBundlePath: configuration.settings.get(['caBundlePath']),
     },
+    cliVersion: version.versionNumber(),
   });
   await notices.refresh();
 
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
+    ioHelper,
     profile: configuration.settings.get(['profile']),
-    httpOptions: {
+    requestHandler: await makeRequestHandler(ioHelper, {
       proxyAddress: argv.proxy,
       caBundlePath: argv['ca-bundle-path'],
-    },
+    }),
     logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
+    pluginHost: GLOBAL_PLUGIN_HOST,
   });
 
-  let outDirLock: ILock | undefined;
+  let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
     configuration,
     sdkProvider,
@@ -149,29 +150,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   /** Function to load plug-ins, using configurations additively. */
   function loadPlugins(...settings: Settings[]) {
-    const loaded = new Set<string>();
     for (const source of settings) {
       const plugins: string[] = source.get(['plugin']) || [];
       for (const plugin of plugins) {
-        const resolved = tryResolve(plugin);
-        if (loaded.has(resolved)) {
-          continue;
-        }
-        ioHost.defaults.debug(`Loading plug-in: ${chalk.green(plugin)} from ${chalk.blue(resolved)}`);
-        PluginHost.instance.load(plugin);
-        loaded.add(resolved);
-      }
-    }
-
-    function tryResolve(plugin: string): string {
-      try {
-        return require.resolve(plugin);
-      } catch (e: any) {
-        // according to Node.js docs `MODULE_NOT_FOUND` is the only possible error here
-        // @see https://nodejs.org/api/modules.html#requireresolverequest-options
-        // Not using `withCause()` here, since the node error contains a "Require Stack"
-        // as part of the error message that is inherently useless to our users.
-        throw new ToolkitError(`Unable to resolve plug-in: Cannot find module '${plugin}'`);
+        GLOBAL_PLUGIN_HOST.load(plugin, ioHost);
       }
     }
   }
@@ -281,6 +263,17 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName: toolkitStackName,
         });
 
+      case 'refactor':
+        if (!configuration.settings.get(['unstable']).includes('refactor')) {
+          throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
+        }
+
+        ioHost.currentAction = 'refactor';
+        return cli.refactor({
+          dryRun: args.dryRun,
+          selector,
+        });
+
       case 'bootstrap':
         ioHost.currentAction = 'bootstrap';
         const source: BootstrapSource = determineBootstrapVersion(ioHost, args);
@@ -293,7 +286,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.bootstrap(args.ENVIRONMENTS, {
           source,
           roleArn: args.roleArn,
-          force: argv.force,
+          forceDeployment: argv.force,
           toolkitStackName: toolkitStackName,
           execute: args.execute,
           tags: configuration.settings.get(['tags']),
@@ -424,7 +417,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'watch':
         ioHost.currentAction = 'watch';
-        return cli.watch({
+        await cli.watch({
           selector,
           exclusively: args.exclusively,
           toolkitStackName,
@@ -441,6 +434,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });
+        return;
 
       case 'destroy':
         ioHost.currentAction = 'destroy';
@@ -592,7 +586,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   return hotswapMode;
 }
 
-/* istanbul ignore next: we never call this in unit tests */
+/* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
   exec(args)
     .then(async (value) => {
@@ -607,3 +601,4 @@ export function cli(args: string[] = process.argv.slice(2)) {
       process.exitCode = 1;
     });
 }
+/* c8 ignore stop */

@@ -1,52 +1,101 @@
+import '../private/dispose-polyfill';
 import * as path from 'node:path';
+import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
-import * as uuid from 'uuid';
+import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import type { BootstrapEnvironments, BootstrapOptions, BootstrapResult, EnvironmentBootstrapResult } from '../actions/bootstrap';
+import type { DeployResult, DestroyResult, RollbackResult } from './types';
+import type {
+  BootstrapEnvironments,
+  BootstrapOptions,
+  BootstrapResult,
+  EnvironmentBootstrapResult,
+} from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
-import { type ExtendedDeployOptions, buildParameterMap, createHotswapPropertyOverrides, removePublishedAssets } from '../actions/deploy/private';
+import {
+  buildParameterMap,
+  createHotswapPropertyOverrides,
+  type ExtendedDeployOptions,
+  removePublishedAssetsFromWorkGraph,
+} from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
-import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '../actions/diff';
-import { DiffMethod } from '../actions/diff';
-import { determinePermissionType } from '../actions/diff/private';
+import type { DiffOptions } from '../actions/diff';
+import { appendObject, determinePermissionType, makeTemplateInfos as prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
+import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
-import { type SdkConfig } from '../api/aws-auth';
-import type { SuccessfulDeployStackResult, StackCollection, Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/aws-cdk';
-import { DEFAULT_TOOLKIT_STACK_NAME, Bootstrapper, SdkProvider, Deployments, HotswapMode, ResourceMigrator, tagsForStack, CliIoHost, WorkGraphBuilder, CloudWatchLogEventMonitor, findCloudWatchLogGroups, createDiffChangeSet } from '../api/aws-cdk';
+import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
-import { StackSelectionStrategy } from '../api/cloud-assembly';
+import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
-import { ALL_STACKS, CloudAssemblySourceBuilder, IdentityCloudAssemblySource } from '../api/cloud-assembly/private';
+import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
 import type { IIoHost, IoMessageLevel } from '../api/io';
-import { IO, SPAN, asSdkLogger, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
-import type { IoHelper } from '../api/shared-private';
-import { asIoHelper } from '../api/shared-private';
+import { asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
+import type {
+  AssetBuildNode,
+  AssetPublishNode,
+  Concurrency,
+  IoHelper,
+  StackCollection,
+  StackNode,
+  SuccessfulDeployStackResult,
+  SdkProviderServices,
+} from '../api/shared-private';
+import {
+  SdkProvider,
+  AmbiguityError,
+  ambiguousMovements,
+  asIoHelper,
+  Bootstrapper,
+  CloudWatchLogEventMonitor,
+  DEFAULT_TOOLKIT_STACK_NAME,
+  Deployments,
+  DiffFormatter,
+  findResourceMovements,
+  findCloudWatchLogGroups,
+  formatAmbiguousMappings,
+  formatTypedMappings,
+  HotswapMode,
+  RequireApproval,
+  ResourceMigrator,
+  tagsForStack,
+  ToolkitError,
+  resourceMappings,
+  WorkGraphBuilder,
+  makeRequestHandler,
+} from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { DiffFormatter, RequireApproval, ToolkitError, removeNonImportResources } from '../api/shared-public';
-import { obscureTemplate, serializeStructure, validateSnsTopicArn, formatTime, formatErrorMessage, deserializeStructure } from '../private/util';
+import { PluginHost } from '../api/shared-public';
+import {
+  formatErrorMessage,
+  formatTime,
+  obscureTemplate,
+  serializeStructure,
+  validateSnsTopicArn,
+} from '../private/util';
 import { pLimit } from '../util/concurrency';
+import { promiseWithResolvers } from '../util/promises';
 
 export interface ToolkitOptions {
   /**
    * The IoHost implementation, handling the inline interactions between the Toolkit and an integration.
    */
-  ioHost?: IIoHost;
+  readonly ioHost?: IIoHost;
 
   /**
    * Allow emojis in messages sent to the IoHost.
    *
    * @default true
    */
-  emojis?: boolean;
+  readonly emojis?: boolean;
 
   /**
    * Whether to allow ANSI colors and formatting in IoHost messages.
@@ -56,32 +105,43 @@ export interface ToolkitOptions {
    *
    * @default - detects color from the TTY status of the IoHost
    */
-  color?: boolean;
+  readonly color?: boolean;
 
   /**
    * Configuration options for the SDK.
    */
-  sdkConfig?: SdkConfig;
+  readonly sdkConfig?: SdkConfig;
 
   /**
    * Name of the toolkit stack to be used.
    *
    * @default "CDKToolkit"
    */
-  toolkitStackName?: string;
+  readonly toolkitStackName?: string;
 
   /**
    * Fail Cloud Assemblies
    *
    * @default "error"
    */
-  assemblyFailureAt?: 'error' | 'warn' | 'none';
+  readonly assemblyFailureAt?: 'error' | 'warn' | 'none';
+
+  /**
+   * The plugin host to use for loading and querying plugins
+   *
+   * By default, a unique instance of a plugin managing class will be used.
+   *
+   * Use `toolkit.pluginHost.load()` to load plugins into the plugin host from disk.
+   *
+   * @default - A fresh plugin host
+   */
+  readonly pluginHost?: PluginHost;
 }
 
 /**
  * The AWS CDK Programmatic Toolkit
  */
-export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposable {
+export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * The toolkit stack name used for bootstrapping resources.
    */
@@ -91,18 +151,26 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    * The IoHost of this Toolkit
    */
   public readonly ioHost: IIoHost;
-  private _sdkProvider?: SdkProvider;
+
+  /**
+   * The plugin host for loading and managing plugins
+   */
+  public readonly pluginHost: PluginHost;
+
+  /**
+   * Cache of the internal SDK Provider instance
+   */
+  private sdkProviderCache?: SdkProvider;
+
+  private baseCredentials: BaseCredentials;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
 
-    // Hacky way to re-use the global IoHost until we have fully removed the need for it
-    const globalIoHost = CliIoHost.instance();
-    if (props.ioHost) {
-      globalIoHost.registerIoHost(props.ioHost as any);
-    }
-    let ioHost = globalIoHost as IIoHost;
+    this.pluginHost = props.pluginHost ?? new PluginHost();
+
+    let ioHost = props.ioHost ?? new NonInteractiveIoHost();
     if (props.emojis === false) {
       ioHost = withoutEmojis(ioHost);
     }
@@ -112,38 +180,44 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // After removing emojis and color, we might end up with floating whitespace at either end of the message
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
-  }
 
-  public async dispose(): Promise<void> {
-    // nothing to do yet
-  }
-
-  public async [Symbol.asyncDispose](): Promise<void> {
-    await this.dispose();
+    if (props.sdkConfig?.profile && props.sdkConfig?.baseCredentials) {
+      throw new ToolkitError('Specify at most one of \'sdkConfig.profile\' and \'sdkConfig.baseCredentials\'');
+    }
+    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible({ profile: props.sdkConfig?.profile });
   }
 
   /**
    * Access to the AWS SDK
+   * @internal
    */
-  private async sdkProvider(action: ToolkitAction): Promise<SdkProvider> {
+  protected async sdkProvider(action: ToolkitAction): Promise<SdkProvider> {
     // @todo this needs to be different instance per action
-    if (!this._sdkProvider) {
-      this._sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
-        ...this.props.sdkConfig,
-        logger: asSdkLogger(asIoHelper(this.ioHost, action)),
-      });
+    if (!this.sdkProviderCache) {
+      const ioHelper = asIoHelper(this.ioHost, action);
+      const services: SdkProviderServices = {
+        ioHelper,
+        requestHandler: await makeRequestHandler(ioHelper, this.props.sdkConfig?.httpOptions),
+        logger: asSdkLogger(ioHelper),
+        pluginHost: this.pluginHost,
+      };
+
+      const config = await this.baseCredentials.makeSdkConfig(services);
+      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, services);
     }
 
-    return this._sdkProvider;
+    return this.sdkProviderCache;
   }
 
   /**
    * Helper to provide the CloudAssemblySourceBuilder with required toolkit services
+   * @internal
    */
   protected override async sourceBuilderServices(): Promise<ToolkitServices> {
     return {
       ioHelper: asIoHelper(this.ioHost, 'assembly'),
       sdkProvider: await this.sdkProvider('assembly'),
+      pluginHost: this.pluginHost,
     };
   }
 
@@ -210,12 +284,18 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
   /**
    * Synth Action
+   *
+   * The caller assumes ownership of the `CachedCloudAssembly` and is responsible for calling `dispose()` on
+   * it after use.
    */
-  public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<ICloudAssemblySource> {
+  public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+
+    // NOTE: NOT 'await using' because we return ownership to the caller
     const assembly = await assemblyFromSource(ioHelper, cx);
+
     const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
@@ -249,17 +329,17 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`));
     }
 
-    return new IdentityCloudAssemblySource(assembly.assembly);
+    return new CachedCloudAssembly(assembly);
   }
 
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<void> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff}> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -268,33 +348,19 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
-    const diffMethod = options.method ?? DiffMethod.ChangeSet();
 
     let diffs = 0;
     let formattedSecurityDiff = '';
     let formattedStackDiff = '';
 
-    if (diffMethod.method === 'local-file') {
-      const methodOptions = diffMethod.options as LocalFileDiffOptions;
-
-      // Compare single stack against fixed template
-      if (stacks.stackCount !== 1) {
-        throw new ToolkitError(
-          'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
-        );
-      }
-
-      if (!(await fs.pathExists(methodOptions.path))) {
-        throw new ToolkitError(`There is no file at ${path}`);
-      }
-
-      const file = fs.readFileSync(methodOptions.path).toString();
-      const template = deserializeStructure(file);
+    const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
+    const templateDiffs: { [name: string]: TemplateDiff } = {};
+    for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({
         ioHelper,
-        oldTemplate: template,
-        newTemplate: stacks.firstStack,
+        templateInfo,
       });
+
       if (options.securityOnly) {
         const securityDiff = formatter.formatSecurityDiff({
           requireApproval: RequireApproval.BROADENING,
@@ -309,81 +375,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         formattedStackDiff = diff.formattedDiff;
         diffs = diff.numStacksWithChanges;
       }
-    } else {
-      const methodOptions = diffMethod.options as ChangeSetDiffOptions;
-      // Compare N stacks against deployed templates
-      for (const stack of stacks.stackArtifacts) {
-        const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
-          stack,
-          methodOptions.compareAgainstProcessedTemplate,
-        );
-        const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
-        const nestedStacks = templateWithNestedStacks.nestedStacks;
-
-        const formatter = new DiffFormatter({
-          ioHelper,
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        });
-
-        const migrator = new ResourceMigrator({ deployments, ioHelper });
-        const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
-        if (resourcesToImport) {
-          removeNonImportResources(stack);
-        }
-
-        let changeSet = undefined;
-
-        if (diffMethod.method === 'change-set') {
-          let stackExists = false;
-          try {
-            stackExists = await deployments.stackExists({
-              stack,
-              deployName: stack.stackName,
-              tryLookupRole: true,
-            });
-          } catch (e: any) {
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(formatErrorMessage(e)));
-            stackExists = false;
-          }
-
-          if (stackExists) {
-            changeSet = await createDiffChangeSet(ioHelper, {
-              stack,
-              uuid: uuid.v4(),
-              deployments,
-              willExecute: false,
-              sdkProvider: await this.sdkProvider('diff'),
-              parameters: methodOptions.parameters ?? {},
-              resourcesToImport,
-            });
-          } else {
-            await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
-          }
-        }
-
-        if (options.securityOnly) {
-          const securityDiff = formatter.formatSecurityDiff({
-            requireApproval: RequireApproval.BROADENING,
-            stackName: stack.displayName,
-            changeSet,
-          });
-          formattedSecurityDiff = securityDiff.formattedDiff ?? '';
-          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
-        } else {
-          const diff = formatter.formatStackDiff({
-            strict,
-            context: contextLines,
-            stackName: stack.displayName,
-            changeSet,
-            isImport: !!resourcesToImport,
-            nestedStackTemplates: nestedStacks,
-          });
-          formattedStackDiff = diff.formattedDiff;
-          diffs = diff.numStacksWithChanges;
-        }
-      }
+      appendObject(templateDiffs, formatter.diffs);
     }
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
@@ -391,7 +383,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       formattedStackDiff,
     });
 
-    return;
+    return templateDiffs;
   }
 
   /**
@@ -403,7 +395,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
     const stackCollection = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -419,16 +411,16 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    *
    * Deploys the selected stacks into an AWS account
    */
-  public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<void> {
+  public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, 'deploy');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._deploy(assembly, 'deploy', options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._deploy(assembly, 'deploy', options);
   }
 
   /**
    * Helper to allow deploy being called as part of the watch action.
    */
-  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}) {
+  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -436,9 +428,13 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     await this.validateStacksMetadata(stackCollection, ioHelper);
     const synthDuration = await synthSpan.end();
 
+    const ret: DeployResult = {
+      stacks: [],
+    };
+
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('This app contains no stacks'));
-      return;
+      return ret;
     }
 
     const deployments = await this.deploymentsForAction('deploy');
@@ -485,7 +481,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         stack: assetNode.parentStack,
         roleArn: options.roleArn,
         stackName: assetNode.parentStack.stackName,
-        forcePublish: options.force,
+        forcePublish: options.forceAssetPublishing,
       });
       await publishAssetSpan.end();
     };
@@ -515,7 +511,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
         await this._destroy(assembly, 'deploy', {
           stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
           roleArn: options.roleArn,
-          ci: options.ci,
         });
 
         return;
@@ -582,7 +577,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
             notificationArns,
             tags,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.forceDeployment,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.parameters?.keepExistingParameters,
             rollback,
@@ -603,22 +598,18 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
                 : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
               const question = `${motivation}. Perform a regular deployment`;
 
-              if (options.force) {
-                await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Rolling back first (--force).`));
-              } else {
-                const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
-                  motivation,
-                  concurrency,
-                }));
-                if (!confirmed) {
-                  throw new ToolkitError('Aborted by user');
-                }
+              const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
+                motivation,
+                concurrency,
+              }));
+              if (!confirmed) {
+                throw new ToolkitError('Aborted by user');
               }
 
               // Perform a rollback
               await this._rollback(assembly, action, {
                 stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
-                orphanFailedResources: options.force,
+                orphanFailedResources: options.orphanFailedResourcesDuringRollback,
               });
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -630,17 +621,12 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
               const question = `${motivation}. Perform a regular deployment`;
 
-              // @todo no force here
-              if (options.force) {
-                await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${motivation}. Proceeding with regular deployment (--force).`));
-              } else {
-                const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
-                  motivation,
-                  concurrency,
-                }));
-                if (!confirmed) {
-                  throw new ToolkitError('Aborted by user');
-                }
+              const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
+                motivation,
+                concurrency,
+              }));
+              if (!confirmed) {
+                throw new ToolkitError('Aborted by user');
               }
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -671,6 +657,17 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           await ioHelper.notify(IO.CDK_TOOLKIT_I5901.msg(buffer.join('\n')));
         }
         await ioHelper.notify(IO.CDK_TOOLKIT_I5901.msg(`Stack ARN:\n${deployResult.stackArn}`));
+
+        ret.stacks.push({
+          stackName: stack.stackName,
+          environment: {
+            account: stack.environment.account,
+            region: stack.environment.region,
+          },
+          stackArn: deployResult.stackArn,
+          outputs: deployResult.outputs,
+          hierarchicalId: stack.hierarchicalId,
+        });
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
@@ -716,8 +713,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const workGraph = new WorkGraphBuilder(ioHelper, prebuildAssets).build(stacksAndTheirAssetManifests);
 
     // Unless we are running with '--force', skip already published assets
-    if (!options.force) {
-      await removePublishedAssets(workGraph, deployments, options);
+    if (!options.forceAssetPublishing) {
+      await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
     }
 
     const graphConcurrency: Concurrency = {
@@ -731,17 +728,21 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       buildAsset,
       publishAsset,
     });
+
+    return ret;
   }
 
   /**
    * Watch Action
    *
-   * Continuously observe project files and deploy the selected stacks automatically when changes are detected.
-   * Implies hotswap deployments.
+   * Continuously observe project files and deploy the selected stacks
+   * automatically when changes are detected.  Implies hotswap deployments.
+   *
+   * This function returns immediately, starting a watcher in the background.
    */
-  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<void> {
+  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
-    const assembly = await assemblyFromSource(ioHelper, cx, false);
+    await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
     if (options.include === undefined && options.exclude === undefined) {
@@ -767,11 +768,19 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     // 2. Any file whose name starts with a dot.
     // 3. Any directory's content whose name starts with a dot.
     // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = options.outdir ?? 'cdk.out';
+    const outdir = assembly.directory;
     const watchExcludes = patternsArrayForWatch(options.exclude, {
       rootDir,
       returnRootDirIfEmpty: false,
-    }).concat(`${outdir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
+    });
+
+    // only exclude the outdir if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, outdir);
+    if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
+      watchExcludes.push(`${relativeOutDir}/**`);
+    }
+
+    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([
@@ -818,7 +827,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       await cloudWatchLogMonitor?.activate();
     };
 
-    chokidar
+    const watcher = chokidar
       .watch(watchIncludes, {
         ignored: watchExcludes,
         cwd: rootDir,
@@ -848,6 +857,26 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           ));
         }
       });
+
+    const stoppedPromise = promiseWithResolvers<void>();
+
+    return {
+      async dispose() {
+        await watcher.close();
+        // Prevents Node from staying alive. There is no 'end' event that the watcher emits
+        // that we can know it's definitely done, so best we can do is tell it to stop watching,
+        // stop keeping Node alive, and then pretend that's everything we needed to do.
+        watcher.unref();
+        stoppedPromise.resolve();
+        return stoppedPromise.promise;
+      },
+      async waitForEnd() {
+        return stoppedPromise.promise;
+      },
+      async [Symbol.asyncDispose]() {
+        return this.dispose();
+      },
+    } satisfies IWatcher;
   }
 
   /**
@@ -855,25 +884,29 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    *
    * Rolls back the selected stacks.
    */
-  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<void> {
+  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._rollback(assembly, 'rollback', options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._rollback(assembly, 'rollback', options);
   }
 
   /**
    * Helper to allow rollback being called as part of the deploy or watch action.
    */
-  private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<void> {
+  private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     const stacks = await assembly.selectStacksV2(options.stacks);
     await this.validateStacksMetadata(stacks, ioHelper);
     await synthSpan.end();
 
+    const ret: RollbackResult = {
+      stacks: [],
+    };
+
     if (stacks.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E6001.msg('No stacks selected'));
-      return;
+      return ret;
     }
 
     let anyRollbackable = false;
@@ -890,7 +923,7 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           stack,
           roleArn: options.roleArn,
           toolkitStackName: this.toolkitStackName,
-          force: options.orphanFailedResources,
+          orphanFailedResources: options.orphanFailedResources,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });
@@ -898,13 +931,64 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           anyRollbackable = true;
         }
         await rollbackSpan.end();
+
+        ret.stacks.push({
+          environment: {
+            account: stack.environment.account,
+            region: stack.environment.region,
+          },
+          stackName: stack.stackName,
+          stackArn: stackResult.stackArn,
+          result: stackResult.notInRollbackableState ? 'already-stable' : 'rolled-back',
+        });
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
-        throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
+        throw ToolkitError.withCause('Rollback failed (use --force to orphan failing resources)', e);
       }
     }
     if (!anyRollbackable) {
       throw new ToolkitError('No stacks were in a state that could be rolled back');
+    }
+
+    return ret;
+  }
+
+  /**
+   * Refactor Action. Moves resources from one location (stack + logical ID) to another.
+   */
+  public async refactor(cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
+    const ioHelper = asIoHelper(this.ioHost, 'refactor');
+    const assembly = await assemblyFromSource(ioHelper, cx);
+    return this._refactor(assembly, ioHelper, options);
+  }
+
+  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
+    if (!options.dryRun) {
+      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+    }
+
+    const strategy = options.stacks?.strategy ?? StackSelectionStrategy.ALL_STACKS;
+    if (strategy !== StackSelectionStrategy.ALL_STACKS) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_W8010.msg(
+        'Refactor does not yet support stack selection. Proceeding with the default behavior (considering all stacks).',
+      ));
+    }
+    const stacks = await assembly.selectStacksV2(ALL_STACKS);
+
+    const sdkProvider = await this.sdkProvider('refactor');
+    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider);
+    const ambiguous = ambiguousMovements(movements);
+    if (ambiguous.length === 0) {
+      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
+        typedMappings,
+      }));
+    } else {
+      const error = new AmbiguityError(ambiguous);
+      const paths = error.paths();
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
+        ambiguousPaths: paths,
+      }));
     }
   }
 
@@ -913,27 +997,32 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
    *
    * Destroys the selected Stacks.
    */
-  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<void> {
+  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._destroy(assembly, 'destroy', options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._destroy(assembly, 'destroy', options);
   }
 
   /**
    * Helper to allow destroy being called as part of the deploy action.
    */
-  private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<void> {
+  private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await assembly.selectStacksV2(options.stacks)).reversed();
     await synthSpan.end();
 
+    const ret: DestroyResult = {
+      stacks: [],
+    };
+
     const motivation = 'Destroying stacks is an irreversible action';
     const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
     const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
     if (!confirmed) {
-      return ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+      await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+      return ret;
     }
 
     const destroySpan = await ioHelper.span(SPAN.DESTROY_ACTION).begin({
@@ -949,11 +1038,22 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
               stack,
             });
           const deployments = await this.deploymentsForAction(action);
-          await deployments.destroyStack({
+          const result = await deployments.destroyStack({
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
           });
+
+          ret.stacks.push({
+            environment: {
+              account: stack.environment.account,
+              region: stack.environment.region,
+            },
+            stackName: stack.stackName,
+            stackArn: result.stackArn,
+            stackExisted: result.stackArn !== undefined,
+          });
+
           await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
           await singleDestroySpan.end();
         } catch (e: any) {
@@ -961,6 +1061,8 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
           throw e;
         }
       }
+
+      return ret;
     } finally {
       await destroySpan.end();
     }
@@ -1003,7 +1105,6 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
     const hotswap = options.hotswap ?? HotswapMode.HOTSWAP_ONLY;
     const deployOptions: ExtendedDeployOptions = {
       ...options,
-      requireApproval: RequireApproval.NEVER,
       cloudWatchLogMonitor,
       hotswap,
       extraUserAgent: `cdk-watch/hotswap-${hotswap === HotswapMode.FULL_DEPLOYMENT ? 'off' : 'on'}`,
@@ -1015,4 +1116,26 @@ export class Toolkit extends CloudAssemblySourceBuilder implements AsyncDisposab
       // just continue - deploy will show the error
     }
   }
+}
+
+/**
+ * The result of a `cdk.watch()` operation.
+ */
+export interface IWatcher extends AsyncDisposable {
+  /**
+   * Stop the watcher and wait for the current watch iteration to complete.
+   *
+   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
+   * environments that don't support the Disposable APIs yet.
+   */
+  dispose(): Promise<void>;
+
+  /**
+   * Wait for the watcher to stop.
+   *
+   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
+   *
+   * If neither of those is called, awaiting this promise will wait forever.
+   */
+  waitForEnd(): Promise<void>;
 }

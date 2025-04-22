@@ -1,8 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { environmentsFromDescriptors } from './private';
-import type { Tag } from '../../api/aws-cdk';
-import type { ICloudAssemblySource, IIoHost } from '../../api/cloud-assembly';
+import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { ALL_STACKS } from '../../api/cloud-assembly/private';
+import type { IIoHost } from '../../api/io';
+import type { Tag } from '../../api/shared-private';
 import { asIoHelper } from '../../api/shared-private';
 import { assemblyFromSource } from '../../toolkit/private';
 
@@ -24,7 +25,7 @@ export class BootstrapEnvironments {
   static fromCloudAssemblySource(cx: ICloudAssemblySource): BootstrapEnvironments {
     return new BootstrapEnvironments(async (ioHost: IIoHost) => {
       const ioHelper = asIoHelper(ioHost, 'bootstrap');
-      const assembly = await assemblyFromSource(ioHelper, cx);
+      await using assembly = await assemblyFromSource(ioHelper, cx);
       const stackCollection = await assembly.selectStacksV2(ALL_STACKS);
       return stackCollection.stackArtifacts.map(stack => stack.environment);
     });

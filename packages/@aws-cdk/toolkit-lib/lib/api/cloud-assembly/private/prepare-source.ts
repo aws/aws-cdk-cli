@@ -1,3 +1,4 @@
+import '../../../private/dispose-polyfill';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { format } from 'node:util';
@@ -5,40 +6,105 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import type { SdkProvider } from '../../../api/aws-cdk';
-import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, Settings, loadTree, some, versionNumber, guessExecutable } from '../../../api/aws-cdk';
-import { splitBySize } from '../../../private/util';
+import { type IReadLock, type IWriteLock, type SdkProvider, type IoHelper, loadTree, some, Settings, RWLock } from '../../../api/shared-private';
+import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, guessExecutable } from '../../../api/shared-private';
+import { splitBySize, versionNumber } from '../../../private/util';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import type { IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
 type Env = { [key: string]: string };
 type Context = { [key: string]: any };
 
-export class ExecutionEnvironment {
+export class ExecutionEnvironment implements AsyncDisposable {
+  /**
+   * Create an ExecutionEnvironment
+   *
+   * An ExecutionEnvironment holds a writer lock on the given directory which will
+   * be cleaned up when the object is disposed.
+   *
+   * A temporary directory will be created if none is supplied, which will be cleaned
+   * up when this object is disposed.
+   *
+   * If `markSuccessful()` is called, the writer lock is converted to a reader lock
+   * and temporary directories will not be cleaned up anymore.
+   */
+  public static async create(services: ToolkitServices, props: { outdir?: string } = {}) {
+    let tempDir = false;
+    let dir = props.outdir;
+    if (!dir) {
+      tempDir = true;
+      dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
+    }
+
+    const lock = await new RWLock(dir).acquireWrite();
+    return new ExecutionEnvironment(services, dir, tempDir, lock);
+  }
+
   private readonly ioHelper: IoHelper;
   private readonly sdkProvider: SdkProvider;
   private readonly debugFn: (msg: string) => Promise<void>;
-  private _outdir: string | undefined;
+  private lock: IWriteLock | undefined;
+  private shouldClean: boolean;
 
-  public constructor(services: ToolkitServices, props: { outdir?: string } = {}) {
+  private constructor(
+    services: ToolkitServices,
+    public readonly outdir: string,
+    public readonly outDirIsTemporary: boolean,
+    lock: IWriteLock,
+  ) {
     this.ioHelper = services.ioHelper;
     this.sdkProvider = services.sdkProvider;
     this.debugFn = (msg: string) => this.ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg(msg));
-    this._outdir = props.outdir;
+    this.lock = lock;
+    this.shouldClean = outDirIsTemporary;
+  }
+
+  public async [Symbol.asyncDispose]() {
+    await this.lock?.release();
+
+    if (this.shouldClean) {
+      await fs.rm(this.outdir, { recursive: true, force: true });
+    }
   }
 
   /**
-   * Turn the given optional output directory into a fixed output directory
+   * Mark the execution as successful, which stops the writer lock from being released upon disposal
    */
-  public get outdir(): string {
-    if (!this._outdir) {
-      const outdir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
-      this._outdir = outdir;
+  public async markSuccessful() {
+    if (!this.lock) {
+      throw new TypeError('Cannot mark successful more than once');
     }
-    return this._outdir;
+    const readLock = await this.lock.convertToReaderLock();
+    this.lock = undefined;
+    this.shouldClean = false;
+    return { readLock };
+  }
+
+  /**
+   * Begin an execution in this environment
+   *
+   * This will acquire a write lock on the given environment. The write lock
+   * will be released automatically when the return object is disposed, unless it
+   * is converted to a reader lock.
+   */
+  public async beginExecution(): Promise<{ writeToReadLock(): Promise<IReadLock> } & AsyncDisposable> {
+    const lock = await new RWLock(this.outdir).acquireWrite();
+
+    let converted = false;
+    return {
+      async writeToReadLock() {
+        converted = true;
+        return lock.convertToReaderLock();
+      },
+      [Symbol.asyncDispose]: async () => {
+        // Release if not converted
+        if (!converted) {
+          await lock.release();
+        }
+      },
+    };
   }
 
   /**

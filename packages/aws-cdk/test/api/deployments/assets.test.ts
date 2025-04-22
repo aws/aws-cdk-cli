@@ -1,19 +1,19 @@
 /* eslint-disable import/order */
 import { AssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { testStack, withMocked } from '../../_helpers';
-import { addMetadataAssetsToManifest } from '../../../lib/api/deployments/assets';
+import { addMetadataAssetsToManifest } from '../../../lib/api/deployments';
 import { AssetManifestBuilder } from '../../../lib/api/deployments';
 import { EnvironmentResources, EnvironmentResourcesRegistry } from '../../../lib/api/environment';
-import { MockSdk } from '../../util/mock-sdk';
-import { MockToolkitInfo } from '../../util/mock-toolkitinfo';
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { MockSdk } from '../../_helpers/mock-sdk';
+import { MockToolkitInfo } from '../../_helpers/mock-toolkitinfo';
+import { TestIoHost } from '../../_helpers/io-host';
 
 let assets: AssetManifestBuilder;
 let envRegistry: EnvironmentResourcesRegistry;
 let envResources: EnvironmentResources;
 let toolkitMock: ReturnType<typeof MockToolkitInfo.setup>;
 let ioHost = new TestIoHost();
-let ioHelper = asIoHelper(ioHost, 'deploy');
+let ioHelper = ioHost.asHelper('deploy');
 
 beforeEach(() => {
   ioHost.notifySpy.mockClear();

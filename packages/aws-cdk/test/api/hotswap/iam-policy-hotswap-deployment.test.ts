@@ -1,7 +1,7 @@
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { silentTest } from '../../util/silent';
+import { HotswapMode } from '../../../lib/api/hotswap';
+
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
@@ -10,7 +10,7 @@ beforeEach(() => {
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest(
+  test(
     'A change to an IAM Policy results in a full deployment for HOTSWAP and a noOp for HOTSWAP_ONLY',
     async () => {
       // GIVEN

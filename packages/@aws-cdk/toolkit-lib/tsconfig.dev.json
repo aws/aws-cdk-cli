@@ -28,6 +28,7 @@
     "target": "es2022",
     "incremental": true,
     "skipLibCheck": true,
+    "rootDir": ".",
     "composite": true,
     "outDir": "lib"
   },
@@ -36,8 +37,7 @@
     "test/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "lib/init-templates/*/typescript/*/*.template.ts"
+    "node_modules"
   ],
   "references": [
     {
@@ -48,9 +48,6 @@
     },
     {
       "path": "../../cdk-assets"
-    },
-    {
-      "path": "../../aws-cdk"
     },
     {
       "path": "../tmp-toolkit-helpers"

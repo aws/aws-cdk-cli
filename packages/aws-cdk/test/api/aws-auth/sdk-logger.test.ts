@@ -1,11 +1,11 @@
-import { formatSdkLoggerContent, SdkToCliLogger } from '../../../lib/api/aws-auth/sdk-logger';
+import { formatSdkLoggerContent, SdkToCliLogger } from '../../../lib/api/aws-auth';
 
 describe(SdkToCliLogger, () => {
   const ioHost = {
     notify: jest.fn(),
     requestResponse: jest.fn(),
   };
-  const logger = new SdkToCliLogger(ioHost);
+  const logger = new SdkToCliLogger(ioHost as any);
 
   beforeEach(() => {
     ioHost.notify.mockReset();

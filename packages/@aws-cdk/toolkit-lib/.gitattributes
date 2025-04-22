@@ -12,9 +12,11 @@
 /.projen/deps.json linguist-generated
 /.projen/files.json linguist-generated
 /.projen/tasks.json linguist-generated
+/api-extractor.json linguist-generated
 /jest.config.json linguist-generated
 /LICENSE linguist-generated
 /package.json linguist-generated
+/test/tsconfig.json linguist-generated
 /tsconfig.dev.json linguist-generated
 /tsconfig.json linguist-generated
 /yarn.lock linguist-generated

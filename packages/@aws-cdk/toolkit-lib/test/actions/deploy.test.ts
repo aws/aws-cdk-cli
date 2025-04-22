@@ -1,13 +1,16 @@
-import { RequireApproval, StackParameters } from '../../lib';
-import * as awsCdkApi from '../../lib/api/aws-cdk';
-import type { DeployStackOptions, DeployStackResult } from '../../lib/api/aws-cdk';
+import { StackParameters } from '../../lib/actions/deploy';
+import type { DeployStackOptions, DeployStackResult } from '../../lib/api/shared-private';
+import * as apis from '../../lib/api/shared-private';
+import { RequireApproval } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
-import { MockSdk } from '../util/aws-cdk';
+import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOptions]>;
+
+jest.mock('../../lib/api/shared-private', () => ({ __esModule: true, ...jest.requireActual('../../lib/api/shared-private') }));
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -17,28 +20,28 @@ beforeEach(() => {
   toolkit = new Toolkit({ ioHost });
   const sdk = new MockSdk();
 
+  jest.spyOn(apis, 'findCloudWatchLogGroups').mockResolvedValue({
+    env: { name: 'Z', account: 'X', region: 'Y' },
+    sdk,
+    logGroupNames: ['/aws/lambda/lambda-function-name'],
+  });
+
   // Some default implementations
-  mockDeployStack = jest.spyOn(awsCdkApi.Deployments.prototype, 'deployStack').mockResolvedValue({
+  mockDeployStack = jest.spyOn(apis.Deployments.prototype, 'deployStack').mockResolvedValue({
     type: 'did-deploy-stack',
     stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
     outputs: {},
     noOp: false,
   });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
+  jest.spyOn(apis.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',
     region: 'aq-south-1',
     name: 'aws://11111111/aq-south-1',
   });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'buildSingleAsset').mockImplementation();
-  jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
-
-  jest.spyOn(awsCdkApi, 'findCloudWatchLogGroups').mockResolvedValue({
-    env: { name: 'Z', account: 'X', region: 'Y' },
-    sdk,
-    logGroupNames: ['/aws/lambda/lambda-function-name'],
-  });
+  jest.spyOn(apis.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
+  jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(apis.Deployments.prototype, 'buildSingleAsset').mockImplementation();
+  jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });
 
 describe('deploy', () => {
@@ -198,12 +201,12 @@ describe('deploy', () => {
       successfulDeployment();
     });
 
-    test('force: true option is used for asset publishing', async () => {
-      const publishSingleAsset = jest.spyOn(awsCdkApi.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+    test('forceAssetPublishing: true option is used for asset publishing', async () => {
+      const publishSingleAsset = jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {
-        force: true,
+        forceAssetPublishing: true,
       });
 
       // THEN
@@ -278,6 +281,98 @@ describe('deploy', () => {
       // THEN
       successfulDeployment();
     });
+  });
+
+  test('deploy returns stack information', async () => {
+    // GIVEN
+    mockDeployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      outputs: {
+        OutputKey1: 'OutputValue1',
+        OutputKey2: 'OutputValue2',
+      },
+      noOp: false,
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const result = await toolkit.deploy(cx);
+
+    // THEN
+    expect(result).toEqual({
+      stacks: [
+        {
+          stackName: 'Stack1',
+          hierarchicalId: 'Stack1',
+          environment: {
+            // This wouldn't normally work like this, but this is the information in the manifest so that's what we assert
+            account: 'unknown-account',
+            region: 'unknown-region',
+          },
+          // This just comes from the mocked function above
+          stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+          outputs: {
+            OutputKey1: 'OutputValue1',
+            OutputKey2: 'OutputValue2',
+          },
+        },
+        {
+          stackName: 'Stack2',
+          hierarchicalId: 'Stack2',
+          environment: {
+            // This wouldn't normally work like this, but this is the information in the manifest so that's what we assert
+            account: 'unknown-account',
+            region: 'unknown-region',
+          },
+          // This just comes from the mocked function above
+          stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+          outputs: {
+            OutputKey1: 'OutputValue1',
+            OutputKey2: 'OutputValue2',
+            // omg
+          },
+        },
+      ],
+    });
+  });
+
+  test('deploy contains nested assembly hierarchical id', async () => {
+    // GIVEN
+    mockDeployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      outputs: {
+        OutputKey1: 'OutputValue1',
+        OutputKey2: 'OutputValue2',
+      },
+      noOp: false,
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'nested-assembly');
+    const result = await toolkit.deploy(cx);
+
+    // THEN
+    expect(result).toEqual({
+      stacks: [
+        expect.objectContaining({
+          hierarchicalId: 'Stage/Stack1',
+        }),
+      ],
+    });
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.deploy(assemblySource);
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 

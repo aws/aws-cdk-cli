@@ -3,7 +3,8 @@ import * as path from 'path';
 import type { AssetManifest, AssetMetadataEntry, AwsCloudFormationStackProperties, MetadataEntry, MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType, ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import type { ICloudAssemblySource } from '../../lib';
+import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib';
+import { BorrowedAssembly } from '../../lib/api/cloud-assembly/private/borrowed-assembly';
 
 const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 const SOME_RECENT_SCHEMA_VERSION = '30.0.0';
@@ -40,8 +41,8 @@ export class TestCloudAssemblySource implements ICloudAssemblySource {
     this.mock = mock;
   }
 
-  public async produce(): Promise<cxapi.CloudAssembly> {
-    return testAssembly(this.mock);
+  public async produce(): Promise<IReadableCloudAssembly> {
+    return new BorrowedAssembly(testAssembly(this.mock));
   }
 }
 

@@ -1,44 +1,20 @@
 import { format } from 'node:util';
-import { Writable } from 'stream';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
-  type DescribeChangeSetOutput,
-  type TemplateDiff,
-  fullDiff,
-  formatSecurityChanges,
   formatDifferences,
+  formatSecurityChanges,
+  fullDiff,
   mangleLikeCloudFormation,
+  type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-
-import type { NestedStackTemplates } from '../cloudformation/nested-stack-templates';
+import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { RequireApproval } from '../require-approval';
+import { StringWriteStream } from '../streams';
 import { ToolkitError } from '../toolkit-error';
-
-/*
- * Custom writable stream that collects text into a string buffer.
- * Used on classes that take in and directly write to a stream, but
- * we intend to capture the output rather than print.
- */
-class StringWriteStream extends Writable {
-  private buffer: string[] = [];
-
-  constructor() {
-    super();
-  }
-
-  _write(chunk: any, _encoding: string, callback: (error?: Error | null) => void): void {
-    this.buffer.push(chunk.toString());
-    callback();
-  }
-
-  toString(): string {
-    return this.buffer.join('');
-  }
-}
 
 /**
  * Output of formatSecurityDiff
@@ -75,14 +51,10 @@ interface DiffFormatterProps {
   readonly ioHelper: IoHelper;
 
   /**
-   * The old/current state of the stack.
+   * The relevant information for the Template that is being diffed.
+   * Includes the old/current state of the stack as well as the new state.
    */
-  readonly oldTemplate: any;
-
-  /**
-   * The new/target state of the stack.
-   */
-  readonly newTemplate: cxapi.CloudFormationStackArtifact;
+  readonly templateInfo: TemplateInfo;
 }
 
 /**
@@ -93,18 +65,6 @@ interface FormatSecurityDiffOptions {
    * The approval level of the security diff
    */
   readonly requireApproval: RequireApproval;
-
-  /**
-   * The name of the Stack.
-   */
-  readonly stackName?: string;
-
-  /**
-   * The changeSet for the Stack.
-   *
-   * @default undefined
-   */
-  readonly changeSet?: DescribeChangeSetOutput;
 }
 
 /**
@@ -131,30 +91,50 @@ interface FormatStackDiffOptions {
    * @default false
    */
   readonly quiet?: boolean;
+}
 
+interface ReusableStackDiffOptions extends FormatStackDiffOptions {
+  readonly ioDefaultHelper: IoDefaultMessages;
+}
+
+/**
+ * Information on a template's old/new state
+ * that is used for diff.
+ */
+export interface TemplateInfo {
   /**
-   * The name of the stack
+   * The old/existing template
    */
-  readonly stackName?: string;
+  readonly oldTemplate: any;
 
   /**
+   * The new template
+   */
+  readonly newTemplate: cxapi.CloudFormationStackArtifact;
+
+  /**
+   * A CloudFormation ChangeSet to help the diff operation.
+   * Probably created via `createDiffChangeSet`.
+   *
    * @default undefined
    */
-  readonly changeSet?: DescribeChangeSetOutput;
+  readonly changeSet?: any;
 
   /**
+   * Whether or not there are any imported resources
+   *
    * @default false
    */
   readonly isImport?: boolean;
 
   /**
-   * @default undefined
+   * Any nested stacks included in the template
+   *
+   * @default {}
    */
-  readonly nestedStackTemplates?: { [nestedStackLogicalId: string]: NestedStackTemplates };
-}
-
-interface ReusableStackDiffOptions extends Omit<FormatStackDiffOptions, 'stackName' | 'nestedStackTemplates'> {
-  readonly ioDefaultHelper: IoDefaultMessages;
+  readonly nestedStacks?: {
+    [nestedStackLogicalId: string]: NestedStackTemplates;
+  };
 }
 
 /**
@@ -164,22 +144,40 @@ export class DiffFormatter {
   private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
+  private readonly stackName: string;
+  private readonly changeSet?: any;
+  private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
+  private readonly isImport: boolean;
+
+  /**
+   * Stores the TemplateDiffs that get calculated in this DiffFormatter,
+   * indexed by the stack name.
+   */
+  private _diffs: { [name: string]: TemplateDiff } = {};
 
   constructor(props: DiffFormatterProps) {
     this.ioHelper = props.ioHelper;
-    this.oldTemplate = props.oldTemplate;
-    this.newTemplate = props.newTemplate;
+    this.oldTemplate = props.templateInfo.oldTemplate;
+    this.newTemplate = props.templateInfo.newTemplate;
+    this.stackName = props.templateInfo.newTemplate.stackName;
+    this.changeSet = props.templateInfo.changeSet;
+    this.nestedStacks = props.templateInfo.nestedStacks;
+    this.isImport = props.templateInfo.isImport ?? false;
+  }
+
+  public get diffs() {
+    return this._diffs;
   }
 
   /**
    * Format the stack diff
    */
-  public formatStackDiff(options: FormatStackDiffOptions): FormatStackDiffOutput {
+  public formatStackDiff(options: FormatStackDiffOptions = {}): FormatStackDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
     return this.formatStackDiffHelper(
       this.oldTemplate,
-      options.stackName,
-      options.nestedStackTemplates,
+      this.stackName,
+      this.nestedStacks,
       {
         ...options,
         ioDefaultHelper,
@@ -189,11 +187,12 @@ export class DiffFormatter {
 
   private formatStackDiffHelper(
     oldTemplate: any,
-    stackName: string | undefined,
+    stackName: string,
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
-    let diff = fullDiff(oldTemplate, this.newTemplate.template, options.changeSet, options.isImport);
+    let diff = fullDiff(oldTemplate, this.newTemplate.template, this.changeSet, this.isImport);
+    this._diffs[stackName] = diff;
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
@@ -208,17 +207,17 @@ export class DiffFormatter {
     try {
       // must output the stack name if there are differences, even if quiet
       if (stackName && (!options.quiet || !diff.isEmpty)) {
-        stream.write(format('Stack %s\n', chalk.bold(stackName)));
+        stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
       }
 
-      if (!options.quiet && options.isImport) {
+      if (!options.quiet && this.isImport) {
         stream.write('Parameters and rules created during migration do not affect resource configuration.\n');
       }
 
       // detect and filter out mangled characters from the diff
       if (diff.differenceCount && !options.strict) {
         const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(this.newTemplate.template)));
-        const mangledDiff = fullDiff(this.oldTemplate, mangledNewTemplate, options.changeSet);
+        const mangledDiff = fullDiff(this.oldTemplate, mangledNewTemplate, this.changeSet);
         filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
         if (filteredChangesCount > 0) {
           diff = mangledDiff;
@@ -239,18 +238,17 @@ export class DiffFormatter {
           ...logicalIdMapFromTemplate(this.oldTemplate),
           ...buildLogicalToPathMap(this.newTemplate),
         }, options.context);
-
-        // store the stream containing a formatted stack diff
-        formattedDiff = stream.toString();
       } else if (!options.quiet) {
-        options.ioDefaultHelper.info(chalk.green('There were no differences'));
+        stream.write(chalk.green('There were no differences\n'));
+      }
+
+      if (filteredChangesCount > 0) {
+        stream.write(chalk.yellow(`Omitted ${filteredChangesCount} changes because they are likely mangled non-ASCII characters. Use --strict to print them.\n`));
       }
     } finally {
+      // store the stream containing a formatted stack diff
+      formattedDiff = stream.toString();
       stream.end();
-    }
-
-    if (filteredChangesCount > 0) {
-      options.ioDefaultHelper.info(chalk.yellow(`Omitted ${filteredChangesCount} changes because they are likely mangled non-ASCII characters. Use --strict to print them.`));
     }
 
     for (const nestedStackLogicalId of Object.keys(nestedStackTemplates ?? {})) {
@@ -282,21 +280,22 @@ export class DiffFormatter {
   public formatSecurityDiff(options: FormatSecurityDiffOptions): FormatSecurityDiffOutput {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
 
-    const diff = fullDiff(this.oldTemplate, this.newTemplate.template, options.changeSet);
+    const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
+    this._diffs[this.stackName] = diff;
 
     if (diffRequiresApproval(diff, options.requireApproval)) {
-      ioDefaultHelper.info(format('Stack %s\n', chalk.bold(options.stackName)));
-
-      // eslint-disable-next-line max-len
-      ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);
-      ioDefaultHelper.warning('Please confirm you intend to make the following modifications:\n');
-
       // The security diff is formatted via `Formatter`, which takes in a stream
       // and sends its output directly to that stream. To faciliate use of the
       // global CliIoHost, we create our own stream to capture the output of
       // `Formatter` and return the output as a string for the consumer of
       // `formatSecurityDiff` to decide what to do with it.
       const stream = new StringWriteStream();
+
+      stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
+
+      // eslint-disable-next-line max-len
+      ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);
+      ioDefaultHelper.warning('Please confirm you intend to make the following modifications:\n');
       try {
         // formatSecurityChanges updates the stream with the formatted security diff
         formatSecurityChanges(stream, diff, buildLogicalToPathMap(this.newTemplate));

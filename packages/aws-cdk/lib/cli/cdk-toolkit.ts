@@ -1,66 +1,72 @@
 import * as path from 'path';
 import { format } from 'util';
+import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
 import * as uuid from 'uuid';
+import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import {
+  ambiguousMovements,
+  findResourceMovements,
+  resourceMappings,
+  ToolkitError,
+} from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
+import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type {
-  CloudAssembly,
-  StackSelector,
-} from '../api/cxapp/cloud-assembly';
-import {
-  DefaultSelection,
-  ExtendedStackSelection,
-  StackCollection,
-} from '../api/cxapp/cloud-assembly';
-import type { CloudExecutable } from '../api/cxapp/cloud-executable';
-import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../api/cxapp/environments';
-import type { DeploymentMethod, SuccessfulDeployStackResult, Deployments } from '../api/deployments';
-import { createDiffChangeSet } from '../api/deployments/cfn-api';
-import { GarbageCollector } from '../api/garbage-collection/garbage-collector';
-import { HotswapMode, HotswapPropertyOverrides, EcsHotswapProperties } from '../api/hotswap/common';
-import { findCloudWatchLogGroups } from '../api/logs/find-cloudwatch-logs';
-import { CloudWatchLogEventMonitor } from '../api/logs/logs-monitor';
-import { ResourceImporter, removeNonImportResources, ResourceMigrator } from '../api/resource-import';
-import { tagsForStack, type Tag } from '../api/tags';
+import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
+import { GarbageCollector } from '../api/garbage-collection';
+import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
+import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
+import { removeNonImportResources, ResourceImporter, ResourceMigrator } from '../api/resource-import';
+import { type Tag, tagsForStack } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
-import { WorkGraphBuilder } from '../api/work-graph/work-graph-builder';
+import { WorkGraphBuilder } from '../api/work-graph';
+import { cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
-import type {
-  FromScan,
-  GenerateTemplateOutput,
-} from '../commands/migrate';
+import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
+  appendWarningsToReadme,
+  buildCfnClient,
+  buildGenertedTemplateOutput,
+  CfnTemplateGeneratorProvider,
   generateCdkApp,
   generateStack,
+  generateTemplate,
+  isThereAWarning,
+  parseSourceOptions,
   readFromPath,
   readFromStack,
   setEnvironment,
-  parseSourceOptions,
-  generateTemplate,
   TemplateSourceOptions,
-  CfnTemplateGeneratorProvider,
   writeMigrateJsonFile,
-  buildGenertedTemplateOutput,
-  appendWarningsToReadme,
-  isThereAWarning,
-  buildCfnClient,
 } from '../commands/migrate';
-import { result as logResult, debug, error, highlight, info, success, warning } from '../logging';
-import { CliIoHost } from './io-host';
-import { partition, validateSnsTopicArn, formatErrorMessage, deserializeStructure, obscureTemplate, serializeStructure, formatTime } from '../util';
+import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
+import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
+import { debug, error, highlight, info, result as logResult, success, warning } from '../logging';
+import {
+  deserializeStructure,
+  formatErrorMessage,
+  formatTime,
+  obscureTemplate,
+  partition,
+  serializeStructure,
+  validateSnsTopicArn,
+} from '../util';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -145,6 +151,22 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
+class InternalToolkit extends Toolkit {
+  private readonly _sdkProvider: SdkProvider;
+  public constructor(sdkProvider: SdkProvider, options: ToolkitOptions) {
+    super(options);
+    this._sdkProvider = sdkProvider;
+  }
+
+  /**
+   * Access to the AWS SDK
+   * @internal
+   */
+  protected async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
+    return this._sdkProvider;
+  }
+}
+
 /**
  * Toolkit logic
  *
@@ -154,10 +176,21 @@ export enum AssetBuildTime {
 export class CdkToolkit {
   private ioHost: CliIoHost;
   private toolkitStackName: string;
+  private toolkit: InternalToolkit;
 
   constructor(private readonly props: CdkToolkitProps) {
     this.ioHost = props.ioHost ?? CliIoHost.instance();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
+
+    this.toolkit = new InternalToolkit(props.sdkProvider, {
+      assemblyFailureAt: this.validateMetadataFailAt(),
+      color: true,
+      emojis: true,
+      ioHost: this.ioHost,
+      sdkConfig: {},
+      toolkitStackName: this.toolkitStackName,
+    });
+    this.toolkit; // aritifical use of this.toolkit to satisfy TS, we want to prepare usage of the new toolkit without using it just yet
   }
 
   public async metadata(stackName: string, json: boolean) {
@@ -197,8 +230,10 @@ export class CdkToolkit {
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),
-        oldTemplate: template,
-        newTemplate: stacks.firstStack,
+        templateInfo: {
+          oldTemplate: template,
+          newTemplate: stacks.firstStack,
+        },
       });
 
       if (options.securityOnly) {
@@ -227,11 +262,6 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
-        const formatter = new DiffFormatter({
-          ioHelper: asIoHelper(this.ioHost, 'diff'),
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        });
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -263,7 +293,7 @@ export class CdkToolkit {
           }
 
           if (stackExists) {
-            changeSet = await createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+            changeSet = await cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
               stack,
               uuid: uuid.v4(),
               deployments: this.props.deployments,
@@ -279,11 +309,20 @@ export class CdkToolkit {
           }
         }
 
+        const formatter = new DiffFormatter({
+          ioHelper: asIoHelper(this.ioHost, 'diff'),
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+            changeSet,
+            isImport: !!resourcesToImport,
+            nestedStacks,
+          },
+        });
+
         if (options.securityOnly) {
           const securityDiff = formatter.formatSecurityDiff({
             requireApproval: RequireApproval.BROADENING,
-            stackName: stack.displayName,
-            changeSet,
           });
           if (securityDiff.formattedDiff) {
             info(securityDiff.formattedDiff);
@@ -294,10 +333,6 @@ export class CdkToolkit {
             strict,
             context: contextLines,
             quiet,
-            stackName: stack.displayName,
-            changeSet,
-            isImport: !!resourcesToImport,
-            nestedStackTemplates: nestedStacks,
           });
           info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
@@ -424,8 +459,10 @@ export class CdkToolkit {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
           ioHelper: asIoHelper(this.ioHost, 'deploy'),
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+          },
         });
         const securityDiff = formatter.formatSecurityDiff({
           requireApproval,
@@ -487,7 +524,7 @@ export class CdkToolkit {
             execute: options.execute,
             changeSetName: options.changeSetName,
             deploymentMethod: options.deploymentMethod,
-            force: options.force,
+            forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
             rollback,
@@ -670,7 +707,7 @@ export class CdkToolkit {
           stack,
           roleArn: options.roleArn,
           toolkitStackName: options.toolkitStackName,
-          force: options.force,
+          orphanFailedResources: options.force,
           validateBootstrapStackVersion: options.validateBootstrapStackVersion,
           orphanLogicalIds: options.orphanLogicalIds,
         });
@@ -1181,6 +1218,29 @@ export class CdkToolkit {
     }
   }
 
+  public async refactor(options: RefactorOptions): Promise<number> {
+    if (!options.dryRun) {
+      info('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+      return 1;
+    }
+
+    if (options.selector.patterns.length > 0) {
+      warning('Refactor does not yet support stack selection. Proceeding with the default behavior (considering all stacks).');
+    }
+
+    const stacks = await this.selectStacksForList([]);
+    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider);
+    const ambiguous = ambiguousMovements(movements);
+    if (ambiguous.length === 0) {
+      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
+      formatTypedMappings(process.stdout, typedMappings);
+    } else {
+      const e = new AmbiguityError(ambiguous);
+      formatAmbiguousMappings(process.stdout, e.paths());
+    }
+    return 0;
+  }
+
   private async selectStacksForList(patterns: string[]) {
     const assembly = await this.assembly();
     const stacks = await assembly.selectStacks({ patterns }, { defaultBehavior: DefaultSelection.AllStacks });
@@ -1251,6 +1311,11 @@ export class CdkToolkit {
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
   private async validateStacks(stacks: StackCollection) {
+    const failAt = this.validateMetadataFailAt();
+    await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
+  }
+
+  private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
     let failAt: 'warn' | 'error' | 'none' = 'error';
     if (this.props.ignoreErrors) {
       failAt = 'none';
@@ -1259,7 +1324,7 @@ export class CdkToolkit {
       failAt = 'warn';
     }
 
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.props.verbose));
+    return failAt;
   }
 
   /**
@@ -1855,6 +1920,18 @@ export interface MigrateOptions {
    * @default false
    */
   readonly compress?: boolean;
+}
+
+export interface RefactorOptions {
+  /**
+   * Whether to only show the proposed refactor, without applying it
+   */
+  readonly dryRun: boolean;
+
+  /**
+   * Criteria for selecting stacks to deploy
+   */
+  selector: StackSelector;
 }
 
 function buildParameterMap(

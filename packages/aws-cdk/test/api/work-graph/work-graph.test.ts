@@ -1,4 +1,4 @@
-import { asIoHelper, TestIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { TestIoHost } from '../../_helpers/io-host';
 import { WorkGraph, DeploymentState } from '../../../lib/api/work-graph';
 import type { AssetBuildNode, AssetPublishNode, StackNode } from '../../../lib/api/work-graph';
 
@@ -246,7 +246,7 @@ describe('WorkGraph', () => {
       expected: ['c-build', 'c-publish', 'A', 'b-build', 'b-publish', 'B'],
     },
   ])('Success - Concurrency: $concurrency - $scenario', async ({ concurrency, expected, toDeploy }) => {
-    const graph = new WorkGraph({}, asIoHelper(ioHost, 'deploy'));
+    const graph = new WorkGraph({}, ioHost.asHelper('deploy'));
     addTestArtifactsToGraph(toDeploy, graph);
 
     await graph.doParallel(concurrency, callbacks);
@@ -255,7 +255,7 @@ describe('WorkGraph', () => {
   });
 
   test('can remove unnecessary assets', async () => {
-    const graph = new WorkGraph({}, asIoHelper(ioHost, 'deploy'));
+    const graph = new WorkGraph({}, ioHost.asHelper('deploy'));
     addTestArtifactsToGraph([
       { id: 'a', type: 'asset' },
       { id: 'b', type: 'asset' },
@@ -378,7 +378,7 @@ describe('WorkGraph', () => {
       expected: ['b-build', 'C'],
     },
   ])('Failure - Concurrency: $concurrency - $scenario', async ({ concurrency, expectedError, toDeploy, expected }) => {
-    const graph = new WorkGraph({}, asIoHelper(ioHost, 'deploy'));
+    const graph = new WorkGraph({}, ioHost.asHelper('deploy'));
     addTestArtifactsToGraph(toDeploy, graph);
 
     await expect(graph.doParallel(concurrency, callbacks)).rejects.toThrow(expectedError);
@@ -414,7 +414,7 @@ describe('WorkGraph', () => {
       expectedError: 'B -> C -> D -> B',
     },
   ])('Failure - Graph Circular Dependencies - $scenario', async ({ toDeploy, expectedError }) => {
-    const graph = new WorkGraph({}, asIoHelper(ioHost, 'deploy'));
+    const graph = new WorkGraph({}, ioHost.asHelper('deploy'));
     addTestArtifactsToGraph(toDeploy, graph);
 
     await expect(graph.doParallel(1, callbacks)).rejects.toThrow(new RegExp(`Unable to make progress.*${expectedError}`));

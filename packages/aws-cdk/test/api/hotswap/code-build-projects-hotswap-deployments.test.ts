@@ -1,8 +1,8 @@
 import { UpdateProjectCommand } from '@aws-sdk/client-codebuild';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { mockCodeBuildClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { HotswapMode } from '../../../lib/api/hotswap';
+import { mockCodeBuildClient } from '../../_helpers/mock-sdk';
+
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest('returns undefined when a new CodeBuild Project is added to the Stack', async () => {
+  test('returns undefined when a new CodeBuild Project is added to the Stack', async () => {
     // GIVEN
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
@@ -41,7 +41,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     }
   });
 
-  silentTest(
+  test(
     'calls the updateProject() API when it receives only a source difference in a CodeBuild project',
     async () => {
       // GIVEN
@@ -97,7 +97,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateProject() API when it receives only a source version difference in a CodeBuild project',
     async () => {
       // GIVEN
@@ -152,7 +152,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateProject() API when it receives only an environment difference in a CodeBuild project',
     async () => {
       // GIVEN
@@ -261,7 +261,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     "correctly evaluates the project's name when it references a different resource from the template",
     async () => {
       // GIVEN
@@ -328,7 +328,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     "correctly falls back to taking the project's name from the current stack if it can't evaluate it in the template",
     async () => {
       // GIVEN
@@ -397,7 +397,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     "will not perform a hotswap deployment if it cannot find a Ref target (outside the project's name)",
     async () => {
       // GIVEN
@@ -452,7 +452,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     "will not perform a hotswap deployment if it doesn't know how to handle a specific attribute (outside the project's name)",
     async () => {
       // GIVEN
@@ -508,7 +508,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'calls the updateProject() API when it receives a difference in a CodeBuild project with no name',
     async () => {
       // GIVEN
@@ -565,7 +565,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'does not call the updateProject() API when it receives a change that is not Source, SourceVersion, or Environment difference in a CodeBuild project',
     async () => {
       // GIVEN
@@ -619,7 +619,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     `when it receives a change that is not Source, SourceVersion, or Environment difference in a CodeBuild project alongside a hotswappable change,
         it does not call the updateProject() API in CLASSIC mode, but it does in HOTSWAP_ONLY mode`,
     async () => {
@@ -681,7 +681,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       }
     },
   );
-  silentTest(
+  test(
     'does not call the updateProject() API when a resource with type that is not AWS::CodeBuild::Project but has the same properties is changed',
     async () => {
       // GIVEN

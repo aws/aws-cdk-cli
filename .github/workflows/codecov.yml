@@ -28,7 +28,9 @@ jobs:
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
         with:
+          disable_search: true
           files: packages/aws-cdk/coverage/cobertura-coverage.xml
           fail_ci_if_error: true
           flags: suite.unit
           use_oidc: true
+          version: v10.3.0

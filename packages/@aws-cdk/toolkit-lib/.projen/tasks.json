@@ -1,5 +1,13 @@
 {
   "tasks": {
+    "api-extractor-docs": {
+      "name": "api-extractor-docs",
+      "steps": [
+        {
+          "exec": "api-extractor run --diagnostics || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo \"Warning: API JSON file not found\"; fi && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi && if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi && cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk"
+        }
+      ]
+    },
     "build": {
       "name": "build",
       "description": "Full release build",
@@ -51,7 +59,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/types,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,dts-bundle-generator,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,projen,ts-jest,typedoc,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,cdk-from-cfn,glob,json-diff,minimatch,promptly,proxy-agent,semver,split2,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@microsoft/api-extractor,@smithy/types,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,projen,ts-jest,typedoc,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,cdk-from-cfn,glob,json-diff,minimatch,promptly,proxy-agent,semver,split2,uuid"
         }
       ]
     },
@@ -71,6 +79,9 @@
         {
           "exec": "tsc --build",
           "receiveArgs": true
+        },
+        {
+          "exec": "tsc --build test"
         }
       ]
     },
@@ -109,7 +120,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/tmp-toolkit-helpers=exact aws-cdk=exact @aws-cdk/cloud-assembly-schema=major @aws-cdk/cloudformation-diff=major cdk-assets=major",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/tmp-toolkit-helpers=exact @aws-cdk/cloud-assembly-schema=major @aws-cdk/cloudformation-diff=major cdk-assets=major",
           "receiveArgs": true
         }
       ]
@@ -152,6 +163,9 @@
           "exec": "npm pack --pack-destination dist/js"
         },
         {
+          "spawn": "api-extractor-docs"
+        },
+        {
           "spawn": "docs",
           "args": [
             "--out dist/docs/cdk/api/toolkit-lib"
@@ -174,16 +188,19 @@
           "spawn": "registry"
         },
         {
+          "exec": "build-tools/build-info.sh"
+        },
+        {
           "exec": "node build-tools/bundle.mjs"
         },
         {
           "exec": "node ./lib/index.js >/dev/null 2>/dev/null </dev/null"
         },
         {
-          "exec": "node ./lib/api/aws-cdk.js >/dev/null 2>/dev/null </dev/null"
+          "exec": "node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null"
         },
         {
-          "exec": "node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null"
+          "exec": "node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null"
         },
         {
           "exec": "node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null"

@@ -10,9 +10,9 @@ jest.mock('@aws-sdk/client-lambda', () => {
 
 import { UpdateFunctionCodeCommand, waitUntilFunctionUpdatedV2 } from '@aws-sdk/client-lambda';
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { mockLambdaClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { HotswapMode } from '../../../lib/api/hotswap';
+import { mockLambdaClient } from '../../_helpers/mock-sdk';
+
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest(
+  test(
     'calls the updateLambdaCode() API when it receives only a code difference in a Lambda function',
     async () => {
       // GIVEN
@@ -76,7 +76,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('calls the waiter with a delay of 5', async () => {
+  test('calls the waiter with a delay of 5', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -127,7 +127,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     );
   });
 
-  silentTest(
+  test(
     'throws error in case of timeout',
     async () => {
       // GIVEN

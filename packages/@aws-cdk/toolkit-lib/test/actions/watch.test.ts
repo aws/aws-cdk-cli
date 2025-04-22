@@ -3,9 +3,14 @@
 // Apparently, they hoist jest.mock commands just below the import statements so we
 // need to make sure that the constants they access are initialized before the imports.
 const mockChokidarWatcherOn = jest.fn();
+const mockChokidarWatcherClose = jest.fn();
+const mockChokidarWatcherUnref = jest.fn();
 const fakeChokidarWatcher = {
   on: mockChokidarWatcherOn,
-};
+  close: mockChokidarWatcherClose,
+  unref: mockChokidarWatcherUnref,
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+} satisfies Partial<ReturnType<typeof import('chokidar')['watch']>>;
 const fakeChokidarWatcherOn = {
   get readyCallback(): () => Promise<void> {
     expect(mockChokidarWatcherOn.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -39,9 +44,10 @@ jest.mock('chokidar', () => ({
   watch: mockChokidarWatch,
 }));
 
-import { HotswapMode } from '../../lib';
+import * as path from 'node:path';
+import { HotswapMode } from '../../lib/actions/deploy';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, TestIoHost } from '../_helpers';
+import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -80,7 +86,7 @@ describe('watch', () => {
     }));
   });
 
-  test('ignores output dir, dot files, dot directories, node_modules by default', async () => {
+  test('dot files, dot directories, node_modules by default', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     ioHost.level = 'debug';
@@ -92,7 +98,30 @@ describe('watch', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'watch',
       level: 'debug',
-      message: expect.stringContaining('\'exclude\' patterns for \'watch\': ["cdk.out/**","**/.*","**/.*/**","**/node_modules/**"]'),
+      code: 'CDK_TOOLKIT_I5310',
+      message: expect.stringContaining('\'exclude\' patterns for \'watch\': ["**/.*","**/.*/**","**/node_modules/**"]'),
+    }));
+  });
+
+  test('ignores outdir when under the watch dir', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const assembly = await toolkit.synth(cx);
+    const outdir = (await assembly.produce()).cloudAssembly.directory;
+    const watchDir = path.normalize(outdir + path.sep + '..');
+
+    ioHost.level = 'debug';
+    await toolkit.watch(assembly, {
+      watchDir,
+      exclude: [],
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'watch',
+      level: 'debug',
+      code: 'CDK_TOOLKIT_I5310',
+      message: expect.stringContaining(`'exclude' patterns for 'watch': ["${path.basename(outdir)}/**","**/.*","**/.*/**","**/node_modules/**"]`),
     }));
   });
 
@@ -149,6 +178,24 @@ describe('watch', () => {
     (deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor?.deactivate();
   });
 
+  test('watch returns an object that can be used to stop the watch', async () => {
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+
+    const watcher = await toolkit.watch(cx, { include: [] });
+
+    expect(mockChokidarWatcherClose).not.toHaveBeenCalled();
+    expect(mockChokidarWatcherUnref).not.toHaveBeenCalled();
+
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    await Promise.all([
+      watcher.waitForEnd(),
+      watcher.dispose(),
+    ]);
+
+    expect(mockChokidarWatcherClose).toHaveBeenCalled();
+    expect(mockChokidarWatcherUnref).toHaveBeenCalled();
+  });
+
   describe.each([
     [HotswapMode.FALL_BACK, 'on'],
     [HotswapMode.HOTSWAP_ONLY, 'on'],
@@ -190,6 +237,22 @@ describe('watch', () => {
       hotswap: HotswapMode.HOTSWAP_ONLY,
       extraUserAgent: 'cdk-watch/hotswap-on',
     }));
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    const watcher = await toolkit.watch(assemblySource, {
+      include: [],
+      hotswap: undefined, // force the default
+    });
+    await watcher.dispose();
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 

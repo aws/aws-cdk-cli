@@ -1,6 +1,6 @@
 import { DescribeStackEventsCommand, DescribeStackEventsCommandInput, StackEvent } from '@aws-sdk/client-cloudformation';
 import { StackEventPoller } from '../../../lib/api/stack-events';
-import { MockSdk, mockCloudFormationClient } from '../../util/mock-sdk';
+import { MockSdk, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 
 beforeEach(() => {
   jest.resetAllMocks();

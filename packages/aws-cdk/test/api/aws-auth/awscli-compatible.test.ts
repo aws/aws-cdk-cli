@@ -1,12 +1,14 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { AwsCliCompatible } from '../../../lib/api/aws-auth/awscli-compatible';
+import { AwsCliCompatible } from '../../../lib/api/aws-auth';
+import { TestIoHost } from '../../_helpers/io-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('sdk');
 
 describe('AwsCliCompatible.region', () => {
-
   beforeEach(() => {
-
     // make sure we don't mistakenly point to an unrelated file
     process.env.AWS_CONFIG_FILE = '/dev/null';
     process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null';
@@ -17,11 +19,9 @@ describe('AwsCliCompatible.region', () => {
     delete process.env.AMAZON_REGION;
     delete process.env.AWS_DEFAULT_REGION;
     delete process.env.AMAZON_DEFAULT_REGION;
-
   });
 
   test('default region can be specified in config', async () => {
-
     const config = `
   [default]
   region=region-in-config
@@ -31,40 +31,33 @@ describe('AwsCliCompatible.region', () => {
   });
 
   test('default region can be specified in credentials', async () => {
-
     const creds = `
   [default]
   region=region-in-credentials
   `;
 
     await expect(region({ credentialsFile: creds })).resolves.toBe('region-in-credentials');
-
   });
 
   test('profile region can be specified in config', async () => {
-
     const config = `
   [profile user1]
   region=region-in-config
   `;
 
     await expect(region({ configFile: config, profile: 'user1' })).resolves.toBe('region-in-config');
-
   });
 
   test('profile region can be specified in credentials', async () => {
-
     const creds = `
   [user1]
   region=region-in-credentials
   `;
 
     await expect(region({ credentialsFile: creds, profile: 'user1' })).resolves.toBe('region-in-credentials');
-
   });
 
   test('with profile | profile-region-in-credentials is priority 1', async () => {
-
     const config = `
   [default]
   region=default-region-in-config
@@ -82,11 +75,12 @@ describe('AwsCliCompatible.region', () => {
   region=profile-region-in-credentials
   `;
 
-    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe('profile-region-in-credentials');
+    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe(
+      'profile-region-in-credentials',
+    );
   });
 
   test('with profile | profile-region-in-config is priority 2', async () => {
-
     const config = `
   [default]
   region=default-region-in-config
@@ -103,11 +97,12 @@ describe('AwsCliCompatible.region', () => {
   [user]
   `;
 
-    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe('profile-region-in-config');
+    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe(
+      'profile-region-in-config',
+    );
   });
 
   test('with profile | default-region-in-credentials is priority 3', async () => {
-
     const config = `
   [default]
   region=default-region-in-config
@@ -123,11 +118,12 @@ describe('AwsCliCompatible.region', () => {
   [user]
   `;
 
-    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe('default-region-in-credentials');
+    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe(
+      'default-region-in-credentials',
+    );
   });
 
   test('with profile | default-region-in-config is priority 4', async () => {
-
     const config = `
   [default]
   region=default-region-in-config
@@ -142,11 +138,12 @@ describe('AwsCliCompatible.region', () => {
   [user]
   `;
 
-    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe('default-region-in-config');
+    await expect(region({ credentialsFile: creds, configFile: config, profile: 'user' })).resolves.toBe(
+      'default-region-in-config',
+    );
   });
 
   test('with profile | us-east-1 is priority 5', async () => {
-
     const config = `
   [default]
 
@@ -164,7 +161,6 @@ describe('AwsCliCompatible.region', () => {
   });
 
   test('without profile | default-region-in-credentials is priority 1', async () => {
-
     const config = `
   [default]
   region=default-region-in-config
@@ -181,7 +177,6 @@ describe('AwsCliCompatible.region', () => {
   });
 
   test('without profile | default-region-in-config is priority 2', async () => {
-
     const config = `
   [default]
   region=default-region-in-config
@@ -197,7 +192,6 @@ describe('AwsCliCompatible.region', () => {
   });
 
   test('without profile | us-east-1 is priority 3', async () => {
-
     const config = `
   [default]
 
@@ -210,7 +204,6 @@ describe('AwsCliCompatible.region', () => {
 
     await expect(region({ credentialsFile: creds, configFile: config })).resolves.toBe('us-east-1');
   });
-
 });
 
 async function region(opts: {
@@ -218,11 +211,9 @@ async function region(opts: {
   readonly credentialsFile?: string;
   readonly profile?: string;
 }) {
-
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'awscli-compatible.test'));
 
   try {
-
     if (opts.configFile) {
       const configPath = path.join(workdir, 'config');
       fs.writeFileSync(configPath, opts.configFile);
@@ -235,8 +226,7 @@ async function region(opts: {
       process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
     }
 
-    return await AwsCliCompatible.region(opts.profile);
-
+    return await new AwsCliCompatible(ioHelper, {}).region(opts.profile);
   } finally {
     fs.removeSync(workdir);
   }
@@ -253,7 +243,7 @@ describe('Session token', () => {
     delete process.env.AWS_SESSION_TOKEN;
     delete process.env.AMAZON_SESSION_TOKEN;
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toBeUndefined();
   });
@@ -262,7 +252,7 @@ describe('Session token', () => {
     process.env.AWS_SESSION_TOKEN = 'aaa';
     delete process.env.AMAZON_SESSION_TOKEN;
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });
@@ -271,7 +261,7 @@ describe('Session token', () => {
     delete process.env.AWS_SESSION_TOKEN;
     process.env.AMAZON_SESSION_TOKEN = 'aaa';
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });
@@ -280,7 +270,7 @@ describe('Session token', () => {
     process.env.AWS_SESSION_TOKEN = 'aaa';
     process.env.AMAZON_SESSION_TOKEN = 'bbb';
 
-    await AwsCliCompatible.credentialChainBuilder();
+    await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
   });

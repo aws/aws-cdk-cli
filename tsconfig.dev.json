@@ -55,13 +55,13 @@
       "path": "packages/@aws-cdk/tmp-toolkit-helpers"
     },
     {
+      "path": "packages/@aws-cdk/toolkit-lib"
+    },
+    {
       "path": "packages/aws-cdk"
     },
     {
       "path": "packages/@aws-cdk/cli-lib-alpha"
-    },
-    {
-      "path": "packages/@aws-cdk/toolkit-lib"
     },
     {
       "path": "packages/@aws-cdk/cdk-cli-wrapper"

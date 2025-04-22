@@ -1,4 +1,4 @@
-import { HotswapMode } from '../../lib';
+import { HotswapMode } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 
@@ -12,9 +12,9 @@ let mockDeployStack = jest.fn().mockResolvedValue({
   noOp: false,
 });
 
-jest.mock('../../lib/api/aws-cdk', () => {
+jest.mock('../../lib/api/shared-private', () => {
   return {
-    ...jest.requireActual('../../lib/api/aws-cdk'),
+    ...jest.requireActual('../../lib/api/shared-private'),
     Deployments: jest.fn().mockImplementation(() => ({
       deployStack: mockDeployStack,
       resolveEnvironment: jest.fn().mockResolvedValue({}),

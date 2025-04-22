@@ -1,7 +1,11 @@
 import type { PluginProviderResult, SDKv2CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
-import { CredentialPlugins } from '../../../lib/api/aws-auth/credential-plugins';
-import { PluginHost } from '../../../lib/api/plugin';
-import { Mode } from '../../../lib/api/plugin/mode';
+import { CredentialPlugins } from '../../../lib/api/aws-auth';
+import { Mode } from '../../../lib/api/plugin';
+import { TestIoHost } from '../../_helpers/io-host';
+import { GLOBAL_PLUGIN_HOST } from '../../../lib/cli/singleton-plugin-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('deploy');
 
 test('returns credential from plugin', async () => {
   // GIVEN
@@ -10,7 +14,7 @@ test('returns credential from plugin', async () => {
     secretAccessKey: 'bbb',
     getPromise: () => Promise.resolve(),
   } satisfies SDKv2CompatibleCredentials;
-  const host = PluginHost.instance;
+  const host = GLOBAL_PLUGIN_HOST;
 
   host.registerCredentialProviderSource({
     name: 'Fake',
@@ -28,7 +32,7 @@ test('returns credential from plugin', async () => {
     },
   });
 
-  const plugins = new CredentialPlugins();
+  const plugins = new CredentialPlugins(host, ioHelper);
 
   // WHEN
   const pluginCredentials = await plugins.fetchCredentialsFor('aaa', Mode.ForReading);

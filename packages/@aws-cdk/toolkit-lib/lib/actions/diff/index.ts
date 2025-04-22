@@ -1,4 +1,4 @@
-import type { StackSelector } from '../../api/cloud-assembly';
+import type { StackSelector } from '../../../lib/api/shared-public';
 
 export interface CloudFormationDiffOptions {
   /**
@@ -11,15 +11,14 @@ export interface CloudFormationDiffOptions {
 }
 
 export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
-  // @TODO: add this as a feature
-  // /**
-  //  * Enable falling back to template-based diff in case creating the changeset is not possible or results in an error.
-  //  *
-  //  * Should be used for stacks containing nested stacks or when change set permissions aren't available.
-  //  *
-  //  * @default true
-  //  */
-  // readonly fallbackToTemplate?: boolean;
+  /**
+   * Enable falling back to template-based diff in case creating the changeset is not possible or results in an error.
+   *
+   * Should be used for stacks containing nested stacks or when change set permissions aren't available.
+   *
+   * @default true
+   */
+  readonly fallbackToTemplate?: boolean;
 
   /**
    * Additional parameters for CloudFormation when creating a diff change set

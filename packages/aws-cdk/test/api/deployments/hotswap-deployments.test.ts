@@ -2,9 +2,9 @@ import { ListExportsCommand } from '@aws-sdk/client-cloudformation';
 import { UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda';
 import { UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
 import { CfnEvaluationException } from '../../../lib/api/cloudformation';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
-import { MockSdk, mockCloudFormationClient, mockLambdaClient, mockStepFunctionsClient } from '../../util/mock-sdk';
-import { silentTest } from '../../util/silent';
+import { HotswapMode } from '../../../lib/api/hotswap';
+import { MockSdk, mockCloudFormationClient, mockLambdaClient, mockStepFunctionsClient } from '../../_helpers/mock-sdk';
+
 import * as setup from '../_helpers/hotswap-test-setup';
 
 jest.mock('@aws-sdk/client-lambda', () => {
@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  silentTest('returns a deployStackResult with noOp=true when it receives an empty set of changes', async () => {
+  test('returns a deployStackResult with noOp=true when it receives an empty set of changes', async () => {
     // WHEN
     const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(
       hotswapMode,
@@ -40,7 +40,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(deployStackResult?.stackArn).toEqual(setup.STACK_ID);
   });
 
-  silentTest(
+  test(
     'A change to only a non-hotswappable resource results in a full deployment for HOTSWAP and a noOp for HOTSWAP_ONLY',
     async () => {
       // GIVEN
@@ -88,7 +88,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'A change to both a hotswappable resource and a non-hotswappable resource results in a full deployment for HOTSWAP and a noOp for HOTSWAP_ONLY',
     async () => {
       // GIVEN
@@ -165,7 +165,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('changes only to CDK::Metadata result in a noOp', async () => {
+  test('changes only to CDK::Metadata result in a noOp', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -200,7 +200,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(mockLambdaClient).not.toHaveReceivedCommand(UpdateFunctionCodeCommand);
   });
 
-  silentTest('resource deletions require full deployments for HOTSWAP and a noOp for HOTSWAP_ONLY', async () => {
+  test('resource deletions require full deployments for HOTSWAP and a noOp for HOTSWAP_ONLY', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -231,7 +231,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     }
   });
 
-  silentTest('can correctly reference AWS::Partition in hotswappable changes', async () => {
+  test('can correctly reference AWS::Partition in hotswappable changes', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -286,7 +286,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest('can correctly reference AWS::URLSuffix in hotswappable changes', async () => {
+  test('can correctly reference AWS::URLSuffix in hotswappable changes', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -341,7 +341,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
-  silentTest(
+  test(
     'changing the type of a deployed resource always results in a full deployment for HOTSWAP and a noOp for HOTSWAP_ONLY',
     async () => {
       // GIVEN
@@ -394,7 +394,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest(
+  test(
     'A change to both a hotswappable resource and a stack output results in a full deployment for HOTSWAP and a hotswap deployment for HOTSWAP_ONLY',
     async () => {
       // GIVEN
@@ -469,7 +469,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('Multiple CfnEvaluationException will not cause unhandled rejections', async () => {
+  test('Multiple CfnEvaluationException will not cause unhandled rejections', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -555,7 +555,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(mockLambdaClient).not.toHaveReceivedCommand(UpdateFunctionCodeCommand);
   });
 
-  silentTest(
+  test(
     'deleting a resource and making a hotswappable change results in full deployments for HOTSWAP and a hotswap deployment for HOTSWAP_ONLY',
     async () => {
       // GIVEN
@@ -623,7 +623,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
-  silentTest('can correctly reference Fn::ImportValue in hotswappable changes', async () => {
+  test('can correctly reference Fn::ImportValue in hotswappable changes', async () => {
     // GIVEN
     mockCloudFormationClient.on(ListExportsCommand).resolves({
       Exports: [

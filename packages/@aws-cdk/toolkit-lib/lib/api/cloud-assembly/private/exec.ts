@@ -1,5 +1,6 @@
 import * as child_process from 'node:child_process';
-import * as split2 from 'split2';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import split = require('split2');
 import { ToolkitError } from '../../shared-public';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
@@ -47,8 +48,8 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
           return;
       }
     });
-    proc.stdout.pipe(split2()).on('data', (line) => eventPublisher('data_stdout', line));
-    proc.stderr.pipe(split2()).on('data', (line) => eventPublisher('data_stderr', line));
+    proc.stdout.pipe(split()).on('data', (line) => eventPublisher('data_stdout', line));
+    proc.stderr.pipe(split()).on('data', (line) => eventPublisher('data_stderr', line));
 
     proc.on('error', fail);
 
