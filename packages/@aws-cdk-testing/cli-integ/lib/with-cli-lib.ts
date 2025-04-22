@@ -29,6 +29,7 @@ export function withCliLibIntegrationCdkApp<A extends TestContext & AwsContext &
       context.output,
       context.aws,
       context.randomString);
+    await fixture.ecrPublicLogin();
 
     let success = true;
     try {

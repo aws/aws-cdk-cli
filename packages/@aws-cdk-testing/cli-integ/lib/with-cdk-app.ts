@@ -50,6 +50,7 @@ export function withSpecificCdkApp(
       context.output,
       context.aws,
       context.randomString);
+    await fixture.ecrPublicLogin();
 
     let success = true;
     try {
@@ -123,6 +124,7 @@ export function withCdkMigrateApp(
       context.aws,
       context.randomString,
     );
+    await fixture.ecrPublicLogin();
 
     await ensureBootstrapped(fixture);
 
