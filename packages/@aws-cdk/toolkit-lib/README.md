@@ -402,7 +402,7 @@ declare const cx: ICloudAssemblySource;
 
 try {
   // Attempt a CDK Toolkit operation
-  const deployment = await cdk.deploy(cloudAssembly, {
+  const deployment = await cdk.deploy(cx, {
     stacks: ['MyStack']
   });
 

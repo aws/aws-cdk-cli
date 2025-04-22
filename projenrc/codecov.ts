@@ -54,15 +54,6 @@ export class CodeCovWorkflow extends Component {
             fail_ci_if_error: true,
             flags: 'suite.unit',
             use_oidc: true,
-
-            // Version of CodeCov CLI to download and run.
-            //
-            // 'latest' if this is omitted, but we're seeing v10.4.0 producing the following error:
-            // ```
-            // -> Token of length 0 detected
-            // error - 2025-04-08 13:34:06,401 -- Upload failed: {"message":"Token required because branch is protected"}
-            // ```
-            version: 'v10.3.0',
           },
         },
       ],

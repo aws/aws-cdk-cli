@@ -61,6 +61,8 @@ export class LargePrChecker extends Component {
         | awk -F- '{print $NF}' \\
         | bc)
         
+        size=\${size:-0}
+        
         echo "Total lines changed: $size"
         echo "total_lines_changed=$size" >> $GITHUB_OUTPUT`,
         },
