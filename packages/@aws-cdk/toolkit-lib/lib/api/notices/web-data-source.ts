@@ -1,13 +1,13 @@
 import type { ClientRequest } from 'http';
 import type { RequestOptions } from 'https';
 import * as https from 'node:https';
-import { formatErrorMessage } from '../../util';
 import type { SdkHttpOptions } from '../aws-auth';
 import { ProxyAgentProvider } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 import { IO } from '../io/private';
 import { ToolkitError } from '../toolkit-error';
 import type { Notice, NoticeDataSource } from './types';
+import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {
   private readonly options: SdkHttpOptions;
@@ -48,23 +48,25 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
                 try {
                   const data = JSON.parse(rawData).notices as Notice[];
                   if (!data) {
-                    throw new ToolkitError("'notices' key is missing");
+                    throw new ToolkitError("'notices' key is missing from received data");
                   }
                   resolve(data ?? []);
                 } catch (e: any) {
-                  reject(new ToolkitError(`Failed to parse notices: ${formatErrorMessage(e)}`));
+                  reject(ToolkitError.withCause(`Parse error: ${formatErrorMessage(e)}`, e));
                 }
               });
               res.on('error', e => {
-                reject(new ToolkitError(`Failed to fetch notices: ${formatErrorMessage(e)}`));
+                reject(ToolkitError.withCause(formatErrorMessage(e), e));
               });
             } else {
-              reject(new ToolkitError(`Failed to fetch notices. Status code: ${res.statusCode}`));
+              reject(new ToolkitError(`${humanHttpStatusError(res.statusCode!)} (Status code: ${res.statusCode})`));
             }
           });
-        req.on('error', reject);
+        req.on('error', e => {
+          reject(ToolkitError.withCause(humanNetworkError(e), e));
+        });
       } catch (e: any) {
-        reject(new ToolkitError(`HTTPS 'get' call threw an error: ${formatErrorMessage(e)}`));
+        reject(ToolkitError.withCause(formatErrorMessage(e), e));
       }
     });
 

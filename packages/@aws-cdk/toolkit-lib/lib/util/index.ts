@@ -7,6 +7,7 @@ export * from './content-hash';
 export * from './directories';
 export * from './format-error';
 export * from './json';
+export * from './net';
 export * from './objects';
 export * from './parallel';
 export * from './package-info';

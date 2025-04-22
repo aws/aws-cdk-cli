@@ -1010,6 +1010,7 @@ const cli = configureProject(
       'jest-environment-node',
       'jest-mock',
       'madge',
+      'nock@13',
       'sinon',
       'ts-mock-imports',
       'xml-js',

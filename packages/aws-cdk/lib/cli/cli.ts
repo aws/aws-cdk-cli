@@ -10,7 +10,7 @@ import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
 import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { asIoHelper, IO } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -90,22 +90,32 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await configuration.load();
 
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
+
   const shouldDisplayNotices = configuration.settings.get(['notices']);
+  // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    includeAcknowledged: cmd === 'notices' ? !argv.unacknowledged : false,
     httpOptions: {
       proxyAddress: configuration.settings.get(['proxy']),
       caBundlePath: configuration.settings.get(['caBundlePath']),
     },
     cliVersion: version.versionNumber(),
   });
-  await notices.refresh();
+  const refreshNotices = (async () => {
+    // the cdk notices command has it's own refresh
+    if (shouldDisplayNotices && cmd !== 'notices') {
+      try {
+        return await notices.refresh();
+      } catch (e: any) {
+        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Could not refresh notices: ${e}`));
+      }
+    }
+  })();
 
-  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
     profile: configuration.settings.get(['profile']),
@@ -160,12 +170,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     // Do PSAs here
     await version.displayVersionMessage();
 
+    await refreshNotices;
     if (cmd === 'notices') {
       await notices.refresh({ force: true });
-      notices.display({ showTotal: argv.unacknowledged });
+      await notices.display({
+        includeAcknowledged: !argv.unacknowledged,
+        showTotal: argv.unacknowledged,
+      });
     } else if (cmd !== 'version') {
-      await notices.refresh();
-      notices.display();
+      await notices.display();
     }
   }
 
