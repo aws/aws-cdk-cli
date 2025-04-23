@@ -13,7 +13,7 @@ integTest(
     const outputsFile = path.join(fixture.integTestDir, 'outputs', 'outputs.json');
     await fs.mkdir(path.dirname(outputsFile), { recursive: true });
 
-    await fixture.cdkDeploy('depends-on-failed', {
+    await fixture.cdkDeploy('depends-on-failed-delete-me', {
       options: ['--exclusively', '--outputs-file', outputsFile],
     });
 
