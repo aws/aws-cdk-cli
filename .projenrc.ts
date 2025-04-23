@@ -1809,7 +1809,7 @@ new IssueLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
 });
 
 repo.synth();
