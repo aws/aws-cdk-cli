@@ -23,4 +23,5 @@ tsconfig.tsbuildinfo
 *.ts
 !*.d.ts
 build-tools
+!resources/**/*
 /.gitattributes

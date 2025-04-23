@@ -1741,6 +1741,7 @@ for (const compiledDir of compiledDirs) {
   cliInteg.gitignore.addPatterns(`${compiledDir}/**/*.d.ts`);
 }
 cliInteg.gitignore.addPatterns('!resources/**/*.js');
+cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 //////////////////////////////////////////////////////////////////////
 
