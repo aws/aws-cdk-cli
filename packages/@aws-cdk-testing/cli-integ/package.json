@@ -92,7 +92,7 @@
     "make-runnable": "^1",
     "mockttp": "^3",
     "node-pty": "^1.0.0",
-    "npm": "^8",
+    "npm": "^10",
     "p-queue": "^6",
     "semver": "^7",
     "sinon": "^9",
