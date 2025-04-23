@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="4" failures="0" errors="0" time="12.269">
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-03-18T14:35:33" time="10.687" tests="1">
+    <testcase classname=" acquire waits" name=" acquire waits" time="0.15">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2025-03-18T14:35:33" time="12.059" tests="3">
+    <testcase classname=" take and dispose" name=" take and dispose" time="0.01">
+    </testcase>
+    <testcase classname=" double dispose throws" name=" double dispose throws" time="0.006">
+    </testcase>
+    <testcase classname=" somewhat balance" name=" somewhat balance" time="0.954">
+    </testcase>
+  </testsuite>
+</testsuites>
