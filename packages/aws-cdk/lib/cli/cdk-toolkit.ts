@@ -1224,15 +1224,20 @@ export class CdkToolkit {
       return 1;
     }
 
-    if (options.selector.patterns.length > 0) {
-      warning('Refactor does not yet support stack selection. Proceeding with the default behavior (considering all stacks).');
-    }
-
+    // Initially, we select all stacks to find all resource movements.
+    // Otherwise, we might miss some resources that are not in the selected stacks.
+    // Example: resource X was moved from Stack A to Stack B. If we only select Stack A,
+    // we will only see a deletion of resource X, but not the creation of resource X in Stack B.
     const stacks = await this.selectStacksForList([]);
     const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider);
     const ambiguous = ambiguousMovements(movements);
+
     if (ambiguous.length === 0) {
-      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
+      // Now we can filter the stacks to only include the ones that are relevant for the user.
+      const patterns = options.selector.allTopLevel ? [] : options.selector.patterns;
+      const filteredStacks = await this.selectStacksForList(patterns);
+      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts);
+      const typedMappings = selectedMappings.map(m => m.toTypedMapping());
       formatTypedMappings(process.stdout, typedMappings);
     } else {
       const e = new AmbiguityError(ambiguous);

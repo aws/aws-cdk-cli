@@ -251,6 +251,13 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'doctor':
       commandOptions = {};
       break;
+
+    case 'refactor':
+      commandOptions = {
+        dryRun: args.dryRun,
+        STACKS: args.STACKS,
+      };
+      break;
   }
   const userInput: UserInput = {
     command: args._[0],
@@ -432,6 +439,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const refactorOptions = {
+    dryRun: config.refactor?.dryRun,
+  };
   const userInput: UserInput = {
     globalOptions,
     list: listOptions,
@@ -452,6 +462,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    refactor: refactorOptions,
   };
 
   return userInput;

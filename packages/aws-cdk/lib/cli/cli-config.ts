@@ -399,6 +399,20 @@ export async function makeConfig(): Promise<CliConfig> {
       doctor: {
         description: 'Check your set-up for potential problems',
       },
+      refactor: {
+        description: 'Moves resources between stacks or within the same stack',
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+        options: {
+          'dry-run': {
+            type: 'boolean',
+            desc: 'Do not perform any changes, just show what would be done',
+            default: false,
+          },
+        },
+      },
     },
   };
 }
