@@ -10,55 +10,67 @@ import * as semver from 'semver';
 async function main() {
   const args = process.argv.slice(2);
 
-  let version = process.env.VERSION ?? '';
+  // This is the current version
+  const currentVersion = process.env.VERSION ?? '';
+
+  // This is the proposed bump type
+  const suggestedBump: BumpType | undefined = process.env.SUGGESTED_BUMP_TYPE as any;
+  if (!suggestedBump) {
+    throw new Error('SUGGESTED_BUMP_TYPE not set');
+  }
+
+  let bump: BumpType | string = suggestedBump;
 
   for (const arg of process.argv.slice(2)) {
     const [cmd, value] = arg.split(':');
 
     switch (cmd) {
+      case 'neverMajor':
+        // neverMajor should not come after something that sets the bump to
+        // something absolute.
+        if (!isBumpType(bump)) {
+          throw new Error(`Not a relative bump type: ${bump}`);
+        }
+        if (bump === 'major') {
+          bump = 'minor';
+        }
+        break;
+
       case 'majorFromRevision': {
         const contents = JSON.parse(await fs.readFile(value, 'utf-8'));
-        if (semver.major(version) === contents.revision) {
-          version = `${semver.inc(version, 'minor')}`;
+        if (semver.major(currentVersion) === contents.revision) {
+          bump = `${semver.inc(currentVersion, 'minor')}`;
         } else {
-          version = `${contents.revision}.0.0`;
+          bump = `${contents.revision}.0.0`;
         }
         break;
       }
 
       case 'copyVersion': {
         const contents = JSON.parse(await fs.readFile(value, 'utf-8'));
-        version = `${contents.version}`;
+        bump = `${contents.version}`;
         break;
       }
 
       case 'append':
-        version = `${version}${value}`;
+        // If we have a relative bump type here still, we need to absolutize it
+        // first before appending.
+        bump = `${makeAbsolute(bump, currentVersion)}${value}`;
         break;
 
       case 'maybeRc': {
-        version = maybeRc(version) ?? version;
+        bump = maybeRc(makeAbsolute(bump, currentVersion)) ?? bump;
         break;
       }
-      // this is a temporary case in order to support forcing a minor
-      // version while still preserving rc capabilities for integ testing purposes.
-      // once we refactor the release process to prevent incorporating breaking
-      // changes from dependencies, this can (and should) be removed.
-      // see https://github.com/projen/projen/pull/4156
-      case 'maybeRcOrMinor':
-        version = maybeRc(version) ?? 'minor';
-        break;
 
       default:
         throw new Error(`Unknown command: ${cmd}`);
     }
   }
 
-  if (version !== (process.env.VERSION ?? '')) {
-    // this is a cli
-    // eslint-disable-next-line no-console
-    console.log(version);
-  }
+  // this is a cli
+  // eslint-disable-next-line no-console
+  console.log(bump);
 }
 
 function maybeRc(version: string) {
@@ -77,6 +89,28 @@ function maybeRc(version: string) {
       return version.replace(new RegExp('\\.' + patch + '$'), '.999');
     }
   }
+}
+
+type BumpType = 'major' | 'minor' | 'patch' | 'none';
+
+function isBumpType(value: string): value is BumpType {
+  return value === 'major' || value === 'minor' || value === 'patch' || value === 'none';
+}
+
+function makeAbsolute(bump: string, currentVersion: string) {
+  if (!isBumpType(bump)) {
+    return bump;
+  }
+
+  if (bump === 'none') {
+    return currentVersion;
+  }
+
+  const ret = semver.inc(currentVersion, bump);
+  if (ret == null) {
+    throw new Error(`Could not bump: ${currentVersion} by ${bump}`);
+  }
+  return ret;
 }
 
 main().catch((error) => {
