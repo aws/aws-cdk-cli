@@ -30,17 +30,11 @@
     "outDir": "lib"
   },
   "include": [
-    "./**/*.ts",
-    "test/**/*.ts",
-    "**/*.ts"
+    "lib/**/*.ts",
+    "test/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "resources/**/*"
+    "node_modules"
   ],
-  "references": [
-    {
-      "path": "../../@aws-cdk/yarn-cling"
-    }
-  ]
+  "references": []
 }
