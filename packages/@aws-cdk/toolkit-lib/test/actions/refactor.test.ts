@@ -153,7 +153,7 @@ test('fails when dry-run is false', async () => {
     toolkit.refactor(cx, {
       dryRun: false,
     }),
-  ).rejects.toThrow('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+  ).rejects.toThrow('Refactor is not available yet. To see the proposed changes, use the --dry-run flag.');
 });
 
 test('warns when stack selector is passed', async () => {

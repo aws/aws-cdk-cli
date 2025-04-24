@@ -1220,7 +1220,7 @@ export class CdkToolkit {
 
   public async refactor(options: RefactorOptions): Promise<number> {
     if (!options.dryRun) {
-      info('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+      info('Refactor is not available yet. To see the proposed changes, use the --dry-run flag.');
       return 1;
     }
 

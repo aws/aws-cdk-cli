@@ -964,7 +964,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
     if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+      throw new ToolkitError('Refactor is not available yet. To see the proposed changes, use the --dry-run flag.');
     }
 
     const strategy = options.stacks?.strategy ?? StackSelectionStrategy.ALL_STACKS;
