@@ -156,13 +156,19 @@ test('fails when dry-run is false', async () => {
   ).rejects.toThrow('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
 });
 
-test('warns when stack selector is passed', async () => {
+test('filters stacks when stack selector is passed', async () => {
   // GIVEN
   mockCloudFormationClient.on(ListStacksCommand).resolves({
     StackSummaries: [
       {
         StackName: 'Stack1',
         StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+      {
+        StackName: 'Stack2',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack2',
         StackStatus: 'CREATE_COMPLETE',
         CreationTime: new Date(),
       },
@@ -176,12 +182,29 @@ test('warns when stack selector is passed', async () => {
     .resolves({
       TemplateBody: JSON.stringify({
         Resources: {
-          OldLogicalID: {
+          OldBucketName: {
             Type: 'AWS::S3::Bucket',
             UpdateReplacePolicy: 'Retain',
             DeletionPolicy: 'Retain',
             Metadata: {
-              'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+              'aws:cdk:path': 'Stack1/OldBucketName/Resource',
+            },
+          },
+        },
+      }),
+    })
+    .on(GetTemplateCommand, {
+      StackName: 'Stack2',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldQueueName: {
+            Type: 'AWS::SQS::Queue',
+            UpdateReplacePolicy: 'Delete',
+            DeletionPolicy: 'Delete',
+            Metadata: {
+              'aws:cdk:path': 'Stack2/OldQueueName/Resource',
             },
           },
         },
@@ -189,7 +212,7 @@ test('warns when stack selector is passed', async () => {
     });
 
   // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  const cx = await builderFixture(toolkit, 'two-different-stacks');
   await toolkit.refactor(cx, {
     dryRun: true,
     stacks: {
@@ -198,13 +221,29 @@ test('warns when stack selector is passed', async () => {
     },
   });
 
+  // Resources were renamed in both stacks, but we are only including Stack1.
+  // So expect to see only changes for Stack1.
   expect(ioHost.notifySpy).toHaveBeenCalledWith(
     expect.objectContaining({
       action: 'refactor',
-      level: 'warn',
-      code: 'CDK_TOOLKIT_W8010',
-      message:
-        'Refactor does not yet support stack selection. Proceeding with the default behavior (considering all stacks).',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldBucketName\/Resource.*Stack1\/MyBucket\/Resource/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldBucketName/Resource',
+            destinationPath: 'Stack1/MyBucket/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    }),
+  );
+
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.not.stringMatching(/OldQueueName/),
     }),
   );
 });
