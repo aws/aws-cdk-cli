@@ -1,4 +1,5 @@
-import { Component, github, javascript } from 'projen';
+import type { javascript } from 'projen';
+import { Component, github } from 'projen';
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
@@ -75,7 +76,6 @@ export interface CdkCliIntegTestsWorkflowProps {
    * @default - atmosphere is not used
    */
   readonly enableAtmosphere?: AtmosphereOptions;
-
 
   /**
    * Specifies the maximum number of workers the worker-pool will spawn for running tests.
@@ -243,7 +243,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         publish: '$all',
         proxy: allowUpstream ? 'npmjs' : 'none',
       };
-    };
+    }
     verdaccioConfig.packages['**'] = {
       access: '$all',
       proxy: 'npmjs',
