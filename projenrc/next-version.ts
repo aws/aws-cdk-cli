@@ -14,9 +14,9 @@ async function main() {
   const currentVersion = process.env.VERSION ?? '';
 
   // This is the proposed bump type
-  const suggestedBump: BumpType | undefined = process.env.SUGGESTED_BUMP_TYPE as any;
+  const suggestedBump: BumpType | undefined = process.env.SUGGESTED_BUMP as any;
   if (!suggestedBump) {
-    throw new Error('SUGGESTED_BUMP_TYPE not set');
+    throw new Error('SUGGESTED_BUMP not set');
   }
 
   let bump: BumpType | string = suggestedBump;
