@@ -48,7 +48,7 @@ export function integTest(
         throw new Error('FAIL_FAST requested and currently failing. Stopping test early.');
       }
 
-      return await callback({
+      const ret = await callback({
         output,
         randomString: randomString(),
         name,
@@ -56,12 +56,18 @@ export function integTest(
           output.write(`${s}\n`);
         },
       });
+
+      await writeLog(name, true, output.toString());
+
+      return ret;
     } catch (e: any) {
+      // Print the buffered output, only if the test fails.
       failed = true;
 
-      // Print the buffered output, only if the test fails.
       output.write(e.message);
       output.write(e.stack);
+
+      await writeLog(name, false, output.toString());
       process.stderr.write(`[INTEG TEST::${name}] Failed: ${e}\n`);
 
       const isGitHub = !!process.env.GITHUB_RUN_ID;
@@ -107,4 +113,49 @@ function shouldSkip(testName: string) {
 export function randomString() {
   // Crazy
   return Math.random().toString(36).replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Write log files
+ *
+ * Write a text log to `${INTEG_LOGS}/[FAILED-]description-of-test.txt`, and a single
+ * line of a Markdown table to `${INTEG_LOGS}/md/1-description-of-test.md`.
+ *
+ * The latter are designed to be globcatted to $GITHUB_STEP_SUMMARY after tests
+ * (we don't write there directly to avoid concurrency issues with multiple processes
+ * reading and mutating the same file).
+ *
+ * We do use `atomicWrite` to write files -- it's only necessary for the header file,
+ * which gets overwritten by every test, just to make sure it properly exists (shouldn't
+ * end up empty or with interleaved contents). The other writes are not
+ * contended and don't need to be atomic, but the function is just ergonomic to use.
+ */
+async function writeLog(testName: string, success: boolean, output: string) {
+  if (process.env.INTEG_LOGS) {
+    const slug = slugify(testName);
+    const logFileName = `${process.env.INTEG_LOGS}/${success ? '' : 'FAILED-'}${slug}.txt`;
+    await atomicWrite(logFileName, output);
+
+    // Sort failures before successes, and the table header before all
+    await atomicWrite(`${process.env.INTEG_LOGS}/md/0-header.md`, [
+      '| Result | Test Name |',
+      '|--------|-----------|',
+    ].map(x => `${x}\n`).join(''));
+
+    const mdFileName = `${process.env.INTEG_LOGS}/md/${success ? '2' : '1'}-${slug}.md`;
+    const firstColumn = success ? 'pass ✅' : 'fail ❌';
+    await atomicWrite(mdFileName, `| ${firstColumn} | ${testName} |\n`);
+  }
+}
+
+function slugify(x: string) {
+  return x.replace(/[^a-zA-Z0-9_,]+/g, '-');
+}
+
+async function atomicWrite(fileName: string, contents: string) {
+  await fs.promises.mkdir(path.dirname(fileName), { recursive: true });
+
+  const tmp = `${fileName}.${process.pid}`;
+  await fs.promises.writeFile(tmp, contents);
+  await fs.promises.rename(tmp, fileName);
 }

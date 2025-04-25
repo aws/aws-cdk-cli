@@ -1,4 +1,5 @@
-import { Component, github, javascript } from 'projen';
+import type { javascript } from 'projen';
+import { Component, github } from 'projen';
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
@@ -75,7 +76,6 @@ export interface CdkCliIntegTestsWorkflowProps {
    * @default - atmosphere is not used
    */
   readonly enableAtmosphere?: AtmosphereOptions;
-
 
   /**
    * Specifies the maximum number of workers the worker-pool will spawn for running tests.
@@ -243,7 +243,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         publish: '$all',
         proxy: allowUpstream ? 'npmjs' : 'none',
       };
-    };
+    }
     verdaccioConfig.packages['**'] = {
       access: '$all',
       proxy: 'npmjs',
@@ -416,6 +416,23 @@ export class CdkCliIntegTestsWorkflow extends Component {
             CDK_MAJOR_VERSION: '2',
             RELEASE_TAG: 'latest',
             GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+            INTEG_LOGS: 'logs',
+          },
+        },
+        {
+          name: 'Set workflow summary',
+          run: [
+            'echo "## Test results" >> $GITHUB_STEP_SUMMARY',
+            'cat logs/md/*.md >> $GITHUB_STEP_SUMMARY',
+          ].join('\n'),
+        },
+        {
+          name: 'Upload logs',
+          uses: 'actions/upload-artifact@v4.4.0',
+          with: {
+            name: 'logs',
+            path: 'logs/',
+            overwrite: 'true',
           },
         },
       ],
