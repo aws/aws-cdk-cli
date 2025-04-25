@@ -1,10 +1,11 @@
 import * as path from 'path';
-import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
+import { yarn } from 'cdklabs-projen-project-types';
 import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
+import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
