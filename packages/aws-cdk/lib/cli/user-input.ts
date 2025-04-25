@@ -1354,6 +1354,13 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
+   * If specified, CDK will use the given file to skip resources during the refactor
+   *
+   * @default - undefined
+   */
+  readonly skipFile?: string;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;

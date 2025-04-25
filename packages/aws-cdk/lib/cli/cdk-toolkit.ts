@@ -19,6 +19,11 @@ import {
 } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+import {
+  FileSkipList,
+  ManifestSkipList,
+  UnionSkipList,
+} from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/skip';
 import { PermissionChangeType } from '../../../@aws-cdk/tmp-toolkit-helpers/src/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -1235,7 +1240,14 @@ export class CdkToolkit {
       // Now we can filter the stacks to only include the ones that are relevant for the user.
       const patterns = options.selector.allTopLevel ? [] : options.selector.patterns;
       const filteredStacks = await this.selectStacksForList(patterns);
-      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts);
+
+      const assembly = await this.assembly();
+      const skipList = new UnionSkipList([
+        new ManifestSkipList(assembly.assembly.manifest),
+        new FileSkipList(options.skipFile),
+      ]);
+
+      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts, skipList);
       const typedMappings = selectedMappings.map(m => m.toTypedMapping());
       formatTypedMappings(process.stdout, typedMappings);
     } else {
@@ -1936,6 +1948,15 @@ export interface RefactorOptions {
    * Criteria for selecting stacks to deploy
    */
   selector: StackSelector;
+
+  /**
+   * The absolute path to a file that contains a list of
+   * resources to skip during the refactor. The file should
+   * be in JSON format and contain an array of _destination_
+   * logical IDs, that is, the logical IDs of the resources
+   * as they would be after the refactor.
+   */
+  skipFile?: string;
 }
 
 function buildParameterMap(

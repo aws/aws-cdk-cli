@@ -11,6 +11,7 @@ import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
+import type { SkipList } from './skip';
 
 /**
  * Represents a set of possible movements of a resource from one location
@@ -118,25 +119,32 @@ export function ambiguousMovements(movements: ResourceMovement[]) {
  * Converts a list of unambiguous resource movements into a list of resource mappings.
  *
  */
-export function resourceMappings(movements: ResourceMovement[], stacks?: CloudFormationStack[]): ResourceMapping[] {
-  const predicate = stacks == null
-    ? () => true
-    : (m: ResourceMapping) => {
-      // Any movement that involves one of the selected stacks (either moving from or to)
-      // is considered a candidate for refactoring.
-      const stackNames = [m.source.stack.stackName, m.destination.stack.stackName];
-      return stacks.some((stack) => stackNames.includes(stack.stackName));
-    };
+export function resourceMappings(
+  movements: ResourceMovement[],
+  stacks?: CloudFormationStack[],
+  skipList?: SkipList,
+): ResourceMapping[] {
+  const stacksPredicate =
+    stacks == null
+      ? () => true
+      : (m: ResourceMapping) => {
+        // Any movement that involves one of the selected stacks (either moving from or to)
+        // is considered a candidate for refactoring.
+        const stackNames = [m.source.stack.stackName, m.destination.stack.stackName];
+        return stacks.some((stack) => stackNames.includes(stack.stackName));
+      };
+
+  const logicalIdsPredicate =
+    skipList == null ? () => true : (m: ResourceMapping) => !skipList!.resourceIds.includes(m.destination.logicalResourceId);
 
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]))
-    .filter(predicate);
+    .filter(stacksPredicate)
+    .filter(logicalIdsPredicate);
 }
 
-function removeUnmovedResources(
-  m: Record<string, ResourceMovement>,
-): Record<string, ResourceMovement> {
+function removeUnmovedResources(m: Record<string, ResourceMovement>): Record<string, ResourceMovement> {
   const result: Record<string, ResourceMovement> = {};
   for (const [hash, [before, after]] of Object.entries(m)) {
     const common = before.filter((b) => after.some((a) => a.equalTo(b)));
