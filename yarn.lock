@@ -11223,26 +11223,6 @@ proggy@^3.0.0:
   resolved "https://registry.yarnpkg.com/proggy/-/proggy-3.0.0.tgz#874e91fed27fe00a511758e83216a6b65148bd6c"
   integrity sha512-QE8RApCM3IaRRxVzxrjbgNMpQEX6Wu0p0KBeoSiSEw5/bsGwZHsshF4LCxH2jp/r6BU+bqA3LrMDEYNfJnpD8Q==
 
-projen@^0.91.20:
-  version "0.91.20"
-  resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.20.tgz#8b40782a133ab4330865f72b49a5bfcf40614779"
-  integrity sha512-CurufZ0DMMpP7w5tlm7e5MvoSUEFL2tCpPqRFVc+G74E8Z8+CnnFpwxz8OUhQrbOtn7GyNkfhR6o+UNTcstpig==
-  dependencies:
-    "@iarna/toml" "^2.2.5"
-    case "^1.6.3"
-    chalk "^4.1.2"
-    comment-json "4.2.2"
-    constructs "^10.0.0"
-    conventional-changelog-config-spec "^2.1.0"
-    fast-json-patch "^3.1.1"
-    glob "^8"
-    ini "^2.0.0"
-    semver "^7.7.1"
-    shx "^0.4.0"
-    xmlbuilder2 "^3.1.1"
-    yaml "^2.2.2"
-    yargs "^17.7.2"
-
 projen@^0.91.26:
   version "0.91.26"
   resolved "https://registry.yarnpkg.com/projen/-/projen-0.91.26.tgz#9398d5ef66efdf8cbbbd7adecf39b30508662394"

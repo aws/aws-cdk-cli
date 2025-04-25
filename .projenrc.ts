@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
-import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
+import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
@@ -68,6 +68,11 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 
   // Never include the build-tools directory
   x.npmignore?.addPatterns('build-tools');
+
+  if (x instanceof TypeScriptWorkspace) {
+    // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
+    x.deps.removeDependency('projen');
+  }
 
   return x;
 }
