@@ -405,6 +405,13 @@ export class TestFixture extends ShellHelper {
     ], options);
   }
 
+  public async cdkRefactor(options: CdkCliOptions = {}) {
+    return this.cdk([
+      'refactor',
+      ...(options.options ?? []),
+    ], options);
+  }
+
   public async cdkDestroy(stackNames: string | string[], options: CdkDestroyCliOptions = {}) {
     stackNames = typeof stackNames === 'string' ? [stackNames] : stackNames;
 

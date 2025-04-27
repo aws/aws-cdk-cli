@@ -9,21 +9,26 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
+import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
-import { RequireApproval } from '../require-approval';
 import { StringWriteStream } from '../streams';
-import { ToolkitError } from '../toolkit-error';
 
 /**
  * Output of formatSecurityDiff
  */
 interface FormatSecurityDiffOutput {
   /**
-   * Complete formatted security diff, if it is prompt-worthy
+   * Complete formatted security diff
    */
-  readonly formattedDiff?: string;
+  readonly formattedDiff: string;
+
+  /**
+   * The type of permission changes in the security diff.
+   * The IoHost will use this to decide whether or not to print.
+   */
+  readonly permissionChangeType: PermissionChangeType;
 }
 
 /**
@@ -55,16 +60,6 @@ interface DiffFormatterProps {
    * Includes the old/current state of the stack as well as the new state.
    */
   readonly templateInfo: TemplateInfo;
-}
-
-/**
- * Properties specific to formatting the security diff
- */
-interface FormatSecurityDiffOptions {
-  /**
-   * The approval level of the security diff
-   */
-  readonly requireApproval: RequireApproval;
 }
 
 /**
@@ -170,6 +165,42 @@ export class DiffFormatter {
   }
 
   /**
+   * Get or creates the diff of a stack.
+   * If it creates the diff, it stores the result in a map for
+   * easier retreval later.
+   */
+  private diff(stackName?: string, oldTemplate?: any) {
+    const realStackName = stackName ?? this.stackName;
+
+    if (!this._diffs[realStackName]) {
+      this._diffs[realStackName] = fullDiff(
+        oldTemplate ?? this.oldTemplate,
+        this.newTemplate.template,
+        this.changeSet,
+        this.isImport,
+      );
+    }
+    return this._diffs[realStackName];
+  }
+
+  /**
+   * Return whether the diff has security-impacting changes that need confirmation.
+   *
+   * If no stackName is given, then the root stack name is used.
+   */
+  private permissionType(stackName?: string): PermissionChangeType {
+    const diff = this.diff(stackName);
+
+    if (diff.permissionsBroadened) {
+      return PermissionChangeType.BROADENING;
+    } else if (diff.permissionsAnyChanges) {
+      return PermissionChangeType.NON_BROADENING;
+    } else {
+      return PermissionChangeType.NONE;
+    }
+  }
+
+  /**
    * Format the stack diff
    */
   public formatStackDiff(options: FormatStackDiffOptions = {}): FormatStackDiffOutput {
@@ -191,8 +222,7 @@ export class DiffFormatter {
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
-    let diff = fullDiff(oldTemplate, this.newTemplate.template, this.changeSet, this.isImport);
-    this._diffs[stackName] = diff;
+    let diff = this.diff(stackName, oldTemplate);
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
@@ -277,51 +307,27 @@ export class DiffFormatter {
   /**
    * Format the security diff
    */
-  public formatSecurityDiff(options: FormatSecurityDiffOptions): FormatSecurityDiffOutput {
-    const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
+  public formatSecurityDiff(): FormatSecurityDiffOutput {
+    const diff = this.diff();
 
-    const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
-    this._diffs[this.stackName] = diff;
+    // The security diff is formatted via `Formatter`, which takes in a stream
+    // and sends its output directly to that stream. To faciliate use of the
+    // global CliIoHost, we create our own stream to capture the output of
+    // `Formatter` and return the output as a string for the consumer of
+    // `formatSecurityDiff` to decide what to do with it.
+    const stream = new StringWriteStream();
 
-    if (diffRequiresApproval(diff, options.requireApproval)) {
-      // The security diff is formatted via `Formatter`, which takes in a stream
-      // and sends its output directly to that stream. To faciliate use of the
-      // global CliIoHost, we create our own stream to capture the output of
-      // `Formatter` and return the output as a string for the consumer of
-      // `formatSecurityDiff` to decide what to do with it.
-      const stream = new StringWriteStream();
+    stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
 
-      stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
-
-      // eslint-disable-next-line max-len
-      ioDefaultHelper.warning(`This deployment will make potentially sensitive changes according to your current security approval level (--require-approval ${options.requireApproval}).`);
-      ioDefaultHelper.warning('Please confirm you intend to make the following modifications:\n');
-      try {
-        // formatSecurityChanges updates the stream with the formatted security diff
-        formatSecurityChanges(stream, diff, buildLogicalToPathMap(this.newTemplate));
-      } finally {
-        stream.end();
-      }
-      // store the stream containing a formatted stack diff
-      const formattedDiff = stream.toString();
-      return { formattedDiff };
+    try {
+      // formatSecurityChanges updates the stream with the formatted security diff
+      formatSecurityChanges(stream, diff, buildLogicalToPathMap(this.newTemplate));
+    } finally {
+      stream.end();
     }
-    return {};
-  }
-}
-
-/**
- * Return whether the diff has security-impacting changes that need confirmation
- *
- * TODO: Filter the security impact determination based off of an enum that allows
- * us to pick minimum "severities" to alert on.
- */
-function diffRequiresApproval(diff: TemplateDiff, requireApproval: RequireApproval) {
-  switch (requireApproval) {
-    case RequireApproval.NEVER: return false;
-    case RequireApproval.ANY_CHANGE: return diff.permissionsAnyChanges;
-    case RequireApproval.BROADENING: return diff.permissionsBroadened;
-    default: throw new ToolkitError(`Unrecognized approval level: ${requireApproval}`);
+    // store the stream containing a formatted stack diff
+    const formattedDiff = stream.toString();
+    return { formattedDiff, permissionChangeType: this.permissionType() };
   }
 }
 
