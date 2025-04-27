@@ -186,6 +186,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
     expect.anything(),
     HotswapMode.FALL_BACK,
     expect.anything(),
+    undefined,
   );
 });
 
@@ -227,6 +228,7 @@ test('correctly passes SSM parameters when hotswapping', async () => {
     expect.anything(),
     HotswapMode.FALL_BACK,
     expect.anything(),
+    undefined,
   );
 });
 
@@ -810,7 +812,7 @@ test('deploy is not skipped if stack is in a _FAILED state', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(),
     usePreviousParameters: true,
-  }).catch(() => {});
+  }).catch(() => { });
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
@@ -1152,29 +1154,29 @@ test.each([
   // From a stable state, any deployment containing a replacement requires a regular deployment (--rollback)
   [StackStatus.UPDATE_COMPLETE, 'no-rollback', 'replacement', 'replacement-requires-rollback'],
 ] satisfies Array<[StackStatus, 'rollback' | 'no-rollback', 'replacement' | 'no-replacement', string]>)
-('no-rollback and replacement is disadvised: %s %s %s -> %s', async (stackStatus, rollback, replacement, expectedType) => {
-  // GIVEN
-  givenTemplateIs(FAKE_STACK.template);
-  givenStackExists({
-    // First call
-    StackStatus: stackStatus,
-  }, {
-    // Later calls
-    StackStatus: 'UPDATE_COMPLETE',
-  });
-  givenChangeSetContainsReplacement(replacement === 'replacement');
+  ('no-rollback and replacement is disadvised: %s %s %s -> %s', async (stackStatus, rollback, replacement, expectedType) => {
+    // GIVEN
+    givenTemplateIs(FAKE_STACK.template);
+    givenStackExists({
+      // First call
+      StackStatus: stackStatus,
+    }, {
+      // Later calls
+      StackStatus: 'UPDATE_COMPLETE',
+    });
+    givenChangeSetContainsReplacement(replacement === 'replacement');
 
-  // WHEN
-  const result = await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK,
-    rollback: rollback === 'rollback',
-    forceDeployment: true, // Bypass 'canSkipDeploy'
-  });
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      stack: FAKE_STACK,
+      rollback: rollback === 'rollback',
+      forceDeployment: true, // Bypass 'canSkipDeploy'
+    });
 
-  // THEN
-  expect(result.type).toEqual(expectedType);
-});
+    // THEN
+    expect(result.type).toEqual(expectedType);
+  });
 
 test('assertIsSuccessfulDeployStackResult does what it says', () => {
   expect(() => assertIsSuccessfulDeployStackResult({ type: 'replacement-requires-rollback' })).toThrow();

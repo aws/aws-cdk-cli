@@ -93,7 +93,7 @@ export async function tryHotswapDeployment(
   stackArtifact: cxapi.CloudFormationStackArtifact,
   hotswapMode: HotswapMode,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-  hotswapOperationTimeoutSeconds: number | undefined,
+  hotswapOperationTimeoutSeconds?: number,
 ): Promise<SuccessfulDeployStackResult | undefined> {
   const hotswapSpan = await ioHelper.span(SPAN.HOTSWAP).begin({
     stack: stackArtifact,
