@@ -111,7 +111,12 @@ function shouldSkip(testName: string) {
 // }
 
 function memoryUsageReport() {
-  return process.memoryUsage();
+  const memoryUsage = process.memoryUsage() as any;
+  const report: any = {};
+  for (const [key, value] of Object.entries(memoryUsage)) {
+    report[key] = `${Math.round(value as number / 1024 / 1024)} MB`;
+  }
+  return JSON.stringify(report);
 }
 
 export function randomString() {
