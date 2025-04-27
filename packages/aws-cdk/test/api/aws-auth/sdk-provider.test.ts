@@ -22,11 +22,11 @@ import { FakeSts, RegisterRoleOptions, RegisterUserOptions } from './fake-sts';
 import { ConfigurationOptions, CredentialsOptions, SDK, SdkProvider } from '../../../lib/api/aws-auth';
 import { AwsCliCompatible } from '../../../lib/api/aws-auth';
 import { defaultCliUserAgent } from '../../../lib/api/aws-auth';
-import { PluginHost } from '../../../lib/api/plugin';
 import { Mode } from '../../../lib/api/plugin';
-import { instanceMockFrom, withMocked } from '../../_helpers/as-mock';
+import { withMocked } from '../../_helpers/as-mock';
 import { undoAllSdkMocks } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/io-host';
+import { GLOBAL_PLUGIN_HOST } from '../../../lib/cli/singleton-plugin-host';
 
 // As part of the imports above we import `mock-sdk.ts` which automatically mocks
 // all SDK clients. We don't want that for this test suite, so undo it.
@@ -67,8 +67,8 @@ beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
 
-  PluginHost.instance.credentialProviderSources.splice(0);
-  PluginHost.instance.credentialProviderSources.push({
+  GLOBAL_PLUGIN_HOST.credentialProviderSources.splice(0);
+  GLOBAL_PLUGIN_HOST.credentialProviderSources.push({
     isAvailable() {
       return Promise.resolve(true);
     },
@@ -163,7 +163,7 @@ describe('with intercepted network calls', () => {
       const error = new Error('Expired Token');
       error.name = 'ExpiredToken';
       const identityProvider = () => Promise.reject(error);
-      const provider = new SdkProvider(identityProvider, 'rgn', {}, ioHelper);
+      const provider = new SdkProvider(identityProvider, 'rgn', { ioHelper, pluginHost: GLOBAL_PLUGIN_HOST });
       const creds = await provider.baseCredentialsPartition({ ...env(account), region: 'rgn' }, Mode.ForReading);
 
       expect(creds).toBeUndefined();
@@ -325,7 +325,7 @@ describe('with intercepted network calls', () => {
         // The profile is not passed explicitly. Should be picked from the environment variable
         process.env.AWS_PROFILE = 'mfa-role';
         // Awaiting to make sure the environment variable is only deleted after it's used
-        const provider = await SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, logger: console });
+        const provider = await SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, logger: console, pluginHost: GLOBAL_PLUGIN_HOST });
         delete process.env.AWS_PROFILE;
         return Promise.resolve(provider);
       }),
@@ -829,7 +829,7 @@ function isProfileRole(x: ProfileUser | ProfileRole): x is ProfileRole {
 }
 
 async function providerFromProfile(profile: string | undefined) {
-  return SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, profile, logger: console });
+  return SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, profile, logger: console, pluginHost: GLOBAL_PLUGIN_HOST });
 }
 
 async function exerciseCredentials(provider: SdkProvider, e: cxapi.Environment, mode: Mode = Mode.ForReading,

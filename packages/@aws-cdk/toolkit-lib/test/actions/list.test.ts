@@ -1,7 +1,7 @@
 import { ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import { StackSelectionStrategy } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { TestIoHost } from '../_helpers';
+import { disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import type { TestStackArtifact } from '../_helpers/test-cloud-assembly-source';
 import { TestCloudAssemblySource } from '../_helpers/test-cloud-assembly-source';
 
@@ -457,6 +457,20 @@ describe('list', () => {
     // THEN
     await expect(() => toolkit.list(cx)).rejects.toThrow('Could not determine ordering');
     expect(ioHost.notifySpy).not.toHaveBeenCalled();
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.list(assemblySource, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });
 

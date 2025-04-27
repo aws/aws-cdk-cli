@@ -1,12 +1,11 @@
 import { format } from 'node:util';
-import { Writable } from 'stream';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
-  type TemplateDiff,
-  fullDiff,
-  formatSecurityChanges,
   formatDifferences,
+  formatSecurityChanges,
+  fullDiff,
   mangleLikeCloudFormation,
+  type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
@@ -14,29 +13,8 @@ import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { RequireApproval } from '../require-approval';
+import { StringWriteStream } from '../streams';
 import { ToolkitError } from '../toolkit-error';
-
-/*
- * Custom writable stream that collects text into a string buffer.
- * Used on classes that take in and directly write to a stream, but
- * we intend to capture the output rather than print.
- */
-class StringWriteStream extends Writable {
-  private buffer: string[] = [];
-
-  constructor() {
-    super();
-  }
-
-  _write(chunk: any, _encoding: string, callback: (error?: Error | null) => void): void {
-    this.buffer.push(chunk.toString());
-    callback();
-  }
-
-  toString(): string {
-    return this.buffer.join('');
-  }
-}
 
 /**
  * Output of formatSecurityDiff
@@ -143,13 +121,6 @@ export interface TemplateInfo {
   readonly changeSet?: any;
 
   /**
-   * The name of the stack
-   *
-   * @default undefined
-   */
-  readonly stackName?: string;
-
-  /**
    * Whether or not there are any imported resources
    *
    * @default false
@@ -173,19 +144,29 @@ export class DiffFormatter {
   private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
-  private readonly stackName?: string;
+  private readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
+
+  /**
+   * Stores the TemplateDiffs that get calculated in this DiffFormatter,
+   * indexed by the stack name.
+   */
+  private _diffs: { [name: string]: TemplateDiff } = {};
 
   constructor(props: DiffFormatterProps) {
     this.ioHelper = props.ioHelper;
     this.oldTemplate = props.templateInfo.oldTemplate;
     this.newTemplate = props.templateInfo.newTemplate;
-    this.stackName = props.templateInfo.stackName;
+    this.stackName = props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;
+  }
+
+  public get diffs() {
+    return this._diffs;
   }
 
   /**
@@ -206,11 +187,12 @@ export class DiffFormatter {
 
   private formatStackDiffHelper(
     oldTemplate: any,
-    stackName: string | undefined,
+    stackName: string,
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
   ) {
     let diff = fullDiff(oldTemplate, this.newTemplate.template, this.changeSet, this.isImport);
+    this._diffs[stackName] = diff;
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To faciliate use of the
@@ -299,6 +281,7 @@ export class DiffFormatter {
     const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
 
     const diff = fullDiff(this.oldTemplate, this.newTemplate.template, this.changeSet);
+    this._diffs[this.stackName] = diff;
 
     if (diffRequiresApproval(diff, options.requireApproval)) {
       // The security diff is formatted via `Formatter`, which takes in a stream

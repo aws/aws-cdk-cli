@@ -672,13 +672,23 @@ export interface DestroyStackOptions {
   deployName?: string;
 }
 
-export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHelper) {
+export interface DestroyStackResult {
+  /**
+   * The ARN of the stack that was destroyed, if any.
+   *
+   * If the stack didn't exist to begin with, the operation will succeed
+   * but this value will be undefined.
+   */
+  readonly stackArn?: string;
+}
+
+export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHelper): Promise<DestroyStackResult> {
   const deployName = options.deployName || options.stack.stackName;
   const cfn = options.sdk.cloudFormation();
 
   const currentStack = await CloudFormationStack.lookup(cfn, deployName);
   if (!currentStack.exists) {
-    return;
+    return {};
   }
   const monitor = new StackActivityMonitor({
     cfn,
@@ -694,6 +704,8 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
     }
+
+    return { stackArn: currentStack.stackId };
   } catch (e: any) {
     throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
   } finally {

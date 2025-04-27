@@ -25,10 +25,12 @@ jobs:
         run: git fetch origin main
       - id: get_total_lines_changed
         run: |-
-          size=$(git diff --shortstat origin/main ':(exclude)*.md' ':(exclude)*.test.ts' ':(exclude)*.yml' \
+          size=$(git diff --shortstat origin/main ':(exclude)*.md' ':(exclude)*.test.ts' ':(exclude)*.yml' ':(exclude)*.lock' \
                   | awk '{ print $4+$6 }' \
                   | awk -F- '{print $NF}' \
                   | bc)
+                  
+                  size=${size:-0}
                   
                   echo "Total lines changed: $size"
                   echo "total_lines_changed=$size" >> $GITHUB_OUTPUT

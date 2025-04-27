@@ -1,17 +1,34 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import '../../../private/dispose-polyfill';
 import { major } from 'semver';
+import type { IoHelper } from '../../shared-private';
 import { BaseStackAssembly, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { StackSelector } from '../stack-selector';
 import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector';
-import type { ICloudAssemblySource } from '../types';
+import type { IReadableCloudAssembly } from '../types';
 
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
  */
-export class StackAssembly extends BaseStackAssembly implements ICloudAssemblySource {
-  public async produce(): Promise<cxapi.CloudAssembly> {
-    return this.assembly;
+export class StackAssembly extends BaseStackAssembly implements IReadableCloudAssembly {
+  constructor(private readonly _asm: IReadableCloudAssembly, ioHelper: IoHelper) {
+    super(_asm.cloudAssembly, ioHelper);
+  }
+
+  public get cloudAssembly() {
+    return this._asm.cloudAssembly;
+  }
+
+  public async _unlock() {
+    return this._asm._unlock();
+  }
+
+  public async dispose() {
+    return this._asm.dispose();
+  }
+
+  public async [Symbol.asyncDispose]() {
+    return this.dispose();
   }
 
   /**

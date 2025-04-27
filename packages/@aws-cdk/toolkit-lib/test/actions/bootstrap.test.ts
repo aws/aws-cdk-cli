@@ -14,9 +14,8 @@ import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
-import { TestIoHost, builderFixture } from '../_helpers';
+import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
 import {
-  MockSdkProvider,
   MockSdk,
   mockCloudFormationClient,
   restoreSdkMocksToDefault,
@@ -25,18 +24,16 @@ import {
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
-const mockSdkProvider = new MockSdkProvider();
-
-// we don't need to use AWS CLI compatible defaults here, since everything is mocked anyway
-jest.spyOn(SdkProvider, 'withAwsCliCompatibleDefaults').mockResolvedValue(mockSdkProvider);
 
 beforeEach(() => {
   restoreSdkMocksToDefault();
   setDefaultSTSMocks();
   ioHost.notifySpy.mockClear();
 
-  mockSdkProvider.forEnvironment = jest.fn().mockImplementation(() => {
-    return { sdk: new MockSdk() };
+  jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  jest.spyOn(SdkProvider.prototype, 'forEnvironment').mockResolvedValue({
+    sdk: new MockSdk(),
+    didAssumeRole: false,
   });
 });
 
@@ -476,6 +473,25 @@ describe('bootstrap', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('(no changes)'),
     }));
+  });
+
+  test('action disposes of assembly produced by source', async () => {
+    // GIVEN
+    const mockStack1 = createMockStack([
+      { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_1' },
+      { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_1' },
+      { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+    ]);
+    setupMockCloudFormationClient(mockStack1);
+
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+
+    // WHEN
+    await toolkit.bootstrap(BootstrapEnvironments.fromCloudAssemblySource(assemblySource), { });
+
+    // THEN
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 
   describe('error handling', () => {

@@ -61,7 +61,7 @@
       "name": "check-licenses",
       "steps": [
         {
-          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC\"",
+          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause\"",
           "receiveArgs": true
         }
       ]
@@ -73,6 +73,9 @@
         {
           "exec": "tsc --build",
           "receiveArgs": true
+        },
+        {
+          "exec": "tsc --build test"
         }
       ]
     },
@@ -102,7 +105,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=exact",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=minimal",
           "receiveArgs": true
         }
       ]

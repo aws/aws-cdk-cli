@@ -62,7 +62,6 @@ describe('formatStackDiff', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
       },
     });
     const result = formatter.formatStackDiff();
@@ -84,7 +83,6 @@ describe('formatStackDiff', () => {
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
       },
     });
     const result = formatter.formatStackDiff();
@@ -107,7 +105,6 @@ describe('formatStackDiff', () => {
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
         isImport: true,
       },
     });
@@ -149,7 +146,6 @@ describe('formatStackDiff', () => {
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
         nestedStacks,
       },
     });
@@ -225,7 +221,6 @@ describe('formatSecurityDiff', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
       },
     });
     const result = formatter.formatSecurityDiff({
@@ -244,7 +239,6 @@ describe('formatSecurityDiff', () => {
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
       },
     });
     const result = formatter.formatSecurityDiff({
@@ -279,7 +273,6 @@ describe('formatSecurityDiff', () => {
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
       },
     });
     const result = formatter.formatSecurityDiff({
@@ -317,7 +310,6 @@ describe('formatSecurityDiff', () => {
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
-        stackName: 'test-stack',
       },
     });
     const result = formatter.formatSecurityDiff({

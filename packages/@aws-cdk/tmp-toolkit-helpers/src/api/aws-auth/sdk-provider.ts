@@ -14,7 +14,7 @@ import { SDK } from './sdk';
 import { callTrace, traceMemberMethods } from './tracing';
 import { formatErrorMessage } from '../../util';
 import { IO, type IoHelper } from '../io/private';
-import { Mode, PluginHost } from '../plugin';
+import { PluginHost, Mode } from '../plugin';
 import { AuthenticationError } from '../toolkit-error';
 
 export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>>;
@@ -22,28 +22,13 @@ export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, '
 /**
  * Options for the default SDK provider
  */
-export interface SdkProviderOptions {
-  /**
-   * IoHelper for messaging
-   */
-  readonly ioHelper: IoHelper;
-
+export interface SdkProviderOptions extends SdkProviderServices {
   /**
    * Profile to read from ~/.aws
    *
    * @default - No profile
    */
   readonly profile?: string;
-
-  /**
-   * HTTP options for SDK
-   */
-  readonly httpOptions?: SdkHttpOptions;
-
-  /**
-   * The logger for sdk calls.
-   */
-  readonly logger?: Logger;
 }
 
 /**
@@ -126,32 +111,29 @@ export class SdkProvider {
    * class `AwsCliCompatible` for the details.
    */
   public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions) {
-    const builder = new AwsCliCompatible(options.ioHelper);
     callTrace(SdkProvider.withAwsCliCompatibleDefaults.name, SdkProvider.constructor.name, options.logger);
-    const credentialProvider = await builder.credentialChainBuilder({
-      profile: options.profile,
-      httpOptions: options.httpOptions,
-      logger: options.logger,
-    });
-
-    const region = await builder.region(options.profile);
-    const requestHandler = await builder.requestHandlerBuilder(options.httpOptions);
-    return new SdkProvider(credentialProvider, region, requestHandler, options.ioHelper, options.logger);
+    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(options.profile);
+    return new SdkProvider(config.credentialProvider, config.defaultRegion, options);
   }
 
+  public readonly defaultRegion: string;
+  private readonly defaultCredentialProvider: AwsCredentialIdentityProvider;
   private readonly plugins;
+  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly ioHelper: IoHelper;
+  private readonly logger?: Logger;
 
   public constructor(
-    private readonly defaultCredentialProvider: AwsCredentialIdentityProvider,
-    /**
-     * Default region
-     */
-    public readonly defaultRegion: string,
-    private readonly requestHandler: NodeHttpHandlerOptions = {},
-    private readonly ioHelper: IoHelper,
-    private readonly logger?: Logger,
+    defaultCredentialProvider: AwsCredentialIdentityProvider,
+    defaultRegion: string | undefined,
+    services: SdkProviderServices,
   ) {
-    this.plugins = new CredentialPlugins(PluginHost.instance, ioHelper);
+    this.defaultCredentialProvider = defaultCredentialProvider;
+    this.defaultRegion = defaultRegion ?? 'us-east-1';
+    this.requestHandler = services.requestHandler ?? {};
+    this.ioHelper = services.ioHelper;
+    this.logger = services.logger;
+    this.plugins = new CredentialPlugins(services.pluginHost ?? new PluginHost(), this.ioHelper);
   }
 
   /**
@@ -183,7 +165,7 @@ export class SdkProvider {
 
       // Our current credentials must be valid and not expired. Confirm that before we get into doing
       // actual CloudFormation calls, which might take a long time to hang.
-      const sdk = new SDK(baseCreds.credentials, env.region, this.requestHandler, this.ioHelper, this.logger);
+      const sdk = this._makeSdk(baseCreds.credentials, env.region);
       await sdk.validateCredentials();
       return { sdk, didAssumeRole: false };
     }
@@ -216,7 +198,7 @@ export class SdkProvider {
           `${fmtObtainedCredentials(baseCreds)} could not be used to assume '${options.assumeRoleArn}', but are for the right account. Proceeding anyway.`,
         ));
         return {
-          sdk: new SDK(baseCreds.credentials, env.region, this.requestHandler, this.ioHelper, this.logger),
+          sdk: this._makeSdk(baseCreds.credentials, env.region),
           didAssumeRole: false,
         };
       }
@@ -236,7 +218,7 @@ export class SdkProvider {
     if (baseCreds.source === 'none') {
       return undefined;
     }
-    return (await new SDK(baseCreds.credentials, env.region, this.requestHandler, this.ioHelper, this.logger).currentAccount()).partition;
+    return (await this._makeSdk(baseCreds.credentials, env.region).currentAccount()).partition;
   }
 
   /**
@@ -282,7 +264,7 @@ export class SdkProvider {
   public async defaultAccount(): Promise<Account | undefined> {
     return cached(this, CACHED_ACCOUNT, async () => {
       try {
-        return await new SDK(this.defaultCredentialProvider, this.defaultRegion, this.requestHandler, this.ioHelper, this.logger).currentAccount();
+        return await this._makeSdk(this.defaultCredentialProvider, this.defaultRegion).currentAccount();
       } catch (e: any) {
         // Treat 'ExpiredToken' specially. This is a common situation that people may find themselves in, and
         // they are complaining about if we fail 'cdk synth' on them. We loudly complain in order to show that
@@ -384,7 +366,7 @@ export class SdkProvider {
       // Call the provider at least once here, to catch an error if it occurs
       await credentials();
 
-      return new SDK(credentials, region, this.requestHandler, this.ioHelper, this.logger);
+      return this._makeSdk(credentials, region);
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
         throw err;
@@ -401,6 +383,29 @@ export class SdkProvider {
         ].join(' '),
       );
     }
+  }
+
+  /**
+   * Factory function that creates a new SDK instance
+   *
+   * This is a function here, instead of all the places where this is used creating a `new SDK`
+   * instance, so that it is trivial to mock from tests.
+   *
+   * Use like this:
+   *
+   * ```ts
+   * const mockSdk = jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+   * // ...
+   * mockSdk.mockRestore();
+   * ```
+   *
+   * @internal
+   */
+  public _makeSdk(
+    credProvider: AwsCredentialIdentityProvider,
+    region: string,
+  ) {
+    return new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger);
   }
 }
 
@@ -540,4 +545,26 @@ export async function initContextProviderSdk(aws: SdkProvider, options: ContextL
   };
 
   return (await aws.forEnvironment(EnvironmentUtils.make(account, region), Mode.ForReading, creds)).sdk;
+}
+
+export interface SdkProviderServices {
+  /**
+   * An IO helper for emitting messages
+   */
+  readonly ioHelper: IoHelper;
+
+  /**
+   * The request handler settings
+   */
+  readonly requestHandler?: NodeHttpHandlerOptions;
+
+  /**
+   * A plugin host
+   */
+  readonly pluginHost?: PluginHost;
+
+  /**
+   * An SDK logger
+   */
+  readonly logger?: Logger;
 }

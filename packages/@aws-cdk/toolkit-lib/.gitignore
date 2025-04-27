@@ -45,6 +45,8 @@ jspm_packages/
 /dist/changelog.md
 /dist/version.txt
 !/.eslintrc.js
+!/test/tsconfig.json
+!/api-extractor.json
 db.json.gz
 .init-version.json
 index_bg.wasm

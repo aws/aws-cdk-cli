@@ -1,9 +1,11 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { CloudAssembly } from './cloud-assembly';
-import type { ICloudAssemblySource } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly';
+import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly';
+import { BorrowedAssembly } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly/private/borrowed-assembly';
 import { ToolkitError } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import { IO, type IoHelper } from '../api-private';
+import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
 
@@ -43,8 +45,14 @@ export class CloudExecutable implements ICloudAssemblySource {
   constructor(private readonly props: CloudExecutableProps) {
   }
 
-  public async produce(): Promise<cxapi.CloudAssembly> {
-    return (await this.synthesize(true)).assembly;
+  public async produce(): Promise<IReadableCloudAssembly> {
+    const synthesisResult = await this.synthesize(true);
+
+    // We must return an `IReadableCloudAssembly` here, but this Cloud Assembly is only used in the context
+    // of the CLI and `cli.ts` currently manages its own locking in the "synthesizer" callback function.
+    //
+    // All the lock-related functions are therefore no-ops.
+    return new BorrowedAssembly(synthesisResult.assembly);
   }
 
   /**
@@ -102,6 +110,7 @@ export class CloudExecutable implements ICloudAssemblySource {
             assembly.manifest.missing,
             this.props.configuration.context,
             this.props.sdkProvider,
+            GLOBAL_PLUGIN_HOST,
             this.props.ioHelper,
           );
 

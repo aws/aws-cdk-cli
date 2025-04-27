@@ -1,11 +1,10 @@
 import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
 import { contextproviders } from '../../shared-private';
 import { PROJECT_CONTEXT, type Context, type IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
-import type { ICloudAssemblySource } from '../types';
+import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -37,9 +36,23 @@ export interface ContextAwareCloudAssemblyProps {
 }
 
 /**
- * Represent the Cloud Executable and the synthesis we can do on it
+ * A CloudAssemblySource that wraps another CloudAssemblySource and runs a lookup loop on it
+ *
+ * This means that if the underlying CloudAssemblySource produces a manifest
+ * with provider queries in it, the `ContextAwareCloudAssemblySource` will
+ * perform the necessary context lookups and invoke the underlying
+ * `CloudAssemblySource` again with thew missing context information.
+ *
+ * This is only useful if the underlying `CloudAssemblySource` can respond to
+ * this new context information (it must be a CDK app source); if it is just a
+ * static directory, then the contents of the assembly won't change in response
+ * to context.
+ *
+ * The context is passed between `ContextAwareCloudAssemblySource` and the wrapped
+ * cloud assembly source via a contex file on disk, so the wrapped assembly source
+ * should re-read the context file on every invocation.
  */
-export class ContextAwareCloudAssembly implements ICloudAssemblySource {
+export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
   private canLookup: boolean;
   private context: Context;
   private contextFile: string;
@@ -55,15 +68,16 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
   /**
    * Produce a Cloud Assembly, i.e. a set of stacks
    */
-  public async produce(): Promise<cxapi.CloudAssembly> {
+  public async produce(): Promise<IReadableCloudAssembly> {
     // We may need to run the cloud assembly source multiple times in order to satisfy all missing context
     // (When the source producer runs, it will tell us about context it wants to use
     // but it missing. We'll then look up the context and run the executable again, and
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
     while (true) {
-      const assembly = await this.source.produce();
+      const readableAsm = await this.source.produce();
 
+      const assembly = readableAsm.cloudAssembly;
       if (assembly.manifest.missing && assembly.manifest.missing.length > 0) {
         const missingKeysSet = missingContextKeys(assembly.manifest.missing);
         const missingKeys = Array.from(missingKeysSet);
@@ -89,6 +103,7 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
             assembly.manifest.missing,
             this.context,
             this.props.services.sdkProvider,
+            this.props.services.pluginHost,
             this.ioHelper,
           );
 
@@ -99,12 +114,14 @@ export class ContextAwareCloudAssembly implements ICloudAssemblySource {
           }));
           await this.context.save(this.contextFile);
 
-          // Execute again
+          // Execute again. Unlock the assembly here so that the producer can acquire
+          // a read lock on the directory again.
+          await readableAsm._unlock();
           continue;
         }
       }
 
-      return assembly;
+      return readableAsm;
     }
   }
 }

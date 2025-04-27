@@ -12,7 +12,8 @@ import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
-import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
 // https://github.com/microsoft/TypeScript/issues/60159
@@ -91,7 +92,7 @@ const CLI_SDK_V3_RANGE = '^3';
 const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['compilerOptions'] = {
   target: 'ES2020',
   module: 'commonjs',
-  lib: ['es2020', 'dom'],
+  lib: ['es2020'],
   incremental: true,
   esModuleInterop: false,
   skipLibCheck: true,
@@ -174,6 +175,7 @@ function transitiveToolkitPackages(thisPkg: string) {
     '@aws-cdk/tmp-toolkit-helpers',
     '@aws-cdk/cloud-assembly-schema',
     '@aws-cdk/cloudformation-diff',
+    '@aws-cdk/toolkit-lib',
   ];
 
   return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg));
@@ -263,6 +265,15 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+// This is necessary to make Symbol.dispose and Symbol.asyncDispose accessible
+// in Jest worker processes. It will complain about incompatibility during install
+// but work in practice all the same.
+repoProject.package.addPackageResolutions(
+  'jest-environment-node@30.0.0-alpha.7',
+  '@jest/environment@30.0.0-alpha.7',
+  '@jest/types@30.0.0-alpha.7',
+);
+
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 
@@ -336,7 +347,7 @@ function genericCdkProps(props: GenericProps = {}) {
     },
     typescriptVersion: TYPESCRIPT_VERSION,
     checkLicenses: props.private ? undefined : {
-      allow: ['Apache-2.0', 'MIT', 'ISC'],
+      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause'],
     },
     ...props,
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
@@ -575,7 +586,7 @@ const cdkAssets = configureProject(
     description: 'CDK Asset Publishing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cxApi,
       'archiver',
       'glob',
@@ -644,6 +655,8 @@ const cdkAssets = configureProject(
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
   }),
 );
+
+new TypecheckTests(cdkAssets);
 
 cdkAssets.addTask('shrinkwrap', {
   steps: [
@@ -743,6 +756,12 @@ const tmpToolkitHelpers = configureProject(
         target: 'es2022',
         lib: ['es2022', 'esnext.disposable', 'dom'],
         module: 'NodeNext',
+
+        // Temporarily, because it makes it impossible for us to use @internal functions
+        // from other packages. Annoyingly, VSCode won't show an error if you use @internal
+        // because it looks at the .ts, but the compilation will fail because it will use
+        // the .d.ts.
+        stripInternal: false,
       },
     },
 
@@ -765,6 +784,8 @@ const tmpToolkitHelpers = configureProject(
     }),
   }),
 );
+
+new TypecheckTests(tmpToolkitHelpers);
 
 // Prevent imports of private API surface
 tmpToolkitHelpers.package.addField('exports', {
@@ -880,6 +901,7 @@ const toolkitLib = configureProject(
       'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
       'esbuild',
       'typedoc',
+      '@microsoft/api-extractor',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -914,11 +936,66 @@ const toolkitLib = configureProject(
   }),
 );
 
+new TypecheckTests(toolkitLib);
+
+// TypeDoc documentation publishing
 new S3DocsPublishing(toolkitLib, {
   docsStream: 'toolkit-lib',
   artifactPath: 'docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+  docType: DocType.TYPEDOC,
+});
+
+// API Extractor documentation publishing
+new S3DocsPublishing(toolkitLib, {
+  docsStream: 'toolkit-lib-api-model',
+  artifactPath: 'api-extractor-docs.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
+  docType: DocType.API_EXTRACTOR,
+});
+
+// Add API Extractor configuration
+new pj.JsonFile(toolkitLib, 'api-extractor.json', {
+  marker: false,
+  obj: {
+    projectFolder: '.',
+    mainEntryPointFilePath: '<projectFolder>/lib/index.d.ts',
+    bundledPackages: [],
+    apiReport: {
+      enabled: false,
+    },
+    docModel: {
+      enabled: true,
+      apiJsonFilePath: './dist/<unscopedPackageName>.api.json',
+      projectFolderUrl: 'https://github.com/aws/aws-cdk-cli/tree/main/packages/%40aws-cdk/toolkit-lib',
+    },
+    dtsRollup: {
+      enabled: false,
+    },
+    tsdocMetadata: {
+      enabled: false,
+    },
+    messages: {
+      compilerMessageReporting: {
+        default: {
+          logLevel: 'warning',
+        },
+      },
+      extractorMessageReporting: {
+        default: {
+          logLevel: 'warning',
+        },
+      },
+      tsdocMessageReporting: {
+        default: {
+          logLevel: 'warning',
+        },
+      },
+    },
+  },
+  committed: true,
 });
 
 // Eslint rules
@@ -990,11 +1067,34 @@ toolkitLib.gitignore.addPatterns(
   '!test/_fixtures/**/cdk.out',
 );
 
-// Add a command for the docs
+// Add a command for the Typedoc docs
 const toolkitLibDocs = toolkitLib.addTask('docs', {
   exec: 'typedoc lib/index.ts',
   receiveArgs: true,
 });
+
+// Add commands for the API Extractor docs
+const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
+  exec: [
+    // Run api-extractor to generate the API model
+    'api-extractor run --diagnostics || true',
+    // Create a directory for the API model
+    'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
+    // Copy the API model to the directory (with error handling)
+    'if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo "Warning: API JSON file not found"; fi',
+    // Add version file
+    '(cat dist/version.txt || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
+    // Copy README.md if it exists
+    'if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi',
+    // Copy all files from docs directory if it exists
+    'if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi',
+    // Zip the API model and docs files
+    'cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk',
+  ].join(' && '),
+});
+
+// Add the API Extractor docs task to the package task
+toolkitLib.packageTask.spawn(apiExtractorDocsTask);
 
 // When packaging, output the docs into a specific nested directory
 // This is required because the zip file needs to have this structure when created
@@ -1045,7 +1145,7 @@ const cli = configureProject(
       'xml-js',
     ],
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
       '@aws-cdk/region-info',
@@ -1154,11 +1254,19 @@ const cli = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    // force a minor for the time being. This will never release a patch but that's fine for a while.
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRcOrMinor',
+
+    // re-enable this once we refactor the release tasks to prevent
+    // major version bumps caused by breaking commits in dependencies.
+    // nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
+    majorVersion: 2,
   }),
 );
+
+new TypecheckTests(cli);
 
 // Eslint rules
 cli.eslint?.addRules({
@@ -1293,6 +1401,7 @@ const cliLib = configureProject(
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
+    majorVersion: 2,
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1429,6 +1538,7 @@ const cdkAliasPackage = configureProject(
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
+    majorVersion: 2,
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1448,7 +1558,7 @@ const integRunner = configureProject(
     description: 'CDK Integration Testing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cxApi,
       cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
@@ -1476,6 +1586,7 @@ const integRunner = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
+        lib: ['es2020', 'dom'],
       },
     },
     jestOptions: jestOptionsForProject({
@@ -1538,6 +1649,102 @@ new BundleCli(integRunner, {
 
 //////////////////////////////////////////////////////////////////////
 
+const cliInteg = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: '@aws-cdk-testing/cli-integ',
+    description: 'Integration tests for the AWS CDK CLI',
+
+    // We set the majorVersion of this to 3.x, so that we can release
+    // it already without interfering with the current crop of CDK
+    // integ tests.
+    majorVersion: 3,
+
+    srcdir: '.',
+    libdir: '.',
+    deps: [
+      '@octokit/rest@^18.12.0',
+      `@aws-sdk/client-codeartifact@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecr-public@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sns@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sso@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@smithy/util-retry@${CLI_SDK_V3_RANGE}`,
+      `@smithy/types@${CLI_SDK_V3_RANGE}`,
+      '@cdklabs/cdk-atmosphere-client',
+      'axios@^1',
+      'chalk@^4',
+      'fs-extra@^9',
+      'glob@^7',
+      'make-runnable@^1',
+      'mockttp@^3',
+      'npm@^10',
+      'p-queue@^6',
+      'semver@^7',
+      'sinon@^9',
+      'ts-mock-imports@^1',
+      'yaml@1',
+      'yargs@^17',
+      // Jest is a runtime dependency here!
+      'jest@^29',
+      'jest-junit@^15',
+      'ts-jest@^29',
+      'node-pty',
+    ],
+    devDeps: [
+      '@types/semver@^7',
+      '@types/yargs@^15',
+      '@types/fs-extra@^9',
+      '@types/glob@^7',
+    ],
+    bin: {
+      'run-suite': 'bin/run-suite',
+      'download-and-run-old-tests': 'bin/download-and-run-old-tests',
+      'query-github': 'bin/query-github',
+      'apply-patches': 'bin/apply-patches',
+      'test-root': 'bin/test-root',
+      'stage-distribution': 'bin/stage-distribution',
+    },
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        esModuleInterop: false,
+      },
+      include: ['**/*.ts'],
+      exclude: ['resources/**/*'],
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 40,
+          lines: 40,
+          functions: 10,
+          branches: 40,
+        },
+      },
+    }),
+  }),
+);
+cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
+
+const compiledDirs = ['tests', 'test', 'lib'];
+for (const compiledDir of compiledDirs) {
+  cliInteg.gitignore.addPatterns(`${compiledDir}/**/*.js`);
+  cliInteg.gitignore.addPatterns(`${compiledDir}/**/*.d.ts`);
+}
+cliInteg.gitignore.addPatterns('!resources/**/*.js');
+cliInteg.npmignore?.addPatterns('!resources/**/*');
+
+//////////////////////////////////////////////////////////////////////
+
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects
 new pj.YamlFile(repo, '.github/dependabot.yml', {
@@ -1577,6 +1784,7 @@ new CdkCliIntegTestsWorkflow(repo, {
     cli.name,
     cliLib.name,
     cdkAliasPackage.name,
+    cliInteg.name,
   ],
 
   allowUpstreamVersions: [
@@ -1601,7 +1809,7 @@ new IssueLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
 });
 
 repo.synth();

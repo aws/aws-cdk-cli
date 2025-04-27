@@ -1,5 +1,5 @@
 import { Toolkit } from '../../lib/toolkit';
-import { appFixture, builderFixture, TestIoHost } from '../_helpers';
+import { appFixture, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 // these tests often run a bit longer than the default
 jest.setTimeout(10_000);
@@ -76,5 +76,20 @@ describe('synth', () => {
         stackIds: ['Stack1', 'Stack2'],
       }),
     }));
+  });
+
+  test('output of synth can be used in other toolkit actions, but source is only disposed at the end', async () => {
+    // GIVEN
+    const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
+    const synthResult = await toolkit.synth(assemblySource);
+
+    // WHEN
+    await toolkit.list(synthResult);
+    expect(mockDispose).not.toHaveBeenCalled();
+
+    // WHEN
+    await synthResult.dispose();
+    expect(mockDispose).toHaveBeenCalled();
+    await realDispose();
   });
 });

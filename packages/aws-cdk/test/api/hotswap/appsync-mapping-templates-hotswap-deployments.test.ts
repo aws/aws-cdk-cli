@@ -135,7 +135,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       // GIVEN
       const body = getBodyStream('template defined in s3');
       mockS3Client.on(GetObjectCommand).resolves({
-        Body: body,
+        Body: body as any,
       });
       setup.setCurrentCfnStackTemplate({
         Resources: {
@@ -212,7 +212,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       // GIVEN
       const body = getBodyStream('code defined in s3');
       mockS3Client.on(GetObjectCommand).resolves({
-        Body: body,
+        Body: body as any,
       });
       setup.setCurrentCfnStackTemplate({
         Resources: {
@@ -731,7 +731,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     async () => {
       // GIVEN
       mockS3Client.on(GetObjectCommand).resolves({
-        Body: getBodyStream('template defined in s3'),
+        Body: getBodyStream('template defined in s3') as any,
       });
       mockAppSyncClient
         .on(ListFunctionsCommand)
@@ -1269,7 +1269,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     async () => {
       // GIVEN
       mockS3Client.on(GetObjectCommand).resolves({
-        Body: getBodyStream('schema defined in s3'),
+        Body: getBodyStream('schema defined in s3') as any,
       });
       setup.setCurrentCfnStackTemplate({
         Resources: {

@@ -10,8 +10,10 @@
     ".projen/deps.json",
     ".projen/files.json",
     ".projen/tasks.json",
+    "api-extractor.json",
     "jest.config.json",
     "LICENSE",
+    "test/tsconfig.json",
     "tsconfig.dev.json",
     "tsconfig.json"
   ],

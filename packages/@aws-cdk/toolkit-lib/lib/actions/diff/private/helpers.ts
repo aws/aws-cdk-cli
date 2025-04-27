@@ -58,7 +58,7 @@ async function cfnDiff(
   deployments: Deployments,
   options: DiffOptions,
   sdkProvider: SdkProvider,
-  changeSet: boolean,
+  includeChangeSet: boolean,
 ): Promise<TemplateInfo[]> {
   const templateInfos = [];
   const methodOptions = (options.method?.options ?? {}) as ChangeSetDiffOptions;
@@ -78,13 +78,22 @@ async function cfnDiff(
       removeNonImportResources(stack);
     }
 
+    const changeSet = includeChangeSet ? await changeSetDiff(
+      ioHelper,
+      deployments,
+      stack,
+      sdkProvider,
+      resourcesToImport,
+      methodOptions.parameters,
+      methodOptions.fallbackToTemplate,
+    ) : undefined;
+
     templateInfos.push({
       oldTemplate: currentTemplate,
       newTemplate: stack,
-      stackName: stack.stackName,
       isImport: !!resourcesToImport,
       nestedStacks,
-      changeSet: changeSet ? await changeSetDiff(ioHelper, deployments, stack, sdkProvider, resourcesToImport, methodOptions.parameters) : undefined,
+      changeSet,
     });
   }
 
@@ -98,6 +107,7 @@ async function changeSetDiff(
   sdkProvider: SdkProvider,
   resourcesToImport?: ResourcesToImport,
   parameters: { [name: string]: string | undefined } = {},
+  fallBackToTemplate: boolean = true,
 ): Promise<any | undefined> {
   let stackExists = false;
   try {
@@ -107,6 +117,10 @@ async function changeSetDiff(
       tryLookupRole: true,
     });
   } catch (e: any) {
+    if (!fallBackToTemplate) {
+      throw new ToolkitError(`describeStacks call failed with ${e} for ${stack.stackName}, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
+    }
+
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(formatErrorMessage(e)));
     stackExists = false;
@@ -121,9 +135,14 @@ async function changeSetDiff(
       sdkProvider,
       parameters: parameters,
       resourcesToImport,
+      failOnError: !fallBackToTemplate,
     });
   } else {
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`));
+    if (!fallBackToTemplate) {
+      throw new ToolkitError(`the stack '${stack.stackName}' has not been deployed to CloudFormation, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
+    }
+
+    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`));
     return;
   }
 }
@@ -146,4 +165,26 @@ export function determinePermissionType(
   } else {
     return PermissionChangeType.NONE;
   }
+}
+
+/**
+ * Appends all properties from obj2 to obj1.
+ * obj2 values take priority in the case of collisions.
+ *
+ * @param obj1 The object to modify
+ * @param obj2 The object to consume
+ *
+ * @returns obj1 with all properties from obj2
+ */
+export function appendObject<T>(
+  obj1: { [name: string]: T },
+  obj2: { [name: string]: T },
+): { [name: string]: T } {
+  // Directly modify obj1 by adding all properties from obj2
+  for (const key in obj2) {
+    obj1[key] = obj2[key];
+  }
+
+  // Return the modified obj1
+  return obj1;
 }
