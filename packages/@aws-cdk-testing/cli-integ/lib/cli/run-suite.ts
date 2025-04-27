@@ -132,7 +132,7 @@ async function main() {
       ...args.runInBand ? ['-i'] : [],
       ...args.test ? ['-t', args.test] : [],
       ...args.verbose ? ['--verbose'] : [],
-      ...args.maxWorkers ? [`--maxWorkers=${args.maxWorkers}`] : [],
+      ...args.maxWorkers ? ['--maxWorkers=160'] : [],
       ...passWithNoTests ? ['--passWithNoTests'] : [],
       ...args['test-file'] ? [args['test-file']] : [],
     ], path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js'));
