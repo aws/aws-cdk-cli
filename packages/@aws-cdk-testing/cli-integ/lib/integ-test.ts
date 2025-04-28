@@ -43,7 +43,7 @@ export function integTest(
 
     const now = Date.now();
     process.stderr.write(`[INTEG TEST::${name}] Starting (pid ${process.pid})...\n`);
-    process.stderr.write(`[INTEG TEST::${name}] Memory Usage: ${memoryUsageReport()}`);
+    maybePrintMemoryUsage(name);
     try {
       if (FAIL_FAST && failed) {
         throw new Error('FAIL_FAST requested and currently failing. Stopping test early.');
@@ -97,7 +97,7 @@ export function integTest(
     } finally {
       const duration = Date.now() - now;
       process.stderr.write(`[INTEG TEST::${name}] Done (${duration} ms).\n`);
-      process.stderr.write(`[INTEG TEST::${name}] Memory Usage: ${memoryUsageReport()}`);
+      maybePrintMemoryUsage(name);
     }
   }, timeoutMillis);
 }
@@ -106,17 +106,16 @@ function shouldSkip(testName: string) {
   return SKIP_TESTS.includes(testName);
 }
 
-// function shouldReportMemoryUsage() {
-//   return process.env.INTEG_MEMORY_DEBUG === 'true';
-// }
-
-function memoryUsageReport() {
+function maybePrintMemoryUsage(testName: string) {
+  // if (process.env.INTEG_MEMORY_DEBUG !== 'true') {
+  //   return;
+  // }
   const memoryUsage = process.memoryUsage() as any;
   const report: any = {};
   for (const [key, value] of Object.entries(memoryUsage)) {
     report[key] = `${Math.round(value as number / 1024 / 1024)} MB`;
   }
-  return JSON.stringify(report);
+  process.stderr.write(`[INTEG TEST::${testName}] Memory Usage: ${JSON.stringify(report)}`);
 }
 
 export function randomString() {
