@@ -107,9 +107,9 @@ function shouldSkip(testName: string) {
 }
 
 function maybePrintMemoryUsage(testName: string) {
-  // if (process.env.INTEG_MEMORY_DEBUG !== 'true') {
-  //   return;
-  // }
+  if (process.env.INTEG_MEMORY_DEBUG !== 'true') {
+    return;
+  }
   const memoryUsage = process.memoryUsage() as any;
   const report: any = {};
   for (const [key, value] of Object.entries(memoryUsage)) {
