@@ -135,7 +135,15 @@ export function resourceMappings(
       };
 
   const logicalIdsPredicate =
-    skipList == null ? () => true : (m: ResourceMapping) => !skipList!.resourceIds.includes(m.destination.logicalResourceId);
+    skipList == null
+      ? () => true
+      : (m: ResourceMapping) => {
+        return !skipList!.resourceLocations.some(
+          (loc) =>
+            loc.StackName === m.destination.stack.stackName &&
+              loc.LogicalResourceId === m.destination.logicalResourceId,
+        );
+      };
 
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))

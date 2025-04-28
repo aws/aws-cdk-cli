@@ -20,7 +20,7 @@ import {
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
 import {
-  FileSkipList,
+  SkipFile,
   ManifestSkipList,
   UnionSkipList,
 } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/skip';
@@ -1244,7 +1244,7 @@ export class CdkToolkit {
       const assembly = await this.assembly();
       const skipList = new UnionSkipList([
         new ManifestSkipList(assembly.assembly.manifest),
-        new FileSkipList(options.skipFile),
+        new SkipFile(options.skipFile),
       ]);
 
       const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts, skipList);

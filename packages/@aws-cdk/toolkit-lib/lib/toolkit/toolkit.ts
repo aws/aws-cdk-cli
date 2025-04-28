@@ -9,7 +9,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { DeployResult, DestroyResult, RollbackResult } from './types';
-import { FileSkipList, ManifestSkipList, UnionSkipList } from '../../../tmp-toolkit-helpers/src/api/refactoring/skip';
+import { SkipFile, ManifestSkipList, UnionSkipList } from '../../../tmp-toolkit-helpers/src/api/refactoring/skip';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -992,7 +992,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       const skipList = new UnionSkipList([
         new ManifestSkipList(assembly.cloudAssembly.manifest),
-        new FileSkipList(options.skipFile),
+        new SkipFile(options.skipFile),
       ]);
 
       const mappings = resourceMappings(movements, filteredStacks.stackArtifacts, skipList);
