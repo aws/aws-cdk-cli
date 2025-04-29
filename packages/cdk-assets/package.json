@@ -67,7 +67,6 @@
     "license-checker": "^25.0.1",
     "mock-fs": "^5",
     "prettier": "^2.8",
-    "projen": "^0.91.20",
     "ts-jest": "^29.3.2",
     "typescript": "5.6"
   },

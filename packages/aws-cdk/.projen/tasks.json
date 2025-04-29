@@ -32,7 +32,7 @@
         "RELEASE_TAG_PREFIX": "aws-cdk@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts maybeRcOrMinor",
+        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/tmp-toolkit-helpers ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib",
         "MAJOR": "2"
       },
@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@octokit/rest,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-cdk-lib,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,nock,projen,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@aws-cdk/region-info,@aws-sdk/middleware-endpoint,@aws-sdk/util-retry,@aws-sdk/util-waiter,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,glob,minimatch,promptly,proxy-agent,semver,table,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@octokit/rest,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-cdk-lib,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,nock,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@aws-cdk/region-info,@aws-sdk/middleware-endpoint,@aws-sdk/util-retry,@aws-sdk/util-waiter,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,glob,minimatch,promptly,proxy-agent,semver,table,uuid"
         }
       ]
     },
@@ -212,7 +212,7 @@
         "RELEASE_TAG_PREFIX": "aws-cdk@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts maybeRcOrMinor",
+        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/tmp-toolkit-helpers ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib"
       },
       "steps": [

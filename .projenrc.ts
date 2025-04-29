@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { yarn } from 'cdklabs-projen-project-types';
-import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
+import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
@@ -69,6 +69,11 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 
   // Never include the build-tools directory
   x.npmignore?.addPatterns('build-tools');
+
+  if (x instanceof TypeScriptWorkspace) {
+    // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
+    x.deps.removeDependency('projen');
+  }
 
   return x;
 }
@@ -667,7 +672,7 @@ const cdkAssets = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
   }),
 );
 
@@ -1268,13 +1273,7 @@ const cli = configureProject(
       },
     }),
 
-    // Append a specific version string for testing
-    // force a minor for the time being. This will never release a patch but that's fine for a while.
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRcOrMinor',
-
-    // re-enable this once we refactor the release tasks to prevent
-    // major version bumps caused by breaking commits in dependencies.
-    // nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
     majorVersion: 2,
