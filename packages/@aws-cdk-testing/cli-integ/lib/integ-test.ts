@@ -48,7 +48,10 @@ export function integTest(
         throw new Error('FAIL_FAST requested and currently failing. Stopping test early.');
       }
 
-      return await callback({
+      // eslint-disable-next-line no-console
+      console.log(`${new Date().toISOString()} | [pre-callback] [test] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+
+      await callback({
         output,
         randomString: randomString(),
         name,
@@ -56,6 +59,13 @@ export function integTest(
           output.write(`${s}\n`);
         },
       });
+
+      // eslint-disable-next-line no-console
+      console.log(`${new Date().toISOString()} | [post-callback] [test] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+
+      // eslint-disable-next-line no-console
+      console.log(output.buffer().toString());
+      return;
     } catch (e: any) {
       failed = true;
 

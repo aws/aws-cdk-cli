@@ -840,6 +840,9 @@ class MetadataStack extends cdk.Stack {
   }
 }
 
+// eslint-disable-next-line no-console
+console.log(`${new Date().toISOString()} | [pre-tree] [app.js] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+
 const app = new cdk.App({
   context: {
     '@aws-cdk/core:assetHashSalt': process.env.CODEBUILD_BUILD_ID ?? process.env.GITHUB_RUN_ID, // Force all assets to be unique, but consistent in one build
@@ -968,4 +971,9 @@ switch (stackSet) {
     throw new Error(`Unrecognized INTEG_STACK_SET: '${stackSet}'`);
 }
 
+console.log(`${new Date().toISOString()} | [post-tree] [app.js] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+
 app.synth();
+
+// eslint-disable-next-line no-console
+console.log(`${new Date().toISOString()} | [post-synth] [app.js] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);

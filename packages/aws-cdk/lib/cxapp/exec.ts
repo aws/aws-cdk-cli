@@ -88,9 +88,15 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
       env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
     }
 
+    // eslint-disable-next-line no-console
+    console.log(`${new Date().toISOString()} | [pre-synth] [cli] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+
     await exec(commandLine.join(' '));
 
     const assembly = createAssembly(outdir);
+
+    // eslint-disable-next-line no-console
+    console.log(`${new Date().toISOString()} | [post-synth] [cli] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
 
     await contextOverflowCleanup(contextOverflowLocation, assembly, ioHelper);
 
