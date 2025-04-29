@@ -37,9 +37,13 @@ function maxWorkers() {
 
   // empirically observed. this includes:
   // - 150 jest test process
-  // - 150 cli subprocess
-  // - 100 app synthesis subprocess  
-  const observedWorkerMemoryMB = 300;
+  // - 140 app synthesis subprocess  
+  // - 200 cli subprocess
+  const observedWorkerMemoryMB = 500;
+
+  // GC occasionally gets a chance to clear this amount of memory
+  // so the worker memory fluctuates.
+  const estimatedWorkerFluctuationMB = 150;
 
   // leave 3GB for the OS and other external processes
   const reservedMemoryMB = 3000;
@@ -47,7 +51,7 @@ function maxWorkers() {
   // our processes don't take up much CPU so we allow for a large factor.
   const cpuScaleFactor = 10;
 
-  const byMemory = Math.floor((totalMemoryMB - reservedMemoryMB) / observedWorkerMemoryMB);
+  const byMemory = Math.floor((totalMemoryMB - reservedMemoryMB) / (observedWorkerMemoryMB - estimatedWorkerFluctuationMB));
   const byCpu = cpuScaleFactor * totalCores;
 
   const maxWorkers = Math.min(byMemory, byCpu);
