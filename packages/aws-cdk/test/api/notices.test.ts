@@ -16,7 +16,7 @@ import {
 } from '../../lib/api/notices';
 import { Settings } from '../../lib/api/settings';
 import { Context } from '../../lib/api/context';
-import { asIoHelper, IoDefaultMessages } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper, IoDefaultMessages } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { FakeIoHost } from '../_helpers/fake-io-host';
 
 const BASIC_BOOTSTRAP_NOTICE = {

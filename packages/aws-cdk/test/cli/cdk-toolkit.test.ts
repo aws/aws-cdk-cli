@@ -96,10 +96,10 @@ import {
   mockSSMClient,
   restoreSdkMocksToDefault,
 } from '../_helpers/mock-sdk';
-import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { StackActivityProgress } from '../../lib/commands/deploy';
-import { Template } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { DestroyStackResult } from '@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack';
+import { Template } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 
 markTesting();
 

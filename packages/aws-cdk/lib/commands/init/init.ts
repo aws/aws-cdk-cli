@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/api';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
 import { error, info, warning } from '../../logging';

@@ -7,11 +7,10 @@ import { CloudAssemblyBuilder } from '@aws-cdk/cx-api';
 import { expect } from '@jest/globals';
 import { WorkGraph, WorkGraphBuilder } from '../../../lib/api/work-graph';
 import type { AssetBuildNode, AssetPublishNode, StackNode, WorkNode } from '../../../lib/api/work-graph';
-import { CliIoHost } from '../../../lib/cli/io-host';
-import { IoHelper } from '../../../lib/api-private';
+import { TestIoHost } from '../../_helpers/io-host';
 
 let rootBuilder: CloudAssemblyBuilder;
-let mockMsg = IoHelper.fromIoHost(CliIoHost.instance(), 'deploy');
+let mockMsg = new TestIoHost().asHelper('deploy')
 
 beforeEach(() => {
   rootBuilder = new CloudAssemblyBuilder();

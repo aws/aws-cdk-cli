@@ -1,6 +1,7 @@
 import type { DeployOptions, HotswapProperties } from '..';
-import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/shared-private';
-import type { Deployments, WorkGraph } from '../../../api/shared-private';
+import type { Deployments } from '../../../api/deployments';
+import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/hotswap';
+import type { WorkGraph } from '../../../api/work-graph';
 
 export function buildParameterMap(parameters?: Map<string, string | undefined>): { [name: string]: { [name: string]: string | undefined } } {
   const parameterMap: {

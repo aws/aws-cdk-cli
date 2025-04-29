@@ -9,10 +9,6 @@
       "type": "build"
     },
     {
-      "name": "@aws-cdk/tmp-toolkit-helpers",
-      "type": "build"
-    },
-    {
       "name": "@aws-cdk/toolkit-lib",
       "type": "build"
     },

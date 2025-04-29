@@ -1,8 +1,9 @@
 import * as path from 'path';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
-import * as apis from '../../lib/api/shared-private';
-import { RequireApproval } from '../../lib/api/shared-private';
+import * as awsauth from '../../lib/api/aws-auth/private';
+import * as deployments from '../../lib/api/deployments';
+import { RequireApproval } from '../../lib/api/require-approval';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
@@ -19,17 +20,17 @@ beforeEach(() => {
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
-  jest.spyOn(apis.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
 
-  jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
       Parameters: {},
       Resources: {},
     },
     nestedStacks: [] as any,
   });
-  jest.spyOn(apis.Deployments.prototype, 'stackExists').mockResolvedValue(true);
-  jest.spyOn(apis.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
+  jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+  jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     name: 'aws://123456789012/us-east-1',
     account: '123456789012',
     region: 'us-east-1',
@@ -250,7 +251,7 @@ describe('diff', () => {
 
     test('ChangeSet diff method throws if stack not found and fallBackToTemplate = false', async () => {
       // GIVEN
-      jest.spyOn(apis.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
 
       // WHEN
       const cx = await builderFixture(toolkit, 'stack-with-bucket');

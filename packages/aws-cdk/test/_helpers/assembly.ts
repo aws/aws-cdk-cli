@@ -8,7 +8,7 @@ import { CloudExecutable } from '../../lib/cxapp/cloud-executable';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { TestIoHost } from './io-host';
 import { IIoHost } from '../../lib/cli/io-host';
-import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 
 export const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 

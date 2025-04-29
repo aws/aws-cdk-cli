@@ -1,1 +1,1 @@
-export { DiffFormatter, RequireApproval } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+export { DiffFormatter, RequireApproval } from '../../../@aws-cdk/toolkit-lib/lib/api';

@@ -1,5 +1,5 @@
 import type { BaseDeployOptions } from './private/deploy-options';
-import type { Tag } from '../../api/shared-private';
+import type { Tag } from '../../api/tags';
 
 export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
 

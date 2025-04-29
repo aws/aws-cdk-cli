@@ -16,8 +16,8 @@ import {
   ResourceMapping,
   resourceMappings,
   resourceMovements,
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
-import { computeResourceDigests } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
+} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
+import { computeResourceDigests } from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { expect } from '@jest/globals';
 

@@ -40,7 +40,7 @@
         "RELEASE_TAG_PREFIX": "@aws-cdk/toolkit-lib@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../tmp-toolkit-helpers ../cloud-assembly-schema ../cloudformation-diff"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../cloud-assembly-schema ../cloudformation-diff"
       },
       "steps": [
         {
@@ -59,7 +59,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@microsoft/api-extractor,@smithy/types,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,ts-jest,typedoc,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,cdk-from-cfn,glob,json-diff,minimatch,promptly,proxy-agent,semver,split2,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@microsoft/api-extractor,@smithy/types,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,license-checker,ts-jest,typedoc,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-stream,@smithy/util-waiter,archiver,cdk-from-cfn,glob,json-diff,minimatch,promptly,proxy-agent,semver,split2,uuid"
         }
       ]
     },
@@ -120,7 +120,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/tmp-toolkit-helpers=exact @aws-cdk/cloud-assembly-schema=major @aws-cdk/cloudformation-diff=major cdk-assets=major",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=major @aws-cdk/cloudformation-diff=major cdk-assets=major",
           "receiveArgs": true
         }
       ]
@@ -266,7 +266,7 @@
         "RELEASE_TAG_PREFIX": "@aws-cdk/toolkit-lib@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../tmp-toolkit-helpers ../cloud-assembly-schema ../cloudformation-diff"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../cloud-assembly-schema ../cloudformation-diff"
       },
       "steps": [
         {

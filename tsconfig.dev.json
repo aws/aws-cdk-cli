@@ -8,7 +8,7 @@
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2020"
+      "es2019"
     ],
     "module": "CommonJS",
     "noEmitOnError": false,
@@ -23,7 +23,7 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
     "stripInternal": true,
-    "target": "ES2020"
+    "target": "ES2019"
   },
   "include": [
     ".projenrc.ts",
@@ -53,9 +53,6 @@
     },
     {
       "path": "packages/cdk-assets"
-    },
-    {
-      "path": "packages/@aws-cdk/tmp-toolkit-helpers"
     },
     {
       "path": "packages/@aws-cdk/toolkit-lib"

@@ -45,9 +45,6 @@
     },
     {
       "path": "../../cdk-assets"
-    },
-    {
-      "path": "../tmp-toolkit-helpers"
     }
   ]
 }

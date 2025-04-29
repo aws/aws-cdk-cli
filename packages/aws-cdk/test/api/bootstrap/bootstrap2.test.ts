@@ -1,6 +1,6 @@
 /* eslint-disable import/order */
 
-import * as deployStack from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack';
+import * as deployStack from '../../../../@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import { Stack } from '@aws-sdk/client-cloudformation';
 import { CreatePolicyCommand, GetPolicyCommand } from '@aws-sdk/client-iam';
 import { Bootstrapper, ToolkitInfo } from '../../../lib/api';
@@ -11,7 +11,7 @@ import {
   restoreSdkMocksToDefault, setDefaultSTSMocks,
 } from '../../_helpers/mock-sdk';
 import { IIoHost } from '../../../lib/cli/io-host';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { asIoHelper } from '../../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 
 const mockDeployStack = jest.spyOn(deployStack, 'deployStack');
 

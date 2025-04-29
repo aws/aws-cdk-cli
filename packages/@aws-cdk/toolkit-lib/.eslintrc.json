@@ -312,19 +312,7 @@
     "prettier/prettier": [
       "off"
     ],
-    "@cdklabs/no-throw-default-error": "error",
-    "import/no-restricted-paths": [
-      "error",
-      {
-        "zones": [
-          {
-            "target": "./",
-            "from": "../tmp-toolkit-helpers",
-            "message": "All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts"
-          }
-        ]
-      }
-    ]
+    "@cdklabs/no-throw-default-error": "error"
   },
   "overrides": [
     {

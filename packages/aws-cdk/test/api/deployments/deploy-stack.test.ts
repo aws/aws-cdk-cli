@@ -38,8 +38,8 @@ function testDeployStack(options: DeployStackApiOptions) {
   return deployStack(options, ioHelper);
 }
 
-jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/hotswap/hotswap-deployments');
-jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/checks', () => ({
+jest.mock('../../../../@aws-cdk/toolkit-lib/lib/api/hotswap/hotswap-deployments');
+jest.mock('../../../../@aws-cdk/toolkit-lib/lib/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
 

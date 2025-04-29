@@ -1,8 +1,9 @@
 import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
+import * as contextproviders from '../../../context-providers';
 import type { ToolkitServices } from '../../../toolkit/private';
+import { PROJECT_CONTEXT, type Context } from '../../context';
+import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
-import { contextproviders } from '../../shared-private';
-import { PROJECT_CONTEXT, type Context, type IoHelper } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 

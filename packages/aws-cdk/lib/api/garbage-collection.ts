@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/garbage-collection';
+export * from '../../../@aws-cdk/toolkit-lib/lib/api/garbage-collection';

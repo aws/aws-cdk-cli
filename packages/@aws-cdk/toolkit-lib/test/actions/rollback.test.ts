@@ -1,26 +1,20 @@
-import { StackSelectionStrategy } from '../../lib/api/shared-private';
+import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
+import * as deployments from '../../lib/api/deployments';
+import type { RollbackStackOptions, RollbackStackResult } from '../../lib/api/deployments';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
 
-let mockRollbackStack = jest.fn();
-jest.mock('../../lib/api/shared-private', () => {
-  return {
-    ...jest.requireActual('../../lib/api/shared-private'),
-    Deployments: jest.fn().mockImplementation(() => ({
-      rollbackStack: mockRollbackStack,
-    })),
-  };
-});
+let mockRollbackStack: jest.SpyInstance<Promise<RollbackStackResult>, [RollbackStackOptions]>;
 
 beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
   jest.clearAllMocks();
-  mockRollbackStack.mockResolvedValue({
-    notInRollbackableState: false,
+
+  mockRollbackStack = jest.spyOn(deployments.Deployments.prototype, 'rollbackStack').mockResolvedValue({
     success: true,
     stackArn: 'arn:stack',
   });
@@ -61,10 +55,11 @@ describe('rollback', () => {
 
   test('rollback not in rollbackable state', async () => {
     // GIVEN
-    mockRollbackStack.mockImplementation(() => ({
+    mockRollbackStack.mockResolvedValue({
       notInRollbackableState: true,
-      success: false,
-    }));
+      stackArn: 'arn:stack',
+    });
+
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await expect(async () => toolkit.rollback(cx, {

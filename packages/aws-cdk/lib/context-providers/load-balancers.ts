@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/context-providers/load-balancers';
+export * from '../../../@aws-cdk/toolkit-lib/lib/context-providers/load-balancers';

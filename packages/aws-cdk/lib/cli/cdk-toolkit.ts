@@ -10,16 +10,16 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import {
   ambiguousMovements,
   findResourceMovements,
   resourceMappings,
   ToolkitError,
-} from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
-import { PermissionChangeType } from '../../../@aws-cdk/tmp-toolkit-helpers/src/payloads';
+} from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { AmbiguityError } from '../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
+import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';

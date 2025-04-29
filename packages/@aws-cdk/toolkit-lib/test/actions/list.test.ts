@@ -1,5 +1,5 @@
 import { ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
-import { StackSelectionStrategy } from '../../lib/api/shared-private';
+import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import { Toolkit } from '../../lib/toolkit';
 import { disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import type { TestStackArtifact } from '../_helpers/test-cloud-assembly-source';
