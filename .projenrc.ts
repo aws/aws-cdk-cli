@@ -1,10 +1,11 @@
 import * as path from 'path';
-import { yarn, CdkCliIntegTestsWorkflow } from 'cdklabs-projen-project-types';
-import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
+import { yarn } from 'cdklabs-projen-project-types';
+import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
+import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { ESLINT_RULES } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
@@ -68,6 +69,11 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 
   // Never include the build-tools directory
   x.npmignore?.addPatterns('build-tools');
+
+  if (x instanceof TypeScriptWorkspace) {
+    // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
+    x.deps.removeDependency('projen');
+  }
 
   return x;
 }
@@ -264,15 +270,6 @@ const repoProject = new yarn.Monorepo({
     ],
   },
 });
-
-// This is necessary to make Symbol.dispose and Symbol.asyncDispose accessible
-// in Jest worker processes. It will complain about incompatibility during install
-// but work in practice all the same.
-repoProject.package.addPackageResolutions(
-  'jest-environment-node@30.0.0-alpha.7',
-  '@jest/environment@30.0.0-alpha.7',
-  '@jest/types@30.0.0-alpha.7',
-);
 
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
@@ -503,6 +500,29 @@ const cxApi = overrideEslint(
 
 //////////////////////////////////////////////////////////////////////
 
+const yarnCling = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/yarn-cling',
+    description: 'Tool for generating npm-shrinkwrap from yarn.lock',
+    srcdir: 'lib',
+    deps: ['@yarnpkg/lockfile', 'semver'],
+    devDeps: ['@types/semver', '@types/yarnpkg__lockfile', 'fast-check'],
+    minNodeVersion: '18',
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+  }),
+);
+yarnCling.testTask.prependExec('ln -sf ../../cdk test/test-fixture/jsii/node_modules/');
+
+//////////////////////////////////////////////////////////////////////
+
 const yargsGen = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps({
@@ -652,7 +672,7 @@ const cdkAssets = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
   }),
 );
 
@@ -1253,13 +1273,7 @@ const cli = configureProject(
       },
     }),
 
-    // Append a specific version string for testing
-    // force a minor for the time being. This will never release a patch but that's fine for a while.
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRcOrMinor',
-
-    // re-enable this once we refactor the release tasks to prevent
-    // major version bumps caused by breaking commits in dependencies.
-    // nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
     majorVersion: 2,
@@ -1700,6 +1714,7 @@ const cliInteg = configureProject(
       'node-pty',
     ],
     devDeps: [
+      yarnCling,
       '@types/semver@^7',
       '@types/yargs@^15',
       '@types/fs-extra@^9',
@@ -1742,6 +1757,9 @@ for (const compiledDir of compiledDirs) {
 }
 cliInteg.gitignore.addPatterns('!resources/**/*.js');
 cliInteg.npmignore?.addPatterns('!resources/**/*');
+
+cliInteg.postCompileTask.exec('yarn-cling');
+cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 
 //////////////////////////////////////////////////////////////////////
 
