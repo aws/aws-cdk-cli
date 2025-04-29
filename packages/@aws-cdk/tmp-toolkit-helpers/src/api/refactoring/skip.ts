@@ -68,7 +68,7 @@ export class SkipFile implements SkipList {
     }
 
     const locationRegex = /^[A-Za-z0-9]+\.[A-Za-z0-9]+$/;
-    const pathRegex = /^\w*(\/.*)*$/;
+    const pathRegex = /^\w*(\/\w)*$/;
 
     parsedData.forEach((item: string) => {
       if (locationRegex.test(item)) {
