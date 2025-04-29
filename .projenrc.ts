@@ -809,10 +809,10 @@ const toolkitLib = configureProject(
       jestConfig: {
         coverageThreshold: {
           // this is very sad but we will get better
-          statements: 60,
-          branches: 70,
-          functions: 55,
-          lines: 60,
+          statements: 87,
+          branches: 83,
+          functions: 82,
+          lines: 87,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
         setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
@@ -1126,10 +1126,10 @@ const cli = configureProject(
           // We want to improve our test coverage
           // DO NOT LOWER THESE VALUES!
           // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 82,
-          branches: 74,
+          statements: 81,
+          branches: 76,
           functions: 87,
-          lines: 82,
+          lines: 81,
         },
         // We have many tests here that commonly time out
         testTimeout: 60_000,
