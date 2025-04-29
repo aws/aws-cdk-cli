@@ -39,6 +39,7 @@
     "organization": true
   },
   "devDependencies": {
+    "@aws-cdk/yarn-cling": "*",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^9",

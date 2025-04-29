@@ -52,3 +52,4 @@ test/**/*.d.ts
 lib/**/*.js
 lib/**/*.d.ts
 !resources/**/*.js
+npm-shrinkwrap.json

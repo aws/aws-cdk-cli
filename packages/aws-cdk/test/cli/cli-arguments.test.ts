@@ -138,6 +138,7 @@ describe('config', () => {
       gc: expect.anything(),
       doctor: expect.anything(),
       docs: expect.anything(),
+      refactor: expect.anything(),
     });
   });
 });

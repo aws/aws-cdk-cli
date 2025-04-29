@@ -301,7 +301,7 @@ describe('computeResourceDigests', () => {
 
   test('uses physical ID if present', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName']
+      primaryIdentifier: ['FooName'],
     });
 
     const template = {
@@ -329,7 +329,7 @@ describe('computeResourceDigests', () => {
 
   test('uses physical ID if present - with dependencies', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName']
+      primaryIdentifier: ['FooName'],
     });
 
     const template = {
@@ -365,7 +365,7 @@ describe('computeResourceDigests', () => {
 
   test('different physical IDs lead to different digests', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName']
+      primaryIdentifier: ['FooName'],
     });
 
     const template = {
@@ -393,7 +393,7 @@ describe('computeResourceDigests', () => {
 
   test('primaryIdentifier is a composite field - different values', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName', 'BarName']
+      primaryIdentifier: ['FooName', 'BarName'],
     });
 
     const template = {
@@ -423,7 +423,7 @@ describe('computeResourceDigests', () => {
 
   test('primaryIdentifier is a composite field - same value', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName', 'BarName']
+      primaryIdentifier: ['FooName', 'BarName'],
     });
 
     const template = {
@@ -453,7 +453,7 @@ describe('computeResourceDigests', () => {
 
   test('primaryIdentifier is a composite field but not all of them are set in the resource', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName', 'BarName']
+      primaryIdentifier: ['FooName', 'BarName'],
     });
 
     const template = {
@@ -481,7 +481,7 @@ describe('computeResourceDigests', () => {
 
   test('resource properties does not contain primaryIdentifier - different values', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName']
+      primaryIdentifier: ['FooName'],
     });
 
     const template = {
@@ -507,7 +507,7 @@ describe('computeResourceDigests', () => {
 
   test('resource properties does not contain primaryIdentifier - same value', () => {
     mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName']
+      primaryIdentifier: ['FooName'],
     });
 
     const template = {
@@ -625,7 +625,7 @@ describe('typed mappings', () => {
     };
     const pairs = resourceMovements([stack1], [stack2]);
     const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([])
+    expect(mappings).toEqual([]);
   });
 
   test('normal updates are not mappings', () => {
@@ -810,7 +810,6 @@ describe('typed mappings', () => {
     // even though they have the same properties. Since they have different types,
     // they are considered different resources.
     expect(mappings).toEqual([]);
-
   });
 
   test('ambiguous resources from multiple stacks', () => {
@@ -950,7 +949,7 @@ describe('typed mappings', () => {
           },
         ],
       ],
-    ])
+    ]);
   });
 
   test('combines addition, deletion, update, and rename', () => {
@@ -1002,6 +1001,140 @@ describe('typed mappings', () => {
       {
         Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
         Destination: { LogicalResourceId: 'NewName', StackName: 'Foo' },
+      },
+    ]);
+  });
+
+  test('stack filtering', () => {
+    const environment = {
+      name: 'prod',
+      account: '123456789012',
+      region: 'us-east-1',
+    };
+
+    // Scenario:
+    //  Foo.Bucket1 -> Bar.Bucket1
+    //  Zee.OldName -> Zee.NewName
+
+    const stack1 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: { Prop: 'XXXXXXXXX' },
+          },
+        },
+      },
+    };
+
+    const stack2 = {
+      environment,
+      stackName: 'Bar',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: { Prop: 'XXXXXXXXX' },
+          },
+        },
+      },
+    };
+
+    const stack3 = {
+      environment,
+      stackName: 'Zee',
+      template: {
+        Resources: {
+          OldName: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { Prop: 'YYYYYYYYY' },
+          },
+        },
+      },
+    };
+
+    const stack4 = {
+      environment,
+      stackName: 'Zee',
+      template: {
+        Resources: {
+          NewName: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { Prop: 'YYYYYYYYY' },
+          },
+        },
+      },
+    };
+
+    const movements = resourceMovements([stack1, stack3], [stack2, stack4]);
+
+    // Testing different filters:
+
+    // Only Foo. Should include Foo and Bar
+    expect(resourceMappings(movements, [stack1]).map(toCfnMapping)).toEqual([
+      {
+        Destination: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Foo',
+        },
+      },
+    ]);
+
+    // Only Bar. Should include Foo and Bar
+    expect(resourceMappings(movements, [stack2]).map(toCfnMapping)).toEqual([
+      {
+        Destination: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Foo',
+        },
+      },
+    ]);
+
+    // Only Zee. Should include Zee
+    expect(resourceMappings(movements, [stack3]).map(toCfnMapping)).toEqual([
+      {
+        Destination: {
+          LogicalResourceId: 'NewName',
+          StackName: 'Zee',
+        },
+        Source: {
+          LogicalResourceId: 'OldName',
+          StackName: 'Zee',
+        },
+      },
+    ]);
+
+    // Foo and Zee. Should include all
+    expect(resourceMappings(movements, [stack1, stack3]).map(toCfnMapping)).toEqual([
+      {
+        Destination: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Foo',
+        },
+      },
+      {
+        Destination: {
+          LogicalResourceId: 'NewName',
+          StackName: 'Zee',
+        },
+        Source: {
+          LogicalResourceId: 'OldName',
+          StackName: 'Zee',
+        },
       },
     ]);
   });
@@ -1106,7 +1239,7 @@ describe('environment grouping', () => {
     provider.returnsDefaultAccounts(environment.account);
 
     const movements = await findResourceMovements([stack1, stack2], provider);
-    expect(ambiguousMovements((movements))).toEqual([]);
+    expect(ambiguousMovements(movements)).toEqual([]);
 
     expect(resourceMappings(movements).map(toCfnMapping)).toEqual([
       {
@@ -1233,7 +1366,7 @@ describe('environment grouping', () => {
     provider.returnsDefaultAccounts(environment1.account, environment2.account);
 
     const movements = await findResourceMovements([stack1, stack2], provider);
-    expect(ambiguousMovements((movements))).toEqual([]);
+    expect(ambiguousMovements(movements)).toEqual([]);
 
     expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);
   });
