@@ -781,6 +781,8 @@ const toolkitLib = configureProject(
     ],
     devDeps: [
       '@aws-cdk/aws-service-spec',
+      '@jest/globals',
+      '@microsoft/api-extractor',
       '@smithy/types',
       '@types/fs-extra',
       '@types/split2',
@@ -790,8 +792,9 @@ const toolkitLib = configureProject(
       'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
       'esbuild',
       'fast-check',
+      'nock',
       'typedoc',
-      '@microsoft/api-extractor',
+      'xml-js',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -896,6 +899,7 @@ toolkitLib.eslint?.addOverride({
   files: ['./test/**'],
   rules: {
     '@cdklabs/no-throw-default-error': 'off',
+    '@typescript-eslint/unbound-method': 'off',
   },
 });
 
