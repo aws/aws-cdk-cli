@@ -50,7 +50,7 @@ export function integTest(
       }
 
       // eslint-disable-next-line no-console
-      console.log(`${new Date().toISOString()} | [pre-callback] [test] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+      output.write(`${new Date().toISOString()} | [pre-callback] [test] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
 
       const ret = await callback({
         output,
@@ -62,9 +62,12 @@ export function integTest(
       });
 
       // eslint-disable-next-line no-console
-      console.log(`${new Date().toISOString()} | [post-callback] [test] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
+      output.write(`${new Date().toISOString()} | [post-callback] [test] Memory RSS: ${Math.floor(process.memoryUsage().rss / 1024 / 1024)} MB`);
 
       await writeLog(name, true, output.toString());
+
+      // eslint-disable-next-line no-console
+      console.log(output.toString());
 
       return ret;
     } catch (e: any) {
