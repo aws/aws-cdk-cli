@@ -32,30 +32,30 @@ module.exports = {
  */
 function maxWorkers() {
 
-  const totalMemoryMB = os.totalmem() / 1024 / 1024;
-  const totalCores = os.cpus().length;
+  const totalMachineMemoryMB = os.totalmem() / 1024 / 1024;
+  const totalMachineCores = os.cpus().length;
 
   // empirically observed. this includes:
   // - 150 jest test process
   // - 140 app synthesis subprocess  
   // - 200 cli subprocess
-  const observedWorkerMemoryMB = 500;
+  const maxWorkerMemoryMB = 500;
 
-  // GC occasionally gets a chance to clear this amount of memory
-  // so the workers memory doesnt need to be so tight.
-  const estimatedWorkerFluctuationMB = 150;
+  // we take a factor of the total because not all 3 subprocess
+  // consume their max theoretical memory at the same time.
+  // 0.7 is an eyeballed factor that seems to work well.
+  const averageWorkerMemoryMB = 0.7 * maxWorkerMemoryMB;
 
-  // leave 3GB for the OS and other external processes
-  const reservedMemoryMB = 3000;
+  // leave some memory for the OS and other external processes
+  const reservedMemoryMB = 2000;
 
   // our processes don't take up much CPU so we allow for a large factor.
-  const cpuScaleFactor = 10;
+  const cpuScaleFactor = 15;
 
-  const byMemory = Math.floor((totalMemoryMB - reservedMemoryMB) / (observedWorkerMemoryMB - estimatedWorkerFluctuationMB));
-  const byCpu = cpuScaleFactor * totalCores;
+  const byMemory = Math.floor((totalMachineMemoryMB - reservedMemoryMB) / (averageWorkerMemoryMB));
+  const byCpu = cpuScaleFactor * totalMachineCores;
 
   const maxWorkers = Math.min(byMemory, byCpu);
   console.log(`[integ.jest.config] calculated maxWorkers: ${maxWorkers}`)
   return maxWorkers;
-
 }
