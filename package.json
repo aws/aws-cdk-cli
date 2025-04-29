@@ -45,11 +45,6 @@
     "ts-node": "^10.9.2",
     "typescript": "5.6"
   },
-  "resolutions": {
-    "@jest/environment": "30.0.0-alpha.7",
-    "@jest/types": "30.0.0-alpha.7",
-    "jest-environment-node": "30.0.0-alpha.7"
-  },
   "engines": {
     "node": ">= 14.15.0"
   },
@@ -65,6 +60,7 @@
     "packages": [
       "packages/@aws-cdk/cloud-assembly-schema",
       "packages/@aws-cdk/cloudformation-diff",
+      "packages/@aws-cdk/yarn-cling",
       "packages/@aws-cdk/user-input-gen",
       "packages/@aws-cdk/node-bundle",
       "packages/@aws-cdk/cli-plugin-contract",
@@ -89,6 +85,7 @@
     "projects": [
       "<rootDir>/packages/@aws-cdk/cloud-assembly-schema",
       "<rootDir>/packages/@aws-cdk/cloudformation-diff",
+      "<rootDir>/packages/@aws-cdk/yarn-cling",
       "<rootDir>/packages/@aws-cdk/user-input-gen",
       "<rootDir>/packages/@aws-cdk/node-bundle",
       "<rootDir>/packages/@aws-cdk/cli-plugin-contract",

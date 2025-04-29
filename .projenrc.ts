@@ -271,15 +271,6 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
-// This is necessary to make Symbol.dispose and Symbol.asyncDispose accessible
-// in Jest worker processes. It will complain about incompatibility during install
-// but work in practice all the same.
-repoProject.package.addPackageResolutions(
-  'jest-environment-node@30.0.0-alpha.7',
-  '@jest/environment@30.0.0-alpha.7',
-  '@jest/types@30.0.0-alpha.7',
-);
-
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 
@@ -506,6 +497,29 @@ const cxApi = overrideEslint(
   }),
 );
 */
+
+//////////////////////////////////////////////////////////////////////
+
+const yarnCling = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/yarn-cling',
+    description: 'Tool for generating npm-shrinkwrap from yarn.lock',
+    srcdir: 'lib',
+    deps: ['@yarnpkg/lockfile', 'semver'],
+    devDeps: ['@types/semver', '@types/yarnpkg__lockfile', 'fast-check'],
+    minNodeVersion: '18',
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+  }),
+);
+yarnCling.testTask.prependExec('ln -sf ../../cdk test/test-fixture/jsii/node_modules/');
 
 //////////////////////////////////////////////////////////////////////
 
@@ -1700,6 +1714,7 @@ const cliInteg = configureProject(
       'node-pty',
     ],
     devDeps: [
+      yarnCling,
       '@types/semver@^7',
       '@types/yargs@^15',
       '@types/fs-extra@^9',
@@ -1742,6 +1757,9 @@ for (const compiledDir of compiledDirs) {
 }
 cliInteg.gitignore.addPatterns('!resources/**/*.js');
 cliInteg.npmignore?.addPatterns('!resources/**/*');
+
+cliInteg.postCompileTask.exec('yarn-cling');
+cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 
 //////////////////////////////////////////////////////////////////////
 
