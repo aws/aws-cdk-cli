@@ -3,10 +3,10 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 ['app', 'sample-app'].forEach(template => {
   integTest(`init go ${template}`, withTemporaryDirectory(withPackages(async (context) => {
     const isCanary = !!process.env.IS_CANARY;
-    context.packages.assertJsiiPackagesAvailable();
+    context.library.assertJsiiPackagesAvailable();
 
     const shell = ShellHelper.fromContext(context);
-    await context.packages.makeCliAvailable();
+    await context.cli.makeCliAvailable();
 
     await shell.shell(['cdk', 'init', '-l', 'go', template]);
 

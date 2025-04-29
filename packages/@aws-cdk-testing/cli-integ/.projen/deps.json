@@ -39,7 +39,7 @@
     },
     {
       "name": "@types/yargs",
-      "version": "^15",
+      "version": "^16",
       "type": "build"
     },
     {
@@ -278,7 +278,7 @@
     },
     {
       "name": "yargs",
-      "version": "^17",
+      "version": "^16",
       "type": "runtime"
     }
   ],

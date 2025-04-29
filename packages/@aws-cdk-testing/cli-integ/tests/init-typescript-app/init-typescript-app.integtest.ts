@@ -7,7 +7,7 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
 ['app', 'sample-app'].forEach(template => {
   integTest(`typescript init ${template}`, withTemporaryDirectory(withPackages(async (context) => {
     const shell = ShellHelper.fromContext(context);
-    await context.packages.makeCliAvailable();
+    await context.cli.makeCliAvailable();
 
     await shell.shell(['cdk', 'init', '-l', 'typescript', template]);
 
@@ -31,7 +31,7 @@ const TYPESCRIPT_VERSIONS = typescriptVersionsYoungerThanDaysSync(TYPESCRIPT_VER
 TYPESCRIPT_VERSIONS.forEach(tsVersion => {
   integTest(`typescript ${tsVersion} init app`, withTemporaryDirectory(withPackages(async (context) => {
     const shell = ShellHelper.fromContext(context);
-    await context.packages.makeCliAvailable();
+    await context.cli.makeCliAvailable();
 
     await shell.shell(['node', '--version']);
     await shell.shell(['npm', '--version']);

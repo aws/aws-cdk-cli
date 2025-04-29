@@ -47,7 +47,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^16",
     "@types/semver": "^7",
-    "@types/yargs": "^15",
+    "@types/yargs": "^16",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "commit-and-tag-version": "^12",
@@ -99,7 +99,7 @@
     "ts-jest": "^29",
     "ts-mock-imports": "^1",
     "yaml": "1",
-    "yargs": "^17"
+    "yargs": "^16"
   },
   "keywords": [
     "aws",

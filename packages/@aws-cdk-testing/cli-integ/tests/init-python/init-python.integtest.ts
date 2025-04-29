@@ -3,10 +3,10 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 
 ['app', 'sample-app'].forEach(template => {
   integTest(`init python ${template}`, withTemporaryDirectory(withPackages(async (context) => {
-    context.packages.assertJsiiPackagesAvailable();
+    context.library.assertJsiiPackagesAvailable();
 
     const shell = ShellHelper.fromContext(context);
-    await context.packages.makeCliAvailable();
+    await context.cli.makeCliAvailable();
 
     await shell.shell(['cdk', 'init', '-l', 'python', template]);
     const venvPath = path.resolve(context.integTestDir, '.venv');
