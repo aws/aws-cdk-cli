@@ -14,16 +14,12 @@ import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/ap
 import {
   ambiguousMovements,
   findResourceMovements,
+  fromManifestAndSkipFile,
   resourceMappings,
   ToolkitError,
 } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
-import {
-  SkipFile,
-  ManifestSkipList,
-  UnionSkipList,
-} from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/skip';
 import { PermissionChangeType } from '../../../@aws-cdk/tmp-toolkit-helpers/src/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -1233,21 +1229,16 @@ export class CdkToolkit {
     // Example: resource X was moved from Stack A to Stack B. If we only select Stack A,
     // we will only see a deletion of resource X, but not the creation of resource X in Stack B.
     const stacks = await this.selectStacksForList([]);
-    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider);
+    const assembly = await this.assembly();
+    const skipList = fromManifestAndSkipFile(assembly.assembly.manifest, options.skipFile);
+    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider, skipList);
     const ambiguous = ambiguousMovements(movements);
 
     if (ambiguous.length === 0) {
       // Now we can filter the stacks to only include the ones that are relevant for the user.
       const patterns = options.selector.allTopLevel ? [] : options.selector.patterns;
       const filteredStacks = await this.selectStacksForList(patterns);
-
-      const assembly = await this.assembly();
-      const skipList = new UnionSkipList([
-        new ManifestSkipList(assembly.assembly.manifest),
-        new SkipFile(options.skipFile),
-      ]);
-
-      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts, skipList);
+      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts);
       const typedMappings = selectedMappings.map(m => m.toTypedMapping());
       formatTypedMappings(process.stdout, typedMappings);
     } else {
@@ -1950,11 +1941,16 @@ export interface RefactorOptions {
   selector: StackSelector;
 
   /**
-   * The absolute path to a file that contains a list of
-   * resources to skip during the refactor. The file should
-   * be in JSON format and contain an array of _destination_
-   * logical IDs, that is, the logical IDs of the resources
-   * as they would be after the refactor.
+   * The absolute path to a file that contains a list of resources to
+   * skip during the refactor. The file should be in JSON format and
+   * contain an array of _destination_ locations that should be skipped,
+   * i.e., the location to which a resource would be moved if the
+   * refactor were to happen.
+   *
+   * The format of the locations in the file can be either:
+   *
+   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
+   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   skipFile?: string;
 }

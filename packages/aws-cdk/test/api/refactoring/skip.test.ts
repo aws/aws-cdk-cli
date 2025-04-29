@@ -1,13 +1,49 @@
 import * as fs from 'node:fs';
 import {
   ManifestSkipList,
+  NeverSkipList,
   SkipFile,
+  AlwaysSkipList,
   UnionSkipList,
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/skip';
+} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
 import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
+import {
+  CloudFormationStack,
+  ResourceLocation,
+} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
+
+const environment = {
+  name: 'prod',
+  account: '123456789012',
+  region: 'us-east-1',
+};
+
+const stack1: CloudFormationStack = {
+  stackName: 'Stack1',
+  environment,
+  template: {},
+};
+const stack2: CloudFormationStack = {
+  stackName: 'Stack2',
+  environment,
+  template: {
+    Resources: {
+      Resource3: {
+        Type: 'AWS::S3::Bucket',
+        Metadata: {
+          'aws:cdk:path': 'Stack2/Resource3',
+        },
+      }
+    }
+  },
+};
+
+const resource1 = new ResourceLocation(stack1, 'Resource1');
+const resource2 = new ResourceLocation(stack2, 'Resource2');
+const resource3 = new ResourceLocation(stack2, 'Resource3');
 
 describe('ManifestSkipList', () => {
-  test('returns resource locations marked with SKIP_REFACTOR in the manifest', () => {
+  test('locations marked with SKIP_REFACTOR in the manifest are skipped', () => {
     const manifest = {
       artifacts: {
         Stack1: {
@@ -40,19 +76,13 @@ describe('ManifestSkipList', () => {
     };
 
     const skipList = new ManifestSkipList(manifest as any);
-    expect(skipList.resourceLocations).toEqual([
-      {
-        StackName: 'Stack1',
-        LogicalResourceId: 'Resource1',
-      },
-      {
-        StackName: 'Stack2',
-        LogicalResourceId: 'Resource2',
-      },
-    ]);
+
+    expect(skipList.isSkipped(resource1)).toBe(true);
+    expect(skipList.isSkipped(resource2)).toBe(true);
+    expect(skipList.isSkipped(resource3)).toBe(false);
   });
 
-  test('returns an empty array if no SKIP_REFACTOR entries exist', () => {
+  test('nothing is skipped if no SKIP_REFACTOR entries exist', () => {
     const manifest = {
       artifacts: {
         Stack1: {
@@ -65,32 +95,27 @@ describe('ManifestSkipList', () => {
     };
 
     const skipList = new ManifestSkipList(manifest as any);
-    expect(skipList.resourceLocations).toEqual([]);
+    expect(skipList.isSkipped(resource1)).toBe(false);
   });
 });
 
 describe('SkipFile', () => {
-  test('returns resource locations from a valid JSON file', () => {
+  test('valid resources on a valid list are skipped', () => {
     const filePath = '/path/to/skip-list.json';
-    const fileContent = JSON.stringify(['Stack1.Resource1', 'Stack2.Resource2']);
+    const fileContent = JSON.stringify(['Stack1.Resource1', 'Stack2/Resource3']);
     jest.spyOn(fs, 'readFileSync').mockReturnValue(fileContent);
 
     const skipList = new SkipFile(filePath);
-    expect(skipList.resourceLocations).toEqual([
-      {
-        StackName: 'Stack1',
-        LogicalResourceId: 'Resource1',
-      },
-      {
-        StackName: 'Stack2',
-        LogicalResourceId: 'Resource2',
-      },
-    ]);
+    expect(skipList.isSkipped(resource1)).toBe(true);
+    expect(skipList.isSkipped(resource2)).toBe(false);
+    expect(skipList.isSkipped(resource3)).toBe(true);
   });
 
-  test('returns an empty array if no file path is provided', () => {
+  test('nothing is skipped if no file path is provided', () => {
     const skipList = new SkipFile();
-    expect(skipList.resourceLocations).toEqual([]);
+    expect(skipList.isSkipped(resource1)).toBe(false);
+    expect(skipList.isSkipped(resource2)).toBe(false);
+    expect(skipList.isSkipped(resource3)).toBe(false);
   });
 
   test('throws an error if the content is not an array', () => {
@@ -98,8 +123,7 @@ describe('SkipFile', () => {
     const fileContent = JSON.stringify({ spuriousKey: ['Stack1.Resource1', 'Stack2.Resource2'] });
     jest.spyOn(fs, 'readFileSync').mockReturnValue(fileContent);
 
-    const skipList = new SkipFile(filePath);
-    expect(() => skipList.resourceLocations).toThrow('The content of a skip file must be a JSON array of strings');
+    expect(() => new SkipFile(filePath)).toThrow('The content of a skip file must be a JSON array of strings');
   });
 
   test('throws an error if the content is an array but not of strings', () => {
@@ -107,66 +131,32 @@ describe('SkipFile', () => {
     const fileContent = JSON.stringify([1, 2, 3]);
     jest.spyOn(fs, 'readFileSync').mockReturnValue(fileContent);
 
-    const skipList = new SkipFile(filePath);
-    expect(() => skipList.resourceLocations).toThrow('The content of a skip file must be a JSON array of strings');
+    expect(() => new SkipFile(filePath)).toThrow('The content of a skip file must be a JSON array of strings');
   });
 
   test('throws an error if the some entries are not valid resource locations', () => {
     const filePath = '/path/to/skip-list.json';
-    const fileContent = JSON.stringify(['Stack1.Resource1', 'InvalidResourceLocation']);
+    const fileContent = JSON.stringify(['Stack1.Resource1', 'Invalid-Resource-Location']);
     jest.spyOn(fs, 'readFileSync').mockReturnValue(fileContent);
 
-    const skipList = new SkipFile(filePath);
-    expect(() => skipList.resourceLocations).toThrow(
-      'Invalid resource location format: InvalidResourceLocation. Expected format: stackName.logicalId',
-    );
+    expect(() => new SkipFile(filePath)).toThrow(/Invalid resource location format: Invalid-Resource-Location/);
   });
 });
 
 describe('UnionSkipList', () => {
-  test('combines resource IDs from multiple skip lists', () => {
-    const skipList1 = {
-      resourceIds: ['Resource1', 'Resource2'],
-      resourceLocations: [
-        {
-          StackName: 'Stack1',
-          LogicalResourceId: 'Resource1',
-        },
-        {
-          StackName: 'Stack2',
-          LogicalResourceId: 'Resource2',
-        },
-      ],
-    };
-    const skipList2 = {
-      resourceIds: ['Resource3'],
-      resourceLocations: [
-        {
-          StackName: 'Stack3',
-          LogicalResourceId: 'Resource3',
-        },
-      ],
-    };
+  test('skips a resource if at least one underlying list skips', () => {
+    const skipList1 = new AlwaysSkipList();
+    const skipList2 = new NeverSkipList();
 
     const unionSkipList = new UnionSkipList([skipList1, skipList2]);
-    expect(unionSkipList.resourceLocations).toEqual([
-      {
-        StackName: 'Stack1',
-        LogicalResourceId: 'Resource1',
-      },
-      {
-        StackName: 'Stack2',
-        LogicalResourceId: 'Resource2',
-      },
-      {
-        StackName: 'Stack3',
-        LogicalResourceId: 'Resource3',
-      },
-    ]);
+    expect(unionSkipList.isSkipped(resource1)).toBe(true);
   });
 
-  test('returns an empty array if no skip lists are provided', () => {
-    const unionSkipList = new UnionSkipList([]);
-    expect(unionSkipList.resourceLocations).toEqual([]);
+  test('does not skip a resource if all underlying lists do not skip', () => {
+    const skipList1 = new NeverSkipList();
+    const skipList2 = new NeverSkipList();
+
+    const unionSkipList = new UnionSkipList([skipList1, skipList2]);
+    expect(unionSkipList.isSkipped(resource1)).toBe(false);
   });
 });

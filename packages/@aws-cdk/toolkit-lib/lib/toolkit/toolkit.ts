@@ -9,7 +9,6 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import type { DeployResult, DestroyResult, RollbackResult } from './types';
-import { SkipFile, ManifestSkipList, UnionSkipList } from '../../../tmp-toolkit-helpers/src/api/refactoring/skip';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -71,6 +70,7 @@ import {
   resourceMappings,
   WorkGraphBuilder,
   makeRequestHandler,
+  fromManifestAndSkipFile,
 } from '../api/shared-private';
 import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
 import { PermissionChangeType, PluginHost } from '../api/shared-public';
@@ -985,17 +985,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const sdkProvider = await this.sdkProvider('refactor');
-    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider);
+    const skipList = fromManifestAndSkipFile(assembly.cloudAssembly.manifest, options.skipFile);
+    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, skipList);
     const ambiguous = ambiguousMovements(movements);
     if (ambiguous.length === 0) {
       const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-
-      const skipList = new UnionSkipList([
-        new ManifestSkipList(assembly.cloudAssembly.manifest),
-        new SkipFile(options.skipFile),
-      ]);
-
-      const mappings = resourceMappings(movements, filteredStacks.stackArtifacts, skipList);
+      const mappings = resourceMappings(movements, filteredStacks.stackArtifacts);
       const typedMappings = mappings.map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,

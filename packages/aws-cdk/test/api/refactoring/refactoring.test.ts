@@ -10,16 +10,21 @@ import {
   ResourceMapping as CfnResourceMapping,
 } from '@aws-sdk/client-cloudformation';
 import {
+  AlwaysSkipList,
   ambiguousMovements,
   findResourceMovements,
-  ResourceLocation,
-  ResourceMapping,
   resourceMappings,
   resourceMovements,
 } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+import {
+  type CloudFormationStack,
+  ResourceLocation,
+  ResourceMapping,
+} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { expect } from '@jest/globals';
+import { SkipList } from '@aws-cdk/tmp-toolkit-helpers';
 
 const cloudFormationClient = mockCloudFormationClient;
 
@@ -1235,13 +1240,7 @@ describe('environment grouping', () => {
         }),
       });
 
-    const provider = new MockSdkProvider();
-    provider.returnsDefaultAccounts(environment.account);
-
-    const movements = await findResourceMovements([stack1, stack2], provider);
-    expect(ambiguousMovements(movements)).toEqual([]);
-
-    expect(resourceMappings(movements).map(toCfnMapping)).toEqual([
+    expect(await mappings([stack1, stack2])).toEqual([
       {
         Destination: {
           LogicalResourceId: 'Bucket',
@@ -1253,6 +1252,15 @@ describe('environment grouping', () => {
         },
       },
     ]);
+
+    expect(await mappings([stack1, stack2], new AlwaysSkipList())).toEqual([]);
+
+    async function mappings(stacks: CloudFormationStack[], skipList?: SkipList) {
+      const provider = new MockSdkProvider();
+      provider.returnsDefaultAccounts(environment.account);
+      const movements2 = await findResourceMovements(stacks, provider, skipList);
+      return resourceMappings(movements2).map(toCfnMapping);
+    }
   });
 
   test('does not produce cross-environment mappings', async () => {

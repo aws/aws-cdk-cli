@@ -3,18 +3,22 @@ import type { AssemblyManifest } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { ResourceLocation as CfnResourceLocation } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../toolkit-error';
+import type { ResourceLocation } from './cloudformation';
 
 export interface SkipList {
-  resourceLocations: CfnResourceLocation[];
+  isSkipped(location: ResourceLocation): boolean;
 }
 
 export class ManifestSkipList implements SkipList {
-  constructor(private readonly manifest: AssemblyManifest) {
+  private readonly skippedLocations: CfnResourceLocation[];
+
+  constructor(manifest: AssemblyManifest) {
+    this.skippedLocations = this.getSkippedLocations(manifest);
   }
 
-  get resourceLocations(): CfnResourceLocation[] {
+  private getSkippedLocations(asmManifest: AssemblyManifest): CfnResourceLocation[] {
     // First, we need to filter the artifacts to only include CloudFormation stacks
-    const stackManifests = Object.entries(this.manifest.artifacts ?? {}).filter(
+    const stackManifests = Object.entries(asmManifest.artifacts ?? {}).filter(
       ([_, manifest]) => manifest.type === ArtifactType.AWS_CLOUDFORMATION_STACK,
     );
 
@@ -38,34 +42,58 @@ export class ManifestSkipList implements SkipList {
     }
     return result;
   }
+
+  isSkipped(location: ResourceLocation): boolean {
+    return this.skippedLocations.some(
+      (loc) => loc.StackName === location.stack.stackName && loc.LogicalResourceId === location.logicalResourceId,
+    );
+  }
 }
 
 export class SkipFile implements SkipList {
-  constructor(private readonly filePath?: string) {
-  }
+  private readonly skippedLocations: CfnResourceLocation[];
+  private readonly skippedPaths: string[];
 
-  get resourceLocations(): CfnResourceLocation[] {
+  constructor(private readonly filePath?: string) {
+    this.skippedLocations = [];
+    this.skippedPaths = [];
+
     if (!this.filePath) {
-      return [];
+      return;
     }
+
     const parsedData = JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
     if (!isValidSkipFileContent(parsedData)) {
       throw new ToolkitError('The content of a skip file must be a JSON array of strings');
     }
 
-    const result: CfnResourceLocation[] = [];
+    const locationRegex = /^[A-Za-z0-9]+\.[A-Za-z0-9]+$/;
+    const pathRegex = /^\w*(\/.*)*$/;
+
     parsedData.forEach((item: string) => {
-      const parts = item.split('.');
-      if (parts.length !== 2) {
-        throw new ToolkitError(`Invalid resource location format: ${item}. Expected format: stackName.logicalId`);
+      if (locationRegex.test(item)) {
+        const [stackName, logicalId] = item.split('.');
+        this.skippedLocations.push({
+          StackName: stackName,
+          LogicalResourceId: logicalId,
+        });
+      } else if (pathRegex.test(item)) {
+        this.skippedPaths.push(item);
+      } else {
+        throw new ToolkitError(
+          `Invalid resource location format: ${item}. Expected formats: stackName.logicalId or a construct path`,
+        );
       }
-      const [stackName, logicalId] = parts;
-      result.push({
-        StackName: stackName,
-        LogicalResourceId: logicalId,
-      });
     });
-    return result;
+  }
+
+  isSkipped(location: ResourceLocation): boolean {
+    const containsLocation = this.skippedLocations.some((loc) => {
+      return loc.StackName === location.stack.stackName && loc.LogicalResourceId === location.logicalResourceId;
+    });
+
+    const containsPath = this.skippedPaths.some((path) => location.toPath() === path);
+    return containsLocation || containsPath;
   }
 }
 
@@ -77,7 +105,23 @@ export class UnionSkipList implements SkipList {
   constructor(private readonly skipLists: SkipList[]) {
   }
 
-  get resourceLocations(): CfnResourceLocation[] {
-    return this.skipLists.flatMap((skipList) => skipList.resourceLocations);
+  isSkipped(location: ResourceLocation): boolean {
+    return this.skipLists.some((skipList) => skipList.isSkipped(location));
   }
+}
+
+export class NeverSkipList implements SkipList {
+  isSkipped(_location: ResourceLocation): boolean {
+    return false;
+  }
+}
+
+export class AlwaysSkipList implements SkipList {
+  isSkipped(_location: ResourceLocation): boolean {
+    return true;
+  }
+}
+
+export function fromManifestAndSkipFile(manifest: AssemblyManifest, skipFile?: string): SkipList {
+  return new UnionSkipList([new ManifestSkipList(manifest), new SkipFile(skipFile)]);
 }

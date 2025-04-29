@@ -10,8 +10,11 @@ import type { SdkProvider } from '../aws-auth';
 import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
+import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
-import type { SkipList } from './skip';
+import { NeverSkipList, type SkipList } from './skip';
+
+export * from './skip';
 
 /**
  * Represents a set of possible movements of a resource from one location
@@ -31,56 +34,6 @@ export class AmbiguityError extends Error {
     function convert(locations: ResourceLocation[]): string[] {
       return locations.map((l) => l.toPath());
     }
-  }
-}
-
-/**
- * This class mirrors the `ResourceLocation` interface from CloudFormation,
- * but is richer, since it has a reference to the stack object, rather than
- * merely the stack name.
- */
-export class ResourceLocation {
-  constructor(public readonly stack: CloudFormationStack, public readonly logicalResourceId: string) {
-  }
-
-  public toPath(): string {
-    const stack = this.stack;
-    const resource = stack.template.Resources?.[this.logicalResourceId];
-    const result = resource?.Metadata?.['aws:cdk:path'];
-
-    if (result != null) {
-      return result;
-    }
-
-    // If the path is not available, we can use stack name and logical ID
-    return `${stack.stackName}.${this.logicalResourceId}`;
-  }
-
-  public getType(): string {
-    const resource = this.stack.template.Resources?.[this.logicalResourceId ?? ''];
-    return resource?.Type ?? 'Unknown';
-  }
-
-  public equalTo(other: ResourceLocation): boolean {
-    return this.logicalResourceId === other.logicalResourceId && this.stack.stackName === other.stack.stackName;
-  }
-}
-
-/**
- * A mapping between a source and a destination location.
- */
-export class ResourceMapping {
-  constructor(public readonly source: ResourceLocation, public readonly destination: ResourceLocation) {
-  }
-
-  public toTypedMapping(): TypedMapping {
-    return {
-      // the type is the same in both source and destination,
-      // so we can use either one
-      type: this.source.getType(),
-      sourcePath: this.source.toPath(),
-      destinationPath: this.destination.toPath(),
-    };
   }
 }
 
@@ -122,7 +75,6 @@ export function ambiguousMovements(movements: ResourceMovement[]) {
 export function resourceMappings(
   movements: ResourceMovement[],
   stacks?: CloudFormationStack[],
-  skipList?: SkipList,
 ): ResourceMapping[] {
   const stacksPredicate =
     stacks == null
@@ -134,22 +86,10 @@ export function resourceMappings(
         return stacks.some((stack) => stackNames.includes(stack.stackName));
       };
 
-  const logicalIdsPredicate =
-    skipList == null
-      ? () => true
-      : (m: ResourceMapping) => {
-        return !skipList!.resourceLocations.some(
-          (loc) =>
-            loc.StackName === m.destination.stack.stackName &&
-              loc.LogicalResourceId === m.destination.logicalResourceId,
-        );
-      };
-
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]))
-    .filter(stacksPredicate)
-    .filter(logicalIdsPredicate);
+    .filter(stacksPredicate);
 }
 
 function removeUnmovedResources(m: Record<string, ResourceMovement>): Record<string, ResourceMovement> {
@@ -212,6 +152,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
   sdkProvider: SdkProvider,
+  skipList: SkipList = new NeverSkipList(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
@@ -232,7 +173,11 @@ export async function findResourceMovements(
   for (const [_, [before, after]] of stackGroups) {
     result.push(...resourceMovements(before, after));
   }
-  return result;
+
+  return result.filter(mov => {
+    const after = mov[1];
+    return after.every(l => !skipList.isSkipped(l));
+  });
 }
 
 async function getDeployedStacks(

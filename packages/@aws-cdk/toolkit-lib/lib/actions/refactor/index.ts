@@ -16,11 +16,16 @@ export interface RefactorOptions {
   stacks?: StackSelector;
 
   /**
-   * The absolute path to a file that contains a list of
-   * resources to skip during the refactor. The file should
-   * be in JSON format and contain an array of _destination_
-   * logical IDs, that is, the logical IDs of the resources
-   * as they would be after the refactor.
+   * The absolute path to a file that contains a list of resources to
+   * skip during the refactor. The file should be in JSON format and
+   * contain an array of _destination_ locations that should be skipped,
+   * i.e., the location to which a resource would be moved if the
+   * refactor were to happen.
+   *
+   * The format of the locations in the file can be either:
+   *
+   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
+   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   skipFile?: string;
 }
