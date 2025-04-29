@@ -980,19 +980,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
     }
 
-    const strategy = options.stacks?.strategy ?? StackSelectionStrategy.ALL_STACKS;
-    if (strategy !== StackSelectionStrategy.ALL_STACKS) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_W8010.msg(
-        'Refactor does not yet support stack selection. Proceeding with the default behavior (considering all stacks).',
-      ));
-    }
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-
     const sdkProvider = await this.sdkProvider('refactor');
     const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider);
     const ambiguous = ambiguousMovements(movements);
     if (ambiguous.length === 0) {
-      const typedMappings = resourceMappings(movements).map(m => m.toTypedMapping());
+      const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+      const typedMappings = resourceMappings(movements, filteredStacks.stackArtifacts).map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
       }));

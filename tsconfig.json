@@ -37,6 +37,9 @@
       "path": "packages/@aws-cdk/cloudformation-diff"
     },
     {
+      "path": "packages/@aws-cdk/yarn-cling"
+    },
+    {
       "path": "packages/@aws-cdk/user-input-gen"
     },
     {

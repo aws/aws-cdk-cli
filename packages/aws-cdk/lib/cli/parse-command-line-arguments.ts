@@ -850,6 +850,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
+      yargs.option('dry-run', {
+        default: false,
+        type: 'boolean',
+        desc: 'Do not perform any changes, just show what would be done',
+      }),
+    )
     .version(helpers.cliVersion())
     .demandCommand(1, '')
     .recommendCommands()

@@ -39,7 +39,7 @@ export class AmbiguityError extends Error {
  * merely the stack name.
  */
 export class ResourceLocation {
-  constructor(readonly stack: CloudFormationStack, readonly logicalResourceId: string) {
+  constructor(public readonly stack: CloudFormationStack, public readonly logicalResourceId: string) {
   }
 
   public toPath(): string {
@@ -118,10 +118,20 @@ export function ambiguousMovements(movements: ResourceMovement[]) {
  * Converts a list of unambiguous resource movements into a list of resource mappings.
  *
  */
-export function resourceMappings(movements: ResourceMovement[]): ResourceMapping[] {
+export function resourceMappings(movements: ResourceMovement[], stacks?: CloudFormationStack[]): ResourceMapping[] {
+  const predicate = stacks == null
+    ? () => true
+    : (m: ResourceMapping) => {
+      // Any movement that involves one of the selected stacks (either moving from or to)
+      // is considered a candidate for refactoring.
+      const stackNames = [m.source.stack.stackName, m.destination.stack.stackName];
+      return stacks.some((stack) => stackNames.includes(stack.stackName));
+    };
+
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
-    .map(([pre, post]) => new ResourceMapping(pre[0], post[0]));
+    .map(([pre, post]) => new ResourceMapping(pre[0], post[0]))
+    .filter(predicate);
 }
 
 function removeUnmovedResources(

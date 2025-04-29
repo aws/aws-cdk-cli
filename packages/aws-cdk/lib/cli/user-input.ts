@@ -118,6 +118,11 @@ export interface UserInput {
    * Check your set-up for potential problems
    */
   readonly doctor?: {};
+
+  /**
+   * Moves resources between stacks or within the same stack
+   */
+  readonly refactor?: RefactorOptions;
 }
 
 /**
@@ -1347,4 +1352,23 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Moves resources between stacks or within the same stack
+ *
+ * @struct
+ */
+export interface RefactorOptions {
+  /**
+   * Do not perform any changes, just show what would be done
+   *
+   * @default - false
+   */
+  readonly dryRun?: boolean;
+
+  /**
+   * Positional argument for refactor
+   */
+  readonly STACKS?: Array<string>;
 }

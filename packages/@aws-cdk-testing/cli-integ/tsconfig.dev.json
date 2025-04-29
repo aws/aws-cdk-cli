@@ -38,5 +38,9 @@
     "node_modules",
     "resources/**/*"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../../@aws-cdk/yarn-cling"
+    }
+  ]
 }
