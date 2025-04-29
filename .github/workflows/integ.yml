@@ -131,15 +131,18 @@ jobs:
           INTEG_LOGS: logs
         run: bin/run-suite --maxWorkers=80 --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
-        run: |-
-          echo "## Test results" >> $GITHUB_STEP_SUMMARY
-          cat logs/md/*.md >> $GITHUB_STEP_SUMMARY
+        run: cat logs/md/*.md >> $GITHUB_STEP_SUMMARY
       - name: Upload logs
+        id: logupload
         uses: actions/upload-artifact@v4.4.0
         with:
-          name: logs
+          name: logs-${{ matrix.suite }}
           path: logs/
           overwrite: "true"
+      - name: Append artifact URL
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
     strategy:
       fail-fast: false
       matrix:
