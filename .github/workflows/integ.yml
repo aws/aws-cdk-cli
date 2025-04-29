@@ -129,7 +129,7 @@ jobs:
           RELEASE_TAG: latest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INTEG_LOGS: logs
-        run: bin/run-suite --maxWorkers=80 --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+        run: bin/run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
         run: |-
           echo "## Test results" >> $GITHUB_STEP_SUMMARY

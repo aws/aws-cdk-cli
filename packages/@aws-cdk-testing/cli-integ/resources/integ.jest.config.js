@@ -42,7 +42,7 @@ function maxWorkers() {
   const observedWorkerMemoryMB = 500;
 
   // GC occasionally gets a chance to clear this amount of memory
-  // so the worker memory fluctuates.
+  // so the workers memory doesnt need to be so tight.
   const estimatedWorkerFluctuationMB = 150;
 
   // leave 3GB for the OS and other external processes
