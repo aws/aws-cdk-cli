@@ -197,10 +197,6 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/region-info",
-      "type": "runtime"
-    },
-    {
       "name": "@aws-sdk/client-appsync",
       "version": "^3",
       "type": "runtime"
@@ -338,10 +334,6 @@
       "type": "runtime"
     },
     {
-      "name": "@smithy/util-stream",
-      "type": "runtime"
-    },
-    {
       "name": "@smithy/util-waiter",
       "type": "runtime"
     },
@@ -411,10 +403,6 @@
     {
       "name": "strip-ansi",
       "version": "^6",
-      "type": "runtime"
-    },
-    {
-      "name": "table",
       "type": "runtime"
     },
     {
