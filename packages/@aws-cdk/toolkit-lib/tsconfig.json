@@ -38,6 +38,9 @@
   "exclude": [],
   "references": [
     {
+      "path": "../cli-plugin-contract"
+    },
+    {
       "path": "../cloud-assembly-schema"
     },
     {
