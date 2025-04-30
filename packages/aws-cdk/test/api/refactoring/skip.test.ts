@@ -5,12 +5,12 @@ import {
   SkipFile,
   AlwaysSkipList,
   UnionSkipList,
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
 import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import {
   CloudFormationStack,
   ResourceLocation,
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
+} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/cloudformation';
 
 const environment = {
   name: 'prod',
