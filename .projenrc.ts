@@ -595,8 +595,6 @@ const cliPluginContract = configureProject(
 
 //////////////////////////////////////////////////////////////////////
 
-let CDK_ASSETS: '2' | '3' = ('3' as any);
-
 const cdkAssets = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -611,18 +609,14 @@ const cdkAssets = configureProject(
       'glob',
       'mime@^2',
       'yargs',
-      ...CDK_ASSETS === '2' ? [
-        'aws-sdk',
-      ] : [
-        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-        '@smithy/config-resolver',
-        '@smithy/node-config-provider',
-      ],
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@smithy/config-resolver',
+      '@smithy/node-config-provider',
     ],
     devDeps: [
       '@types/archiver',
@@ -633,13 +627,10 @@ const cdkAssets = configureProject(
       'jszip',
       '@types/mock-fs@^4',
       'mock-fs@^5',
-      ...CDK_ASSETS === '2' ? [
-      ] : [
-        '@smithy/types',
-        '@smithy/util-stream',
-        'aws-sdk-client-mock',
-        'aws-sdk-client-mock-jest',
-      ],
+      '@smithy/types',
+      '@smithy/util-stream',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
     ],
     tsconfigDev: {
       compilerOptions: {
@@ -781,6 +772,8 @@ const toolkitLib = configureProject(
     ],
     devDeps: [
       '@aws-cdk/aws-service-spec',
+      '@jest/globals',
+      '@microsoft/api-extractor',
       '@smithy/types',
       '@types/fs-extra',
       '@types/split2',
@@ -790,8 +783,9 @@ const toolkitLib = configureProject(
       'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
       'esbuild',
       'fast-check',
+      'nock',
       'typedoc',
-      '@microsoft/api-extractor',
+      'xml-js',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -806,10 +800,10 @@ const toolkitLib = configureProject(
       jestConfig: {
         coverageThreshold: {
           // this is very sad but we will get better
-          statements: 60,
-          branches: 70,
-          functions: 55,
-          lines: 60,
+          statements: 87,
+          branches: 83,
+          functions: 82,
+          lines: 87,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
         setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
@@ -896,6 +890,7 @@ toolkitLib.eslint?.addOverride({
   files: ['./test/**'],
   rules: {
     '@cdklabs/no-throw-default-error': 'off',
+    '@typescript-eslint/unbound-method': 'off',
   },
 });
 
@@ -1122,10 +1117,10 @@ const cli = configureProject(
           // We want to improve our test coverage
           // DO NOT LOWER THESE VALUES!
           // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 82,
-          branches: 74,
+          statements: 81,
+          branches: 76,
           functions: 87,
-          lines: 82,
+          lines: 81,
         },
         // We have many tests here that commonly time out
         testTimeout: 60_000,
