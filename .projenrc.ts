@@ -595,8 +595,6 @@ const cliPluginContract = configureProject(
 
 //////////////////////////////////////////////////////////////////////
 
-let CDK_ASSETS: '2' | '3' = ('3' as any);
-
 const cdkAssets = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -611,18 +609,14 @@ const cdkAssets = configureProject(
       'glob',
       'mime@^2',
       'yargs',
-      ...CDK_ASSETS === '2' ? [
-        'aws-sdk',
-      ] : [
-        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-        '@smithy/config-resolver',
-        '@smithy/node-config-provider',
-      ],
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@smithy/config-resolver',
+      '@smithy/node-config-provider',
     ],
     devDeps: [
       '@types/archiver',
@@ -633,13 +627,10 @@ const cdkAssets = configureProject(
       'jszip',
       '@types/mock-fs@^4',
       'mock-fs@^5',
-      ...CDK_ASSETS === '2' ? [
-      ] : [
-        '@smithy/types',
-        '@smithy/util-stream',
-        'aws-sdk-client-mock',
-        'aws-sdk-client-mock-jest',
-      ],
+      '@smithy/types',
+      '@smithy/util-stream',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
     ],
     tsconfigDev: {
       compilerOptions: {
