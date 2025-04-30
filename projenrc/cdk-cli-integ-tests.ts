@@ -422,18 +422,25 @@ export class CdkCliIntegTestsWorkflow extends Component {
         {
           name: 'Set workflow summary',
           run: [
-            'echo "## Test results" >> $GITHUB_STEP_SUMMARY',
             'cat logs/md/*.md >> $GITHUB_STEP_SUMMARY',
           ].join('\n'),
         },
         {
           name: 'Upload logs',
           uses: 'actions/upload-artifact@v4.4.0',
+          id: 'logupload',
           with: {
-            name: 'logs',
+            name: 'logs-${{ matrix.suite }}',
             path: 'logs/',
             overwrite: 'true',
           },
+        },
+        {
+          name: 'Append artifact URL',
+          run: [
+            'echo "" >> $GITHUB_STEP_SUMMARY',
+            'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
+          ].join('\n'),
         },
       ],
     });

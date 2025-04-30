@@ -9,11 +9,27 @@
       "type": "build"
     },
     {
+      "name": "@jest/environment",
+      "type": "build"
+    },
+    {
+      "name": "@jest/globals",
+      "type": "build"
+    },
+    {
+      "name": "@jest/types",
+      "type": "build"
+    },
+    {
       "name": "@microsoft/api-extractor",
       "type": "build"
     },
     {
       "name": "@smithy/types",
+      "type": "build"
+    },
+    {
+      "name": "@smithy/util-stream",
       "type": "build"
     },
     {
@@ -117,12 +133,21 @@
       "type": "build"
     },
     {
+      "name": "jest-environment-node",
+      "type": "build"
+    },
+    {
       "name": "jest-junit",
       "version": "^16",
       "type": "build"
     },
     {
       "name": "license-checker",
+      "type": "build"
+    },
+    {
+      "name": "nock",
+      "version": "13",
       "type": "build"
     },
     {
@@ -142,6 +167,14 @@
       "name": "typescript",
       "version": "5.6",
       "type": "build"
+    },
+    {
+      "name": "xml-js",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/cli-plugin-contract",
+      "type": "runtime"
     },
     {
       "name": "@aws-cdk/cloud-assembly-schema",
@@ -285,20 +318,11 @@
       "type": "runtime"
     },
     {
-      "name": "@smithy/util-stream",
-      "type": "runtime"
-    },
-    {
       "name": "@smithy/util-waiter",
       "type": "runtime"
     },
     {
       "name": "archiver",
-      "type": "runtime"
-    },
-    {
-      "name": "camelcase",
-      "version": "^6",
       "type": "runtime"
     },
     {
@@ -320,21 +344,12 @@
       "type": "runtime"
     },
     {
-      "name": "decamelize",
-      "version": "^5",
-      "type": "runtime"
-    },
-    {
       "name": "fs-extra",
       "version": "^9",
       "type": "runtime"
     },
     {
       "name": "glob",
-      "type": "runtime"
-    },
-    {
-      "name": "json-diff",
       "type": "runtime"
     },
     {
@@ -363,16 +378,6 @@
       "type": "runtime"
     },
     {
-      "name": "strip-ansi",
-      "version": "^6",
-      "type": "runtime"
-    },
-    {
-      "name": "table",
-      "version": "^6",
-      "type": "runtime"
-    },
-    {
       "name": "uuid",
       "type": "runtime"
     },
@@ -384,11 +389,6 @@
     {
       "name": "yaml",
       "version": "^1",
-      "type": "runtime"
-    },
-    {
-      "name": "yargs",
-      "version": "^15",
       "type": "runtime"
     }
   ],
