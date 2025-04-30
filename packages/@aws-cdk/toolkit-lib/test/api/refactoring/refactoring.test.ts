@@ -7,15 +7,9 @@ import type {
   ResourceLocation as CfnResourceLocation,
   ResourceMapping as CfnResourceMapping,
 } from '@aws-sdk/client-cloudformation';
-import {
-  GetTemplateCommand,
-  ListStacksCommand,
-} from '@aws-sdk/client-cloudformation';
+import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { expect } from '@jest/globals';
-import type {
-  ResourceLocation,
-  ResourceMapping,
-} from '../../../lib/api/refactoring';
+import type { SkipList } from '../../../lib/api/refactoring';
 import {
   AlwaysSkipList,
   ambiguousMovements,
@@ -23,15 +17,13 @@ import {
   resourceMappings,
   resourceMovements,
 } from '../../../lib/api/refactoring';
-import {
-  type CloudFormationStack,
+import type {
   ResourceLocation,
   ResourceMapping,
-} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/cloudformation';
+  CloudFormationStack,
+} from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
-import { expect } from '@jest/globals';
-import { SkipList } from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
 
 const cloudFormationClient = mockCloudFormationClient;
 

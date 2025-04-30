@@ -1,16 +1,16 @@
 import * as fs from 'node:fs';
+import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import {
   ManifestSkipList,
   NeverSkipList,
   SkipFile,
   AlwaysSkipList,
   UnionSkipList,
-} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
-import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
+} from '../../../lib/api/refactoring';
+import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
 import {
-  CloudFormationStack,
   ResourceLocation,
-} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/cloudformation';
+} from '../../../lib/api/refactoring/cloudformation';
 
 const environment = {
   name: 'prod',
@@ -33,8 +33,8 @@ const stack2: CloudFormationStack = {
         Metadata: {
           'aws:cdk:path': 'Stack2/Resource3',
         },
-      }
-    }
+      },
+    },
   },
 };
 
@@ -46,7 +46,7 @@ describe('ManifestSkipList', () => {
   test('locations marked with SKIP_REFACTOR in the manifest are skipped', () => {
     const manifest = {
       artifacts: {
-        Stack1: {
+        'Stack1': {
           type: ArtifactType.AWS_CLOUDFORMATION_STACK,
           metadata: {
             LogicalId1: [
@@ -55,7 +55,7 @@ describe('ManifestSkipList', () => {
             ],
           },
         },
-        Stack2: {
+        'Stack2': {
           type: ArtifactType.AWS_CLOUDFORMATION_STACK,
           metadata: {
             LogicalId2: [
