@@ -20,11 +20,11 @@ import {
   type CloudFormationStack,
   ResourceLocation,
   ResourceMapping,
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
+} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { expect } from '@jest/globals';
-import { SkipList } from '@aws-cdk/tmp-toolkit-helpers';
+import { SkipList } from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
 
 const cloudFormationClient = mockCloudFormationClient;
 

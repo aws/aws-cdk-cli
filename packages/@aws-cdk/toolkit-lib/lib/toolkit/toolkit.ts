@@ -48,7 +48,7 @@ import type { IIoHost, IoMessageLevel } from '../api/io';
 import type { IoHelper } from '../api/io/private';
 import { asIoHelper, asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
-import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, resourceMappings } from '../api/refactoring';
+import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndSkipFile, resourceMappings } from '../api/refactoring';
 import { ResourceMigrator } from '../api/resource-import';
 import type { AssemblyData, StackDetails, SuccessfulDeployStackResult, ToolkitAction } from '../api/shared-public';
 import { PermissionChangeType, PluginHost, ToolkitError } from '../api/shared-public';
