@@ -7,13 +7,15 @@ import { RequireApproval } from '../../lib/api/require-approval';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { MockSdk } from '../_helpers/mock-sdk';
+import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 
 beforeEach(() => {
   jest.restoreAllMocks();
+  restoreSdkMocksToDefault();
+  setDefaultSTSMocks();
   ioHost = new TestIoHost();
   ioHost.requireDeployApproval = RequireApproval.NEVER;
 

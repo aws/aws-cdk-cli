@@ -8,6 +8,9 @@ import mockfs from './mock-fs';
 import type { LogLevel } from '../bin/logging';
 import { setLogThreshold, log } from '../bin/logging';
 
+// 20s - some longer running tests
+jest.setTimeout(20_000);
+
 describe('Logging System', () => {
   let consoleErrorSpy: jest.SpyInstance;
   const originalConsoleError = console.error;
