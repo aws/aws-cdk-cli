@@ -1,6 +1,5 @@
 import * as path from 'path';
 import { format } from 'util';
-import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -11,15 +10,8 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
-import {
-  ambiguousMovements,
-  findResourceMovements,
-  fromManifestAndSkipFile,
-  resourceMappings,
-  ToolkitError,
-} from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { AmbiguityError } from '../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -1219,32 +1211,23 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    if (!options.dryRun) {
-      info('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+    const tk = new Toolkit();
+
+    const casmSource = await tk.fromAssemblyBuilder(() => this.assembly());
+    try {
+      await tk.refactor(casmSource, {
+        dryRun: options.dryRun,
+        skipFile: options.skipFile,
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+        },
+      });
+    } catch (e) {
+      error((e as Error).message);
       return 1;
     }
 
-    // Initially, we select all stacks to find all resource movements.
-    // Otherwise, we might miss some resources that are not in the selected stacks.
-    // Example: resource X was moved from Stack A to Stack B. If we only select Stack A,
-    // we will only see a deletion of resource X, but not the creation of resource X in Stack B.
-    const stacks = await this.selectStacksForList([]);
-    const assembly = await this.assembly();
-    const skipList = fromManifestAndSkipFile(assembly.assembly.manifest, options.skipFile);
-    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider, skipList);
-    const ambiguous = ambiguousMovements(movements);
-
-    if (ambiguous.length === 0) {
-      // Now we can filter the stacks to only include the ones that are relevant for the user.
-      const patterns = options.selector.allTopLevel ? [] : options.selector.patterns;
-      const filteredStacks = await this.selectStacksForList(patterns);
-      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts);
-      const typedMappings = selectedMappings.map(m => m.toTypedMapping());
-      formatTypedMappings(process.stdout, typedMappings);
-    } else {
-      const e = new AmbiguityError(ambiguous);
-      formatAmbiguousMappings(process.stdout, e.paths());
-    }
     return 0;
   }
 
