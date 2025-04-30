@@ -145,6 +145,7 @@ jobs:
       matrix:
         suite:
           - cli-integ-tests
+          - toolkit-lib-integ-tests
           - init-csharp
           - init-fsharp
           - init-go

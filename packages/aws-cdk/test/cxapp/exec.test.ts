@@ -226,7 +226,7 @@ test('cli throws when the `build` script fails', async () => {
   });
 
   // WHEN
-  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new Error('Subprocess exited with error 127'));
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toThrow(/Subprocess exited with error 127/);
 }, TEN_SECOND_TIMEOUT);
 
 test('cli does not throw when the `build` script succeeds', async () => {

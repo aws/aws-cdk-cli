@@ -286,6 +286,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           domain: {
             suite: [
               'cli-integ-tests',
+              'toolkit-lib-integ-tests',
               'init-csharp',
               'init-fsharp',
               'init-go',

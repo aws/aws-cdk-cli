@@ -10,11 +10,11 @@ import { addToShellPath } from '../shell';
  */
 export class RunnerCliRepoSource implements IRunnerSource<ITestCliSource> {
   public readonly sourceDescription: string;
-  private readonly cliPath: string;
+  private readonly cliBinPath: string;
 
   constructor(private readonly repoRoot: string) {
-    this.cliPath = path.join(this.repoRoot, 'packages', 'aws-cdk', 'bin');
-    this.sourceDescription = this.cliPath;
+    this.cliBinPath = path.join(this.repoRoot, 'packages', 'aws-cdk', 'bin');
+    this.sourceDescription = this.cliBinPath;
   }
 
   public async runnerPrepare(): Promise<IPreparedRunnerSource<ITestCliSource>> {
@@ -22,11 +22,13 @@ export class RunnerCliRepoSource implements IRunnerSource<ITestCliSource> {
       throw new Error(`${this.repoRoot}: does not look like the repository root`);
     }
 
+    const pj = JSON.parse(await fs.readFile(path.join(this.cliBinPath, '..', 'package.json'), 'utf-8'));
+
     return {
-      version: '*',
+      version: pj.version,
       dispose: () => Promise.resolve(),
       serialize: () => {
-        return [TestCliRepoSource, [this.cliPath]];
+        return [TestCliRepoSource, [this.cliBinPath]];
       },
     };
   }
