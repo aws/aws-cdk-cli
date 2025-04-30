@@ -1,5 +1,5 @@
-import { type IIoHost, type IoMessage, type IoMessageLevel, type IoRequest } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
-import { asIoHelper, isMessageRelevantForLevel, type IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { type IIoHost, type IoMessage, type IoMessageLevel, type IoRequest } from '../../../@aws-cdk/toolkit-lib/lib/api/io';
+import { asIoHelper, isMessageRelevantForLevel, type IoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 
 /**
  * A test implementation of IIoHost that does nothing but can be spied on.

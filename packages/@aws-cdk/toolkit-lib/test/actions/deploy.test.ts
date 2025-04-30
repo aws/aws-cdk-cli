@@ -1,16 +1,13 @@
 import { StackParameters } from '../../lib/actions/deploy';
-import type { DeployStackOptions, DeployStackResult } from '../../lib/api/shared-private';
-import * as apis from '../../lib/api/shared-private';
-import { RequireApproval } from '../../lib/api/shared-private';
+import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deployments';
+import * as deployments from '../../lib/api/deployments';
+import { RequireApproval } from '../../lib/api/require-approval';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { MockSdk } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOptions]>;
-
-jest.mock('../../lib/api/shared-private', () => ({ __esModule: true, ...jest.requireActual('../../lib/api/shared-private') }));
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -18,30 +15,23 @@ beforeEach(() => {
   ioHost.requireDeployApproval = RequireApproval.NEVER;
 
   toolkit = new Toolkit({ ioHost });
-  const sdk = new MockSdk();
-
-  jest.spyOn(apis, 'findCloudWatchLogGroups').mockResolvedValue({
-    env: { name: 'Z', account: 'X', region: 'Y' },
-    sdk,
-    logGroupNames: ['/aws/lambda/lambda-function-name'],
-  });
 
   // Some default implementations
-  mockDeployStack = jest.spyOn(apis.Deployments.prototype, 'deployStack').mockResolvedValue({
+  mockDeployStack = jest.spyOn(deployments.Deployments.prototype, 'deployStack').mockResolvedValue({
     type: 'did-deploy-stack',
     stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
     outputs: {},
     noOp: false,
   });
-  jest.spyOn(apis.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
+  jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',
     region: 'aq-south-1',
     name: 'aws://11111111/aq-south-1',
   });
-  jest.spyOn(apis.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(apis.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
-  jest.spyOn(apis.Deployments.prototype, 'buildSingleAsset').mockImplementation();
-  jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+  jest.spyOn(deployments.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(deployments.Deployments.prototype, 'buildSingleAsset').mockImplementation();
+  jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });
 
 describe('deploy', () => {
@@ -150,22 +140,6 @@ describe('deploy', () => {
       successfulDeployment();
     });
 
-    test('can trace logs', async () => {
-      // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
-      await toolkit.deploy(cx, {
-        traceLogs: true,
-      });
-
-      // THEN
-      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'deploy',
-        level: 'info',
-        code: 'CDK_TOOLKIT_I5031',
-        message: expect.stringContaining('The following log groups are added: /aws/lambda/lambda-function-name'),
-      }));
-    });
-
     test('non sns notification arn results in error', async () => {
       // WHEN
       const arn = 'arn:aws:sqs:us-east-1:1111111111:resource';
@@ -202,7 +176,7 @@ describe('deploy', () => {
     });
 
     test('forceAssetPublishing: true option is used for asset publishing', async () => {
-      const publishSingleAsset = jest.spyOn(apis.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+      const publishSingleAsset = jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {

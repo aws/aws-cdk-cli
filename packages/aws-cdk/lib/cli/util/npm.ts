@@ -1,6 +1,6 @@
 import { exec as _exec } from 'child_process';
 import { promisify } from 'util';
-import { ToolkitError } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/api';
 
 const exec = promisify(_exec);
 

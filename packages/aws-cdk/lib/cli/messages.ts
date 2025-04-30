@@ -3,7 +3,7 @@
 // Once we have complete the repo split, we will create a temporary, private library package
 // for all code that is shared between CLI and toolkit. This is where this file will then live.
 import type { IoMessageCode, IoMessageLevel } from './io-host';
-import type { ActionLessMessage } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { ActionLessMessage } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import type { IoMessageCodeCategory } from '../logging';
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;

@@ -9,6 +9,7 @@
     "inlineSources": true,
     "lib": [
       "es2019",
+      "esnext.disposable",
       "es2022.error"
     ],
     "module": "commonjs",
@@ -58,9 +59,6 @@
     },
     {
       "path": "../@aws-cdk/cli-plugin-contract"
-    },
-    {
-      "path": "../@aws-cdk/tmp-toolkit-helpers"
     },
     {
       "path": "../@aws-cdk/toolkit-lib"

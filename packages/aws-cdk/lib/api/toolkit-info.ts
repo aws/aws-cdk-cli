@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/toolkit-info';
+export * from '../../../@aws-cdk/toolkit-lib/lib/api/toolkit-info';

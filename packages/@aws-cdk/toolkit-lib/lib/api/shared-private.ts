@@ -1,10 +1,18 @@
 /* eslint-disable import/no-restricted-paths */
 
-export * from '../../../tmp-toolkit-helpers/src/api/io/private';
-export * from '../../../tmp-toolkit-helpers/src/private';
-export * from '../../../tmp-toolkit-helpers/src/api';
-export * as cfnApi from '../../../tmp-toolkit-helpers/src/api/deployments/cfn-api';
-export { makeRequestHandler } from '../../../tmp-toolkit-helpers/src/api/aws-auth/awscli-compatible';
+// Polyfills first
+import '../private/dispose-polyfill';
+
+// private code
+export * from '../private';
+
+// private apis
+export * from './io/private';
+export * from './aws-auth/private';
+export * from './cloud-assembly/private';
+
+export * as cfnApi from './deployments/cfn-api';
+export { makeRequestHandler } from './aws-auth/awscli-compatible';
 
 // Context Providers
-export * as contextproviders from '../../../tmp-toolkit-helpers/src/context-providers';
+export * as contextproviders from '../context-providers';

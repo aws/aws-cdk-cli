@@ -30,8 +30,8 @@ import { TestIoHost } from '../../_helpers/io-host';
 import { Deployments } from '../../../lib/api/deployments';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 
-jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack');
-jest.mock('../../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/asset-publishing');
+jest.mock('../../../../@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack');
+jest.mock('../../../../@aws-cdk/toolkit-lib/lib/api/deployments/asset-publishing');
 
 let sdkProvider: MockSdkProvider;
 let sdk: MockSdk;

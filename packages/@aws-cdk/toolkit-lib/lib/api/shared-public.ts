@@ -4,22 +4,25 @@ export {
   ToolkitError,
   AuthenticationError,
   AssemblyError,
-} from '../../../tmp-toolkit-helpers/src/api/toolkit-error';
+  ContextProviderError,
+} from './toolkit-error';
 
 export {
   ExpandStackSelection,
   StackSelectionStrategy,
   StackSelector,
-} from '../../../tmp-toolkit-helpers/src/api/cloud-assembly/stack-selector';
+} from './cloud-assembly/stack-selector';
+
+export { ResourceMetadata } from './resource-metadata';
 
 export type {
   IoMessageLevel,
   IoMessageCode,
   IoMessage,
   IoRequest,
-} from '../../../tmp-toolkit-helpers/src/api/io/io-message';
-export type { IIoHost } from '../../../tmp-toolkit-helpers/src/api/io/io-host';
-export type { ToolkitAction } from '../../../tmp-toolkit-helpers/src/api/io/toolkit-action';
-export { PluginHost } from '../../../tmp-toolkit-helpers/src/api/plugin/plugin';
+} from './io/io-message';
+export type { IIoHost } from './io/io-host';
+export type { ToolkitAction } from './io/toolkit-action';
+export { PluginHost, ContextProviderPlugin } from './plugin';
 
-export * from '../../../tmp-toolkit-helpers/src/payloads';
+export * from '../payloads';

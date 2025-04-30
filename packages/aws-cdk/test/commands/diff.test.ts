@@ -7,7 +7,7 @@ import { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
-import type { IoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import type { IoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { Deployments } from '../../lib/api/deployments';
 import { cfnApi } from '../../lib/api-private';
 import { NestedStackTemplates } from '../../lib/api/cloudformation';

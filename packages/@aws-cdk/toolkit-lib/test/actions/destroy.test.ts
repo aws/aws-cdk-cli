@@ -1,4 +1,6 @@
 import * as chalk from 'chalk';
+import * as deployments from '../../lib/api/deployments';
+import type { DestroyStackOptions } from '../../lib/api/deployments';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import type { RollbackResult } from '../../lib/toolkit';
 import { Toolkit } from '../../lib/toolkit';
@@ -8,22 +10,14 @@ const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
 jest.spyOn(toolkit, 'rollback').mockResolvedValue({ stacks: [] } satisfies RollbackResult);
 
-let mockDestroyStack = jest.fn();
-
-jest.mock('../../lib/api/shared-private', () => {
-  return {
-    ...jest.requireActual('../../lib/api/shared-private'),
-    Deployments: jest.fn().mockImplementation(() => ({
-      destroyStack: mockDestroyStack,
-    })),
-  };
-});
+let mockDestroyStack: jest.SpyInstance<Promise<any>, [DestroyStackOptions]>;
 
 beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
   jest.clearAllMocks();
-  mockDestroyStack.mockResolvedValue({});
+
+  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({});
 });
 
 describe('destroy', () => {

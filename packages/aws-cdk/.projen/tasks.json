@@ -33,7 +33,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/tmp-toolkit-helpers ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib",
         "MAJOR": "2"
       },
       "steps": [
@@ -105,7 +105,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/node-bundle=exact @aws-cdk/tmp-toolkit-helpers=exact @aws-cdk/toolkit-lib=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=minimal @aws-cdk/cloudformation-diff=exact cdk-assets=major",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/node-bundle=exact @aws-cdk/toolkit-lib=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=minimal @aws-cdk/cloudformation-diff=exact cdk-assets=major",
           "receiveArgs": true
         }
       ]
@@ -169,7 +169,7 @@
       "description": "Prepare the project for compilation",
       "steps": [
         {
-          "exec": "ts-node --prefer-ts-exts scripts/user-input-gen.ts"
+          "exec": "ts-node -P tsconfig.dev.json --prefer-ts-exts scripts/user-input-gen.ts"
         },
         {
           "exec": "./generate.sh"
@@ -213,7 +213,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/tmp-toolkit-helpers ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib"
       },
       "steps": [
         {

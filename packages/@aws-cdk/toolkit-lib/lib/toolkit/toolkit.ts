@@ -16,7 +16,7 @@ import type {
   EnvironmentBootstrapResult,
 } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
+import { AssetBuildTime, HotswapMode, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
   createHotswapPropertyOverrides,
@@ -33,46 +33,29 @@ import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
+import { makeRequestHandler } from '../api/aws-auth/awscli-compatible';
+import type { SdkProviderServices } from '../api/aws-auth/private';
+import { SdkProvider } from '../api/aws-auth/private';
+import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
+import type { StackCollection } from '../api/cloud-assembly/stack-collection';
+import { Deployments } from '../api/deployments';
+import { DiffFormatter } from '../api/diff';
 import type { IIoHost, IoMessageLevel } from '../api/io';
-import { asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
-import type {
-  AssetBuildNode,
-  AssetPublishNode,
-  Concurrency,
-  IoHelper,
-  StackCollection,
-  StackNode,
-  SuccessfulDeployStackResult,
-  SdkProviderServices,
-} from '../api/shared-private';
-import {
-  SdkProvider,
-  AmbiguityError,
-  ambiguousMovements,
-  asIoHelper,
-  Bootstrapper,
-  CloudWatchLogEventMonitor,
-  DEFAULT_TOOLKIT_STACK_NAME,
-  Deployments,
-  DiffFormatter,
-  findResourceMovements,
-  findCloudWatchLogGroups,
-  formatAmbiguousMappings,
-  formatTypedMappings,
-  HotswapMode,
-  ResourceMigrator,
-  tagsForStack,
-  ToolkitError,
-  resourceMappings,
-  WorkGraphBuilder,
-  makeRequestHandler,
-} from '../api/shared-private';
-import type { AssemblyData, StackDetails, ToolkitAction } from '../api/shared-public';
-import { PermissionChangeType, PluginHost } from '../api/shared-public';
+import type { IoHelper } from '../api/io/private';
+import { asIoHelper, asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
+import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
+import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, resourceMappings } from '../api/refactoring';
+import { ResourceMigrator } from '../api/resource-import';
+import type { AssemblyData, StackDetails, SuccessfulDeployStackResult, ToolkitAction } from '../api/shared-public';
+import { PermissionChangeType, PluginHost, ToolkitError } from '../api/shared-public';
+import { tagsForStack } from '../api/tags';
+import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
+import type { Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/work-graph';
+import { WorkGraphBuilder } from '../api/work-graph';
 import {
   formatErrorMessage,
   formatTime,

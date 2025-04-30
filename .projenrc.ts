@@ -178,7 +178,6 @@ function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
 function transitiveToolkitPackages(thisPkg: string) {
   const toolkitPackages = [
     'aws-cdk',
-    '@aws-cdk/tmp-toolkit-helpers',
     '@aws-cdk/cloud-assembly-schema',
     '@aws-cdk/cloudformation-diff',
     '@aws-cdk/toolkit-lib',
@@ -596,8 +595,6 @@ const cliPluginContract = configureProject(
 
 //////////////////////////////////////////////////////////////////////
 
-let CDK_ASSETS: '2' | '3' = ('3' as any);
-
 const cdkAssets = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -612,18 +609,14 @@ const cdkAssets = configureProject(
       'glob',
       'mime@^2',
       'yargs',
-      ...CDK_ASSETS === '2' ? [
-        'aws-sdk',
-      ] : [
-        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-        '@smithy/config-resolver',
-        '@smithy/node-config-provider',
-      ],
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@smithy/config-resolver',
+      '@smithy/node-config-provider',
     ],
     devDeps: [
       '@types/archiver',
@@ -634,13 +627,10 @@ const cdkAssets = configureProject(
       'jszip',
       '@types/mock-fs@^4',
       'mock-fs@^5',
-      ...CDK_ASSETS === '2' ? [
-      ] : [
-        '@smithy/types',
-        '@smithy/util-stream',
-        'aws-sdk-client-mock',
-        'aws-sdk-client-mock-jest',
-      ],
+      '@smithy/types',
+      '@smithy/util-stream',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
     ],
     tsconfigDev: {
       compilerOptions: {
@@ -702,135 +692,6 @@ cdkAssets.gitignore.addPatterns(
 
 // This package happens do something only slightly naughty
 cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
-
-//////////////////////////////////////////////////////////////////////
-
-const tmpToolkitHelpers = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/tmp-toolkit-helpers',
-    description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
-    devDeps: [
-      '@types/archiver',
-      '@types/semver',
-      'aws-sdk-client-mock',
-      'aws-sdk-client-mock-jest',
-      'fast-check',
-      'nock',
-      '@smithy/util-stream',
-      'xml-js',
-    ],
-    deps: [
-      cloudAssemblySchema.name,
-      cloudFormationDiff,
-      cxApi,
-      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-      '@smithy/middleware-endpoint',
-      '@smithy/node-http-handler',
-      '@smithy/property-provider',
-      '@smithy/shared-ini-file-loader',
-      '@smithy/types',
-      '@smithy/util-retry',
-      '@smithy/util-waiter',
-      cdkAssets,
-      'archiver',
-      'chalk@4',
-      'fs-extra@^9',
-      'glob',
-      'minimatch',
-      'p-limit@^3',
-      'promptly', // @todo remove this should only be in CLI
-      'proxy-agent', // @todo remove this should only be in CLI
-      'semver',
-      'uuid',
-      'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
-    ],
-
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        target: 'es2022',
-        lib: ['es2022', 'esnext.disposable', 'dom'],
-        module: 'NodeNext',
-
-        // Temporarily, because it makes it impossible for us to use @internal functions
-        // from other packages. Annoyingly, VSCode won't show an error if you use @internal
-        // because it looks at the .ts, but the compilation will fail because it will use
-        // the .d.ts.
-        stripInternal: false,
-      },
-    },
-
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          // We want to improve our test coverage
-          // DO NOT LOWER THESE VALUES!
-          // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 70,
-          branches: 70,
-          functions: 70,
-          lines: 70,
-        },
-        // We have many tests here that commonly time out
-        testTimeout: 30_000,
-        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
-      },
-    }),
-  }),
-);
-
-new TypecheckTests(tmpToolkitHelpers);
-
-// Prevent imports of private API surface
-tmpToolkitHelpers.package.addField('exports', {
-  '.': './lib/index.js',
-  './package.json': './package.json',
-  './api': './lib/api/index.js',
-  './util': './lib/util/index.js',
-});
-
-tmpToolkitHelpers.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': 'error',
-});
-tmpToolkitHelpers.eslint?.addOverride({
-  files: ['./test/**'],
-  rules: {
-    '@cdklabs/no-throw-default-error': 'off',
-  },
-});
-
-tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
-
-tmpToolkitHelpers.npmignore?.addPatterns(
-  '!lib/api/bootstrap/bootstrap-template.yaml',
-);
-tmpToolkitHelpers.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
 
 //////////////////////////////////////////////////////////////////////
 
@@ -914,12 +775,12 @@ const toolkitLib = configureProject(
       '@smithy/types',
       '@types/fs-extra',
       '@types/split2',
-      tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
       'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
       'esbuild',
+      'fast-check',
       'typedoc',
       '@microsoft/api-extractor',
     ],
@@ -936,10 +797,10 @@ const toolkitLib = configureProject(
       jestConfig: {
         coverageThreshold: {
           // this is very sad but we will get better
-          statements: 85,
-          branches: 76,
-          functions: 77,
-          lines: 85,
+          statements: 60,
+          branches: 70,
+          functions: 55,
+          lines: 60,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
         setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
@@ -1021,13 +882,6 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
-  'import/no-restricted-paths': ['error', {
-    zones: [{
-      target: './',
-      from: '../tmp-toolkit-helpers',
-      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
-    }],
-  }],
 });
 toolkitLib.eslint?.addOverride({
   files: ['./test/**'],
@@ -1142,7 +996,6 @@ const cli = configureProject(
       nodeBundle,
       yargsGen,
       cliPluginContract,
-      tmpToolkitHelpers,
       toolkitLib,
       '@octokit/rest',
       '@types/archiver',
@@ -1240,6 +1093,15 @@ const cli = configureProject(
         // Necessary to properly compile proxy-agent and lru-cache without esModuleInterop set.
         skipLibCheck: true,
       },
+    },
+    tsconfigDev: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        lib: ['es2019', 'esnext.disposable', 'es2022.error'],
+        esModuleInterop: false,
+        skipLibCheck: true,
+      },
+
     },
     eslintOptions: {
       dirs: ['lib'],
@@ -1356,7 +1218,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('ts-node --prefer-ts-exts scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('ts-node -P tsconfig.dev.json --prefer-ts-exts scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',

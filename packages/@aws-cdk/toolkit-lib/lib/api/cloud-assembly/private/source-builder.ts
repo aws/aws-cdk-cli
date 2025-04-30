@@ -7,10 +7,12 @@ import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import { Context, RWLock, Settings } from '../../shared-private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
 import type { AssemblyBuilder } from '../source-builder';
 import { ReadableCloudAssembly } from './readable-assembly';
+import { Context } from '../../context';
+import { RWLock } from '../../rwlock';
+import { Settings } from '../../settings';
 
 export abstract class CloudAssemblySourceBuilder {
   /**
