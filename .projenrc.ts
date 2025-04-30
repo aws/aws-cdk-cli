@@ -628,7 +628,6 @@ const cdkAssets = configureProject(
       '@types/mock-fs@^4',
       'mock-fs@^5',
       '@smithy/types',
-      '@smithy/util-stream',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
@@ -712,6 +711,7 @@ const toolkitLib = configureProject(
       },
     },
     deps: [
+      cliPluginContract,
       cloudAssemblySchema,
       // Purposely a ^ dependency so that clients selecting old toolkit library
       // versions still might get upgrades to this dependency.
@@ -744,37 +744,33 @@ const toolkitLib = configureProject(
       '@smithy/property-provider',
       '@smithy/shared-ini-file-loader',
       '@smithy/util-retry',
-      '@smithy/util-stream',
       '@smithy/util-waiter',
       'archiver',
-      'camelcase@^6', // Non-ESM
       // Purposely a ^ dependency so that clients get upgrades to this library.
       cdkAssets,
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
-      'decamelize@^5', // Non-ESM
       'fs-extra@^9',
       'glob',
-      'json-diff',
       'minimatch',
       'p-limit@^3',
       'promptly',
       'proxy-agent',
       'semver',
       'split2',
-      'strip-ansi@^6',
-      'table@^6',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
-      'yargs@^15',
     ],
     devDeps: [
       '@aws-cdk/aws-service-spec',
+      '@jest/environment',
       '@jest/globals',
+      '@jest/types',
       '@microsoft/api-extractor',
       '@smithy/types',
+      '@smithy/util-stream',
       '@types/fs-extra',
       '@types/split2',
       'aws-cdk-lib',
@@ -783,7 +779,8 @@ const toolkitLib = configureProject(
       'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
       'esbuild',
       'fast-check',
-      'nock',
+      'jest-environment-node',
+      'nock@13',
       'typedoc',
       'xml-js',
     ],
@@ -1016,7 +1013,6 @@ const cli = configureProject(
       'jest-environment-node',
       'jest-mock',
       'madge',
-      'nock',
       'sinon',
       'ts-mock-imports',
       'xml-js',
@@ -1025,7 +1021,6 @@ const cli = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
-      '@aws-cdk/region-info',
       'archiver',
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
@@ -1056,7 +1051,6 @@ const cli = configureProject(
       '@smithy/property-provider',
       '@smithy/types',
       '@smithy/util-retry',
-      '@smithy/util-stream',
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
@@ -1073,7 +1067,6 @@ const cli = configureProject(
       'proxy-agent',
       'semver',
       'strip-ansi@^6',
-      'table',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
