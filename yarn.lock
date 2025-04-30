@@ -6704,14 +6704,6 @@ dotgitignore@^2.1.0:
     find-up "^3.0.0"
     minimatch "^3.0.4"
 
-dts-bundle-generator@9.3.1:
-  version "9.3.1"
-  resolved "https://registry.npmjs.org/dts-bundle-generator/-/dts-bundle-generator-9.3.1.tgz"
-  integrity sha512-1/nMT7LFOkXbrL1ZvLpzrjNbfX090LZ64nLIXVmet557mshFCGP/oTiQiZenafJZ6GsmRQLTYKSlQnkxK8tsTw==
-  dependencies:
-    typescript ">=5.0.2"
-    yargs "^17.6.0"
-
 dunder-proto@^1.0.0, dunder-proto@^1.0.1:
   version "1.0.1"
   resolved "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz"
@@ -12935,7 +12927,7 @@ typescript@5.8.2:
   resolved "https://registry.npmjs.org/typescript/-/typescript-5.8.2.tgz"
   integrity sha512-aJn6wq13/afZp/jT9QZmwEjDqqvSGp1VT5GVg+f/t6/oVyrgXM6BY1h9BRh/O5p3PlUPAe+WuiEZOmb/49RqoQ==
 
-typescript@>=5.0.2, typescript@^5.7.3:
+typescript@^5.7.3:
   version "5.8.3"
   resolved "https://registry.npmjs.org/typescript/-/typescript-5.8.3.tgz"
   integrity sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==
@@ -13500,7 +13492,7 @@ yargs@^16, yargs@^16.0.0, yargs@^16.2.0:
     y18n "^5.0.5"
     yargs-parser "^20.2.2"
 
-yargs@^17, yargs@^17.1.1, yargs@^17.3.1, yargs@^17.6.0, yargs@^17.6.2, yargs@^17.7.2:
+yargs@^17, yargs@^17.1.1, yargs@^17.3.1, yargs@^17.6.2, yargs@^17.7.2:
   version "17.7.2"
   resolved "https://registry.npmjs.org/yargs/-/yargs-17.7.2.tgz"
   integrity sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==
