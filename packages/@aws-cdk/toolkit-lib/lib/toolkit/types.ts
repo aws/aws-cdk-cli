@@ -1,14 +1,4 @@
 /**
- * Result interface for toolkit.deploy operation
- */
-export interface DeployResult {
-  /**
-   * Map of deployed stacks by artifact ID.
-   */
-  readonly stacks: DeployedStack[];
-}
-
-/**
  * Properties that describe a physically deployed stack
  */
 export interface PhysicalStack<Arn extends 'arnRequired' | 'arnOptional' = 'arnRequired'> {
@@ -32,41 +22,6 @@ export interface PhysicalStack<Arn extends 'arnRequired' | 'arnOptional' = 'arnR
    * The ARN of the stack
    */
   readonly stackArn: Arn extends 'arnOptional' ? string | undefined : string;
-}
-
-/**
- * Information about a deployed stack
- */
-export interface DeployedStack extends PhysicalStack {
-  /**
-   * Hierarchical identifier
-   *
-   * This uniquely identifies the stack inside the CDK app.
-   *
-   * In practice this will be the stack's construct path, but unfortunately the
-   * Cloud Assembly contract doesn't require or guarantee that.
-   */
-  readonly hierarchicalId: string;
-
-  /**
-   * The outputs of the deployed CloudFormation stack
-   */
-  readonly outputs: { [key: string]: string };
-}
-
-/**
- * An environment, which is an (account, region) pair
- */
-export interface Environment {
-  /**
-   * The account number
-   */
-  readonly account: string;
-
-  /**
-   * The region number
-   */
-  readonly region: string;
 }
 
 /**
@@ -158,21 +113,6 @@ export interface RolledBackStack extends PhysicalStack {
    * it was already stable.
    */
   readonly result: StackRollbackResult;
-}
-
-/**
- * An environment, which is an (account, region) pair
- */
-export interface Environment {
-  /**
-   * The account number
-   */
-  readonly account: string;
-
-  /**
-   * The region number
-   */
-  readonly region: string;
 }
 
 export type StackRollbackResult = 'rolled-back' | 'already-stable';

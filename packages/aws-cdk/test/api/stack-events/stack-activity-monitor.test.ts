@@ -7,8 +7,8 @@ import {
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { StackActivityMonitor } from '../../../lib/api/stack-events';
 import { testStack } from '../../_helpers/assembly';
-import { asIoHelper } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { IIoHost } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/io';
+import { asIoHelper } from '../../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { IIoHost } from '../../../../@aws-cdk/toolkit-lib/lib/api/io';
 
 let sdk: MockSdk;
 let monitor: StackActivityMonitor;

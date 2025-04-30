@@ -20,7 +20,7 @@ import type {
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import * as chalk from 'chalk';
 import { cliInit } from './init';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';

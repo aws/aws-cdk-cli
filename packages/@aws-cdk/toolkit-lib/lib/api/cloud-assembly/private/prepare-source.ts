@@ -6,12 +6,16 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import { type IReadLock, type IWriteLock, type SdkProvider, type IoHelper, loadTree, some, Settings, RWLock } from '../../../api/shared-private';
-import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, guessExecutable } from '../../../api/shared-private';
+import type { SdkProvider, IoHelper } from '../../../api/shared-private';
 import { splitBySize, versionNumber } from '../../../private/util';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
+import type { IReadLock, IWriteLock } from '../../rwlock';
+import { RWLock } from '../../rwlock';
+import { Settings } from '../../settings';
 import { ToolkitError } from '../../shared-public';
+import { loadTree, some } from '../../tree';
+import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, guessExecutable } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
 type Env = { [key: string]: string };

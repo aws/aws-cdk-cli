@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/work-graph';
+export * from '../../../@aws-cdk/toolkit-lib/lib/api/work-graph';

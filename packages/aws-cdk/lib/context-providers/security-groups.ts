@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/context-providers/security-groups';
+export * from '../../../@aws-cdk/toolkit-lib/lib/context-providers/security-groups';

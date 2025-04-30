@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/context-providers/endpoint-service-availability-zones';
+export * from '../../../@aws-cdk/toolkit-lib/lib/context-providers/endpoint-service-availability-zones';

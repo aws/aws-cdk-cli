@@ -3,8 +3,8 @@ import { environmentsFromDescriptors } from './private';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { ALL_STACKS } from '../../api/cloud-assembly/private';
 import type { IIoHost } from '../../api/io';
-import type { Tag } from '../../api/shared-private';
-import { asIoHelper } from '../../api/shared-private';
+import { asIoHelper } from '../../api/io/private';
+import type { Tag } from '../../api/tags';
 import { assemblyFromSource } from '../../toolkit/private';
 
 /**

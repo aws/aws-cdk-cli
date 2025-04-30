@@ -15,13 +15,13 @@ import {
   findResourceMovements,
   resourceMappings,
   resourceMovements,
-} from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
+} from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
 import {
   type CloudFormationStack,
   ResourceLocation,
   ResourceMapping,
 } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/cloudformation';
-import { computeResourceDigests } from '../../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring/digest';
+import { computeResourceDigests } from '../../../../@aws-cdk/toolkit-lib/lib/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { expect } from '@jest/globals';
 import { SkipList } from '@aws-cdk/tmp-toolkit-helpers';

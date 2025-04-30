@@ -1,8 +1,9 @@
 import '../../../private/dispose-polyfill';
 import { major } from 'semver';
 import type { IoHelper } from '../../shared-private';
-import { BaseStackAssembly, StackCollection, ExtendedStackSelection as CliExtendedStackSelection } from '../../shared-private';
 import { ToolkitError } from '../../shared-public';
+import { BaseStackAssembly, ExtendedStackSelection as CliExtendedStackSelection } from '../stack-assembly';
+import { StackCollection } from '../stack-collection';
 import type { StackSelector } from '../stack-selector';
 import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector';
 import type { IReadableCloudAssembly } from '../types';

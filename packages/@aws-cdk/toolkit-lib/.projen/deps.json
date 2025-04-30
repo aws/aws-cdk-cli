@@ -5,10 +5,6 @@
       "type": "build"
     },
     {
-      "name": "@aws-cdk/tmp-toolkit-helpers",
-      "type": "build"
-    },
-    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -110,6 +106,10 @@
     {
       "name": "eslint",
       "version": "^9",
+      "type": "build"
+    },
+    {
+      "name": "fast-check",
       "type": "build"
     },
     {

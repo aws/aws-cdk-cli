@@ -1,4 +1,5 @@
-import { RWLock, contextproviders } from '../../../lib/api/shared-private';
+import { RWLock } from '../../../lib/api/rwlock';
+import { contextproviders } from '../../../lib/api/shared-private';
 import { ToolkitError } from '../../../lib/api/shared-public';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { appFixture, autoCleanOutDir, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';

@@ -1,4 +1,4 @@
-import { IIoHost, IoMessage, IoMessageLevel, IoRequest } from "../../../@aws-cdk/tmp-toolkit-helpers/src/api/io";
+import { IIoHost, IoMessage, IoMessageLevel, IoRequest } from "../../../@aws-cdk/toolkit-lib/lib/api/io";
 
 /**
  * An implementation of `IIoHost` that records messages and lets you assert on what was logged
