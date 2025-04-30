@@ -320,7 +320,8 @@
         "./test/**"
       ],
       "rules": {
-        "@cdklabs/no-throw-default-error": "off"
+        "@cdklabs/no-throw-default-error": "off",
+        "@typescript-eslint/unbound-method": "off"
       }
     }
   ]
