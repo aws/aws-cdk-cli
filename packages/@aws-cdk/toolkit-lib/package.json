@@ -69,7 +69,7 @@
     "jest-environment-node": "^29.7.0",
     "jest-junit": "^16",
     "license-checker": "^25.0.1",
-    "nock": "^14.0.4",
+    "nock": "13",
     "prettier": "^2.8",
     "ts-jest": "^29.3.2",
     "typedoc": "^0.28.3",

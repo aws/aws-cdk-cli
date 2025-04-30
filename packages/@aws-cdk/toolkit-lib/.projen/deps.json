@@ -147,6 +147,7 @@
     },
     {
       "name": "nock",
+      "version": "13",
       "type": "build"
     },
     {

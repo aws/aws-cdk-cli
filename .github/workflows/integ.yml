@@ -3,8 +3,7 @@
 name: integ
 on:
   pull_request_target:
-    branches:
-      - main
+    branches: []
   merge_group: {}
   workflow_dispatch: {}
 jobs:
