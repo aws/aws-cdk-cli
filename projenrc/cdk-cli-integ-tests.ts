@@ -135,7 +135,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     runTestsWorkflow.on({
       pullRequestTarget: {
-        branches: ['main'],
+        branches: [],
       },
       // Needs to trigger and report success on merge queue builds as well
       mergeGroup: {},
