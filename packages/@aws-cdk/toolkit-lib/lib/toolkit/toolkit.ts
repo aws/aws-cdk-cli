@@ -512,13 +512,19 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       });
 
       const securityDiff = formatter.formatSecurityDiff();
-      const permissionChangeType = securityDiff.permissionChangeType;
+
+      console.log('diffs', JSON.stringify(formatter.diffs));
+
+      // Send a request response with the formatted security diff as part of the message,
+      // and the template diff as data
+      // (IoHost decides whether to print depending on permissionChangeType)
       const deployMotivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
-      const deployQuestion = `${deployMotivation}\nDo you wish to deploy these changes`;
+      const deployQuestion = `${securityDiff.formattedDiff}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
       const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
         motivation: deployMotivation,
         concurrency,
-        permissionChangeType,
+        permissionChangeType: securityDiff.permissionChangeType,
+        templateDiffs: formatter.diffs,
       }));
       if (!deployConfirmed) {
         throw new ToolkitError('Aborted by user');

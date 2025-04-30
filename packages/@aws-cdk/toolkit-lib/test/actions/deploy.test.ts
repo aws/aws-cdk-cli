@@ -61,6 +61,20 @@ describe('deploy', () => {
       data: expect.objectContaining({
         motivation: expect.stringContaining('stack includes security-sensitive updates.'),
         permissionChangeType: 'broadening',
+        templateDiffs: expect.objectContaining({
+          Stack1: expect.objectContaining({
+            resources: expect.objectContaining({
+              diffs: expect.objectContaining({
+                Role1ABCC5F0: expect.objectContaining({
+                  newValue: expect.objectContaining({
+                    Type: 'AWS::IAM::Role',
+                    Properties: expect.anything(),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
       }),
     }));
   });
