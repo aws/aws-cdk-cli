@@ -10,19 +10,10 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
-import {
-  ambiguousMovements,
-  findResourceMovements,
-  resourceMappings,
-  ToolkitError,
-} from '../../../@aws-cdk/toolkit-lib/lib/api';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { AmbiguityError } from '../../../@aws-cdk/toolkit-lib/lib/api/refactoring';
-import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
+import { AmbiguityError, ambiguousMovements, findResourceMovements, resourceMappings, type ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
-import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
+import { DEFAULT_TOOLKIT_STACK_NAME, Mode, ToolkitError } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -35,7 +26,7 @@ import { removeNonImportResources, ResourceImporter, ResourceMigrator } from '..
 import { type Tag, tagsForStack } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
-import { cfnApi } from '../api-private';
+import { asIoHelper, cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
@@ -68,6 +59,8 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
+import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
+import { detectStackDrift } from '../../../@aws-cdk/toolkit-lib/lib/api/deployments/cfn-api';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -214,6 +207,7 @@ export class CdkToolkit {
     const quiet = options.quiet || false;
 
     let diffs = 0;
+    let drifts = 0;
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -263,6 +257,19 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
+
+        let driftResults = undefined;
+
+        if (options.detectDrift) {
+          const env = await this.props.deployments.resolveEnvironment(stack);
+          const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
+
+          driftResults = await detectStackDrift(
+            cfn,
+            asIoHelper(this.ioHost, 'diff'),
+            stack.stackName,
+          );
+        }
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -319,6 +326,7 @@ export class CdkToolkit {
             isImport: !!resourcesToImport,
             nestedStacks,
           },
+          driftResults,
         });
 
         if (options.securityOnly) {
@@ -335,13 +343,21 @@ export class CdkToolkit {
             context: contextLines,
             quiet,
           });
-          info(diff.formattedDiff);
+          const drift = formatter.formatStackDrift({
+            quiet,
+          });
+          info(diff.formattedDiff + '\n' + drift.formattedDrift);
           diffs += diff.numStacksWithChanges;
+          drifts = drift.numResourcesWithDrift;
         }
       }
     }
 
-    info(format('\n✨  Number of stacks with differences: %s\n', diffs));
+    if (options.detectDrift) {
+      info(format('\n✨  Number of stacks with differences: %s\n✨  Number of resources with drift: %s\n', diffs, drifts));
+    } else {
+      info(format('\n✨  Number of stacks with differences: %s\n', diffs));
+    }
 
     return diffs && options.fail ? 1 : 0;
   }
@@ -1475,6 +1491,13 @@ export interface DiffOptions {
    * @default false
    */
   readonly securityOnly?: boolean;
+
+  /**
+   * Run drift detection on the stack as well
+   *
+   * @default false
+   */
+  readonly detectDrift?: boolean;
 
   /**
    * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed

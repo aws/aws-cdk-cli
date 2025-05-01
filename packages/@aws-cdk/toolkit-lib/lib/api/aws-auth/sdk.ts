@@ -88,6 +88,14 @@ import type {
   UpdateTerminationProtectionCommandInput,
   UpdateTerminationProtectionCommandOutput,
   StackSummary,
+  DescribeStackDriftDetectionStatusCommandInput,
+  DescribeStackDriftDetectionStatusCommandOutput,
+  DescribeStackResourceDriftsCommandOutput,
+  DetectStackDriftCommandInput,
+  DetectStackDriftCommandOutput,
+  DetectStackResourceDriftCommandInput,
+  DetectStackResourceDriftCommandOutput,
+  DescribeStackResourceDriftsCommandInput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateListStacks,
@@ -119,6 +127,10 @@ import {
   StartResourceScanCommand,
   UpdateStackCommand,
   UpdateTerminationProtectionCommand,
+  DescribeStackDriftDetectionStatusCommand,
+  DescribeStackResourceDriftsCommand,
+  DetectStackDriftCommand,
+  DetectStackResourceDriftCommand,
 } from '@aws-sdk/client-cloudformation';
 import type {
   FilterLogEventsCommandInput,
@@ -418,8 +430,12 @@ export interface ICloudFormationClient {
     input: DescribeGeneratedTemplateCommandInput,
   ): Promise<DescribeGeneratedTemplateCommandOutput>;
   describeResourceScan(input: DescribeResourceScanCommandInput): Promise<DescribeResourceScanCommandOutput>;
+  describeStackDriftDetectionStatus(input: DescribeStackDriftDetectionStatusCommandInput): Promise<DescribeStackDriftDetectionStatusCommandOutput>;
   describeStacks(input: DescribeStacksCommandInput): Promise<DescribeStacksCommandOutput>;
+  describeStackResourceDrifts(input: DescribeStackResourceDriftsCommandInput): Promise<DescribeStackResourceDriftsCommandOutput>;
   describeStackResources(input: DescribeStackResourcesCommandInput): Promise<DescribeStackResourcesCommandOutput>;
+  detectStackDrift(input: DetectStackDriftCommandInput): Promise<DetectStackDriftCommandOutput>;
+  detectStackResourceDrift(input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput>;
   executeChangeSet(input: ExecuteChangeSetCommandInput): Promise<ExecuteChangeSetCommandOutput>;
   getGeneratedTemplate(input: GetGeneratedTemplateCommandInput): Promise<GetGeneratedTemplateCommandOutput>;
   getTemplate(input: GetTemplateCommandInput): Promise<GetTemplateCommandOutput>;
@@ -680,6 +696,10 @@ export class SDK {
       ): Promise<DeleteGeneratedTemplateCommandOutput> => client.send(new DeleteGeneratedTemplateCommand(input)),
       deleteStack: (input: DeleteStackCommandInput): Promise<DeleteStackCommandOutput> =>
         client.send(new DeleteStackCommand(input)),
+      detectStackDrift: (input: DetectStackDriftCommandInput): Promise<DetectStackDriftCommandOutput> =>
+        client.send(new DetectStackDriftCommand(input)),
+      detectStackResourceDrift: (input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput> =>
+        client.send(new DetectStackResourceDriftCommand(input)),
       describeChangeSet: (input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput> =>
         client.send(new DescribeChangeSetCommand(input)),
       describeGeneratedTemplate: (
@@ -687,6 +707,10 @@ export class SDK {
       ): Promise<DescribeGeneratedTemplateCommandOutput> => client.send(new DescribeGeneratedTemplateCommand(input)),
       describeResourceScan: (input: DescribeResourceScanCommandInput): Promise<DescribeResourceScanCommandOutput> =>
         client.send(new DescribeResourceScanCommand(input)),
+      describeStackDriftDetectionStatus: (input: DescribeStackDriftDetectionStatusCommandInput):
+      Promise<DescribeStackDriftDetectionStatusCommandOutput> => client.send(new DescribeStackDriftDetectionStatusCommand(input)),
+      describeStackResourceDrifts: (input: DescribeStackResourceDriftsCommandInput): Promise<DescribeStackResourceDriftsCommandOutput> =>
+        client.send(new DescribeStackResourceDriftsCommand(input)),
       describeStacks: (input: DescribeStacksCommandInput): Promise<DescribeStacksCommandOutput> =>
         client.send(new DescribeStacksCommand(input)),
       describeStackResources: (input: DescribeStackResourcesCommandInput): Promise<DescribeStackResourcesCommandOutput> =>

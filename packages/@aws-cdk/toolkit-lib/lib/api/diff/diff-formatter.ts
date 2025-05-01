@@ -6,14 +6,18 @@ import {
   fullDiff,
   mangleLikeCloudFormation,
   type TemplateDiff,
+  formatStackDriftChanges,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { StringWriteStream } from '../streams';
+import { RequireApproval } from '../require-approval';
+import { ToolkitError } from '../toolkit-error';
 
 /**
  * Output of formatSecurityDiff
@@ -47,6 +51,21 @@ interface FormatStackDiffOutput {
 }
 
 /**
+ * Output of formatStackDrift
+ */
+interface FormatStackDriftOutput {
+  /**
+   * Number of stacks with drift
+   */
+  readonly numResourcesWithDrift: number;
+
+  /**
+   * Complete formatted drift
+   */
+  readonly formattedDrift: string;
+}
+
+/**
  * Props for the Diff Formatter
  */
 interface DiffFormatterProps {
@@ -60,6 +79,11 @@ interface DiffFormatterProps {
    * Includes the old/current state of the stack as well as the new state.
    */
   readonly templateInfo: TemplateInfo;
+
+  /**
+   * The results of stack drift
+   */
+  readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
 }
 
 /**
@@ -84,6 +108,16 @@ interface FormatStackDiffOptions {
    * silences \'There were no differences\' messages
    *
    * @default false
+   */
+  readonly quiet?: boolean;
+}
+
+/**
+ * Properties specific to formatting the stack drift diff
+ */
+interface FormatStackDriftOptions {
+  /**
+   * Silences 'There were no differences' messages
    */
   readonly quiet?: boolean;
 }
@@ -142,6 +176,7 @@ export class DiffFormatter {
   private readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
+  private readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
   private readonly isImport: boolean;
 
   /**
@@ -157,6 +192,7 @@ export class DiffFormatter {
     this.stackName = props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
+    this.driftResults = props.driftResults;
     this.isImport = props.templateInfo.isImport ?? false;
   }
 
@@ -328,6 +364,53 @@ export class DiffFormatter {
     // store the stream containing a formatted stack diff
     const formattedDiff = stream.toString();
     return { formattedDiff, permissionChangeType: this.permissionType() };
+  }
+
+  public formatStackDrift(options: FormatStackDriftOptions): FormatStackDriftOutput {
+    const stream = new StringWriteStream();
+    let driftCount = 0;
+
+    if (!this.driftResults?.StackResourceDrifts) {
+      return { formattedDrift: '', numResourcesWithDrift: 0 };
+    }
+
+    const drifts = this.driftResults.StackResourceDrifts;
+
+    if (drifts.length === 0 && !options.quiet) {
+      stream.write(chalk.green('No drift detected\n'));
+      stream.end();
+      return { formattedDrift: stream.toString(), numResourcesWithDrift: 0 };
+    }
+
+    // Count resources with drift
+    driftCount = drifts.filter(d =>
+      d.StackResourceDriftStatus === 'MODIFIED' ||
+      d.StackResourceDriftStatus === 'DELETED',
+    ).length;
+
+    formatStackDriftChanges(stream, this.driftResults, buildLogicalToPathMap(this.newTemplate));
+    stream.write(chalk.yellow(`\n${driftCount} resource${driftCount === 1 ? '' : 's'} ${driftCount === 1 ? 'has' : 'have'} drifted from their expected configuration\n`));
+    stream.end();
+
+    return {
+      formattedDrift: stream.toString(),
+      numResourcesWithDrift: driftCount,
+    };
+  }
+}
+
+/**
+ * Return whether the diff has security-impacting changes that need confirmation
+ *
+ * TODO: Filter the security impact determination based off of an enum that allows
+ * us to pick minimum "severities" to alert on.
+ */
+function diffRequiresApproval(diff: TemplateDiff, requireApproval: RequireApproval) {
+  switch (requireApproval) {
+    case RequireApproval.NEVER: return false;
+    case RequireApproval.ANY_CHANGE: return diff.permissionsAnyChanges;
+    case RequireApproval.BROADENING: return diff.permissionsBroadened;
+    default: throw new ToolkitError(`Unrecognized approval level: ${requireApproval}`);
   }
 }
 
