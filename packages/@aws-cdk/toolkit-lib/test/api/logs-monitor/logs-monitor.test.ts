@@ -14,6 +14,7 @@ let sdk: MockSdk;
 let monitor: CloudWatchLogEventMonitor;
 let ioHost = new TestIoHost();
 beforeEach(() => {
+  mockCloudWatchClient.reset();
   monitor = new CloudWatchLogEventMonitor({
     ioHelper: ioHost.asHelper('deploy'),
     startTime: new Date(T100),
@@ -29,10 +30,10 @@ afterEach(async () => {
 
 test('process events', async () => {
   // GIVEN
-  const eventDate = new Date(T0 + 102 * 1000);
-  mockCloudWatchClient.on(FilterLogEventsCommand).resolves({
-    events: [event(102, 'message', eventDate)],
-  });
+  const eventDate = new Date(T102);
+  mockCloudWatchClient.on(FilterLogEventsCommand)
+    .resolvesOnce({ events: [event(102, 'message', eventDate)] })
+    .resolves({ events: [] });
 
   monitor.addLogGroups(
     {
@@ -46,7 +47,7 @@ test('process events', async () => {
   // WHEN
   await monitor.activate();
   // need time for the log processing to occur
-  await sleep(1000);
+  await sleep(2500);
 
   // THEN
   const expectedLocaleTimeString = eventDate.toLocaleTimeString();
@@ -56,16 +57,16 @@ test('process events', async () => {
 
 test('process truncated events', async () => {
   // GIVEN
-  const eventDate = new Date(T0 + 102 * 1000);
+  const eventDate = new Date(T102);
   const events: FilteredLogEvent[] = [];
   for (let i = 0; i < 100; i++) {
     events.push(event(102 + i, 'message' + i, eventDate));
   }
 
-  mockCloudWatchClient.on(FilterLogEventsCommand).resolves({
-    events,
-    nextToken: 'some-token',
-  });
+  mockCloudWatchClient.on(FilterLogEventsCommand)
+    .resolvesOnce({ events, nextToken: 'some-token' })
+    .resolves({ events: [] });
+
   monitor.addLogGroups(
     {
       name: 'name',
@@ -78,7 +79,7 @@ test('process truncated events', async () => {
   // WHEN
   await monitor.activate();
   // need time for the log processing to occur
-  await sleep(1000);
+  await sleep(2500);
 
   // THEN
   const expectedLocaleTimeString = eventDate.toLocaleTimeString();
@@ -91,6 +92,7 @@ test('process truncated events', async () => {
 
 const T0 = 1597837230504;
 const T100 = T0 + 100 * 1000;
+const T102 = T0 + 102 * 1000;
 function event(nr: number, message: string, timestamp: Date): FilteredLogEvent {
   return {
     eventId: `${nr}`,

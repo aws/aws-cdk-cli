@@ -776,8 +776,6 @@ const toolkitLib = configureProject(
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
-      'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
-      'esbuild',
       'fast-check',
       'jest-environment-node',
       'nock@13',
@@ -904,11 +902,8 @@ const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-cod
 toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
-// Smoke test built JS files
+// Smoke test exported js files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1652,7 +1647,6 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
-  maxWorkers: '80',
 
   localPackages: [
     cloudAssemblySchema.name,
