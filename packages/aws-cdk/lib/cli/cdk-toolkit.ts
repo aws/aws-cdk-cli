@@ -1211,13 +1211,18 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    const tk = new Toolkit();
+    let exclude: string[] = [];
+    if (options.excludeFile != null) {
+      if (!(await fs.pathExists(options.excludeFile))) {
+        throw new ToolkitError(`The exclude file ${options.excludeFile} does not exist`);
+      }
+      exclude = fs.readFileSync(options.excludeFile).toString('utf-8').split('\n');
+    }
 
-    const casmSource = await tk.fromAssemblyBuilder(() => this.assembly());
     try {
-      await tk.refactor(casmSource, {
+      await this.toolkit.refactor(this.props.cloudExecutable, {
         dryRun: options.dryRun,
-        skipFile: options.skipFile,
+        exclude,
         stacks: {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
@@ -1935,7 +1940,7 @@ export interface RefactorOptions {
    * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
-  skipFile?: string;
+  excludeFile?: string;
 }
 
 function buildParameterMap(

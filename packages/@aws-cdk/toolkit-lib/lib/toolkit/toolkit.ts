@@ -48,7 +48,7 @@ import type { IIoHost, IoMessageLevel } from '../api/io';
 import type { IoHelper } from '../api/io/private';
 import { asIoHelper, asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
-import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndSkipFile, resourceMappings } from '../api/refactoring';
+import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
 import { ResourceMigrator } from '../api/resource-import';
 import type { AssemblyData, StackDetails, SuccessfulDeployStackResult, ToolkitAction } from '../api/shared-public';
 import { PermissionChangeType, PluginHost, ToolkitError } from '../api/shared-public';
@@ -967,7 +967,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const sdkProvider = await this.sdkProvider('refactor');
-    const skipList = fromManifestAndSkipFile(assembly.cloudAssembly.manifest, options.skipFile);
+    const skipList = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
     const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, skipList);
     const ambiguous = ambiguousMovements(movements);
     if (ambiguous.length === 0) {

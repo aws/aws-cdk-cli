@@ -1358,7 +1358,7 @@ export interface RefactorOptions {
    *
    * @default - undefined
    */
-  readonly skipFile?: string;
+  readonly excludeFile?: string;
 
   /**
    * Positional argument for refactor

@@ -847,7 +847,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Do not perform any changes, just show what would be done',
         })
-        .option('skip-file', {
+        .option('exclude-file', {
           default: undefined,
           type: 'string',
           requiresArg: true,

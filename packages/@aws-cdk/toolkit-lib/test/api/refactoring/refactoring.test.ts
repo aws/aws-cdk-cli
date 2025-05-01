@@ -9,9 +9,9 @@ import type {
 } from '@aws-sdk/client-cloudformation';
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { expect } from '@jest/globals';
-import type { SkipList } from '../../../lib/api/refactoring';
+import type { ExcludeList } from '../../../lib/api/refactoring';
 import {
-  AlwaysSkipList,
+  AlwaysExclude,
   ambiguousMovements,
   findResourceMovements,
   resourceMappings,
@@ -1253,9 +1253,9 @@ describe('environment grouping', () => {
       },
     ]);
 
-    expect(await mappings([stack1, stack2], new AlwaysSkipList())).toEqual([]);
+    expect(await mappings([stack1, stack2], new AlwaysExclude())).toEqual([]);
 
-    async function mappings(stacks: CloudFormationStack[], skipList?: SkipList) {
+    async function mappings(stacks: CloudFormationStack[], skipList?: ExcludeList) {
       const provider = new MockSdkProvider();
       provider.returnsDefaultAccounts(environment.account);
       const movements2 = await findResourceMovements(stacks, provider, skipList);

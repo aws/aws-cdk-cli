@@ -12,7 +12,7 @@ import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
-import { NeverSkipList, type SkipList } from './skip';
+import { NeverExclude, type ExcludeList } from './skip';
 
 export * from './skip';
 
@@ -152,7 +152,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
   sdkProvider: SdkProvider,
-  skipList: SkipList = new NeverSkipList(),
+  skipList: ExcludeList = new NeverExclude(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
@@ -176,7 +176,7 @@ export async function findResourceMovements(
 
   return result.filter(mov => {
     const after = mov[1];
-    return after.every(l => !skipList.isSkipped(l));
+    return after.every(l => !skipList.isExcluded(l));
   });
 }
 

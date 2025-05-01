@@ -1,15 +1,13 @@
-import * as fs from 'node:fs';
 import type { AssemblyManifest } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { ResourceLocation as CfnResourceLocation } from '@aws-sdk/client-cloudformation';
-import { ToolkitError } from '../toolkit-error';
 import type { ResourceLocation } from './cloudformation';
 
-export interface SkipList {
-  isSkipped(location: ResourceLocation): boolean;
+export interface ExcludeList {
+  isExcluded(location: ResourceLocation): boolean;
 }
 
-export class ManifestSkipList implements SkipList {
+export class ManifestExcludeList implements ExcludeList {
   private readonly skippedLocations: CfnResourceLocation[];
 
   constructor(manifest: AssemblyManifest) {
@@ -43,51 +41,41 @@ export class ManifestSkipList implements SkipList {
     return result;
   }
 
-  isSkipped(location: ResourceLocation): boolean {
+  isExcluded(location: ResourceLocation): boolean {
     return this.skippedLocations.some(
       (loc) => loc.StackName === location.stack.stackName && loc.LogicalResourceId === location.logicalResourceId,
     );
   }
 }
 
-export class SkipFile implements SkipList {
+export class InMemoryExcludeList implements ExcludeList {
   private readonly skippedLocations: CfnResourceLocation[];
   private readonly skippedPaths: string[];
 
-  constructor(private readonly filePath?: string) {
+  constructor(items: string[]) {
     this.skippedLocations = [];
     this.skippedPaths = [];
 
-    if (!this.filePath) {
+    if (items.length === 0) {
       return;
     }
 
-    const parsedData = JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
-    if (!isValidSkipFileContent(parsedData)) {
-      throw new ToolkitError('The content of a skip file must be a JSON array of strings');
-    }
-
     const locationRegex = /^[A-Za-z0-9]+\.[A-Za-z0-9]+$/;
-    const pathRegex = /^\w*(\/\w*)*$/;
 
-    parsedData.forEach((item: string) => {
+    items.forEach((item: string) => {
       if (locationRegex.test(item)) {
         const [stackName, logicalId] = item.split('.');
         this.skippedLocations.push({
           StackName: stackName,
           LogicalResourceId: logicalId,
         });
-      } else if (pathRegex.test(item)) {
-        this.skippedPaths.push(item);
       } else {
-        throw new ToolkitError(
-          `Invalid resource location format: ${item}. Expected formats: stackName.logicalId or a construct path`,
-        );
+        this.skippedPaths.push(item);
       }
     });
   }
 
-  isSkipped(location: ResourceLocation): boolean {
+  isExcluded(location: ResourceLocation): boolean {
     const containsLocation = this.skippedLocations.some((loc) => {
       return loc.StackName === location.stack.stackName && loc.LogicalResourceId === location.logicalResourceId;
     });
@@ -97,31 +85,28 @@ export class SkipFile implements SkipList {
   }
 }
 
-function isValidSkipFileContent(data: any): data is string[] {
-  return Array.isArray(data) && data.every((item: any) => typeof item === 'string');
-}
-
-export class UnionSkipList implements SkipList {
-  constructor(private readonly skipLists: SkipList[]) {
+export class UnionExcludeList implements ExcludeList {
+  constructor(private readonly skipLists: ExcludeList[]) {
   }
 
-  isSkipped(location: ResourceLocation): boolean {
-    return this.skipLists.some((skipList) => skipList.isSkipped(location));
+  isExcluded(location: ResourceLocation): boolean {
+    return this.skipLists.some((skipList) => skipList.isExcluded(location));
   }
 }
 
-export class NeverSkipList implements SkipList {
-  isSkipped(_location: ResourceLocation): boolean {
+export class NeverExclude implements ExcludeList {
+  isExcluded(_location: ResourceLocation): boolean {
     return false;
   }
 }
 
-export class AlwaysSkipList implements SkipList {
-  isSkipped(_location: ResourceLocation): boolean {
+export class AlwaysExclude implements ExcludeList {
+  isExcluded(_location: ResourceLocation): boolean {
     return true;
   }
 }
 
-export function fromManifestAndSkipFile(manifest: AssemblyManifest, skipFile?: string): SkipList {
-  return new UnionSkipList([new ManifestSkipList(manifest), new SkipFile(skipFile)]);
+export function fromManifestAndExclusionList(manifest: AssemblyManifest, exclude?: string[]): ExcludeList {
+  return new UnionExcludeList([new ManifestExcludeList(manifest), new InMemoryExcludeList(exclude ?? [])]);
 }
+
