@@ -126,7 +126,7 @@ jobs:
           RELEASE_TAG: latest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INTEG_LOGS: logs
-        run: bin/run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
         run: cat logs/md/*.md >> $GITHUB_STEP_SUMMARY
       - name: Upload logs
