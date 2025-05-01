@@ -513,8 +513,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       const securityDiff = formatter.formatSecurityDiff();
 
-      console.log('diffs', JSON.stringify(formatter.diffs));
-
       // Send a request response with the formatted security diff as part of the message,
       // and the template diff as data
       // (IoHost decides whether to print depending on permissionChangeType)
