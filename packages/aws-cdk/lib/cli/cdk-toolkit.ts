@@ -11,6 +11,8 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { AmbiguityError, ambiguousMovements, findResourceMovements, resourceMappings, type ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { detectStackDrift } from '../../../@aws-cdk/toolkit-lib/lib/api/deployments/cfn-api';
+import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { DEFAULT_TOOLKIT_STACK_NAME, Mode, ToolkitError } from '../api';
@@ -59,8 +61,6 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
-import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
-import { detectStackDrift } from '../../../@aws-cdk/toolkit-lib/lib/api/deployments/cfn-api';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports

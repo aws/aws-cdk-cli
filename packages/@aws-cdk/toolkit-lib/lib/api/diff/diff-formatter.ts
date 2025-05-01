@@ -16,8 +16,6 @@ import type { NestedStackTemplates } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import { IoDefaultMessages } from '../io/private';
 import { StringWriteStream } from '../streams';
-import { RequireApproval } from '../require-approval';
-import { ToolkitError } from '../toolkit-error';
 
 /**
  * Output of formatSecurityDiff
@@ -394,21 +392,6 @@ export class DiffFormatter {
       formattedDrift: stream.toString(),
       numResourcesWithDrift: driftCount,
     };
-  }
-}
-
-/**
- * Return whether the diff has security-impacting changes that need confirmation
- *
- * TODO: Filter the security impact determination based off of an enum that allows
- * us to pick minimum "severities" to alert on.
- */
-function diffRequiresApproval(diff: TemplateDiff, requireApproval: RequireApproval) {
-  switch (requireApproval) {
-    case RequireApproval.NEVER: return false;
-    case RequireApproval.ANY_CHANGE: return diff.permissionsAnyChanges;
-    case RequireApproval.BROADENING: return diff.permissionsBroadened;
-    default: throw new ToolkitError(`Unrecognized approval level: ${requireApproval}`);
   }
 }
 
