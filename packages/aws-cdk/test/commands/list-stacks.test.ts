@@ -1,9 +1,10 @@
-import * as cxschema from '@aws-cdk/cloud-assembly-schema';;
-import { instanceMockFrom, MockCloudExecutable, TestStackArtifact } from '../_helpers';
+import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Bootstrapper } from '../../lib/api/bootstrap';
-import { Deployments } from '../../lib/api/deployments';
+import type { Deployments } from '../../lib/api/deployments';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { listStacks } from '../../lib/commands/list-stacks';
+import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
+import type { TestStackArtifact } from '../_helpers';
 
 describe('list', () => {
   let cloudFormation: jest.Mocked<Deployments>;
