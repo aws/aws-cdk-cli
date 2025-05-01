@@ -1,9 +1,9 @@
 
 import { inspect } from 'util';
 import type { Logger } from '@smithy/types';
-import { replacerBufferWithInfo } from '../../../private/util';
-import type { IoHelper } from '../../shared-private';
-import { IO } from '../../shared-private';
+import type { IoHelper } from './io-helper';
+import { IO } from './messages';
+import { replacerBufferWithInfo } from '../../../util';
 
 export function asSdkLogger(ioHost: IoHelper): Logger {
   return new class implements Logger {
