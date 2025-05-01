@@ -1002,6 +1002,8 @@ const cli = configureProject(
       '@types/sinon',
       '@types/yargs@^15',
       'aws-cdk-lib',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
       'axios',
       'constructs',
       'fast-check',
@@ -1097,7 +1099,7 @@ const cli = configureProject(
     },
     eslintOptions: {
       dirs: ['lib'],
-      ignorePatterns: ['*.template.ts', '*.d.ts', 'test/**/*.ts'],
+      ignorePatterns: ['*.template.ts', '*.d.ts'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1144,6 +1146,7 @@ cli.eslint?.addOverride({
   files: ['./test/**'],
   rules: {
     '@cdklabs/no-throw-default-error': 'off',
+    '@typescript-eslint/unbound-method': 'off',
   },
 });
 
