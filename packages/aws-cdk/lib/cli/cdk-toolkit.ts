@@ -14,9 +14,11 @@ import type { ToolkitAction } from '../../../@aws-cdk/tmp-toolkit-helpers/src/ap
 import {
   ambiguousMovements,
   findResourceMovements,
+  Mode,
   resourceMappings,
   ToolkitError,
 } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { detectStackDrift } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/deployments/cfn-api';
 import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
 import { AmbiguityError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/refactoring';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -213,6 +215,7 @@ export class CdkToolkit {
     const quiet = options.quiet || false;
 
     let diffs = 0;
+    let drifts = 0;
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -262,6 +265,19 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
+
+        let driftResults = undefined;
+
+        if (options.detectDrift) {
+          const env = await this.props.deployments.resolveEnvironment(stack);
+          const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
+
+          driftResults = await detectStackDrift(
+            cfn,
+            asIoHelper(this.ioHost, 'diff'),
+            stack.stackName,
+          );
+        }
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -318,6 +334,7 @@ export class CdkToolkit {
             isImport: !!resourcesToImport,
             nestedStacks,
           },
+          driftResults,
         });
 
         if (options.securityOnly) {
@@ -334,13 +351,21 @@ export class CdkToolkit {
             context: contextLines,
             quiet,
           });
-          info(diff.formattedDiff);
+          const drift = formatter.formatStackDrift({
+            quiet,
+          });
+          info(diff.formattedDiff + '\n' + drift.formattedDrift);
           diffs += diff.numStacksWithChanges;
+          drifts = drift.numResourcesWithDrift;
         }
       }
     }
 
-    info(format('\n✨  Number of stacks with differences: %s\n', diffs));
+    if (options.detectDrift) {
+      info(format('\n✨  Number of stacks with differences: %s\n✨  Number of resources with drift: %s\n', diffs, drifts));
+    } else {
+      info(format('\n✨  Number of stacks with differences: %s\n', diffs));
+    }
 
     return diffs && options.fail ? 1 : 0;
   }
@@ -1471,6 +1496,13 @@ export interface DiffOptions {
    * @default false
    */
   readonly securityOnly?: boolean;
+
+  /**
+   * Run drift detection on the stack as well
+   *
+   * @default false
+   */
+  readonly detectDrift?: boolean;
 
   /**
    * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed

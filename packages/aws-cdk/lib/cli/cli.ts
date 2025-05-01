@@ -256,6 +256,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           strict: args.strict,
           contextLines: args.contextLines,
           securityOnly: args.securityOnly,
+          detectDrift: args.detectDrift,
           fail: args.fail != null ? args.fail : !enableDiffNoFail,
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,

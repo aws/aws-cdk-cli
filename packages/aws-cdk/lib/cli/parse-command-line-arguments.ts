@@ -693,6 +693,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Only diff for broadened security changes',
           })
+          .option('detect-drift', {
+            default: false,
+            type: 'boolean',
+            desc: 'Whether or not to also run CloudFormation drift detection',
+          })
           .option('fail', {
             default: undefined,
             type: 'boolean',

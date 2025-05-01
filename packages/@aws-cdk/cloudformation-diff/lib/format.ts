@@ -1,9 +1,10 @@
 import { format } from 'util';
+import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import type { DifferenceCollection, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
-import type { Difference, ResourceDifference } from './diff-template';
-import { isPropertyDifference, ResourceImpact } from './diff-template';
+import type { ResourceDifference } from './diff-template';
+import { isPropertyDifference, ResourceImpact, Difference } from './diff-template';
 import { formatTable } from './format-table';
 import type { IamChanges } from './iam/iam-changes';
 import type { SecurityGroupChanges } from './network/security-group-changes';
@@ -17,6 +18,16 @@ const { structuredPatch } = require('diff');
 
 export interface FormatStream extends NodeJS.WritableStream {
   columns?: number;
+}
+
+/**
+ * Resource drift status types from CloudFormation
+ */
+export enum ResourceDriftStatus {
+  MODIFIED = 'MODIFIED',
+  DELETED = 'DELETED',
+  NOT_CHECKED = 'NOT_CHECKED',
+  IN_SYNC = 'IN_SYNC',
 }
 
 /**
@@ -65,6 +76,69 @@ export function formatSecurityChanges(
   const formatter = new Formatter(stream, logicalToPathMap, templateDiff, context);
 
   formatSecurityChangesWithBanner(formatter, templateDiff);
+}
+
+/**
+ * Renders stack drift information to the given stream
+ *
+ * @param stream The stream to write the formatted drift to
+ * @param driftResults The stack resource drifts from CloudFormation
+ * @param logicalToPathMap A map from logical ID to construct path
+ */
+export function formatStackDriftChanges(
+  stream: FormatStream,
+  driftResults: DescribeStackResourceDriftsCommandOutput,
+  logicalToPathMap: { [logicalId: string]: string } = {}) {
+  const formatter = new Formatter(stream, logicalToPathMap);
+
+  if (!driftResults.StackResourceDrifts || driftResults.StackResourceDrifts.length === 0) {
+    return;
+  }
+
+  const drifts = driftResults.StackResourceDrifts;
+
+  // Process modified resources
+  const modifiedResources = drifts.filter(d => d.StackResourceDriftStatus === ResourceDriftStatus.MODIFIED);
+  if (modifiedResources.length > 0) {
+    formatter.printSectionHeader('Modified Resources');
+
+    for (const drift of modifiedResources) {
+      if (!drift.LogicalResourceId || !drift.ResourceType) continue;
+
+      // Print the resource header
+      formatter.print(`${UPDATE} ${formatter.formatValue(drift.ResourceType, chalk.cyan)} ${formatter.formatLogicalId(drift.LogicalResourceId)}`);
+
+      // Format property differences using formatTreeDiff
+      if (drift.PropertyDifferences) {
+        const propDiffs = drift.PropertyDifferences;
+        for (let i = 0; i < propDiffs.length; i++) {
+          const diff = propDiffs[i];
+          if (!diff.PropertyPath) continue;
+
+          // Create a simple Difference object that formatTreeDiff can handle
+          const difference = new Difference(diff.ExpectedValue, diff.ActualValue);
+
+          // Use formatTreeDiff to format the property difference
+          formatter.formatTreeDiff(diff.PropertyPath, difference, i === propDiffs.length - 1);
+        }
+      }
+    }
+    formatter.printSectionFooter();
+  }
+
+  // Process deleted resources
+  const deletedResources = drifts.filter(d => d.StackResourceDriftStatus === ResourceDriftStatus.DELETED);
+  if (deletedResources.length > 0) {
+    formatter.printSectionHeader('Deleted Resources');
+
+    for (const drift of deletedResources) {
+      if (!drift.LogicalResourceId || !drift.ResourceType) continue;
+
+      // Use formatter's print method for consistent output
+      formatter.print(`${REMOVAL} ${formatter.formatValue(drift.ResourceType, chalk.cyan)} ${formatter.formatLogicalId(drift.LogicalResourceId)}`);
+    }
+    formatter.printSectionFooter();
+  }
 }
 
 function formatSecurityChangesWithBanner(formatter: Formatter, templateDiff: TemplateDiff) {

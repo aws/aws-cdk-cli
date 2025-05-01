@@ -1074,6 +1074,13 @@ export interface DiffOptions {
   readonly securityOnly?: boolean;
 
   /**
+   * Whether or not to also run CloudFormation drift detection
+   *
+   * @default - false
+   */
+  readonly detectDrift?: boolean;
+
+  /**
    * Fail with exit code 1 in case of diff
    *
    * @default - undefined
