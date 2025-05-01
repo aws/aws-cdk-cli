@@ -87,7 +87,7 @@ interface DiffFormatterProps {
 }
 
 /**
- * PRoperties specific to formatting the stack diff
+ * Properties specific to formatting the stack diff
  */
 interface FormatStackDiffOptions {
   /**
