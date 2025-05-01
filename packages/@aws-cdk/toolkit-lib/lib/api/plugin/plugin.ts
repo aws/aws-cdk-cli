@@ -2,7 +2,7 @@ import { inspect } from 'util';
 import type { CredentialProviderSource, IPluginHost, Plugin } from '@aws-cdk/cli-plugin-contract';
 import { type ContextProviderPlugin, isContextProviderPlugin } from './context-provider-plugin';
 import type { IIoHost } from '../io';
-import { IoDefaultMessages, IoHelper } from '../private';
+import { IoDefaultMessages, IoHelper } from '../io/private';
 import { ToolkitError } from '../toolkit-error';
 
 export let TESTING = false;
