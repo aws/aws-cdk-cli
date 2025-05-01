@@ -1,0 +1,36 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.validateSnsTopicArn = validateSnsTopicArn;
+exports.stackEventHasErrorMessage = stackEventHasErrorMessage;
+exports.maxResourceTypeLength = maxResourceTypeLength;
+/**
+ * Validate SNS topic arn
+ */
+function validateSnsTopicArn(arn) {
+    return /^arn:aws:sns:[a-z0-9\-]+:[0-9]+:[a-z0-9\-\_]+$/i.test(arn);
+}
+/**
+ * Does a Stack Event have an error message based on the status.
+ */
+function stackEventHasErrorMessage(status) {
+    return status.endsWith('_FAILED') || status === 'ROLLBACK_IN_PROGRESS' || status === 'UPDATE_ROLLBACK_IN_PROGRESS';
+}
+/**
+ * Calculate the maximal length of all resource types for a given template.
+ *
+ * @param template the stack template to analyze
+ * @param startWidth the initial width to start with. Defaults to the length of 'AWS::CloudFormation::Stack'.
+ * @returns the determined width
+ */
+function maxResourceTypeLength(template, startWidth = 'AWS::CloudFormation::Stack'.length) {
+    const resources = (template && template.Resources) || {};
+    let maxWidth = startWidth;
+    for (const id of Object.keys(resources)) {
+        const type = resources[id].Type || '';
+        if (type.length > maxWidth) {
+            maxWidth = type.length;
+        }
+    }
+    return maxWidth;
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiY2xvdWRmb3JtYXRpb24uanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi9zcmMvdXRpbC9jbG91ZGZvcm1hdGlvbi50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiOztBQUdBLGtEQUVDO0FBS0QsOERBRUM7QUFTRCxzREFVQztBQS9CRDs7R0FFRztBQUNILFNBQWdCLG1CQUFtQixDQUFDLEdBQVc7SUFDN0MsT0FBTyxpREFBaUQsQ0FBQyxJQUFJLENBQUMsR0FBRyxDQUFDLENBQUM7QUFDckUsQ0FBQztBQUVEOztHQUVHO0FBQ0gsU0FBZ0IseUJBQXlCLENBQUMsTUFBYztJQUN0RCxPQUFPLE1BQU0sQ0FBQyxRQUFRLENBQUMsU0FBUyxDQUFDLElBQUksTUFBTSxLQUFLLHNCQUFzQixJQUFJLE1BQU0sS0FBSyw2QkFBNkIsQ0FBQztBQUNySCxDQUFDO0FBRUQ7Ozs7OztHQU1HO0FBQ0gsU0FBZ0IscUJBQXFCLENBQUMsUUFBYSxFQUFFLFVBQVUsR0FBRyw0QkFBNEIsQ0FBQyxNQUFNO0lBQ25HLE1BQU0sU0FBUyxHQUFHLENBQUMsUUFBUSxJQUFJLFFBQVEsQ0FBQyxTQUFTLENBQUMsSUFBSSxFQUFFLENBQUM7SUFDekQsSUFBSSxRQUFRLEdBQUcsVUFBVSxDQUFDO0lBQzFCLEtBQUssTUFBTSxFQUFFLElBQUksTUFBTSxDQUFDLElBQUksQ0FBQyxTQUFTLENBQUMsRUFBRSxDQUFDO1FBQ3hDLE1BQU0sSUFBSSxHQUFHLFNBQVMsQ0FBQyxFQUFFLENBQUMsQ0FBQyxJQUFJLElBQUksRUFBRSxDQUFDO1FBQ3RDLElBQUksSUFBSSxDQUFDLE1BQU0sR0FBRyxRQUFRLEVBQUUsQ0FBQztZQUMzQixRQUFRLEdBQUcsSUFBSSxDQUFDLE1BQU0sQ0FBQztRQUN6QixDQUFDO0lBQ0gsQ0FBQztJQUNELE9BQU8sUUFBUSxDQUFDO0FBQ2xCLENBQUMiLCJzb3VyY2VzQ29udGVudCI6WyIvKipcbiAqIFZhbGlkYXRlIFNOUyB0b3BpYyBhcm5cbiAqL1xuZXhwb3J0IGZ1bmN0aW9uIHZhbGlkYXRlU25zVG9waWNBcm4oYXJuOiBzdHJpbmcpOiBib29sZWFuIHtcbiAgcmV0dXJuIC9eYXJuOmF3czpzbnM6W2EtejAtOVxcLV0rOlswLTldKzpbYS16MC05XFwtXFxfXSskL2kudGVzdChhcm4pO1xufVxuXG4vKipcbiAqIERvZXMgYSBTdGFjayBFdmVudCBoYXZlIGFuIGVycm9yIG1lc3NhZ2UgYmFzZWQgb24gdGhlIHN0YXR1cy5cbiAqL1xuZXhwb3J0IGZ1bmN0aW9uIHN0YWNrRXZlbnRIYXNFcnJvck1lc3NhZ2Uoc3RhdHVzOiBzdHJpbmcpOiBib29sZWFuIHtcbiAgcmV0dXJuIHN0YXR1cy5lbmRzV2l0aCgnX0ZBSUxFRCcpIHx8IHN0YXR1cyA9PT0gJ1JPTExCQUNLX0lOX1BST0dSRVNTJyB8fCBzdGF0dXMgPT09ICdVUERBVEVfUk9MTEJBQ0tfSU5fUFJPR1JFU1MnO1xufVxuXG4vKipcbiAqIENhbGN1bGF0ZSB0aGUgbWF4aW1hbCBsZW5ndGggb2YgYWxsIHJlc291cmNlIHR5cGVzIGZvciBhIGdpdmVuIHRlbXBsYXRlLlxuICpcbiAqIEBwYXJhbSB0ZW1wbGF0ZSB0aGUgc3RhY2sgdGVtcGxhdGUgdG8gYW5hbHl6ZVxuICogQHBhcmFtIHN0YXJ0V2lkdGggdGhlIGluaXRpYWwgd2lkdGggdG8gc3RhcnQgd2l0aC4gRGVmYXVsdHMgdG8gdGhlIGxlbmd0aCBvZiAnQVdTOjpDbG91ZEZvcm1hdGlvbjo6U3RhY2snLlxuICogQHJldHVybnMgdGhlIGRldGVybWluZWQgd2lkdGhcbiAqL1xuZXhwb3J0IGZ1bmN0aW9uIG1heFJlc291cmNlVHlwZUxlbmd0aCh0ZW1wbGF0ZTogYW55LCBzdGFydFdpZHRoID0gJ0FXUzo6Q2xvdWRGb3JtYXRpb246OlN0YWNrJy5sZW5ndGgpOiBudW1iZXIge1xuICBjb25zdCByZXNvdXJjZXMgPSAodGVtcGxhdGUgJiYgdGVtcGxhdGUuUmVzb3VyY2VzKSB8fCB7fTtcbiAgbGV0IG1heFdpZHRoID0gc3RhcnRXaWR0aDtcbiAgZm9yIChjb25zdCBpZCBvZiBPYmplY3Qua2V5cyhyZXNvdXJjZXMpKSB7XG4gICAgY29uc3QgdHlwZSA9IHJlc291cmNlc1tpZF0uVHlwZSB8fCAnJztcbiAgICBpZiAodHlwZS5sZW5ndGggPiBtYXhXaWR0aCkge1xuICAgICAgbWF4V2lkdGggPSB0eXBlLmxlbmd0aDtcbiAgICB9XG4gIH1cbiAgcmV0dXJuIG1heFdpZHRoO1xufVxuIl19

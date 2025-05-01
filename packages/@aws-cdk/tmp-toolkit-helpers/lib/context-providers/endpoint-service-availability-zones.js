@@ -1,0 +1,35 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EndpointServiceAZContextProviderPlugin = void 0;
+const aws_auth_1 = require("../api/aws-auth");
+/**
+ * Plugin to retrieve the Availability Zones for an endpoint service
+ */
+class EndpointServiceAZContextProviderPlugin {
+    aws;
+    io;
+    constructor(aws, io) {
+        this.aws = aws;
+        this.io = io;
+    }
+    async getValue(args) {
+        const region = args.region;
+        const account = args.account;
+        const serviceName = args.serviceName;
+        await this.io.debug(`Reading AZs for ${account}:${region}:${serviceName}`);
+        const ec2 = (await (0, aws_auth_1.initContextProviderSdk)(this.aws, args)).ec2();
+        const response = await ec2.describeVpcEndpointServices({
+            ServiceNames: [serviceName],
+        });
+        // expect a service in the response
+        if (!response.ServiceDetails || response.ServiceDetails.length === 0) {
+            await this.io.debug(`Could not retrieve service details for ${account}:${region}:${serviceName}`);
+            return [];
+        }
+        const azs = response.ServiceDetails[0].AvailabilityZones;
+        await this.io.debug(`Endpoint service ${account}:${region}:${serviceName} is available in availability zones ${azs}`);
+        return azs;
+    }
+}
+exports.EndpointServiceAZContextProviderPlugin = EndpointServiceAZContextProviderPlugin;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZW5kcG9pbnQtc2VydmljZS1hdmFpbGFiaWxpdHktem9uZXMuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi9zcmMvY29udGV4dC1wcm92aWRlcnMvZW5kcG9pbnQtc2VydmljZS1hdmFpbGFiaWxpdHktem9uZXMudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7O0FBRUEsOENBQTJFO0FBRzNFOztHQUVHO0FBQ0gsTUFBYSxzQ0FBc0M7SUFDcEI7SUFBbUM7SUFBaEUsWUFBNkIsR0FBZ0IsRUFBbUIsRUFBNEI7UUFBL0QsUUFBRyxHQUFILEdBQUcsQ0FBYTtRQUFtQixPQUFFLEdBQUYsRUFBRSxDQUEwQjtJQUM1RixDQUFDO0lBRU0sS0FBSyxDQUFDLFFBQVEsQ0FBQyxJQUFrRDtRQUN0RSxNQUFNLE1BQU0sR0FBRyxJQUFJLENBQUMsTUFBTSxDQUFDO1FBQzNCLE1BQU0sT0FBTyxHQUFHLElBQUksQ0FBQyxPQUFPLENBQUM7UUFDN0IsTUFBTSxXQUFXLEdBQUcsSUFBSSxDQUFDLFdBQVcsQ0FBQztRQUNyQyxNQUFNLElBQUksQ0FBQyxFQUFFLENBQUMsS0FBSyxDQUFDLG1CQUFtQixPQUFPLElBQUksTUFBTSxJQUFJLFdBQVcsRUFBRSxDQUFDLENBQUM7UUFDM0UsTUFBTSxHQUFHLEdBQUcsQ0FBQyxNQUFNLElBQUEsaUNBQXNCLEVBQUMsSUFBSSxDQUFDLEdBQUcsRUFBRSxJQUFJLENBQUMsQ0FBQyxDQUFDLEdBQUcsRUFBRSxDQUFDO1FBQ2pFLE1BQU0sUUFBUSxHQUFHLE1BQU0sR0FBRyxDQUFDLDJCQUEyQixDQUFDO1lBQ3JELFlBQVksRUFBRSxDQUFDLFdBQVcsQ0FBQztTQUM1QixDQUFDLENBQUM7UUFFSCxtQ0FBbUM7UUFDbkMsSUFBSSxDQUFDLFFBQVEsQ0FBQyxjQUFjLElBQUksUUFBUSxDQUFDLGNBQWMsQ0FBQyxNQUFNLEtBQUssQ0FBQyxFQUFFLENBQUM7WUFDckUsTUFBTSxJQUFJLENBQUMsRUFBRSxDQUFDLEtBQUssQ0FBQywwQ0FBMEMsT0FBTyxJQUFJLE1BQU0sSUFBSSxXQUFXLEVBQUUsQ0FBQyxDQUFDO1lBQ2xHLE9BQU8sRUFBRSxDQUFDO1FBQ1osQ0FBQztRQUNELE1BQU0sR0FBRyxHQUFHLFFBQVEsQ0FBQyxjQUFjLENBQUMsQ0FBQyxDQUFDLENBQUMsaUJBQWlCLENBQUM7UUFDekQsTUFBTSxJQUFJLENBQUMsRUFBRSxDQUFDLEtBQUssQ0FBQyxvQkFBb0IsT0FBTyxJQUFJLE1BQU0sSUFBSSxXQUFXLHVDQUF1QyxHQUFHLEVBQUUsQ0FBQyxDQUFDO1FBQ3RILE9BQU8sR0FBRyxDQUFDO0lBQ2IsQ0FBQztDQUNGO0FBdkJELHdGQXVCQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB0eXBlIHsgRW5kcG9pbnRTZXJ2aWNlQXZhaWxhYmlsaXR5Wm9uZXNDb250ZXh0UXVlcnkgfSBmcm9tICdAYXdzLWNkay9jbG91ZC1hc3NlbWJseS1zY2hlbWEnO1xuaW1wb3J0IHR5cGUgeyBJQ29udGV4dFByb3ZpZGVyTWVzc2FnZXMgfSBmcm9tICcuJztcbmltcG9ydCB7IHR5cGUgU2RrUHJvdmlkZXIsIGluaXRDb250ZXh0UHJvdmlkZXJTZGsgfSBmcm9tICcuLi9hcGkvYXdzLWF1dGgnO1xuaW1wb3J0IHR5cGUgeyBDb250ZXh0UHJvdmlkZXJQbHVnaW4gfSBmcm9tICcuLi9hcGkvcGx1Z2luJztcblxuLyoqXG4gKiBQbHVnaW4gdG8gcmV0cmlldmUgdGhlIEF2YWlsYWJpbGl0eSBab25lcyBmb3IgYW4gZW5kcG9pbnQgc2VydmljZVxuICovXG5leHBvcnQgY2xhc3MgRW5kcG9pbnRTZXJ2aWNlQVpDb250ZXh0UHJvdmlkZXJQbHVnaW4gaW1wbGVtZW50cyBDb250ZXh0UHJvdmlkZXJQbHVnaW4ge1xuICBjb25zdHJ1Y3Rvcihwcml2YXRlIHJlYWRvbmx5IGF3czogU2RrUHJvdmlkZXIsIHByaXZhdGUgcmVhZG9ubHkgaW86IElDb250ZXh0UHJvdmlkZXJNZXNzYWdlcykge1xuICB9XG5cbiAgcHVibGljIGFzeW5jIGdldFZhbHVlKGFyZ3M6IEVuZHBvaW50U2VydmljZUF2YWlsYWJpbGl0eVpvbmVzQ29udGV4dFF1ZXJ5KSB7XG4gICAgY29uc3QgcmVnaW9uID0gYXJncy5yZWdpb247XG4gICAgY29uc3QgYWNjb3VudCA9IGFyZ3MuYWNjb3VudDtcbiAgICBjb25zdCBzZXJ2aWNlTmFtZSA9IGFyZ3Muc2VydmljZU5hbWU7XG4gICAgYXdhaXQgdGhpcy5pby5kZWJ1ZyhgUmVhZGluZyBBWnMgZm9yICR7YWNjb3VudH06JHtyZWdpb259OiR7c2VydmljZU5hbWV9YCk7XG4gICAgY29uc3QgZWMyID0gKGF3YWl0IGluaXRDb250ZXh0UHJvdmlkZXJTZGsodGhpcy5hd3MsIGFyZ3MpKS5lYzIoKTtcbiAgICBjb25zdCByZXNwb25zZSA9IGF3YWl0IGVjMi5kZXNjcmliZVZwY0VuZHBvaW50U2VydmljZXMoe1xuICAgICAgU2VydmljZU5hbWVzOiBbc2VydmljZU5hbWVdLFxuICAgIH0pO1xuXG4gICAgLy8gZXhwZWN0IGEgc2VydmljZSBpbiB0aGUgcmVzcG9uc2VcbiAgICBpZiAoIXJlc3BvbnNlLlNlcnZpY2VEZXRhaWxzIHx8IHJlc3BvbnNlLlNlcnZpY2VEZXRhaWxzLmxlbmd0aCA9PT0gMCkge1xuICAgICAgYXdhaXQgdGhpcy5pby5kZWJ1ZyhgQ291bGQgbm90IHJldHJpZXZlIHNlcnZpY2UgZGV0YWlscyBmb3IgJHthY2NvdW50fToke3JlZ2lvbn06JHtzZXJ2aWNlTmFtZX1gKTtcbiAgICAgIHJldHVybiBbXTtcbiAgICB9XG4gICAgY29uc3QgYXpzID0gcmVzcG9uc2UuU2VydmljZURldGFpbHNbMF0uQXZhaWxhYmlsaXR5Wm9uZXM7XG4gICAgYXdhaXQgdGhpcy5pby5kZWJ1ZyhgRW5kcG9pbnQgc2VydmljZSAke2FjY291bnR9OiR7cmVnaW9ufToke3NlcnZpY2VOYW1lfSBpcyBhdmFpbGFibGUgaW4gYXZhaWxhYmlsaXR5IHpvbmVzICR7YXpzfWApO1xuICAgIHJldHVybiBhenM7XG4gIH1cbn1cbiJdfQ==

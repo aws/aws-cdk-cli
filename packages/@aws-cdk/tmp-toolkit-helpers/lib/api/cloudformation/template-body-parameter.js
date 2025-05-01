@@ -1,0 +1,104 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.makeBodyParameter = makeBodyParameter;
+const fs = require("node:fs/promises");
+const path = require("node:path");
+const util = require("node:util");
+const cx_api_1 = require("@aws-cdk/cx-api");
+const client_s3_1 = require("@aws-sdk/client-s3");
+const middleware_endpoint_1 = require("@smithy/middleware-endpoint");
+const chalk = require("chalk");
+const util_1 = require("../../util");
+const private_1 = require("../io/private");
+const toolkit_error_1 = require("../toolkit-error");
+const LARGE_TEMPLATE_SIZE_KB = 50;
+/**
+ * Prepares the body parameter for +CreateChangeSet+.
+ *
+ * If the template is small enough to be inlined into the API call, just return
+ * it immediately.
+ *
+ * Otherwise, add it to the asset manifest to get uploaded to the staging
+ * bucket and return its coordinates. If there is no staging bucket, an error
+ * is thrown.
+ *
+ * @param stack     the synthesized stack that provides the CloudFormation template
+ * @param toolkitInfo information about the toolkit stack
+ */
+async function makeBodyParameter(ioHelper, stack, resolvedEnvironment, assetManifest, resources, overrideTemplate) {
+    // If the template has already been uploaded to S3, just use it from there.
+    if (stack.stackTemplateAssetObjectUrl && !overrideTemplate) {
+        return {
+            TemplateURL: await restUrlFromManifest(stack.stackTemplateAssetObjectUrl, resolvedEnvironment),
+        };
+    }
+    // Otherwise, pass via API call (if small) or upload here (if large)
+    const templateJson = (0, util_1.toYAML)(overrideTemplate ?? stack.template);
+    if (templateJson.length <= LARGE_TEMPLATE_SIZE_KB * 1024) {
+        return { TemplateBody: templateJson };
+    }
+    const toolkitInfo = await resources.lookupToolkit();
+    if (!toolkitInfo.found) {
+        await ioHelper.notify(private_1.IO.DEFAULT_TOOLKIT_ERROR.msg(util.format(`The template for stack "${stack.displayName}" is ${Math.round(templateJson.length / 1024)}KiB. ` +
+            `Templates larger than ${LARGE_TEMPLATE_SIZE_KB}KiB must be uploaded to S3.\n` +
+            'Run the following command in order to setup an S3 bucket in this environment, and then re-deploy:\n\n', chalk.blue(`\t$ cdk bootstrap ${resolvedEnvironment.name}\n`))));
+        throw new toolkit_error_1.ToolkitError('Template too large to deploy ("cdk bootstrap" is required)');
+    }
+    const templateHash = (0, util_1.contentHash)(templateJson);
+    const key = `cdk/${stack.id}/${templateHash}.yml`;
+    let templateFile = stack.templateFile;
+    if (overrideTemplate) {
+        // Add a variant of this template
+        templateFile = `${stack.templateFile}-${templateHash}.yaml`;
+        const templateFilePath = path.join(stack.assembly.directory, templateFile);
+        await fs.writeFile(templateFilePath, templateJson, { encoding: 'utf-8' });
+    }
+    assetManifest.addFileAsset(templateHash, {
+        path: templateFile,
+    }, {
+        bucketName: toolkitInfo.bucketName,
+        objectKey: key,
+    });
+    const templateURL = `${toolkitInfo.bucketUrl}/${key}`;
+    await ioHelper.notify(private_1.IO.DEFAULT_TOOLKIT_DEBUG.msg(`Storing template in S3 at: ${templateURL}`));
+    return { TemplateURL: templateURL };
+}
+/**
+ * Format an S3 URL in the manifest for use with CloudFormation
+ *
+ * Replaces environment placeholders (which this field may contain),
+ * and reformats s3://.../... urls into S3 REST URLs (which CloudFormation
+ * expects)
+ */
+async function restUrlFromManifest(url, environment) {
+    const doNotUseMarker = '**DONOTUSE**';
+    const region = environment.region;
+    // This URL may contain placeholders, so still substitute those.
+    url = cx_api_1.EnvironmentPlaceholders.replace(url, {
+        accountId: environment.account,
+        region,
+        partition: doNotUseMarker,
+    });
+    // Yes, this is extremely crude, but we don't actually need this so I'm not inclined to spend
+    // a lot of effort trying to thread the right value to this location.
+    if (url.indexOf(doNotUseMarker) > -1) {
+        throw new toolkit_error_1.ToolkitError("Cannot use '${AWS::Partition}' in the 'stackTemplateAssetObjectUrl' field");
+    }
+    const s3Url = url.match(/s3:\/\/([^/]+)\/(.*)$/);
+    if (!s3Url) {
+        return url;
+    }
+    // We need to pass an 'https://s3.REGION.amazonaws.com[.cn]/bucket/object' URL to CloudFormation, but we
+    // got an 's3://bucket/object' URL instead. Construct the rest API URL here.
+    const bucketName = s3Url[1];
+    const objectKey = s3Url[2];
+    // SDK v3 no longer allows for getting endpoints from only region.
+    // A command and client config must now be provided.
+    const s3 = new client_s3_1.S3Client({ region });
+    const endpoint = await (0, middleware_endpoint_1.getEndpointFromInstructions)({}, client_s3_1.HeadObjectCommand, {
+        ...s3.config,
+    });
+    endpoint.url.hostname;
+    return `${endpoint.url.origin}/${bucketName}/${objectKey}`;
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidGVtcGxhdGUtYm9keS1wYXJhbWV0ZXIuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi9zcmMvYXBpL2Nsb3VkZm9ybWF0aW9uL3RlbXBsYXRlLWJvZHktcGFyYW1ldGVyLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7O0FBaUNBLDhDQTZEQztBQTlGRCx1Q0FBdUM7QUFDdkMsa0NBQWtDO0FBQ2xDLGtDQUFrQztBQUNsQyw0Q0FBOEc7QUFDOUcsa0RBQWlFO0FBQ2pFLHFFQUEwRTtBQUMxRSwrQkFBK0I7QUFDL0IscUNBQWlEO0FBR2pELDJDQUFrRDtBQUNsRCxvREFBZ0Q7QUFPaEQsTUFBTSxzQkFBc0IsR0FBRyxFQUFFLENBQUM7QUFFbEM7Ozs7Ozs7Ozs7OztHQVlHO0FBQ0ksS0FBSyxVQUFVLGlCQUFpQixDQUNyQyxRQUFrQixFQUNsQixLQUFrQyxFQUNsQyxtQkFBZ0MsRUFDaEMsYUFBbUMsRUFDbkMsU0FBK0IsRUFDL0IsZ0JBQXNCO0lBRXRCLDJFQUEyRTtJQUMzRSxJQUFJLEtBQUssQ0FBQywyQkFBMkIsSUFBSSxDQUFDLGdCQUFnQixFQUFFLENBQUM7UUFDM0QsT0FBTztZQUNMLFdBQVcsRUFBRSxNQUFNLG1CQUFtQixDQUFDLEtBQUssQ0FBQywyQkFBMkIsRUFBRSxtQkFBbUIsQ0FBQztTQUMvRixDQUFDO0lBQ0osQ0FBQztJQUVELG9FQUFvRTtJQUNwRSxNQUFNLFlBQVksR0FBRyxJQUFBLGFBQU0sRUFBQyxnQkFBZ0IsSUFBSSxLQUFLLENBQUMsUUFBUSxDQUFDLENBQUM7SUFFaEUsSUFBSSxZQUFZLENBQUMsTUFBTSxJQUFJLHNCQUFzQixHQUFHLElBQUksRUFBRSxDQUFDO1FBQ3pELE9BQU8sRUFBRSxZQUFZLEVBQUUsWUFBWSxFQUFFLENBQUM7SUFDeEMsQ0FBQztJQUVELE1BQU0sV0FBVyxHQUFHLE1BQU0sU0FBUyxDQUFDLGFBQWEsRUFBRSxDQUFDO0lBQ3BELElBQUksQ0FBQyxXQUFXLENBQUMsS0FBSyxF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QW9EO0lBQ3BELE1BQU0sRUFBRSxHQUFHLElBQUksb0JBQVEsQ0FBQyxFQUFFLE1BQU0sRUFBRSxDQUFDLENBQUM7SUFDcEMsTUFBTSxRQUFRLEdBQUcsTUFBTSxJQUFBLGlEQUEyQixFQUFDLEVBQUUsRUFBRSw2QkFBaUIsRUFBRTtRQUN4RSxHQUFHLEVBQUUsQ0FBQyxNQUFNO0tBQ2IsQ0FBQyxDQUFDO0lBQ0gsUUFBUSxDQUFDLEdBQUcsQ0FBQyxRQUFRLENBQUM7SUFFdEIsT0FBTyxHQUFHLFFBQVEsQ0FBQyxHQUFHLENBQUMsTUFBTSxJQUFJLFVBQVUsSUFBSSxTQUFTLEVBQUUsQ0FBQztBQUM3RCxDQUFDIiwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0ICogYXMgZnMgZnJvbSAnbm9kZTpmcy9wcm9taXNlcyc7XG5pbXBvcnQgKiBhcyBwYXRoIGZyb20gJ25vZGU6cGF0aCc7XG5pbXBvcnQgKiBhcyB1dGlsIGZyb20gJ25vZGU6dXRpbCc7XG5pbXBvcnQgeyB0eXBlIENsb3VkRm9ybWF0aW9uU3RhY2tBcnRpZmFjdCwgdHlwZSBFbnZpcm9ubWVudCwgRW52aXJvbm1lbnRQbGFjZWhvbGRlcnMgfSBmcm9tICdAYXdzLWNkay9jeC1hcGknO1xuaW1wb3J0IHsgSGVhZE9iamVjdENvbW1hbmQsIFMzQ2xpZW50IH0gZnJvbSAnQGF3cy1zZGsvY2xpZW50LXMzJztcbmltcG9ydCB7IGdldEVuZHBvaW50RnJvbUluc3RydWN0aW9ucyB9IGZyb20gJ0BzbWl0aHkvbWlkZGxld2FyZS1lbmRwb2ludCc7XG5pbXBvcnQgKiBhcyBjaGFsayBmcm9tICdjaGFsayc7XG5pbXBvcnQgeyBjb250ZW50SGFzaCwgdG9ZQU1MIH0gZnJvbSAnLi4vLi4vdXRpbCc7XG5pbXBvcnQgdHlwZSB7IEFzc2V0TWFuaWZlc3RCdWlsZGVyIH0gZnJvbSAnLi4vZGVwbG95bWVudHMnO1xuaW1wb3J0IHR5cGUgeyBFbnZpcm9ubWVudFJlc291cmNlcyB9IGZyb20gJy4uL2Vudmlyb25tZW50JztcbmltcG9ydCB7IElPLCB0eXBlIElvSGVscGVyIH0gZnJvbSAnLi4vaW8vcHJpdmF0ZSc7XG5pbXBvcnQgeyBUb29sa2l0RXJyb3IgfSBmcm9tICcuLi90b29sa2l0LWVycm9yJztcblxuZXhwb3J0IHR5cGUgVGVtcGxhdGVCb2R5UGFyYW1ldGVyID0ge1xuICBUZW1wbGF0ZUJvZHk/OiBzdHJpbmc7XG4gIFRlbXBsYXRlVVJMPzogc3RyaW5nO1xufTtcblxuY29uc3QgTEFSR0VfVEVNUExBVEVfU0laRV9LQiA9IDUwO1xuXG4vKipcbiAqIFByZXBhcmVzIHRoZSBib2R5IHBhcmFtZXRlciBmb3IgK0NyZWF0ZUNoYW5nZVNldCsuXG4gKlxuICogSWYgdGhlIHRlbXBsYXRlIGlzIHNtYWxsIGVub3VnaCB0byBiZSBpbmxpbmVkIGludG8gdGhlIEFQSSBjYWxsLCBqdXN0IHJldHVyblxuICogaXQgaW1tZWRpYXRlbHkuXG4gKlxuICogT3RoZXJ3aXNlLCBhZGQgaXQgdG8gdGhlIGFzc2V0IG1hbmlmZXN0IHRvIGdldCB1cGxvYWRlZCB0byB0aGUgc3RhZ2luZ1xuICogYnVja2V0IGFuZCByZXR1cm4gaXRzIGNvb3JkaW5hdGVzLiBJZiB0aGVyZSBpcyBubyBzdGFnaW5nIGJ1Y2tldCwgYW4gZXJyb3JcbiAqIGlzIHRocm93bi5cbiAqXG4gKiBAcGFyYW0gc3RhY2sgICAgIHRoZSBzeW50aGVzaXplZCBzdGFjayB0aGF0IHByb3ZpZGVzIHRoZSBDbG91ZEZvcm1hdGlvbiB0ZW1wbGF0ZVxuICogQHBhcmFtIHRvb2xraXRJbmZvIGluZm9ybWF0aW9uIGFib3V0IHRoZSB0b29sa2l0IHN0YWNrXG4gKi9cbmV4cG9ydCBhc3luYyBmdW5jdGlvbiBtYWtlQm9keVBhcmFtZXRlcihcbiAgaW9IZWxwZXI6IElvSGVscGVyLFxuICBzdGFjazogQ2xvdWRGb3JtYXRpb25TdGFja0FydGlmYWN0LFxuICByZXNvbHZlZEVudmlyb25tZW50OiBFbnZpcm9ubWVudCxcbiAgYXNzZXRNYW5pZmVzdDogQXNzZXRNYW5pZmVzdEJ1aWxkZXIsXG4gIHJlc291cmNlczogRW52aXJvbm1lbnRSZXNvdXJjZXMsXG4gIG92ZXJyaWRlVGVtcGxhdGU/OiBhbnksXG4pOiBQcm9taXNlPFRlbXBsYXRlQm9keVBhcmFtZXRlcj4ge1xuICAvLyBJZiB0aGUgdGVtcGxhdGUgaGFzIGFscmVhZHkgYmVlbiB1cGxvYWRlZCB0byBTMywganVzdCB1c2UgaXQgZnJvbSB0aGVyZS5cbiAgaWYgKHN0YWNrLnN0YWNrVGVtcGxhdGVBc3NldE9iamVjdFVybCAmJiAhb3ZlcnJpZGVUZW1wbGF0ZSkge1xuICAgIHJldHVybiB7XG4gICAgICBUZW1wbGF0ZVVSTDogYXdhaXQgcmVzdFVybEZyb21NYW5pZmVzdChzdGFjay5zdGFja1RlbXBsYXRlQXNzZXRPYmplY3RVcmwsIHJlc29sdmVkRW52aXJvbm1lbnQpLFxuICAgIH07XG4gIH1cblxuICAvLyBPdGhlcndpc2UsIHBhc3MgdmlhIEFQSSBjYWxsIChpZiBzbWFsbCkgb3IgdXBsb2FkIGhlcmUgKGlmIGxhcmdlKVxuICBjb25zdCB0ZW1wbGF0ZUpzb24gPSB0b1lBTUwob3ZlcnJpZGVUZW1wbGF0ZSA/PyBzdGFjay50ZW1wbGF0ZSk7XG5cbiAgaWYgKHRlbXBsYXRlSnNvbi5sZW5ndGggPD0gTEFSR0VfVEVNUExBVEVfU0laRV9LQiAqIDEwMjQpIHtcbiAgICByZXR1cm4geyBUZW1wbGF0ZUJvZHk6IHRlbXBsYXRlSnNvbiB9O1xuICB9XG5cbiAgY29uc3QgdG9vbGtpdEluZm8gPSBhd2FpdCByZXNvdXJjZXMubG9va3VwVG9vbGtpdCgpO1xuICBpZiAoIXRvb2xraXRJbmZvLmZvdW5kKSB7XG4gICAgYXdhaXQgaW9IZWxwZXIubm90aWZ5KFxuICAgICAgSU8uREVGQVVMVF9UT09MS0lUX0VSUk9SLm1zZyh1dGlsLmZvcm1hdChcbiAgICAgICAgYFRoZSB0ZW1wbGF0ZSBmb3Igc3RhY2sgXCIke3N0YWNrLmRpc3BsYXlOYW1lfVwiIGlzICR7TWF0aC5yb3VuZCh0ZW1wbGF0ZUpzb24ubGVuZ3RoIC8gMTAyNCl9S2lCLiBgICtcbiAgICAgICAgYFRlbXBsYXRlcyBsYXJnZXIgdGhhbiAke0xBUkdFX1RFTVBMQVRFX1NJWkVfS0J9S2lCIG11c3QgYmUgdXBsb2FkZWQgdG8gUzMuXFxuYCArXG4gICAgICAgICdSdW4gdGhlIGZvbGxvd2luZyBjb21tYW5kIGluIG9yZGVyIHRvIHNldHVwIGFuIFMzIGJ1Y2tldCBpbiB0aGlzIGVudmlyb25tZW50LCBhbmQgdGhlbiByZS1kZXBsb3k6XFxuXFxuJyxcbiAgICAgICAgY2hhbGsuYmx1ZShgXFx0JCBjZGsgYm9vdHN0cmFwICR7cmVzb2x2ZWRFbnZpcm9ubWVudC5uYW1lfVxcbmApLFxuICAgICAgKSksXG4gICAgKTtcblxuICAgIHRocm93IG5ldyBUb29sa2l0RXJyb3IoJ1RlbXBsYXRlIHRvbyBsYXJnZSB0byBkZXBsb3kgKFwiY2RrIGJvb3RzdHJhcFwiIGlzIHJlcXVpcmVkKScpO1xuICB9XG5cbiAgY29uc3QgdGVtcGxhdGVIYXNoID0gY29udGVudEhhc2godGVtcGxhdGVKc29uKTtcbiAgY29uc3Qga2V5ID0gYGNkay8ke3N0YWNrLmlkfS8ke3RlbXBsYXRlSGFzaH0ueW1sYDtcblxuICBsZXQgdGVtcGxhdGVGaWxlID0gc3RhY2sudGVtcGxhdGVGaWxlO1xuICBpZiAob3ZlcnJpZGVUZW1wbGF0ZSkge1xuICAgIC8vIEFkZCBhIHZhcmlhbnQgb2YgdGhpcyB0ZW1wbGF0ZVxuICAgIHRlbXBsYXRlRmlsZSA9IGAke3N0YWNrLnRlbXBsYXRlRmlsZX0tJHt0ZW1wbGF0ZUhhc2h9LnlhbWxgO1xuICAgIGNvbnN0IHRlbXBsYXRlRmlsZVBhdGggPSBwYXRoLmpvaW4oc3RhY2suYXNzZW1ibHkuZGlyZWN0b3J5LCB0ZW1wbGF0ZUZpbGUpO1xuICAgIGF3YWl0IGZzLndyaXRlRmlsZSh0ZW1wbGF0ZUZpbGVQYXRoLCB0ZW1wbGF0ZUpzb24sIHsgZW5jb2Rpbmc6ICd1dGYtOCcgfSk7XG4gIH1cblxuICBhc3NldE1hbmlmZXN0LmFkZEZpbGVBc3NldChcbiAgICB0ZW1wbGF0ZUhhc2gsXG4gICAge1xuICAgICAgcGF0aDogdGVtcGxhdGVGaWxlLFxuICAgIH0sXG4gICAge1xuICAgICAgYnVja2V0TmFtZTogdG9vbGtpdEluZm8uYnVja2V0TmFtZSxcbiAgICAgIG9iamVjdEtleToga2V5LFxuICAgIH0sXG4gICk7XG5cbiAgY29uc3QgdGVtcGxhdGVVUkwgPSBgJHt0b29sa2l0SW5mby5idWNrZXRVcmx9LyR7a2V5fWA7XG4gIGF3YWl0IGlvSGVscGVyLm5vdGlmeShJTy5ERUZBVUxUX1RPT0xLSVRfREVCVUcubXNnKGBTdG9yaW5nIHRlbXBsYXRlIGluIFMzIGF0OiAke3RlbXBsYXRlVVJMfWApKTtcbiAgcmV0dXJuIHsgVGVtcGxhdGVVUkw6IHRlbXBsYXRlVVJMIH07XG59XG5cbi8qKlxuICogRm9ybWF0IGFuIFMzIFVSTCBpbiB0aGUgbWFuaWZlc3QgZm9yIHVzZSB3aXRoIENsb3VkRm9ybWF0aW9uXG4gKlxuICogUmVwbGFjZXMgZW52aXJvbm1lbnQgcGxhY2Vob2xkZXJzICh3aGljaCB0aGlzIGZpZWxkIG1heSBjb250YWluKSxcbiAqIGFuZCByZWZvcm1hdHMgczM6Ly8uLi4vLi4uIHVybHMgaW50byBTMyBSRVNUIFVSTHMgKHdoaWNoIENsb3VkRm9ybWF0aW9uXG4gKiBleHBlY3RzKVxuICovXG5hc3luYyBmdW5jdGlvbiByZXN0VXJsRnJvbU1hbmlmZXN0KHVybDogc3RyaW5nLCBlbnZpcm9ubWVudDogRW52aXJvbm1lbnQpOiBQcm9taXNlPHN0cmluZz4ge1xuICBjb25zdCBkb05vdFVzZU1hcmtlciA9ICcqKkRPTk9UVVNFKionO1xuICBjb25zdCByZWdpb24gPSBlbnZpcm9ubWVudC5yZWdpb247XG4gIC8vIFRoaXMgVVJMIG1heSBjb250YWluIHBsYWNlaG9sZGVycywgc28gc3RpbGwgc3Vic3RpdHV0ZSB0aG9zZS5cbiAgdXJsID0gRW52aXJvbm1lbnRQbGFjZWhvbGRlcnMucmVwbGFjZSh1cmwsIHtcbiAgICBhY2NvdW50SWQ6IGVudmlyb25tZW50LmFjY291bnQsXG4gICAgcmVnaW9uLFxuICAgIHBhcnRpdGlvbjogZG9Ob3RVc2VNYXJrZXIsXG4gIH0pO1xuXG4gIC8vIFllcywgdGhpcyBpcyBleHRyZW1lbHkgY3J1ZGUsIGJ1dCB3ZSBkb24ndCBhY3R1YWxseSBuZWVkIHRoaXMgc28gSSdtIG5vdCBpbmNsaW5lZCB0byBzcGVuZFxuICAvLyBhIGxvdCBvZiBlZmZvcnQgdHJ5aW5nIHRvIHRocmVhZCB0aGUgcmlnaHQgdmFsdWUgdG8gdGhpcyBsb2NhdGlvbi5cbiAgaWYgKHVybC5pbmRleE9mKGRvTm90VXNlTWFya2VyKSA+IC0xKSB7XG4gICAgdGhyb3cgbmV3IFRvb2xraXRFcnJvcihcIkNhbm5vdCB1c2UgJyR7QVdTOjpQYXJ0aXRpb259JyBpbiB0aGUgJ3N0YWNrVGVtcGxhdGVBc3NldE9iamVjdFVybCcgZmllbGRcIik7XG4gIH1cblxuICBjb25zdCBzM1VybCA9IHVybC5tYXRjaCgvczM6XFwvXFwvKFteL10rKVxcLyguKikkLyk7XG4gIGlmICghczNVcmwpIHtcbiAgICByZXR1cm4gdXJsO1xuICB9XG5cbiAgLy8gV2UgbmVlZCB0byBwYXNzIGFuICdodHRwczovL3MzLlJFR0lPTi5hbWF6b25hd3MuY29tWy5jbl0vYnVja2V0L29iamVjdCcgVVJMIHRvIENsb3VkRm9ybWF0aW9uLCBidXQgd2VcbiAgLy8gZ290IGFuICdzMzovL2J1Y2tldC9vYmplY3QnIFVSTCBpbnN0ZWFkLiBDb25zdHJ1Y3QgdGhlIHJlc3QgQVBJIFVSTCBoZXJlLlxuICBjb25zdCBidWNrZXROYW1lID0gczNVcmxbMV07XG4gIGNvbnN0IG9iamVjdEtleSA9IHMzVXJsWzJdO1xuXG4gIC8vIFNESyB2MyBubyBsb25nZXIgYWxsb3dzIGZvciBnZXR0aW5nIGVuZHBvaW50cyBmcm9tIG9ubHkgcmVnaW9uLlxuICAvLyBBIGNvbW1hbmQgYW5kIGNsaWVudCBjb25maWcgbXVzdCBub3cgYmUgcHJvdmlkZWQuXG4gIGNvbnN0IHMzID0gbmV3IFMzQ2xpZW50KHsgcmVnaW9uIH0pO1xuICBjb25zdCBlbmRwb2ludCA9IGF3YWl0IGdldEVuZHBvaW50RnJvbUluc3RydWN0aW9ucyh7fSwgSGVhZE9iamVjdENvbW1hbmQsIHtcbiAgICAuLi5zMy5jb25maWcsXG4gIH0pO1xuICBlbmRwb2ludC51cmwuaG9zdG5hbWU7XG5cbiAgcmV0dXJuIGAke2VuZHBvaW50LnVybC5vcmlnaW59LyR7YnVja2V0TmFtZX0vJHtvYmplY3RLZXl9YDtcbn1cbiJdfQ==

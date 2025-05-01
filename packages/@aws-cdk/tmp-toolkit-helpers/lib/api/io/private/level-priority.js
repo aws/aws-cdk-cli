@@ -1,0 +1,33 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.isMessageRelevantForLevel = isMessageRelevantForLevel;
+/**
+ * Keep this list ordered from most to least verbose.
+ * Every level "includes" all of the levels below it.
+ * This is used to compare levels of messages to determine what should be logged.
+ */
+const levels = [
+    'trace',
+    'debug',
+    'info',
+    'warn',
+    'result',
+    'error',
+];
+// compare levels helper
+// helper to convert the array into a map with numbers
+const orderedLevels = Object.fromEntries(Object.entries(levels).map(a => a.reverse()));
+function compareFn(a, b) {
+    return orderedLevels[a] - orderedLevels[b];
+}
+/**
+ * Determines if a message is relevant for the given log level.
+ *
+ * @param msg The message to compare.
+ * @param level The level to compare against.
+ * @returns true if the message is relevant for the given level.
+ */
+function isMessageRelevantForLevel(msg, level) {
+    return compareFn(msg.level, level) >= 0;
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibGV2ZWwtcHJpb3JpdHkuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi8uLi9zcmMvYXBpL2lvL3ByaXZhdGUvbGV2ZWwtcHJpb3JpdHkudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUE4QkEsOERBRUM7QUE5QkQ7Ozs7R0FJRztBQUNILE1BQU0sTUFBTSxHQUFHO0lBQ2IsT0FBTztJQUNQLE9BQU87SUFDUCxNQUFNO0lBQ04sTUFBTTtJQUNOLFFBQVE7SUFDUixPQUFPO0NBQ0MsQ0FBQztBQUVYLHdCQUF3QjtBQUN4QixzREFBc0Q7QUFDdEQsTUFBTSxhQUFhLEdBQTBDLE1BQU0sQ0FBQyxXQUFXLENBQUMsTUFBTSxDQUFDLE9BQU8sQ0FBQyxNQUFNLENBQUMsQ0FBQyxHQUFHLENBQUMsQ0FBQyxDQUFDLEVBQUUsQ0FBQyxDQUFDLENBQUMsT0FBTyxFQUFFLENBQUMsQ0FBQyxDQUFDO0FBQzlILFNBQVMsU0FBUyxDQUFDLENBQWlCLEVBQUUsQ0FBaUI7SUFDckQsT0FBTyxhQUFhLENBQUMsQ0FBQyxDQUFDLEdBQUcsYUFBYSxDQUFDLENBQUMsQ0FBQyxDQUFDO0FBQzdDLENBQUM7QUFFRDs7Ozs7O0dBTUc7QUFDSCxTQUFnQix5QkFBeUIsQ0FBQyxHQUE2QixFQUFFLEtBQXFCO0lBQzVGLE9BQU8sU0FBUyxDQUFDLEdBQUcsQ0FBQyxLQUFLLEVBQUUsS0FBSyxDQUFDLElBQUksQ0FBQyxDQUFDO0FBQzFDLENBQUMiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgdHlwZSB7IElvTWVzc2FnZUxldmVsIH0gZnJvbSAnLi4vJztcblxuLyoqXG4gKiBLZWVwIHRoaXMgbGlzdCBvcmRlcmVkIGZyb20gbW9zdCB0byBsZWFzdCB2ZXJib3NlLlxuICogRXZlcnkgbGV2ZWwgXCJpbmNsdWRlc1wiIGFsbCBvZiB0aGUgbGV2ZWxzIGJlbG93IGl0LlxuICogVGhpcyBpcyB1c2VkIHRvIGNvbXBhcmUgbGV2ZWxzIG9mIG1lc3NhZ2VzIHRvIGRldGVybWluZSB3aGF0IHNob3VsZCBiZSBsb2dnZWQuXG4gKi9cbmNvbnN0IGxldmVscyA9IFtcbiAgJ3RyYWNlJyxcbiAgJ2RlYnVnJyxcbiAgJ2luZm8nLFxuICAnd2FybicsXG4gICdyZXN1bHQnLFxuICAnZXJyb3InLFxuXSBhcyBjb25zdDtcblxuLy8gY29tcGFyZSBsZXZlbHMgaGVscGVyXG4vLyBoZWxwZXIgdG8gY29udmVydCB0aGUgYXJyYXkgaW50byBhIG1hcCB3aXRoIG51bWJlcnNcbmNvbnN0IG9yZGVyZWRMZXZlbHM6IFJlY29yZDx0eXBlb2YgbGV2ZWxzW251bWJlcl0sIG51bWJlcj4gPSBPYmplY3QuZnJvbUVudHJpZXMoT2JqZWN0LmVudHJpZXMobGV2ZWxzKS5tYXAoYSA9PiBhLnJldmVyc2UoKSkpO1xuZnVuY3Rpb24gY29tcGFyZUZuKGE6IElvTWVzc2FnZUxldmVsLCBiOiBJb01lc3NhZ2VMZXZlbCk6IG51bWJlciB7XG4gIHJldHVybiBvcmRlcmVkTGV2ZWxzW2FdIC0gb3JkZXJlZExldmVsc1tiXTtcbn1cblxuLyoqXG4gKiBEZXRlcm1pbmVzIGlmIGEgbWVzc2FnZSBpcyByZWxldmFudCBmb3IgdGhlIGdpdmVuIGxvZyBsZXZlbC5cbiAqXG4gKiBAcGFyYW0gbXNnIFRoZSBtZXNzYWdlIHRvIGNvbXBhcmUuXG4gKiBAcGFyYW0gbGV2ZWwgVGhlIGxldmVsIHRvIGNvbXBhcmUgYWdhaW5zdC5cbiAqIEByZXR1cm5zIHRydWUgaWYgdGhlIG1lc3NhZ2UgaXMgcmVsZXZhbnQgZm9yIHRoZSBnaXZlbiBsZXZlbC5cbiAqL1xuZXhwb3J0IGZ1bmN0aW9uIGlzTWVzc2FnZVJlbGV2YW50Rm9yTGV2ZWwobXNnOiB7IGxldmVsOiBJb01lc3NhZ2VMZXZlbH0sIGxldmVsOiBJb01lc3NhZ2VMZXZlbCk6IGJvb2xlYW4ge1xuICByZXR1cm4gY29tcGFyZUZuKG1zZy5sZXZlbCwgbGV2ZWwpID49IDA7XG59XG5cbiJdfQ==
