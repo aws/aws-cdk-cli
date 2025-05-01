@@ -326,7 +326,7 @@ describe('formatStackDrift', () => {
           ActualValue: 'Tear the Roof Off the Sucker',
           DifferenceType: 'NOT_EQUAL',
         }],
-        Timestamp: new Date(2024, 5, 3, 13, 0, 0),
+        Timestamp: new Date(2024, 5, 6, 9, 0, 0),
       }],
       $metadata: {},
     };
@@ -352,6 +352,63 @@ describe('formatStackDrift', () => {
       'Some description',
       'Tear the Roof Off the Sucker',
       '1 resource has drifted',
+    ];
+    for (const expectedStringInOutput of expectedStringsInOutput) {
+      expect(result.formattedDrift).toContain(expectedStringInOutput);
+    }
+  });
+
+  test('detects multiple drifts', () => {
+    // GIVEN
+    const mockDriftedResources: DescribeStackResourceDriftsCommandOutput = {
+      StackResourceDrifts: [{
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'MyVpc',
+        PhysicalResourceId: 'MyVpc',
+        ResourceType: 'AWS::EC2::VPC',
+        PropertyDifferences: [{
+          PropertyPath: '/CidrBlock',
+          ExpectedValue: '10.0.0.0/16',
+          ActualValue: '10.0.0.1/16',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(2024, 5, 3, 13, 0, 0),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'DELETED',
+        LogicalResourceId: 'SomeRoute',
+        PhysicalResourceId: 'SomeRoute',
+        ResourceType: 'AWS::EC2::Route',
+        Timestamp: new Date(2024, 11, 24, 19, 0, 0),
+      }],
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      ioHelper: mockIoHelper,
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
+      },
+      driftResults: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift({});
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(2);
+    const expectedStringsInOutput = [
+      'Modified Resources',
+      'AWS::EC2::VPC',
+      'MyVpc',
+      'CidrBlock',
+      '10.0.0.0/16',
+      '10.0.0.1/16',
+      'AWS::EC2::Route',
+      'SomeRoute',
+      '2 resources have drifted',
     ];
     for (const expectedStringInOutput of expectedStringsInOutput) {
       expect(result.formattedDrift).toContain(expectedStringInOutput);
