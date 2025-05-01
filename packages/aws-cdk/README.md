@@ -11,24 +11,25 @@
 
 The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications.
 
-| Command                               | Description                                                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------------- |
-| [`cdk docs`](#cdk-docs)               | Access the online documentation                                                    |
-| [`cdk init`](#cdk-init)               | Start a new CDK project (app or library)                                           |
-| [`cdk list`](#cdk-list)               | List stacks and their dependencies in an application                               |
-| [`cdk synth`](#cdk-synthesize)        | Synthesize a CDK app to CloudFormation template(s)                                 |
-| [`cdk diff`](#cdk-diff)               | Diff stacks against current state                                                  |
-| [`cdk deploy`](#cdk-deploy)           | Deploy a stack into an AWS account                                                 |
-| [`cdk rollback`](#cdk-rollback)       | Roll back a failed deployment                                                      |
-| [`cdk import`](#cdk-import)           | Import existing AWS resources into a CDK stack                                     |
-| [`cdk migrate`](#cdk-migrate)         | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK  |
-| [`cdk watch`](#cdk-watch)             | Watches a CDK app for deployable and hotswappable changes                          |
-| [`cdk destroy`](#cdk-destroy)         | Deletes a stack from an AWS account                                                |
-| [`cdk bootstrap`](#cdk-bootstrap)     | Deploy a toolkit stack to support deploying large stacks & artifacts               |
-| [`cdk gc`](#cdk-gc)                   | Garbage collect assets associated with the bootstrapped stack                      |
-| [`cdk doctor`](#cdk-doctor)           | Inspect the environment and produce information useful for troubleshooting         |
-| [`cdk acknowledge`](#cdk-acknowledge) | Acknowledge (and hide) a notice by issue number                                    |
-| [`cdk notices`](#cdk-notices)         | List all relevant notices for the application                                      |
+| Command                               | Description                                                                       |
+|---------------------------------------|-----------------------------------------------------------------------------------|
+| [`cdk docs`](#cdk-docs)               | Access the online documentation                                                   |
+| [`cdk init`](#cdk-init)               | Start a new CDK project (app or library)                                          |
+| [`cdk list`](#cdk-list)               | List stacks and their dependencies in an application                              |
+| [`cdk synth`](#cdk-synthesize)        | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk diff`](#cdk-diff)               | Diff stacks against current state                                                 |
+| [`cdk deploy`](#cdk-deploy)           | Deploy a stack into an AWS account                                                |
+| [`cdk rollback`](#cdk-rollback)       | Roll back a failed deployment                                                     |
+| [`cdk import`](#cdk-import)           | Import existing AWS resources into a CDK stack                                    |
+| [`cdk migrate`](#cdk-migrate)         | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
+| [`cdk watch`](#cdk-watch)             | Watches a CDK app for deployable and hotswappable changes                         |
+| [`cdk destroy`](#cdk-destroy)         | Deletes a stack from an AWS account                                               |
+| [`cdk bootstrap`](#cdk-bootstrap)     | Deploy a toolkit stack to support deploying large stacks & artifacts              |
+| [`cdk gc`](#cdk-gc)                   | Garbage collect assets associated with the bootstrapped stack                     |
+| [`cdk doctor`](#cdk-doctor)           | Inspect the environment and produce information useful for troubleshooting        |
+| [`cdk acknowledge`](#cdk-acknowledge) | Acknowledge (and hide) a notice by issue number                                   |
+| [`cdk notices`](#cdk-notices)         | List all relevant notices for the application                                     |
+| [`cdk refactor`](#cdk-refactor)       | Moves resources between stacks or within the same stack                           |
 
 - [Bundling](#bundling)
 - [MFA Support](#mfa-support)
@@ -1065,6 +1066,70 @@ $ cdk doctor
   - AWS_EC2_METADATA_DISABLED = 1
   - AWS_SDK_LOAD_CONFIG = 1
 ```
+
+### `cdk refactor`
+
+⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have 
+breaking changes in the future. Make sure to use the `--unstable=refactor` flag 
+when using this command.
+
+Compares the infrastructure specified in the current state of the CDK app with 
+the currently deployed application, to determine if any resource was moved 
+(to a different stack or to a different logical ID, or both). The CLI will 
+show the correspondence between the old and new locations in a table:
+
+```
+$ cdk refactor --unstable=refactor --dry-run
+
+The following resources were moved or renamed:
+
+┌───────────────────────────────┬───────────────────────────────┬───────────────────────────────────┐
+│ Resource Type                 │ Old Construct Path            │ New Construct Path                │
+├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
+│ AWS::S3::Bucket               │ MyStack/Bucket/Resource       │ Web/Website/Origin/Resource       │
+├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
+│ AWS::CloudFront::Distribution │ MyStack/Distribution/Resource │ Web/Website/Distribution/Resource │
+├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
+│ AWS::Lambda::Function         │ MyStack/Function/Resource     │ Service/Function/Resource         │
+└───────────────────────────────┴───────────────────────────────┴───────────────────────────────────┘
+```
+
+Note the use of the `--dry-run` flag. When this flag is used, the CLI will 
+show this table and exit. Eventually, the CLI will also be able to automatically  
+apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
+mode is supported.
+
+If you want to exclude some resources from the refactor, you can pass a skip 
+file, containing a list of destination locations to skip, which can be 
+either the stack name + logical ID, or the construct path. For example, if 
+you don't want to include the bucket and the distribution from the table 
+above in the refactor, you can create a file called `skip.json` with the 
+following content:
+
+```json
+[
+  "Web/Website/Origin/Resource",
+  "Web/Website/Distribution/Resource"
+]
+```
+
+and pass it to the CLI via the `--skip-file` flag:
+
+```shell
+$ cdk refactor --skip-file skip.json --unstable=refactor --dry-run
+```
+
+If your application has more than one stack, and you want the refactor 
+command to consider only a subset of them, you can pass a list of stack 
+patterns as a parameter:
+
+```shell
+$ cdk refactor Web* --unstable=refactor --dry-run 
+```
+
+The pattern language is the same as the one used in the `cdk deploy` command. 
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+considered.
 
 ## Notices
 
