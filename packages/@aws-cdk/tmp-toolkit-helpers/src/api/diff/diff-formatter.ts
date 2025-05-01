@@ -351,7 +351,10 @@ export class DiffFormatter {
       return { formattedDrift: '', numResourcesWithDrift: 0 };
     }
 
-    const drifts = this.driftResults.StackResourceDrifts;
+    const drifts = this.driftResults.StackResourceDrifts.filter(d =>
+      d.StackResourceDriftStatus === 'MODIFIED' ||
+      d.StackResourceDriftStatus === 'DELETED',
+    );
 
     if (drifts.length === 0 && !options.quiet) {
       stream.write(chalk.green('No drift detected\n'));
@@ -359,12 +362,7 @@ export class DiffFormatter {
       return { formattedDrift: stream.toString(), numResourcesWithDrift: 0 };
     }
 
-    // Count resources with drift
-    driftCount = drifts.filter(d =>
-      d.StackResourceDriftStatus === 'MODIFIED' ||
-      d.StackResourceDriftStatus === 'DELETED',
-    ).length;
-
+    driftCount = drifts.length;
     formatStackDriftChanges(stream, this.driftResults, buildLogicalToPathMap(this.newTemplate));
     stream.write(chalk.yellow(`\n${driftCount} resource${driftCount === 1 ? '' : 's'} ${driftCount === 1 ? 'has' : 'have'} drifted from their expected configuration\n`));
     stream.end();
