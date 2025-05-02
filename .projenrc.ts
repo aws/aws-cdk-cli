@@ -1603,6 +1603,9 @@ const cliInteg = configureProject(
         },
       },
     }),
+
+    // Append a specific version string for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
