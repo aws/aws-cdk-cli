@@ -258,18 +258,7 @@ export class CdkToolkit {
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
 
-        let driftResults = undefined;
-
-        if (options.detectDrift) {
-          const env = await this.props.deployments.resolveEnvironment(stack);
-          const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
-
-          driftResults = await detectStackDrift(
-            cfn,
-            asIoHelper(this.ioHost, 'diff'),
-            stack.stackName,
-          );
-        }
+        const driftResults = await this.collectDriftResults(stack, options);
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -1424,6 +1413,24 @@ export class CdkToolkit {
       roleArn: options.roleArn,
       stackName: assetNode.parentStack.stackName,
     }));
+  }
+
+  /**
+   * Collect drift detection results for a given CloudFormation stack
+   */
+  private async collectDriftResults(stack: cxapi.CloudFormationStackArtifact, options: DiffOptions) {
+    if (options.detectDrift) {
+      return undefined;
+    }
+
+    const env = await this.props.deployments.resolveEnvironment(stack);
+    const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
+
+    return await detectStackDrift(
+      cfn,
+      asIoHelper(this.ioHost, 'diff'),
+      stack.stackName,
+    );
   }
 }
 
