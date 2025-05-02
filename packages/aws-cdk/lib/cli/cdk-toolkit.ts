@@ -223,7 +223,7 @@ export class CdkToolkit {
 
       if (options.importExistingResources) {
         throw new ToolkitError(
-          'Can only use --import-existing-resources flag when comparing against deployed stacks.'
+          'Can only use --import-existing-resources flag when comparing against deployed stacks.',
         );
       }
 
