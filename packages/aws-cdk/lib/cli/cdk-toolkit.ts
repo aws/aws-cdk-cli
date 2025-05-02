@@ -221,6 +221,12 @@ export class CdkToolkit {
         throw new ToolkitError(`There is no file at ${options.templatePath}`);
       }
 
+      if (options.importExistingResources) {
+        throw new ToolkitError(
+          'Can only use --import-existing-resources flag when comparing against deployed stacks.'
+        );
+      }
+
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),
