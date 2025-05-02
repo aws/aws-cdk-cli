@@ -39,8 +39,8 @@ const resource1 = new ResourceLocation(stack1, 'Resource1');
 const resource2 = new ResourceLocation(stack2, 'Resource2');
 const resource3 = new ResourceLocation(stack2, 'Resource3');
 
-describe('ManifestSkipList', () => {
-  test('locations marked with DO_NOT_REFACTOR in the manifest are skipped', () => {
+describe('ManifestExcludeList', () => {
+  test('locations marked with DO_NOT_REFACTOR in the manifest are excluded', () => {
     const manifest = {
       artifacts: {
         'Stack1': {
@@ -72,14 +72,14 @@ describe('ManifestSkipList', () => {
       },
     };
 
-    const skipList = new ManifestExcludeList(manifest as any);
+    const excludeList = new ManifestExcludeList(manifest as any);
 
-    expect(skipList.isExcluded(resource1)).toBe(true);
-    expect(skipList.isExcluded(resource2)).toBe(true);
-    expect(skipList.isExcluded(resource3)).toBe(false);
+    expect(excludeList.isExcluded(resource1)).toBe(true);
+    expect(excludeList.isExcluded(resource2)).toBe(true);
+    expect(excludeList.isExcluded(resource3)).toBe(false);
   });
 
-  test('nothing is skipped if no DO_NOT_REFACTOR entries exist', () => {
+  test('nothing is excluded if no DO_NOT_REFACTOR entries exist', () => {
     const manifest = {
       artifacts: {
         Stack1: {
@@ -91,41 +91,41 @@ describe('ManifestSkipList', () => {
       },
     };
 
-    const skipList = new ManifestExcludeList(manifest as any);
-    expect(skipList.isExcluded(resource1)).toBe(false);
+    const excludeList = new ManifestExcludeList(manifest as any);
+    expect(excludeList.isExcluded(resource1)).toBe(false);
   });
 });
 
-describe('InMemorySkipList', () => {
-  test('valid resources on a valid list are skipped', () => {
-    const skipList = new InMemoryExcludeList(['Stack1.Resource1', 'Stack2/Resource3']);
-    expect(skipList.isExcluded(resource1)).toBe(true);
-    expect(skipList.isExcluded(resource2)).toBe(false);
-    expect(skipList.isExcluded(resource3)).toBe(true);
+describe('InMemoryexcludeList', () => {
+  test('valid resources on a valid list are excluded', () => {
+    const excludeList = new InMemoryExcludeList(['Stack1.Resource1', 'Stack2/Resource3']);
+    expect(excludeList.isExcluded(resource1)).toBe(true);
+    expect(excludeList.isExcluded(resource2)).toBe(false);
+    expect(excludeList.isExcluded(resource3)).toBe(true);
   });
 
-  test('nothing is skipped if no file path is provided', () => {
-    const skipList = new InMemoryExcludeList([]);
-    expect(skipList.isExcluded(resource1)).toBe(false);
-    expect(skipList.isExcluded(resource2)).toBe(false);
-    expect(skipList.isExcluded(resource3)).toBe(false);
+  test('nothing is excluded if no file path is provided', () => {
+    const excludeList = new InMemoryExcludeList([]);
+    expect(excludeList.isExcluded(resource1)).toBe(false);
+    expect(excludeList.isExcluded(resource2)).toBe(false);
+    expect(excludeList.isExcluded(resource3)).toBe(false);
   });
 });
 
-describe('UnionSkipList', () => {
-  test('skips a resource if at least one underlying list skips', () => {
-    const skipList1 = new AlwaysExclude();
-    const skipList2 = new NeverExclude();
+describe('UnionexcludeList', () => {
+  test('excludes a resource if at least one underlying list excludes', () => {
+    const excludeList1 = new AlwaysExclude();
+    const excludeList2 = new NeverExclude();
 
-    const unionSkipList = new UnionExcludeList([skipList1, skipList2]);
-    expect(unionSkipList.isExcluded(resource1)).toBe(true);
+    const unionexcludeList = new UnionExcludeList([excludeList1, excludeList2]);
+    expect(unionexcludeList.isExcluded(resource1)).toBe(true);
   });
 
-  test('does not skip a resource if all underlying lists do not skip', () => {
-    const skipList1 = new NeverExclude();
-    const skipList2 = new NeverExclude();
+  test('does not exclude a resource if all underlying lists do not exclude', () => {
+    const excludeList1 = new NeverExclude();
+    const excludeList2 = new NeverExclude();
 
-    const unionSkipList = new UnionExcludeList([skipList1, skipList2]);
-    expect(unionSkipList.isExcluded(resource1)).toBe(false);
+    const unionExcludeList = new UnionExcludeList([excludeList1, excludeList2]);
+    expect(unionExcludeList.isExcluded(resource1)).toBe(false);
   });
 });

@@ -8,13 +8,13 @@ export interface ExcludeList {
 }
 
 export class ManifestExcludeList implements ExcludeList {
-  private readonly skippedLocations: CfnResourceLocation[];
+  private readonly excludedLocations: CfnResourceLocation[];
 
   constructor(manifest: AssemblyManifest) {
-    this.skippedLocations = this.getSkippedLocations(manifest);
+    this.excludedLocations = this.getExcludedLocations(manifest);
   }
 
-  private getSkippedLocations(asmManifest: AssemblyManifest): CfnResourceLocation[] {
+  private getExcludedLocations(asmManifest: AssemblyManifest): CfnResourceLocation[] {
     // First, we need to filter the artifacts to only include CloudFormation stacks
     const stackManifests = Object.entries(asmManifest.artifacts ?? {}).filter(
       ([_, manifest]) => manifest.type === ArtifactType.AWS_CLOUDFORMATION_STACK,
@@ -23,7 +23,7 @@ export class ManifestExcludeList implements ExcludeList {
     const result: CfnResourceLocation[] = [];
     for (let [stackName, manifest] of stackManifests) {
       const locations = Object.values(manifest.metadata ?? {})
-        // Then pick only the resources in each stack marked with SKIP_REFACTOR
+        // Then pick only the resources in each stack marked with DO_NOT_REFACTOR
         .filter((entries) =>
           entries.some((entry) => entry.type === ArtifactMetadataEntryType.DO_NOT_REFACTOR && entry.data === true),
         )
@@ -42,19 +42,19 @@ export class ManifestExcludeList implements ExcludeList {
   }
 
   isExcluded(location: ResourceLocation): boolean {
-    return this.skippedLocations.some(
+    return this.excludedLocations.some(
       (loc) => loc.StackName === location.stack.stackName && loc.LogicalResourceId === location.logicalResourceId,
     );
   }
 }
 
 export class InMemoryExcludeList implements ExcludeList {
-  private readonly skippedLocations: CfnResourceLocation[];
-  private readonly skippedPaths: string[];
+  private readonly excludedLocations: CfnResourceLocation[];
+  private readonly excludedPaths: string[];
 
   constructor(items: string[]) {
-    this.skippedLocations = [];
-    this.skippedPaths = [];
+    this.excludedLocations = [];
+    this.excludedPaths = [];
 
     if (items.length === 0) {
       return;
@@ -65,32 +65,32 @@ export class InMemoryExcludeList implements ExcludeList {
     items.forEach((item: string) => {
       if (locationRegex.test(item)) {
         const [stackName, logicalId] = item.split('.');
-        this.skippedLocations.push({
+        this.excludedLocations.push({
           StackName: stackName,
           LogicalResourceId: logicalId,
         });
       } else {
-        this.skippedPaths.push(item);
+        this.excludedPaths.push(item);
       }
     });
   }
 
   isExcluded(location: ResourceLocation): boolean {
-    const containsLocation = this.skippedLocations.some((loc) => {
+    const containsLocation = this.excludedLocations.some((loc) => {
       return loc.StackName === location.stack.stackName && loc.LogicalResourceId === location.logicalResourceId;
     });
 
-    const containsPath = this.skippedPaths.some((path) => location.toPath() === path);
+    const containsPath = this.excludedPaths.some((path) => location.toPath() === path);
     return containsLocation || containsPath;
   }
 }
 
 export class UnionExcludeList implements ExcludeList {
-  constructor(private readonly skipLists: ExcludeList[]) {
+  constructor(private readonly excludeLists: ExcludeList[]) {
   }
 
   isExcluded(location: ResourceLocation): boolean {
-    return this.skipLists.some((skipList) => skipList.isExcluded(location));
+    return this.excludeLists.some((excludeList) => excludeList.isExcluded(location));
   }
 }
 

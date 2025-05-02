@@ -1099,24 +1099,23 @@ show this table and exit. Eventually, the CLI will also be able to automatically
 apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
 mode is supported.
 
-If you want to exclude some resources from the refactor, you can pass a skip 
-file, containing a list of destination locations to skip, which can be 
-either the stack name + logical ID, or the construct path. For example, if 
-you don't want to include the bucket and the distribution from the table 
-above in the refactor, you can create a file called `skip.json` with the 
-following content:
+If you want to exclude some resources from the refactor, you can pass an 
+exclude file, containing a list of destination locations to exclude. A 
+location can be either the stack name + logical ID, or the construct path. For  
+example, if you don't want to include the bucket and the distribution from 
+the table above in the refactor, you can create a file called 
+`exclude.txt`with the following content: 
 
-```json
-[
-  "Web/Website/Origin/Resource",
-  "Web/Website/Distribution/Resource"
+```
+Web/Website/Origin/Resource
+Web/Website/Distribution/Resource
 ]
 ```
 
-and pass it to the CLI via the `--skip-file` flag:
+and pass it to the CLI via the `--exclude-file` flag:
 
 ```shell
-$ cdk refactor --skip-file skip.json --unstable=refactor --dry-run
+$ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
 ```
 
 If your application has more than one stack, and you want the refactor 

@@ -1255,10 +1255,10 @@ describe('environment grouping', () => {
 
     expect(await mappings([stack1, stack2], new AlwaysExclude())).toEqual([]);
 
-    async function mappings(stacks: CloudFormationStack[], skipList?: ExcludeList) {
+    async function mappings(stacks: CloudFormationStack[], excludeList?: ExcludeList) {
       const provider = new MockSdkProvider();
       provider.returnsDefaultAccounts(environment.account);
-      const movements2 = await findResourceMovements(stacks, provider, skipList);
+      const movements2 = await findResourceMovements(stacks, provider, excludeList);
       return resourceMappings(movements2).map(toCfnMapping);
     }
   });

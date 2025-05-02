@@ -1929,11 +1929,11 @@ export interface RefactorOptions {
   selector: StackSelector;
 
   /**
-   * The absolute path to a file that contains a list of resources to
-   * skip during the refactor. The file should be in JSON format and
-   * contain an array of _destination_ locations that should be skipped,
-   * i.e., the location to which a resource would be moved if the
-   * refactor were to happen.
+   * The absolute path to a file that contains a list of resources that
+   * should be excluded during the refactor. This file should contain a
+   * newline separated list of _destination_ locations to exclude, i.e.,
+   * the location to which a resource would be moved if the refactor
+   * were to happen.
    *
    * The format of the locations in the file can be either:
    *

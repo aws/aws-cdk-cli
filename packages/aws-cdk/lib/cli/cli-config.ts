@@ -414,7 +414,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'exclude-file': {
             type: 'string',
             requiresArg: true,
-            desc: 'If specified, CDK will use the given file to skip resources during the refactor',
+            desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
           },
         },
       },
