@@ -261,7 +261,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           quiet: args.quiet,
           changeSet: args['change-set'],
           toolkitStackName: toolkitStackName,
-          importExistingResources: args.ImportExistingResources,
+          importExistingResources: args.importExistingResources,
         });
 
       case 'refactor':
