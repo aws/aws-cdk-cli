@@ -1354,7 +1354,7 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * If specified, CDK will use the given file to skip resources during the refactor
+   * If specified, CDK will use the given file to exclude resources from the refactor
    *
    * @default - undefined
    */

@@ -851,7 +851,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           requiresArg: true,
-          desc: 'If specified, CDK will use the given file to skip resources during the refactor',
+          desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
         }),
     )
     .version(helpers.cliVersion())
