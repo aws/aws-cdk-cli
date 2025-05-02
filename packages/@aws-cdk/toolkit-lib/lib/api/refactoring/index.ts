@@ -12,9 +12,9 @@ import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
-import { NeverExclude, type ExcludeList } from './skip';
+import { NeverExclude, type ExcludeList } from './exclude';
 
-export * from './skip';
+export * from './exclude';
 
 /**
  * Represents a set of possible movements of a resource from one location
@@ -152,7 +152,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
   sdkProvider: SdkProvider,
-  skipList: ExcludeList = new NeverExclude(),
+  exclude: ExcludeList = new NeverExclude(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
@@ -176,7 +176,7 @@ export async function findResourceMovements(
 
   return result.filter(mov => {
     const after = mov[1];
-    return after.every(l => !skipList.isExcluded(l));
+    return after.every(l => !exclude.isExcluded(l));
   });
 }
 

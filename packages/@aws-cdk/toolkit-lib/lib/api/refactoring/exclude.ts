@@ -25,7 +25,7 @@ export class ManifestExcludeList implements ExcludeList {
       const locations = Object.values(manifest.metadata ?? {})
         // Then pick only the resources in each stack marked with SKIP_REFACTOR
         .filter((entries) =>
-          entries.some((entry) => entry.type === ArtifactMetadataEntryType.SKIP_REFACTOR && entry.data === true),
+          entries.some((entry) => entry.type === ArtifactMetadataEntryType.DO_NOT_REFACTOR && entry.data === true),
         )
         // Finally, get the logical ID of each resource
         .map((entries) => {

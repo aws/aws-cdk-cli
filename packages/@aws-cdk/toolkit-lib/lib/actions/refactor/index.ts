@@ -16,10 +16,10 @@ export interface RefactorOptions {
   stacks?: StackSelector;
 
   /**
-   * A list of resources to skip during the refactor. Elements of
-   * this list should be _destination_ locations that should be skipped,
-   * i.e., the location to which a resource would be moved if the
-   * refactor were to happen.
+   * A list of resources that will not be part of the refactor.
+   * Elements of this list must be the _destination_ locations
+   * that should be excluded, i.e., the location to which a
+   * resource would be moved if the refactor were to happen.
    *
    * The format of the locations in the file can be either:
    *

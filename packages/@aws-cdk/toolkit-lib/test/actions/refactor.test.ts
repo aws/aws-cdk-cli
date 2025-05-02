@@ -248,7 +248,7 @@ test('filters stacks when stack selector is passed', async () => {
   );
 });
 
-test('resource is marked to be skipped for refactoring in the cloud assembly', async () => {
+test('resource is marked to be excluded for refactoring in the cloud assembly', async () => {
   // GIVEN
   mockCloudFormationClient.on(ListStacksCommand).resolves({
     StackSummaries: [
@@ -269,7 +269,7 @@ test('resource is marked to be skipped for refactoring in the cloud assembly', a
       TemplateBody: JSON.stringify({
         Resources: {
           // This would have caused a refactor to be detected,
-          // but the resource is marked to be skipped...
+          // but the resource is marked to be excluded...
           OldLogicalID: {
             Type: 'AWS::S3::Bucket',
             UpdateReplacePolicy: 'Retain',
@@ -283,7 +283,7 @@ test('resource is marked to be skipped for refactoring in the cloud assembly', a
     });
 
   // WHEN
-  const cx = await builderFixture(toolkit, 'skip-refactor');
+  const cx = await builderFixture(toolkit, 'exclude-refactor');
   await toolkit.refactor(cx, {
     dryRun: true,
   });

@@ -1214,7 +1214,7 @@ export class CdkToolkit {
     let exclude: string[] = [];
     if (options.excludeFile != null) {
       if (!(await fs.pathExists(options.excludeFile))) {
-        throw new ToolkitError(`The exclude file ${options.excludeFile} does not exist`);
+        throw new ToolkitError(`The exclude file '${options.excludeFile}' does not exist`);
       }
       exclude = fs.readFileSync(options.excludeFile).toString('utf-8').split('\n');
     }

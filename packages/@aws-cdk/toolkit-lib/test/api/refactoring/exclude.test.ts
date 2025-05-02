@@ -40,14 +40,14 @@ const resource2 = new ResourceLocation(stack2, 'Resource2');
 const resource3 = new ResourceLocation(stack2, 'Resource3');
 
 describe('ManifestSkipList', () => {
-  test('locations marked with SKIP_REFACTOR in the manifest are skipped', () => {
+  test('locations marked with DO_NOT_REFACTOR in the manifest are skipped', () => {
     const manifest = {
       artifacts: {
         'Stack1': {
           type: ArtifactType.AWS_CLOUDFORMATION_STACK,
           metadata: {
             LogicalId1: [
-              { type: ArtifactMetadataEntryType.SKIP_REFACTOR, data: true },
+              { type: ArtifactMetadataEntryType.DO_NOT_REFACTOR, data: true },
               { type: ArtifactMetadataEntryType.LOGICAL_ID, data: 'Resource1' },
             ],
           },
@@ -56,7 +56,7 @@ describe('ManifestSkipList', () => {
           type: ArtifactType.AWS_CLOUDFORMATION_STACK,
           metadata: {
             LogicalId2: [
-              { type: ArtifactMetadataEntryType.SKIP_REFACTOR, data: true },
+              { type: ArtifactMetadataEntryType.DO_NOT_REFACTOR, data: true },
               { type: ArtifactMetadataEntryType.LOGICAL_ID, data: 'Resource2' },
             ],
           },
@@ -79,7 +79,7 @@ describe('ManifestSkipList', () => {
     expect(skipList.isExcluded(resource3)).toBe(false);
   });
 
-  test('nothing is skipped if no SKIP_REFACTOR entries exist', () => {
+  test('nothing is skipped if no DO_NOT_REFACTOR entries exist', () => {
     const manifest = {
       artifacts: {
         Stack1: {

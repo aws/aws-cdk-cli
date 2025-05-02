@@ -967,8 +967,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const sdkProvider = await this.sdkProvider('refactor');
-    const skipList = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, skipList);
+    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
     const ambiguous = ambiguousMovements(movements);
     if (ambiguous.length === 0) {
       const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);

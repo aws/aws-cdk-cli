@@ -314,9 +314,9 @@ export enum ArtifactMetadataEntryType {
   STACK_TAGS = 'aws:cdk:stack-tags',
 
   /**
-   * Whether the resource should be skipped during refactoring.
+   * Whether the resource should be excluded during refactoring.
    */
-  SKIP_REFACTOR = 'aws:cdk:skip-refactor',
+  DO_NOT_REFACTOR = 'aws:cdk:do-not-refactor',
 }
 
 /**
