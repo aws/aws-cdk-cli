@@ -1,5 +1,5 @@
 import { format } from 'util';
-import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
+import { StackResourceDriftStatus, type DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import type { DifferenceCollection, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
@@ -18,16 +18,6 @@ const { structuredPatch } = require('diff');
 
 export interface FormatStream extends NodeJS.WritableStream {
   columns?: number;
-}
-
-/**
- * Resource drift status types from CloudFormation
- */
-export enum ResourceDriftStatus {
-  MODIFIED = 'MODIFIED',
-  DELETED = 'DELETED',
-  NOT_CHECKED = 'NOT_CHECKED',
-  IN_SYNC = 'IN_SYNC',
 }
 
 /**
@@ -98,7 +88,7 @@ export function formatStackDriftChanges(
   const drifts = driftResults.StackResourceDrifts;
 
   // Process modified resources
-  const modifiedResources = drifts.filter(d => d.StackResourceDriftStatus === ResourceDriftStatus.MODIFIED);
+  const modifiedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.MODIFIED);
   if (modifiedResources.length > 0) {
     formatter.printSectionHeader('Modified Resources');
 
@@ -127,7 +117,7 @@ export function formatStackDriftChanges(
   }
 
   // Process deleted resources
-  const deletedResources = drifts.filter(d => d.StackResourceDriftStatus === ResourceDriftStatus.DELETED);
+  const deletedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.DELETED);
   if (deletedResources.length > 0) {
     formatter.printSectionHeader('Deleted Resources');
 
