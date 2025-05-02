@@ -1361,6 +1361,13 @@ export interface RefactorOptions {
   readonly excludeFile?: string;
 
   /**
+   * The mapping file
+   *
+   * @default - undefined
+   */
+  readonly mappingFile?: string;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;

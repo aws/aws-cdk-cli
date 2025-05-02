@@ -13,6 +13,7 @@ import type { CloudFormationStack } from './cloudformation';
 import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 import { NeverExclude, type ExcludeList } from './exclude';
+import { ToolkitError } from '../toolkit-error';
 
 export * from './exclude';
 
@@ -22,6 +23,12 @@ export * from './exclude';
  * destination.
  */
 export type ResourceMovement = [ResourceLocation[], ResourceLocation[]];
+
+export interface UserProvidedResourceMapping {
+  source: string;
+  destination: string;
+  environment: cxapi.Environment;
+}
 
 export class AmbiguityError extends Error {
   constructor(public readonly movements: ResourceMovement[]) {
@@ -51,6 +58,108 @@ function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
   return result;
 }
 
+export async function useExplicitMappings(
+  mappings: UserProvidedResourceMapping[],
+  sdkProvider: SdkProvider,
+): Promise<ResourceMapping[]> {
+  interface EnvironmentGroup {
+    environment: cxapi.Environment;
+    stacks: CloudFormationStack[];
+    mappings: UserProvidedResourceMapping[];
+  }
+
+  // Group the mappings by environment
+  const environmentGroups: EnvironmentGroup[] = [];
+  for (const mapping of mappings) {
+    const environment = mapping.environment;
+    const group = environmentGroups.find(
+      (g) => g.environment.account === environment.account && g.environment.region === environment.region,
+    );
+    if (group) {
+      group.mappings.push(mapping);
+    } else {
+      const stacks = await getDeployedStacks(sdkProvider, environment);
+      environmentGroups.push({
+        environment,
+        stacks,
+        mappings: [mapping],
+      });
+    }
+  }
+
+  // Validate that there are no duplicate sources or destinations
+  for (const group of environmentGroups) {
+    const sources = new Set<string>();
+    const destinations = new Set<string>();
+
+    for (const mapping of group.mappings) {
+      if (sources.has(mapping.source)) {
+        throw new ToolkitError(
+          `Duplicate source resource '${mapping.source}' in environment ${group.environment.name}`,
+        );
+      }
+      sources.add(mapping.source);
+
+      if (destinations.has(mapping.destination)) {
+        throw new ToolkitError(
+          `Duplicate destination resource '${mapping.destination}' in environment ${group.environment.name}`,
+        );
+      }
+      destinations.add(mapping.destination);
+    }
+  }
+
+  const result: ResourceMapping[] = [];
+  for (const group of environmentGroups) {
+    const stacks = group.stacks;
+
+    for (const mapping of group.mappings) {
+      const source = mapping.source;
+      const destination = mapping.destination;
+
+      if (!inUse(source, stacks)) {
+        throw new ToolkitError(`Source resource '${source}' does not exist in environment ${group.environment.name}`);
+      }
+
+      if (inUse(destination, stacks)) {
+        throw new ToolkitError(
+          `Destination resource '${destination}' already in use in environment ${group.environment.name}`,
+        );
+      }
+
+      const environment = group.environment;
+      const src = makeLocation(source, environment, stacks);
+      const dst = makeLocation(destination, environment);
+      result.push(new ResourceMapping(src, dst));
+    }
+  }
+  return result;
+
+  function inUse(location: string, stacks: CloudFormationStack[]): boolean {
+    const [srcStackName, srcLogicalId] = location.split('.');
+    const stack = stacks.find((s) => s.stackName === srcStackName);
+    return stack != null && stack.template.Resources?.[srcLogicalId] != null;
+  }
+
+  function makeLocation(
+    loc: string,
+    environment: cxapi.Environment,
+    stacks: CloudFormationStack[] = [],
+  ): ResourceLocation {
+    const [stackName, logicalId] = loc.split('.');
+    const stack = stacks.find((s) => s.stackName === stackName);
+
+    return new ResourceLocation(
+      {
+        stackName,
+        environment,
+        template: stack?.template ?? {},
+      },
+      logicalId,
+    );
+  }
+}
+
 export function resourceMovements(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMovement[] {
   return Object.values(
     removeUnmovedResources(
@@ -72,10 +181,7 @@ export function ambiguousMovements(movements: ResourceMovement[]) {
  * Converts a list of unambiguous resource movements into a list of resource mappings.
  *
  */
-export function resourceMappings(
-  movements: ResourceMovement[],
-  stacks?: CloudFormationStack[],
-): ResourceMapping[] {
+export function resourceMappings(movements: ResourceMovement[], stacks?: CloudFormationStack[]): ResourceMapping[] {
   const stacksPredicate =
     stacks == null
       ? () => true
@@ -174,9 +280,9 @@ export async function findResourceMovements(
     result.push(...resourceMovements(before, after));
   }
 
-  return result.filter(mov => {
+  return result.filter((mov) => {
     const after = mov[1];
-    return after.every(l => !exclude.isExcluded(l));
+    return after.every((l) => !exclude.isExcluded(l));
   });
 }
 

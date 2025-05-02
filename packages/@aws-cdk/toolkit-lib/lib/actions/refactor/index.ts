@@ -1,3 +1,4 @@
+import type { UserProvidedResourceMapping } from '../../api';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface RefactorOptions {
@@ -27,4 +28,6 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   exclude?: string[];
+
+  mappings?: UserProvidedResourceMapping[];
 }

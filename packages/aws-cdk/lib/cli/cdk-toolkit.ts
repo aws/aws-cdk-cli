@@ -9,7 +9,7 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import type { ToolkitAction, UserProvidedResourceMapping } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
@@ -1219,6 +1219,20 @@ export class CdkToolkit {
       exclude = fs.readFileSync(options.excludeFile).toString('utf-8').split('\n');
     }
 
+    let mappings: UserProvidedResourceMapping[] = [];
+    if (options.mappingFile != null) {
+      if (!(await fs.pathExists(options.mappingFile))) {
+        throw new ToolkitError(`The mappings file ${options.mappingFile} does not exist`);
+      }
+      const content = JSON.parse(fs.readFileSync(options.mappingFile).toString('utf-8'));
+      if (content.mappings) {
+        mappings = content.mappings;
+      } else {
+        throw new ToolkitError(`The mappings file ${options.mappingFile} does not contain a mappings array`);
+      }
+    }
+
+    // TODO mappings and exclude are mutually exclusive properties
     try {
       await this.toolkit.refactor(this.props.cloudExecutable, {
         dryRun: options.dryRun,
@@ -1227,6 +1241,7 @@ export class CdkToolkit {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
+        mappings,
       });
     } catch (e) {
       error((e as Error).message);
@@ -1941,6 +1956,8 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   excludeFile?: string;
+
+  mappingFile?: string;
 }
 
 function buildParameterMap(

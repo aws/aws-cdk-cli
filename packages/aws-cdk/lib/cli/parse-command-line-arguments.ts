@@ -852,6 +852,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           requiresArg: true,
           desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
+        })
+        .option('mapping-file', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'The mapping file',
         }),
     )
     .version(helpers.cliVersion())

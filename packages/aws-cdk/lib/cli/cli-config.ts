@@ -416,6 +416,12 @@ export async function makeConfig(): Promise<CliConfig> {
             requiresArg: true,
             desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
           },
+          'mapping-file': {
+            type: 'string',
+            requiresArg: true,
+            // TODO write a proper description
+            desc: 'The mapping file',
+          },
         },
       },
     },
