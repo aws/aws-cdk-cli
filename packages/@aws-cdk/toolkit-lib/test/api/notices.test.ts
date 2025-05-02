@@ -1,25 +1,17 @@
-/* eslint-disable import/order */
 import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as nock from 'nock';
-import type {
-  Notice,
-  BootstrappedEnvironment,
-  Component,
-} from '../../lib/api/notices';
-import {
-  CachedDataSource,
-  Notices,
-  NoticesFilter,
-  FilteredNotice,
-  WebsiteNoticeDataSource,
-} from '../../lib/api/notices';
-import { Settings } from '../../lib/api/settings';
 import { Context } from '../../lib/api/context';
-import { FakeIoHost } from '../_helpers/fake-io-host';
 import { asIoHelper, IoDefaultMessages } from '../../lib/api/io/private';
+import { Notices } from '../../lib/api/notices';
+import { CachedDataSource } from '../../lib/api/notices/cached-data-source';
+import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
+import type { BootstrappedEnvironment, Component, Notice } from '../../lib/api/notices/types';
+import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
+import { Settings } from '../../lib/api/settings';
+import { FakeIoHost } from '../_helpers/fake-io-host';
 
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',

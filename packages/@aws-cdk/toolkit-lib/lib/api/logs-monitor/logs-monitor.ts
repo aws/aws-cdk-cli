@@ -163,7 +163,7 @@ export class CloudWatchLogEventMonitor {
         return;
       }
     } catch (e: any) {
-      await this.ioHelper.notify(IO.CDK_TOOLKIT_E5035.msg('Error occurred while monitoring logs: %s', { error: e }));
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_E5035.msg(`Error occurred while monitoring logs: ${String(e)}`, { error: e }));
     }
 
     this.scheduleNextTick();

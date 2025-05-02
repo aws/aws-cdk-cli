@@ -17,6 +17,7 @@ import {
   StartResourceScanCommand,
 } from '@aws-sdk/client-cloudformation';
 import * as fs from 'fs-extra';
+import type { GenerateTemplateOptions } from '../../lib/commands/migrate';
 import {
   generateCdkApp,
   generateStack,
@@ -26,7 +27,6 @@ import {
   parseSourceOptions,
   generateTemplate,
   TemplateSourceOptions,
-  GenerateTemplateOptions,
   FromScan,
 } from '../../lib/commands/migrate';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
