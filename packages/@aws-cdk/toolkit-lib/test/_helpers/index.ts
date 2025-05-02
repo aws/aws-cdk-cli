@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { AssemblyDirectoryProps, ICloudAssemblySource } from '../../lib';
+import type { AssemblyDirectoryProps, FromCdkAppOptions, ICloudAssemblySource } from '../../lib';
 import { ToolkitError } from '../../lib';
 import type { CloudAssemblySourceBuilder } from '../../lib/api/cloud-assembly/private';
 
@@ -12,7 +12,7 @@ function fixturePath(...parts: string[]): string {
   return path.normalize(path.join(__dirname, '..', '_fixtures', ...parts));
 }
 
-export async function appFixture(toolkit: CloudAssemblySourceBuilder, name: string, context?: { [key: string]: any }) {
+export async function appFixture(toolkit: CloudAssemblySourceBuilder, name: string, options?: Omit<FromCdkAppOptions, 'workingDirectory' | 'outdir'>) {
   const appPath = fixturePath(name, 'app.js');
   if (!fs.existsSync(appPath)) {
     throw new ToolkitError(`App Fixture ${name} does not exist in ${appPath}`);
@@ -21,7 +21,7 @@ export async function appFixture(toolkit: CloudAssemblySourceBuilder, name: stri
   return toolkit.fromCdkApp(app, {
     workingDirectory: path.join(__dirname, '..', '..'),
     outdir: tmpOutdir(),
-    context,
+    ...options,
   });
 }
 
