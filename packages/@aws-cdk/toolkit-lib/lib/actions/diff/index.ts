@@ -129,4 +129,11 @@ export interface DiffOptions {
    * @deprecated implement in IoHost
    */
   readonly securityOnly?: boolean;
+
+  /**
+   * Run drift detection on the stack as well
+   *
+   * @default false
+   */
+    readonly detectDrift?: boolean;
 }

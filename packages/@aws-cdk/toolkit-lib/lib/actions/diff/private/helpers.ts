@@ -12,6 +12,8 @@ import type { IoHelper, SdkProvider } from '../../../api/shared-private';
 import { IO, cfnApi } from '../../../api/shared-private';
 import { ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
+import { detectStackDrift } from '../../../api/deployments/cfn-api';
+import { Mode } from '../../../api';
 
 export function prepareDiff(
   ioHelper: IoHelper,
@@ -74,6 +76,8 @@ async function cfnDiff(
     );
     const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
     const nestedStacks = templateWithNestedStacks.nestedStacks;
+
+    const driftResults = collectDriftResults(stack, ioHelper, deployments, options, sdkProvider);
 
     const migrator = new ResourceMigrator({ deployments, ioHelper });
     const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
@@ -148,6 +152,30 @@ async function changeSetDiff(
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`));
     return;
   }
+}
+
+/**
+ * Collect drift detection results for a given CloudFormation stack
+ */
+async function collectDriftResults(
+  stack: cxapi.CloudFormationStackArtifact,
+  ioHelper: IoHelper,
+  deployments: Deployments,
+  options: DiffOptions,
+  sdkProvider: SdkProvider,
+) {
+  if (options.detectDrift) {
+    return undefined;
+  }
+
+  const env = await deployments.resolveEnvironment(stack);
+  const cfn = (await sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
+
+  return await detectStackDrift(
+    cfn,
+    ioHelper,
+    stack.stackName,
+  );
 }
 
 /**
