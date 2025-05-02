@@ -295,6 +295,7 @@ export class CdkToolkit {
               sdkProvider: this.props.sdkProvider,
               parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
               resourcesToImport,
+              importExistingResources: options.importExistingResources,
             });
           } else {
             debug(
@@ -1494,6 +1495,13 @@ export interface DiffOptions {
    * @default true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * Whether or not the change set imports resources that already exist.
+   *
+   * @default false
+   */
+  readonly importExistingResources?: boolean;
 }
 
 interface CfnDeployOptions {
