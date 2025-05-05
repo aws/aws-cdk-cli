@@ -1,4 +1,4 @@
-import { ToolkitError } from '../toolkit-error';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export type DeployStackResult =
   | SuccessfulDeployStackResult

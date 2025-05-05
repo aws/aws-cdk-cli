@@ -5,7 +5,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 ['app', 'sample-app'].forEach(template => {
   integTest(`init javascript ${template}`, withTemporaryDirectory(withPackages(async (context) => {
     const shell = ShellHelper.fromContext(context);
-    await context.packages.makeCliAvailable();
+    await context.cli.makeCliAvailable();
 
     await shell.shell(['cdk', 'init', '-l', 'javascript', template]);
     await shell.shell(['npm', 'prune']);
@@ -19,7 +19,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 integTest('Test importing CDK from ESM', withTemporaryDirectory(withPackages(async (context) => {
   // Use 'cdk init -l=javascript' to get set up, but use a different file
   const shell = ShellHelper.fromContext(context);
-  await context.packages.makeCliAvailable();
+  await context.cli.makeCliAvailable();
 
   await shell.shell(['cdk', 'init', '-l', 'javascript', 'app']);
 

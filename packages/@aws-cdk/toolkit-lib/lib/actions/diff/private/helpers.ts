@@ -12,8 +12,8 @@ import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
 import type { IoHelper, SdkProvider } from '../../../api/shared-private';
 import { IO, cfnApi } from '../../../api/shared-private';
-import { ToolkitError } from '../../../api/shared-public';
-import { deserializeStructure, formatErrorMessage } from '../../../private/util';
+import { ToolkitError } from '../../../toolkit/toolkit-error';
+import { deserializeStructure, formatErrorMessage } from '../../../util';
 
 export function prepareDiff(
   ioHelper: IoHelper,

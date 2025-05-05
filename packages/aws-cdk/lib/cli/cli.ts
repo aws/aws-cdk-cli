@@ -1,7 +1,6 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
-import { ciSystemIsStdErrSafe } from './ci-systems';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -10,8 +9,8 @@ import { prettyPrintError } from './pretty-print-error';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
+import { asIoHelper, IO } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -91,34 +90,32 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await configuration.load();
 
-  const shouldDisplayNotices = configuration.settings.get(['notices']);
-  if (shouldDisplayNotices !== undefined) {
-    // Notices either go to stderr, or nowhere
-    ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
-  } else {
-    // If the user didn't supply either `--notices` or `--no-notices`, we do
-    // autodetection. The autodetection currently is: do write notices if we are
-    // not on CI, or are on a CI system where we know that writing to stderr is
-    // safe. We fail "closed"; that is, we decide to NOT print for unknown CI
-    // systems, even though technically we maybe could.
-    const safeToWriteToStdErr = !argv.ci || Boolean(ciSystemIsStdErrSafe());
-    ioHost.noticesDestination = safeToWriteToStdErr ? 'stderr' : 'drop';
-  }
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
+  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  // Notices either go to stderr, or nowhere
+  ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    includeAcknowledged: cmd === 'notices' ? !argv.unacknowledged : false,
     httpOptions: {
       proxyAddress: configuration.settings.get(['proxy']),
       caBundlePath: configuration.settings.get(['caBundlePath']),
     },
     cliVersion: version.versionNumber(),
   });
-  await notices.refresh();
+  const refreshNotices = (async () => {
+    // the cdk notices command has it's own refresh
+    if (shouldDisplayNotices && cmd !== 'notices') {
+      try {
+        return await notices.refresh();
+      } catch (e: any) {
+        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Could not refresh notices: ${e}`));
+      }
+    }
+  })();
 
-  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
     profile: configuration.settings.get(['profile']),
@@ -160,8 +157,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   loadPlugins(configuration.settings);
 
-  if (typeof(cmd) !== 'string') {
-    throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof(cmd)})`);
+  if ((typeof cmd) !== 'string') {
+    throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof cmd})`);
   }
 
   try {
@@ -173,12 +170,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     // Do PSAs here
     await version.displayVersionMessage();
 
+    await refreshNotices;
     if (cmd === 'notices') {
       await notices.refresh({ force: true });
-      notices.display({ showTotal: argv.unacknowledged });
+      await notices.display({
+        includeAcknowledged: !argv.unacknowledged,
+        showTotal: argv.unacknowledged,
+      });
     } else if (cmd !== 'version') {
-      await notices.refresh();
-      notices.display();
+      await notices.display();
     }
   }
 
@@ -273,6 +273,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.refactor({
           dryRun: args.dryRun,
           selector,
+          excludeFile: args.excludeFile,
         });
 
       case 'bootstrap':
@@ -579,7 +580,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   let hotswapMode: HotswapMode;
   if (hotswap) {
     hotswapMode = HotswapMode.HOTSWAP_ONLY;
-  /* if (hotswapFallback)*/
+    /* if (hotswapFallback)*/
   } else {
     hotswapMode = HotswapMode.FALL_BACK;
   }

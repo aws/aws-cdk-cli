@@ -19,7 +19,7 @@ integTest('amplify integration', withToolContext(async (context) => {
   await shell.shell(['npm', 'install', '--save-dev', 'create-amplify@latest']);
   // This will create 'package.json' implicating a certain version of the CDK
   await shell.shell(['npm', 'config', 'set', 'save-exact', 'true']);
-  await mutateAmplifyDepOnCdk(context, context.packages.requestedCliVersion(), context.packages.requestedFrameworkVersion());
+  await mutateAmplifyDepOnCdk(context, context.cli.requestedVersion(), context.library.requestedVersion());
 
   ////////////////////////////////////////////////////////////////////////
   //  Run the `npm create` workflow

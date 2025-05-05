@@ -10,7 +10,11 @@ import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
+import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
+import { NeverExclude, type ExcludeList } from './exclude';
+
+export * from './exclude';
 
 /**
  * Represents a set of possible movements of a resource from one location
@@ -30,56 +34,6 @@ export class AmbiguityError extends Error {
     function convert(locations: ResourceLocation[]): string[] {
       return locations.map((l) => l.toPath());
     }
-  }
-}
-
-/**
- * This class mirrors the `ResourceLocation` interface from CloudFormation,
- * but is richer, since it has a reference to the stack object, rather than
- * merely the stack name.
- */
-export class ResourceLocation {
-  constructor(public readonly stack: CloudFormationStack, public readonly logicalResourceId: string) {
-  }
-
-  public toPath(): string {
-    const stack = this.stack;
-    const resource = stack.template.Resources?.[this.logicalResourceId];
-    const result = resource?.Metadata?.['aws:cdk:path'];
-
-    if (result != null) {
-      return result;
-    }
-
-    // If the path is not available, we can use stack name and logical ID
-    return `${stack.stackName}.${this.logicalResourceId}`;
-  }
-
-  public getType(): string {
-    const resource = this.stack.template.Resources?.[this.logicalResourceId ?? ''];
-    return resource?.Type ?? 'Unknown';
-  }
-
-  public equalTo(other: ResourceLocation): boolean {
-    return this.logicalResourceId === other.logicalResourceId && this.stack.stackName === other.stack.stackName;
-  }
-}
-
-/**
- * A mapping between a source and a destination location.
- */
-export class ResourceMapping {
-  constructor(public readonly source: ResourceLocation, public readonly destination: ResourceLocation) {
-  }
-
-  public toTypedMapping(): TypedMapping {
-    return {
-      // the type is the same in both source and destination,
-      // so we can use either one
-      type: this.source.getType(),
-      sourcePath: this.source.toPath(),
-      destinationPath: this.destination.toPath(),
-    };
   }
 }
 
@@ -118,25 +72,27 @@ export function ambiguousMovements(movements: ResourceMovement[]) {
  * Converts a list of unambiguous resource movements into a list of resource mappings.
  *
  */
-export function resourceMappings(movements: ResourceMovement[], stacks?: CloudFormationStack[]): ResourceMapping[] {
-  const predicate = stacks == null
-    ? () => true
-    : (m: ResourceMapping) => {
-      // Any movement that involves one of the selected stacks (either moving from or to)
-      // is considered a candidate for refactoring.
-      const stackNames = [m.source.stack.stackName, m.destination.stack.stackName];
-      return stacks.some((stack) => stackNames.includes(stack.stackName));
-    };
+export function resourceMappings(
+  movements: ResourceMovement[],
+  stacks?: CloudFormationStack[],
+): ResourceMapping[] {
+  const stacksPredicate =
+    stacks == null
+      ? () => true
+      : (m: ResourceMapping) => {
+        // Any movement that involves one of the selected stacks (either moving from or to)
+        // is considered a candidate for refactoring.
+        const stackNames = [m.source.stack.stackName, m.destination.stack.stackName];
+        return stacks.some((stack) => stackNames.includes(stack.stackName));
+      };
 
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]))
-    .filter(predicate);
+    .filter(stacksPredicate);
 }
 
-function removeUnmovedResources(
-  m: Record<string, ResourceMovement>,
-): Record<string, ResourceMovement> {
+function removeUnmovedResources(m: Record<string, ResourceMovement>): Record<string, ResourceMovement> {
   const result: Record<string, ResourceMovement> = {};
   for (const [hash, [before, after]] of Object.entries(m)) {
     const common = before.filter((b) => after.some((a) => a.equalTo(b)));
@@ -196,6 +152,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
   sdkProvider: SdkProvider,
+  exclude: ExcludeList = new NeverExclude(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
 
@@ -216,7 +173,11 @@ export async function findResourceMovements(
   for (const [_, [before, after]] of stackGroups) {
     result.push(...resourceMovements(before, after));
   }
-  return result;
+
+  return result.filter(mov => {
+    const after = mov[1];
+    return after.every(l => !exclude.isExcluded(l));
+  });
 }
 
 async function getDeployedStacks(

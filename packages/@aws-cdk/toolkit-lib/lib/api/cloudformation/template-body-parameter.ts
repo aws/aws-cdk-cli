@@ -5,11 +5,11 @@ import { type CloudFormationStackArtifact, type Environment, EnvironmentPlacehol
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import * as chalk from 'chalk';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { contentHash, toYAML } from '../../util';
 import type { AssetManifestBuilder } from '../deployments';
 import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
-import { ToolkitError } from '../toolkit-error';
 
 export type TemplateBodyParameter = {
   TemplateBody?: string;

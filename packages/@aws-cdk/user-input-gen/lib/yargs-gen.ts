@@ -14,6 +14,7 @@ export class CliHelpers extends ExternalModule {
   public readonly browserForPlatform = makeCallableExpr(this, 'browserForPlatform');
   public readonly cliVersion = makeCallableExpr(this, 'cliVersion');
   public readonly isCI = makeCallableExpr(this, 'isCI');
+  public readonly shouldDisplayNotices = makeCallableExpr(this, 'shouldDisplayNotices');
   public readonly yargsNegativeAlias = makeCallableExpr(this, 'yargsNegativeAlias');
 }
 
@@ -24,7 +25,7 @@ function makeCallableExpr(scope: IScope, name: string) {
 export async function renderYargs(config: CliConfig, helpers: CliHelpers): Promise<string> {
   const scope = new Module('aws-cdk');
 
-  scope.documentation.push( '-------------------------------------------------------------------------------------------');
+  scope.documentation.push('-------------------------------------------------------------------------------------------');
   scope.documentation.push(`GENERATED FROM ${SOURCE_OF_TRUTH}.`);
   scope.documentation.push('Do not edit by hand; all changes will be overwritten at build time from the config file.');
   scope.documentation.push('-------------------------------------------------------------------------------------------');

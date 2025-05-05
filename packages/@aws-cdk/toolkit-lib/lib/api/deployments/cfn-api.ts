@@ -16,12 +16,12 @@ import type { FileManifestEntry } from 'cdk-assets';
 import { AssetManifest } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import { IO, type IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
-import { ToolkitError } from '../toolkit-error';
 
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.

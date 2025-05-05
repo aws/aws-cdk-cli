@@ -3,12 +3,12 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { BootstrapEnvironmentOptions, BootstrappingParameters } from './bootstrap-props';
 import { BootstrapStack, bootstrapVersionFromTemplate } from './deploy-bootstrap';
 import { legacyBootstrapTemplate } from './legacy-template';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { IO, type IoHelper } from '../io/private';
 import { Mode } from '../plugin';
-import { ToolkitError } from '../toolkit-error';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
 export type BootstrapSource = { source: 'legacy' } | { source: 'default' } | { source: 'custom'; templateFile: string };

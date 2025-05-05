@@ -1,6 +1,5 @@
 import * as path from 'path';
 import { format } from 'util';
-import { formatAmbiguousMappings, formatTypedMappings } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -10,7 +9,7 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import { AmbiguityError, ambiguousMovements, findResourceMovements, resourceMappings, type ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { type ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { detectStackDrift } from '../../../@aws-cdk/toolkit-lib/lib/api/deployments/cfn-api';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -19,7 +18,7 @@ import { DEFAULT_TOOLKIT_STACK_NAME, Mode, ToolkitError } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import { ExtendedStackSelection, StackCollection, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { GarbageCollector } from '../api/garbage-collection';
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
@@ -1223,30 +1222,28 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    if (!options.dryRun) {
-      info('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+    let exclude: string[] = [];
+    if (options.excludeFile != null) {
+      if (!(await fs.pathExists(options.excludeFile))) {
+        throw new ToolkitError(`The exclude file '${options.excludeFile}' does not exist`);
+      }
+      exclude = fs.readFileSync(options.excludeFile).toString('utf-8').split('\n');
+    }
+
+    try {
+      await this.toolkit.refactor(this.props.cloudExecutable, {
+        dryRun: options.dryRun,
+        exclude,
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+        },
+      });
+    } catch (e) {
+      error((e as Error).message);
       return 1;
     }
 
-    // Initially, we select all stacks to find all resource movements.
-    // Otherwise, we might miss some resources that are not in the selected stacks.
-    // Example: resource X was moved from Stack A to Stack B. If we only select Stack A,
-    // we will only see a deletion of resource X, but not the creation of resource X in Stack B.
-    const stacks = await this.selectStacksForList([]);
-    const movements = await findResourceMovements(stacks.stackArtifacts, this.props.sdkProvider);
-    const ambiguous = ambiguousMovements(movements);
-
-    if (ambiguous.length === 0) {
-      // Now we can filter the stacks to only include the ones that are relevant for the user.
-      const patterns = options.selector.allTopLevel ? [] : options.selector.patterns;
-      const filteredStacks = await this.selectStacksForList(patterns);
-      const selectedMappings = resourceMappings(movements, filteredStacks.stackArtifacts);
-      const typedMappings = selectedMappings.map(m => m.toTypedMapping());
-      formatTypedMappings(process.stdout, typedMappings);
-    } else {
-      const e = new AmbiguityError(ambiguous);
-      formatAmbiguousMappings(process.stdout, e.paths());
-    }
     return 0;
   }
 
@@ -1966,6 +1963,20 @@ export interface RefactorOptions {
    * Criteria for selecting stacks to deploy
    */
   selector: StackSelector;
+
+  /**
+   * The absolute path to a file that contains a list of resources that
+   * should be excluded during the refactor. This file should contain a
+   * newline separated list of _destination_ locations to exclude, i.e.,
+   * the location to which a resource would be moved if the refactor
+   * were to happen.
+   *
+   * The format of the locations in the file can be either:
+   *
+   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
+   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
+   */
+  excludeFile?: string;
 }
 
 function buildParameterMap(

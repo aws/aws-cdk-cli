@@ -7,21 +7,21 @@ import type {
   ResourceLocation as CfnResourceLocation,
   ResourceMapping as CfnResourceMapping,
 } from '@aws-sdk/client-cloudformation';
-import {
-  GetTemplateCommand,
-  ListStacksCommand,
-} from '@aws-sdk/client-cloudformation';
+import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { expect } from '@jest/globals';
-import type {
-  ResourceLocation,
-  ResourceMapping,
-} from '../../../lib/api/refactoring';
+import type { ExcludeList } from '../../../lib/api/refactoring';
 import {
+  AlwaysExclude,
   ambiguousMovements,
   findResourceMovements,
   resourceMappings,
   resourceMovements,
 } from '../../../lib/api/refactoring';
+import type {
+  ResourceLocation,
+  ResourceMapping,
+  CloudFormationStack,
+} from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
@@ -1240,13 +1240,7 @@ describe('environment grouping', () => {
         }),
       });
 
-    const provider = new MockSdkProvider();
-    provider.returnsDefaultAccounts(environment.account);
-
-    const movements = await findResourceMovements([stack1, stack2], provider);
-    expect(ambiguousMovements(movements)).toEqual([]);
-
-    expect(resourceMappings(movements).map(toCfnMapping)).toEqual([
+    expect(await mappings([stack1, stack2])).toEqual([
       {
         Destination: {
           LogicalResourceId: 'Bucket',
@@ -1258,6 +1252,15 @@ describe('environment grouping', () => {
         },
       },
     ]);
+
+    expect(await mappings([stack1, stack2], new AlwaysExclude())).toEqual([]);
+
+    async function mappings(stacks: CloudFormationStack[], excludeList?: ExcludeList) {
+      const provider = new MockSdkProvider();
+      provider.returnsDefaultAccounts(environment.account);
+      const movements2 = await findResourceMovements(stacks, provider, excludeList);
+      return resourceMappings(movements2).map(toCfnMapping);
+    }
   });
 
   test('does not produce cross-environment mappings', async () => {

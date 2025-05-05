@@ -1,5 +1,5 @@
 import { Settings } from './settings';
-import { ToolkitError } from './toolkit-error';
+import { ToolkitError } from '../toolkit/toolkit-error';
 
 export { TRANSIENT_CONTEXT_KEY } from './settings';
 export const PROJECT_CONTEXT = 'cdk.context.json';

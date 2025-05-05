@@ -134,7 +134,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       requiresArg: true,
     })
     .option('notices', {
-      default: undefined,
+      default: helpers.shouldDisplayNotices(),
       type: 'boolean',
       desc: 'Show relevant notices',
     })
@@ -846,11 +846,18 @@ export function parseCommandLineArguments(args: Array<string>): any {
     )
     .command('doctor', 'Check your set-up for potential problems')
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
-      yargs.option('dry-run', {
-        default: false,
-        type: 'boolean',
-        desc: 'Do not perform any changes, just show what would be done',
-      }),
+      yargs
+        .option('dry-run', {
+          default: false,
+          type: 'boolean',
+          desc: 'Do not perform any changes, just show what would be done',
+        })
+        .option('exclude-file', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
+        }),
     )
     .version(helpers.cliVersion())
     .demandCommand(1, '')

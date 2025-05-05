@@ -27,6 +27,7 @@ import {
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { ChangeSetDeploymentMethod, DeploymentMethod } from './deployment-method';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
 import type { TemplateBodyParameter } from '../cloudformation';
@@ -37,7 +38,6 @@ import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import { IO, type IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
-import { ToolkitError } from '../toolkit-error';
 
 export interface DeployStackOptions {
   /**

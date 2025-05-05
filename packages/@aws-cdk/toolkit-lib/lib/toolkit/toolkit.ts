@@ -8,6 +8,7 @@ import * as fs from 'fs-extra';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
+import { ToolkitError } from './toolkit-error';
 import type { DeployResult, DestroyResult, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
@@ -44,25 +45,26 @@ import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/pr
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { DiffFormatter } from '../api/diff';
-import type { IIoHost, IoMessageLevel } from '../api/io';
+import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
 import type { IoHelper } from '../api/io/private';
 import { asIoHelper, asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
-import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, resourceMappings } from '../api/refactoring';
+import { PluginHost } from '../api/plugin';
+import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
 import { ResourceMigrator } from '../api/resource-import';
-import type { AssemblyData, StackDetails, SuccessfulDeployStackResult, ToolkitAction } from '../api/shared-public';
-import { PermissionChangeType, PluginHost, ToolkitError } from '../api/shared-public';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
+import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
+import { PermissionChangeType } from '../payloads';
 import {
   formatErrorMessage,
   formatTime,
   obscureTemplate,
   serializeStructure,
   validateSnsTopicArn,
-} from '../private/util';
+} from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
 
@@ -223,7 +225,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const bootstrapSpan = await ioHelper.span(SPAN.BOOTSTRAP_SINGLE)
         .begin(`${chalk.bold(environment.name)}: bootstrapping...`, {
           total: bootstrapEnvironments.length,
-          current: currentIdx+1,
+          current: currentIdx + 1,
           environment,
         });
 
@@ -317,7 +319,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff}> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff }> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -603,7 +605,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
               // Perform a rollback
               await this._rollback(assembly, action, {
-                stacks: { patterns: [stack.hierarchicalId], strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE },
+                stacks: {
+                  patterns: [stack.hierarchicalId],
+                  strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+                },
                 orphanFailedResources: options.orphanFailedResourcesDuringRollback,
               });
 
@@ -743,7 +748,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (options.include === undefined && options.exclude === undefined) {
       throw new ToolkitError(
         "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-          'Make sure to add a "watch" key to your cdk.json',
+        'Make sure to add a "watch" key to your cdk.json',
       );
     }
 
@@ -964,11 +969,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const sdkProvider = await this.sdkProvider('refactor');
-    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider);
+    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
     const ambiguous = ambiguousMovements(movements);
     if (ambiguous.length === 0) {
       const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-      const typedMappings = resourceMappings(movements, filteredStacks.stackArtifacts).map(m => m.toTypedMapping());
+      const mappings = resourceMappings(movements, filteredStacks.stackArtifacts);
+      const typedMappings = mappings.map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
       }));
@@ -1063,9 +1070,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async validateStacksMetadata(stacks: StackCollection, ioHost: IoHelper) {
     const builder = (level: IoMessageLevel) => {
       switch (level) {
-        case 'error': return IO.CDK_ASSEMBLY_E9999;
-        case 'warn': return IO.CDK_ASSEMBLY_W9999;
-        default: return IO.CDK_ASSEMBLY_I9999;
+        case 'error':
+          return IO.CDK_ASSEMBLY_E9999;
+        case 'warn':
+          return IO.CDK_ASSEMBLY_W9999;
+        default:
+          return IO.CDK_ASSEMBLY_I9999;
       }
     };
     await stacks.validateMetadata(

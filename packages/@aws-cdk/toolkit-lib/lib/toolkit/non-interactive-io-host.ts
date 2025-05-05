@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../api/io';
-import type { IActivityPrinter } from '../api/shared-private';
-import { HistoryActivityPrinter, isMessageRelevantForLevel } from '../api/shared-private';
+import { isMessageRelevantForLevel } from '../api/io/private';
+import { HistoryActivityPrinter, type IActivityPrinter } from '../private/activity-printer';
 import { isCI, isTTY } from '../util/shell-env';
 
 export interface NonInteractiveIoHostProps {

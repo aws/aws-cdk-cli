@@ -2,13 +2,13 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 
 ['app', 'sample-app'].forEach(template => {
   integTest(`init F♯ ${template}`, withTemporaryDirectory(withPackages(async (context) => {
-    context.packages.assertJsiiPackagesAvailable();
+    context.library.assertJsiiPackagesAvailable();
 
     const shell = ShellHelper.fromContext(context);
-    await context.packages.makeCliAvailable();
+    await context.cli.makeCliAvailable();
 
     await shell.shell(['cdk', 'init', '-l', 'fsharp', template]);
-    await context.packages.initializeDotnetPackages(context.integTestDir);
+    await context.library.initializeDotnetPackages(context.integTestDir);
     await shell.shell(['cdk', 'synth']);
   })));
 });

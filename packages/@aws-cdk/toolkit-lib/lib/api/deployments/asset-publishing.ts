@@ -14,11 +14,11 @@ import type {
 import {
   AssetPublishing,
 } from 'cdk-assets';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { IoMessageMaker, IoHelper } from '../io/private';
 import { IO } from '../io/private';
 import { Mode } from '../plugin';
-import { ToolkitError } from '../toolkit-error';
 
 interface PublishAssetsOptions {
   /**
