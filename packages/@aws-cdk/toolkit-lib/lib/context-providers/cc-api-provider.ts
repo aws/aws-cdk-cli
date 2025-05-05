@@ -4,7 +4,7 @@ import { ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 import type { ICloudControlClient, SdkProvider } from '../api/aws-auth/private';
 import { initContextProviderSdk } from '../api/aws-auth/private';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../api/toolkit-error';
+import { ContextProviderError } from '../toolkit/toolkit-error';
 import { findJsonValue, getResultObj } from '../util';
 
 export class CcApiContextProviderPlugin implements ContextProviderPlugin {

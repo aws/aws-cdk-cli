@@ -1,8 +1,8 @@
 import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
 import { DeploymentState } from './work-graph-types';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { parallelPromises } from '../../util';
 import { IO, type IoHelper } from '../io/private';
-import { ToolkitError } from '../toolkit-error';
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
 export class WorkGraph {

@@ -1,7 +1,7 @@
 import type { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import { IO, type IoHelper } from '../io/private';
-import { ToolkitError } from '../toolkit-error';
 
 export class ActiveAssetCache {
   private readonly stacks: Set<string> = new Set();

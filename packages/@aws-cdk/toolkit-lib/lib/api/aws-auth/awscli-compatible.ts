@@ -8,8 +8,8 @@ import * as promptly from 'promptly';
 import { makeCachingProvider } from './provider-caching';
 import { ProxyAgentProvider } from './proxy-agent';
 import type { SdkHttpOptions } from './types';
+import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
-import { AuthenticationError } from '../toolkit-error';
 
 const DEFAULT_CONNECTION_TIMEOUT = 10000;
 const DEFAULT_TIMEOUT = 300000;

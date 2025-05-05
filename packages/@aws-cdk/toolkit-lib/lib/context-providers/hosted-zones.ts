@@ -4,7 +4,7 @@ import type { IContextProviderMessages } from '.';
 import type { IRoute53Client, SdkProvider } from '../api/aws-auth/private';
 import { initContextProviderSdk } from '../api/aws-auth/private';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../api/toolkit-error';
+import { ContextProviderError } from '../toolkit/toolkit-error';
 
 export class HostedZoneContextProviderPlugin implements ContextProviderPlugin {
   constructor(private readonly aws: SdkProvider, private readonly io: IContextProviderMessages) {

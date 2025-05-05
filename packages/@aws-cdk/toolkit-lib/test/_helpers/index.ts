@@ -1,35 +1,55 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { AssemblyDirectoryProps, ICloudAssemblySource } from '../../lib';
-import { ToolkitError } from '../../lib';
+import type { AssemblyBuilder, AssemblyDirectoryProps, FromCdkAppOptions, ICloudAssemblySource } from '../../lib';
 import type { CloudAssemblySourceBuilder } from '../../lib/api/cloud-assembly/private';
+import { ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 export * from './test-cloud-assembly-source';
 export * from './test-io-host';
 
 function fixturePath(...parts: string[]): string {
-  return path.normalize(path.join(__dirname, '..', '_fixtures', ...parts));
+  const ret = path.normalize(path.join(__dirname, '..', '_fixtures', ...parts));
+  if (!fs.existsSync(ret)) {
+    throw new ToolkitError(`App Fixture not found: ${ret}`);
+  }
+  return ret;
 }
 
-export async function appFixture(toolkit: CloudAssemblySourceBuilder, name: string, context?: { [key: string]: any }) {
+/**
+ * Return config we can send into `fromCdkApp` to execute a given app fixture
+ */
+export function appFixtureConfig(name: string) {
   const appPath = fixturePath(name, 'app.js');
-  if (!fs.existsSync(appPath)) {
-    throw new ToolkitError(`App Fixture ${name} does not exist in ${appPath}`);
-  }
-  const app = `cat ${appPath} | node --input-type=module`;
-  return toolkit.fromCdkApp(app, {
+  return {
+    app: `cat ${appPath} | node --input-type=module`,
     workingDirectory: path.join(__dirname, '..', '..'),
+  };
+}
+
+export async function appFixture(toolkit: CloudAssemblySourceBuilder, name: string, options?: Omit<FromCdkAppOptions, 'workingDirectory' | 'outdir'>) {
+  const app = appFixtureConfig(name);
+  return toolkit.fromCdkApp(app.app, {
+    workingDirectory: app.workingDirectory,
     outdir: tmpOutdir(),
-    context,
+    disposeOutdir: true,
+    ...options,
   });
 }
 
-export function builderFixture(toolkit: CloudAssemblySourceBuilder, name: string, context?: { [key: string]: any }) {
+/**
+ * Loads a builder from a directory that contains an 'index.js' with a default export
+ */
+export function builderFunctionFromFixture(builderName: string): AssemblyBuilder {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const builder = require(path.join(__dirname, '..', '_fixtures', name)).default;
+  return require(path.join(__dirname, '..', '_fixtures', builderName)).default;
+}
+
+export function builderFixture(toolkit: CloudAssemblySourceBuilder, name: string, context?: { [key: string]: any }) {
+  const builder = builderFunctionFromFixture(name);
   return toolkit.fromAssemblyBuilder(builder, {
     outdir: tmpOutdir(),
+    disposeOutdir: true,
     context,
   });
 }

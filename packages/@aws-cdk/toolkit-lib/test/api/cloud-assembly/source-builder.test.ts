@@ -1,8 +1,9 @@
+import * as fs from 'fs-extra';
 import { RWLock } from '../../../lib/api/rwlock';
 import { contextproviders } from '../../../lib/api/shared-private';
-import { ToolkitError } from '../../../lib/api/shared-public';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
-import { appFixture, autoCleanOutDir, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
+import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
 
 // these tests often run a bit longer than the default
 jest.setTimeout(10_000);
@@ -60,6 +61,44 @@ describe('fromAssemblyBuilder', () => {
     }
   });
 
+  test('outdir is relative to workingDirectory parameter', async () => {
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+    const builder = builderFunctionFromFixture('two-empty-stacks');
+
+    // WHEN
+    const cx = await toolkit.fromAssemblyBuilder(builder, {
+      workingDirectory: synthDir.dir,
+      outdir: 'relative.dir',
+    });
+
+    await using asm = await toolkit.synth(cx);
+
+    // THEN - asm directory is relative to the temp dir
+    expect(asm.cloudAssembly.directory.startsWith(synthDir.dir));
+  });
+
+  test('disposeOutdir can be used to disappear explicit synth dir', async() => {
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+    const builder = builderFunctionFromFixture('two-empty-stacks');
+
+    // WHEN
+    const cx = await toolkit.fromAssemblyBuilder(builder, {
+      workingDirectory: synthDir.dir,
+      outdir: 'relative.dir',
+      disposeOutdir: true,
+    });
+
+    const asm = await toolkit.synth(cx);
+
+    expect(await fs.pathExists(asm.cloudAssembly.directory)).toBeTruthy();
+    await asm.dispose();
+
+    // THEN
+    expect(await fs.pathExists(asm.cloudAssembly.directory)).toBeFalsy();
+  });
+
   test('fromAssemblyBuilder can successfully loop', async () => {
     // GIVEN
     const provideContextValues = jest.spyOn(contextproviders, 'provideContextValues').mockImplementation(async (
@@ -114,16 +153,70 @@ describe('fromCdkApp', () => {
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
   });
 
+  test('synth succeeds when working directory is given and outdir is relative', async () => {
+    // WHEN
+    const app = await appFixtureConfig('two-empty-stacks');
+    const cx = await toolkit.fromCdkApp(app.app, {
+      workingDirectory: app.workingDirectory,
+      outdir: 'relative.dir',
+      disposeOutdir: true,
+    });
+
+    await using assembly = await cx.produce();
+
+    // THEN - synth succeeds
+    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+
+    // asm directory is relative to the dir containing the app
+    expect(assembly.cloudAssembly.directory.startsWith(app.workingDirectory));
+  });
+
+  test('disposeOutdir can be used to disappear explicit synth dir', async() => {
+    // GIVEN
+    const app = await appFixtureConfig('two-empty-stacks');
+
+    // WHEN
+    const cx = await toolkit.fromCdkApp(app.app, {
+      workingDirectory: app.workingDirectory,
+      outdir: 'relative.dir',
+      disposeOutdir: true,
+    });
+
+    const asm = await toolkit.synth(cx);
+
+    expect(await fs.pathExists(asm.cloudAssembly.directory)).toBeTruthy();
+    await asm.dispose();
+
+    // THEN
+    expect(await fs.pathExists(asm.cloudAssembly.directory)).toBeFalsy();
+  });
+
   test('can provide context', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'external-context', {
-      'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
+      context: {
+        'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
+      },
     });
     await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
+  });
+
+  test('can set environment variables', async () => {
+    // WHEN
+    const cx = await appFixture(toolkit, 'environment-variable', {
+      env: {
+        STACK_NAME: 'SomeStackName',
+      },
+    });
+    await using assembly = await cx.produce();
+    const stack = assembly.cloudAssembly.getStackByName('SomeStackName').template;
+
+    // THEN
+    expect(stack).toBeDefined();
   });
 
   test('will capture error output', async () => {

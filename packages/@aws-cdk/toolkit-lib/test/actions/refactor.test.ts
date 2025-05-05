@@ -247,3 +247,55 @@ test('filters stacks when stack selector is passed', async () => {
     }),
   );
 });
+
+test('resource is marked to be excluded for refactoring in the cloud assembly', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(ListStacksCommand).resolves({
+    StackSummaries: [
+      {
+        StackName: 'Stack1',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+    ],
+  });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          // This would have caused a refactor to be detected,
+          // but the resource is marked to be excluded...
+          OldLogicalID: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  // WHEN
+  const cx = await builderFixture(toolkit, 'exclude-refactor');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      // ...so we don't see it in the output
+      message: expect.stringMatching(/Nothing to refactor/),
+    }),
+  );
+});

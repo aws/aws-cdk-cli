@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ToolkitError } from '../api/toolkit-error';
+import { ToolkitError } from '../toolkit/toolkit-error';
 
 /**
  * Return a location that will be used as the CDK home directory.

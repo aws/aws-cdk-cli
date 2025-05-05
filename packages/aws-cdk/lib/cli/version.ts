@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import { debug, info } from '../logging';
 import { cdkCacheDir } from '../util';
 import { cliRootDir } from './root-dir';

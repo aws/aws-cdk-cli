@@ -1,25 +1,17 @@
-/* eslint-disable import/order */
 import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as nock from 'nock';
-import type {
-  Notice,
-  BootstrappedEnvironment,
-  Component,
-} from '../../lib/api/notices';
-import {
-  CachedDataSource,
-  Notices,
-  NoticesFilter,
-  FilteredNotice,
-  WebsiteNoticeDataSource,
-} from '../../lib/api/notices';
-import { Settings } from '../../lib/api/settings';
 import { Context } from '../../lib/api/context';
-import { FakeIoHost } from '../_helpers/fake-io-host';
 import { asIoHelper, IoDefaultMessages } from '../../lib/api/io/private';
+import { Notices } from '../../lib/api/notices';
+import { CachedDataSource } from '../../lib/api/notices/cached-data-source';
+import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
+import type { BootstrappedEnvironment, Component, Notice } from '../../lib/api/notices/types';
+import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
+import { Settings } from '../../lib/api/settings';
+import { FakeIoHost } from '../_helpers/fake-io-host';
 
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
@@ -576,7 +568,7 @@ describe(WebsiteNoticeDataSource, () => {
   test('returns appropriate error when the server returns invalid json', async () => {
     const result = mockCall(200, '-09aiskjkj838');
 
-    await expect(result).rejects.toThrow(/Failed to parse/);
+    await expect(result).rejects.toThrow(/Parse error/);
   });
 
   test('returns appropriate error when HTTPS call throws', async () => {
@@ -612,7 +604,7 @@ describe(WebsiteNoticeDataSource, () => {
     await expect(result).rejects.toThrow(/timed out/);
   });
 
-  test('returns empty array when the request takes too long to finish', async () => {
+  test('returns appropriate error when the request takes too long to finish', async () => {
     nock('https://cli.cdk.dev-tools.aws.dev')
       .get('/notices.json')
       .delayBody(3500)
@@ -699,7 +691,7 @@ describe(CachedDataSource, () => {
     expect(notices).toEqual(freshData);
   });
 
-  test('error in delegate gets turned into empty result by cached source', async () => {
+  test('error in delegate gets passed on as cause to the error emitted by cached source', async () => {
     // GIVEN
     const delegate = {
       fetch: jest.fn().mockRejectedValue(new Error('fetching failed')),
@@ -707,10 +699,14 @@ describe(CachedDataSource, () => {
     const dataSource = new CachedDataSource(ioHostEmitter, fileName, delegate, true);
 
     // WHEN
-    const notices = await dataSource.fetch();
-
-    // THEN
-    expect(notices).toEqual([]);
+    expect.assertions(2);
+    try {
+      await dataSource.fetch();
+    } catch (error: any) {
+      // THEN
+      await expect(error.message).toMatch('Failed to load CDK notices');
+      await expect(error.cause.message).toMatch('fetching failed');
+    }
   });
 
   function dataSourceWithDelegateReturning(notices: Notice[], file: string = fileName, ignoreCache: boolean = false) {
@@ -754,7 +750,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BOOTSTRAP_NOTICE_V10, BOOTSTRAP_NOTICE_V11] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BOOTSTRAP_NOTICE_V10).format() });
       ioHost.expectMessage({ containing: new FilteredNotice(BOOTSTRAP_NOTICE_V11).format() });
     });
@@ -770,10 +766,10 @@ describe(Notices, () => {
         environment: { account: 'account', region: 'region', name: 'env' },
       });
 
-      notices.display();
+      await notices.display();
 
       const filter = jest.spyOn(NoticesFilter.prototype, 'filter');
-      notices.display();
+      await notices.display();
 
       expect(filter).toHaveBeenCalledTimes(1);
       expect(filter).toHaveBeenCalledWith({
@@ -801,7 +797,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_NOTICE, BASIC_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
     });
 
@@ -811,19 +807,26 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [] },
       });
 
-      notices.display({ showTotal: true });
+      await notices.display({ showTotal: true });
       ioHost.expectMessage({ containing: 'There are 0 unacknowledged notice(s).' });
     });
 
-    test('doesnt throw', async () => {
+    test('re-throws error from data source', async () => {
       const notices = Notices.create({ ioHost, context: new Context(), cliVersion });
-      await notices.refresh({
-        dataSource: {
-          fetch: async () => {
-            throw new Error('Should not fail refresh');
+
+      expect.assertions(2);
+      try {
+        await notices.refresh({
+          dataSource: {
+            fetch: async () => {
+              throw new Error('Should fail refresh');
+            },
           },
-        },
-      });
+        });
+      } catch (error: any) {
+        expect(error.message).toMatch('Failed to load CDK notices');
+        expect(error.cause.message).toMatch('Should fail refresh');
+      }
     });
 
     test('filters out acknowledged notices by default', async () => {
@@ -836,7 +839,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
       ioHost.expectMessage({
         containing:
@@ -849,12 +852,12 @@ describe(Notices, () => {
         bag: new Settings({ 'acknowledged-issue-numbers': [MULTIPLE_AFFECTED_VERSIONS_NOTICE.issueNumber] }),
       });
 
-      const notices = Notices.create({ ioHost, context, includeAcknowledged: true, cliVersion: '1.126.0' });
+      const notices = Notices.create({ ioHost, context, cliVersion: '1.126.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
 
-      notices.display();
+      await notices.display({ includeAcknowledged: true });
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
       ioHost.expectMessage({ containing: new FilteredNotice(MULTIPLE_AFFECTED_VERSIONS_NOTICE).format() });
     });
@@ -867,7 +870,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_NOTICE, BASIC_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({
         containing: "NOTICES         (What's this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)",
       });
@@ -883,7 +886,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_NOTICE, BASIC_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
       ioHost.expectMessage({
         containing:
@@ -892,14 +895,14 @@ describe(Notices, () => {
     });
 
     test('nothing when there are no notices', async () => {
-      Notices.create({ ioHost, context: new Context(), cliVersion }).display();
+      await Notices.create({ ioHost, context: new Context(), cliVersion }).display();
       // expect a single trace that the tree.json was not found, but nothing else
       expect(ioHost.messages.length).toBe(1);
       ioHost.expectMessage({ level: 'trace', containing: 'Failed to get tree.json file' });
     });
 
     test('total count when show total is true', async () => {
-      Notices.create({ ioHost, context: new Context(), cliVersion }).display({ showTotal: true });
+      await Notices.create({ ioHost, context: new Context(), cliVersion }).display({ showTotal: true });
       ioHost.expectMessage({ containing: 'There are 0 unacknowledged notice(s).' });
     });
 
@@ -909,7 +912,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_WARNING_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format(), level: 'warn' });
     });
 
@@ -919,7 +922,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_ERROR_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ level: 'error', containing: new FilteredNotice(BASIC_NOTICE).format() });
     });
 
@@ -929,7 +932,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
     });
 
@@ -943,7 +946,7 @@ describe(Notices, () => {
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
 
-      notices.display();
+      await notices.display();
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
     });
 
@@ -951,12 +954,12 @@ describe(Notices, () => {
       const context = new Context({
         bag: new Settings({ 'acknowledged-issue-numbers': [MULTIPLE_AFFECTED_VERSIONS_NOTICE.issueNumber] }),
       });
-      const notices = Notices.create({ ioHost, context, includeAcknowledged: true, cliVersion: '1.126.0' });
+      const notices = Notices.create({ ioHost, context, cliVersion: '1.126.0' });
       await notices.refresh({
         dataSource: { fetch: async () => [BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE] },
       });
 
-      notices.display();
+      await notices.display({ includeAcknowledged: true });
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
       ioHost.expectMessage({ containing: new FilteredNotice(MULTIPLE_AFFECTED_VERSIONS_NOTICE).format() });
     });

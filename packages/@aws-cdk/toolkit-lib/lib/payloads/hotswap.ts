@@ -2,6 +2,7 @@ import type { PropertyDifference, Resource } from '@aws-cdk/cloudformation-diff'
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { Duration } from './types';
 import type { ResourceMetadata } from '../api/resource-metadata/resource-metadata';
+export type { ResourceMetadata } from '../api/resource-metadata/resource-metadata';
 
 /**
  * A resource affected by a change

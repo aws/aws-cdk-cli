@@ -3,7 +3,9 @@ import { ToolkitInfo } from '../../../lib/api';
 import { Context } from '../../../lib/api/context';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import { FakeIoHost } from '../../../lib/api/io/private/testing/fake-io-host';
-import { CachedDataSource, Notices, NoticesFilter } from '../../../lib/api/notices';
+import { Notices } from '../../../lib/api/notices';
+import { CachedDataSource } from '../../../lib/api/notices/cached-data-source';
+import { NoticesFilter } from '../../../lib/api/notices/filter';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 import { MockToolkitInfo } from '../_helpers/mock-toolkitinfo';
@@ -107,7 +109,7 @@ describe('validateversion without bootstrap stack', () => {
     await expect(envResources().validateVersion(8, '/abc')).resolves.toBeUndefined();
 
     const filter = jest.spyOn(NoticesFilter.prototype, 'filter');
-    notices.display();
+    await notices.display();
 
     expect(filter).toHaveBeenCalledTimes(1);
     expect(filter).toHaveBeenCalledWith({

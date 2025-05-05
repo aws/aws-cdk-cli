@@ -5,6 +5,8 @@ import { RequireApproval } from '../../lib/api/require-approval';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
+jest.setTimeout(10_000);
+
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOptions]>;

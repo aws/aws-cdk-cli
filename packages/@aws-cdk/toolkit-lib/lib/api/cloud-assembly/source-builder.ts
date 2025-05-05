@@ -80,6 +80,27 @@ export interface AssemblySourceProps {
    * Options to configure loading of the assembly after it has been synthesized
    */
   readonly loadAssemblyOptions?: LoadAssemblyOptions;
+
+  /**
+   * Delete the `outdir` when the assembly is disposed
+   *
+   * @default - `true` if `outdir` is not given, `false` otherwise
+   */
+  readonly disposeOutdir?: boolean;
+}
+
+/**
+ * Options for the `fromCdkApp` Assembly Source constructor
+ */
+export interface FromCdkAppOptions extends AssemblySourceProps {
+  /**
+   * Additional environment variables
+   *
+   * These environment variables will be set in addition to the environment
+   * variables currently set in the process. A value of `undefined` will
+   * unset a particular environment variable.
+   */
+  readonly env?: Record<string, string | undefined>;
 }
 
 /**
