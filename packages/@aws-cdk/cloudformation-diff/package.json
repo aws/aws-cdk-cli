@@ -55,9 +55,9 @@
     "typescript": "5.6"
   },
   "dependencies": {
-    "@aws-sdk/client-cloudformation": "^3.787.0",
     "@aws-cdk/aws-service-spec": "^0.1.69",
     "@aws-cdk/service-spec-types": "^0.0.135",
+    "@aws-sdk/client-cloudformation": "^3.803.0",
     "chalk": "^4",
     "diff": "^7.0.0",
     "fast-deep-equal": "^3.1.3",

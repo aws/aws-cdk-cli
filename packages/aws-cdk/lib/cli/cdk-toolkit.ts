@@ -335,7 +335,7 @@ export class CdkToolkit {
           const drift = formatter.formatStackDrift({
             quiet,
           });
-          info(diff.formattedDiff + '\n' + drift.formattedDrift);
+          info(diff.formattedDiff + (options.detectDrift === true ? '\n' + drift.formattedDrift : ''));
           diffs += diff.numStacksWithChanges;
           drifts = drift.numResourcesWithDrift;
         }

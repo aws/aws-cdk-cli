@@ -53,7 +53,7 @@ interface FormatStackDiffOutput {
  */
 interface FormatStackDriftOutput {
   /**
-   * Number of stacks with drift
+   * Number of resources with drift
    */
   readonly numResourcesWithDrift: number;
 
@@ -369,7 +369,9 @@ export class DiffFormatter {
     let driftCount = 0;
 
     if (!this.driftResults?.StackResourceDrifts) {
-      return { formattedDrift: '', numResourcesWithDrift: 0 };
+      stream.write('No drift results available. Run with --detect-drift to view drift detection.');
+      stream.end();
+      return { formattedDrift: stream.toString(), numResourcesWithDrift: -1 };
     }
 
     const drifts = this.driftResults.StackResourceDrifts.filter(d =>
