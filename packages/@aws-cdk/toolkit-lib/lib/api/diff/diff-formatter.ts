@@ -77,11 +77,6 @@ interface DiffFormatterProps {
    * Includes the old/current state of the stack as well as the new state.
    */
   readonly templateInfo: TemplateInfo;
-
-  /**
-   * The results of stack drift
-   */
-  readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
 }
 
 /**
@@ -162,6 +157,11 @@ export interface TemplateInfo {
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
+
+  /**
+   * The results of stack drift
+   */
+  readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
 }
 
 /**
@@ -190,7 +190,7 @@ export class DiffFormatter {
     this.stackName = props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
-    this.driftResults = props.driftResults;
+    this.driftResults = props.templateInfo.driftResults;
     this.isImport = props.templateInfo.isImport ?? false;
   }
 

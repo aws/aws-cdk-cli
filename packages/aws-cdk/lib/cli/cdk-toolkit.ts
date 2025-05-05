@@ -314,8 +314,8 @@ export class CdkToolkit {
             changeSet,
             isImport: !!resourcesToImport,
             nestedStacks,
+            driftResults,
           },
-          driftResults,
         });
 
         if (options.securityOnly) {

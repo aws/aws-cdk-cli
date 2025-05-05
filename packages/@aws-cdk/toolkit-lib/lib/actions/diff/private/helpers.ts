@@ -78,7 +78,6 @@ async function cfnDiff(
     const nestedStacks = templateWithNestedStacks.nestedStacks;
 
     const driftResults = await collectDriftResults(stack, ioHelper, deployments, options, sdkProvider);
-    driftResults;
 
     const migrator = new ResourceMigrator({ deployments, ioHelper });
     const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
@@ -102,6 +101,7 @@ async function cfnDiff(
       isImport: !!resourcesToImport,
       nestedStacks,
       changeSet,
+      driftResults,
     });
   }
 

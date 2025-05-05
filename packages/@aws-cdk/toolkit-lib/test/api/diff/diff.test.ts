@@ -337,8 +337,8 @@ describe('formatStackDrift', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
+        driftResults: mockDriftedResources,
       },
-      driftResults: mockDriftedResources,
     });
     const result = formatter.formatStackDrift({});
 
@@ -392,8 +392,8 @@ describe('formatStackDrift', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
+        driftResults: mockDriftedResources,
       },
-      driftResults: mockDriftedResources,
     });
     const result = formatter.formatStackDrift({});
 
@@ -428,8 +428,8 @@ describe('formatStackDrift', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
+        driftResults: mockDriftResults,
       },
-      driftResults: mockDriftResults,
     });
     const result = formatter.formatStackDrift({});
 
@@ -529,8 +529,8 @@ describe('formatStackDrift', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
+        driftResults: mockDriftedResources,
       },
-      driftResults: mockDriftedResources,
     });
     const result = formatter.formatStackDrift({});
 
@@ -563,8 +563,8 @@ describe('formatStackDrift', () => {
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
+        driftResults: mockDriftResults,
       },
-      driftResults: mockDriftResults,
     });
     const result = formatter.formatStackDrift({});
 
