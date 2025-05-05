@@ -3,8 +3,10 @@ import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
+import { Mode } from '../../../api';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
 import type { Deployments } from '../../../api/deployments';
+import { detectStackDrift } from '../../../api/deployments/cfn-api';
 import type { TemplateInfo } from '../../../api/diff';
 import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
@@ -12,8 +14,6 @@ import type { IoHelper, SdkProvider } from '../../../api/shared-private';
 import { IO, cfnApi } from '../../../api/shared-private';
 import { ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
-import { detectStackDrift } from '../../../api/deployments/cfn-api';
-import { Mode } from '../../../api';
 
 export function prepareDiff(
   ioHelper: IoHelper,
@@ -77,7 +77,8 @@ async function cfnDiff(
     const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
     const nestedStacks = templateWithNestedStacks.nestedStacks;
 
-    const driftResults = collectDriftResults(stack, ioHelper, deployments, options, sdkProvider);
+    const driftResults = await collectDriftResults(stack, ioHelper, deployments, options, sdkProvider);
+    driftResults;
 
     const migrator = new ResourceMigrator({ deployments, ioHelper });
     const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
@@ -164,14 +165,14 @@ async function collectDriftResults(
   options: DiffOptions,
   sdkProvider: SdkProvider,
 ) {
-  if (options.detectDrift) {
+  if (!options.detectDrift) {
     return undefined;
   }
 
   const env = await deployments.resolveEnvironment(stack);
   const cfn = (await sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
 
-  return await detectStackDrift(
+  return detectStackDrift(
     cfn,
     ioHelper,
     stack.stackName,

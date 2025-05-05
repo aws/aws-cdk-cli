@@ -135,5 +135,5 @@ export interface DiffOptions {
    *
    * @default false
    */
-    readonly detectDrift?: boolean;
+  readonly detectDrift?: boolean;
 }

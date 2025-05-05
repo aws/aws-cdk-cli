@@ -1419,14 +1419,14 @@ export class CdkToolkit {
    * Collect drift detection results for a given CloudFormation stack
    */
   private async collectDriftResults(stack: cxapi.CloudFormationStackArtifact, options: DiffOptions) {
-    if (options.detectDrift) {
+    if (!options.detectDrift) {
       return undefined;
     }
 
     const env = await this.props.deployments.resolveEnvironment(stack);
     const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
 
-    return await detectStackDrift(
+    return detectStackDrift(
       cfn,
       asIoHelper(this.ioHost, 'diff'),
       stack.stackName,
