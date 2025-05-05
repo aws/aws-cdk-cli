@@ -518,9 +518,8 @@ async function waitForDriftDetection(
 ): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
   await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Waiting for drift detection %s to complete...', driftDetectionId)));
 
-  const maxDelay = 30_000; // 30 seconds max delay
-  let baseDelay = 1_000; // Start with 1 second
-  let attempts = 0;
+  const timeout = 5_000; // if takes longer than 5s, fail
+  const deadline = Date.now() + timeout;
 
   while (true) {
     const response = await cfn.describeStackDriftDetectionStatus({
@@ -535,16 +534,9 @@ async function waitForDriftDetection(
       throw new ToolkitError(`Drift detection failed: ${response.DetectionStatusReason}`);
     }
 
-    if (attempts++ > 30) {
-      throw new ToolkitError('Drift detection timed out after 30 attempts');
+    if (Date.now() > deadline) {
+      throw new ToolkitError(`Drift detection failed: Timed out after ${timeout / 1000} seconds.`);
     }
-
-    // Calculate backoff with jitter
-    const jitter = Math.random() * 1000;
-    const delay = Math.min(baseDelay + jitter, maxDelay);
-    await new Promise(resolve => setTimeout(resolve, delay));
-    baseDelay *= 2;
-    attempts++;
   }
 }
 
