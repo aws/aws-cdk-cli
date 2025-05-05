@@ -1,7 +1,6 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
-import { ciSystemIsStdErrSafe } from './ci-systems';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -92,19 +91,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await configuration.load();
 
   const shouldDisplayNotices = configuration.settings.get(['notices']);
-  if (shouldDisplayNotices !== undefined) {
-    // Notices either go to stderr, or nowhere
-    ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
-  } else {
-    // If the user didn't supply either `--notices` or `--no-notices`, we do
-    // autodetection. The autodetection currently is: do write notices if we are
-    // not on CI, or are on a CI system where we know that writing to stderr is
-    // safe. We fail "closed"; that is, we decide to NOT print for unknown CI
-    // systems, even though technically we maybe could.
-    const safeToWriteToStdErr = !argv.ci || Boolean(ciSystemIsStdErrSafe());
-    ioHost.noticesDestination = safeToWriteToStdErr ? 'stderr' : 'drop';
-  }
-
+  ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
     ioHost,
     context: configuration.context,
@@ -160,8 +147,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   loadPlugins(configuration.settings);
 
-  if (typeof(cmd) !== 'string') {
-    throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof(cmd)})`);
+  if ((typeof cmd) !== 'string') {
+    throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof cmd})`);
   }
 
   try {
@@ -579,7 +566,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   let hotswapMode: HotswapMode;
   if (hotswap) {
     hotswapMode = HotswapMode.HOTSWAP_ONLY;
-  /* if (hotswapFallback)*/
+    /* if (hotswapFallback)*/
   } else {
     hotswapMode = HotswapMode.FALL_BACK;
   }
