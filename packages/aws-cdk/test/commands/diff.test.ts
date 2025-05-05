@@ -1150,3 +1150,93 @@ Resources
     expect(exitCode).toBe(0);
   });
 });
+
+describe('stack display names', () => {
+  beforeEach(() => {
+
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation((_stackArtifact: CloudFormationStackArtifact) => {
+      return Promise.resolve({
+        deployedRootTemplate: {},
+        nestedStacks: {},
+      });
+    });
+    cloudExecutable = new MockCloudExecutable({
+      stacks: [
+        {
+          stackName: 'MyParent',
+          displayName: 'Parent/NestedStack',
+          template: { resource: 'ParentStack' },
+        },
+        {
+          stackName: 'MyChild',
+          displayName: 'Parent/NestedStack/MyChild',
+          template: { resource: 'ChildStack' },
+        },
+      ],
+    }, undefined, ioHost);
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  });
+
+  test('diff should display stack paths instead of logical IDs', async () => {
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['Parent/NestedStack', 'Parent/NestedStack/MyChild'],
+    });
+
+    // THEN
+    const parentOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const childOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    
+    // Verify that the display name (path) is shown instead of the logical ID
+    expect(parentOutput).toContain('Stack Parent/NestedStack/MyChild');
+    expect(parentOutput).not.toContain('Stack MyChild');
+    
+    expect(childOutput).toContain('Stack Parent/NestedStack');
+    expect(childOutput).not.toContain('Stack MyParent');
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 2'),
+    }));
+    expect(exitCode).toBe(0);
+  });
+
+  test('diff should fall back to logical ID if display name is not available', async () => {
+    // Create a new cloud executable with stacks that don't have display names
+    cloudExecutable = new MockCloudExecutable({
+      stacks: [
+        {
+          stackName: 'NoDisplayNameStack',
+          // No displayName provided
+          template: { resource: 'ParentStack' },
+        },
+      ],
+    }, undefined, ioHost);
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['NoDisplayNameStack'],
+    });
+
+    // THEN
+    const output = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    
+    // Verify that the logical ID is shown when display name is not available
+    expect(output).toContain('Stack NoDisplayNameStack');
+
+    expect(exitCode).toBe(0);
+  });
+});

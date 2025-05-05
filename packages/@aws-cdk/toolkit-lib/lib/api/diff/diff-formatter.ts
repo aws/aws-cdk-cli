@@ -154,7 +154,7 @@ export class DiffFormatter {
     this.ioHelper = props.ioHelper;
     this.oldTemplate = props.templateInfo.oldTemplate;
     this.newTemplate = props.templateInfo.newTemplate;
-    this.stackName = props.templateInfo.newTemplate.stackName;
+    this.stackName = props.templateInfo.newTemplate.displayName ?? props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;
