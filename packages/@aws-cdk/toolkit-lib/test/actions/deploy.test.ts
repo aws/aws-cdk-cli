@@ -55,6 +55,18 @@ describe('deploy', () => {
     await toolkit.deploy(cx);
 
     // THEN
+    const request = ioHost.requestSpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    
+    // Message includes formatted security diff
+    expect(request).toContain(`Stack Stack1
+IAM Statement Changes
+┌───┬─────────────┬────────┬────────────────┬───────────┬───────────┐
+│   │ Resource    │ Effect │ Action         │ Principal │ Condition │
+├───┼─────────────┼────────┼────────────────┼───────────┼───────────┤
+│ + │ $\{Role.Arn\} │ Allow  │ sts:AssumeRole │ AWS:arn   │           │
+└───┴─────────────┴────────┴────────────────┴───────────┴───────────┘
+`);
+    // Request response returns template diff
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'deploy',
       level: 'info',
