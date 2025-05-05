@@ -1,7 +1,8 @@
 import { PassThrough } from 'stream';
-import * as chalk from 'chalk';
-import { CliIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import * as chalk from 'chalk';
+import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
+import { CliIoHost } from '../../../lib/cli/io-host';
 
 let passThrough: PassThrough;
 
@@ -429,7 +430,7 @@ describe('CliIoHost', () => {
       });
 
       test('require approval by default - respond no', async () => {
-        expect(() => requestResponse('n', plainMessage({
+        await expect(() => requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',

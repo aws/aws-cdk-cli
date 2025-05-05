@@ -1,4 +1,5 @@
-import { RWLock, contextproviders } from '../../../lib/api/shared-private';
+import { RWLock } from '../../../lib/api/rwlock';
+import { contextproviders } from '../../../lib/api/shared-private';
 import { ToolkitError } from '../../../lib/api/shared-public';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { appFixture, autoCleanOutDir, builderFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
@@ -116,13 +117,29 @@ describe('fromCdkApp', () => {
   test('can provide context', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'external-context', {
-      'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
+      context: {
+        'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
+      },
     });
     await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
+  });
+
+  test('can set environment variables', async () => {
+    // WHEN
+    const cx = await appFixture(toolkit, 'environment-variable', {
+      env: {
+        STACK_NAME: 'SomeStackName',
+      },
+    });
+    await using assembly = await cx.produce();
+    const stack = assembly.cloudAssembly.getStackByName('SomeStackName').template;
+
+    // THEN
+    expect(stack).toBeDefined();
   });
 
   test('will capture error output', async () => {

@@ -10,8 +10,8 @@ import { prettyPrintError } from './pretty-print-error';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -272,6 +272,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.refactor({
           dryRun: args.dryRun,
           selector,
+          excludeFile: args.excludeFile,
         });
 
       case 'bootstrap':

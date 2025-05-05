@@ -63,7 +63,9 @@ afterAll(async () => {
     await new Promise<void>((resolve, reject) => {
       const response = aft(resolve as any);
       if (isPromise(response)) {
-        response.then(() => { return resolve(); }, reject);
+        response.then(() => {
+          return resolve();
+        }, reject);
       } else {
         resolve();
       }

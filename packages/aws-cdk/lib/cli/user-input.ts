@@ -1368,6 +1368,13 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
+   * If specified, CDK will use the given file to exclude resources from the refactor
+   *
+   * @default - undefined
+   */
+  readonly excludeFile?: string;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;

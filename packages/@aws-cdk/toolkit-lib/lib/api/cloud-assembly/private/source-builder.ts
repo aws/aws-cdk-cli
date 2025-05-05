@@ -7,10 +7,12 @@ import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { IO } from '../../io/private';
-import { Context, RWLock, Settings } from '../../shared-private';
 import { ToolkitError, AssemblyError } from '../../shared-public';
-import type { AssemblyBuilder } from '../source-builder';
+import type { AssemblyBuilder, FromCdkAppOptions } from '../source-builder';
 import { ReadableCloudAssembly } from './readable-assembly';
+import { Context } from '../../context';
+import { RWLock } from '../../rwlock';
+import { Settings } from '../../settings';
 
 export abstract class CloudAssemblySourceBuilder {
   /**
@@ -140,7 +142,7 @@ export abstract class CloudAssemblySourceBuilder {
    * @param props additional configuration properties
    * @returns the CloudAssembly source
    */
-  public async fromCdkApp(app: string, props: AssemblySourceProps = {}): Promise<ICloudAssemblySource> {
+  public async fromCdkApp(app: string, props: FromCdkAppOptions = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
     // @todo this definitely needs to read files from the CWD
     const context = new Context({ bag: new Settings(props.context ?? {}) });
@@ -169,7 +171,10 @@ export abstract class CloudAssemblySourceBuilder {
           await using execution = await ExecutionEnvironment.create(services, { outdir });
 
           const commandLine = await execution.guessExecutable(app);
-          const env = await execution.defaultEnvVars();
+          const env = noUndefined({
+            ...await execution.defaultEnvVars(),
+            ...props.env,
+          });
           return await execution.withContext(context.all, env, props.synthOptions, async (envWithContext, _ctx) => {
             await execInChildProcess(commandLine.join(' '), {
               eventPublisher: async (type, line) => {
@@ -198,3 +203,9 @@ export abstract class CloudAssemblySourceBuilder {
   }
 }
 
+/**
+ * Remove undefined values from a dictionary
+ */
+function noUndefined<A>(xs: Record<string, A>): Record<string, NonNullable<A>> {
+  return Object.fromEntries(Object.entries(xs).filter(([_, v]) => v !== undefined)) as any;
+}

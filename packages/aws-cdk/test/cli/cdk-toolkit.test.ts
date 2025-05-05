@@ -18,8 +18,8 @@ const fakeChokidarWatcherOn = {
   },
 
   get fileEventCallback(): (
-    event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir',
-    path: string,
+  event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir',
+  path: string,
   ) => Promise<void> {
     expect(mockChokidarWatcherOn.mock.calls.length).toBeGreaterThanOrEqual(2);
     const secondCall = mockChokidarWatcherOn.mock.calls[1];
@@ -60,35 +60,42 @@ jest.setTimeout(30_000);
 import 'aws-sdk-client-mock';
 import * as os from 'os';
 import * as path from 'path';
-import * as cdkAssets from 'cdk-assets';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
+import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
+import * as cdkAssets from 'cdk-assets';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
-import { SdkProvider } from '../../lib/api';
+import type { Template } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import type { SdkProvider } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
-import {
+import type {
   DeployStackResult,
   SuccessfulDeployStackResult,
-  Deployments,
   DeployStackOptions,
   DestroyStackOptions,
   RollbackStackOptions,
   RollbackStackResult,
 } from '../../lib/api/deployments';
+import {
+  Deployments,
+} from '../../lib/api/deployments';
 import { HotswapMode } from '../../lib/api/hotswap';
 import { Mode } from '../../lib/api/plugin';
-import { Tag } from '../../lib/api/tags';
+import type { Tag } from '../../lib/api/tags';
 import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';
-import { Configuration } from '../../lib/cli/user-configuration';
-import { RequireApproval } from '../../lib/commands/diff';
 import { CliIoHost } from '../../lib/cli/io-host';
+import { Configuration } from '../../lib/cli/user-configuration';
+import { StackActivityProgress } from '../../lib/commands/deploy';
+import { RequireApproval } from '../../lib/commands/diff';
 import { flatten } from '../../lib/util';
-import { MockCloudExecutable, TestStackArtifact } from '../_helpers/assembly';
 import { instanceMockFrom } from '../_helpers/as-mock';
+import type { TestStackArtifact } from '../_helpers/assembly';
+import { MockCloudExecutable } from '../_helpers/assembly';
 import {
   mockCloudFormationClient,
   MockSdk,
@@ -96,10 +103,6 @@ import {
   mockSSMClient,
   restoreSdkMocksToDefault,
 } from '../_helpers/mock-sdk';
-import { asIoHelper } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/io/private';
-import { StackActivityProgress } from '../../lib/commands/deploy';
-import { Template } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
-import { DestroyStackResult } from '@aws-cdk/tmp-toolkit-helpers/src/api/deployments/deploy-stack';
 
 markTesting();
 
@@ -153,7 +156,6 @@ function defaultToolkitSetup() {
 }
 
 const mockSdk = new MockSdk();
-
 
 describe('bootstrap', () => {
   test('accepts qualifier from context', async () => {
@@ -276,6 +278,7 @@ describe('deploy', () => {
         deployments: new FakeCloudFormation({}),
       });
       stderrMock.mockImplementation((...x) => {
+        // eslint-disable-next-line no-console
         console.error(...x);
       });
 
@@ -1034,8 +1037,8 @@ describe('deploy', () => {
 
     await toolkit.deploy({
       progress: StackActivityProgress.EVENTS,
-      selector: { patterns: ["**"] },
-      hotswap: HotswapMode.FALL_BACK
+      selector: { patterns: ['**'] },
+      hotswap: HotswapMode.FALL_BACK,
     });
 
     // now expect it to be updated
@@ -1556,7 +1559,6 @@ describe('migrate', () => {
 });
 
 describe('rollback', () => {
-
   test('rollback uses deployment role', async () => {
     cloudExecutable = new MockCloudExecutable({
       stacks: [MockStack.MOCK_STACK_C],

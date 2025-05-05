@@ -90,10 +90,6 @@
       "type": "build"
     },
     {
-      "name": "projen",
-      "type": "build"
-    },
-    {
       "name": "standard-version",
       "type": "build"
     },

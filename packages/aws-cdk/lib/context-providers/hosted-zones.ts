@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/context-providers/hosted-zones';
+export * from '../../../@aws-cdk/toolkit-lib/lib/context-providers/hosted-zones';

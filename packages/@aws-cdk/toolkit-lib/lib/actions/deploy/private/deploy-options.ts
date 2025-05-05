@@ -1,6 +1,6 @@
 import type { DeploymentMethod, DeployOptions, HotswapMode } from '..';
 import type { StackSelector } from '../../../api/cloud-assembly';
-import type { CloudWatchLogEventMonitor } from '../../../api/shared-private';
+import type { CloudWatchLogEventMonitor } from '../../../api/logs-monitor/logs-monitor';
 
 export interface BaseDeployOptions {
   /**

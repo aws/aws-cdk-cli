@@ -39,7 +39,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/yarn-cling": "*",
+    "@aws-cdk/yarn-cling": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^9",
@@ -63,7 +63,6 @@
     "jest-junit": "^16",
     "license-checker": "^25.0.1",
     "prettier": "^2.8",
-    "projen": "^0.91.20",
     "ts-jest": "^29.2.5",
     "typescript": "5.6"
   },

@@ -135,7 +135,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     runTestsWorkflow.on({
       pullRequestTarget: {
-        branches: ['main'],
+        branches: [],
       },
       // Needs to trigger and report success on merge queue builds as well
       mergeGroup: {},
@@ -376,10 +376,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Download and install the test artifact',
           run: [
             'npm install @aws-cdk-testing/cli-integ',
-            // Move the installed files to the current directory, because as
-            // currently configured the tests won't run from an installed
-            // node_modules directory.
-            'mv ./node_modules/@aws-cdk-testing/cli-integ/* .',
           ].join('\n'),
         },
         {
@@ -397,7 +393,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
           run: [
-            `bin/run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
+            `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
           ].join('\n'),
           env: {
             JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: 'true',
@@ -422,18 +418,25 @@ export class CdkCliIntegTestsWorkflow extends Component {
         {
           name: 'Set workflow summary',
           run: [
-            'echo "## Test results" >> $GITHUB_STEP_SUMMARY',
             'cat logs/md/*.md >> $GITHUB_STEP_SUMMARY',
           ].join('\n'),
         },
         {
           name: 'Upload logs',
           uses: 'actions/upload-artifact@v4.4.0',
+          id: 'logupload',
           with: {
-            name: 'logs',
+            name: 'logs-${{ matrix.suite }}',
             path: 'logs/',
             overwrite: 'true',
           },
+        },
+        {
+          name: 'Append artifact URL',
+          run: [
+            'echo "" >> $GITHUB_STEP_SUMMARY',
+            'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
+          ].join('\n'),
         },
       ],
     });

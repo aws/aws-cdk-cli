@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { yarn } from 'cdklabs-projen-project-types';
-import type { TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
+import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { AdcPublishing } from './projenrc/adc-publishing';
@@ -69,6 +69,11 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 
   // Never include the build-tools directory
   x.npmignore?.addPatterns('build-tools');
+
+  if (x instanceof TypeScriptWorkspace) {
+    // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
+    x.deps.removeDependency('projen');
+  }
 
   return x;
 }
@@ -173,7 +178,6 @@ function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
 function transitiveToolkitPackages(thisPkg: string) {
   const toolkitPackages = [
     'aws-cdk',
-    '@aws-cdk/tmp-toolkit-helpers',
     '@aws-cdk/cloud-assembly-schema',
     '@aws-cdk/cloudformation-diff',
     '@aws-cdk/toolkit-lib',
@@ -591,8 +595,6 @@ const cliPluginContract = configureProject(
 
 //////////////////////////////////////////////////////////////////////
 
-let CDK_ASSETS: '2' | '3' = ('3' as any);
-
 const cdkAssets = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -607,18 +609,14 @@ const cdkAssets = configureProject(
       'glob',
       'mime@^2',
       'yargs',
-      ...CDK_ASSETS === '2' ? [
-        'aws-sdk',
-      ] : [
-        `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-        `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-        '@smithy/config-resolver',
-        '@smithy/node-config-provider',
-      ],
+      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@smithy/config-resolver',
+      '@smithy/node-config-provider',
     ],
     devDeps: [
       '@types/archiver',
@@ -629,13 +627,9 @@ const cdkAssets = configureProject(
       'jszip',
       '@types/mock-fs@^4',
       'mock-fs@^5',
-      ...CDK_ASSETS === '2' ? [
-      ] : [
-        '@smithy/types',
-        '@smithy/util-stream',
-        'aws-sdk-client-mock',
-        'aws-sdk-client-mock-jest',
-      ],
+      '@smithy/types',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
     ],
     tsconfigDev: {
       compilerOptions: {
@@ -667,7 +661,7 @@ const cdkAssets = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
   }),
 );
 
@@ -700,135 +694,6 @@ cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
 
 //////////////////////////////////////////////////////////////////////
 
-const tmpToolkitHelpers = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/tmp-toolkit-helpers',
-    description: 'A temporary package to hold code shared between aws-cdk and @aws-cdk/toolkit-lib',
-    devDeps: [
-      '@types/archiver',
-      '@types/semver',
-      'aws-sdk-client-mock',
-      'aws-sdk-client-mock-jest',
-      'fast-check',
-      'nock',
-      '@smithy/util-stream',
-      'xml-js',
-    ],
-    deps: [
-      cloudAssemblySchema.name,
-      cloudFormationDiff,
-      cxApi,
-      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-      '@smithy/middleware-endpoint',
-      '@smithy/node-http-handler',
-      '@smithy/property-provider',
-      '@smithy/shared-ini-file-loader',
-      '@smithy/types',
-      '@smithy/util-retry',
-      '@smithy/util-waiter',
-      cdkAssets,
-      'archiver',
-      'chalk@4',
-      'fs-extra@^9',
-      'glob',
-      'minimatch',
-      'p-limit@^3',
-      'promptly', // @todo remove this should only be in CLI
-      'proxy-agent', // @todo remove this should only be in CLI
-      'semver',
-      'uuid',
-      'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
-    ],
-
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        target: 'es2022',
-        lib: ['es2022', 'esnext.disposable', 'dom'],
-        module: 'NodeNext',
-
-        // Temporarily, because it makes it impossible for us to use @internal functions
-        // from other packages. Annoyingly, VSCode won't show an error if you use @internal
-        // because it looks at the .ts, but the compilation will fail because it will use
-        // the .d.ts.
-        stripInternal: false,
-      },
-    },
-
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          // We want to improve our test coverage
-          // DO NOT LOWER THESE VALUES!
-          // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 70,
-          branches: 70,
-          functions: 70,
-          lines: 70,
-        },
-        // We have many tests here that commonly time out
-        testTimeout: 30_000,
-        testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
-      },
-    }),
-  }),
-);
-
-new TypecheckTests(tmpToolkitHelpers);
-
-// Prevent imports of private API surface
-tmpToolkitHelpers.package.addField('exports', {
-  '.': './lib/index.js',
-  './package.json': './package.json',
-  './api': './lib/api/index.js',
-  './util': './lib/util/index.js',
-});
-
-tmpToolkitHelpers.eslint?.addRules({
-  '@cdklabs/no-throw-default-error': 'error',
-});
-tmpToolkitHelpers.eslint?.addOverride({
-  files: ['./test/**'],
-  rules: {
-    '@cdklabs/no-throw-default-error': 'off',
-  },
-});
-
-tmpToolkitHelpers.gitignore.addPatterns('test/**/*.map');
-
-tmpToolkitHelpers.npmignore?.addPatterns(
-  '!lib/api/bootstrap/bootstrap-template.yaml',
-);
-tmpToolkitHelpers.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
-
-//////////////////////////////////////////////////////////////////////
-
 const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
   'lib/init-templates/*/typescript/*/*.template.ts',
 ];
@@ -846,6 +711,7 @@ const toolkitLib = configureProject(
       },
     },
     deps: [
+      cliPluginContract,
       cloudAssemblySchema,
       // Purposely a ^ dependency so that clients selecting old toolkit library
       // versions still might get upgrades to this dependency.
@@ -878,45 +744,43 @@ const toolkitLib = configureProject(
       '@smithy/property-provider',
       '@smithy/shared-ini-file-loader',
       '@smithy/util-retry',
-      '@smithy/util-stream',
       '@smithy/util-waiter',
       'archiver',
-      'camelcase@^6', // Non-ESM
       // Purposely a ^ dependency so that clients get upgrades to this library.
       cdkAssets,
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
-      'decamelize@^5', // Non-ESM
       'fs-extra@^9',
       'glob',
-      'json-diff',
       'minimatch',
       'p-limit@^3',
       'promptly',
       'proxy-agent',
       'semver',
       'split2',
-      'strip-ansi@^6',
-      'table@^6',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
-      'yargs@^15',
     ],
     devDeps: [
       '@aws-cdk/aws-service-spec',
+      '@jest/environment',
+      '@jest/globals',
+      '@jest/types',
+      '@microsoft/api-extractor',
       '@smithy/types',
+      '@smithy/util-stream',
       '@types/fs-extra',
       '@types/split2',
-      tmpToolkitHelpers,
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
-      'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
-      'esbuild',
+      'fast-check',
+      'jest-environment-node',
+      'nock@13',
       'typedoc',
-      '@microsoft/api-extractor',
+      'xml-js',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -931,10 +795,10 @@ const toolkitLib = configureProject(
       jestConfig: {
         coverageThreshold: {
           // this is very sad but we will get better
-          statements: 85,
-          branches: 76,
-          functions: 77,
-          lines: 85,
+          statements: 87,
+          branches: 83,
+          functions: 82,
+          lines: 87,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
         setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
@@ -1016,18 +880,12 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
 // Eslint rules
 toolkitLib.eslint?.addRules({
   '@cdklabs/no-throw-default-error': 'error',
-  'import/no-restricted-paths': ['error', {
-    zones: [{
-      target: './',
-      from: '../tmp-toolkit-helpers',
-      message: 'All `@aws-cdk/tmp-toolkit-helpers` code must be used via lib/api/shared-*.ts',
-    }],
-  }],
 });
 toolkitLib.eslint?.addOverride({
   files: ['./test/**'],
   rules: {
     '@cdklabs/no-throw-default-error': 'off',
+    '@typescript-eslint/unbound-method': 'off',
   },
 });
 
@@ -1044,11 +902,8 @@ const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-cod
 toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
-// Smoke test built JS files
+// Smoke test exported js files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1137,7 +992,6 @@ const cli = configureProject(
       nodeBundle,
       yargsGen,
       cliPluginContract,
-      tmpToolkitHelpers,
       toolkitLib,
       '@octokit/rest',
       '@types/archiver',
@@ -1148,13 +1002,14 @@ const cli = configureProject(
       '@types/sinon',
       '@types/yargs@^15',
       'aws-cdk-lib',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
       'axios',
       'constructs',
       'fast-check',
       'jest-environment-node',
       'jest-mock',
       'madge',
-      'nock',
       'sinon',
       'ts-mock-imports',
       'xml-js',
@@ -1163,7 +1018,6 @@ const cli = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
-      '@aws-cdk/region-info',
       'archiver',
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
@@ -1194,7 +1048,6 @@ const cli = configureProject(
       '@smithy/property-provider',
       '@smithy/types',
       '@smithy/util-retry',
-      '@smithy/util-stream',
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
@@ -1211,7 +1064,6 @@ const cli = configureProject(
       'proxy-agent',
       'semver',
       'strip-ansi@^6',
-      'table',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
@@ -1236,9 +1088,18 @@ const cli = configureProject(
         skipLibCheck: true,
       },
     },
+    tsconfigDev: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        lib: ['es2019', 'esnext.disposable', 'es2022.error'],
+        esModuleInterop: false,
+        skipLibCheck: true,
+      },
+
+    },
     eslintOptions: {
       dirs: ['lib'],
-      ignorePatterns: ['*.template.ts', '*.d.ts', 'test/**/*.ts'],
+      ignorePatterns: ['*.template.ts', '*.d.ts'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1246,10 +1107,10 @@ const cli = configureProject(
           // We want to improve our test coverage
           // DO NOT LOWER THESE VALUES!
           // If you need to break glass, open an issue to re-up the values with additional test coverage
-          statements: 82,
-          branches: 74,
+          statements: 81,
+          branches: 76,
           functions: 87,
-          lines: 82,
+          lines: 81,
         },
         // We have many tests here that commonly time out
         testTimeout: 60_000,
@@ -1268,13 +1129,7 @@ const cli = configureProject(
       },
     }),
 
-    // Append a specific version string for testing
-    // force a minor for the time being. This will never release a patch but that's fine for a while.
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRcOrMinor',
-
-    // re-enable this once we refactor the release tasks to prevent
-    // major version bumps caused by breaking commits in dependencies.
-    // nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
     majorVersion: 2,
@@ -1291,6 +1146,7 @@ cli.eslint?.addOverride({
   files: ['./test/**'],
   rules: {
     '@cdklabs/no-throw-default-error': 'off',
+    '@typescript-eslint/unbound-method': 'off',
   },
 });
 
@@ -1357,7 +1213,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('ts-node --prefer-ts-exts scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('ts-node -P tsconfig.dev.json --prefer-ts-exts scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
@@ -1747,6 +1603,9 @@ const cliInteg = configureProject(
         },
       },
     }),
+
+    // Append a specific version string for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
@@ -1794,7 +1653,6 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
-  maxWorkers: '80',
 
   localPackages: [
     cloudAssemblySchema.name,

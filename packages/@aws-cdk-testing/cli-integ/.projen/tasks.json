@@ -32,6 +32,7 @@
         "RELEASE_TAG_PREFIX": "@aws-cdk-testing/cli-integ@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- .",
         "MAJOR": "3"
       },
@@ -52,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,projen,ts-jest,@cdklabs/cdk-atmosphere-client,node-pty"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,ts-jest,@cdklabs/cdk-atmosphere-client,node-pty"
         }
       ]
     },
@@ -196,6 +197,7 @@
         "RELEASE_TAG_PREFIX": "@aws-cdk-testing/cli-integ@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
       },
       "steps": [

@@ -1,4 +1,4 @@
-import { HotswapMode } from '../../lib/api/shared-private';
+import { HotswapMode } from '../../lib/api/hotswap';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 
@@ -12,9 +12,9 @@ let mockDeployStack = jest.fn().mockResolvedValue({
   noOp: false,
 });
 
-jest.mock('../../lib/api/shared-private', () => {
+jest.mock('../../lib/api/deployments', () => {
   return {
-    ...jest.requireActual('../../lib/api/shared-private'),
+    ...jest.requireActual('../../lib/api/deployments'),
     Deployments: jest.fn().mockImplementation(() => ({
       deployStack: mockDeployStack,
       resolveEnvironment: jest.fn().mockResolvedValue({}),

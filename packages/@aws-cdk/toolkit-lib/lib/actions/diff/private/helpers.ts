@@ -3,8 +3,13 @@ import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
-import type { Deployments, ResourcesToImport, IoHelper, SdkProvider, StackCollection, TemplateInfo } from '../../../api/shared-private';
-import { ResourceMigrator, IO, removeNonImportResources, cfnApi } from '../../../api/shared-private';
+import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
+import type { Deployments } from '../../../api/deployments';
+import type { TemplateInfo } from '../../../api/diff';
+import type { ResourcesToImport } from '../../../api/resource-import';
+import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
+import type { IoHelper, SdkProvider } from '../../../api/shared-private';
+import { IO, cfnApi } from '../../../api/shared-private';
 import { ToolkitError } from '../../../api/shared-public';
 import { deserializeStructure, formatErrorMessage } from '../../../private/util';
 

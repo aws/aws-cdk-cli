@@ -1,19 +1,19 @@
 jest.mock('child_process');
-import bockfs from '../_helpers/bockfs';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cdk from 'aws-cdk-lib';
 import * as semver from 'semver';
 import * as sinon from 'sinon';
 import { ImportMock } from 'ts-mock-imports';
-import { execProgram } from '../../lib/cxapp/exec';
-import { Configuration } from '../../lib/cli/user-configuration';
-import { testAssembly } from '../_helpers/assembly';
-import { mockSpawn } from '../util/mock-child_process';
-import { MockSdkProvider } from '../_helpers/mock-sdk';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { RWLock } from '../../lib/api/rwlock';
-import { rewriteManifestMinimumCliVersion, rewriteManifestVersion } from './assembly-versions';
+import { Configuration } from '../../lib/cli/user-configuration';
+import { execProgram } from '../../lib/cxapp/exec';
+import { testAssembly } from '../_helpers/assembly';
+import { rewriteManifestMinimumCliVersion, rewriteManifestVersion } from '../_helpers/assembly-versions';
+import bockfs from '../_helpers/bockfs';
 import { TestIoHost } from '../_helpers/io-host';
-import { ToolkitError } from '../../../@aws-cdk/tmp-toolkit-helpers/src/api';
+import { mockSpawn } from '../_helpers/mock-child_process';
+import { MockSdkProvider } from '../_helpers/mock-sdk';
 
 let sdkProvider: MockSdkProvider;
 let config: Configuration;
@@ -65,7 +65,6 @@ function createApp(): cdk.App {
 }
 
 test('cli throws when manifest version > schema version', async () => {
-
   const app = createApp();
   const currentSchemaVersion = cxschema.Manifest.version();
   const mockManifestVersion = semver.inc(currentSchemaVersion, 'major');
@@ -89,11 +88,9 @@ test('cli throws when manifest version > schema version', async () => {
   config.settings.set(['app'], 'cdk.out');
 
   await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new ToolkitError(expectedError));
-
 }, TEN_SECOND_TIMEOUT);
 
 test('cli does not throw when manifest version = schema version', async () => {
-
   const app = createApp();
   app.synth();
 
@@ -103,7 +100,6 @@ test('cli does not throw when manifest version = schema version', async () => {
 
   const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
-
 }, TEN_SECOND_TIMEOUT);
 
 // Why do we have to do something here at all? Because `aws-cdk-lib` has its own version of `cloud-assembly-schema`,
@@ -114,7 +110,6 @@ test('cli does not throw when manifest version = schema version', async () => {
 // make any sense anymore.
 // eslint-disable-next-line jest/no-disabled-tests
 test.skip('cli does not throw when manifest version < schema version', async () => {
-
   const app = createApp();
   const currentSchemaVersion = cxschema.Manifest.version();
 
@@ -133,7 +128,6 @@ test.skip('cli does not throw when manifest version < schema version', async () 
   } finally {
     mockVersionNumber.restore();
   }
-
 }, TEN_SECOND_TIMEOUT);
 
 test('validates --app key is present', async () => {
@@ -141,7 +135,6 @@ test('validates --app key is present', async () => {
   await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toThrow(
     '--app is required either in command-line, in cdk.json or in ~/.cdk.json',
   );
-
 });
 
 test('bypasses synth when app points to a cloud assembly', async () => {
@@ -244,10 +237,10 @@ test('cli does not throw when the `build` script succeeds', async () => {
     commandLine: 'real command', // `build` key is not split on whitespace
     exitCode: 0,
   },
-    {
-      commandLine: 'executable-app.js',
-      sideEffect: () => writeOutputAssembly(),
-    });
+  {
+    commandLine: 'executable-app.js',
+    sideEffect: () => writeOutputAssembly(),
+  });
 
   // WHEN
   const { lock } = await execProgram(sdkProvider, ioHelper, config);

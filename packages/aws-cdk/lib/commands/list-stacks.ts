@@ -1,4 +1,4 @@
-import type { StackDetails } from '@aws-cdk/tmp-toolkit-helpers';
+import type { StackDetails } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { CdkToolkit } from '../cli/cdk-toolkit';
 import { DefaultSelection, ExtendedStackSelection } from '../cxapp';
 

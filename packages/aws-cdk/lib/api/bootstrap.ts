@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/bootstrap';
+export * from '../../../@aws-cdk/toolkit-lib/lib/api/bootstrap';

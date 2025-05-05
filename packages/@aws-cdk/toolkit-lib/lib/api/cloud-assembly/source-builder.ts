@@ -83,6 +83,20 @@ export interface AssemblySourceProps {
 }
 
 /**
+ * Options for the `fromCdkApp` Assembly Source constructor
+ */
+export interface FromCdkAppOptions extends AssemblySourceProps {
+  /**
+   * Additional environment variables
+   *
+   * These environment variables will be set in addition to the environment
+   * variables currently set in the process. A value of `undefined` will
+   * unset a particular environment variable.
+   */
+  readonly env?: Record<string, string | undefined>;
+}
+
+/**
  * Settings that are passed to a CDK app via the context
  */
 export interface AppSynthOptions {

@@ -1,1 +1,1 @@
-export * from '../../../@aws-cdk/tmp-toolkit-helpers/src/api/stack-events';
+export * from '../../../@aws-cdk/toolkit-lib/lib/api/stack-events';
