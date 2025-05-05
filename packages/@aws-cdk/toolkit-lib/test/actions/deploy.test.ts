@@ -56,7 +56,7 @@ describe('deploy', () => {
 
     // THEN
     const request = ioHost.requestSpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    
+
     // Message includes formatted security diff
     expect(request).toContain(`Stack Stack1
 IAM Statement Changes
