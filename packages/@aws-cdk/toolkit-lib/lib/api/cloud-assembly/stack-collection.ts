@@ -1,8 +1,8 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cx-api';
-import { AssemblyError, ToolkitError } from '../toolkit-error';
 import type { IStackAssembly } from './stack-assembly';
 import { type StackDetails } from '../../payloads/stack-details';
+import { AssemblyError, ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
  * A collection of stacks and related artifacts

@@ -11,9 +11,9 @@ import {
   REPOSITORY_NAME_OUTPUT,
 } from './bootstrap/bootstrap-props';
 import type { CloudFormationStack } from './cloudformation';
+import { ToolkitError } from '../toolkit/toolkit-error';
 import { stabilizeStack } from './deployments/cfn-api';
 import { IO, type IoHelper } from './io/private';
-import { ToolkitError } from './toolkit-error';
 
 export const DEFAULT_TOOLKIT_STACK_NAME = 'CDKToolkit';
 

@@ -2,12 +2,12 @@ import type { ClientRequest } from 'http';
 import type { RequestOptions } from 'https';
 import * as https from 'node:https';
 import type { SdkHttpOptions } from '../aws-auth';
+import type { Notice, NoticeDataSource } from './types';
+import { ToolkitError } from '../../toolkit/toolkit-error';
+import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
 import { ProxyAgentProvider } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 import { IO } from '../io/private';
-import { ToolkitError } from '../toolkit-error';
-import type { Notice, NoticeDataSource } from './types';
-import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {
   private readonly options: SdkHttpOptions;

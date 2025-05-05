@@ -1,8 +1,8 @@
 import * as fs from 'fs-extra';
 import { RWLock } from '../../../lib/api/rwlock';
 import { contextproviders } from '../../../lib/api/shared-private';
-import { ToolkitError } from '../../../lib/api/shared-public';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
 
 // these tests often run a bit longer than the default

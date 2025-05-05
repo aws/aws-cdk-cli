@@ -28,11 +28,11 @@ import {
   isHotswappableS3BucketDeploymentChange,
 } from './s3-bucket-deployments';
 import { isHotswappableStateMachineChange } from './stepfunctions-state-machines';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { IO, SPAN } from '../io/private';
 import type { IMessageSpan, IoHelper } from '../io/private';
 import { Mode } from '../plugin';
-import { ToolkitError } from '../toolkit-error';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports

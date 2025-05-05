@@ -3,7 +3,6 @@
 import * as deployStack from '../../../lib/api/deployments/deploy-stack';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CreatePolicyCommand, GetPolicyCommand } from '@aws-sdk/client-iam';
-import { Bootstrapper, ToolkitInfo } from '../../../lib/api';
 import {
   mockBootstrapStack,
   mockIAMClient,
@@ -12,6 +11,8 @@ import {
 } from '../../_helpers/mock-sdk';
 import { asIoHelper } from '../../../lib/api/io/private';
 import type { IIoHost } from '../../../lib/api/io';
+import { Bootstrapper } from '../../../lib/api/bootstrap';
+import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 
 const mockDeployStack = jest.spyOn(deployStack, 'deployStack');
 

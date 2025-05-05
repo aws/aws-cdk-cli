@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import type { Notice, NoticeDataSource } from './types';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { IoDefaultMessages } from '../io/private';
-import { ToolkitError } from '../toolkit-error';
 
 interface CachedNotices {
   expiration: number;

@@ -1,8 +1,8 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { HotswappableChange, NonHotswappableChange, ResourceChange } from '../../payloads/hotswap';
 import { NonHotswappableReason } from '../../payloads/hotswap';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/private';
-import { ToolkitError } from '../toolkit-error';
 
 export const ICON = '✨';
 

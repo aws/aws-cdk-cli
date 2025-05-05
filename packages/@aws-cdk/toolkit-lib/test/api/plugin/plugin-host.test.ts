@@ -1,8 +1,6 @@
 import type { CredentialProviderSource } from '@aws-cdk/cli-plugin-contract';
 import type { ContextProviderPlugin } from '../../../lib/api/plugin';
-import { PluginHost, markTesting } from '../../../lib/api/plugin';
-
-markTesting();
+import { PluginHost } from '../../../lib/api/plugin';
 
 beforeEach(() => {
   jest.resetModules();

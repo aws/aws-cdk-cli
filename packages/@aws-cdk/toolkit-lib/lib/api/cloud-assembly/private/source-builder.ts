@@ -6,12 +6,12 @@ import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { ContextAwareCloudAssemblySource } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
-import type { ToolkitServices } from '../../../toolkit/private';
-import { IO } from '../../io/private';
-import { ToolkitError, AssemblyError } from '../../shared-public';
+import { ToolkitError, AssemblyError } from '../../../toolkit/toolkit-error';
 import type { AssemblyBuilder, FromCdkAppOptions } from '../source-builder';
 import { ReadableCloudAssembly } from './readable-assembly';
+import type { ToolkitServices } from '../../../toolkit/private';
 import { Context } from '../../context';
+import { IO } from '../../io/private';
 import { RWLock } from '../../rwlock';
 import { Settings } from '../../settings';
 

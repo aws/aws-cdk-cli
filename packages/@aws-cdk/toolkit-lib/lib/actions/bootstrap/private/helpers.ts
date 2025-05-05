@@ -1,5 +1,5 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import { ToolkitError } from '../../../api/shared-public';
+import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 /**
  * Given a set of "<account>/<region>" strings, construct environments for them

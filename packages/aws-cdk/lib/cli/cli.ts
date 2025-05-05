@@ -9,7 +9,7 @@ import { prettyPrintError } from './pretty-print-error';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import { asIoHelper, IO } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
