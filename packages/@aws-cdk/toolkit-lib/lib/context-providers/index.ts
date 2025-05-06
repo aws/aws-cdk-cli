@@ -17,7 +17,7 @@ import { replaceEnvPlaceholders } from '../api/environment';
 import { IO } from '../api/io/private';
 import type { IoHelper } from '../api/io/private';
 import type { PluginHost, ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../api/toolkit-error';
+import { ContextProviderError } from '../toolkit/toolkit-error';
 import { formatErrorMessage } from '../util';
 
 type ContextProviderFactory = ((sdk: SdkProvider, io: IContextProviderMessages) => ContextProviderPlugin);

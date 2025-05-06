@@ -255,6 +255,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'refactor':
       commandOptions = {
         dryRun: args.dryRun,
+        excludeFile: args.excludeFile,
         STACKS: args.STACKS,
       };
       break;
@@ -441,6 +442,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const doctorOptions = {};
   const refactorOptions = {
     dryRun: config.refactor?.dryRun,
+    excludeFile: config.refactor?.excludeFile,
   };
   const userInput: UserInput = {
     globalOptions,

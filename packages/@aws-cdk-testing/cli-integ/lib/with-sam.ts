@@ -1,7 +1,7 @@
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import axios from 'axios';
+import * as axios from 'axios';
 import type { TestContext } from './integ-test';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
@@ -41,29 +41,16 @@ export function withSamIntegrationCdkApp<A extends TestContext & AwsContext>(blo
 
     let success = true;
     try {
-      const installationVersion = fixture.packages.requestedFrameworkVersion();
+      const installationVersion = fixture.library.requestedVersion();
 
-      if (fixture.packages.majorVersion() === '1') {
-        await installNpmPackages(fixture, {
-          '@aws-cdk/aws-iam': installationVersion,
-          '@aws-cdk/aws-apigateway': installationVersion,
-          '@aws-cdk/aws-lambda': installationVersion,
-          '@aws-cdk/aws-lambda-go': installationVersion,
-          '@aws-cdk/aws-lambda-nodejs': installationVersion,
-          '@aws-cdk/aws-lambda-python': installationVersion,
-          '@aws-cdk/aws-logs': installationVersion,
-          '@aws-cdk/core': installationVersion,
-          'constructs': '^3',
-        });
-      } else {
-        const alphaInstallationVersion = fixture.packages.requestedAlphaVersion();
-        await installNpmPackages(fixture, {
-          'aws-cdk-lib': installationVersion,
-          '@aws-cdk/aws-lambda-go-alpha': alphaInstallationVersion,
-          '@aws-cdk/aws-lambda-python-alpha': alphaInstallationVersion,
-          'constructs': '^10',
-        });
-      }
+      const alphaInstallationVersion = fixture.library.requestedAlphaVersion();
+      await installNpmPackages(fixture, {
+        'aws-cdk-lib': installationVersion,
+        '@aws-cdk/aws-lambda-go-alpha': alphaInstallationVersion,
+        '@aws-cdk/aws-lambda-python-alpha': alphaInstallationVersion,
+        'constructs': '^10',
+      });
+
       await block(fixture);
     } catch (e: any) {
       // We survive certain cases involving gopkg.in

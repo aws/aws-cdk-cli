@@ -83,6 +83,14 @@
       "type": "build"
     },
     {
+      "name": "aws-sdk-client-mock",
+      "type": "build"
+    },
+    {
+      "name": "aws-sdk-client-mock-jest",
+      "type": "build"
+    },
+    {
       "name": "axios",
       "type": "build"
     },
@@ -152,6 +160,11 @@
     },
     {
       "name": "madge",
+      "type": "build"
+    },
+    {
+      "name": "nock",
+      "version": "13",
       "type": "build"
     },
     {

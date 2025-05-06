@@ -27,7 +27,9 @@ describe('cdk bootstrap', () => {
 });
 
 describe('cdk bootstrap --show-template', () => {
-  const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => { return true; });
+  const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => {
+    return true;
+  });
 
   test('prints the default bootstrap template', async () => {
     await exec(['bootstrap', '--show-template']);

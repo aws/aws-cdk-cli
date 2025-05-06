@@ -1,7 +1,7 @@
 import '../../../private/dispose-polyfill';
 import { major } from 'semver';
+import { ToolkitError } from '../../../toolkit/toolkit-error';
 import type { IoHelper } from '../../shared-private';
-import { ToolkitError } from '../../shared-public';
 import { BaseStackAssembly, ExtendedStackSelection as CliExtendedStackSelection } from '../stack-assembly';
 import { StackCollection } from '../stack-collection';
 import type { StackSelector } from '../stack-selector';

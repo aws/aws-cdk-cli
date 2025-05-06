@@ -1,6 +1,28 @@
 import { spawnSync } from 'child_process';
+import * as semver from 'semver';
+import { shell } from './shell';
 
 const MINIMUM_VERSION = '3.9';
+
+export async function npmMostRecentMatching(packageName: string, range: string) {
+  const output = JSON.parse(await shell(['node', require.resolve('npm'), '--silent', 'view', `${packageName}@${range}`, 'version', '--json'], {
+    show: 'error',
+  }));
+
+  if (typeof output === 'string') {
+    return output;
+  }
+  if (!Array.isArray(output)) {
+    throw new Error(`Expected array from npm, got: ${JSON.stringify(output)}`);
+  }
+  if (output.length === 0) {
+    throw new Error(`Found no package matching ${packageName}@${range}`);
+  }
+
+  // Otherwise an array that may or may not be sorted. Sort it then get the top one.
+  output.sort((a: string, b: string) => semver.compare(a, b));
+  return output[output.length - 1];
+}
 
 /**
  * Use NPM preinstalled on the machine to look up a list of TypeScript versions

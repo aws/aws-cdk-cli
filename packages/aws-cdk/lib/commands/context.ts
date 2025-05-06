@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import type { Context } from '../api/context';
 import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';

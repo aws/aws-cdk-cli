@@ -1,35 +1,58 @@
-export interface IPackageSourceSetup {
-  readonly name: string;
-  readonly description: string;
+/**
+ * The part of a source that executes in the runner
+ *
+ * `SourceType` should be either `ITestLibrarySource` or `ITestCliSource`,
+ * and will be loaded in the test process.
+ */
+export interface IRunnerSource<SourceType> {
+  readonly sourceDescription: string;
 
-  prepare(): Promise<void>;
-  cleanup(): Promise<void>;
+  runnerPrepare(): Promise<IPreparedRunnerSource<SourceType>>;
 }
 
-export interface IPackageSource {
+export interface IPreparedRunnerSource<SourceType> {
+  readonly version: string;
+
+  dispose(): Promise<void>;
+
+  /**
+   * Return the constructor and constructor arguments for the actual source
+   * class in the test process.
+   */
+  serialize(): SourceDescriptor<SourceType>;
+}
+
+export type Constructor<A> = new (...args: any[]) => A;
+
+export type SourceDescriptor<A> = [Constructor<A>, any[]]
+
+export interface ITestCliSource {
+  /**
+   * Adds the CLI to the $PATH
+   */
   makeCliAvailable(): Promise<void>;
 
-  assertJsiiPackagesAvailable(): void;
-  majorVersion(): string;
-
-  initializeDotnetPackages(targetDir: string): Promise<void>;
-
   /**
-   * CLI version
+   * The CLI version
    */
-  requestedCliVersion(): string;
+  requestedVersion(): string;
+}
 
+export interface ITestLibrarySource {
   /**
-   * Framework version if it's different than the CLI version
-   *
-   * Not all tests will respect this.
+   * Requested library version
    */
-  requestedFrameworkVersion(): string;
+  requestedVersion(): string;
 
   /**
-   * Versions of alpha packages if different than the CLI version
-   *
-   * Not all tests will respect this.
+   * Versions of alpha packages
    */
   requestedAlphaVersion(): string;
+
+  assertJsiiPackagesAvailable(): void;
+
+  /**
+   * Put the right files into the given directory to make .NET use the CodeArtifact repos (if configured)
+   */
+  initializeDotnetPackages(targetDir: string): Promise<void>;
 }

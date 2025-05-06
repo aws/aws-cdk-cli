@@ -29,7 +29,7 @@ describe('doctor', () => {
     await exec(['doctor']);
     expect(logging.info).toHaveBeenCalledWith(expect.stringContaining('CDK Version:'));
   });
-})
+});
 
 describe('docs', () => {
   test('prints docs url version', async () => {

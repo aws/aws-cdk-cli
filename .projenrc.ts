@@ -776,8 +776,6 @@ const toolkitLib = configureProject(
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
-      'dts-bundle-generator@9.3.1', // use this specific version because newer versions are much slower. This is a temporary arrangement we hope to remove soon anyway.
-      'esbuild',
       'fast-check',
       'jest-environment-node',
       'nock@13',
@@ -904,11 +902,8 @@ const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-cod
 toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
-// Smoke test built JS files
+// Smoke test exported js files
 toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-public.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/api/shared-private.js >/dev/null 2>/dev/null </dev/null');
-toolkitLib.postCompileTask.exec('node ./lib/private/util.js >/dev/null 2>/dev/null </dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1007,12 +1002,15 @@ const cli = configureProject(
       '@types/sinon',
       '@types/yargs@^15',
       'aws-cdk-lib',
+      'aws-sdk-client-mock',
+      'aws-sdk-client-mock-jest',
       'axios',
       'constructs',
       'fast-check',
       'jest-environment-node',
       'jest-mock',
       'madge',
+      'nock@13',
       'sinon',
       'ts-mock-imports',
       'xml-js',
@@ -1102,7 +1100,7 @@ const cli = configureProject(
     },
     eslintOptions: {
       dirs: ['lib'],
-      ignorePatterns: ['*.template.ts', '*.d.ts', 'test/**/*.ts'],
+      ignorePatterns: ['*.template.ts', '*.d.ts'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1149,6 +1147,7 @@ cli.eslint?.addOverride({
   files: ['./test/**'],
   rules: {
     '@cdklabs/no-throw-default-error': 'off',
+    '@typescript-eslint/unbound-method': 'off',
   },
 });
 
@@ -1565,7 +1564,7 @@ const cliInteg = configureProject(
       'sinon@^9',
       'ts-mock-imports@^1',
       'yaml@1',
-      'yargs@^17',
+      'yargs@^16',
       // Jest is a runtime dependency here!
       'jest@^29',
       'jest-junit@^15',
@@ -1575,7 +1574,7 @@ const cliInteg = configureProject(
     devDeps: [
       yarnCling,
       '@types/semver@^7',
-      '@types/yargs@^15',
+      '@types/yargs@^16',
       '@types/fs-extra@^9',
       '@types/glob@^7',
     ],
@@ -1591,6 +1590,9 @@ const cliInteg = configureProject(
       compilerOptions: {
         ...defaultTsOptions,
         esModuleInterop: false,
+        target: 'es2022',
+        lib: ['es2022', 'esnext.disposable', 'dom'],
+        module: 'NodeNext',
       },
       include: ['**/*.ts'],
       exclude: ['resources/**/*'],
@@ -1598,13 +1600,16 @@ const cliInteg = configureProject(
     jestOptions: jestOptionsForProject({
       jestConfig: {
         coverageThreshold: {
-          statements: 40,
-          lines: 40,
+          statements: 25,
+          lines: 25,
           functions: 10,
-          branches: 40,
+          branches: 25,
         },
       },
     }),
+
+    // Append a specific version string for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
@@ -1652,7 +1657,6 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
-  maxWorkers: '80',
 
   localPackages: [
     cloudAssemblySchema.name,

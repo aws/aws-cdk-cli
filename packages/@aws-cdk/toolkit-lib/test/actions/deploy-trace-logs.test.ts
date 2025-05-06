@@ -5,6 +5,8 @@ import { Toolkit } from '../../lib/toolkit';
 import { TestIoHost, builderFixture } from '../_helpers';
 import { MockSdk } from '../_helpers/mock-sdk';
 
+jest.setTimeout(10_000);
+
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 

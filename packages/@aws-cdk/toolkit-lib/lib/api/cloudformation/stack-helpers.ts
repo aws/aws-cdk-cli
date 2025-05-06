@@ -1,8 +1,8 @@
 import type { Stack, Tag } from '@aws-sdk/client-cloudformation';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import { StackStatus } from '../stack-events';
-import { ToolkitError } from '../toolkit-error';
 
 export interface Template {
   Parameters?: Record<string, TemplateParameter>;

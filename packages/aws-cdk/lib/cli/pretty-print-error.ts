@@ -9,7 +9,7 @@ export function prettyPrintError(error: unknown, debug = false) {
   if (err.cause) {
     const cause = ensureError(err.cause);
     console.error(chalk.yellow(cause.message));
-    printTrace(err, debug);
+    printTrace(cause, debug);
   }
 
   printTrace(err, debug);

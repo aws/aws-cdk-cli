@@ -1,6 +1,6 @@
 import * as child_process from 'child_process';
 import * as chalk from 'chalk';
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib';
 import { debug } from '../../logging';
 
 /**

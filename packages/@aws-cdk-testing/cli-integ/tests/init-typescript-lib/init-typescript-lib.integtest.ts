@@ -2,7 +2,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 
 integTest('typescript init lib', withTemporaryDirectory(withPackages(async (context) => {
   const shell = ShellHelper.fromContext(context);
-  await context.packages.makeCliAvailable();
+  await context.cli.makeCliAvailable();
 
   await shell.shell(['cdk', 'init', '-l', 'typescript', 'lib']);
 

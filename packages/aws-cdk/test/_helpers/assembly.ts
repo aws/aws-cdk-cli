@@ -3,12 +3,12 @@ import * as path from 'path';
 import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cx-api';
 import { cxapiAssemblyWithForcedVersion } from './assembly-versions';
-import { MockSdkProvider } from '../_helpers/mock-sdk';
-import { CloudExecutable } from '../../lib/cxapp/cloud-executable';
-import { Configuration } from '../../lib/cli/user-configuration';
 import { TestIoHost } from './io-host';
-import { IIoHost } from '../../lib/cli/io-host';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import type { IIoHost } from '../../lib/cli/io-host';
+import { Configuration } from '../../lib/cli/user-configuration';
+import { CloudExecutable } from '../../lib/cxapp/cloud-executable';
+import { MockSdkProvider } from '../_helpers/mock-sdk';
 
 export const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 
@@ -47,7 +47,7 @@ export class MockCloudExecutable extends CloudExecutable {
     const configuration = new Configuration();
     const sdkProvider = sdkProviderArg ?? new MockSdkProvider();
     const mockIoHost = ioHost ?? new TestIoHost();
-    
+
     super({
       configuration,
       sdkProvider,

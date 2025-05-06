@@ -2,11 +2,11 @@ import { inspect } from 'util';
 import type { CredentialProviderSource, ForReading, ForWriting, PluginProviderResult, SDKv2CompatibleCredentials, SDKv3CompatibleCredentialProvider, SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 import { credentialsAboutToExpire, makeCachingProvider } from './provider-caching';
+import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import { IO, type IoHelper } from '../io/private';
 import type { PluginHost } from '../plugin';
 import type { Mode } from '../plugin/mode';
-import { AuthenticationError } from '../toolkit-error';
 
 /**
  * Cache for credential providers.

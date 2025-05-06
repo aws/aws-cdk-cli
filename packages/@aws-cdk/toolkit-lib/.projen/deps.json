@@ -87,15 +87,6 @@
       "type": "build"
     },
     {
-      "name": "dts-bundle-generator",
-      "version": "9.3.1",
-      "type": "build"
-    },
-    {
-      "name": "esbuild",
-      "type": "build"
-    },
-    {
       "name": "eslint-config-prettier",
       "type": "build"
     },

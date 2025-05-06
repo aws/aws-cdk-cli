@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
+import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
-import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import type { RollbackResult } from '../../lib/toolkit';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';

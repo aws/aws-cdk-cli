@@ -1,9 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import { ToolkitError } from '../toolkit-error';
 import type { EnvironmentResources } from './environment-resources';
 import { EnvironmentResourcesRegistry } from './environment-resources';
 import type { StringWithoutPlaceholders } from './placeholders';
 import { replaceEnvPlaceholders } from './placeholders';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/private';
 import { IO, type IoHelper } from '../io/private';
