@@ -31,6 +31,25 @@ jobs:
             test
             docs
             revert
+          scopes: |-
+            cdk-assets
+            cdk-build-tools
+            cdk-cli-wrapper
+            cli
+            cli-integ
+            cli-lib-alpha
+            cli-plugin-contract
+            cloud-assembly-schema
+            cloudformation-diff
+            deps
+            dev-deps
+            docs
+            integ-runner
+            integ-tests
+            node-bundle
+            toolkit-lib
+            user-input-gen
+            yarn-cling
           requireScope: false
   contributorStatement:
     name: Require Contributor Statement
