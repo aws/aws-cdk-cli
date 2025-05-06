@@ -9,15 +9,15 @@ import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
 import type { AwsClients } from './aws';
 import { outputFromStack, sleep } from './aws';
 import type { TestContext } from './integ-test';
-import { findYarnPackages } from './package-sources/repo-source';
-import type { IPackageSource } from './package-sources/source';
-import { packageSourceInSubprocess } from './package-sources/subprocess';
+import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
+import { testSource } from './package-sources/subprocess';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
 import type { AwsContext } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
+import { findYarnPackages } from './yarn';
 
 export const DEFAULT_TEST_TIMEOUT_S = 20 * 60;
 export const EXTENDED_TEST_TIMEOUT_S = 30 * 60;
@@ -54,28 +54,12 @@ export function withSpecificCdkApp(
 
     let success = true;
     try {
-      const installationVersion = fixture.packages.requestedFrameworkVersion();
+      const installationVersion = fixture.library.requestedVersion();
 
-      if (fixture.packages.majorVersion() === '1') {
-        await installNpmPackages(fixture, {
-          '@aws-cdk/core': installationVersion,
-          '@aws-cdk/aws-sns': installationVersion,
-          '@aws-cdk/aws-sqs': installationVersion,
-          '@aws-cdk/aws-iam': installationVersion,
-          '@aws-cdk/aws-lambda': installationVersion,
-          '@aws-cdk/aws-ssm': installationVersion,
-          '@aws-cdk/aws-ecr-assets': installationVersion,
-          '@aws-cdk/aws-cloudformation': installationVersion,
-          '@aws-cdk/aws-ec2': installationVersion,
-          '@aws-cdk/aws-s3': installationVersion,
-          'constructs': '^3',
-        });
-      } else {
-        await installNpmPackages(fixture, {
-          'aws-cdk-lib': installationVersion,
-          'constructs': '^10',
-        });
-      }
+      await installNpmPackages(fixture, {
+        'aws-cdk-lib': installationVersion,
+        'constructs': '^10',
+      });
 
       if (!context.disableBootstrap) {
         await ensureBootstrapped(fixture);
@@ -334,7 +318,8 @@ export interface CdkGarbageCollectionCommandOptions {
 export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
   private readonly bucketsToDelete = new Array<string>();
-  public readonly packages: IPackageSource;
+  public readonly cli: ITestCliSource;
+  public readonly library: ITestLibrarySource;
 
   constructor(
     public readonly integTestDir: string,
@@ -345,7 +330,8 @@ export class TestFixture extends ShellHelper {
     super(integTestDir, output);
 
     this.qualifier = this.randomString.slice(0, 10);
-    this.packages = packageSourceInSubprocess();
+    this.cli = testSource('cli');
+    this.library = testSource('library');
   }
 
   public log(s: string) {
@@ -550,7 +536,7 @@ export class TestFixture extends ShellHelper {
   public async cdk(args: string[], options: CdkCliOptions = {}) {
     const verbose = options.verbose ?? true;
 
-    await this.packages.makeCliAvailable();
+    await this.cli.makeCliAvailable();
 
     return this.shell(['cdk', ...(verbose ? ['-v'] : []), ...args], {
       ...options,
@@ -573,7 +559,7 @@ export class TestFixture extends ShellHelper {
       AWS_REGION: this.aws.region,
       AWS_DEFAULT_REGION: this.aws.region,
       STACK_NAME_PREFIX: this.stackNamePrefix,
-      PACKAGE_LAYOUT_VERSION: this.packages.majorVersion(),
+      PACKAGE_LAYOUT_VERSION: '2',
       // In these tests we want to make a distinction between stdout and sterr
       CI: 'false',
       ...awsCreds,

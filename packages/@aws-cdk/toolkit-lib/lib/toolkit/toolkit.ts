@@ -8,6 +8,7 @@ import * as fs from 'fs-extra';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
+import { ToolkitError } from './toolkit-error';
 import type { DeployResult, DestroyResult, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
@@ -44,25 +45,26 @@ import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/pr
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { DiffFormatter } from '../api/diff';
-import type { IIoHost, IoMessageLevel } from '../api/io';
+import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
 import type { IoHelper } from '../api/io/private';
 import { asIoHelper, asSdkLogger, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
+import { PluginHost } from '../api/plugin';
 import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
 import { ResourceMigrator } from '../api/resource-import';
-import type { AssemblyData, StackDetails, SuccessfulDeployStackResult, ToolkitAction } from '../api/shared-public';
-import { PermissionChangeType, PluginHost, ToolkitError } from '../api/shared-public';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
+import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
+import { PermissionChangeType } from '../payloads';
 import {
   formatErrorMessage,
   formatTime,
   obscureTemplate,
   serializeStructure,
   validateSnsTopicArn,
-} from '../private/util';
+} from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
 

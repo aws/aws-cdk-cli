@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
@@ -5,12 +6,12 @@ import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { ContextAwareCloudAssemblySource } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory } from './prepare-source';
-import type { ToolkitServices } from '../../../toolkit/private';
-import { IO } from '../../io/private';
-import { ToolkitError, AssemblyError } from '../../shared-public';
+import { ToolkitError, AssemblyError } from '../../../toolkit/toolkit-error';
 import type { AssemblyBuilder, FromCdkAppOptions } from '../source-builder';
 import { ReadableCloudAssembly } from './readable-assembly';
+import type { ToolkitServices } from '../../../toolkit/private';
 import { Context } from '../../context';
+import { IO } from '../../io/private';
 import { RWLock } from '../../rwlock';
 import { Settings } from '../../settings';
 
@@ -25,9 +26,10 @@ export abstract class CloudAssemblySourceBuilder {
   /**
    * Create a Cloud Assembly from a Cloud Assembly builder function.
    *
-   * A temporary output directory will be created if no output directory is
-   * explicitly given. This directory will be cleaned up if synthesis fails, or
-   * when the Cloud Assembly produced by this source is disposed.
+   * The output directory will be evaluated with respect to the working
+   * directory if relative. If not given, it will synthesize into a temporary
+   * system directory. The temporary directory will be cleaned up, unless
+   * `disposeOutdir: false`.
    *
    * A write lock will be acquired on the output directory for the duration of
    * the CDK app synthesis (which means that no two apps can synthesize at the
@@ -51,10 +53,13 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
+    const workingDirectory = props.workingDirectory ?? process.cwd();
+    const outdir = props.outdir ? path.resolve(workingDirectory, props.outdir) : undefined;
+
     return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
-          await using execution = await ExecutionEnvironment.create(services, { outdir: props.outdir });
+          await using execution = await ExecutionEnvironment.create(services, { outdir });
 
           const env = await execution.defaultEnvVars();
           const assembly = await execution.changeDir(async () =>
@@ -74,7 +79,7 @@ export abstract class CloudAssemblySourceBuilder {
                   throw AssemblyError.withCause('Assembly builder failed', error);
                 }
               }),
-            ), props.workingDirectory);
+            ), workingDirectory);
 
           // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
           const asm = cxapi.CloudAssembly.isCloudAssembly(assembly)
@@ -82,7 +87,8 @@ export abstract class CloudAssemblySourceBuilder {
             : await assemblyFromDirectory(assembly.directory, services.ioHelper, props.loadAssemblyOptions);
 
           const success = await execution.markSuccessful();
-          return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose: execution.outDirIsTemporary });
+          const deleteOnDispose = props.disposeOutdir ?? execution.outDirIsTemporary;
+          return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
         },
       },
       contextAssemblyProps,
@@ -129,9 +135,10 @@ export abstract class CloudAssemblySourceBuilder {
   /**
    * Use a directory containing an AWS CDK app as source.
    *
-   * A temporary output directory will be created if no output directory is
-   * explicitly given. This directory will be cleaned up if synthesis fails, or
-   * when the Cloud Assembly produced by this source is disposed.
+   * The output directory will be evaluated with respect to the working
+   * directory if relative. If not given, it will synthesize into a `cdk.out`
+   * subdirectory. This directory will not be cleaned up, unless
+   * `disposeOutdir: true`.
    *
    * A write lock will be acquired on the output directory for the duration of
    * the CDK app synthesis (which means that no two apps can synthesize at the
@@ -152,6 +159,9 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
+    const workingDirectory = props.workingDirectory ?? process.cwd();
+    const outdir = path.resolve(workingDirectory, props.outdir ?? 'cdk.out');
+
     return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
@@ -161,7 +171,6 @@ export abstract class CloudAssemblySourceBuilder {
           //   await execInChildProcess(build, { cwd: props.workingDirectory });
           // }
 
-          const outdir = props.outdir ?? 'cdk.out';
           try {
             fs.mkdirpSync(outdir);
           } catch (e: any) {
@@ -188,13 +197,14 @@ export abstract class CloudAssemblySourceBuilder {
                 }
               },
               extraEnv: envWithContext,
-              cwd: props.workingDirectory,
+              cwd: workingDirectory,
             });
 
             const asm = await assemblyFromDirectory(outdir, services.ioHelper, props.loadAssemblyOptions);
 
             const success = await execution.markSuccessful();
-            return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose: execution.outDirIsTemporary });
+            const deleteOnDispose = props.disposeOutdir ?? execution.outDirIsTemporary;
+            return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
           });
         },
       },

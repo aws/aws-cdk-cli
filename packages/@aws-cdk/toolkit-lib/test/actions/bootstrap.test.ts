@@ -13,7 +13,7 @@ import { bold } from 'chalk';
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/shared-private';
-import { Toolkit } from '../../lib/toolkit';
+import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
 import {
   MockSdk,

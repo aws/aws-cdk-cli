@@ -7,11 +7,11 @@ import {
   classifyChanges,
 } from './common';
 import type { ResourceChange } from '../../payloads/hotswap';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth/private';
 
 import type { EvaluateCloudFormationTemplate } from '../cloudformation';
-import { ToolkitError } from '../toolkit-error';
 
 export async function isHotswappableAppSyncChange(
   logicalId: string,

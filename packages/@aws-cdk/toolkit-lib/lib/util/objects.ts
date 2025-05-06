@@ -1,6 +1,6 @@
 import type { Obj } from './types';
 import { isArray, isObject } from './types';
-import { ToolkitError } from '../api/toolkit-error';
+import { ToolkitError } from '../toolkit/toolkit-error';
 
 /**
  * Return a new object by adding missing keys into another object

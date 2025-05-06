@@ -1,7 +1,8 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { minimatch } from 'minimatch';
 import * as semver from 'semver';
-import { BaseStackAssembly, StackCollection, ToolkitError } from '../api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
+import { BaseStackAssembly, StackCollection } from '../api/cloud-assembly';
 import { flatten } from '../util';
 
 export enum DefaultSelection {

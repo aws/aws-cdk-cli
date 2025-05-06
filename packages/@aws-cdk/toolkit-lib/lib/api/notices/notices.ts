@@ -4,6 +4,7 @@ import type { SdkHttpOptions } from '../aws-auth';
 import type { Context } from '../context';
 import type { IIoHost } from '../io';
 import { CachedDataSource } from './cached-data-source';
+import type { FilteredNotice } from './filter';
 import { NoticesFilter } from './filter';
 import type { BootstrappedEnvironment, Notice, NoticeDataSource } from './types';
 import { WebsiteNoticeDataSource } from './web-data-source';
@@ -17,13 +18,6 @@ export interface NoticesProps {
    * CDK context
    */
   readonly context: Context;
-
-  /**
-   * Include notices that have already been acknowledged.
-   *
-   * @default false
-   */
-  readonly includeAcknowledged?: boolean;
 
   /**
    * Global CLI option for output directory for synthesized cloud assembly
@@ -48,8 +42,16 @@ export interface NoticesProps {
   readonly cliVersion: string;
 }
 
-export interface NoticesPrintOptions {
+export interface NoticesFilterOptions {
+  /**
+   * Include notices that have already been acknowledged.
+   *
+   * @default false
+   */
+  readonly includeAcknowledged?: boolean;
+}
 
+export interface NoticesDisplayOptions extends NoticesFilterOptions {
   /**
    * Whether to append the total number of unacknowledged notices to the display.
    *
@@ -98,7 +100,6 @@ export class Notices {
   private readonly context: Context;
   private readonly output: string;
   private readonly acknowledgedIssueNumbers: Set<Number>;
-  private readonly includeAcknowlegded: boolean;
   private readonly httpOptions: SdkHttpOptions;
   private readonly ioHelper: IoHelper;
   private readonly ioMessages: IoDefaultMessages;
@@ -112,7 +113,6 @@ export class Notices {
   private constructor(props: NoticesProps) {
     this.context = props.context;
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
-    this.includeAcknowlegded = props.includeAcknowledged ?? false;
     this.output = props.output ?? 'cdk.out';
     this.httpOptions = props.httpOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
@@ -136,35 +136,39 @@ export class Notices {
 
   /**
    * Refresh the list of notices this instance is aware of.
-   * To make sure this never crashes the CLI process, all failures are caught and
-   * silently logged.
    *
-   * If context is configured to not display notices, this will no-op.
+   * This method throws an error if the data source fails to fetch notices.
+   * When using, consider if execution should halt immdiately or if catching the rror and continuing is more appropriate
+   *
+   * @throws on failure to refresh the data source
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    try {
-      const underlyingDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
-      const dataSource = new CachedDataSource(this.ioMessages, CACHE_FILE_PATH, underlyingDataSource, options.force ?? false);
-      const notices = await dataSource.fetch();
-      this.data = new Set(this.includeAcknowlegded ? notices : notices.filter(n => !this.acknowledgedIssueNumbers.has(n.issueNumber)));
-    } catch (e: any) {
-      this.ioMessages.debug(`Could not refresh notices: ${e}`);
-    }
+    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
+    const dataSource = new CachedDataSource(this.ioMessages, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
+    const notices = await dataSource.fetch();
+    this.data = new Set(notices);
+  }
+
+  /**
+   * Filter the data sourece for relevant notices
+   */
+  public filter(options: NoticesDisplayOptions = {}): FilteredNotice[] {
+    return new NoticesFilter(this.ioMessages).filter({
+      data: this.noticesFromData(options.includeAcknowledged ?? false),
+      cliVersion: this.cliVersion,
+      outDir: this.output,
+      bootstrappedEnvironments: Array.from(this.bootstrappedEnvironments.values()),
+    });
   }
 
   /**
    * Display the relevant notices (unless context dictates we shouldn't).
    */
-  public display(options: NoticesPrintOptions = {}) {
-    const filteredNotices = new NoticesFilter(this.ioMessages).filter({
-      data: Array.from(this.data),
-      cliVersion: this.cliVersion,
-      outDir: this.output,
-      bootstrappedEnvironments: Array.from(this.bootstrappedEnvironments.values()),
-    });
+  public async display(options: NoticesDisplayOptions = {}): Promise<void> {
+    const filteredNotices = this.filter(options);
 
     if (filteredNotices.length > 0) {
-      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg([
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_I0100.msg([
         '',
         'NOTICES         (What\'s this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)',
         '',
@@ -173,25 +177,41 @@ export class Notices {
         const formatted = filtered.format() + '\n';
         switch (filtered.notice.severity) {
           case 'warning':
-            void this.ioMessages.notify(IO.CDK_TOOLKIT_W0101.msg(formatted));
+            await this.ioHelper.notify(IO.CDK_TOOLKIT_W0101.msg(formatted));
             break;
           case 'error':
-            void this.ioMessages.notify(IO.CDK_TOOLKIT_E0101.msg(formatted));
+            await this.ioHelper.notify(IO.CDK_TOOLKIT_E0101.msg(formatted));
             break;
           default:
-            void this.ioMessages.notify(IO.CDK_TOOLKIT_I0101.msg(formatted));
+            await this.ioHelper.notify(IO.CDK_TOOLKIT_I0101.msg(formatted));
             break;
         }
       }
-      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_I0100.msg(
         `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
       ));
     }
 
     if (options.showTotal ?? false) {
-      void this.ioMessages.notify(IO.CDK_TOOLKIT_I0100.msg(
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_I0100.msg(
         `\nThere are ${filteredNotices.length} unacknowledged notice(s).`,
       ));
     }
   }
+
+  /**
+   * List all notices available in the data source.
+   *
+   * @param includeAcknowlegded Whether to include acknowledged notices.
+   */
+  private noticesFromData(includeAcknowlegded = false): Notice[] {
+    const data = Array.from(this.data);
+
+    if (includeAcknowlegded) {
+      return data;
+    }
+
+    return data.filter(n => !this.acknowledgedIssueNumbers.has(n.issueNumber));
+  }
 }
+

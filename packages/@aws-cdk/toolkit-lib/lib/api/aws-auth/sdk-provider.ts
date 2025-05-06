@@ -12,10 +12,10 @@ import { CredentialPlugins } from './credential-plugins';
 import { makeCachingProvider } from './provider-caching';
 import { SDK } from './sdk';
 import { callTrace, traceMemberMethods } from './tracing';
+import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import { IO, type IoHelper } from '../io/private';
 import { PluginHost, Mode } from '../plugin';
-import { AuthenticationError } from '../toolkit-error';
 
 export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>>;
 

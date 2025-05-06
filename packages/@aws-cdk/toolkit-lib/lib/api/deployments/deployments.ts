@@ -16,6 +16,7 @@ import { determineAllowCrossAccountAssetPublishing } from './checks';
 import { deployStack, destroyStack } from './deploy-stack';
 import type { DeploymentMethod } from './deployment-method';
 import type { DeployStackResult } from './deployment-result';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import type {
@@ -34,7 +35,6 @@ import { IO, type IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
-import { ToolkitError } from '../toolkit-error';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 
 /**
  * From the current file, find the directory that contains the CLI's package.json

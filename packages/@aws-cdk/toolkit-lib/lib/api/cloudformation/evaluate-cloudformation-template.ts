@@ -1,9 +1,9 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { SDK } from '../aws-auth/private';
-import { ToolkitError } from '../toolkit-error';
 import type { NestedStackTemplates } from './nested-stack-helpers';
 import type { Template } from './stack-helpers';
+import { ToolkitError } from '../../toolkit/toolkit-error';
+import type { SDK } from '../aws-auth/private';
 import type { ResourceMetadata } from '../resource-metadata';
 import { resourceMetadata } from '../resource-metadata';
 
