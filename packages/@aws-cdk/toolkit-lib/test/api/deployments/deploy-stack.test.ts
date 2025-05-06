@@ -170,7 +170,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(),
     hotswap: HotswapMode.FALL_BACK,
-    hotswapOperationTimeoutSeconds: 10,
+    hotswapOperationOptions: { timeoutSeconds: 10 },
     parameters: {
       A: 'A-value',
       B: 'B=value',
@@ -188,7 +188,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
     expect.anything(),
     HotswapMode.FALL_BACK,
     expect.anything(),
-    10,
+    { timeoutSeconds: 10 },
   );
 });
 
