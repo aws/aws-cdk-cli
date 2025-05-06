@@ -151,9 +151,9 @@ export async function makeConfig(): Promise<CliConfig> {
               'Instead, changes to any non-hotswappable properties are ignored.' +
               'Do not use this in production environments',
           },
-          'hotswap-operation-timeout-seconds': {
-            type: 'number',
-            desc: 'Number of seconds to wait for a hotswap operation to complete. Normally this applies to resource stabilization.',
+          'hotswap-timeout': {
+            type: 'string',
+            desc: 'A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...',
           },
           'hotswap-fallback': {
             type: 'boolean',
@@ -273,9 +273,9 @@ export async function makeConfig(): Promise<CliConfig> {
               'Instead, changes to any non-hotswappable properties are ignored.' +
               "'true' by default, use --no-hotswap to turn off",
           },
-          'hotswap-operation-timeout-seconds': {
-            type: 'number',
-            desc: 'Number of seconds to wait for a hotswap operation to complete. Normally this applies to resource stabilization.',
+          'hotswap-timeout': {
+            type: 'string',
+            desc: 'A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...',
           },
           'hotswap-fallback': {
             type: 'boolean',

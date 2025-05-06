@@ -1582,8 +1582,8 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   readonly hotswap: HotswapMode;
 
   /**
-   * Number of seconds to wait for a hotswap operation to complete.
-   * This normally controls the amount of time to wait for resource stabilization.
+   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
+   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
    *
    * @default - operation dependant
    */

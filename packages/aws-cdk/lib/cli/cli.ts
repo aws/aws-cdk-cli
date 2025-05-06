@@ -7,11 +7,13 @@ import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
+import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
 import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { makeRequestHandler } from '../../../@aws-cdk/toolkit-lib/lib/api/shared-private';
 import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -29,8 +31,7 @@ import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
-import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
-import { makeRequestHandler } from '../../../@aws-cdk/toolkit-lib/lib/api/shared-private';
+import { durationToSeconds } from './util/duration';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -377,7 +378,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           ci: args.ci,
           rollback: configuration.settings.get(['rollback']),
           hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback),
-          hotswapOperationTimeoutSeconds: args.hotswapOperationTimeoutSeconds,
+          hotswapOperationTimeoutSeconds: durationToSeconds(args.hotswapTimeout),
           watch: args.watch,
           traceLogs: args.logs,
           concurrency: args.concurrency,
@@ -433,7 +434,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           progress: configuration.settings.get(['progress']),
           rollback: configuration.settings.get(['rollback']),
           hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback, true),
-          hotswapOperationTimeoutSeconds: args.hotswapOperationTimeoutSeconds,
+          hotswapOperationTimeoutSeconds: durationToSeconds(args.hotswapTimeout),
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });
