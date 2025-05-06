@@ -47,7 +47,7 @@ export async function isHotswappableCodeBuildProjectChange(
       },
       hotswappable: true,
       service: 'codebuild',
-      apply: async (sdk: SDK, _timeoutSeconds?: number /* unused because we don't currently wait for anything */) => {
+      apply: async (sdk: SDK) => {
         updateProjectInput.name = projectName;
 
         for (const updatedPropName in change.propertyUpdates) {

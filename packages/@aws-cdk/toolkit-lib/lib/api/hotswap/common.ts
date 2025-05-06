@@ -6,6 +6,19 @@ import { ToolkitError } from '../toolkit-error';
 
 export const ICON = '✨';
 
+/**
+ * Options for a single hotswap operation.
+ */
+export interface HotswapOperationOptions {
+  /**
+   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
+   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
+   *
+   * @default - operation dependant
+   */
+  readonly timeoutSeconds?: number;
+}
+
 export interface HotswapOperation {
   /**
    * Marks the operation as hotswappable
@@ -26,7 +39,7 @@ export interface HotswapOperation {
   /**
    * Applies the hotswap operation
    */
-  readonly apply: (sdk: SDK, timeoutSeconds?: number) => Promise<void>;
+  readonly apply: (sdk: SDK, options?: HotswapOperationOptions) => Promise<void>;
 }
 
 export interface RejectedChange {

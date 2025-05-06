@@ -733,11 +733,11 @@ export interface DeployOptions {
   readonly hotswap?: boolean;
 
   /**
-   * Number of seconds to wait for a hotswap operation to complete. Normally this applies to resource stabilization.
+   * A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...
    *
    * @default - undefined
    */
-  readonly hotswapOperationTimeoutSeconds?: number;
+  readonly hotswapTimeout?: string;
 
   /**
    * Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible. Do not use this in production environments
@@ -979,11 +979,11 @@ export interface WatchOptions {
   readonly hotswap?: boolean;
 
   /**
-   * Number of seconds to wait for a hotswap operation to complete. Normally this applies to resource stabilization.
+   * A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...
    *
    * @default - undefined
    */
-  readonly hotswapOperationTimeoutSeconds?: number;
+  readonly hotswapTimeout?: string;
 
   /**
    * Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible.

@@ -32,6 +32,7 @@ import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/privat
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
+import type { HotswapOperationOptions } from '../hotswap/common';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import { IO, type IoHelper } from '../io/private';
@@ -168,12 +169,11 @@ export interface DeployStackOptions {
   readonly hotswap?: HotswapMode;
 
   /**
-   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
-   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
+   * Additional operation options.
    *
    * @default - operation dependant
    */
-  readonly hotswapOperationTimeoutSeconds?: number;
+  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * Extra properties that configure hotswap behavior
@@ -309,7 +309,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
         stackArtifact,
         hotswapMode,
         hotswapPropertyOverrides,
-        options.hotswapOperationTimeoutSeconds,
+        options.hotswapOperationOptions,
       );
 
       if (hotswapDeploymentResult) {

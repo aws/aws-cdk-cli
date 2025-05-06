@@ -49,7 +49,7 @@ export async function isHotswappableS3BucketDeploymentChange(
     },
     hotswappable: true,
     service: 'custom-s3-deployment',
-    apply: async (sdk: SDK, _timeoutSeconds?: number /* unused because we don't currently wait for anything */) => {
+    apply: async (sdk: SDK) => {
       await sdk.lambda().invokeCommand({
         FunctionName: functionName,
         // Lambda refuses to take a direct JSON object and requires it to be stringify()'d

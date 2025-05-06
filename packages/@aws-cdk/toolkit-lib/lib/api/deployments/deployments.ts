@@ -29,7 +29,7 @@ import {
   makeBodyParameter,
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
-import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
+import type { HotswapMode, HotswapOperationOptions, HotswapPropertyOverrides } from '../hotswap/common';
 import { IO, type IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
@@ -146,12 +146,11 @@ export interface DeployStackOptions {
   readonly hotswap?: HotswapMode;
 
   /**
-   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
-   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
+   * Additional operation options.
    *
    * @default - operation dependant
    */
-  readonly hotswapOperationTimeoutSeconds?: number;
+  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * Properties that configure hotswap behavior
@@ -444,7 +443,7 @@ export class Deployments {
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
       hotswap: options.hotswap,
-      hotswapOperationTimeoutSeconds: options.hotswapOperationTimeoutSeconds,
+      hotswapOperationOptions: options.hotswapOperationOptions,
       hotswapPropertyOverrides: options.hotswapPropertyOverrides,
       extraUserAgent: options.extraUserAgent,
       resourcesToImport: options.resourcesToImport,

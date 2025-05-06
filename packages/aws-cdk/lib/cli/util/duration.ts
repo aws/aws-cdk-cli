@@ -1,3 +1,5 @@
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/api';
+
 /**
  * Parses a duration string and returns the equivalent number of seconds.
  *
@@ -17,7 +19,7 @@ export function durationToSeconds(durationPattern: string): number {
   const match = durationPattern.match(durationRegex);
 
   if (!match) {
-    throw new Error(`Invalid duration pattern: ${durationPattern}. Expected format: number followed by s, m, h, or d (e.g., "10s", "5m", "2h", "1d")`);
+    throw new ToolkitError(`Invalid duration pattern: ${durationPattern}. Expected format: number followed by s, m, h, or d (e.g., "10s", "5m", "2h", "1d")`);
   }
 
   const value = parseFloat(match[1]);
@@ -34,6 +36,7 @@ export function durationToSeconds(durationPattern: string): number {
       return value * 24 * 60 * 60;
     default:
       // This should never happen due to the regex, but TypeScript doesn't know that
-      throw new Error(`Unsupported time unit: ${unit}`);
+      /* istanbul ignore next */
+      throw new ToolkitError(`Unsupported time unit: ${unit}`);
   }
 }

@@ -459,10 +459,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.Do not use this in production environments",
         })
-        .option('hotswap-operation-timeout-seconds', {
+        .option('hotswap-timeout', {
           default: undefined,
-          type: 'number',
-          desc: 'Number of seconds to wait for a hotswap operation to complete. Normally this applies to resource stabilization.',
+          type: 'string',
+          desc: 'A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...',
         })
         .option('hotswap-fallback', {
           default: undefined,
@@ -628,10 +628,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.'true' by default, use --no-hotswap to turn off",
         })
-        .option('hotswap-operation-timeout-seconds', {
+        .option('hotswap-timeout', {
           default: undefined,
-          type: 'number',
-          desc: 'Number of seconds to wait for a hotswap operation to complete. Normally this applies to resource stabilization.',
+          type: 'string',
+          desc: 'A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...',
         })
         .option('hotswap-fallback', {
           default: undefined,

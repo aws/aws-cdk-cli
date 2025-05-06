@@ -9,7 +9,7 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import type { HotswapOperationOptions, ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
@@ -521,7 +521,7 @@ export class CdkToolkit {
             usePreviousParameters: options.usePreviousParameters,
             rollback,
             hotswap: options.hotswap,
-            hotswapOperationTimeoutSeconds: options.hotswapOperationTimeoutSeconds,
+            hotswapOperationOptions: options.hotswapOperationOptions,
             hotswapPropertyOverrides: hotswapPropertyOverrides,
             extraUserAgent: options.extraUserAgent,
             assetParallelism: options.assetParallelism,
@@ -1582,12 +1582,11 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   readonly hotswap: HotswapMode;
 
   /**
-   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
-   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
+   * Additional operation options.
    *
    * @default - operation dependant
    */
-  readonly hotswapOperationTimeoutSeconds?: number;
+  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.

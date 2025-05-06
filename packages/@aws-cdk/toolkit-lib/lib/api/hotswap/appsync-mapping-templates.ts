@@ -72,7 +72,7 @@ export async function isHotswappableAppSyncChange(
       },
       hotswappable: true,
       service: 'appsync',
-      apply: async (sdk: SDK, _timeoutSeconds?: number /* unused because we don't currently wait for anything */) => {
+      apply: async (sdk: SDK) => {
         const sdkProperties: { [name: string]: any } = {
           ...change.oldValue.Properties,
           Definition: change.newValue.Properties?.Definition,

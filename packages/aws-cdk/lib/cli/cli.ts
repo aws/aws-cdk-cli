@@ -378,7 +378,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           ci: args.ci,
           rollback: configuration.settings.get(['rollback']),
           hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback),
-          hotswapOperationTimeoutSeconds: durationToSeconds(args.hotswapTimeout),
+          hotswapOperationOptions: { timeoutSeconds: args.hotswapTimeout ? durationToSeconds(args.hotswapTimeout): undefined },
           watch: args.watch,
           traceLogs: args.logs,
           concurrency: args.concurrency,
@@ -434,7 +434,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           progress: configuration.settings.get(['progress']),
           rollback: configuration.settings.get(['rollback']),
           hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback, true),
-          hotswapOperationTimeoutSeconds: durationToSeconds(args.hotswapTimeout),
+          hotswapOperationOptions: { timeoutSeconds: args.hotswapTimeout ? durationToSeconds(args.hotswapTimeout): undefined },
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });

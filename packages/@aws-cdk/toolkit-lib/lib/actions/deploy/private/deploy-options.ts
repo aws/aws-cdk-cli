@@ -1,5 +1,6 @@
 import type { DeploymentMethod, DeployOptions, HotswapMode } from '..';
 import type { StackSelector } from '../../../api/cloud-assembly';
+import type { HotswapOperationOptions } from '../../../api/hotswap/common';
 import type { CloudWatchLogEventMonitor } from '../../../api/logs-monitor/logs-monitor';
 
 export interface BaseDeployOptions {
@@ -37,12 +38,11 @@ export interface BaseDeployOptions {
   readonly hotswap?: HotswapMode;
 
   /**
-   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
-   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
+   * Additional operation options.
    *
    * @default - operation dependant
    */
-  readonly hotswapOperationTimeoutSeconds?: number;
+  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * Rollback failed deployments

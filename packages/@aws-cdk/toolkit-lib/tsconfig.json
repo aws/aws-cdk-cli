@@ -33,8 +33,7 @@
     "composite": true
   },
   "include": [
-    "lib/**/*.ts",
-    "../../aws-cdk/lib/cli/util/duration.ts"
+    "lib/**/*.ts"
   ],
   "exclude": [],
   "references": [

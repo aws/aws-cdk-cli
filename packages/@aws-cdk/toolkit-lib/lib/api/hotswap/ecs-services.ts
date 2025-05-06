@@ -1,6 +1,7 @@
 import type {
   HotswapPropertyOverrides,
   HotswapChange,
+  HotswapOperationOptions,
 } from './common';
 import {
   classifyChanges,
@@ -99,7 +100,7 @@ export async function isHotswappableEcsServiceChange(
       },
       hotswappable: true,
       service: 'ecs-service',
-      apply: async (sdk: SDK, timeoutSeconds?: number) => {
+      apply: async (sdk: SDK, options?: HotswapOperationOptions) => {
         // Step 1 - update the changed TaskDefinition, creating a new TaskDefinition Revision
         // we need to lowercase the evaluated TaskDef from CloudFormation,
         // as the AWS SDK uses lowercase property names for these
@@ -153,7 +154,7 @@ export async function isHotswappableEcsServiceChange(
             await sdk.ecs().waitUntilServicesStable({
               cluster: update.service?.clusterArn,
               services: [service.serviceArn],
-            }, timeoutSeconds);
+            }, options?.timeoutSeconds);
           }),
         );
       },
