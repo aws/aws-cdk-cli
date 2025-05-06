@@ -1153,7 +1153,6 @@ Resources
 
 describe('stack display names', () => {
   beforeEach(() => {
-
     cloudFormation = instanceMockFrom(Deployments);
     cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation((_stackArtifact: CloudFormationStackArtifact) => {
       return Promise.resolve({
@@ -1193,11 +1192,11 @@ describe('stack display names', () => {
     // THEN
     const parentOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
     const childOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    
+
     // Verify that the display name (path) is shown instead of the logical ID
     expect(parentOutput).toContain('Stack Parent/NestedStack/MyChild');
     expect(parentOutput).not.toContain('Stack MyChild');
-    
+
     expect(childOutput).toContain('Stack Parent/NestedStack');
     expect(childOutput).not.toContain('Stack MyParent');
 
@@ -1233,7 +1232,7 @@ describe('stack display names', () => {
 
     // THEN
     const output = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    
+
     // Verify that the logical ID is shown when display name is not available
     expect(output).toContain('Stack NoDisplayNameStack');
 
