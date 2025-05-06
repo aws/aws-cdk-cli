@@ -1,3 +1,4 @@
+import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { IManifestEntry } from 'cdk-assets';
 import type { PermissionChangeType } from './diff';
@@ -32,6 +33,11 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
    * The type of change being made to the IAM permissions.
    */
   readonly permissionChangeType: PermissionChangeType;
+
+  /**
+   * The template diffs of the stack
+   */
+  readonly templateDiffs: { [name: string]: TemplateDiff };
 }
 
 export interface BuildAsset {

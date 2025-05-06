@@ -417,12 +417,14 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           name: 'Set workflow summary',
+          if: 'always()',
           run: [
             'cat logs/md/*.md >> $GITHUB_STEP_SUMMARY',
           ].join('\n'),
         },
         {
           name: 'Upload logs',
+          if: 'always()',
           uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
           with: {
@@ -433,6 +435,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           name: 'Append artifact URL',
+          if: 'always()',
           run: [
             'echo "" >> $GITHUB_STEP_SUMMARY',
             'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
