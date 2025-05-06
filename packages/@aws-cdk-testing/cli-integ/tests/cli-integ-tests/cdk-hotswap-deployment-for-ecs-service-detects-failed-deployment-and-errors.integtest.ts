@@ -10,7 +10,7 @@ integTest(
 
     // WHEN
     const deployOutput = await fixture.cdkDeploy('ecs-hotswap', {
-      options: ['--hotswap', '--hotswap-operation-timeout-seconds', '10'],
+      options: ['--hotswap', '--hotswap-timeout', '10s'],
       modEnv: {
         USE_INVALID_ECS_HOTSWAP_IMAGE: 'true',
       },
