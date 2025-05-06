@@ -10,7 +10,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import type { HotswapOperationOptions, ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import type { HotswapOperationOptions, ToolkitAction } from '../../../@aws-cdk/toolkit-lib';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';

@@ -1,4 +1,4 @@
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib';
 
 /**
  * Parses a duration string and returns the equivalent number of seconds.
