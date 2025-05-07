@@ -14,7 +14,7 @@ integTest(
       ...JSON.parse(await fs.readFile(path.join(fixture.integTestDir, 'cdk.json'), 'utf8')),
       hotswap: {
         ecs: {
-          stabilizationTimeoutSeconds: 200,
+          stabilizationTimeoutSeconds: 10,
         },
       },
     };
