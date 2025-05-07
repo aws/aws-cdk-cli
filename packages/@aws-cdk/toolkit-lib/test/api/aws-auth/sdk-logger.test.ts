@@ -1,22 +1,22 @@
-import { formatSdkLoggerContent, SdkToCliLogger } from '../../../lib/api/aws-auth/private';
+import { formatSdkLoggerContent, IoHostSdkLogger } from '../../../lib/api/aws-auth/private';
 
-describe(SdkToCliLogger, () => {
+describe(IoHostSdkLogger, () => {
   const ioHost = {
     notify: jest.fn(),
     requestResponse: jest.fn(),
   };
-  const logger = new SdkToCliLogger(ioHost as any);
+  const logger = new IoHostSdkLogger(ioHost as any);
 
   beforeEach(() => {
     ioHost.notify.mockReset();
   });
 
-  test.each(['trace', 'debug'] as Array<keyof SdkToCliLogger>)('%s method does not call notify', (method) => {
+  test.each(['trace', 'debug'] as Array<keyof IoHostSdkLogger>)('%s method does not call notify', (method) => {
     logger[method]('SDK Logger test message');
     expect(ioHost.notify).not.toHaveBeenCalled();
   });
 
-  test.each(['info', 'warn', 'error'] as Array<keyof SdkToCliLogger>)('%s method logs to notify', (method) => {
+  test.each(['info', 'warn', 'error'] as Array<keyof IoHostSdkLogger>)('%s method logs to notify', (method) => {
     logger[method]('SDK Logger test message');
     expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
       level: 'trace',
