@@ -865,11 +865,11 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
         },
       },
       extractorMessageReporting: {
-        default: {
+        'default': {
           logLevel: 'warning',
         },
-        "ae-missing-release-tag": {
-          "logLevel": "none"
+        'ae-missing-release-tag': {
+          logLevel: 'none',
         },
       },
       tsdocMessageReporting: {
@@ -886,20 +886,20 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
 new pj.JsonFile(toolkitLib, 'tsdoc.json', {
   marker: false,
   obj: {
-    "$schema": "https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json",
+    $schema: 'https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json',
     // Inherit the TSDoc configuration for API Extractor
-    "extends": ["@microsoft/api-extractor/extends/tsdoc-base.json"],    
+    extends: ['@microsoft/api-extractor/extends/tsdoc-base.json'],
     // custom config
-    "tagDefinitions": [
+    tagDefinitions: [
       {
-        "tagName": "@default",
-        "syntaxKind": "block"
-      }
+        tagName: '@default',
+        syntaxKind: 'block',
+      },
     ],
-    "supportForTags": {
-      "@default": true
-    }
-  }
+    supportForTags: {
+      '@default': true,
+    },
+  },
 });
 
 // Eslint rules
