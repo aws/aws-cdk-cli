@@ -504,6 +504,14 @@ Hotswapping is currently supported for the following changes
 
 You can optionally configure the behavior of your hotswap deployments in `cdk.json`. Currently you can only configure ECS hotswap behavior:
 
+| Property                       | Description                          | Default     |
+|--------------------------------|--------------------------------------|-------------|
+| minimumHealthyPercent          | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount  | SDK Default |
+| maximumHealthyPercent          | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount    | SDK Default |
+| stabilizationTimeoutSeconds    | Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount    | 600 |
+
+##### cdk.json
+
 ```json
 {
 "hotswap": {
@@ -514,6 +522,12 @@ You can optionally configure the behavior of your hotswap deployments in `cdk.js
     }
   }
 }
+```
+
+##### cli arguments
+
+```console
+cdk deploy --hotswap --hotswap-ecs-minimum-healthy-percent 100 --hotswap-ecs-maximum-healthy-percent 250 --hotswap-ecs-stabilization-timeout-seconds 300
 ```
 
 **⚠ Note #1**: This command deliberately introduces drift in CloudFormation stacks in order to speed up deployments.
