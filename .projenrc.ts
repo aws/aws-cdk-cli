@@ -91,6 +91,7 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   'index_bg.wasm',
   'build-info.json',
   '.recommended-feature-flags.json',
+  'synth.lock',
 ];
 
 const CLI_SDK_V3_RANGE = '^3';
@@ -867,6 +868,9 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
         default: {
           logLevel: 'warning',
         },
+        "ae-missing-release-tag": {
+          "logLevel": "none"
+        },
       },
       tsdocMessageReporting: {
         default: {
@@ -876,6 +880,26 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
     },
   },
   committed: true,
+});
+
+// TsDoc config (required by API Extractor)
+new pj.JsonFile(toolkitLib, 'tsdoc.json', {
+  marker: false,
+  obj: {
+    "$schema": "https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json",
+    // Inherit the TSDoc configuration for API Extractor
+    "extends": ["@microsoft/api-extractor/extends/tsdoc-base.json"],    
+    // custom config
+    "tagDefinitions": [
+      {
+        "tagName": "@default",
+        "syntaxKind": "block"
+      }
+    ],
+    "supportForTags": {
+      "@default": true
+    }
+  }
 });
 
 // Eslint rules
@@ -948,7 +972,7 @@ const toolkitLibDocs = toolkitLib.addTask('docs', {
 const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
   exec: [
     // Run api-extractor to generate the API model
-    'api-extractor run --diagnostics || true',
+    'api-extractor run || true',
     // Create a directory for the API model
     'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
     // Copy the API model to the directory (with error handling)
@@ -960,7 +984,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
     // Copy all files from docs directory if it exists
     'if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi',
     // Zip the API model and docs files
-    'cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk',
+    'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
 });
 
@@ -973,7 +997,7 @@ toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/t
 // The docs build needs the version in a specific file at the nested root
 toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
 // Zip the whole thing up, again paths are important here to get the desired folder structure
-toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
+toolkitLib.packageTask.exec('zip -r -q ../docs.zip cdk', { cwd: 'dist/docs' });
 
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
