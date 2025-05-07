@@ -1,10 +1,7 @@
-// The SDK is only used to reference `DescribeChangeSetOutput`, so the SDK is added as a devDependency.
-// The SDK should not make network calls here
-import type { DescribeChangeSetOutput as DescribeChangeSet, ResourceChangeDetail as RCD } from '@aws-sdk/client-cloudformation';
+// The SDK is only used to reference `DescribeChangeSetOutput`, so the SDK is added as a peerDependency.
+// The SDK must not make network calls here
+import type { DescribeChangeSetOutput, ResourceChangeDetail } from '@aws-sdk/client-cloudformation';
 import * as types from '../diff/types';
-
-export type DescribeChangeSetOutput = DescribeChangeSet;
-type ChangeSetResourceChangeDetail = RCD;
 
 interface TemplateAndChangeSetDiffMergerOptions {
   /*
@@ -27,7 +24,7 @@ export interface TemplateAndChangeSetDiffMergerProps extends TemplateAndChangeSe
  * The purpose of this class is to include differences from the ChangeSet to differences in the TemplateDiff.
  */
 export class TemplateAndChangeSetDiffMerger {
-  public static determineChangeSetReplacementMode(propertyChange: ChangeSetResourceChangeDetail): types.ReplacementModes {
+  public static determineChangeSetReplacementMode(propertyChange: ResourceChangeDetail): types.ReplacementModes {
     if (propertyChange.Target?.RequiresRecreation === undefined) {
       // We can't determine if the resource will be replaced or not. That's what conditionally means.
       return 'Conditionally';

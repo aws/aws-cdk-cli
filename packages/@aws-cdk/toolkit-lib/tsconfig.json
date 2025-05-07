@@ -38,9 +38,6 @@
   "exclude": [],
   "references": [
     {
-      "path": "../cli-plugin-contract"
-    },
-    {
       "path": "../cloud-assembly-schema"
     },
     {
@@ -48,6 +45,12 @@
     },
     {
       "path": "../../cdk-assets"
+    },
+    {
+      "path": "../cli-plugin-contract"
+    },
+    {
+      "path": "../cli-plugin-contract"
     }
   ]
 }

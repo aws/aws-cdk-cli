@@ -302,6 +302,10 @@ repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 new AdcPublishing(repoProject);
 
 const repo = configureProject(repoProject);
+repo.eslint?.addRules({
+  // we don't really care about deps at the monorepo root
+  'import/no-extraneous-dependencies': 'off',
+});
 
 interface GenericProps {
   private?: boolean;
@@ -343,7 +347,7 @@ function genericCdkProps(props: GenericProps = {}) {
     },
     typescriptVersion: TYPESCRIPT_VERSION,
     checkLicenses: props.private ? undefined : {
-      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause'],
+      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause', '0BSD'],
     },
     ...props,
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
@@ -429,6 +433,10 @@ const cloudFormationDiff = configureProject(
     name: '@aws-cdk/cloudformation-diff',
     description: 'Utilities to diff CDK stacks against CloudFormation templates',
     srcdir: 'lib',
+    devDeps: [
+      'fast-check',
+      '@aws-sdk/client-cloudformation@^3',
+    ],
     deps: [
       '@aws-cdk/aws-service-spec',
       '@aws-cdk/service-spec-types',
@@ -438,7 +446,7 @@ const cloudFormationDiff = configureProject(
       'string-width@^4',
       'table@^6',
     ],
-    devDeps: ['@aws-sdk/client-cloudformation', 'fast-check'],
+    peerDeps: ['@aws-sdk/client-cloudformation@^3'],
     // FIXME: this should be a jsii project
     // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
     tsconfig: {
@@ -446,6 +454,8 @@ const cloudFormationDiff = configureProject(
         ...defaultTsOptions,
       },
     },
+
+    // '0BSD',
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -710,8 +720,11 @@ const toolkitLib = configureProject(
         rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
+    peerDeps: [
+      cliPluginContract.customizeReference({ versionType: 'minimal' }),
+      '@smithy/types@^3',
+    ],
     deps: [
-      cliPluginContract,
       cloudAssemblySchema,
       // Purposely a ^ dependency so that clients selecting old toolkit library
       // versions still might get upgrades to this dependency.
@@ -764,6 +777,7 @@ const toolkitLib = configureProject(
       'yaml@^1',
     ],
     devDeps: [
+      cliPluginContract,
       '@aws-cdk/aws-service-spec',
       '@jest/environment',
       '@jest/globals',
@@ -782,6 +796,9 @@ const toolkitLib = configureProject(
       'typedoc',
       'xml-js',
     ],
+    peerDependencyOptions: {
+      pinnedDevDependency: false,
+    },
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
     eslintOptions: {

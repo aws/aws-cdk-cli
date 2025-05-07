@@ -1,10 +1,17 @@
 import { inspect, format } from 'util';
-import type { Logger } from '@smithy/types';
 import { replacerBufferWithInfo } from '../../util';
 import type { IoHelper } from '../io/private';
 import { IO } from '../io/private';
 
-export class SdkToCliLogger implements Logger {
+export interface ISdkLogger {
+  trace?: (...content: any[]) => void;
+  debug: (...content: any[]) => void;
+  info: (...content: any[]) => void;
+  warn: (...content: any[]) => void;
+  error: (...content: any[]) => void;
+}
+
+export class SdkToCliLogger implements ISdkLogger {
   private readonly ioHelper: IoHelper;
 
   public constructor(ioHelper: IoHelper) {

@@ -5,6 +5,10 @@
       "type": "build"
     },
     {
+      "name": "@aws-cdk/cli-plugin-contract",
+      "type": "build"
+    },
+    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -165,7 +169,12 @@
     },
     {
       "name": "@aws-cdk/cli-plugin-contract",
-      "type": "runtime"
+      "type": "peer"
+    },
+    {
+      "name": "@smithy/types",
+      "version": "^3",
+      "type": "peer"
     },
     {
       "name": "@aws-cdk/cloud-assembly-schema",

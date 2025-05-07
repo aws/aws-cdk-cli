@@ -1,12 +1,12 @@
 
 import { inspect } from 'util';
-import type { Logger } from '@smithy/types';
 import type { IoHelper } from './io-helper';
 import { IO } from './messages';
 import { replacerBufferWithInfo } from '../../../util';
+import type { ISdkLogger } from '../../aws-auth/sdk-logger';
 
-export function asSdkLogger(ioHost: IoHelper): Logger {
-  return new class implements Logger {
+export function asSdkLogger(ioHost: IoHelper): ISdkLogger {
+  return new class implements ISdkLogger {
     // This is too much detail for our logs
     public trace(..._content: any[]) {
     }

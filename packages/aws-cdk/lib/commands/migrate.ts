@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import * as fs from 'fs';
 import * as path from 'path';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import type { ForReading } from '@aws-cdk/cli-plugin-contract';
 import type { Environment } from '@aws-cdk/cx-api';
 import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
