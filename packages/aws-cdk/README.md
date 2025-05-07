@@ -37,7 +37,6 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 - [Configuration](#configuration)
   - [Running in CI](#running-in-ci)
 
-
 This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
 ## Global Options
@@ -137,17 +136,17 @@ If your app contains a single stack or a stack is supplied as an argument to `cd
 If there are multiple stacks in your application, `cdk synth` will synthesize the cloud assembly to `cdk.out`.
 
 ```console
-$ # Synthesize cloud assembly for StackName and output the CloudFormation template to STDOUT
-$ cdk synth MyStackName
+# Synthesize cloud assembly for StackName and output the CloudFormation template to STDOUT
+cdk synth MyStackName
 
-$ # Synthesize cloud assembly for all the stacks and save them into cdk.out/
-$ cdk synth
+# Synthesize cloud assembly for all the stacks and save them into cdk.out/
+cdk synth
 
-$ # Synthesize cloud assembly for StackName, but don't include dependencies
-$ cdk synth MyStackName --exclusively
+# Synthesize cloud assembly for StackName, but don't include dependencies
+cdk synth MyStackName --exclusively
 
-$ # Synthesize cloud assembly for StackName, but don't write CloudFormation template output to STDOUT
-$ cdk synth MyStackName --quiet
+# Synthesize cloud assembly for StackName, but don't write CloudFormation template output to STDOUT
+cdk synth MyStackName --quiet
 ```
 
 The `quiet` option can be set in the `cdk.json` file.
@@ -161,7 +160,6 @@ The `quiet` option can be set in the `cdk.json` file.
 See the [AWS Documentation](https://docs.aws.amazon.com/cdk/latest/guide/apps.html#apps_cloud_assembly) to learn more about cloud assemblies.
 See the [CDK reference documentation](https://docs.aws.amazon.com/cdk/api/latest/docs/cloud-assembly-schema-readme.html) for details on the cloud assembly specification
 
-
 ### `cdk diff`
 
 Computes differences between the infrastructure specified in the current state of the CDK app and the currently
@@ -169,18 +167,18 @@ deployed application (or a user-specified CloudFormation template). If you need 
 found you need to use the `--fail` command line option.
 
 ```console
-$ # Diff against the currently deployed stack
-$ cdk diff --app='node bin/main.js' MyStackName
+# Diff against the currently deployed stack
+cdk diff --app='node bin/main.js' MyStackName
 
-$ # Diff against a specific template document
-$ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
+# Diff against a specific template document
+cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
 The `quiet` flag can also be passed to the `cdk diff` command. Assuming there are no differences detected the output to the console will **not** contain strings such as the *Stack* `MyStackName` and `There were no differences`.
 
 ```console
-$ # Diff against the currently deployed stack with quiet parameter enabled
-$ cdk diff --quiet --app='node bin/main.js' MyStackName
+# Diff against the currently deployed stack with quiet parameter enabled
+cdk diff --quiet --app='node bin/main.js' MyStackName
 ```
 
 Note that the CDK::Metadata resource and the `CheckBootstrapVersion` Rule are excluded from `cdk diff` by default. You can force `cdk diff` to display them by passing the `--strict` flag.
@@ -197,7 +195,7 @@ bootstrapped (using `cdk bootstrap`), only stacks that are not using assets and 
 51,200 bytes will successfully deploy.
 
 ```console
-$ cdk deploy --app='node bin/main.js' MyStackName
+cdk deploy --app='node bin/main.js' MyStackName
 ```
 
 Before creating a change set, `cdk deploy` will compare the template and tags of the
@@ -216,8 +214,8 @@ stack in a consistent state, but instead would prefer to update your CDK applica
 To disable the rollback feature, specify `--no-rollback` (`-R` for short):
 
 ```console
-$ cdk deploy --no-rollback
-$ cdk deploy -R
+cdk deploy --no-rollback
+cdk deploy -R
 ```
 
 If a deployment fails you can update your code and immediately retry the
@@ -258,14 +256,14 @@ new sns.Topic(this, 'TopicParameter', {
 Parameter values as a part of `cdk deploy`
 
 ```console
-$ cdk deploy --parameters "MyStackName:TopicNameParam=parameterized"
+cdk deploy --parameters "MyStackName:TopicNameParam=parameterized"
 ```
 
 Parameter values can be overwritten by supplying the `--force` flag.
 Example of overwriting the topic name from a previous deployment.
 
 ```console
-$ cdk deploy --parameters "ParametersStack:TopicNameParam=blahagain" --force
+cdk deploy --parameters "ParametersStack:TopicNameParam=blahagain" --force
 ```
 
 ⚠️ Parameters will be applied to all stacks if a stack name is not specified or `*` is provided.
@@ -296,7 +294,7 @@ new cdk.CfnOutput(this, 'FunctionArn', {
 Specify an outputs file to write to by supplying the `--outputs-file` parameter
 
 ```console
-$ cdk deploy --outputs-file outputs.json
+cdk deploy --outputs-file outputs.json
 ```
 
 Alternatively, the `outputsFile` key can be specified in the project config (`cdk.json`).
@@ -333,9 +331,8 @@ Read more about identifiers in the CDK [here](https://docs.aws.amazon.com/cdk/la
 If multiple stacks are being deployed or the wild card `*` is used to deploy all stacks, all outputs
 are written to the same output file where each stack artifact ID is a key in the JSON file
 
-
 ```console
-$ cdk deploy '**' --outputs-file "/Users/code/myproject/outputs.json"
+cdk deploy '**' --outputs-file "/Users/code/myproject/outputs.json"
 ```
 
 Example `outputs.json` after deployment of multiple stacks
@@ -359,7 +356,7 @@ currently being deployed.
 Set the `--progress` flag to request the complete history which includes all CloudFormation events
 
 ```console
-$ cdk deploy --progress events
+cdk deploy --progress events
 ```
 
 Alternatively, the `progress` key can be specified in the project config (`cdk.json`).
@@ -398,7 +395,7 @@ be deployed and then executes it. This behavior can be controlled with the
 To deploy faster without using change sets:
 
 ```console
-$ cdk deploy --method=direct
+cdk deploy --method=direct
 ```
 
 If a change set is created, it will be called *cdk-deploy-change-set*, and a
@@ -407,7 +404,7 @@ always be created, even if it is empty. A name can also be given to the change
 set to make it easier to later execute:
 
 ```console
-$ cdk deploy --method=prepare-change-set --change-set-name MyChangeSetName
+cdk deploy --method=prepare-change-set --change-set-name MyChangeSetName
 ```
 
 For more control over when stack changes are deployed, the CDK can generate a
@@ -421,30 +418,30 @@ that automatically imports resources in your template that already exist in your
 To do so, pass the `--import-existing-resources` flag to the `deploy` command:
 
 ```console
-$ cdk deploy --import-existing-resources
+cdk deploy --import-existing-resources
 ```
 
 This automatically imports resources in your CDK application that represent
-unmanaged resources in your account. It reduces the manual effort of import operations and 
+unmanaged resources in your account. It reduces the manual effort of import operations and
 avoids deployment failures due to naming conflicts with unmanaged resources in your account.
 
 Use the `--method=prepare-change-set` flag to review which resources are imported or not before deploying a changeset.
 You can inspect the change set created by CDK from the management console or other external tools.
 
 ```console
-$ cdk deploy --import-existing-resources --method=prepare-change-set
+cdk deploy --import-existing-resources --method=prepare-change-set
 ```
 
 Use the `--exclusively` flag to enable this feature for a specific stack.
 
 ```console
-$ cdk deploy --import-existing-resources --exclusively StackName
+cdk deploy --import-existing-resources --exclusively StackName
 ```
 
 Only resources that have custom names can be imported using `--import-existing-resources`.
-For more information, see [name type](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-name.html). 
+For more information, see [name type](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-name.html).
 To import resources that do not accept custom names, such as EC2 instances,
-use the `cdk import` instead. 
+use the `cdk import` instead.
 Visit [Bringing existing resources into CloudFormation management](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import.html)
 for more details.
 
@@ -459,7 +456,7 @@ To bypass this error messages, you can pass the `--ignore-no-stacks` flag to the
 `deploy` command:
 
 ```console
-$ cdk deploy --ignore-no-stacks
+cdk deploy --ignore-no-stacks
 ```
 
 #### Hotswap deployments for faster development
@@ -467,7 +464,7 @@ $ cdk deploy --ignore-no-stacks
 You can pass the `--hotswap` flag to the `deploy` command:
 
 ```console
-$ cdk deploy --hotswap [StackNames]
+cdk deploy --hotswap [StackNames]
 ```
 
 This will attempt to perform a faster, short-circuit deployment if possible
@@ -481,7 +478,7 @@ exactly like `cdk deploy` does without the `--hotswap` flag,
 specify `--hotswap-fallback`, like so:
 
 ```console
-$ cdk deploy --hotswap-fallback [StackNames]
+cdk deploy --hotswap-fallback [StackNames]
 ```
 
 Passing either option to `cdk deploy` will make it use your current AWS credentials to perform the API calls -
@@ -513,7 +510,7 @@ You can optionally configure the behavior of your hotswap deployments in `cdk.js
     "ecs": {
       "minimumHealthyPercent": 100,
       "maximumHealthyPercent": 250,
-      "stabilizationTimeoutSeconds": 600,
+      "stabilizationTimeoutSeconds": 300,
     }
   }
 }
@@ -622,7 +619,7 @@ By default `watch` will also monitor all CloudWatch Log Groups in your applicati
 locally to your terminal. To disable this feature you can pass the `--no-logs` option when invoking it:
 
 ```console
-$ cdk watch --no-logs
+cdk watch --no-logs
 ```
 
 You can increase the concurrency by which `watch` will deploy and hotswap
@@ -631,7 +628,7 @@ acts the same as `--concurrency` for `deploy`, in that it will deploy or
 hotswap your stacks while respecting inter-stack dependencies.
 
 ```console
-$ cdk watch --concurrency 5
+cdk watch --concurrency 5
 ```
 
 **Note**: This command is considered experimental, and might have breaking changes in the future.
@@ -690,7 +687,6 @@ This feature currently has the following limitations:
   bucket). Requires version 12 of the bootstrap stack, for the added
   IAM permissions to the `deploy-role`.
 
-
 ### `cdk migrate`
 
 ⚠️**CAUTION**⚠️: CDK Migrate is currently experimental and may have breaking changes in the future.
@@ -706,7 +702,7 @@ The new CDK app will be initialized in the current working directory and will in
 Migrate from a deployed AWS CloudFormation stack in a specific AWS account and AWS Region using `--from-stack`. Provide `--stack-name` to identify the name of your stack. Account and Region information are retrieved from default CDK CLI sources. Use `--account` and `--region` options to provide other values. The following is an example that migrates **myCloudFormationStack** to a new CDK app using TypeScript:
 
 ```console
-$ cdk migrate --language typescript --from-stack --stack-name 'myCloudFormationStack'
+cdk migrate --language typescript --from-stack --stack-name 'myCloudFormationStack'
 ```
 
 #### Migrate from a local AWS CloudFormation template
@@ -714,7 +710,7 @@ $ cdk migrate --language typescript --from-stack --stack-name 'myCloudFormationS
 Migrate from a local `YAML` or `JSON` AWS CloudFormation template using `--from-path`. Provide a name for the stack that will be created in your new CDK app using `--stack-name`. Account and Region information are retrieved from default CDK CLI sources. Use `--account` and `--region` options to provide other values. The following is an example that creates a new CDK app using TypeScript that includes a **myCloudFormationStack** stack from a local `template.json` file:
 
 ```console
-$ cdk migrate --language typescript --from-path "./template.json" --stack-name "myCloudFormationStack"
+cdk migrate --language typescript --from-path "./template.json" --stack-name "myCloudFormationStack"
 ```
 
 #### Migrate from deployed AWS resources
@@ -724,7 +720,7 @@ Migrate from deployed AWS resources in a specific AWS account and Region that ar
 Account and Region information are retrieved from default CDK CLI sources. Use `--account` and `--region` options to provide other values. The following is an example that creates a new CDK app using TypeScript that includes a new **myCloudFormationStack** stack from deployed resources:
 
 ```console
-$ cdk migrate --language typescript --from-scan --stack-name "myCloudFormationStack"
+cdk migrate --language typescript --from-scan --stack-name "myCloudFormationStack"
 ```
 
 Since CDK Migrate relies on the IaC generator service, any limitations of IaC generator will apply to CDK Migrate. For general limitations, see [Considerations](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/generate-IaC.html#generate-template-considerations).
@@ -740,8 +736,8 @@ After migration, you must resolve any write-only properties that were detected b
 ##### Generate a TypeScript CDK app from a local AWS CloudFormation template.json file
 
 ```console
-$ # template.json is a valid cloudformation template in the local directory
-$ cdk migrate --stack-name MyAwesomeApplication --language typescript --from-path MyTemplate.json
+# template.json is a valid cloudformation template in the local directory
+cdk migrate --stack-name MyAwesomeApplication --language typescript --from-path MyTemplate.json
 ```
 
 This command generates a new directory named `MyAwesomeApplication` within your current working directory, and
@@ -767,8 +763,8 @@ with the same resource configuration as the provided template.json.
 If you already have a CloudFormation stack deployed in your account and would like to manage it with CDK, you can migrate the deployed stack to a new CDK app. The value provided with `--stack-name` must match the name of the deployed stack.
 
 ```console
-$ # generate a Python application from MyDeployedStack in your account
-$ cdk migrate --stack-name MyDeployedStack --language python --from-stack
+# generate a Python application from MyDeployedStack in your account
+cdk migrate --stack-name MyDeployedStack --language python --from-stack
 ```
 
 This will generate a Python CDK app which will synthesize the same configuration of resources as the deployed stack.
@@ -794,17 +790,17 @@ tag-value=<tag-value>
 ##### Additional examples of migrating from deployed resources
 
 ```console
-$ # Generate a typescript application from all un-managed resources in your account
-$ cdk migrate --stack-name MyAwesomeApplication --language typescript --from-scan
+# Generate a typescript application from all un-managed resources in your account
+cdk migrate --stack-name MyAwesomeApplication --language typescript --from-scan
 
-$ # Generate a typescript application from all un-managed resources in your account with the tag key "Environment" AND the tag value "Production"
-$ cdk migrate --stack-name MyAwesomeApplication --language typescript --from-scan --filter tag-key=Environment,tag-value=Production
+# Generate a typescript application from all un-managed resources in your account with the tag key "Environment" AND the tag value "Production"
+cdk migrate --stack-name MyAwesomeApplication --language typescript --from-scan --filter tag-key=Environment,tag-value=Production
 
-$ # Generate a python application from any dynamoDB resources with the tag-key "dev" AND the tag-value "true" OR any SQS::Queue
-$ cdk migrate --stack-name MyAwesomeApplication --language python --from-scan --filter type=AWS::DynamoDb::,tag-key=dev,tag-value=true --filter type=SQS::Queue
+# Generate a python application from any dynamoDB resources with the tag-key "dev" AND the tag-value "true" OR any SQS::Queue
+cdk migrate --stack-name MyAwesomeApplication --language python --from-scan --filter type=AWS::DynamoDb::,tag-key=dev,tag-value=true --filter type=SQS::Queue
 
-$ # Generate a typescript application from a specific lambda function by providing it's specific resource identifier
-$ cdk migrate --stack-name MyAwesomeApplication --language typescript --from-scan --filter identifier=myAwesomeLambdaFunction
+# Generate a typescript application from a specific lambda function by providing it's specific resource identifier
+cdk migrate --stack-name MyAwesomeApplication --language typescript --from-scan --filter identifier=myAwesomeLambdaFunction
 ```
 
 #### **CDK Migrate Limitations**
@@ -880,7 +876,7 @@ configured with a `DeletionPolicy` of `Retain`). During the stack destruction, t
 information similar to what `cdk deploy` provides.
 
 ```console
-$ cdk destroy --app='node bin/main.js' MyStackName
+cdk destroy --app='node bin/main.js' MyStackName
 ```
 
 ### `cdk bootstrap`
@@ -892,11 +888,11 @@ triggering a CloudFormation stack update. The name of the deployed stack can be 
 the `--public-access-block-configuration` argument. ECR uses immutable tags for images.
 
 ```console
-$ # Deploys to all environments
-$ cdk bootstrap --app='node bin/main.js'
+# Deploys to all environments
+cdk bootstrap --app='node bin/main.js'
 
-$ # Deploys only to environments foo and bar
-$ cdk bootstrap --app='node bin/main.js' foo bar
+# Deploys only to environments foo and bar
+cdk bootstrap --app='node bin/main.js' foo bar
 ```
 
 By default, bootstrap stack will be protected from stack termination. This can be disabled using
@@ -955,9 +951,9 @@ cdk bootstrap --no-previous-parameters
 CDK Garbage Collection.
 
 > [!CAUTION]
-> CDK Garbage Collection is under development and therefore must be opted in via the 
->`--unstable` flag: `cdk gc --unstable=gc`. `--unstable` indicates that the scope and 
-> API of feature might still change. Otherwise the feature is generally production 
+> CDK Garbage Collection is under development and therefore must be opted in via the
+>`--unstable` flag: `cdk gc --unstable=gc`. `--unstable` indicates that the scope and
+> API of feature might still change. Otherwise the feature is generally production
 > ready and fully supported.
 
 `cdk gc` garbage collects unused assets from your bootstrap bucket via the following mechanism:
@@ -1070,13 +1066,13 @@ $ cdk doctor
 
 ### `cdk refactor`
 
-⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have 
-breaking changes in the future. Make sure to use the `--unstable=refactor` flag 
+⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have
+breaking changes in the future. Make sure to use the `--unstable=refactor` flag
 when using this command.
 
-Compares the infrastructure specified in the current state of the CDK app with 
-the currently deployed application, to determine if any resource was moved 
-(to a different stack or to a different logical ID, or both). The CLI will 
+Compares the infrastructure specified in the current state of the CDK app with
+the currently deployed application, to determine if any resource was moved
+(to a different stack or to a different logical ID, or both). The CLI will
 show the correspondence between the old and new locations in a table:
 
 ```
@@ -1095,17 +1091,17 @@ The following resources were moved or renamed:
 └───────────────────────────────┴───────────────────────────────┴───────────────────────────────────┘
 ```
 
-Note the use of the `--dry-run` flag. When this flag is used, the CLI will 
+Note the use of the `--dry-run` flag. When this flag is used, the CLI will
 show this table and exit. Eventually, the CLI will also be able to automatically  
-apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
+apply the refactor on your CloudFormation stacks. But for now, only the dry-run
 mode is supported.
 
-If you want to exclude some resources from the refactor, you can pass an 
-exclude file, containing a list of destination locations to exclude. A 
+If you want to exclude some resources from the refactor, you can pass an
+exclude file, containing a list of destination locations to exclude. A
 location can be either the stack name + logical ID, or the construct path. For  
-example, if you don't want to include the bucket and the distribution from 
-the table above in the refactor, you can create a file called 
-`exclude.txt`with the following content: 
+example, if you don't want to include the bucket and the distribution from
+the table above in the refactor, you can create a file called
+`exclude.txt`with the following content:
 
 ```
 Web/Website/Origin/Resource
@@ -1116,19 +1112,19 @@ Web/Website/Distribution/Resource
 and pass it to the CLI via the `--exclude-file` flag:
 
 ```shell
-$ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
+cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
 ```
 
-If your application has more than one stack, and you want the refactor 
-command to consider only a subset of them, you can pass a list of stack 
+If your application has more than one stack, and you want the refactor
+command to consider only a subset of them, you can pass a list of stack
 patterns as a parameter:
 
 ```shell
-$ cdk refactor Web* --unstable=refactor --dry-run 
+cdk refactor Web* --unstable=refactor --dry-run 
 ```
 
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
 
 ## Notices
@@ -1207,7 +1203,6 @@ $cdk acknowledge 16603
 > project, it will still appear on other projects when you run any CDK commands, unless you have suppressed
 > or disabled notices.
 
-
 ### `cdk notices`
 
 List the notices that are relevant to the current CDK repository, regardless of context flags or notices that
@@ -1240,17 +1235,17 @@ $ cdk notices --unacknowledged
 
 NOTICES         (What's this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)
 
-29483	(cli): Upgrading to v2.132.0 or v2.132.1 breaks cdk diff functionality
+29483 (cli): Upgrading to v2.132.0 or v2.132.1 breaks cdk diff functionality
 
-	Overview: cdk diff functionality used to rely on assuming lookup-role.
-	          With a recent change present in v2.132.0 and v2.132.1, it is
-	          now trying to assume deploy-role with the lookup-role. This
-	          leads to an authorization error if permissions were not
-	          defined to assume deploy-role.
+ Overview: cdk diff functionality used to rely on assuming lookup-role.
+           With a recent change present in v2.132.0 and v2.132.1, it is
+           now trying to assume deploy-role with the lookup-role. This
+           leads to an authorization error if permissions were not
+           defined to assume deploy-role.
 
-	Affected versions: cli: >=2.132.0 <=2.132.1
+ Affected versions: cli: >=2.132.0 <=2.132.1
 
-	More information at: https://github.com/aws/aws-cdk/issues/29483
+ More information at: https://github.com/aws/aws-cdk/issues/29483
 
 
 If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 29483".

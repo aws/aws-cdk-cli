@@ -494,8 +494,7 @@ function isCandidateForHotswapping(
   };
 }
 
-async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>,
-  hotswappableChanges: HotswapOperation[]): Promise<void[]> {
+async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>, hotswappableChanges: HotswapOperation[]): Promise<void[]> {
   if (hotswappableChanges.length === 0) {
     return Promise.resolve([]);
   }
@@ -508,8 +507,7 @@ async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>,
   })));
 }
 
-async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>,
-  hotswapOperation: HotswapOperation): Promise<void> {
+async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>, hotswapOperation: HotswapOperation): Promise<void> {
   // note the type of service that was successfully hotswapped in the User-Agent
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);
