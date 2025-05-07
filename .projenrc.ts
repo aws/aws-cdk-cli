@@ -826,6 +826,7 @@ const toolkitLib = configureProject(
         module: 'NodeNext',
       },
     },
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
   }),
 );
 
@@ -1683,6 +1684,7 @@ new CdkCliIntegTestsWorkflow(repo, {
     cliLib.name,
     cdkAliasPackage.name,
     cliInteg.name,
+    toolkitLib.name,
   ],
 
   allowUpstreamVersions: [
