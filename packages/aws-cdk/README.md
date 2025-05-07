@@ -506,8 +506,8 @@ You can optionally configure the behavior of your hotswap deployments in `cdk.js
 
 | Property                       | Description                          | Default     |
 |--------------------------------|--------------------------------------|-------------|
-| minimumHealthyPercent          | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount  | SDK Default |
-| maximumHealthyPercent          | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount    | SDK Default |
+| minimumHealthyPercent          | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount  | **REPLICA:** 100, **DAEMON:** 0 |
+| maximumHealthyPercent          | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount    | **REPLICA:** 200, **DAEMON:**: N/A |
 | stabilizationTimeoutSeconds    | Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount    | 600 |
 
 ##### cdk.json
