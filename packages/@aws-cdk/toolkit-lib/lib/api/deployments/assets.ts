@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-len
 import * as path from 'path';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
@@ -31,7 +30,7 @@ export async function addMetadataAssetsToManifest(
 
   const toolkitInfo = await envResources.lookupToolkit();
   if (!toolkitInfo.found) {
-    // eslint-disable-next-line max-len
+    // eslint-disable-next-line @stylistic/max-len
     throw new ToolkitError(`This stack uses assets, so the toolkit stack must be deployed to the environment (Run "${chalk.blue('cdk bootstrap ' + stack.environment!.name)}")`);
   }
 
@@ -58,7 +57,7 @@ export async function addMetadataAssetsToManifest(
   return params;
 }
 
-// eslint-disable-next-line max-len
+// eslint-disable-next-line @stylistic/max-len
 async function prepareAsset(
   ioHelper: IoHelper,
   asset: cxschema.AssetMetadataEntry,
@@ -78,7 +77,7 @@ async function prepareAsset(
     case 'container-image':
       return prepareDockerImageAsset(asset, assetManifest, envResources);
     default:
-      // eslint-disable-next-line max-len
+      // eslint-disable-next-line @stylistic/max-len
       throw new ToolkitError(`Unsupported packaging type: ${(asset as any).packaging}. You might need to upgrade your aws-cdk toolkit to support this asset type.`);
   }
 }

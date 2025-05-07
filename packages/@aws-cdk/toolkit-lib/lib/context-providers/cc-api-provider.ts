@@ -150,7 +150,7 @@ function propertyMatchesFilter(actual: unknown, expected: unknown) {
   return expected === actual;
 }
 
-function isObject(x: unknown): x is {[key: string]: unknown} {
+function isObject(x: unknown): x is { [key: string]: unknown } {
   return typeof x === 'object' && x !== null && !Array.isArray(x);
 }
 

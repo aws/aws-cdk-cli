@@ -49,5 +49,6 @@ db.json.gz
 .init-version.json
 index_bg.wasm
 .recommended-feature-flags.json
+synth.lock
 !lib/init-templates/**
 build-info.json

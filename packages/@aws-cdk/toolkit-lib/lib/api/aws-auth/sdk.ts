@@ -412,7 +412,7 @@ export interface IAppSyncClient {
   listFunctions(input: ListFunctionsCommandInput): Promise<FunctionConfiguration[]>;
 }
 
-export interface ICloudControlClient{
+export interface ICloudControlClient {
   listResources(input: ListResourcesCommandInput): Promise<ListResourcesCommandOutput>;
   getResource(input: GetResourceCommandInput): Promise<GetResourceCommandOutput>;
 }

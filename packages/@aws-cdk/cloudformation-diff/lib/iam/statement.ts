@@ -283,7 +283,7 @@ export class Targets {
   }
 }
 
-type UnknownMap = {[key: string]: unknown};
+type UnknownMap = { [key: string]: unknown };
 
 export enum Effect {
   Unknown = 'Unknown',

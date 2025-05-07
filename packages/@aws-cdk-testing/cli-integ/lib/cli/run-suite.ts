@@ -5,7 +5,9 @@ import * as yargs from 'yargs';
 import { RunnerCliNpmSource } from '../package-sources/cli-npm-source';
 import { RunnerCliRepoSource } from '../package-sources/cli-repo-source';
 import { autoFindRepoRoot } from '../package-sources/find-root';
+import { RunnerLibraryGlobalInstallSource } from '../package-sources/library-globalinstall-source';
 import { RunnerLibraryNpmSource } from '../package-sources/library-npm-source';
+import { RunnerLibraryPreinstalledSource } from '../package-sources/library-preinstalled-source';
 import type { IRunnerSource, ITestCliSource, ITestLibrarySource } from '../package-sources/source';
 import { serializeSources } from '../package-sources/subprocess';
 
@@ -32,6 +34,11 @@ async function main() {
       .options('framework-version', {
         describe: 'Framework version to use',
         alias: 'f',
+        type: 'string',
+      })
+      .options('toolkit-lib-version', {
+        describe: 'Toolkit lib version to use',
+        alias: 'l',
         type: 'string',
       })
       .option('use-source', {
@@ -117,11 +124,23 @@ async function main() {
   const librarySource: IRunnerSource<ITestLibrarySource>
     = new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version'] ? args['framework-version'] : 'latest');
 
+  const toolkitLibPackage = '@aws-cdk/toolkit-lib';
+  let toolkitSource: IRunnerSource<ITestLibrarySource> | undefined;
+  if (args['toolkit-lib-version']) {
+    toolkitSource = new RunnerLibraryGlobalInstallSource(toolkitLibPackage, args['toolkit-lib-version']);
+  }
+  if (!toolkitSource) {
+    toolkitSource = await RunnerLibraryPreinstalledSource.isPreinstalled(toolkitLibPackage)
+      ? new RunnerLibraryPreinstalledSource(toolkitLibPackage)
+      : new RunnerLibraryGlobalInstallSource(toolkitLibPackage, 'latest');
+  }
+
   console.log('------> Configuration');
-  console.log(`        Test suite:     ${suiteName}`);
-  console.log(`        Test version:   ${thisPackageVersion()}`);
-  console.log(`        CLI source:     ${cliSource.assert().sourceDescription}`);
-  console.log(`        Library source: ${librarySource.sourceDescription}`);
+  console.log(`        Test suite:         ${suiteName}`);
+  console.log(`        Test version:       ${thisPackageVersion()}`);
+  console.log(`        CLI source:         ${cliSource.assert().sourceDescription}`);
+  console.log(`        Library source:     ${librarySource.sourceDescription}`);
+  console.log(`        Toolkit lib source: ${toolkitSource.sourceDescription}`);
 
   if (args.verbose) {
     process.env.VERBOSE = '1';
@@ -142,16 +161,23 @@ async function main() {
     console.log('------> Resolved versions');
     const cli = await cliSource.assert().runnerPrepare();
     disposables.push(cli);
-    console.log(`        CLI:     ${cli.version}`);
+    console.log(`        CLI:             ${cli.version}`);
 
     const library = await librarySource.runnerPrepare();
     disposables.push(library);
-    console.log(`        Library: ${library.version}`);
+    console.log(`        Library:         ${library.version}`);
+
+    const toolkitLib = await toolkitSource.runnerPrepare();
+    disposables.push(toolkitLib);
+    console.log(`        Toolkit library: ${toolkitLib.version}`);
 
     serializeSources({
       cli,
       library,
+      toolkitLib,
     });
+
+    const jestConfig = path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js');
 
     await jest.run([
       '--randomize',
@@ -161,7 +187,7 @@ async function main() {
       ...args.maxWorkers ? [`--maxWorkers=${args.maxWorkers}`] : [],
       ...passWithNoTests ? ['--passWithNoTests'] : [],
       ...args['test-file'] ? [args['test-file']] : [],
-    ], path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js'));
+    ], jestConfig);
   } finally {
     for (const disp of disposables) {
       await disp.dispose();
