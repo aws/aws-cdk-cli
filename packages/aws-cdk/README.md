@@ -502,7 +502,7 @@ Hotswapping is currently supported for the following changes
 - VTL mapping template changes for AppSync Resolvers and Functions.
 - Schema changes for AppSync GraphQL Apis.
 
-You can optionally configure the behavior of your hotswap deployments in `cdk.json`. Currently you can only configure ECS hotswap behavior:
+You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 
 | Property                       | Description                          | Default     |
 |--------------------------------|--------------------------------------|-------------|
