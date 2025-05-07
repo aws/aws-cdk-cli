@@ -185,6 +185,8 @@ export abstract class CloudAssemblySourceBuilder {
             ...props.env,
           });
           return await execution.withContext(context.all, env, props.synthOptions, async (envWithContext, _ctx) => {
+            // eslint-disable-next-line no-console
+            console.log('::notice::Executing CDK app with ENV', JSON.stringify(envWithContext));
             await execInChildProcess(commandLine.join(' '), {
               eventPublisher: async (type, line) => {
                 switch (type) {
