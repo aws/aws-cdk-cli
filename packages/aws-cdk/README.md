@@ -1130,6 +1130,36 @@ The pattern language is the same as the one used in the `cdk deploy` command.
 However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
 considered.
 
+If, instead of letting the CLI decide which resources to move, you want to 
+provide your own mapping of old to new locations, you can do so by passing a
+mapping file to the CLI via the `--mapping-file` flag. This file should 
+contain a JSON object with the following format: 
+
+```json
+{
+  "mappings": [
+    {
+      "source": "Foo.OldName",
+      "destination": "Bar.NewName",
+      "environment": {
+        "name": "test",
+        "account": "123456789012",
+        "region": "us-east-1"
+      }
+    }
+  ]
+}
+```
+
+where `source` and `destination` are resource locations in the format
+`StackName.LogicalId`. The source must refer to a location where there
+is a resource currently deployed, while the destination must refer to
+a location that is not already occupied by any resource.
+
+If you want to undo a refactor, you can use the `--revert` option in 
+conjunction with the `--mapping-file` option. It will apply the mapping in 
+reverse order (source becomes destination and vice versa).
+
 ## Notices
 
 CDK Notices are important messages regarding security vulnerabilities, regressions, and usage of unsupported

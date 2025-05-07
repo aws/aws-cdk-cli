@@ -419,8 +419,12 @@ export async function makeConfig(): Promise<CliConfig> {
           'mapping-file': {
             type: 'string',
             requiresArg: true,
-            // TODO write a proper description
-            desc: 'The mapping file',
+            desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+          },
+          'revert': {
+            type: 'boolean',
+            default: false,
+            desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
           },
         },
       },

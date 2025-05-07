@@ -29,5 +29,21 @@ export interface RefactorOptions {
    */
   exclude?: string[];
 
+  /**
+   * An explicit mapping to be used by the toolkit (as opposed to
+   * letting the toolkit itself compute the mapping). The `source`
+   * and `destination` properties are resource locations in the
+   * format `StackName.LogicalId`. The source must refer to a
+   * location where there is a resource currently deployed, while
+   * the destination must refer to a location that is not already
+   * occupied by any resource.
+   */
   mappings?: UserProvidedResourceMapping[];
+
+  /**
+   * Modifies the behavior of the 'mappings' option by swapping source and
+   * destination locations. This is useful when you want to undo a refactor
+   * that was previously applied.
+   */
+  revert?: boolean;
 }

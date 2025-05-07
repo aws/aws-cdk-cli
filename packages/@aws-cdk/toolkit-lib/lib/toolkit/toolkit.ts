@@ -63,7 +63,7 @@ import {
   formatTypedMappings,
   fromManifestAndExclusionList,
   resourceMappings,
-  useExplicitMappings,
+  useExplicitMappings, type UserProvidedResourceMapping,
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { ResourceMigrator } from '../api/resource-import';
@@ -978,6 +978,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
+    if (options.mappings && options.exclude) {
+      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
+    }
+
+    if (options.revert && !options.mappings) {
+      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
+    }
+
     if (!options.dryRun) {
       throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
     }
@@ -1001,6 +1009,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     async function getMappings(): Promise<ResourceMapping[]> {
+      if (options.revert != null) {
+        return useExplicitMappings(revert(options.mappings ?? []), sdkProvider);
+      }
       if (options.mappings != null) {
         return useExplicitMappings(options.mappings ?? [], sdkProvider);
       } else {
@@ -1015,6 +1026,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           throw new AmbiguityError(ambiguous);
         }
       }
+    }
+
+    function revert(mappings: UserProvidedResourceMapping[]): UserProvidedResourceMapping[] {
+      return mappings.map(m => ({
+        ...m,
+        source: m.destination,
+        destination: m.source,
+      }));
     }
   }
 

@@ -1382,6 +1382,11 @@ describe('environment grouping', () => {
 });
 
 describe(useExplicitMappings, () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    cloudFormationClient.reset();
+  });
+
   test('generates resource mappings', async () => {
     // GIVEN
     // A set of mappings that includes a source and destination stack
@@ -1659,7 +1664,7 @@ describe(useExplicitMappings, () => {
           StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Bar',
           StackStatus: 'CREATE_COMPLETE',
           CreationTime: new Date(),
-        }
+        },
       ],
     });
 

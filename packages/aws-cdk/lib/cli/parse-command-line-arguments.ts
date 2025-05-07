@@ -857,7 +857,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           requiresArg: true,
-          desc: 'The mapping file',
+          desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+        })
+        .option('revert', {
+          default: false,
+          type: 'boolean',
+          desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
         }),
     )
     .version(helpers.cliVersion())
