@@ -3,10 +3,8 @@ import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
-import { Mode } from '../../../api';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
 import type { Deployments } from '../../../api/deployments';
-import { detectStackDrift } from '../../../api/deployments/cfn-api';
 import type { TemplateInfo } from '../../../api/diff';
 import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
@@ -77,8 +75,6 @@ async function cfnDiff(
     const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
     const nestedStacks = templateWithNestedStacks.nestedStacks;
 
-    const driftResults = await collectDriftResults(stack, ioHelper, deployments, options, sdkProvider);
-
     const migrator = new ResourceMigrator({ deployments, ioHelper });
     const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
     if (resourcesToImport) {
@@ -101,7 +97,6 @@ async function cfnDiff(
       isImport: !!resourcesToImport,
       nestedStacks,
       changeSet,
-      driftResults,
     });
   }
 
@@ -153,30 +148,6 @@ async function changeSetDiff(
     await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`));
     return;
   }
-}
-
-/**
- * Collect drift detection results for a given CloudFormation stack
- */
-async function collectDriftResults(
-  stack: cxapi.CloudFormationStackArtifact,
-  ioHelper: IoHelper,
-  deployments: Deployments,
-  options: DiffOptions,
-  sdkProvider: SdkProvider,
-) {
-  if (!options.detectDrift) {
-    return undefined;
-  }
-
-  const env = await deployments.resolveEnvironment(stack);
-  const cfn = (await sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
-
-  return detectStackDrift(
-    cfn,
-    ioHelper,
-    stack.stackName,
-  );
 }
 
 /**

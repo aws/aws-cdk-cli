@@ -37,6 +37,7 @@ export enum Command {
   DOC = 'doc',
   DOCTOR = 'doctor',
   REFACTOR = 'refactor',
+  DRIFT = 'drift',
 }
 
 const BUNDLING_COMMANDS = [

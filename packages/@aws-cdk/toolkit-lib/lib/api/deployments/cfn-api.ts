@@ -518,7 +518,7 @@ async function waitForDriftDetection(
 ): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
   await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Waiting for drift detection %s to complete...', driftDetectionId)));
 
-  const timeout = 5_000; // if takes longer than 5s, fail
+  const timeout = 10_000; // if takes longer than 10s, fail
   const deadline = Date.now() + timeout;
 
   while (true) {

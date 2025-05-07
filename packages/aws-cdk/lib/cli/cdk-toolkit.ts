@@ -11,6 +11,7 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { type ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { detectStackDrift } from '../../../@aws-cdk/toolkit-lib/lib/api/deployments/cfn-api';
+import { DriftFormatter } from '../../../@aws-cdk/toolkit-lib/lib/api/drift';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -30,6 +31,7 @@ import { WorkGraphBuilder } from '../api/work-graph';
 import { asIoHelper, cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
+import type { DriftCommandOptions } from '../commands/drift';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -206,7 +208,6 @@ export class CdkToolkit {
     const quiet = options.quiet || false;
 
     let diffs = 0;
-    let drifts = 0;
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -256,8 +257,6 @@ export class CdkToolkit {
         );
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
-
-        const driftResults = await this.collectDriftResults(stack, options);
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
@@ -313,7 +312,6 @@ export class CdkToolkit {
             changeSet,
             isImport: !!resourcesToImport,
             nestedStacks,
-            driftResults,
           },
         });
 
@@ -331,21 +329,13 @@ export class CdkToolkit {
             context: contextLines,
             quiet,
           });
-          const drift = formatter.formatStackDrift({
-            quiet,
-          });
-          info(diff.formattedDiff + (options.detectDrift === true ? '\n' + drift.formattedDrift : ''));
+          info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
-          drifts = drift.numResourcesWithDrift;
         }
       }
     }
 
-    if (options.detectDrift) {
-      info(format('\n✨  Number of stacks with differences: %s\n✨  Number of resources with drift: %s\n', diffs, drifts));
-    } else {
-      info(format('\n✨  Number of stacks with differences: %s\n', diffs));
-    }
+    info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
     return diffs && options.fail ? 1 : 0;
   }
@@ -684,6 +674,45 @@ export class CdkToolkit {
       buildAsset,
       publishAsset,
     });
+  }
+
+  /**
+   * Detect infrastructure drift for the given stack(s)
+   */
+  public async drift(options: DriftCommandOptions): Promise<number> {
+    const stacks = await this.selectStacksForDrift(options.stackNames, options.exclusively);
+    const quiet = options.quiet || false;
+
+    let drifts = 0;
+
+    for (const stack of stacks.stackArtifacts) {
+      const driftResults = await this.detectDriftForStack(stack);
+
+      if (!driftResults) {
+        warning('%s: unable to detect drift', chalk.bold(stack.displayName));
+        continue;
+      }
+
+      const formatter = new DriftFormatter({
+        ioHelper: asIoHelper(this.ioHost, 'drift'),
+        stack,
+        driftResults,
+      });
+
+      const drift = formatter.formatStackDrift({ quiet });
+
+      if (!quiet) {
+        info(drift.formattedDrift);
+      }
+
+      drifts += drift.numResourcesWithDrift;
+    }
+
+    if (!quiet) {
+      info(format('\n✨  Number of resources with drift: %s\n', drifts));
+    }
+
+    return drifts > 0 && options.fail ? 1 : 0;
   }
 
   /**
@@ -1413,19 +1442,38 @@ export class CdkToolkit {
   }
 
   /**
-   * Collect drift detection results for a given CloudFormation stack
+   * Select stacks for drift detection
    */
-  private async collectDriftResults(stack: cxapi.CloudFormationStackArtifact, options: DiffOptions) {
-    if (!options.detectDrift) {
-      return undefined;
-    }
+  private async selectStacksForDrift(
+    stackNames: string[],
+    exclusively?: boolean,
+  ): Promise<StackCollection> {
+    const assembly = await this.assembly();
 
+    const selectedForDrift = await assembly.selectStacks(
+      { patterns: stackNames },
+      {
+        extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
+        defaultBehavior: DefaultSelection.MainAssembly,
+      },
+    );
+
+    this.validateStacksSelected(selectedForDrift, stackNames);
+    await this.validateStacks(selectedForDrift);
+
+    return selectedForDrift;
+  }
+
+  /**
+   * Detect drift for a single CloudFormation stack
+   */
+  private async detectDriftForStack(stack: cxapi.CloudFormationStackArtifact) {
     const env = await this.props.deployments.resolveEnvironment(stack);
     const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
 
     return detectStackDrift(
       cfn,
-      asIoHelper(this.ioHost, 'diff'),
+      asIoHelper(this.ioHost, 'drift'),
       stack.stackName,
     );
   }
@@ -1495,13 +1543,6 @@ export interface DiffOptions {
    * @default false
    */
   readonly securityOnly?: boolean;
-
-  /**
-   * Run drift detection on the stack as well
-   *
-   * @default false
-   */
-  readonly detectDrift?: boolean;
 
   /**
    * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed
@@ -1977,6 +2018,30 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   excludeFile?: string;
+}
+
+/**
+ * Options for the drift command
+ */
+export interface DriftOptions {
+  /**
+   * Stack names to check for drift
+   */
+  readonly stackNames: string[];
+
+  /**
+   * Run in quiet mode without printing status messages
+   *
+   * @default false
+   */
+  readonly quiet?: boolean;
+
+  /**
+   * Whether to fail with exit code 1 if drift is detected
+   *
+   * @default false
+   */
+  readonly fail?: boolean;
 }
 
 function buildParameterMap(

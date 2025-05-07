@@ -181,11 +181,18 @@ export function convertYargsToUserInput(args: any): UserInput {
         template: args.template,
         strict: args.strict,
         securityOnly: args.securityOnly,
-        detectDrift: args.detectDrift,
         fail: args.fail,
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
+        STACKS: args.STACKS,
+      };
+      break;
+
+    case 'drift':
+      commandOptions = {
+        fail: args.fail,
+        quiet: args.quiet,
         STACKS: args.STACKS,
       };
       break;
@@ -404,11 +411,14 @@ export function convertConfigToUserInput(config: any): UserInput {
     template: config.diff?.template,
     strict: config.diff?.strict,
     securityOnly: config.diff?.securityOnly,
-    detectDrift: config.diff?.detectDrift,
     fail: config.diff?.fail,
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
+  };
+  const driftOptions = {
+    fail: config.drift?.fail,
+    quiet: config.drift?.quiet,
   };
   const metadataOptions = {};
   const acknowledgeOptions = {};
@@ -458,6 +468,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     watch: watchOptions,
     destroy: destroyOptions,
     diff: diffOptions,
+    drift: driftOptions,
     metadata: metadataOptions,
     acknowledge: acknowledgeOptions,
     notices: noticesOptions,

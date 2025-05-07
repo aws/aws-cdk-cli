@@ -6,10 +6,8 @@ import {
   fullDiff,
   mangleLikeCloudFormation,
   type TemplateDiff,
-  formatStackDriftChanges,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates } from '../cloudformation';
@@ -46,21 +44,6 @@ interface FormatStackDiffOutput {
    * Complete formatted diff
    */
   readonly formattedDiff: string;
-}
-
-/**
- * Output of formatStackDrift
- */
-interface FormatStackDriftOutput {
-  /**
-   * Number of resources with drift
-   */
-  readonly numResourcesWithDrift: number;
-
-  /**
-   * Complete formatted drift
-   */
-  readonly formattedDrift: string;
 }
 
 /**
@@ -101,16 +84,6 @@ interface FormatStackDiffOptions {
    * silences \'There were no differences\' messages
    *
    * @default false
-   */
-  readonly quiet?: boolean;
-}
-
-/**
- * Properties specific to formatting the stack drift diff
- */
-interface FormatStackDriftOptions {
-  /**
-   * Silences 'There were no differences' messages
    */
   readonly quiet?: boolean;
 }
@@ -157,11 +130,6 @@ export interface TemplateInfo {
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
-
-  /**
-   * The results of stack drift
-   */
-  readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
 }
 
 /**
@@ -174,7 +142,6 @@ export class DiffFormatter {
   private readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
-  private readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
   private readonly isImport: boolean;
 
   /**
@@ -190,7 +157,6 @@ export class DiffFormatter {
     this.stackName = props.templateInfo.newTemplate.stackName;
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
-    this.driftResults = props.templateInfo.driftResults;
     this.isImport = props.templateInfo.isImport ?? false;
   }
 
@@ -362,38 +328,6 @@ export class DiffFormatter {
     // store the stream containing a formatted stack diff
     const formattedDiff = stream.toString();
     return { formattedDiff, permissionChangeType: this.permissionType() };
-  }
-
-  public formatStackDrift(options: FormatStackDriftOptions): FormatStackDriftOutput {
-    const stream = new StringWriteStream();
-    let driftCount = 0;
-
-    if (!this.driftResults?.StackResourceDrifts) {
-      stream.write('No drift results available. Run with --detect-drift to view drift detection.');
-      stream.end();
-      return { formattedDrift: stream.toString(), numResourcesWithDrift: -1 };
-    }
-
-    const drifts = this.driftResults.StackResourceDrifts.filter(d =>
-      d.StackResourceDriftStatus === 'MODIFIED' ||
-      d.StackResourceDriftStatus === 'DELETED',
-    );
-
-    if (drifts.length === 0 && !options.quiet) {
-      stream.write(chalk.green('No drift detected\n'));
-      stream.end();
-      return { formattedDrift: stream.toString(), numResourcesWithDrift: 0 };
-    }
-
-    driftCount = drifts.length;
-    formatStackDriftChanges(stream, this.driftResults, buildLogicalToPathMap(this.newTemplate));
-    stream.write(chalk.yellow(`\n${driftCount} resource${driftCount === 1 ? '' : 's'} ${driftCount === 1 ? 'has' : 'have'} drifted from their expected configuration\n`));
-    stream.end();
-
-    return {
-      formattedDrift: stream.toString(),
-      numResourcesWithDrift: driftCount,
-    };
   }
 }
 
