@@ -150,13 +150,12 @@
       "error",
       {
         "devDependencies": [
-          "**/projenrc/**",
-          "**/.projenrc.ts/**",
-          ".projenrc.ts",
-          "projenrc/**/*.ts"
+          "**/test/**",
+          "**/build-tools/**"
         ],
         "optionalDependencies": false,
-        "peerDependencies": true
+        "peerDependencies": true,
+        "includeTypes": true
       }
     ],
     "import/no-unresolved": [

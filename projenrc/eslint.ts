@@ -61,6 +61,20 @@ export const ESLINT_RULES = {
     },
   ],
 
+  //
+  'import/no-extraneous-dependencies': [
+    'error',
+    {
+      devDependencies: [
+        '**/test/**',
+        '**/build-tools/**',
+      ],
+      optionalDependencies: false,
+      peerDependencies: true,
+      includeTypes: true, // ensure type imports use a declared public dependency
+    },
+  ],
+
   // Cannot import from the same module twice
   // we prefer `import/no-duplicate` over `no-duplicate-imports` since the former can handle type imports
   'import/no-duplicates': 'error',
