@@ -3,8 +3,6 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
 import type {
   DescribeChangeSetCommandOutput,
-  DescribeStackDriftDetectionStatusCommandOutput,
-  DescribeStackResourceDriftsCommandOutput,
   Parameter,
   ResourceToImport,
   Tag,
@@ -466,78 +464,6 @@ export async function stabilizeStack(
 
     return stack;
   });
-}
-
-/**
- * Detect drift for a CloudFormation stack and wait for the detection to complete
- *
- * @param cfn        a CloudFormation client
- * @param ioHelper   helper for IO operations
- * @param stackName  the name of the stack to check for drift
- *
- * @returns     the CloudFormation description of the drift detection results
- */
-export async function detectStackDrift(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
-  stackName: string,
-): Promise<DescribeStackResourceDriftsCommandOutput> {
-  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Starting drift detection for stack %s...', stackName)));
-
-  // Start drift detection
-  const driftDetection = await cfn.detectStackDrift({
-    StackName: stackName,
-  });
-
-  // Wait for drift detection to complete
-  const driftStatus = await waitForDriftDetection(cfn, ioHelper, driftDetection.StackDriftDetectionId!);
-
-  if (!driftStatus) {
-    throw new ToolkitError('Drift detection took too long to complete. Aborting');
-  }
-
-  if (driftStatus?.DetectionStatus === 'DETECTION_FAILED') {
-    throw new ToolkitError(
-      `Failed to detect drift for stack ${stackName}: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
-    );
-  }
-
-  // Get the drift results
-  return cfn.describeStackResourceDrifts({
-    StackName: stackName,
-  });
-}
-
-/**
- * Wait for a drift detection operation to complete
- */
-async function waitForDriftDetection(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
-  driftDetectionId: string,
-): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
-  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Waiting for drift detection %s to complete...', driftDetectionId)));
-
-  const timeout = 10_000; // if takes longer than 10s, fail
-  const deadline = Date.now() + timeout;
-
-  while (true) {
-    const response = await cfn.describeStackDriftDetectionStatus({
-      StackDriftDetectionId: driftDetectionId,
-    });
-
-    if (response.DetectionStatus === 'DETECTION_COMPLETE') {
-      return response;
-    }
-
-    if (response.DetectionStatus === 'DETECTION_FAILED') {
-      throw new ToolkitError(`Drift detection failed: ${response.DetectionStatusReason}`);
-    }
-
-    if (Date.now() > deadline) {
-      throw new ToolkitError(`Drift detection failed: Timed out after ${timeout / 1000} seconds.`);
-    }
-  }
 }
 
 /**
