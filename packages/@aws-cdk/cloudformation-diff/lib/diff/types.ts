@@ -5,7 +5,7 @@ import { deepEqual, loadResourceModel } from './util';
 import { IamChanges } from '../iam/iam-changes';
 import { SecurityGroupChanges } from '../network/security-group-changes';
 
-export type PropertyMap = {[key: string]: any };
+export type PropertyMap = { [key: string]: any };
 
 export type ChangeSetResources = { [logicalId: string]: ChangeSetResource };
 
@@ -28,7 +28,7 @@ export type PropertyReplacementModeMap = {
   [propertyName: string]: {
     replacementMode: ReplacementModes | undefined;
   };
-}
+};
 
 /**
  * 'Always' means that changing the corresponding property will always cause a resource replacement. Never means never. Conditionally means maybe.
@@ -741,7 +741,7 @@ export function isPropertyDifference<T>(diff: Difference<T>): diff is PropertyDi
 /**
  * Filter a map of IDifferences down to only retain the actual changes
  */
-function onlyChanges<V, T extends IDifference<V>>(xs: {[key: string]: T}): {[key: string]: T} {
+function onlyChanges<V, T extends IDifference<V>>(xs: { [key: string]: T }): { [key: string]: T } {
   const ret: { [key: string]: T } = {};
   for (const [key, diff] of Object.entries(xs)) {
     if (diff.isDifferent) {

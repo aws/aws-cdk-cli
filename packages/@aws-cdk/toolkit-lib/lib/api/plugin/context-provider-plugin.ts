@@ -1,5 +1,5 @@
 export interface ContextProviderPlugin {
-  getValue(args: {[key: string]: any}): Promise<any>;
+  getValue(args: { [key: string]: any }): Promise<any>;
 }
 
 export function isContextProviderPlugin(x: unknown): x is ContextProviderPlugin {

@@ -10,7 +10,7 @@ export async function replaceEnvPlaceholders<A extends Record<string, string | u
   object: A,
   env: Environment,
   sdkProvider: SdkProvider,
-): Promise<{[k in keyof A]: StringWithoutPlaceholders | undefined}> {
+): Promise<{ [k in keyof A]: StringWithoutPlaceholders | undefined }> {
   return EnvironmentPlaceholders.replaceAsync(object, {
     accountId: () => Promise.resolve(env.account),
     region: () => Promise.resolve(env.region),

@@ -149,7 +149,7 @@ export type PrepareChangeSetOptions = {
    * @default false
    */
   failOnError?: boolean;
-}
+};
 
 export type CreateChangeSetOptions = {
   cfn: ICloudFormationClient;

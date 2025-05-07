@@ -21,7 +21,7 @@
  * }
  * ```
  */
-export function getResultObj(jsonObject: any, identifier: string, propertiesToReturn: string[]): {[key: string]: any} {
+export function getResultObj(jsonObject: any, identifier: string, propertiesToReturn: string[]): { [key: string]: any } {
   const propsObj = {};
   propertiesToReturn.forEach((propName) => {
     Object.assign(propsObj, { [propName]: findJsonValue(jsonObject, propName) });

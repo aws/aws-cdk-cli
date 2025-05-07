@@ -68,7 +68,7 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
     }
   }
 
-  public start({ stack }: { stack: CloudFormationStackArtifact}) {
+  public start({ stack }: { stack: CloudFormationStackArtifact }) {
     this.resourceTypeColumnWidth = maxResourceTypeLength(stack.template);
   }
 

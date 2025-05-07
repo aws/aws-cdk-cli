@@ -21,7 +21,7 @@ import { ContextProviderError } from '../toolkit/toolkit-error';
 import { formatErrorMessage } from '../util';
 
 type ContextProviderFactory = ((sdk: SdkProvider, io: IContextProviderMessages) => ContextProviderPlugin);
-type ProviderMap = {[name: string]: ContextProviderFactory};
+type ProviderMap = { [name: string]: ContextProviderFactory };
 
 const PLUGIN_PROVIDER_PREFIX = 'plugin';
 

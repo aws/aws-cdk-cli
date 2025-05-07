@@ -468,7 +468,7 @@ type NonNullableKeys<T> = {
   [P in keyof T as undefined extends T[P] ? P : never]?: NonNullable<T[P]>
 } & {
   [P in keyof T as undefined extends T[P] ? never : P]: T[P]
-}
+};
 
 // RootPath is always reversed (i.e. closest first)
 type RootPath = Array<[string, PackageLockTree]>;
