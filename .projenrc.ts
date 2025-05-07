@@ -812,7 +812,7 @@ const toolkitLib = configureProject(
         module: 'NodeNext',
       },
     },
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 
