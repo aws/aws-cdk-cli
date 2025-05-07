@@ -13,7 +13,7 @@ import type { CloudFormationStack } from './cloudformation';
 import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 import { NeverExclude, type ExcludeList } from './exclude';
-import { ToolkitError } from '../toolkit-error';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export * from './exclude';
 
