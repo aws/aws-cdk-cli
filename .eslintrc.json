@@ -49,86 +49,78 @@
     "!projenrc/**/*.ts"
   ],
   "rules": {
-    "indent": [
-      "off"
-    ],
     "@stylistic/indent": [
       "error",
       2
     ],
-    "quotes": [
+    "@stylistic/quotes": [
       "error",
       "single",
       {
         "avoidEscape": true
       }
     ],
-    "comma-dangle": [
+    "@stylistic/comma-dangle": [
       "error",
       "always-multiline"
     ],
-    "comma-spacing": [
+    "@stylistic/comma-spacing": [
       "error",
       {
         "before": false,
         "after": true
       }
     ],
-    "no-multi-spaces": [
+    "@stylistic/no-multi-spaces": [
       "error",
       {
         "ignoreEOLComments": false
       }
     ],
-    "array-bracket-spacing": [
+    "@stylistic/array-bracket-spacing": [
       "error",
       "never"
     ],
-    "array-bracket-newline": [
+    "@stylistic/array-bracket-newline": [
       "error",
       "consistent"
     ],
-    "object-curly-spacing": [
+    "@stylistic/object-curly-spacing": [
       "error",
       "always"
     ],
-    "object-curly-newline": [
+    "@stylistic/object-curly-newline": [
       "error",
       {
         "multiline": true,
         "consistent": true
       }
     ],
-    "object-property-newline": [
+    "@stylistic/object-property-newline": [
       "error",
       {
         "allowAllPropertiesOnSameLine": true
       }
     ],
-    "keyword-spacing": [
+    "@stylistic/keyword-spacing": [
       "error"
     ],
-    "brace-style": [
+    "@stylistic/brace-style": [
       "error",
       "1tbs",
       {
         "allowSingleLine": true
       }
     ],
-    "space-before-blocks": "error",
-    "curly": [
-      "error",
-      "multi-line",
-      "consistent"
-    ],
+    "@stylistic/space-before-blocks": "error",
     "@stylistic/member-delimiter-style": [
       "error"
     ],
-    "semi": [
+    "@stylistic/semi": [
       "error",
       "always"
     ],
-    "max-len": [
+    "@stylistic/max-len": [
       "error",
       {
         "code": 150,
@@ -139,13 +131,28 @@
         "ignoreRegExpLiterals": true
       }
     ],
-    "quote-props": [
+    "@stylistic/quote-props": [
       "error",
       "consistent-as-needed"
     ],
-    "@typescript-eslint/no-require-imports": [
+    "@stylistic/key-spacing": [
       "error"
     ],
+    "@stylistic/no-multiple-empty-lines": [
+      "error",
+      {
+        "max": 1
+      }
+    ],
+    "@stylistic/no-trailing-spaces": [
+      "error"
+    ],
+    "curly": [
+      "error",
+      "multi-line",
+      "consistent"
+    ],
+    "@typescript-eslint/no-require-imports": "error",
     "import/no-extraneous-dependencies": [
       "error",
       {
@@ -179,26 +186,12 @@
     "no-shadow": [
       "off"
     ],
-    "@typescript-eslint/no-shadow": [
-      "error"
+    "@typescript-eslint/no-shadow": "error",
+    "@typescript-eslint/no-floating-promises": "error",
+    "no-return-await": [
+      "off"
     ],
-    "key-spacing": [
-      "error"
-    ],
-    "no-multiple-empty-lines": [
-      "error",
-      {
-        "max": 1
-      }
-    ],
-    "@typescript-eslint/no-floating-promises": [
-      "error"
-    ],
-    "no-return-await": "off",
     "@typescript-eslint/return-await": "error",
-    "no-trailing-spaces": [
-      "error"
-    ],
     "dot-notation": [
       "error"
     ],
@@ -221,6 +214,26 @@
         ]
       }
     ],
+    "@cdklabs/promiseall-no-unbounded-parallelism": [
+      "error"
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
+        "message": "Use the md5hash() function from the core library if you want md5"
+      }
+    ],
+    "no-throw-literal": [
+      "error"
+    ],
+    "no-console": [
+      "error"
+    ],
+    "@cdklabs/no-invalid-path": [
+      "error"
+    ],
+    "@typescript-eslint/unbound-method": "error",
     "@cdklabs/no-core-construct": [
       "error"
     ],
@@ -230,18 +243,20 @@
     "@cdklabs/no-literal-partition": [
       "error"
     ],
-    "@cdklabs/no-invalid-path": [
-      "error"
-    ],
-    "@cdklabs/promiseall-no-unbounded-parallelism": [
-      "error"
-    ],
-    "no-throw-literal": [
-      "error"
-    ],
-    "@stylistic/comma-dangle": [
+    "@typescript-eslint/consistent-type-imports": "error",
+    "no-restricted-imports": [
       "error",
-      "always-multiline"
+      {
+        "paths": [
+          {
+            "name": "punycode",
+            "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
+          }
+        ],
+        "patterns": [
+          "!punycode/"
+        ]
+      }
     ],
     "@stylistic/no-extra-semi": [
       "error"
@@ -250,7 +265,7 @@
       "error",
       "always"
     ],
-    "eol-last": [
+    "@stylistic/eol-last": [
       "error",
       "always"
     ],
@@ -287,32 +302,6 @@
     "jsdoc/check-alignment": [
       "error"
     ],
-    "no-restricted-imports": [
-      "error",
-      {
-        "paths": [
-          {
-            "name": "punycode",
-            "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
-          }
-        ],
-        "patterns": [
-          "!punycode/"
-        ]
-      }
-    ],
-    "@typescript-eslint/consistent-type-imports": "error",
-    "no-console": [
-      "error"
-    ],
-    "no-restricted-syntax": [
-      "error",
-      {
-        "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
-        "message": "Use the md5hash() function from the core library if you want md5"
-      }
-    ],
-    "@typescript-eslint/unbound-method": "error",
     "jest/expect-expect": "off",
     "jest/no-conditional-expect": "off",
     "jest/no-done-callback": "off",
