@@ -24,9 +24,24 @@ export * from './exclude';
  */
 export type ResourceMovement = [ResourceLocation[], ResourceLocation[]];
 
+/**
+ * Explicit mapping of a resource from one location to another, within a
+ * given environment.
+ */
 export interface UserProvidedResourceMapping {
+  /**
+   * The source resource location, in the format `StackName.LogicalId`.
+   */
   source: string;
+
+  /**
+   * The destination resource location, in the format `StackName.LogicalId`.
+   */
   destination: string;
+
+  /**
+   * The environment in which the mapping is valid.
+   */
   environment: cxapi.Environment;
 }
 

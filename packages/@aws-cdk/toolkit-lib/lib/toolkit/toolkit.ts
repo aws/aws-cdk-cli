@@ -1015,7 +1015,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     async function getMappings(): Promise<ResourceMapping[]> {
-      if (options.revert != null) {
+      if (options.revert) {
         return useExplicitMappings(revert(options.mappings ?? []), sdkProvider);
       }
       if (options.mappings != null) {
