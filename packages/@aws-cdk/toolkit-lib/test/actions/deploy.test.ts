@@ -5,6 +5,8 @@ import { RequireApproval } from '../../lib/api/require-approval';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
+jest.setTimeout(10_000);
+
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOptions]>;
@@ -53,6 +55,18 @@ describe('deploy', () => {
     await toolkit.deploy(cx);
 
     // THEN
+    const request = ioHost.requestSpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    // Message includes formatted security diff
+    expect(request).toContain(`Stack Stack1
+IAM Statement Changes
+┌───┬─────────────┬────────┬────────────────┬───────────┬───────────┐
+│   │ Resource    │ Effect │ Action         │ Principal │ Condition │
+├───┼─────────────┼────────┼────────────────┼───────────┼───────────┤
+│ + │ $\{Role.Arn\} │ Allow  │ sts:AssumeRole │ AWS:arn   │           │
+└───┴─────────────┴────────┴────────────────┴───────────┴───────────┘
+`);
+    // Request response returns template diff
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'deploy',
       level: 'info',
@@ -61,6 +75,20 @@ describe('deploy', () => {
       data: expect.objectContaining({
         motivation: expect.stringContaining('stack includes security-sensitive updates.'),
         permissionChangeType: 'broadening',
+        templateDiffs: expect.objectContaining({
+          Stack1: expect.objectContaining({
+            resources: expect.objectContaining({
+              diffs: expect.objectContaining({
+                Role1ABCC5F0: expect.objectContaining({
+                  newValue: expect.objectContaining({
+                    Type: 'AWS::IAM::Role',
+                    Properties: expect.anything(),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
       }),
     }));
   });

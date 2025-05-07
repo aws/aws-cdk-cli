@@ -4,10 +4,10 @@ import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } f
 import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import type { AffectedResource, ResourceChange } from '../../payloads/hotswap';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth/private';
 import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../cloudformation';
-import { ToolkitError } from '../toolkit-error';
 
 // namespace object imports won't work in the bundle for function exports
 // eslint-disable-next-line @typescript-eslint/no-require-imports

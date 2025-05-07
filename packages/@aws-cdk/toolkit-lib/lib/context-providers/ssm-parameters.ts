@@ -3,7 +3,7 @@ import type { GetParameterCommandOutput } from '@aws-sdk/client-ssm';
 import type { IContextProviderMessages } from '.';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/private';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../api/toolkit-error';
+import { ContextProviderError } from '../toolkit/toolkit-error';
 
 /**
  * Plugin to read arbitrary SSM parameter names

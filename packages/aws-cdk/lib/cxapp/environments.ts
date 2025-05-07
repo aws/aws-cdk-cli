@@ -1,6 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import { minimatch } from 'minimatch';
-import { ToolkitError } from '../api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import type { SdkProvider, StackCollection } from '../api';
 
 export function looksLikeGlob(environment: string) {

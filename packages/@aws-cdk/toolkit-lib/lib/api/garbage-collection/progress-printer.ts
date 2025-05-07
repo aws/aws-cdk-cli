@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import type { GcAsset as GCAsset } from './garbage-collector';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
-import { ToolkitError } from '../toolkit-error';
 
 export class ProgressPrinter {
   private ioHelper: IoHelper;

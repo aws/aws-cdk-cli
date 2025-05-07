@@ -80,6 +80,13 @@ export interface AssemblySourceProps {
    * Options to configure loading of the assembly after it has been synthesized
    */
   readonly loadAssemblyOptions?: LoadAssemblyOptions;
+
+  /**
+   * Delete the `outdir` when the assembly is disposed
+   *
+   * @default - `true` if `outdir` is not given, `false` otherwise
+   */
+  readonly disposeOutdir?: boolean;
 }
 
 /**

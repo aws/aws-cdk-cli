@@ -10,7 +10,7 @@ import type { LoadBalancer, Listener, TagDescription } from '@aws-sdk/client-ela
 import type { IElasticLoadBalancingV2Client, SdkProvider } from '../api/aws-auth/private';
 import { initContextProviderSdk } from '../api/aws-auth/private';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../api/toolkit-error';
+import { ContextProviderError } from '../toolkit/toolkit-error';
 
 /**
  * Provides load balancer context information.

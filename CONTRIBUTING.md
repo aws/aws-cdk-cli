@@ -47,20 +47,7 @@ This will build and unit test all packages.
 
 ## Integration tests
 
-Integration tests for this package are in a separate repository. They can be found here:
-
-<https://github.com/aws/aws-cdk-cli-testing>
-
-To make a change that involves the integration tests, make sure you have this package checked out.
-
-Run the tests locally by doing the following:
-
-```shell
-$ cd /path/to/aws-cdk-cli-testing/packages/@aws-cdk-testing/cli-integ
-$ bin/run-suite -s ../../../../aws-cdk-cli cli-integ-tests -t 'TEST NAME'
-```
-
-`-s` points to the root of the `aws-cdk-cli` repository.
+See [CDK CLI integration test](./packages/@aws-cdk-testing/cli-integ/README.md)
 
 ### Submitting a PR that involves changes to integration tests
 

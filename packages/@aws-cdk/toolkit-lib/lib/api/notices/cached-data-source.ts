@@ -1,5 +1,6 @@
 import * as fs from 'fs-extra';
 import type { Notice, NoticeDataSource } from './types';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { IoDefaultMessages } from '../io/private';
 
 interface CachedNotices {
@@ -15,7 +16,8 @@ export class CachedDataSource implements NoticeDataSource {
     private readonly ioMessages: IoDefaultMessages,
     private readonly fileName: string,
     private readonly dataSource: NoticeDataSource,
-    private readonly skipCache?: boolean) {
+    private readonly skipCache?: boolean,
+  ) {
   }
 
   async fetch(): Promise<Notice[]> {
@@ -24,9 +26,21 @@ export class CachedDataSource implements NoticeDataSource {
     const expiration = cachedData.expiration ?? 0;
 
     if (Date.now() > expiration || this.skipCache) {
-      const freshData = await this.fetchInner();
-      await this.save(freshData);
-      return freshData.notices;
+      let updatedData: CachedNotices = cachedData;
+
+      try {
+        updatedData = await this.fetchInner();
+      } catch (e) {
+        this.ioMessages.debug(`Could not refresh notices: ${e}`);
+        updatedData = {
+          expiration: Date.now() + TIME_TO_LIVE_ERROR,
+          notices: [],
+        };
+        throw ToolkitError.withCause('Failed to load CDK notices. Please try again later.', e);
+      } finally {
+        await this.save(updatedData);
+      }
+      return updatedData.notices;
     } else {
       this.ioMessages.debug(`Reading cached notices from ${this.fileName}`);
       return data;
@@ -34,18 +48,10 @@ export class CachedDataSource implements NoticeDataSource {
   }
 
   private async fetchInner(): Promise<CachedNotices> {
-    try {
-      return {
-        expiration: Date.now() + TIME_TO_LIVE_SUCCESS,
-        notices: await this.dataSource.fetch(),
-      };
-    } catch (e) {
-      this.ioMessages.debug(`Could not refresh notices: ${e}`);
-      return {
-        expiration: Date.now() + TIME_TO_LIVE_ERROR,
-        notices: [],
-      };
-    }
+    return {
+      expiration: Date.now() + TIME_TO_LIVE_SUCCESS,
+      notices: await this.dataSource.fetch(),
+    };
   }
 
   private async load(): Promise<CachedNotices> {

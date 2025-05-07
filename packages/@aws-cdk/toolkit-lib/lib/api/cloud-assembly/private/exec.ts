@@ -1,7 +1,7 @@
 import * as child_process from 'node:child_process';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
-import { ToolkitError } from '../../shared-public';
+import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 
@@ -57,7 +57,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       if (code === 0) {
         return ok();
       } else {
-        return fail(new ToolkitError(`Subprocess exited with error ${code}`));
+        return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
       }
     });
   });

@@ -4,7 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as semver from 'semver';
 import * as sinon from 'sinon';
 import { ImportMock } from 'ts-mock-imports';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import { RWLock } from '../../lib/api/rwlock';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { execProgram } from '../../lib/cxapp/exec';
@@ -226,7 +226,7 @@ test('cli throws when the `build` script fails', async () => {
   });
 
   // WHEN
-  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new Error('Subprocess exited with error 127'));
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toThrow(/Subprocess exited with error 127/);
 }, TEN_SECOND_TIMEOUT);
 
 test('cli does not throw when the `build` script succeeds', async () => {

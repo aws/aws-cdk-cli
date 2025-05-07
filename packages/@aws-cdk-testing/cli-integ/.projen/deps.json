@@ -1,6 +1,10 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/toolkit-lib",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/yarn-cling",
       "type": "build"
     },
@@ -39,7 +43,7 @@
     },
     {
       "name": "@types/yargs",
-      "version": "^15",
+      "version": "^16",
       "type": "build"
     },
     {
@@ -117,6 +121,10 @@
       "name": "typescript",
       "version": "5.6",
       "type": "build"
+    },
+    {
+      "name": "@aws-cdk/toolkit-lib",
+      "type": "optional"
     },
     {
       "name": "@aws-sdk/client-cloudformation",
@@ -278,7 +286,7 @@
     },
     {
       "name": "yargs",
-      "version": "^17",
+      "version": "^16",
       "type": "runtime"
     }
   ],

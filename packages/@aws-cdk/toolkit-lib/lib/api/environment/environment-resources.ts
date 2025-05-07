@@ -1,9 +1,9 @@
 import type { Environment } from '@aws-cdk/cx-api';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth/private';
 import { IO, type IoHelper } from '../io/private';
 import { Notices } from '../notices';
-import { ToolkitError } from '../toolkit-error';
 import { type EcrRepositoryInfo, ToolkitInfo } from '../toolkit-info';
 
 /**

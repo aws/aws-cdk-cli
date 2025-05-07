@@ -35,15 +35,68 @@ Each subdirectory contains one test **suite**, and in the development pipeline e
 
 Test suites are written as a collection of Jest tests, and they are run using Jest, using the code in the `lib/` directory as helpers.
 
-### Setup
+### Components under test
 
-Building the @aws-cdk-testing package is not very different from building the rest of the CDK. However, If you are having issues with the tests, you can ensure your environment is built properly by following the steps below:
+The tests have their own version, and can test other components at multiple versions. The following components can be injected,
+and will default to the latest published version if not supplied.
+
+Because many tests are very different, there is no generalized mechanism to
+inject these dependencies into tests. Users can specify component versions, but
+Test Authors are responsible for taking these parameters and using it to set up
+the right environment for the tests.
+
+| Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                             |
+|-----------------------|--------------------------------------|-------------|----------------------------|-----------------------------------------------|
+| CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir.     |
+| CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                               |
+|                       | `--cli-source=ROOT` or `auto`        | Auto source |                            | Add `<ROOT>/packages/aws-cdk/bin` to `$PATH`. |
+| Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing
+
+### Running a test suite
+
+You run a suite using the `bin/run-suite` tool. You must select either a version of the CLI and framework which can be `npm install`ed, or point to the root of the source tree:
 
 ```shell
-yarn install # Install dependencies
-npx lerna run build --scope=aws-cdk # Build the CDK cli
-yarn build # Build the @aws-cdk-testing/cli-integ package
-../../../scripts/align-version.sh # Align the versions of CDK packages
+# Automatically determine the source tree root
+$ bin/run-suite <SUITE_NAME>
+
+# Use the CLI from the given repo
+$ bin/run-suite --cli-source=/path/to/repo-root <SUITE_NAME>
+
+# Run against a released version
+$ bin/run-suite --cli-version=2.34.5 <SUITE_NAME>
+
+# Run against a specific framework version
+$ bin/run-suite --framework-version=2.34.5 <SUITE_NAME>
+```
+
+To run a specific test, add `-t` and a substring of the test name. For example:
+
+```shell
+bin/run-suite -a cli-integ-tests -t 'load old assemblies'
+```
+
+### Running a test suite against binaries
+
+The test suites that run the "init tests" require actual packages staged in CodeArtifact repositories to run. This requires you to do a full build, then create a CodeArtifact repository in your own account, uploading the packages there, and then running the tests in a shell configured to have NPM, Pip, Maven etc look for those packages in CodeArtifact.
+
+```shell
+# Build and pack all of CDK (in the `aws-cdk` repo, will take ~an hour)
+$ ./build.sh
+$ ./pack.sh
+
+# Use publib to upload to CodeArtifact
+$ npm install -g publib
+# publib-ca is a CLI tool that comes with publib
+$ publib-ca create
+$ publib-ca publish /path/to/dist
+
+# Run the tests against those repositories (may need to substitute 0.0.0 w/ local number)
+$ source ~/.publib-ca/usage/activate.bash
+$ bin/run-suite --use-cli-release=0.0.0 <SUITE_NAME>
+
+# Clean up
+$ publib-ca delete
 ```
 
 ### Running tests with debugger
@@ -70,50 +123,6 @@ yarn build # Build the @aws-cdk-testing/cli-integ package
 1. Assuming you checked out the `aws-cdk` repository in your `~` directory, use the above `launch.json`.
 2. In the `"args"` value after `"-t"`, place the name of the test that you'd like to run.
 3. Press the VS code green arrow to launch the debugger.
-
-### Running a test suite
-
-You run a suite using the `bin/run-suite` tool. You must select either a version of the CLI and framework which can be `npm install`ed, or point to the root of the source tree:
-
-```shell
-# Use the given source tree
-$ bin/run-suite --use-source=/path/to/repo-root <SUITE_NAME>
-
-# Automatically determine the source tree root
-$ bin/run-suite -a <SUITE_NAME>
-
-# Run against a released version
-$ bin/run-suite --use-cli-release=2.34.5 <SUITE_NAME>
-```
-
-To run a specific test, add `-t` and a substring of the test name. For example:
-
-```shell
-bin/run-suite -a cli-integ-tests -t 'load old assemblies'
-```
-
-### Running a test suite against binaries
-
-Some test suites require package binaries stages in CodeArtifact repositories to run. This requires you to do a full build, then create a CodeArtifact repository in your own account, uploading the packages there, and then running the tests in a shell configured to have NPM, Pip, Maven etc look for those packages in CodeArtifact.
-
-```shell
-# Build and pack all of CDK (will take ~an hour)
-$ ./build.sh
-$ ./pack.sh
-
-# Use publib to upload to CodeArtifact
-$ npm install -g publib
-# publib-ca is a CLI tool that comes with publib
-$ publib-ca create
-$ publib-ca publish /path/to/dist
-
-# Run the tests against those repositories (may need to substitute 0.0.0 w/ local number)
-$ source ~/.publib-ca/usage/activate.bash
-$ bin/run-suite --use-cli-release=0.0.0 <SUITE_NAME>
-
-# Clean up
-$ publib-ca delete
-```
 
 ## Tools
 
