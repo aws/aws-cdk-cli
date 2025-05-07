@@ -579,7 +579,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             usePreviousParameters: options.parameters?.keepExistingParameters,
             rollback,
             hotswap: hotswapMode,
-            hotswapOperationOptions: options.hotswapOperationOptions,
             extraUserAgent: options.extraUserAgent,
             hotswapPropertyOverrides: options.hotswapProperties ? createHotswapPropertyOverrides(options.hotswapProperties) : undefined,
             assetParallelism: options.assetParallelism,

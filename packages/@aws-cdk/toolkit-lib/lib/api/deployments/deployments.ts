@@ -30,7 +30,7 @@ import {
   makeBodyParameter,
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
-import type { HotswapMode, HotswapOperationOptions, HotswapPropertyOverrides } from '../hotswap/common';
+import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
 import { IO, type IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
@@ -144,13 +144,6 @@ export interface DeployStackOptions {
    * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
    */
   readonly hotswap?: HotswapMode;
-
-  /**
-   * Additional operation options.
-   *
-   * @default - operation dependant
-   */
-  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * Properties that configure hotswap behavior
@@ -443,7 +436,6 @@ export class Deployments {
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
       hotswap: options.hotswap,
-      hotswapOperationOptions: options.hotswapOperationOptions,
       hotswapPropertyOverrides: options.hotswapPropertyOverrides,
       extraUserAgent: options.extraUserAgent,
       resourcesToImport: options.resourcesToImport,

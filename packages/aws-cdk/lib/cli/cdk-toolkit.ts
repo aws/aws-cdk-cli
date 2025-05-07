@@ -9,8 +9,8 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
+import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib';
 import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import type { HotswapOperationOptions, ToolkitAction } from '../../../@aws-cdk/toolkit-lib';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -390,6 +390,7 @@ export class CdkToolkit {
     hotswapPropertyOverrides.ecsHotswapProperties = new EcsHotswapProperties(
       hotswapPropertiesFromSettings.ecs?.minimumHealthyPercent,
       hotswapPropertiesFromSettings.ecs?.maximumHealthyPercent,
+      hotswapPropertiesFromSettings.ecs?.stabilizationTimeoutSeconds,
     );
 
     const stacks = stackCollection.stackArtifacts;
@@ -521,7 +522,6 @@ export class CdkToolkit {
             usePreviousParameters: options.usePreviousParameters,
             rollback,
             hotswap: options.hotswap,
-            hotswapOperationOptions: options.hotswapOperationOptions,
             hotswapPropertyOverrides: hotswapPropertyOverrides,
             extraUserAgent: options.extraUserAgent,
             assetParallelism: options.assetParallelism,
@@ -1580,13 +1580,6 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
    * @default - `HotswapMode.FALL_BACK` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
    */
   readonly hotswap: HotswapMode;
-
-  /**
-   * Additional operation options.
-   *
-   * @default - operation dependant
-   */
-  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.

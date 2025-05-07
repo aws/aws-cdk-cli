@@ -1,6 +1,5 @@
 import type { DeploymentMethod, DeployOptions, HotswapMode } from '..';
 import type { StackSelector } from '../../../api/cloud-assembly';
-import type { HotswapOperationOptions } from '../../../api/hotswap/common';
 import type { CloudWatchLogEventMonitor } from '../../../api/logs-monitor/logs-monitor';
 
 export interface BaseDeployOptions {
@@ -36,13 +35,6 @@ export interface BaseDeployOptions {
    * @default - no hotswap
    */
   readonly hotswap?: HotswapMode;
-
-  /**
-   * Additional operation options.
-   *
-   * @default - operation dependant
-   */
-  readonly hotswapOperationOptions?: HotswapOperationOptions;
 
   /**
    * Rollback failed deployments

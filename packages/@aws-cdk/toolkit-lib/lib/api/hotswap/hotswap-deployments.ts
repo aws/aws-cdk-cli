@@ -16,7 +16,6 @@ import type {
   HotswapOperation,
   RejectedChange,
   HotswapPropertyOverrides,
-  HotswapOperationOptions,
 } from './common';
 import {
   ICON,
@@ -94,7 +93,6 @@ export async function tryHotswapDeployment(
   stackArtifact: cxapi.CloudFormationStackArtifact,
   hotswapMode: HotswapMode,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-  hotswapOperationOptions?: HotswapOperationOptions,
 ): Promise<SuccessfulDeployStackResult | undefined> {
   const hotswapSpan = await ioHelper.span(SPAN.HOTSWAP).begin({
     stack: stackArtifact,
@@ -108,7 +106,6 @@ export async function tryHotswapDeployment(
     stackArtifact,
     hotswapMode,
     hotswapPropertyOverrides,
-    hotswapOperationOptions,
   );
 
   await hotswapSpan.end(result);
@@ -136,7 +133,6 @@ async function hotswapDeployment(
   stack: cxapi.CloudFormationStackArtifact,
   hotswapMode: HotswapMode,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-  hotswapOperationOptions?: HotswapOperationOptions,
 ): Promise<Omit<HotswapResult, 'duration'>> {
   // resolve the environment, so we can substitute things like AWS::Region in CFN expressions
   const resolvedEnv = await sdkProvider.resolveEnvironment(stack.environment);
@@ -190,7 +186,7 @@ async function hotswapDeployment(
   }
 
   // apply the short-circuitable changes
-  await applyAllHotswapOperations(sdk, ioSpan, hotswappable, hotswapOperationOptions);
+  await applyAllHotswapOperations(sdk, ioSpan, hotswappable);
 
   return {
     stack,
@@ -499,7 +495,7 @@ function isCandidateForHotswapping(
 }
 
 async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>,
-  hotswappableChanges: HotswapOperation[], hotswapOperationOptions?: HotswapOperationOptions): Promise<void[]> {
+  hotswappableChanges: HotswapOperation[]): Promise<void[]> {
   if (hotswappableChanges.length === 0) {
     return Promise.resolve([]);
   }
@@ -508,12 +504,12 @@ async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>,
   const limit = pLimit(10);
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(hotswappableChanges.map(hotswapOperation => limit(() => {
-    return applyHotswapOperation(sdk, ioSpan, hotswapOperation, hotswapOperationOptions);
+    return applyHotswapOperation(sdk, ioSpan, hotswapOperation);
   })));
 }
 
 async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>,
-  hotswapOperation: HotswapOperation, hotswapOperationOptions?: HotswapOperationOptions): Promise<void> {
+  hotswapOperation: HotswapOperation): Promise<void> {
   // note the type of service that was successfully hotswapped in the User-Agent
   const customUserAgent = `cdk-hotswap/success-${hotswapOperation.service}`;
   sdk.appendCustomUserAgent(customUserAgent);
@@ -527,7 +523,7 @@ async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>,
   // if the SDK call fails, an error will be thrown by the SDK
   // and will prevent the green 'hotswapped!' text from being displayed
   try {
-    await hotswapOperation.apply(sdk, hotswapOperationOptions);
+    await hotswapOperation.apply(sdk);
   } catch (e: any) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       const result: WaiterResult = JSON.parse(formatErrorMessage(e));

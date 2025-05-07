@@ -6,19 +6,6 @@ import type { SDK } from '../aws-auth/private';
 
 export const ICON = '✨';
 
-/**
- * Options for a single hotswap operation.
- */
-export interface HotswapOperationOptions {
-  /**
-   * Number of seconds to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize).
-   * If the timeout is breached, the entire hotswap operation will fail and any subsequent updates will not take place.
-   *
-   * @default - operation dependant
-   */
-  readonly timeoutSeconds?: number;
-}
-
 export interface HotswapOperation {
   /**
    * Marks the operation as hotswappable
@@ -39,7 +26,7 @@ export interface HotswapOperation {
   /**
    * Applies the hotswap operation
    */
-  readonly apply: (sdk: SDK, options?: HotswapOperationOptions) => Promise<void>;
+  readonly apply: (sdk: SDK) => Promise<void>;
 }
 
 export interface RejectedChange {
@@ -99,13 +86,18 @@ export class EcsHotswapProperties {
   readonly minimumHealthyPercent?: number;
   // The upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
   readonly maximumHealthyPercent?: number;
+  // The number of seconds to wait for a single service to reach stable state.
+  readonly stabilizationTimeoutSeconds?: number;
 
-  public constructor (minimumHealthyPercent?: number, maximumHealthyPercent?: number) {
+  public constructor (minimumHealthyPercent?: number, maximumHealthyPercent?: number, stabilizationTimeoutSeconds?: number) {
     if (minimumHealthyPercent !== undefined && minimumHealthyPercent < 0 ) {
       throw new ToolkitError('hotswap-ecs-minimum-healthy-percent can\'t be a negative number');
     }
     if (maximumHealthyPercent !== undefined && maximumHealthyPercent < 0 ) {
       throw new ToolkitError('hotswap-ecs-maximum-healthy-percent can\'t be a negative number');
+    }
+    if (stabilizationTimeoutSeconds !== undefined && stabilizationTimeoutSeconds < 0 ) {
+      throw new ToolkitError('hotswap-ecs-stabilization-timeout-seconds can\'t be a negative number');
     }
     // In order to preserve the current behaviour, when minimumHealthyPercent is not defined, it will be set to the currently default value of 0
     if (minimumHealthyPercent == undefined) {
@@ -114,6 +106,7 @@ export class EcsHotswapProperties {
       this.minimumHealthyPercent = minimumHealthyPercent;
     }
     this.maximumHealthyPercent = maximumHealthyPercent;
+    this.stabilizationTimeoutSeconds = stabilizationTimeoutSeconds;
   }
 
   /**

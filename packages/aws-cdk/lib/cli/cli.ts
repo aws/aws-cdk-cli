@@ -30,7 +30,6 @@ import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
-import { durationToSeconds } from './util/duration';
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
@@ -378,7 +377,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           ci: args.ci,
           rollback: configuration.settings.get(['rollback']),
           hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback),
-          hotswapOperationOptions: { timeoutSeconds: args.hotswapTimeout ? durationToSeconds(args.hotswapTimeout): undefined },
           watch: args.watch,
           traceLogs: args.logs,
           concurrency: args.concurrency,
@@ -434,7 +432,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           progress: configuration.settings.get(['progress']),
           rollback: configuration.settings.get(['rollback']),
           hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback, true),
-          hotswapOperationOptions: { timeoutSeconds: args.hotswapTimeout ? durationToSeconds(args.hotswapTimeout): undefined },
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });

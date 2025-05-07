@@ -1,7 +1,6 @@
 import type {
   HotswapPropertyOverrides,
   HotswapChange,
-  HotswapOperationOptions,
 } from './common';
 import {
   classifyChanges,
@@ -100,7 +99,7 @@ export async function isHotswappableEcsServiceChange(
       },
       hotswappable: true,
       service: 'ecs-service',
-      apply: async (sdk: SDK, options?: HotswapOperationOptions) => {
+      apply: async (sdk: SDK) => {
         // Step 1 - update the changed TaskDefinition, creating a new TaskDefinition Revision
         // we need to lowercase the evaluated TaskDef from CloudFormation,
         // as the AWS SDK uses lowercase property names for these
@@ -132,6 +131,7 @@ export async function isHotswappableEcsServiceChange(
         let ecsHotswapProperties = hotswapPropertyOverrides.ecsHotswapProperties;
         let minimumHealthyPercent = ecsHotswapProperties?.minimumHealthyPercent;
         let maximumHealthyPercent = ecsHotswapProperties?.maximumHealthyPercent;
+        let stabilizationTimeoutSeconds = ecsHotswapProperties?.stabilizationTimeoutSeconds;
 
         // Step 2 - update the services using that TaskDefinition to point to the new TaskDefinition Revision
         // Forcing New Deployment and setting Minimum Healthy Percent to 0.
@@ -154,7 +154,7 @@ export async function isHotswappableEcsServiceChange(
             await sdk.ecs().waitUntilServicesStable({
               cluster: update.service?.clusterArn,
               services: [service.serviceArn],
-            }, options?.timeoutSeconds);
+            }, stabilizationTimeoutSeconds);
           }),
         );
       },

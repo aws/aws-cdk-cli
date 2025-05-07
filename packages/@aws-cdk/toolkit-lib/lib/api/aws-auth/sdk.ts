@@ -520,7 +520,7 @@ export interface ILambdaClient {
     input: UpdateFunctionConfigurationCommandInput,
   ): Promise<UpdateFunctionConfigurationCommandOutput>;
   // Waiters
-  waitUntilFunctionUpdated(delaySeconds: number, input: UpdateFunctionConfigurationCommandInput, timeoutSeconds?: number): Promise<WaiterResult>;
+  waitUntilFunctionUpdated(delaySeconds: number, input: UpdateFunctionConfigurationCommandInput): Promise<WaiterResult>;
 }
 
 export interface IRoute53Client {
@@ -909,14 +909,13 @@ export class SDK {
       waitUntilFunctionUpdated: (
         delaySeconds: number,
         input: UpdateFunctionConfigurationCommandInput,
-        timeoutSeconds?: number,
       ): Promise<WaiterResult> => {
         return waitUntilFunctionUpdatedV2(
           {
             client,
             maxDelay: delaySeconds,
             minDelay: delaySeconds,
-            maxWaitTime: timeoutSeconds ?? (delaySeconds * 60),
+            maxWaitTime: delaySeconds * 60,
           },
           input,
         );

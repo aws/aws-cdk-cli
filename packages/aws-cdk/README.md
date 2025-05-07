@@ -512,7 +512,8 @@ You can optionally configure the behavior of your hotswap deployments in `cdk.js
 "hotswap": {
     "ecs": {
       "minimumHealthyPercent": 100,
-      "maximumHealthyPercent": 250
+      "maximumHealthyPercent": 250,
+      "stabilizationTimeoutSeconds": 600,
     }
   }
 }

@@ -307,6 +307,7 @@ export function commandLineArgumentsToSettings(argv: Arguments): Settings {
       ecs: {
         minimumEcsHealthyPercent: argv.minimumEcsHealthyPercent,
         maximumEcsHealthyPercent: argv.maximumEcsHealthyPercent,
+        stabilizationTimeoutSeconds: argv.stabilizationTimeoutSeconds,
       },
     },
     unstable: argv.unstable,

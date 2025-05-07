@@ -33,7 +33,6 @@ import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/privat
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
-import type { HotswapOperationOptions } from '../hotswap/common';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import { IO, type IoHelper } from '../io/private';
@@ -169,13 +168,6 @@ export interface DeployStackOptions {
   readonly hotswap?: HotswapMode;
 
   /**
-   * Additional operation options.
-   *
-   * @default - operation dependant
-   */
-  readonly hotswapOperationOptions?: HotswapOperationOptions;
-
-  /**
    * Extra properties that configure hotswap behavior
    */
   readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
@@ -309,7 +301,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
         stackArtifact,
         hotswapMode,
         hotswapPropertyOverrides,
-        options.hotswapOperationOptions,
       );
 
       if (hotswapDeploymentResult) {

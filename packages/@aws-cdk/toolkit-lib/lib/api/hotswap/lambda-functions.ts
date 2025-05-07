@@ -1,7 +1,7 @@
 import { Writable } from 'stream';
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
-import type { HotswapChange, HotswapOperationOptions } from './common';
+import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import type { AffectedResource, ResourceChange } from '../../payloads/hotswap';
 import { ToolkitError } from '../../toolkit/toolkit-error';
@@ -73,7 +73,7 @@ export async function isHotswappableLambdaFunctionChange(
       },
       hotswappable: true,
       service: 'lambda',
-      apply: async (sdk: SDK, options?: HotswapOperationOptions) => {
+      apply: async (sdk: SDK) => {
         const lambda = sdk.lambda();
         const operations: Promise<any>[] = [];
 
@@ -88,7 +88,7 @@ export async function isHotswappableLambdaFunctionChange(
               S3ObjectVersion: lambdaCodeChange.code.s3ObjectVersion,
             });
 
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName, options?.timeoutSeconds);
+            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
           }
 
           if (lambdaCodeChange.configurations !== undefined) {
@@ -102,7 +102,7 @@ export async function isHotswappableLambdaFunctionChange(
               updateRequest.Environment = lambdaCodeChange.configurations.environment;
             }
             const updateFunctionCodeResponse = await lambda.updateFunctionConfiguration(updateRequest);
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName, options?.timeoutSeconds);
+            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
           }
 
           // only if the code changed is there any point in publishing a new Version
@@ -307,7 +307,6 @@ async function waitForLambdasPropertiesUpdateToFinish(
   currentFunctionConfiguration: FunctionConfiguration,
   lambda: ILambdaClient,
   functionName: string,
-  timeoutSeconds?: number,
 ): Promise<void> {
   const functionIsInVpcOrUsesDockerForCode =
     currentFunctionConfiguration.VpcConfig?.VpcId || currentFunctionConfiguration.PackageType === 'Image';
@@ -319,7 +318,7 @@ async function waitForLambdasPropertiesUpdateToFinish(
 
   await lambda.waitUntilFunctionUpdated(delaySeconds, {
     FunctionName: functionName,
-  }, timeoutSeconds);
+  });
 }
 
 /**
