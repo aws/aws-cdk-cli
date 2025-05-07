@@ -459,11 +459,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.Do not use this in production environments",
         })
-        .option('hotswap-timeout', {
-          default: undefined,
-          type: 'string',
-          desc: 'A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...',
-        })
         .option('hotswap-fallback', {
           default: undefined,
           type: 'boolean',
@@ -627,11 +622,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'boolean',
           desc: "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.'true' by default, use --no-hotswap to turn off",
-        })
-        .option('hotswap-timeout', {
-          default: undefined,
-          type: 'string',
-          desc: 'A duration pattern to wait for a single hotswapped resource update to complete (e.g waiting for an ECS service to stabilize). Format: "10s", "5m", "2h", "1d", ...',
         })
         .option('hotswap-fallback', {
           default: undefined,
