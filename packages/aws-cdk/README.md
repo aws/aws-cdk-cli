@@ -1104,12 +1104,12 @@ exclude file, containing a list of destination locations to exclude. A
 location can be either the stack name + logical ID, or the construct path. For  
 example, if you don't want to include the bucket and the distribution from 
 the table above in the refactor, you can create a file called 
-`exclude.txt`with the following content: 
+`exclude.txt` with the following content (destination locations separated by 
+newlines): 
 
 ```
 Web/Website/Origin/Resource
 Web/Website/Distribution/Resource
-]
 ```
 
 and pass it to the CLI via the `--exclude-file` flag:
