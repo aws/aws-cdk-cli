@@ -121,7 +121,7 @@ export async function waitForChangeSet(
       return description;
     }
 
-    // eslint-disable-next-line max-len
+    // eslint-disable-next-line @stylistic/max-len
     throw new ToolkitError(
       `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${description.StatusReason || 'no reason provided'}`,
     );

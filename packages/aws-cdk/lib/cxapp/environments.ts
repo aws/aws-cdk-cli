@@ -7,7 +7,7 @@ export function looksLikeGlob(environment: string) {
   return environment.indexOf('*') > -1;
 }
 
-// eslint-disable-next-line max-len
+// eslint-disable-next-line @stylistic/max-len
 export async function globEnvironmentsFromStacks(stacks: StackCollection, environmentGlobs: string[], sdk: SdkProvider): Promise<cxapi.Environment[]> {
   if (environmentGlobs.length === 0) {
     return [];

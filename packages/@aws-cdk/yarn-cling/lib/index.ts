@@ -237,7 +237,7 @@ class PackageGraphBuilder {
   }
 }
 
-// eslint-disable-next-line max-len
+// eslint-disable-next-line @stylistic/max-len
 async function findYarnLock(start: string) {
   return findUp('yarn.lock', start);
 }
