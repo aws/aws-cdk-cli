@@ -1,4 +1,4 @@
-import type { UserProvidedResourceMapping } from '../../api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface RefactorOptions {
@@ -46,4 +46,25 @@ export interface RefactorOptions {
    * that was previously applied.
    */
   revert?: boolean;
+}
+
+/**
+ * Explicit mapping of a resource from one location to another, within a
+ * given environment.
+ */
+export interface UserProvidedResourceMapping {
+  /**
+   * The source resource location, in the format `StackName.LogicalId`.
+   */
+  source: string;
+
+  /**
+   * The destination resource location, in the format `StackName.LogicalId`.
+   */
+  destination: string;
+
+  /**
+   * The environment in which the mapping is valid.
+   */
+  environment: cxapi.Environment;
 }

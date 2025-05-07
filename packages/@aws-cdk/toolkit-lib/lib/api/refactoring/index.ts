@@ -13,6 +13,7 @@ import type { CloudFormationStack } from './cloudformation';
 import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 import { NeverExclude, type ExcludeList } from './exclude';
+import type { UserProvidedResourceMapping } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export * from './exclude';
@@ -23,27 +24,6 @@ export * from './exclude';
  * destination.
  */
 export type ResourceMovement = [ResourceLocation[], ResourceLocation[]];
-
-/**
- * Explicit mapping of a resource from one location to another, within a
- * given environment.
- */
-export interface UserProvidedResourceMapping {
-  /**
-   * The source resource location, in the format `StackName.LogicalId`.
-   */
-  source: string;
-
-  /**
-   * The destination resource location, in the format `StackName.LogicalId`.
-   */
-  destination: string;
-
-  /**
-   * The environment in which the mapping is valid.
-   */
-  environment: cxapi.Environment;
-}
 
 export class AmbiguityError extends Error {
   constructor(public readonly movements: ResourceMovement[]) {

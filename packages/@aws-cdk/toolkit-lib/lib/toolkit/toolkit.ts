@@ -28,7 +28,7 @@ import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
-import type { RefactorOptions } from '../actions/refactor';
+import type { RefactorOptions, UserProvidedResourceMapping } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
@@ -61,11 +61,12 @@ import { PluginHost } from '../api/plugin';
 import {
   AmbiguityError,
   ambiguousMovements,
-  findResourceMovements, formatAmbiguousMappings,
+  findResourceMovements,
+  formatAmbiguousMappings,
   formatTypedMappings,
   fromManifestAndExclusionList,
   resourceMappings,
-  useExplicitMappings, type UserProvidedResourceMapping,
+  useExplicitMappings,
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { ResourceMigrator } from '../api/resource-import';
