@@ -130,7 +130,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           if (code === 0) {
             return ok();
           } else {
-            return fail(new ToolkitError(`Subprocess exited with error ${code}`));
+            return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
           }
         });
       });

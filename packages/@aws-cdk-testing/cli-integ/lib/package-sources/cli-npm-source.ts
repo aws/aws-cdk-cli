@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import type { IRunnerSource, ITestCliSource, IPreparedRunnerSource } from './source';
+import { npmQueryInstalledVersion } from '../npm';
 import { addToShellPath, rimraf, shell } from '../shell';
 
 export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
@@ -18,13 +19,7 @@ export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
     await shell(['node', require.resolve('npm'), 'install', `aws-cdk@${this.range}`], {
       cwd: tempDir,
     });
-
-    const reportStr = await shell(['node', require.resolve('npm'), 'list', '--json', '--depth', '0', 'aws-cdk'], {
-      cwd: tempDir,
-      show: 'error',
-    });
-    const report = JSON.parse(reportStr);
-    const installedVersion = report.dependencies['aws-cdk'].version;
+    const installedVersion = await npmQueryInstalledVersion('aws-cdk', tempDir);
 
     return {
       version: installedVersion,

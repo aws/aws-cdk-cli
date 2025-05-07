@@ -3,6 +3,7 @@ const os = require('os');
 
 const rootDir = path.resolve(__dirname, '..', 'tests', process.env.TEST_SUITE_NAME);
 
+/** @type {import('jest').Config} */
 module.exports = {
   rootDir,
   testMatch: [`**/*.integtest.js`],
@@ -39,7 +40,7 @@ function maxWorkers() {
 
   // empirically observed. this includes:
   // - 150 jest test process
-  // - 140 app synthesis subprocess  
+  // - 140 app synthesis subprocess
   // - 200 cli subprocess
   const maxWorkerMemoryMB = 500;
 

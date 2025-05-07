@@ -6,6 +6,7 @@ import type { Constructor, IPreparedRunnerSource, ITestCliSource, ITestLibrarySo
 export interface PreparedSources {
   readonly cli: IPreparedRunnerSource<ITestCliSource>;
   readonly library: IPreparedRunnerSource<ITestLibrarySource>;
+  readonly toolkitLib: IPreparedRunnerSource<ITestLibrarySource>;
 }
 
 type SourceType<A> = A extends IPreparedRunnerSource<infer T> ? T : unknown;

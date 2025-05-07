@@ -43,6 +43,9 @@
   "references": [
     {
       "path": "../../@aws-cdk/yarn-cling"
+    },
+    {
+      "path": "../../@aws-cdk/toolkit-lib"
     }
   ]
 }

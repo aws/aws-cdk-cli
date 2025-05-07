@@ -1573,6 +1573,7 @@ const cliInteg = configureProject(
     ],
     devDeps: [
       yarnCling,
+      toolkitLib,
       '@types/semver@^7',
       '@types/yargs@^16',
       '@types/fs-extra@^9',
@@ -1613,6 +1614,8 @@ const cliInteg = configureProject(
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
+
+cliInteg.deps.addDependency('@aws-cdk/toolkit-lib', pj.DependencyType.OPTIONAL);
 
 const compiledDirs = ['tests', 'test', 'lib'];
 for (const compiledDir of compiledDirs) {

@@ -45,11 +45,12 @@ inject these dependencies into tests. Users can specify component versions, but
 Test Authors are responsible for taking these parameters and using it to set up
 the right environment for the tests.
 
-| Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                         |
-|-----------------------|--------------------------------------|-------------|----------------------------|-------------------------------------------|
-| CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir. |
-| CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                           |
+| Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                             |
+|-----------------------|--------------------------------------|-------------|----------------------------|-----------------------------------------------|
+| CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir.     |
+| CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                               |
 |                       | `--cli-source=ROOT` or `auto`        | Auto source |                            | Add `<ROOT>/packages/aws-cdk/bin` to `$PATH`. |
+| Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing
 
 ### Running a test suite
 

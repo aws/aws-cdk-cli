@@ -24,6 +24,15 @@ export async function npmMostRecentMatching(packageName: string, range: string) 
   return output[output.length - 1];
 }
 
+export async function npmQueryInstalledVersion(packageName: string, dir: string) {
+  const reportStr = await shell(['node', require.resolve('npm'), 'list', '--json', '--depth', '0', packageName], {
+    cwd: dir,
+    show: 'error',
+  });
+  const report = JSON.parse(reportStr);
+  return report.dependencies[packageName].version;
+}
+
 /**
  * Use NPM preinstalled on the machine to look up a list of TypeScript versions
  */
