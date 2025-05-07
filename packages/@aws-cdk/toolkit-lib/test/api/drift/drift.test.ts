@@ -182,7 +182,7 @@ describe('formatStackDrift', () => {
     const result = formatter.formatStackDrift({});
 
     // THEN
-    expect(result.numResourcesWithDrift).toBe(-1);
+    expect(result.numResourcesWithDrift).toBeUndefined();
     expect(result.formattedDrift).toContain('No drift results available');
   });
 });

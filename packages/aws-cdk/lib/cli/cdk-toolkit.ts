@@ -704,7 +704,7 @@ export class CdkToolkit {
         info(drift.formattedDrift);
       }
 
-      drifts += drift.numResourcesWithDrift;
+      drifts += drift.numResourcesWithDrift || 0;
     }
 
     if (!quiet) {

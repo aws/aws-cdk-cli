@@ -14,7 +14,7 @@ export interface FormatStackDriftOutput {
   /**
    * Number of resources with drift
    */
-  readonly numResourcesWithDrift: number;
+  readonly numResourcesWithDrift?: number;
 
   /**
    * Complete formatted drift
@@ -77,7 +77,7 @@ export class DriftFormatter {
     if (!this.driftResults?.StackResourceDrifts) {
       stream.write('No drift results available.');
       stream.end();
-      return { formattedDrift: stream.toString(), numResourcesWithDrift: -1 };
+      return { formattedDrift: stream.toString() };
     }
 
     const drifts = this.driftResults.StackResourceDrifts.filter(d =>
