@@ -28,6 +28,7 @@ export async function npmQueryInstalledVersion(packageName: string, dir: string)
   const reportStr = await shell(['node', require.resolve('npm'), 'list', '--json', '--depth', '0', packageName], {
     cwd: dir,
     show: 'error',
+    captureStderr: false,
   });
   const report = JSON.parse(reportStr);
   return report.dependencies[packageName].version;
