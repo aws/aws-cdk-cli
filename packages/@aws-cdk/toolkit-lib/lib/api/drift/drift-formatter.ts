@@ -75,8 +75,10 @@ export class DriftFormatter {
     let driftCount = 0;
 
     if (!this.driftResults?.StackResourceDrifts) {
-      stream.write('No drift results available.');
-      stream.end();
+      if (!options.quiet) {
+        stream.write('No drift results available.');
+        stream.end();
+      }
       return { formattedDrift: stream.toString() };
     }
 
@@ -90,9 +92,11 @@ export class DriftFormatter {
       stream.write(format(`Stack ${chalk.bold(this.stack.stackName)}\n`));
     }
 
-    if (drifts.length === 0 && !options.quiet) {
-      stream.write(chalk.green('No drift detected\n'));
-      stream.end();
+    if (drifts.length === 0) {
+      if (!options.quiet) {
+        stream.write(chalk.green('No drift detected\n'));
+        stream.end();
+      }
       return { formattedDrift: stream.toString(), numResourcesWithDrift: 0 };
     }
 

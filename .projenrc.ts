@@ -433,13 +433,14 @@ const cloudFormationDiff = configureProject(
     deps: [
       '@aws-cdk/aws-service-spec',
       '@aws-cdk/service-spec-types',
+      '@aws-sdk/client-cloudformation',
       'chalk@^4',
       'diff',
       'fast-deep-equal',
       'string-width@^4',
       'table@^6',
     ],
-    devDeps: ['@aws-sdk/client-cloudformation', 'fast-check'],
+    devDeps: ['fast-check'],
     // FIXME: this should be a jsii project
     // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
     tsconfig: {

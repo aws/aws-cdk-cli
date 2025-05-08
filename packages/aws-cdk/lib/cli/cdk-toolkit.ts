@@ -700,16 +700,11 @@ export class CdkToolkit {
 
       const drift = formatter.formatStackDrift({ quiet });
 
-      if (!quiet) {
-        info(drift.formattedDrift);
-      }
-
+      info(drift.formattedDrift);
       drifts += drift.numResourcesWithDrift || 0;
     }
 
-    if (!quiet) {
-      info(format('\n✨  Number of resources with drift: %s\n', drifts));
-    }
+    info(format('\n✨  Number of resources with drift: %s\n', drifts));
 
     return drifts > 0 && options.fail ? 1 : 0;
   }

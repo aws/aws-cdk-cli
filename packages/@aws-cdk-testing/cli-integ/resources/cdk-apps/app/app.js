@@ -475,6 +475,33 @@ class LambdaStack extends cdk.Stack {
   }
 }
 
+class DriftableLambdaStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    const synthesizer = parent.node.tryGetContext('legacySynth') === 'true' ?
+      new LegacyStackSynthesizer({
+        fileAssetsBucketName: parent.node.tryGetContext('bootstrapBucket'),
+      })
+      : new DefaultStackSynthesizer({
+        fileAssetsBucketName: parent.node.tryGetContext('bootstrapBucket'),
+      })
+    super(parent, id, {
+      ...props,
+      synthesizer: synthesizer,
+    });
+
+    const fn = new lambda.Function(this, 'my-function', {
+      code: lambda.Code.asset(path.join(__dirname, 'lambda')),
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: 'index.handler',
+      description: 'This is my function!',
+      timeout: cdk.Duration.seconds(5),
+      memorySize: 128
+    });
+
+    new cdk.CfnOutput(this, 'FunctionArn', { value: fn.functionArn });
+  }
+}
+
 class IamRolesStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
@@ -942,6 +969,8 @@ switch (stackSet) {
     new BundlingStage(app, `${stackPrefix}-bundling-stage`);
 
     new MetadataStack(app, `${stackPrefix}-metadata`);
+
+    new DriftableLambdaStack(app, `${stackPrefix}-driftable-lambda`);
     break;
 
   case 'stage-using-context':
