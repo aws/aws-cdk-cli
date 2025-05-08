@@ -280,13 +280,13 @@ Resources
     };
     fs.writeFileSync(templatePath, JSON.stringify(oldTemplate));
     // WHEN
-    expect(async () => {
+    await expect(async () => {
       await toolkit.diff({
         stackNames: ['A'],
         changeSet: undefined,
         templatePath: templatePath,
         importExistingResources: true,
-      })
+      });
     }).rejects.toThrow(/Can only use --import-existing-resources flag when comparing against deployed stacks/);
   });
 });
