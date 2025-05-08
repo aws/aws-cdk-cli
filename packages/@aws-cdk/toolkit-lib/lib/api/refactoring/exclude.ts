@@ -106,7 +106,102 @@ export class AlwaysExclude implements ExcludeList {
   }
 }
 
+/**
+ * Unsupported types for refactoring according to
+ * https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-refactoring.html
+ */
+export class UnsupportedTypes implements ExcludeList {
+  private static readonly TYPES = [
+    'AWS::ACMPCA::Certificate',
+    'AWS::ACMPCA::CertificateAuthority',
+    'AWS::ACMPCA::CertificateAuthorityActivation',
+    'AWS::ApiGateway::BasePathMapping',
+    'AWS::ApiGateway::Method',
+    'AWS::AppConfig::ConfigurationProfile',
+    'AWS::AppConfig::Deployment',
+    'AWS::AppConfig::Environment',
+    'AWS::AppConfig::Extension',
+    'AWS::AppConfig::ExtensionAssociation',
+    'AWS::AppStream::DirectoryConfig',
+    'AWS::AppStream::StackFleetAssociation',
+    'AWS::AppStream::StackUserAssociation',
+    'AWS::AppStream::User',
+    'AWS::BackupGateway::Hypervisor',
+    'AWS::CodePipeline::CustomActionType',
+    'AWS::Cognito::UserPoolRiskConfigurationAttachment',
+    'AWS::Cognito::UserPoolUICustomizationAttachment',
+    'AWS::Cognito::UserPoolUserToGroupAttachment',
+    'AWS::Config::ConfigRule',
+    'AWS::DataBrew::Dataset',
+    'AWS::DataBrew::Job',
+    'AWS::DataBrew::Project',
+    'AWS::DataBrew::Recipe',
+    'AWS::DataBrew::Ruleset',
+    'AWS::DataBrew::Schedule',
+    'AWS::DataZone::DataSource',
+    'AWS::DataZone::Environment',
+    'AWS::DataZone::EnvironmentBlueprintConfiguration',
+    'AWS::DataZone::EnvironmentProfile',
+    'AWS::DataZone::Project',
+    'AWS::DataZone::SubscriptionTarget',
+    'AWS::DynamoDB::GlobalTable',
+    'AWS::EC2::LaunchTemplate',
+    'AWS::EC2::SpotFleet',
+    'AWS::EC2::VolumeAttachment',
+    'AWS::EC2::VPCDHCPOptionsAssociation',
+    'AWS::ElasticBeanstalk::ConfigurationTemplate',
+    'AWS::FIS::ExperimentTemplate',
+    'AWS::Glue::Schema',
+    'AWS::GuardDuty::IPSet',
+    'AWS::GuardDuty::PublishingDestination',
+    'AWS::GuardDuty::ThreatIntelSet',
+    'AWS::ImageBuilder::Component',
+    'AWS::IoTFleetWise::Campaign',
+    'AWS::IoTWireless::WirelessDeviceImportTask',
+    'AWS::Lambda::EventInvokeConfig',
+    'AWS::Lex::BotVersion',
+    'AWS::M2::Application',
+    'AWS::Maester::DocumentType',
+    'AWS::MediaTailor::Channel',
+    'AWS::MSK::Configuration',
+    'AWS::MSK::ServerlessCluster',
+    'AWS::NeptuneGraph::PrivateGraphEndpoint',
+    'AWS::Omics::AnnotationStore',
+    'AWS::Omics::ReferenceStore',
+    'AWS::Omics::SequenceStore',
+    'AWS::OpenSearchServerless::Collection',
+    'AWS::Panorama::PackageVersion',
+    'AWS::PCAConnectorAD::Connector',
+    'AWS::PCAConnectorAD::DirectoryRegistration',
+    'AWS::PCAConnectorAD::Template',
+    'AWS::PCAConnectorAD::TemplateGroupAccessControlEntry',
+    'AWS::QuickSight::Theme',
+    'AWS::RefactorSpaces::Environment',
+    'AWS::RefactorSpaces::Route',
+    'AWS::RefactorSpaces::Service',
+    'AWS::RoboMaker::RobotApplication',
+    'AWS::RoboMaker::SimulationApplication',
+    'AWS::SageMaker::InferenceComponen',
+    'AWS::ServiceCatalog::PortfolioPrincipalAssociation',
+    'AWS::ServiceCatalog::PortfolioProductAssociation',
+    'AWS::ServiceCatalog::PortfolioShare',
+    'AWS::ServiceCatalog::TagOptionAssociation',
+    'AWS::ServiceCatalogAppRegistry::AttributeGroupAssociation',
+    'AWS::ServiceCatalogAppRegistry::ResourceAssociation',
+    'AWS::StepFunctions::StateMachineVersion',
+    'AWS::Synthetics::Canary',
+    'AWS::VoiceID::Domain',
+    'AWS::WAFv2::IPSet',
+    'AWS::WAFv2::RegexPatternSet',
+    'AWS::WAFv2::RuleGroup',
+    'AWS::WAFv2::WebACL',
+  ];
+
+  isExcluded(location: ResourceLocation): boolean {
+    return UnsupportedTypes.TYPES.includes(location.getType());
+  }
+}
+
 export function fromManifestAndExclusionList(manifest: AssemblyManifest, exclude?: string[]): ExcludeList {
   return new UnionExcludeList([new ManifestExcludeList(manifest), new InMemoryExcludeList(exclude ?? [])]);
 }
-

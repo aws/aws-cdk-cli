@@ -1263,6 +1263,57 @@ describe('environment grouping', () => {
     }
   });
 
+  test('excludes resources of unsupported types', async () => {
+    const environment = {
+      name: 'test',
+      account: '123456789012',
+      region: 'us-east-1',
+    };
+
+    const stack1 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Job1: {
+            Type: 'AWS::DataBrew::Job',
+            Properties: { Prop: 'XXXXXXXXX' },
+          },
+        },
+      },
+    };
+
+    cloudFormationClient.on(ListStacksCommand).resolves({
+      StackSummaries: [
+        {
+          StackName: 'Foo',
+          StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Foo',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
+
+    cloudFormationClient
+      .on(GetTemplateCommand, {
+        StackName: 'Foo',
+      })
+      .resolves({
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Job2: {
+              Type: 'AWS::DataBrew::Job',
+              Properties: { Prop: 'XXXXXXXXX' },
+            },
+          },
+        }),
+      });
+
+    const movements = await findResourceMovements([stack1], new MockSdkProvider());
+
+    expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);
+  });
+
   test('does not produce cross-environment mappings', async () => {
     const environment1 = {
       name: 'test',

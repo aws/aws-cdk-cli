@@ -12,7 +12,7 @@ import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceMapping, ResourceLocation } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
-import { NeverExclude, type ExcludeList } from './exclude';
+import { NeverExclude, UnionExcludeList, UnsupportedTypes, type ExcludeList } from './exclude';
 
 export * from './exclude';
 
@@ -174,9 +174,14 @@ export async function findResourceMovements(
     result.push(...resourceMovements(before, after));
   }
 
+  const fullExclude = new UnionExcludeList([
+    exclude,
+    new UnsupportedTypes(),
+  ]);
+
   return result.filter(mov => {
     const after = mov[1];
-    return after.every(l => !exclude.isExcluded(l));
+    return after.every(l => !fullExclude.isExcluded(l));
   });
 }
 
