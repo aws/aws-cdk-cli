@@ -1599,7 +1599,7 @@ const cliInteg = configureProject(
     ],
     devDeps: [
       yarnCling,
-      toolkitLib,
+      toolkitLib.customizeReference({ versionType: 'exact' }),
       '@types/semver@^7',
       '@types/yargs@^16',
       '@types/fs-extra@^9',

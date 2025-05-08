@@ -35,7 +35,7 @@ export class RunnerLibraryGlobalInstallSource implements IRunnerSource<ITestLibr
       version,
       async dispose() {
         // Remove the symlink again
-        await fs.rm(symlinkPath);
+        await fs.unlink(symlinkPath);
       },
       serialize: () => {
         return [TestLibraryGlobalInstallSource, [this.packageName, version]];
