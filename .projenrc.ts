@@ -322,7 +322,7 @@ function genericCdkProps(props: GenericProps = {}) {
     },
     typescriptVersion: TYPESCRIPT_VERSION,
     checkLicenses: props.private ? undefined : {
-      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause'],
+      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause', '0BSD'],
     },
     ...props,
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
@@ -408,6 +408,12 @@ const cloudFormationDiff = configureProject(
     name: '@aws-cdk/cloudformation-diff',
     description: 'Utilities to diff CDK stacks against CloudFormation templates',
     srcdir: 'lib',
+    devDeps: [
+      'fast-check',
+    ],
+    peerDeps: [
+      '@aws-sdk/client-cloudformation@^3',
+    ],
     deps: [
       '@aws-cdk/aws-service-spec',
       '@aws-cdk/service-spec-types',
@@ -417,7 +423,6 @@ const cloudFormationDiff = configureProject(
       'string-width@^4',
       'table@^6',
     ],
-    devDeps: ['@aws-sdk/client-cloudformation', 'fast-check'],
     // FIXME: this should be a jsii project
     // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
     tsconfig: {
