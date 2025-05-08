@@ -36,12 +36,12 @@
   },
   "devDependencies": {
     "@aws-cdk/aws-service-spec": "^0.1.71",
+    "@aws-cdk/cli-plugin-contract": "0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@jest/environment": "^29.7.0",
     "@jest/globals": "^29.7.0",
     "@jest/types": "^29.6.3",
     "@microsoft/api-extractor": "^7.52.7",
-    "@smithy/types": "^4.2.0",
     "@smithy/util-stream": "^4.2.0",
     "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^11.0.4",
@@ -74,12 +74,13 @@
     "typescript": "5.6",
     "xml-js": "^1.6.11"
   },
+  "peerDependencies": {
+    "@aws-cdk/cli-plugin-contract": "^0.0.0"
+  },
   "dependencies": {
-    "@aws-cdk/cli-plugin-contract": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
-    "@aws-cdk/cx-api": "^2.194.0",
-    "@aws-cdk/region-info": "^2.194.0",
+    "@aws-cdk/cx-api": "^2",
     "@aws-sdk/client-appsync": "^3",
     "@aws-sdk/client-cloudcontrol": "^3",
     "@aws-sdk/client-cloudformation": "^3",

@@ -1,11 +1,11 @@
 import * as os from 'os';
+import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import type { ContextLookupRoleOptions } from '@aws-cdk/cloud-assembly-schema';
 import type { Environment } from '@aws-cdk/cx-api';
 import { EnvironmentUtils, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
 import type { AssumeRoleCommandInput } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
-import type { AwsCredentialIdentityProvider } from '@smithy/types';
 import { AwsCliCompatible } from './awscli-compatible';
 import { cached } from './cached';
 import { CredentialPlugins } from './credential-plugins';
@@ -99,14 +99,14 @@ export class SdkProvider {
   }
 
   public readonly defaultRegion: string;
-  private readonly defaultCredentialProvider: AwsCredentialIdentityProvider;
+  private readonly defaultCredentialProvider: SDKv3CompatibleCredentialProvider;
   private readonly plugins;
   private readonly requestHandler: NodeHttpHandlerOptions;
   private readonly ioHelper: IoHelper;
   private readonly logger?: ISdkLogger;
 
   public constructor(
-    defaultCredentialProvider: AwsCredentialIdentityProvider,
+    defaultCredentialProvider: SDKv3CompatibleCredentialProvider,
     defaultRegion: string | undefined,
     services: SdkProviderServices,
   ) {
@@ -384,7 +384,7 @@ export class SdkProvider {
    * @internal
    */
   public _makeSdk(
-    credProvider: AwsCredentialIdentityProvider,
+    credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
   ) {
     return new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger);
@@ -446,11 +446,11 @@ export interface CredentialsOptions {
  * Result of obtaining base credentials
  */
 type ObtainBaseCredentialsResult =
-  | { source: 'correctDefault'; credentials: AwsCredentialIdentityProvider }
-  | { source: 'plugin'; pluginName: string; credentials: AwsCredentialIdentityProvider }
+  | { source: 'correctDefault'; credentials: SDKv3CompatibleCredentialProvider }
+  | { source: 'plugin'; pluginName: string; credentials: SDKv3CompatibleCredentialProvider }
   | {
     source: 'incorrectDefault';
-    credentials: AwsCredentialIdentityProvider;
+    credentials: SDKv3CompatibleCredentialProvider;
     accountId: string;
     unusedPlugins: string[];
   }
