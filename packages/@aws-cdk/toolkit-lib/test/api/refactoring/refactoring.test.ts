@@ -17,12 +17,10 @@ import {
   resourceMappings,
   resourceMovements,
 } from '../../../lib/api/refactoring';
-import type {
-  ResourceLocation,
-  ResourceMapping,
-  CloudFormationStack,
-} from '../../../lib/api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
+import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
+import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
@@ -1377,6 +1375,287 @@ describe('environment grouping', () => {
     expect(ambiguousMovements(movements)).toEqual([]);
 
     expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);
+  });
+});
+
+describe(generateStackDefinitions, () => {
+  const environment = {
+    name: 'test',
+    account: '333333333333',
+    region: 'us-east-1',
+  };
+
+  test('renames a resource within the same stack', () => {
+    const stack: CloudFormationStack = {
+      environment: environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+          NotInvolved: {
+            Type: 'AWS::X::Y',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(stack, 'Bucket1'), new ResourceLocation(stack, 'Bucket2')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [stack]);
+    expect(result).toEqual([
+      {
+        StackName: 'Foo',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Not involved in the refactor, but still part of the
+            // original template. Should be included.
+            NotInvolved: {
+              Type: 'AWS::X::Y',
+            },
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        }),
+      },
+    ]);
+  });
+
+  test('moves a resource to another stack that has already been deployed', () => {
+    const stack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+          A: {
+            Type: 'AWS::A::A',
+          },
+        },
+      },
+    };
+
+    const stack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          B: {
+            Type: 'AWS::B::B',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Wasn't touched by the refactor
+            A: {
+              Type: 'AWS::A::A',
+            },
+
+            // Bucket1 doesn't exist anymore
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Wasn't touched by the refactor
+            B: {
+              Type: 'AWS::B::B',
+            },
+
+            // Old Bucket1 is now Bucket2 here
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        }),
+      },
+    ]);
+  });
+
+  test('moves a resource to another stack that has not been deployed', () => {
+    const stack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+          A: {
+            Type: 'AWS::A::A',
+          },
+        },
+      },
+    };
+
+    const stack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          B: {
+            Type: 'AWS::B::B',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [stack1]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Wasn't touched by the refactor
+            A: {
+              Type: 'AWS::A::A',
+            },
+
+            // Bucket1 doesn't exist anymore
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Old Bucket1 is now Bucket2 here
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        }),
+      },
+    ]);
+  });
+
+  test('multiple mappings', () => {
+    const stack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const stack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          Bucket3: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket4')),
+      new ResourceMapping(new ResourceLocation(stack1, 'Bucket2'), new ResourceLocation(stack2, 'Bucket5')),
+      new ResourceMapping(new ResourceLocation(stack2, 'Bucket3'), new ResourceLocation(stack1, 'Bucket6')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket6: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket4: {
+              Type: 'AWS::S3::Bucket',
+            },
+            Bucket5: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        }),
+      },
+    ]);
+  });
+
+  test('deployed stacks that are not in any mapping', () => {
+    const stack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const stack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack1, 'Bucket3')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket3: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        }),
+      },
+    ]);
   });
 });
 
