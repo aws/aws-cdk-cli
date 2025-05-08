@@ -223,6 +223,17 @@ describe('diff', () => {
     }));
   });
 
+  describe('DiffMethod.ImportExistingResources', () => {
+    test('Cannot use ImportExistingResources when using local template path', async () => {
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      await expect(async () => toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.LocalFile(path.join(__dirname, 'blah.json')),
+        importExistingResources: true
+      })).rejects.toThrow(/Cannot use --import-existing-resources with local-file method/);
+    });
+  });
+
   describe('DiffMethod.ChangeSet', () => {
     test('ChangeSet diff method falls back to template only if changeset not found', async () => {
       // WHEN

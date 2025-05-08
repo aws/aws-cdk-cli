@@ -42,6 +42,10 @@ async function localFileDiff(stacks: StackCollection, options: DiffOptions): Pro
     );
   }
 
+  if (options.importExistingResources) {
+    throw new ToolkitError('Cannot use --import-existing-resources with local-file method');
+  }
+
   if (!(await fs.pathExists(methodOptions.path))) {
     throw new ToolkitError(`There is no file at ${methodOptions.path}`);
   }
@@ -89,6 +93,7 @@ async function cfnDiff(
       resourcesToImport,
       methodOptions.parameters,
       methodOptions.fallbackToTemplate,
+      options.importExistingResources,
     ) : undefined;
 
     templateInfos.push({
@@ -111,6 +116,7 @@ async function changeSetDiff(
   resourcesToImport?: ResourcesToImport,
   parameters: { [name: string]: string | undefined } = {},
   fallBackToTemplate: boolean = true,
+  importExistingResources: boolean = false,
 ): Promise<any | undefined> {
   let stackExists = false;
   try {
@@ -139,6 +145,7 @@ async function changeSetDiff(
       parameters: parameters,
       resourcesToImport,
       failOnError: !fallBackToTemplate,
+      importExistingResources,
     });
   } else {
     if (!fallBackToTemplate) {
