@@ -16,7 +16,16 @@ integTest('amplify integration', withToolContext(async (context) => {
   // Install `create-amplify` without running it, then hack the json file with the
   // package versions in it before we execute.
   await shell.shell(['npm', 'init', '-y']);
-  await shell.shell(['npm', 'install', '--save-dev', 'create-amplify@latest']);
+
+  // using --force because amplify pins the (transitive) @aws-cdk/toolkit-lib dependency.
+  // in pre-release environments (like integ workflow on github) @aws-cdk/toolkit-lib will
+  // only be available in its pre-release version.
+  await shell.shell(['npm', 'install', '--force', '--save-dev', 'create-amplify@latest']);
+
+  // monkey patch the toolkit code to use the pre-release version
+  await shell.shell(['rm', '-rf', path.join(context.integTestDir, 'node_modules', '@aws-cdk', 'toolkit-lib')]);
+  await shell.shell(['npm', 'install', '--save-dev', `@aws-cdk/toolkit-lib@${context.toolkitLib.requestedVersion()}`]);
+
   // This will create 'package.json' implicating a certain version of the CDK
   await shell.shell(['npm', 'config', 'set', 'save-exact', 'true']);
   await mutateAmplifyDepOnCdk(context, context.cli.requestedVersion(), context.library.requestedVersion());
