@@ -20,9 +20,10 @@ integTest('amplify integration', withToolContext(async (context) => {
   // using --force because amplify pins the (transitive) @aws-cdk/toolkit-lib dependency.
   // in pre-release environments (like integ workflow on github) @aws-cdk/toolkit-lib will
   // only be available in its pre-release version.
+  // see https://github.com/search?q=repo%3Aaws-amplify%2Famplify-backend%20%22%40aws-cdk%2Ftoolkit-lib%22%3A%20%220.3.2%22&type=code
   await shell.shell(['npm', 'install', '--force', '--save-dev', 'create-amplify@latest']);
 
-  // monkey patch the toolkit code to use the pre-release version
+  // monkey patch node_modules to use the pre-release version of @aws-cdk/toolkit-lib
   await shell.shell(['rm', '-rf', path.join(context.integTestDir, 'node_modules', '@aws-cdk', 'toolkit-lib')]);
   await shell.shell(['npm', 'install', '--save-dev', `@aws-cdk/toolkit-lib@${context.toolkitLib.requestedVersion()}`]);
 
