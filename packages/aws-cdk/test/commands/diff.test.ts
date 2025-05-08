@@ -244,6 +244,20 @@ Resources
 
   test('when invoked with no changeSet flag', async () => {
     // WHEN
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+      return {
+        $metadata: {},
+        Changes: [
+          {
+            ResourceChange: {
+              Action: 'Add',
+              LogicalResourceId: 'MyGlobalTable',
+            },
+          },
+        ],
+      };
+    });
+
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
       changeSet: undefined,

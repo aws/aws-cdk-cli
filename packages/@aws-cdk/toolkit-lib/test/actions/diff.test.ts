@@ -229,7 +229,7 @@ describe('diff', () => {
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, 'blah.json')),
-        importExistingResources: true
+        importExistingResources: true,
       })).rejects.toThrow(/Cannot use --import-existing-resources with local-file method/);
     });
   });
