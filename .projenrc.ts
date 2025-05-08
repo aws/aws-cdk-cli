@@ -7,7 +7,7 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
-import { ESLINT_RULES } from './projenrc/eslint';
+import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
@@ -21,54 +21,32 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 const TYPESCRIPT_VERSION = '5.6';
 
 /**
- * Projen depends on TypeScript-eslint 7 by default.
- *
- * We want 8 for the parser, and 6 for the plugin (because after 6 some linter
- * rules we are relying on have been moved to another plugin).
- *
- * Also configure eslint plugins & rules, which cannot be configured by props.
+ * Configures a Eslint, which is a complex setup.
  *
  * We also need to override the built-in prettier dependency to prettier@2, because
  * Jest < 30 can only work with prettier 2 (https://github.com/jestjs/jest/issues/14305)
  * and 30 is not stable yet.
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
+  // currently supported min node version
   x.package.addEngine('node', '>= 14.15.0');
+
   x.addDevDeps(
-    '@typescript-eslint/eslint-plugin@^8',
-    '@typescript-eslint/parser@^8',
-    '@stylistic/eslint-plugin@^3',
-    '@cdklabs/eslint-plugin',
-    'eslint-plugin-import',
-    'eslint-plugin-jest',
-    'eslint-plugin-jsdoc',
     'jest-junit@^16',
+    'prettier@^2.8',
   );
-  x.eslint?.addPlugins(
-    '@typescript-eslint',
-    'import',
-    '@cdklabs',
-    '@stylistic',
-    'jest',
-    'jsdoc',
+
+  configureEslint(x);
+
+  x.npmignore?.addPatterns(
+    // don't inlcude config files
+    '.eslintrc.js',
+    // As a rule we don't include .ts sources in the NPM package
+    '*.ts',
+    '!*.d.ts',
+    // Never include the build-tools directory
+    'build-tools',
   );
-  x.eslint?.addExtends(
-    'plugin:jest/recommended',
-  );
-  x.eslint?.addIgnorePattern('*.generated.ts');
-  x.eslint?.addRules(ESLINT_RULES);
-
-  // Prettier needs to be turned off for now, there's too much code that doesn't conform to it
-  x.eslint?.addRules({ 'prettier/prettier': ['off'] });
-
-  x.addDevDeps('prettier@^2.8');
-
-  x.npmignore?.addPatterns('.eslintrc.js');
-  // As a rule we don't include .ts sources in the NPM package
-  x.npmignore?.addPatterns('*.ts', '!*.d.ts');
-
-  // Never include the build-tools directory
-  x.npmignore?.addPatterns('build-tools');
 
   if (x instanceof TypeScriptWorkspace) {
     // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
