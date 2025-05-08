@@ -1,6 +1,7 @@
 import { TestCliNpmSource } from './cli-npm-source';
 import { TestCliRepoSource } from './cli-repo-source';
 import { TestLibraryNpmSource } from './library-npm-source';
+import { TestLibraryPreinstalledSource } from './library-preinstalled-source';
 import type { Constructor, IPreparedRunnerSource, ITestCliSource, ITestLibrarySource } from './source';
 
 export interface PreparedSources {
@@ -32,6 +33,7 @@ const CONSTRUCTORS: Constructor<any>[] = [
   TestCliRepoSource,
   TestCliNpmSource,
   TestLibraryNpmSource,
+  TestLibraryPreinstalledSource,
 ];
 
 function instantiateDescriptor([constructorName, args]: SerializedDescriptor): any {
