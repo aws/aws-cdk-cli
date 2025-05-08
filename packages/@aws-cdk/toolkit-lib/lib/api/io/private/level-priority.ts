@@ -28,7 +28,7 @@ function compareFn(a: IoMessageLevel, b: IoMessageLevel): number {
  * @param level The level to compare against.
  * @returns true if the message is relevant for the given level.
  */
-export function isMessageRelevantForLevel(msg: { level: IoMessageLevel}, level: IoMessageLevel): boolean {
+export function isMessageRelevantForLevel(msg: { level: IoMessageLevel }, level: IoMessageLevel): boolean {
   return compareFn(msg.level, level) >= 0;
 }
 

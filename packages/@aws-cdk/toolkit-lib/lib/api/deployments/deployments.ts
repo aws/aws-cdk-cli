@@ -601,7 +601,7 @@ export class Deployments {
    * will be validated according to the constraints in that manifest artifact.
    * If that is not necessary, `'no-version-validation'` can be passed.
    */
-  // eslint-disable-next-line max-len
+  // eslint-disable-next-line @stylistic/max-len
   public async buildSingleAsset(
     assetArtifact: cxapi.AssetManifestArtifact | 'no-version-validation',
     assetManifest: cdk_assets.AssetManifest,

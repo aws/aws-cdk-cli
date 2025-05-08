@@ -17,7 +17,7 @@ const PLUGIN_PROVIDER: any = 'plugin';
 test('errors are reported into the context value', async () => {
   // GIVEN
   contextproviders.registerContextProvider(TEST_PROVIDER, {
-    async getValue(_: {[key: string]: any}): Promise<any> {
+    async getValue(_: { [key: string]: any }): Promise<any> {
       throw new Error('Something went wrong');
     },
   });
@@ -38,7 +38,7 @@ test('errors are reported into the context value', async () => {
 test('lookup role ARN is resolved', async () => {
   // GIVEN
   contextproviders.registerContextProvider(TEST_PROVIDER, {
-    async getValue(args: {[key: string]: any}): Promise<any> {
+    async getValue(args: { [key: string]: any }): Promise<any> {
       if (args.lookupRoleArn == null) {
         throw new Error('No lookupRoleArn');
       }
@@ -72,7 +72,7 @@ test('lookup role ARN is resolved', async () => {
 test('errors are marked transient', async () => {
   // GIVEN
   contextproviders.registerContextProvider(TEST_PROVIDER, {
-    async getValue(_: {[key: string]: any}): Promise<any> {
+    async getValue(_: { [key: string]: any }): Promise<any> {
       throw new Error('Something went wrong');
     },
   });
@@ -93,7 +93,7 @@ test('context provider can be registered using PluginHost', async () => {
   // GIVEN
   const ph = new PluginHost();
   ph.registerContextProviderAlpha('prov', {
-    async getValue(_: {[key: string]: any}): Promise<any> {
+    async getValue(_: { [key: string]: any }): Promise<any> {
       called = true;
       return '';
     },
@@ -113,7 +113,7 @@ test('plugin context provider can be called without account/region', async () =>
   // GIVEN
   const ph = new PluginHost();
   ph.registerContextProviderAlpha('prov', {
-    async getValue(_: {[key: string]: any}): Promise<any> {
+    async getValue(_: { [key: string]: any }): Promise<any> {
       return 'yay';
     },
   });

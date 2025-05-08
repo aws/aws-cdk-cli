@@ -47,10 +47,12 @@ jspm_packages/
 !/.eslintrc.js
 !/test/tsconfig.json
 !/api-extractor.json
+!/tsdoc.json
 db.json.gz
 .init-version.json
 index_bg.wasm
 .recommended-feature-flags.json
+synth.lock
 docs_html
 build-info.json
 lib/**/*.wasm

@@ -84,7 +84,7 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
       }
 
       if (!isValidSubnetType(type)) {
-        // eslint-disable-next-line max-len
+        // eslint-disable-next-line @stylistic/max-len
         throw new ContextProviderError(
           `Subnet ${subnet.SubnetArn} has invalid subnet type ${type} (must be ${SubnetType.Public}, ${SubnetType.Private} or ${SubnetType.Isolated})`,
         );

@@ -48,9 +48,12 @@
     "*.generated.ts"
   ],
   "rules": {
-    "@typescript-eslint/no-require-imports": [
-      "error"
+    "curly": [
+      "error",
+      "multi-line",
+      "consistent"
     ],
+    "@typescript-eslint/no-require-imports": "error",
     "import/no-extraneous-dependencies": [
       "error",
       {
@@ -82,26 +85,12 @@
     "no-shadow": [
       "off"
     ],
-    "@typescript-eslint/no-shadow": [
-      "error"
+    "@typescript-eslint/no-shadow": "error",
+    "@typescript-eslint/no-floating-promises": "error",
+    "no-return-await": [
+      "off"
     ],
-    "key-spacing": [
-      "error"
-    ],
-    "no-multiple-empty-lines": [
-      "error",
-      {
-        "max": 1
-      }
-    ],
-    "@typescript-eslint/no-floating-promises": [
-      "error"
-    ],
-    "no-return-await": "off",
     "@typescript-eslint/return-await": "error",
-    "no-trailing-spaces": [
-      "error"
-    ],
     "dot-notation": [
       "error"
     ],
@@ -124,6 +113,26 @@
         ]
       }
     ],
+    "@cdklabs/promiseall-no-unbounded-parallelism": [
+      "error"
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
+        "message": "Use the md5hash() function from the core library if you want md5"
+      }
+    ],
+    "no-throw-literal": [
+      "error"
+    ],
+    "no-console": [
+      "error"
+    ],
+    "@cdklabs/no-invalid-path": [
+      "error"
+    ],
+    "@typescript-eslint/unbound-method": "error",
     "@cdklabs/no-core-construct": [
       "error"
     ],
@@ -133,20 +142,26 @@
     "@cdklabs/no-literal-partition": [
       "error"
     ],
-    "@cdklabs/no-invalid-path": [
-      "error"
-    ],
-    "@cdklabs/promiseall-no-unbounded-parallelism": [
-      "error"
-    ],
-    "no-throw-literal": [
-      "error"
+    "@typescript-eslint/consistent-type-imports": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "punycode",
+            "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
+          }
+        ],
+        "patterns": [
+          "!punycode/"
+        ]
+      }
     ],
     "@stylistic/indent": [
       "error",
       2
     ],
-    "quotes": [
+    "@stylistic/quotes": [
       "error",
       "single",
       {
@@ -167,61 +182,56 @@
       "error",
       "always"
     ],
-    "comma-spacing": [
+    "@stylistic/comma-spacing": [
       "error",
       {
         "before": false,
         "after": true
       }
     ],
-    "no-multi-spaces": [
+    "@stylistic/no-multi-spaces": [
       "error",
       {
         "ignoreEOLComments": false
       }
     ],
-    "array-bracket-spacing": [
+    "@stylistic/array-bracket-spacing": [
       "error",
       "never"
     ],
-    "array-bracket-newline": [
+    "@stylistic/array-bracket-newline": [
       "error",
       "consistent"
     ],
-    "object-curly-spacing": [
+    "@stylistic/object-curly-spacing": [
       "error",
       "always"
     ],
-    "object-curly-newline": [
+    "@stylistic/object-curly-newline": [
       "error",
       {
         "multiline": true,
         "consistent": true
       }
     ],
-    "object-property-newline": [
+    "@stylistic/object-property-newline": [
       "error",
       {
         "allowAllPropertiesOnSameLine": true
       }
     ],
-    "keyword-spacing": [
+    "@stylistic/keyword-spacing": [
       "error"
     ],
-    "brace-style": [
+    "@stylistic/brace-style": [
       "error",
       "1tbs",
       {
         "allowSingleLine": true
       }
     ],
-    "space-before-blocks": "error",
-    "curly": [
-      "error",
-      "multi-line",
-      "consistent"
-    ],
-    "eol-last": [
+    "@stylistic/space-before-blocks": "error",
+    "@stylistic/eol-last": [
       "error",
       "always"
     ],
@@ -246,6 +256,37 @@
         "switches": "never"
       }
     ],
+    "@stylistic/key-spacing": [
+      "error"
+    ],
+    "@stylistic/quote-props": [
+      "error",
+      "consistent-as-needed"
+    ],
+    "@stylistic/no-multiple-empty-lines": [
+      "error",
+      {
+        "max": 1
+      }
+    ],
+    "@stylistic/no-trailing-spaces": [
+      "error"
+    ],
+    "@stylistic/semi": [
+      "error",
+      "always"
+    ],
+    "@stylistic/max-len": [
+      "error",
+      {
+        "code": 150,
+        "ignoreUrls": true,
+        "ignoreStrings": true,
+        "ignoreTemplateLiterals": true,
+        "ignoreComments": true,
+        "ignoreRegExpLiterals": true
+      }
+    ],
     "jsdoc/require-param-description": [
       "error"
     ],
@@ -258,51 +299,6 @@
     "jsdoc/check-alignment": [
       "error"
     ],
-    "no-restricted-imports": [
-      "error",
-      {
-        "paths": [
-          {
-            "name": "punycode",
-            "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
-          }
-        ],
-        "patterns": [
-          "!punycode/"
-        ]
-      }
-    ],
-    "@typescript-eslint/consistent-type-imports": "error",
-    "semi": [
-      "error",
-      "always"
-    ],
-    "quote-props": [
-      "error",
-      "consistent-as-needed"
-    ],
-    "max-len": [
-      "error",
-      {
-        "code": 150,
-        "ignoreUrls": true,
-        "ignoreStrings": true,
-        "ignoreTemplateLiterals": true,
-        "ignoreComments": true,
-        "ignoreRegExpLiterals": true
-      }
-    ],
-    "no-console": [
-      "error"
-    ],
-    "no-restricted-syntax": [
-      "error",
-      {
-        "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
-        "message": "Use the md5hash() function from the core library if you want md5"
-      }
-    ],
-    "@typescript-eslint/unbound-method": "error",
     "jest/expect-expect": "off",
     "jest/no-conditional-expect": "off",
     "jest/no-done-callback": "off",
