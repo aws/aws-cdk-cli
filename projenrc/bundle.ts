@@ -31,7 +31,7 @@ export interface BundleProps {
    *
    * These will be copied over to the appropriate paths before packaging.
    */
-  readonly resources?: {[src: string]: string};
+  readonly resources?: { [src: string]: string };
 
   /**
    * A list of licenses that are allowed for bundling.

@@ -36,7 +36,7 @@ import { patternsArrayForWatch } from '../actions/watch/private';
 import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
 import { makeRequestHandler } from '../api/aws-auth/awscli-compatible';
 import type { SdkProviderServices } from '../api/aws-auth/private';
-import { SdkProvider } from '../api/aws-auth/private';
+import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
@@ -200,7 +200,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const services: SdkProviderServices = {
         ioHelper,
         requestHandler: await makeRequestHandler(ioHelper, this.props.sdkConfig?.httpOptions),
-        logger: asSdkLogger(ioHelper),
+        logger: new IoHostSdkLogger(ioHelper),
         pluginHost: this.pluginHost,
       };
 

@@ -24,7 +24,7 @@ export interface IPreparedRunnerSource<SourceType> {
 
 export type Constructor<A> = new (...args: any[]) => A;
 
-export type SourceDescriptor<A> = [Constructor<A>, any[]]
+export type SourceDescriptor<A> = [Constructor<A>, any[]];
 
 export interface ITestCliSource {
   /**

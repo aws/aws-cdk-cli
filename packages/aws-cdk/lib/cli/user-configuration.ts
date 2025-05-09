@@ -305,8 +305,9 @@ export function commandLineArgumentsToSettings(argv: Arguments): Settings {
     ignoreNoStacks: argv['ignore-no-stacks'],
     hotswap: {
       ecs: {
-        minimumEcsHealthyPercent: argv.minimumEcsHealthyPercent,
-        maximumEcsHealthyPercent: argv.maximumEcsHealthyPercent,
+        minimumHealthyPercent: argv.hotswapEcsMinimumHealthyPercent,
+        maximumHealthyPercent: argv.hotswapEcsMaximumHealthyPercent,
+        stabilizationTimeoutSeconds: argv.hotswapEcsStabilizationTimeoutSeconds,
       },
     },
     unstable: argv.unstable,

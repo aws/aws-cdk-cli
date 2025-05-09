@@ -9,8 +9,8 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
+import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib';
 import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -390,6 +390,7 @@ export class CdkToolkit {
     hotswapPropertyOverrides.ecsHotswapProperties = new EcsHotswapProperties(
       hotswapPropertiesFromSettings.ecs?.minimumHealthyPercent,
       hotswapPropertiesFromSettings.ecs?.maximumHealthyPercent,
+      hotswapPropertiesFromSettings.ecs?.stabilizationTimeoutSeconds,
     );
 
     const stacks = stackCollection.stackArtifacts;
@@ -426,7 +427,7 @@ export class CdkToolkit {
       }
 
       if (!stack.environment) {
-        // eslint-disable-next-line max-len
+        // eslint-disable-next-line @stylistic/max-len
         throw new ToolkitError(
           `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
         );
@@ -917,7 +918,7 @@ export class CdkToolkit {
     stacks = stacks.reversed();
 
     if (!options.force) {
-      // eslint-disable-next-line max-len
+      // eslint-disable-next-line @stylistic/max-len
       const confirmed = await promptly.confirm(
         `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))} (y/n)?`,
       );

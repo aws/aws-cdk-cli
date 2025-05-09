@@ -11,7 +11,7 @@ import { Configuration } from './user-configuration';
 import * as version from './version';
 import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import { asIoHelper, IO } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { SdkProvider, SdkToCliLogger, setSdkTracing } from '../api/aws-auth';
+import { SdkProvider, IoHostSdkLogger, setSdkTracing } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import type { DeploymentMethod } from '../api/deployments';
@@ -123,7 +123,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       proxyAddress: argv.proxy,
       caBundlePath: argv['ca-bundle-path'],
     }),
-    logger: new SdkToCliLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
+    logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
   });
 

@@ -91,6 +91,7 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   'index_bg.wasm',
   'build-info.json',
   '.recommended-feature-flags.json',
+  'synth.lock',
 ];
 
 const CLI_SDK_V3_RANGE = '^3';
@@ -252,6 +253,20 @@ const repoProject = new yarn.Monorepo({
       },
       semanticTitleOptions: {
         types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
+        scopes: [
+          'cdk-assets',
+          'cli',
+          'cli-lib-alpha',
+          'cli-plugin-contract',
+          'cloud-assembly-schema',
+          'cloudformation-diff',
+          'deps',
+          'dev-deps',
+          'docs',
+          'integ-runner',
+          'integ-testing',
+          'toolkit-lib',
+        ],
       },
     },
   },
@@ -343,7 +358,7 @@ function genericCdkProps(props: GenericProps = {}) {
     },
     typescriptVersion: TYPESCRIPT_VERSION,
     checkLicenses: props.private ? undefined : {
-      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause'],
+      allow: ['Apache-2.0', 'MIT', 'ISC', 'BSD-3-Clause', '0BSD'],
     },
     ...props,
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
@@ -429,6 +444,12 @@ const cloudFormationDiff = configureProject(
     name: '@aws-cdk/cloudformation-diff',
     description: 'Utilities to diff CDK stacks against CloudFormation templates',
     srcdir: 'lib',
+    devDeps: [
+      'fast-check',
+    ],
+    peerDeps: [
+      '@aws-sdk/client-cloudformation@^3',
+    ],
     deps: [
       '@aws-cdk/aws-service-spec',
       '@aws-cdk/service-spec-types',
@@ -438,7 +459,6 @@ const cloudFormationDiff = configureProject(
       'string-width@^4',
       'table@^6',
     ],
-    devDeps: ['@aws-sdk/client-cloudformation', 'fast-check'],
     // FIXME: this should be a jsii project
     // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
     tsconfig: {
@@ -812,6 +832,7 @@ const toolkitLib = configureProject(
         module: 'NodeNext',
       },
     },
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 
@@ -863,8 +884,11 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
         },
       },
       extractorMessageReporting: {
-        default: {
+        'default': {
           logLevel: 'warning',
+        },
+        'ae-missing-release-tag': {
+          logLevel: 'none',
         },
       },
       tsdocMessageReporting: {
@@ -875,6 +899,26 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
     },
   },
   committed: true,
+});
+
+// TsDoc config (required by API Extractor)
+new pj.JsonFile(toolkitLib, 'tsdoc.json', {
+  marker: false,
+  obj: {
+    $schema: 'https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json',
+    // Inherit the TSDoc configuration for API Extractor
+    extends: ['@microsoft/api-extractor/extends/tsdoc-base.json'],
+    // custom config
+    tagDefinitions: [
+      {
+        tagName: '@default',
+        syntaxKind: 'block',
+      },
+    ],
+    supportForTags: {
+      '@default': true,
+    },
+  },
 });
 
 // Eslint rules
@@ -947,7 +991,7 @@ const toolkitLibDocs = toolkitLib.addTask('docs', {
 const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
   exec: [
     // Run api-extractor to generate the API model
-    'api-extractor run --diagnostics || true',
+    'api-extractor run || true',
     // Create a directory for the API model
     'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
     // Copy the API model to the directory (with error handling)
@@ -959,7 +1003,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
     // Copy all files from docs directory if it exists
     'if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi',
     // Zip the API model and docs files
-    'cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk',
+    'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
 });
 
@@ -972,7 +1016,7 @@ toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/t
 // The docs build needs the version in a specific file at the nested root
 toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
 // Zip the whole thing up, again paths are important here to get the desired folder structure
-toolkitLib.packageTask.exec('zip -r ../docs.zip cdk', { cwd: 'dist/docs' });
+toolkitLib.packageTask.exec('zip -r -q ../docs.zip cdk', { cwd: 'dist/docs' });
 
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',
@@ -1573,7 +1617,7 @@ const cliInteg = configureProject(
     ],
     devDeps: [
       yarnCling,
-      toolkitLib,
+      toolkitLib.customizeReference({ versionType: 'exact' }),
       '@types/semver@^7',
       '@types/yargs@^16',
       '@types/fs-extra@^9',
@@ -1669,6 +1713,7 @@ new CdkCliIntegTestsWorkflow(repo, {
     cliLib.name,
     cdkAliasPackage.name,
     cliInteg.name,
+    toolkitLib.name,
   ],
 
   allowUpstreamVersions: [
@@ -1676,6 +1721,17 @@ new CdkCliIntegTestsWorkflow(repo, {
     // - Candidate version for cdk-assets
     // - Previously released version for aws-cdk-lib
     cloudAssemblySchema.name,
+
+    // toolkit-lib can get referenced under multiple versions,
+    // and during the 0.x period most likely *will*.
+    // - The Amplify CLI will only depend on versions that are already published.
+    //   These can be `0.3.2` or `^1`. We can't hijack the NPM install so this has to
+    //   resolve to a proper version.
+    // - If they use `^1` then our prerelease version will be automatically installed...
+    //   unless we are releasing a breaking change, in which case they will depend
+    //   on `^1` but we will be testing `2.0.999`, so the upstream still needs to
+    //   be available to make this test succeed.
+    toolkitLib.name,
   ],
   enableAtmosphere: {
     oidcRoleArn: '${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}',

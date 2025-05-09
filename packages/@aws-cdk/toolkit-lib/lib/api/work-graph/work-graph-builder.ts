@@ -48,7 +48,7 @@ export class WorkGraphBuilder {
   /**
    * Oof, see this parameter list
    */
-  // eslint-disable-next-line max-len
+  // eslint-disable-next-line @stylistic/max-len
   private addAsset(parentStack: cxapi.CloudFormationStackArtifact, assetManifestArtifact: cxapi.AssetManifestArtifact, assetManifest: AssetManifest, asset: IManifestEntry) {
     // Just the artifact identifier
     const assetId = asset.id.assetId;

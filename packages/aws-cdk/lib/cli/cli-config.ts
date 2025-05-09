@@ -158,6 +158,18 @@ export async function makeConfig(): Promise<CliConfig> {
               'and falls back to a full deployment if that is not possible. ' +
               'Do not use this in production environments',
           },
+          'hotswap-ecs-minimum-healthy-percent': {
+            type: 'string',
+            desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-maximum-healthy-percent': {
+            type: 'string',
+            desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-stabilization-timeout-seconds': {
+            type: 'string',
+            desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
+          },
           'watch': {
             type: 'boolean',
             desc: 'Continuously observe the project files, ' +
@@ -274,6 +286,18 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: "Attempts to perform a 'hotswap' deployment, " +
               'which skips CloudFormation and updates the resources directly, ' +
               'and falls back to a full deployment if that is not possible.',
+          },
+          'hotswap-ecs-minimum-healthy-percent': {
+            type: 'string',
+            desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-maximum-healthy-percent': {
+            type: 'string',
+            desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-stabilization-timeout-seconds': {
+            type: 'string',
+            desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'logs': {
             type: 'boolean',
