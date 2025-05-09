@@ -1,3 +1,4 @@
+import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface RefactorOptions {
@@ -27,4 +28,43 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   exclude?: string[];
+
+  /**
+   * An explicit mapping to be used by the toolkit (as opposed to
+   * letting the toolkit itself compute the mapping). The `source`
+   * and `destination` properties are resource locations in the
+   * format `StackName.LogicalId`. The source must refer to a
+   * location where there is a resource currently deployed, while
+   * the destination must refer to a location that is not already
+   * occupied by any resource.
+   */
+  mappings?: UserProvidedResourceMapping[];
+
+  /**
+   * Modifies the behavior of the 'mappings' option by swapping source and
+   * destination locations. This is useful when you want to undo a refactor
+   * that was previously applied.
+   */
+  revert?: boolean;
+}
+
+/**
+ * Explicit mapping of a resource from one location to another, within a
+ * given environment.
+ */
+export interface UserProvidedResourceMapping {
+  /**
+   * The source resource location, in the format `StackName.LogicalId`.
+   */
+  source: string;
+
+  /**
+   * The destination resource location, in the format `StackName.LogicalId`.
+   */
+  destination: string;
+
+  /**
+   * The environment in which the mapping is valid.
+   */
+  environment: cxapi.Environment;
 }
