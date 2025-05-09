@@ -9,10 +9,6 @@
       "type": "build"
     },
     {
-      "name": "@aws-cdk/toolkit-lib",
-      "type": "build"
-    },
-    {
       "name": "@aws-cdk/user-input-gen",
       "type": "build"
     },
@@ -203,6 +199,10 @@
     },
     {
       "name": "@aws-cdk/cx-api",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-cdk/toolkit-lib",
       "type": "runtime"
     },
     {

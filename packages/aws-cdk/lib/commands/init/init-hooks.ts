@@ -1,6 +1,6 @@
 import * as path from 'path';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { shell } from './os';
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib';
 import { formatErrorMessage } from '../../util';
 
 export type SubstitutePlaceholders = (...fileNames: string[]) => Promise<void>;
