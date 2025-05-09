@@ -24,7 +24,7 @@ export { formatAsBanner } from './cli/util/console-formatters';
 export { versionNumber } from './cli/version';
 
 // Commands
-export { RequireApproval } from './commands/diff';
+export { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 export { availableInitTemplates } from './commands/init';
 export { aliases, command, describe } from './commands/docs';
 

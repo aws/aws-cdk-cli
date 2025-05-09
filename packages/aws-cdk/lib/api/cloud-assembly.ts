@@ -1,3 +1,4 @@
+/* eslint-disable import/no-relative-packages */
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly/private';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly/environment';

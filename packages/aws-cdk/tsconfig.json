@@ -47,6 +47,9 @@
       "path": "../@aws-cdk/cloudformation-diff"
     },
     {
+      "path": "../@aws-cdk/toolkit-lib"
+    },
+    {
       "path": "../cdk-assets"
     },
     {
@@ -57,9 +60,6 @@
     },
     {
       "path": "../@aws-cdk/cli-plugin-contract"
-    },
-    {
-      "path": "../@aws-cdk/toolkit-lib"
     }
   ]
 }

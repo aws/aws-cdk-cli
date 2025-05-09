@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import type { IoMessageLevel } from './io-host';
@@ -6,21 +8,20 @@ import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
+import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import { asIoHelper, IO } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { SdkProvider, IoHostSdkLogger, setSdkTracing } from '../api/aws-auth';
+import { asIoHelper, IO } from '../../lib/api-private';
+import type { IReadLock } from '../api';
+import { ToolkitInfo, Notices } from '../api';
+import { SdkProvider, IoHostSdkLogger, setSdkTracing, makeRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
-import { Notices } from '../api/notices';
-import type { IReadLock } from '../api/rwlock';
 import type { Settings } from '../api/settings';
-import { ToolkitInfo } from '../api/toolkit-info';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
@@ -28,10 +29,6 @@ import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
-import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
-import { makeRequestHandler } from '../../../@aws-cdk/toolkit-lib/lib/api/shared-private';
-/* eslint-disable max-len */
-/* eslint-disable @typescript-eslint/no-shadow */ // yargs
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting

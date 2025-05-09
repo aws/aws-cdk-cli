@@ -61,7 +61,7 @@ import 'aws-sdk-client-mock';
 import * as os from 'os';
 import * as path from 'path';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import { Manifest } from '@aws-cdk/cloud-assembly-schema';
+import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
@@ -69,9 +69,7 @@ import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as cdkAssets from 'cdk-assets';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
-import type { Template } from '../../../@aws-cdk/toolkit-lib/lib/api';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import type { SdkProvider } from '../../lib/api';
+import type { Template, SdkProvider } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
   DeployStackResult,
@@ -87,11 +85,11 @@ import {
 import { HotswapMode } from '../../lib/api/hotswap';
 import { Mode } from '../../lib/api/plugin';
 import type { Tag } from '../../lib/api/tags';
+import { asIoHelper } from '../../lib/api-private';
 import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { StackActivityProgress } from '../../lib/commands/deploy';
-import { RequireApproval } from '../../lib/commands/diff';
 import { flatten } from '../../lib/util';
 import { instanceMockFrom } from '../_helpers/as-mock';
 import type { TestStackArtifact } from '../_helpers/assembly';

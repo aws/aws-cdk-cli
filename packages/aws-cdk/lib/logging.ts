@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
+import { asIoHelper, IoDefaultMessages } from '../lib/api-private';
 import type { IoMessageLevel } from './cli/io-host/cli-io-host';
 import { CliIoHost } from './cli/io-host/cli-io-host';
-import { asIoHelper, IoDefaultMessages } from '../../@aws-cdk/toolkit-lib/lib/api/io/private';
 
 export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
 export type IoCodeLevel = 'E' | 'W' | 'I';

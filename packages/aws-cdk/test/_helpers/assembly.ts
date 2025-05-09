@@ -4,7 +4,7 @@ import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type Asset
 import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cx-api';
 import { cxapiAssemblyWithForcedVersion } from './assembly-versions';
 import { TestIoHost } from './io-host';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { asIoHelper } from '../../lib/api-private';
 import type { IIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { CloudExecutable } from '../../lib/cxapp/cloud-executable';

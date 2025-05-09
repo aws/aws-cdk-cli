@@ -1,9 +1,6 @@
+import { exec as runCli, debug, createAssembly, prepareContext, prepareDefaultEnvironment } from './aws-cdk';
 import type { SharedOptions, DeployOptions, DestroyOptions, BootstrapOptions, SynthOptions, ListOptions } from './commands';
 import { StackActivityProgress, HotswapMode } from './commands';
-import { exec as runCli } from '../../../aws-cdk/lib';
-import { prepareContext, prepareDefaultEnvironment } from '../../../aws-cdk/lib/api/cloud-assembly';
-import { createAssembly } from '../../../aws-cdk/lib/cxapp';
-import { debug } from '../../../aws-cdk/lib/legacy-exports';
 
 const debugFn = async (msg: string) => void debug(msg);
 
