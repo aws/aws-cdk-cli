@@ -1,9 +1,9 @@
 import { format } from 'node:util';
+import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
-import type { AwsCredentialIdentityProvider } from '@smithy/types';
 import * as promptly from 'promptly';
 import { makeCachingProvider } from './provider-caching';
 import { ProxyAgentProvider } from './proxy-agent';
@@ -34,7 +34,7 @@ export class AwsCliCompatible {
     this.logger = logger;
   }
 
-  public async baseConfig(profile?: string): Promise<{ credentialProvider: AwsCredentialIdentityProvider; defaultRegion: string }> {
+  public async baseConfig(profile?: string): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
     const credentialProvider = await this.credentialChainBuilder({
       profile,
       logger: this.logger,
@@ -50,7 +50,7 @@ export class AwsCliCompatible {
    */
   public async credentialChainBuilder(
     options: CredentialChainOptions = {},
-  ): Promise<AwsCredentialIdentityProvider> {
+  ): Promise<SDKv3CompatibleCredentialProvider> {
     const clientConfig = {
       requestHandler: this.requestHandler,
       customUserAgent: 'aws-cdk',

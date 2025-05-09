@@ -7,9 +7,14 @@
     {
       "tagName": "@default",
       "syntaxKind": "block"
+    },
+    {
+      "tagName": "@module",
+      "syntaxKind": "block"
     }
   ],
   "supportForTags": {
-    "@default": true
+    "@default": true,
+    "@module": true
   }
 }

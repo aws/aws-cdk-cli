@@ -1,3 +1,4 @@
+import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import type {
   FunctionConfiguration,
   GetSchemaCreationStatusCommandInput,
@@ -340,7 +341,6 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
-import type { AwsCredentialIdentityProvider } from '@smithy/types';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
 import type { WaiterResult } from '@smithy/util-waiter';
 import { AccountAccessKeyCache } from './account-cache';
@@ -382,7 +382,7 @@ export interface SdkOptions {
 
 export interface ConfigurationOptions {
   region: string;
-  credentials: AwsCredentialIdentityProvider;
+  credentials: SDKv3CompatibleCredentialProvider;
   requestHandler: NodeHttpHandlerOptions;
   retryStrategy: ConfiguredRetryStrategy;
   customUserAgent: string;
@@ -587,7 +587,7 @@ export class SDK {
   private readonly debug: (msg: string) => Promise<void>;
 
   constructor(
-    private readonly credProvider: AwsCredentialIdentityProvider,
+    private readonly credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
     requestHandler: NodeHttpHandlerOptions,
     ioHelper: IoHelper,

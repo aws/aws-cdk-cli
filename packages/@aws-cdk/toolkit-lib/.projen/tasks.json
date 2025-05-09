@@ -4,7 +4,7 @@
       "name": "api-extractor-docs",
       "steps": [
         {
-          "exec": "api-extractor run || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo \"Warning: API JSON file not found\"; fi && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi && if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi && cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk"
+          "exec": "api-extractor run || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo \"Warning: API JSON file not found\"; fi && (cat dist/version.txt 2>/dev/null || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi && if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi && cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk"
         }
       ]
     },
@@ -60,7 +60,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/types,@smithy/util-stream,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,license-checker,ts-jest,typedoc,xml-js,@aws-cdk/cx-api,@aws-cdk/region-info,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,glob,minimatch,promptly,proxy-agent,semver,split2,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/fs-extra,@types/jest,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,license-checker,ts-jest,typedoc,xml-js,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,glob,minimatch,promptly,proxy-agent,semver,split2,uuid"
         }
       ]
     },
@@ -121,7 +121,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=major @aws-cdk/cloud-assembly-schema=major @aws-cdk/cloudformation-diff=major cdk-assets=major",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=major @aws-cdk/cloudformation-diff=major cdk-assets=major @aws-cdk/cli-plugin-contract=major",
           "receiveArgs": true
         }
       ]
