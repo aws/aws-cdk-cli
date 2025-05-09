@@ -3,8 +3,8 @@ import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
 import * as deployments from '../../lib/api/deployments';
-import { cfnApi } from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/require-approval';
+import { cfnApi } from '../../lib/api/shared-private';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
@@ -258,7 +258,7 @@ describe('diff', () => {
           ],
         };
       });
-    
+
       // WHEN
       ioHost.level = 'debug';
       const cx = await builderFixture(toolkit, 'stack-with-bucket');
@@ -266,12 +266,11 @@ describe('diff', () => {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ importExistingResources: true }),
       });
-    
+
       // THEN
       expect(createDiffChangeSetMock).toHaveBeenCalled();
       expect(result.Stack1.resources.get('MyBucketF68F3FF0').isImport).toBe(true);
     });
-    
 
     test('ChangeSet diff method throws if changeSet fails and fallBackToTemplate = false', async () => {
       // WHEN
