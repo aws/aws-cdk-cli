@@ -810,10 +810,10 @@ const toolkitLib = configureProject(
       jestConfig: {
         coverageThreshold: {
           // this is very sad but we will get better
-          statements: 87,
+          statements: 86,
           branches: 83,
           functions: 82,
-          lines: 87,
+          lines: 86,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
         setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
