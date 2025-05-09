@@ -141,6 +141,7 @@
       "error"
     ],
     "@typescript-eslint/consistent-type-imports": "error",
+    "import/no-relative-packages": "error",
     "no-restricted-imports": [
       "error",
       {
