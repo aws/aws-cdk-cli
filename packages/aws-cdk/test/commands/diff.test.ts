@@ -111,6 +111,200 @@ describe('fixed template', () => {
   });
 });
 
+describe('import existing resources', () => {
+  let createDiffChangeSet: jest.SpyInstance<
+    Promise<DescribeChangeSetCommandOutput | undefined>,
+    [ioHelper: IoHelper, options: cfnApi.PrepareChangeSetOptions],
+    any
+  >;
+
+  beforeEach(() => {
+    // Default implementations
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation(
+      (_stackArtifact: CloudFormationStackArtifact) => {
+        return Promise.resolve({
+          deployedRootTemplate: {
+            Resources: {
+              MyTable: {
+                Type: 'AWS::DynamoDB::Table',
+                Properties: {
+                  TableName: 'MyTableName-12345ABC',
+                },
+                DeletionPolicy: 'Retain',
+              },
+            },
+          },
+          nestedStacks: {},
+        });
+      },
+    );
+    cloudFormation.stackExists = jest.fn().mockReturnValue(Promise.resolve(true));
+    cloudExecutable = new MockCloudExecutable({
+      stacks: [
+        {
+          stackName: 'A',
+          template: {
+            Resources: {
+              MyGlobalTable: {
+                Type: 'AWS::DynamoDB::GlobalTable',
+                Properties: {
+                  TableName: 'MyTableName-12345ABC',
+                },
+              },
+            },
+          },
+        },
+      ],
+    }, undefined, ioHost);
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  });
+
+  test('import action in change set output', async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+      return {
+        $metadata: {},
+        Changes: [
+          {
+            ResourceChange: {
+              Action: 'Import',
+              LogicalResourceId: 'MyGlobalTable',
+            },
+          },
+        ],
+      };
+    });
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      changeSet: true,
+      importExistingResources: true,
+    });
+
+    expect(createDiffChangeSet).toHaveBeenCalled();
+
+    // THEN
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`
+Resources
+[-] AWS::DynamoDB::Table MyTable orphan
+[←] AWS::DynamoDB::GlobalTable MyGlobalTable import
+`);
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
+    expect(exitCode).toBe(0);
+  });
+
+  test('import action in change set output when not using --import-exsting-resources', async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+      return {
+        $metadata: {},
+        Changes: [
+          {
+            ResourceChange: {
+              Action: 'Add',
+              LogicalResourceId: 'MyGlobalTable',
+            },
+          },
+        ],
+      };
+    });
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      changeSet: true,
+      importExistingResources: false,
+    });
+
+    expect(createDiffChangeSet).toHaveBeenCalled();
+
+    // THEN
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`
+Resources
+[-] AWS::DynamoDB::Table MyTable orphan
+[+] AWS::DynamoDB::GlobalTable MyGlobalTable
+`);
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
+    expect(exitCode).toBe(0);
+  });
+
+  test('when invoked with no changeSet flag', async () => {
+    // WHEN
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+      return {
+        $metadata: {},
+        Changes: [
+          {
+            ResourceChange: {
+              Action: 'Add',
+              LogicalResourceId: 'MyGlobalTable',
+            },
+          },
+        ],
+      };
+    });
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      changeSet: undefined,
+      importExistingResources: true,
+    });
+
+    expect(createDiffChangeSet).not.toHaveBeenCalled();
+
+    // THEN
+    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`
+Resources
+[-] AWS::DynamoDB::Table MyTable orphan
+[+] AWS::DynamoDB::GlobalTable MyGlobalTable
+`);
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
+    expect(exitCode).toBe(0);
+  });
+
+  test('when invoked with local template path', async () => {
+    const templatePath = 'oldTemplate.json';
+    const oldTemplate = {
+      Resources: {
+        SomeResource: {
+          Type: 'AWS::SomeService::SomeResource',
+          Properties: {
+            Something: 'old-value',
+          },
+        },
+      },
+    };
+    fs.writeFileSync(templatePath, JSON.stringify(oldTemplate));
+    // WHEN
+    await expect(async () => {
+      await toolkit.diff({
+        stackNames: ['A'],
+        changeSet: undefined,
+        templatePath: templatePath,
+        importExistingResources: true,
+      });
+    }).rejects.toThrow(/Can only use --import-existing-resources flag when comparing against deployed stacks/);
+  });
+});
+
 describe('imports', () => {
   let createDiffChangeSet: jest.SpyInstance<
     Promise<DescribeChangeSetCommandOutput | undefined>,

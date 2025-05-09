@@ -89,6 +89,7 @@ async function cfnDiff(
       resourcesToImport,
       methodOptions.parameters,
       methodOptions.fallbackToTemplate,
+      methodOptions.importExistingResources,
     ) : undefined;
 
     templateInfos.push({
@@ -111,6 +112,7 @@ async function changeSetDiff(
   resourcesToImport?: ResourcesToImport,
   parameters: { [name: string]: string | undefined } = {},
   fallBackToTemplate: boolean = true,
+  importExistingResources: boolean = false,
 ): Promise<any | undefined> {
   let stackExists = false;
   try {
@@ -139,6 +141,7 @@ async function changeSetDiff(
       parameters: parameters,
       resourcesToImport,
       failOnError: !fallBackToTemplate,
+      importExistingResources,
     });
   } else {
     if (!fallBackToTemplate) {

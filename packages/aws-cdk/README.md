@@ -189,6 +189,23 @@ The `change-set` flag will make `diff` create a change set and extract resource 
 The `--no-change-set` mode will consider any change to a property that requires replacement to be a resource replacement,
 even if the change is purely cosmetic (like replacing a resource reference with a hardcoded arn).
 
+The `--import-existing-resources` option will make `diff` create a change set and compare it using
+the CloudFormation resource import mechanism. This allows CDK to detect changes and show report of resources that
+will be imported rather added.U se this flag when preparing to import existing resources into a CDK stack to
+ensure the changes are correctly reflected and safe to apply.
+
+```console
+$ cdk diff
+[+] AWS::DynamoDB::GlobalTable MyGlobalTable MyGlobalTable5DC12DB4
+
+$ cdk diff --import-existing-resources
+[←] AWS::DynamoDB::GlobalTable MyGlobalTable MyGlobalTable5DC12DB4 import
+```
+
+In the output above:
+[+] indicates a new resource that would be created.
+[←] indicates a resource that would be imported into the stack instead.
+
 ### `cdk deploy`
 
 Deploys a stack of your CDK app to its environment. During the deployment, the toolkit will output progress
