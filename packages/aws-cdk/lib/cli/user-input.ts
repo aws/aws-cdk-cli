@@ -1113,8 +1113,6 @@ export interface DiffOptions {
   /**
    * Whether or not the change set imports resources that already exist
    *
-   * aliases: import
-   *
    * @default - false
    */
   readonly importExistingResources?: boolean;

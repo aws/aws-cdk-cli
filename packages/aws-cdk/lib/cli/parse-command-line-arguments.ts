@@ -719,7 +719,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: false,
             type: 'boolean',
             desc: 'Whether or not the change set imports resources that already exist',
-            alias: 'import',
           }),
     )
     .command('metadata [STACK]', 'Returns all metadata associated with this stack')

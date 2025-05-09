@@ -3,6 +3,7 @@ import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
 import * as deployments from '../../lib/api/deployments';
+import { cfnApi } from '../../lib/api/shared-private';
 import { RequireApproval } from '../../lib/api/require-approval';
 import { StackSelectionStrategy } from '../../lib/api/shared-public';
 import { Toolkit } from '../../lib/toolkit';
@@ -223,17 +224,6 @@ describe('diff', () => {
     }));
   });
 
-  describe('DiffMethod.ImportExistingResources', () => {
-    test('Cannot use ImportExistingResources when using local template path', async () => {
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
-      await expect(async () => toolkit.diff(cx, {
-        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-        method: DiffMethod.LocalFile(path.join(__dirname, 'blah.json')),
-        importExistingResources: true,
-      })).rejects.toThrow(/Cannot use --import-existing-resources with local-file method/);
-    });
-  });
-
   describe('DiffMethod.ChangeSet', () => {
     test('ChangeSet diff method falls back to template only if changeset not found', async () => {
       // WHEN
@@ -252,6 +242,36 @@ describe('diff', () => {
         message: expect.stringContaining('Could not create a change set, will base the diff on template differences'),
       }));
     });
+
+    test('ChangeSet diff method with import existing resources option enabled', async () => {
+      // Setup mock BEFORE calling the function
+      const createDiffChangeSetMock = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+        return {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'MyBucketF68F3FF0',
+              },
+            },
+          ],
+        };
+      });
+    
+      // WHEN
+      ioHost.level = 'debug';
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ importExistingResources: true }),
+      });
+    
+      // THEN
+      expect(createDiffChangeSetMock).toHaveBeenCalled();
+      expect(result.Stack1.resources.get('MyBucketF68F3FF0').isImport).toBe(true);
+    });
+    
 
     test('ChangeSet diff method throws if changeSet fails and fallBackToTemplate = false', async () => {
       // WHEN

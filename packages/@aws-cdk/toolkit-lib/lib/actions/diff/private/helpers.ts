@@ -42,10 +42,6 @@ async function localFileDiff(stacks: StackCollection, options: DiffOptions): Pro
     );
   }
 
-  if (options.importExistingResources) {
-    throw new ToolkitError('Cannot use --import-existing-resources with local-file method');
-  }
-
   if (!(await fs.pathExists(methodOptions.path))) {
     throw new ToolkitError(`There is no file at ${methodOptions.path}`);
   }
@@ -93,7 +89,7 @@ async function cfnDiff(
       resourcesToImport,
       methodOptions.parameters,
       methodOptions.fallbackToTemplate,
-      options.importExistingResources,
+      methodOptions.importExistingResources,
     ) : undefined;
 
     templateInfos.push({

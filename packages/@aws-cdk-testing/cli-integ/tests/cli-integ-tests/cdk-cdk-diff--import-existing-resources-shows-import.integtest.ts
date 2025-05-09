@@ -19,7 +19,7 @@ integTest(
       },
     });
 
-    // Assert there are changes
+    // Assert there are no changes and diff shows import
     expect(diff).not.toContain('There were no differences');
     expect(diff).toContain('[←]');
     expect(diff).toContain('import');
@@ -31,7 +31,7 @@ integTest(
       },
     });
 
-    // Assert there are changes
+    // Assert there are no changes and diff shows add
     expect(diff).not.toContain('There were no differences');
     expect(diff).toContain('[+]');
 
