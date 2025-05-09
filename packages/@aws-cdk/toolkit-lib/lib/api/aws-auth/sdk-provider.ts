@@ -5,7 +5,7 @@ import { EnvironmentUtils, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-a
 import type { AssumeRoleCommandInput } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
-import type { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
+import type { AwsCredentialIdentityProvider } from '@smithy/types';
 import { AwsCliCompatible } from './awscli-compatible';
 import { cached } from './cached';
 import { CredentialPlugins } from './credential-plugins';
@@ -16,6 +16,7 @@ import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import { IO, type IoHelper } from '../io/private';
 import { PluginHost, Mode } from '../plugin';
+import type { ISdkLogger } from './sdk-logger';
 
 export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>>;
 
@@ -102,7 +103,7 @@ export class SdkProvider {
   private readonly plugins;
   private readonly requestHandler: NodeHttpHandlerOptions;
   private readonly ioHelper: IoHelper;
-  private readonly logger?: Logger;
+  private readonly logger?: ISdkLogger;
 
   public constructor(
     defaultCredentialProvider: AwsCredentialIdentityProvider,
@@ -547,5 +548,5 @@ export interface SdkProviderServices {
   /**
    * An SDK logger
    */
-  readonly logger?: Logger;
+  readonly logger?: ISdkLogger;
 }

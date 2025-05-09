@@ -3,10 +3,11 @@ import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
-import type { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
+import type { AwsCredentialIdentityProvider } from '@smithy/types';
 import * as promptly from 'promptly';
 import { makeCachingProvider } from './provider-caching';
 import { ProxyAgentProvider } from './proxy-agent';
+import type { ISdkLogger } from './sdk-logger';
 import type { SdkHttpOptions } from './types';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
@@ -25,9 +26,9 @@ const DEFAULT_TIMEOUT = 300000;
 export class AwsCliCompatible {
   private readonly ioHelper: IoHelper;
   private readonly requestHandler: NodeHttpHandlerOptions;
-  private readonly logger?: Logger;
+  private readonly logger?: ISdkLogger;
 
-  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: Logger) {
+  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: ISdkLogger) {
     this.ioHelper = ioHelper;
     this.requestHandler = requestHandler;
     this.logger = logger;
@@ -267,7 +268,7 @@ function shouldPrioritizeEnv() {
 
 export interface CredentialChainOptions {
   readonly profile?: string;
-  readonly logger?: Logger;
+  readonly logger?: ISdkLogger;
 }
 
 export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {

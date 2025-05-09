@@ -724,5 +724,97 @@ describe.each([
       },
       forceNewDeployment: true,
     });
+    expect(mockECSClient).toHaveReceivedCommandWith(DescribeServicesCommand, {
+      cluster: 'arn:aws:ecs:region:account:service/my-cluster',
+      services: ['arn:aws:ecs:region:account:service/my-cluster/my-service'],
+    });
   });
+});
+
+test.each([
+  // default case
+  [101, undefined],
+  [2, 10],
+  [11, 60],
+])('DesribeService is called %p times when timeout is %p', async (describeAttempts: number, timeoutSeconds?: number) => {
+  setup.setCurrentCfnStackTemplate({
+    Resources: {
+      TaskDef: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: {
+          Family: 'my-task-def',
+          ContainerDefinitions: [
+            { Image: 'image1' },
+          ],
+        },
+      },
+      Service: {
+        Type: 'AWS::ECS::Service',
+        Properties: {
+          TaskDefinition: { Ref: 'TaskDef' },
+        },
+      },
+    },
+  });
+  setup.pushStackResourceSummaries(
+    setup.stackSummaryOf('Service', 'AWS::ECS::Service',
+      'arn:aws:ecs:region:account:service/my-cluster/my-service'),
+  );
+  mockECSClient.on(RegisterTaskDefinitionCommand).resolves({
+    taskDefinition: {
+      taskDefinitionArn: 'arn:aws:ecs:region:account:task-definition/my-task-def:3',
+    },
+  });
+  const cdkStackArtifact = setup.cdkStackArtifactOf({
+    template: {
+      Resources: {
+        TaskDef: {
+          Type: 'AWS::ECS::TaskDefinition',
+          Properties: {
+            Family: 'my-task-def',
+            ContainerDefinitions: [
+              { Image: 'image2' },
+            ],
+          },
+        },
+        Service: {
+          Type: 'AWS::ECS::Service',
+          Properties: {
+            TaskDefinition: { Ref: 'TaskDef' },
+          },
+        },
+      },
+    },
+  });
+
+  // WHEN
+  let ecsHotswapProperties = new EcsHotswapProperties(undefined, undefined, timeoutSeconds);
+  // mock the client such that the service never becomes stable using desiredCount > runningCount
+  mockECSClient.on(DescribeServicesCommand).resolves({
+    services: [
+      {
+        serviceArn: 'arn:aws:ecs:region:account:service/my-cluster/my-service',
+        taskDefinition: 'arn:aws:ecs:region:account:task-definition/my-task-def:3',
+        desiredCount: 1,
+        runningCount: 0,
+      },
+    ],
+  });
+
+  jest.useFakeTimers();
+  jest.spyOn(global, 'setTimeout').mockImplementation((callback, ms) => {
+    callback();
+    jest.advanceTimersByTime(ms ?? 0);
+    return {} as NodeJS.Timeout;
+  });
+
+  await expect(hotswapMockSdkProvider.tryHotswapDeployment(
+    HotswapMode.HOTSWAP_ONLY,
+    cdkStackArtifact,
+    {},
+    new HotswapPropertyOverrides(ecsHotswapProperties),
+  )).rejects.toThrow('Resource is not in the expected state due to waiter status');
+
+  // THEN
+  expect(mockECSClient).toHaveReceivedCommandTimes(DescribeServicesCommand, describeAttempts);
 });

@@ -9,8 +9,8 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
+import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib';
 import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
 import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
@@ -390,6 +390,7 @@ export class CdkToolkit {
     hotswapPropertyOverrides.ecsHotswapProperties = new EcsHotswapProperties(
       hotswapPropertiesFromSettings.ecs?.minimumHealthyPercent,
       hotswapPropertiesFromSettings.ecs?.maximumHealthyPercent,
+      hotswapPropertiesFromSettings.ecs?.stabilizationTimeoutSeconds,
     );
 
     const stacks = stackCollection.stackArtifacts;
