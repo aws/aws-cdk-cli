@@ -420,7 +420,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Set workflow summary',
           if: 'always()',
           run: [
-            'cat logs/md/*.md >> $GITHUB_STEP_SUMMARY',
+            // Don't fail the glob expensaion if there are no .md files
+            'if compgen -G "logs/md/*.md" > /dev/null; then',
+            '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
+            'fi',
           ].join('\n'),
         },
         {
