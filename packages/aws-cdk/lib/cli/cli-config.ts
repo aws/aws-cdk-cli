@@ -314,6 +314,17 @@ export async function makeConfig(): Promise<CliConfig> {
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
         },
       },
+      drift: {
+        description: 'Detect drifts in the given CloudFormation stack(s)',
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+        options: {
+          fail: { type: 'boolean', desc: 'Fail with exit code 1 if drift is detected' },
+          quiet: { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no drift to stdout' },
+        },
+      },
       metadata: {
         description: 'Returns all metadata associated with this stack',
         arg: {

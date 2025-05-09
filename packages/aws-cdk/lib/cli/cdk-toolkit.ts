@@ -9,17 +9,16 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import { type ToolkitAction } from '../../../@aws-cdk/toolkit-lib/lib/api';
+import { detectStackDrift, DriftFormatter } from '../../../@aws-cdk/toolkit-lib/lib/api/drift';
 import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
 import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
 import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
-import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
+import { DEFAULT_TOOLKIT_STACK_NAME, Mode, ToolkitError } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import { ExtendedStackSelection, StackCollection, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { GarbageCollector } from '../api/garbage-collection';
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
@@ -28,9 +27,10 @@ import { removeNonImportResources, ResourceImporter, ResourceMigrator } from '..
 import { type Tag, tagsForStack } from '../api/tags';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
-import { cfnApi } from '../api-private';
+import { asIoHelper, cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
 import { DiffFormatter, RequireApproval } from '../commands/diff';
+import type { DriftCommandOptions } from '../commands/drift';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -673,6 +673,40 @@ export class CdkToolkit {
       buildAsset,
       publishAsset,
     });
+  }
+
+  /**
+   * Detect infrastructure drift for the given stack(s)
+   */
+  public async drift(options: DriftCommandOptions): Promise<number> {
+    const stacks = await this.selectStacksForDrift(options.stackNames, options.exclusively);
+    const quiet = options.quiet || false;
+
+    let drifts = 0;
+
+    for (const stack of stacks.stackArtifacts) {
+      const driftResults = await this.detectDriftForStack(stack);
+
+      if (!driftResults) {
+        warning('%s: unable to detect drift', chalk.bold(stack.displayName));
+        continue;
+      }
+
+      const formatter = new DriftFormatter({
+        ioHelper: asIoHelper(this.ioHost, 'drift'),
+        stack,
+        driftResults,
+      });
+
+      const drift = formatter.formatStackDrift({ quiet });
+
+      info(drift.formattedDrift);
+      drifts += drift.numResourcesWithDrift || 0;
+    }
+
+    info(format('\n✨  Number of resources with drift: %s\n', drifts));
+
+    return drifts > 0 && options.fail ? 1 : 0;
   }
 
   /**
@@ -1400,6 +1434,43 @@ export class CdkToolkit {
       stackName: assetNode.parentStack.stackName,
     }));
   }
+
+  /**
+   * Select stacks for drift detection
+   */
+  private async selectStacksForDrift(
+    stackNames: string[],
+    exclusively?: boolean,
+  ): Promise<StackCollection> {
+    const assembly = await this.assembly();
+
+    const selectedForDrift = await assembly.selectStacks(
+      { patterns: stackNames },
+      {
+        extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
+        defaultBehavior: DefaultSelection.MainAssembly,
+      },
+    );
+
+    this.validateStacksSelected(selectedForDrift, stackNames);
+    await this.validateStacks(selectedForDrift);
+
+    return selectedForDrift;
+  }
+
+  /**
+   * Detect drift for a single CloudFormation stack
+   */
+  private async detectDriftForStack(stack: cxapi.CloudFormationStackArtifact) {
+    const env = await this.props.deployments.resolveEnvironment(stack);
+    const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
+
+    return detectStackDrift(
+      cfn,
+      asIoHelper(this.ioHost, 'drift'),
+      stack.stackName,
+    );
+  }
 }
 
 /**
@@ -1941,6 +2012,30 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   excludeFile?: string;
+}
+
+/**
+ * Options for the drift command
+ */
+export interface DriftOptions {
+  /**
+   * Stack names to check for drift
+   */
+  readonly stackNames: string[];
+
+  /**
+   * Run in quiet mode without printing status messages
+   *
+   * @default false
+   */
+  readonly quiet?: boolean;
+
+  /**
+   * Whether to fail with exit code 1 if drift is detected
+   *
+   * @default false
+   */
+  readonly fail?: boolean;
 }
 
 function buildParameterMap(

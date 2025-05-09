@@ -1,10 +1,6 @@
 {
   "dependencies": [
     {
-      "name": "@aws-sdk/client-cloudformation",
-      "type": "build"
-    },
-    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -108,6 +104,10 @@
     },
     {
       "name": "@aws-cdk/service-spec-types",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-cloudformation",
       "type": "runtime"
     },
     {

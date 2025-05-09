@@ -76,6 +76,11 @@ export interface UserInput {
   readonly diff?: DiffOptions;
 
   /**
+   * Detect drifts in the given CloudFormation stack(s)
+   */
+  readonly drift?: DriftOptions;
+
+  /**
    * Returns all metadata associated with this stack
    */
   readonly metadata?: MetadataOptions;
@@ -1112,6 +1117,34 @@ export interface DiffOptions {
 
   /**
    * Positional argument for diff
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
+ * Detect drifts in the given CloudFormation stack(s)
+ *
+ * @struct
+ */
+export interface DriftOptions {
+  /**
+   * Fail with exit code 1 if drift is detected
+   *
+   * @default - undefined
+   */
+  readonly fail?: boolean;
+
+  /**
+   * Do not print stack name and default message when there is no drift to stdout
+   *
+   * aliases: q
+   *
+   * @default - undefined
+   */
+  readonly quiet?: boolean;
+
+  /**
+   * Positional argument for drift
    */
   readonly STACKS?: Array<string>;
 }

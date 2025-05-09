@@ -127,6 +127,7 @@ describe('config', () => {
       deploy: expect.anything(),
       destroy: expect.anything(),
       diff: expect.anything(),
+      drift: expect.anything(),
       init: expect.anything(),
       metadata: expect.anything(),
       migrate: expect.anything(),
