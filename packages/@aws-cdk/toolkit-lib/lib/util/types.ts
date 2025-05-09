@@ -7,7 +7,7 @@
  * - Cannot call it Dict or Dictionary, since in other languages
  *   those also allow specifying the key type.
  */
-export type Obj<T> = {[key: string]: T};
+export type Obj<T> = { [key: string]: T };
 
 /**
  * Return whether the given value is an object

@@ -426,7 +426,7 @@ export class CdkToolkit {
       }
 
       if (!stack.environment) {
-        // eslint-disable-next-line max-len
+        // eslint-disable-next-line @stylistic/max-len
         throw new ToolkitError(
           `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
         );
@@ -917,7 +917,7 @@ export class CdkToolkit {
     stacks = stacks.reversed();
 
     if (!options.force) {
-      // eslint-disable-next-line max-len
+      // eslint-disable-next-line @stylistic/max-len
       const confirmed = await promptly.confirm(
         `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))} (y/n)?`,
       );

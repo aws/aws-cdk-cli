@@ -4,7 +4,7 @@
       "name": "api-extractor-docs",
       "steps": [
         {
-          "exec": "api-extractor run --diagnostics || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo \"Warning: API JSON file not found\"; fi && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi && if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi && cd dist/api-extractor-docs && zip -r ../api-extractor-docs.zip cdk"
+          "exec": "api-extractor run || true && mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib && if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo \"Warning: API JSON file not found\"; fi && (cat dist/version.txt || echo \"latest\") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION && if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi && if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi && cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk"
         }
       ]
     },
@@ -176,7 +176,7 @@
           "exec": "(cat dist/version.txt || echo \"latest\") > dist/docs/cdk/api/toolkit-lib/VERSION"
         },
         {
-          "exec": "zip -r ../docs.zip cdk",
+          "exec": "zip -r -q ../docs.zip cdk",
           "cwd": "dist/docs"
         }
       ]

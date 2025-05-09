@@ -3,7 +3,7 @@ import { ToolkitError } from '../toolkit/toolkit-error';
 
 // bracket - https://docs.oracle.com/middleware/1212/core/MAVEN/maven_version.htm#MAVEN401
 // pep - https://www.python.org/dev/peps/pep-0440/#version-specifiers
-export type RangeType = 'bracket' | 'pep'
+export type RangeType = 'bracket' | 'pep';
 
 export function rangeFromSemver(ver: string, targetType: RangeType) {
   const re = ver.match(/^([^\d]*)([\d.]*)$/);

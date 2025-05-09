@@ -27,18 +27,18 @@ export interface SpanDefinition<S extends object, E extends SpanEnd> {
  */
 type EmptyObject = {
   [index: string | number | symbol]: never;
-}
+};
 
 /**
  * Helper type to force a parameter to be not present of the computed type is an empty object
  */
-type VoidWhenEmpty<T> = T extends EmptyObject ? void : T
+type VoidWhenEmpty<T> = T extends EmptyObject ? void : T;
 
 /**
  * Helper type to force a parameter to be an empty object if the computed type is an empty object
  * This is weird, but some computed types (e.g. using `Omit`) don't end up enforcing this.
  */
-type ForceEmpty<T> = T extends EmptyObject ? EmptyObject : T
+type ForceEmpty<T> = T extends EmptyObject ? EmptyObject : T;
 
 /**
  * Make some properties optional

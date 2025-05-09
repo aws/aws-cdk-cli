@@ -49,6 +49,7 @@ db.json.gz
 index_bg.wasm
 build-info.json
 .recommended-feature-flags.json
+synth.lock
 lib/**/*.yaml
 lib/**/*.yml
 lib/init-templates/**

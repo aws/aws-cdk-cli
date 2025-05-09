@@ -54,7 +54,7 @@ export interface BundleProps {
    *
    * These will be copied over to the appropriate paths before packaging.
    */
-  readonly resources?: {[src: string]: string};
+  readonly resources?: { [src: string]: string };
 
   /**
    * A list of licenses that are allowed for bundling.
@@ -183,7 +183,7 @@ export class Bundle {
   private readonly packageDir: string;
   private readonly entryPoints: Record<string, string>;
   private readonly externals: Externals;
-  private readonly resources: {[src: string]: string};
+  private readonly resources: { [src: string]: string };
   private readonly allowedLicenses: string[];
   private readonly dontAttribute?: string;
   private readonly test?: string;

@@ -21,7 +21,7 @@ import { ContextProviderError } from '../toolkit/toolkit-error';
 import { formatErrorMessage } from '../util';
 
 type ContextProviderFactory = ((sdk: SdkProvider, io: IContextProviderMessages) => ContextProviderPlugin);
-type ProviderMap = {[name: string]: ContextProviderFactory};
+type ProviderMap = { [name: string]: ContextProviderFactory };
 
 const PLUGIN_PROVIDER_PREFIX = 'plugin';
 
@@ -85,14 +85,14 @@ export async function provideContextValues(
     if (providerName.startsWith(`${PLUGIN_PROVIDER_PREFIX}:`)) {
       const plugin = pluginHost.contextProviderPlugins[providerName.substring(PLUGIN_PROVIDER_PREFIX.length + 1)];
       if (!plugin) {
-        // eslint-disable-next-line max-len
+        // eslint-disable-next-line @stylistic/max-len
         throw new ContextProviderError(`Unrecognized plugin context provider name: ${missingContext.provider}.`);
       }
       factory = () => plugin;
     } else {
       factory = availableContextProviders[providerName];
       if (!factory) {
-        // eslint-disable-next-line max-len
+        // eslint-disable-next-line @stylistic/max-len
         throw new ContextProviderError(`Unrecognized context provider name: ${missingContext.provider}. You might need to update the toolkit to match the version of the construct library.`);
       }
     }

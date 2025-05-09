@@ -42,8 +42,8 @@ export async function prepareDefaultEnvironment(
  */
 export async function prepareContext(
   settings: Settings,
-  context: {[key: string]: any},
-  env: { [key: string]: string | undefined},
+  context: { [key: string]: any },
+  env: { [key: string]: string | undefined },
   debugFn: (msg: string) => Promise<void>,
 ) {
   const debugMode: boolean = settings.get(['debug']) ?? true;
