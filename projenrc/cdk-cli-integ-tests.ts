@@ -194,6 +194,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           uses: 'actions/setup-node@v4',
           with: {
             'node-version': 'lts/*',
+            'cache': 'npm',
           },
         },
         {
