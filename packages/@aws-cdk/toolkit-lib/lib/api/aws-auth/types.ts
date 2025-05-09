@@ -1,4 +1,4 @@
-import type { AwsCredentialIdentityProvider } from '@smithy/types';
+import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import type { SdkProviderServices } from '../shared-private';
 import { AwsCliCompatible } from '../shared-private';
 
@@ -146,7 +146,7 @@ export interface CustomBaseCredentialsOption {
    * sure to also configure the necessary HTTP options (like proxy and user
    * agent) on the STS client directly; the toolkit code cannot do this for you.
    */
-  readonly provider: AwsCredentialIdentityProvider;
+  readonly provider: SDKv3CompatibleCredentialProvider;
 
   /**
    * The default region to synthesize for
@@ -161,7 +161,7 @@ export interface CustomBaseCredentialsOption {
 }
 
 export interface SdkBaseConfig {
-  readonly credentialProvider: AwsCredentialIdentityProvider;
+  readonly credentialProvider: SDKv3CompatibleCredentialProvider;
 
   readonly defaultRegion?: string;
 }

@@ -1,4 +1,5 @@
 import 'aws-sdk-client-mock-jest';
+import type { SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import type { Environment } from '@aws-cdk/cx-api';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
@@ -20,14 +21,13 @@ import { SFNClient } from '@aws-sdk/client-sfn';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { AssumeRoleCommand, GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { createCredentialChain } from '@aws-sdk/credential-providers';
-import type { AwsCredentialIdentity } from '@smithy/types';
 import { mockClient } from 'aws-sdk-client-mock';
 import { type Account } from 'cdk-assets';
 import { TestIoHost } from './test-io-host';
 import { SDK, SdkProvider } from '../../lib/api/aws-auth/private';
 import { CloudFormationStack } from '../../lib/api/cloudformation';
 
-export const FAKE_CREDENTIALS: AwsCredentialIdentity = {
+export const FAKE_CREDENTIALS: SDKv3CompatibleCredentials = {
   accessKeyId: 'ACCESS',
   secretAccessKey: 'SECRET',
   sessionToken: 'TOKEN ',

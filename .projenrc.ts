@@ -625,7 +625,6 @@ const cdkAssets = configureProject(
       'jszip',
       '@types/mock-fs@^4',
       'mock-fs@^5',
-      '@smithy/types',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
@@ -708,14 +707,14 @@ const toolkitLib = configureProject(
         rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
+    peerDeps: [
+      cliPluginContract.customizeReference({ versionType: 'major' }), // allow consumers to easily de-depulicate this
+    ],
     deps: [
-      cliPluginContract,
-      cloudAssemblySchema,
-      // Purposely a ^ dependency so that clients selecting old toolkit library
-      // versions still might get upgrades to this dependency.
-      cloudFormationDiff,
-      cxApi,
-      '@aws-cdk/region-info',
+      cloudAssemblySchema, // @todo need to find the minmal required version
+      cloudFormationDiff.customizeReference({ versionType: 'major' }), // allow consumers with old toolkit-lib versions to get upgrades
+      cdkAssets.customizeReference({ versionType: 'major' }), // allow consumers with old toolkit-lib versions to get upgrades
+      `${cxApi}@^2`, // allow consumers with old toolkit-lib versions to get upgrades
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
@@ -744,8 +743,6 @@ const toolkitLib = configureProject(
       '@smithy/util-retry',
       '@smithy/util-waiter',
       'archiver',
-      // Purposely a ^ dependency so that clients get upgrades to this library.
-      cdkAssets,
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
@@ -767,7 +764,6 @@ const toolkitLib = configureProject(
       '@jest/globals',
       '@jest/types',
       '@microsoft/api-extractor',
-      '@smithy/types',
       '@smithy/util-stream',
       '@types/fs-extra',
       '@types/split2',
@@ -1571,9 +1567,9 @@ const cliInteg = configureProject(
       `@aws-sdk/client-sso@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@smithy/util-retry@${CLI_SDK_V3_RANGE}`,
-      `@smithy/types@${CLI_SDK_V3_RANGE}`,
       '@cdklabs/cdk-atmosphere-client',
+      '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
+      '@smithy/types', // smithy packages don't have the same major version as SDK packages
       'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
