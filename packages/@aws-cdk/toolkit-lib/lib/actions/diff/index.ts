@@ -23,7 +23,7 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
   /**
    * Additional parameters for CloudFormation when creating a diff change set
    *
-   * @default {}
+   * @default - no parameters
    */
   readonly parameters?: { [name: string]: string | undefined };
 }

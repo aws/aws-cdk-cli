@@ -860,20 +860,23 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
     messages: {
       compilerMessageReporting: {
         default: {
-          logLevel: 'warning',
+          logLevel: 'error',
         },
       },
       extractorMessageReporting: {
         'default': {
-          logLevel: 'warning',
+          logLevel: 'error',
         },
         'ae-missing-release-tag': {
           logLevel: 'none',
         },
+        'ae-forgotten-export': {
+          logLevel: 'warning', // @todo fix issues and change to error
+        },
       },
       tsdocMessageReporting: {
         default: {
-          logLevel: 'warning',
+          logLevel: 'error',
         },
       },
     },
@@ -894,9 +897,14 @@ new pj.JsonFile(toolkitLib, 'tsdoc.json', {
         tagName: '@default',
         syntaxKind: 'block',
       },
+      {
+        tagName: '@module',
+        syntaxKind: 'block',
+      },
     ],
     supportForTags: {
       '@default': true,
+      '@module': true,
     },
   },
 });
