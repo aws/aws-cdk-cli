@@ -253,6 +253,20 @@ const repoProject = new yarn.Monorepo({
       },
       semanticTitleOptions: {
         types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
+        scopes: [
+          'cdk-assets',
+          'cli',
+          'cli-lib-alpha',
+          'cli-plugin-contract',
+          'cloud-assembly-schema',
+          'cloudformation-diff',
+          'deps',
+          'dev-deps',
+          'docs',
+          'integ-runner',
+          'integ-testing',
+          'toolkit-lib',
+        ],
       },
     },
   },
@@ -1702,6 +1716,17 @@ new CdkCliIntegTestsWorkflow(repo, {
     // - Candidate version for cdk-assets
     // - Previously released version for aws-cdk-lib
     cloudAssemblySchema.name,
+
+    // toolkit-lib can get referenced under multiple versions,
+    // and during the 0.x period most likely *will*.
+    // - The Amplify CLI will only depend on versions that are already published.
+    //   These can be `0.3.2` or `^1`. We can't hijack the NPM install so this has to
+    //   resolve to a proper version.
+    // - If they use `^1` then our prerelease version will be automatically installed...
+    //   unless we are releasing a breaking change, in which case they will depend
+    //   on `^1` but we will be testing `2.0.999`, so the upstream still needs to
+    //   be available to make this test succeed.
+    toolkitLib.name,
   ],
   enableAtmosphere: {
     oidcRoleArn: '${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}',
