@@ -999,7 +999,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
     // Copy the API model to the directory (with error handling)
     'if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo "Warning: API JSON file not found"; fi',
     // Add version file
-    '(cat dist/version.txt || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
+    '(cat dist/version.txt 2>/dev/null || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
     // Copy README.md if it exists
     'if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi',
     // Copy all files from docs directory if it exists
