@@ -1657,6 +1657,35 @@ describe(generateStackDefinitions, () => {
       },
     ]);
   });
+
+  test('refactor should not create empty templates', () => {
+    const stack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const stack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {},
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
+    ];
+
+    expect(() => generateStackDefinitions(mappings, [stack1, stack2]))
+      .toThrow(/Stack Stack1 has no resources after refactor/);
+  });
 });
 
 function toCfnMapping(m: ResourceMapping): CfnResourceMapping {
