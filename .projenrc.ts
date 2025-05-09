@@ -828,8 +828,14 @@ const toolkitLib = configureProject(
       compilerOptions: {
         ...defaultTsOptions,
         target: 'es2022',
-        lib: ['es2022', 'esnext.disposable', 'dom'],
+        lib: ['es2022', 'esnext.disposable'],
         module: 'NodeNext',
+        isolatedModules: true,
+      },
+    },
+    tsJestOptions: {
+      transformOptions: {
+        isolatedModules: false, // we use the respective tsc setting
       },
     },
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
