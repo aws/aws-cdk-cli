@@ -1,5 +1,4 @@
 export * from './io-host-wrappers';
-export * from './sdk-logger';
 export * from './io-helper';
 export * from './level-priority';
 export * from './span';
