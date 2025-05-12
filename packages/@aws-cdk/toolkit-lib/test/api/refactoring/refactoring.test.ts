@@ -20,10 +20,7 @@ import {
 } from '../../../lib/api/refactoring';
 import type {
   CloudFormationStack,
-  ResourceLocation,
-  ResourceMapping,
 } from '../../../lib/api/refactoring/cloudformation';
-import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
