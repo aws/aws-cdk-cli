@@ -1,5 +1,5 @@
+import * as cli from 'aws-cdk';
 import * as core from 'aws-cdk-lib/core';
-import * as cli from '../../../aws-cdk/lib';
 import { AwsCdkCli } from '../lib';
 import { HotswapMode, RequireApproval, StackActivityProgress } from '../lib/commands';
 

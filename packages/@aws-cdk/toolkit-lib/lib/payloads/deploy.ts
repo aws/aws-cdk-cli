@@ -5,7 +5,7 @@ import type { PermissionChangeType } from './diff';
 import type { ConfirmationRequest } from './types';
 
 // re-export so they are part of the public API
-export { DeployStackResult, SuccessfulDeployStackResult, NeedRollbackFirstDeployStackResult, ReplacementRequiresRollbackStackResult } from '../api/deployments/deployment-result';
+export type { DeployStackResult, SuccessfulDeployStackResult, NeedRollbackFirstDeployStackResult, ReplacementRequiresRollbackStackResult } from '../api/deployments/deployment-result';
 
 export interface StackDeployProgress {
   /**

@@ -11,8 +11,7 @@
     "inlineSources": true,
     "lib": [
       "es2022",
-      "esnext.disposable",
-      "dom"
+      "esnext.disposable"
     ],
     "module": "NodeNext",
     "noEmitOnError": false,
@@ -30,6 +29,7 @@
     "target": "es2022",
     "incremental": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
     "composite": true
   },
   "include": [
@@ -38,9 +38,6 @@
   "exclude": [],
   "references": [
     {
-      "path": "../cli-plugin-contract"
-    },
-    {
       "path": "../cloud-assembly-schema"
     },
     {
@@ -48,6 +45,9 @@
     },
     {
       "path": "../../cdk-assets"
+    },
+    {
+      "path": "../cli-plugin-contract"
     }
   ]
 }

@@ -47,7 +47,7 @@
     jsonschema "~1.4.1"
     semver "^7.7.1"
 
-"@aws-cdk/cx-api@^2.194.0":
+"@aws-cdk/cx-api@^2", "@aws-cdk/cx-api@^2.194.0":
   version "2.194.0"
   resolved "https://registry.yarnpkg.com/@aws-cdk/cx-api/-/cx-api-2.194.0.tgz#526edc19c1b709cfe7fbaffc360ea3c98c84ab5b"
   integrity sha512-0c8yEiiYJpHZgD9WaCIB9F+KjoDRpzJcIRE7VRSOLmASPoZiqVd+CyKICZ3Jb1gzAtOhzUnhzlgyBv4Rc36Wjw==
@@ -58,11 +58,6 @@
   version "2.184.1-alpha.0"
   resolved "https://registry.yarnpkg.com/@aws-cdk/integ-tests-alpha/-/integ-tests-alpha-2.184.1-alpha.0.tgz#0719db2d294eac42de58f320238b3cd9a0e5b8fc"
   integrity sha512-9ca8uxcP41USi2Y/ulGFR9iCLEAofq6h8VcSMpJHRvJb3mQtBJ+WYwXIn+uyMtDBIWX4pOyMk/6XZDuZVpwOsg==
-
-"@aws-cdk/region-info@^2.194.0":
-  version "2.194.0"
-  resolved "https://registry.yarnpkg.com/@aws-cdk/region-info/-/region-info-2.194.0.tgz#4b9e6302bafd0b9bc2a6bb1e30380c9d58069611"
-  integrity sha512-9s4g/DcJ3mjZCAlIi2iwBILrFRGqL+MzwEUDqVOMP/8alyGowwkK/Vbqq7iEbk1R1wpgZ6Du7F3BMYf8M6qyiA==
 
 "@aws-cdk/service-spec-types@^0.0.137":
   version "0.0.137"
@@ -4222,13 +4217,6 @@
   resolved "https://registry.yarnpkg.com/@smithy/service-error-classification/-/service-error-classification-1.1.0.tgz#264dd432ae513b3f2ad9fc6f461deda8c516173c"
   integrity sha512-OCTEeJ1igatd5kFrS2VDlYbainNNpf7Lj1siFOxnRWqYOP9oNvC5HOJBd3t+Z8MbrmehBtuDJ2QqeBsfeiNkww==
 
-"@smithy/service-error-classification@^3.0.11":
-  version "3.0.11"
-  resolved "https://registry.yarnpkg.com/@smithy/service-error-classification/-/service-error-classification-3.0.11.tgz#d3d7fc0aacd2e60d022507367e55c7939e5bcb8a"
-  integrity sha512-QnYDPkyewrJzCyaeI2Rmp7pDwbUETe+hU8ADkXmgNusO1bgHBH7ovXJiYmba8t0fNfJx75fE8dlM6SEmZxheog==
-  dependencies:
-    "@smithy/types" "^3.7.2"
-
 "@smithy/service-error-classification@^4.0.3":
   version "4.0.3"
   resolved "https://registry.yarnpkg.com/@smithy/service-error-classification/-/service-error-classification-4.0.3.tgz#df43e3ec00a9f2d15415185561d98cd602c8bc67"
@@ -4277,13 +4265,6 @@
   integrity sha512-z1r00TvBqF3dh4aHhya7nz1HhvCg4TRmw51fjMrh5do3h+ngSstt/yKlNbHeb9QxJmFbmN8KEVSWgb1bRvfEoA==
   dependencies:
     tslib "^2.5.0"
-
-"@smithy/types@^3", "@smithy/types@^3.7.2":
-  version "3.7.2"
-  resolved "https://registry.yarnpkg.com/@smithy/types/-/types-3.7.2.tgz#05cb14840ada6f966de1bf9a9c7dd86027343e10"
-  integrity sha512-bNwBYYmN8Eh9RyjS1p2gW6MIhSO2rl7X9QeLM8iTdcGRP+eDiIWDt66c9IysCc22gefKszZv+ubV9qZc7hdESg==
-  dependencies:
-    tslib "^2.6.2"
 
 "@smithy/types@^4.2.0":
   version "4.2.0"
@@ -4418,15 +4399,6 @@
   dependencies:
     "@smithy/service-error-classification" "^1.1.0"
     tslib "^2.5.0"
-
-"@smithy/util-retry@^3":
-  version "3.0.11"
-  resolved "https://registry.yarnpkg.com/@smithy/util-retry/-/util-retry-3.0.11.tgz#d267e5ccb290165cee69732547fea17b695a7425"
-  integrity sha512-hJUC6W7A3DQgaee3Hp9ZFcOxVDZzmBIRBPlUAk8/fSOEl7pE/aX7Dci0JycNOnm9Mfr0KV2XjIlUOcGWXQUdVQ==
-  dependencies:
-    "@smithy/service-error-classification" "^3.0.11"
-    "@smithy/types" "^3.7.2"
-    tslib "^2.6.2"
 
 "@smithy/util-retry@^4.0.2", "@smithy/util-retry@^4.0.3":
   version "4.0.3"

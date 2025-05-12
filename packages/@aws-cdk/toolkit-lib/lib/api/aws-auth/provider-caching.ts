@@ -1,5 +1,5 @@
+import type { SDKv3CompatibleCredentialProvider, SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import { memoize } from '@smithy/property-provider';
-import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 
 /**
  * Wrap a credential provider in a cache
@@ -11,7 +11,7 @@ import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smit
  * MFA prompts or what have you, we are going to liberally wrap providers
  * in caches which will return the cached value until it expires.
  */
-export function makeCachingProvider(provider: AwsCredentialIdentityProvider): AwsCredentialIdentityProvider {
+export function makeCachingProvider(provider: SDKv3CompatibleCredentialProvider): SDKv3CompatibleCredentialProvider {
   return memoize(
     provider,
     credentialsAboutToExpire,
@@ -19,7 +19,7 @@ export function makeCachingProvider(provider: AwsCredentialIdentityProvider): Aw
   );
 }
 
-export function credentialsAboutToExpire(token: AwsCredentialIdentity) {
+export function credentialsAboutToExpire(token: SDKv3CompatibleCredentials) {
   const expiryMarginSecs = 5;
   // token.expiration is sometimes null
   return !!token.expiration && token.expiration.getTime() - Date.now() < expiryMarginSecs * 1000;

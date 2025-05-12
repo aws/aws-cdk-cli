@@ -63,7 +63,8 @@
           "**/build-tools/**"
         ],
         "optionalDependencies": false,
-        "peerDependencies": true
+        "peerDependencies": true,
+        "includeTypes": true
       }
     ],
     "import/no-unresolved": [
@@ -144,6 +145,7 @@
       "error"
     ],
     "@typescript-eslint/consistent-type-imports": "error",
+    "import/no-relative-packages": "error",
     "no-restricted-imports": [
       "error",
       {

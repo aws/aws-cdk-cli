@@ -1,6 +1,9 @@
 import * as path from 'path';
 import { format } from 'util';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
+import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit } from '@aws-cdk/toolkit-lib';
+import type { ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -9,28 +12,17 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { ToolkitAction } from '../../../@aws-cdk/toolkit-lib';
-import { StackSelectionStrategy, ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import { asIoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { PermissionChangeType } from '../../../@aws-cdk/toolkit-lib/lib/payloads';
-import type { ToolkitOptions } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
-import { Toolkit } from '../../../@aws-cdk/toolkit-lib/lib/toolkit';
-import { DEFAULT_TOOLKIT_STACK_NAME } from '../api';
+import { asIoHelper, cfnApi } from '../../lib/api-private';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
+import { DEFAULT_TOOLKIT_STACK_NAME, DiffFormatter, WorkGraphBuilder, removeNonImportResources, ResourceImporter, ResourceMigrator, GarbageCollector, CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
-import { GarbageCollector } from '../api/garbage-collection';
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
-import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
-import { removeNonImportResources, ResourceImporter, ResourceMigrator } from '../api/resource-import';
 import { type Tag, tagsForStack } from '../api/tags';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api/work-graph';
-import { WorkGraphBuilder } from '../api/work-graph';
-import { cfnApi } from '../api-private';
 import { StackActivityProgress } from '../commands/deploy';
-import { DiffFormatter, RequireApproval } from '../commands/diff';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -2093,6 +2085,6 @@ function stackMetadataLogger(verbose?: boolean): (level: 'info' | 'error' | 'war
  * - RequireApproval.BROADENING and the changes are indeed broadening permissions
  */
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
-  return requireApproval === RequireApproval.ANY_CHANGE ||
+  return requireApproval === RequireApproval.ANYCHANGE ||
   requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }

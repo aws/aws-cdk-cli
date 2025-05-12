@@ -5,10 +5,6 @@
       "type": "build"
     },
     {
-      "name": "@smithy/types",
-      "type": "build"
-    },
-    {
       "name": "@stylistic/eslint-plugin",
       "version": "^3",
       "type": "build"

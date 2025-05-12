@@ -7,7 +7,7 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
-import { ESLINT_RULES } from './projenrc/eslint';
+import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
@@ -21,54 +21,32 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 const TYPESCRIPT_VERSION = '5.6';
 
 /**
- * Projen depends on TypeScript-eslint 7 by default.
- *
- * We want 8 for the parser, and 6 for the plugin (because after 6 some linter
- * rules we are relying on have been moved to another plugin).
- *
- * Also configure eslint plugins & rules, which cannot be configured by props.
+ * Configures a Eslint, which is a complex setup.
  *
  * We also need to override the built-in prettier dependency to prettier@2, because
  * Jest < 30 can only work with prettier 2 (https://github.com/jestjs/jest/issues/14305)
  * and 30 is not stable yet.
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
+  // currently supported min node version
   x.package.addEngine('node', '>= 14.15.0');
+
   x.addDevDeps(
-    '@typescript-eslint/eslint-plugin@^8',
-    '@typescript-eslint/parser@^8',
-    '@stylistic/eslint-plugin@^3',
-    '@cdklabs/eslint-plugin',
-    'eslint-plugin-import',
-    'eslint-plugin-jest',
-    'eslint-plugin-jsdoc',
     'jest-junit@^16',
+    'prettier@^2.8',
   );
-  x.eslint?.addPlugins(
-    '@typescript-eslint',
-    'import',
-    '@cdklabs',
-    '@stylistic',
-    'jest',
-    'jsdoc',
+
+  configureEslint(x);
+
+  x.npmignore?.addPatterns(
+    // don't inlcude config files
+    '.eslintrc.js',
+    // As a rule we don't include .ts sources in the NPM package
+    '*.ts',
+    '!*.d.ts',
+    // Never include the build-tools directory
+    'build-tools',
   );
-  x.eslint?.addExtends(
-    'plugin:jest/recommended',
-  );
-  x.eslint?.addIgnorePattern('*.generated.ts');
-  x.eslint?.addRules(ESLINT_RULES);
-
-  // Prettier needs to be turned off for now, there's too much code that doesn't conform to it
-  x.eslint?.addRules({ 'prettier/prettier': ['off'] });
-
-  x.addDevDeps('prettier@^2.8');
-
-  x.npmignore?.addPatterns('.eslintrc.js');
-  // As a rule we don't include .ts sources in the NPM package
-  x.npmignore?.addPatterns('*.ts', '!*.d.ts');
-
-  // Never include the build-tools directory
-  x.npmignore?.addPatterns('build-tools');
 
   if (x instanceof TypeScriptWorkspace) {
     // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
@@ -647,7 +625,6 @@ const cdkAssets = configureProject(
       'jszip',
       '@types/mock-fs@^4',
       'mock-fs@^5',
-      '@smithy/types',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
@@ -730,14 +707,14 @@ const toolkitLib = configureProject(
         rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
+    peerDeps: [
+      cliPluginContract.customizeReference({ versionType: 'major' }), // allow consumers to easily de-depulicate this
+    ],
     deps: [
-      cliPluginContract,
-      cloudAssemblySchema,
-      // Purposely a ^ dependency so that clients selecting old toolkit library
-      // versions still might get upgrades to this dependency.
-      cloudFormationDiff,
-      cxApi,
-      '@aws-cdk/region-info',
+      cloudAssemblySchema, // @todo need to find the minmal required version
+      cloudFormationDiff.customizeReference({ versionType: 'major' }), // allow consumers with old toolkit-lib versions to get upgrades
+      cdkAssets.customizeReference({ versionType: 'major' }), // allow consumers with old toolkit-lib versions to get upgrades
+      `${cxApi}@^2`, // allow consumers with old toolkit-lib versions to get upgrades
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
@@ -766,8 +743,6 @@ const toolkitLib = configureProject(
       '@smithy/util-retry',
       '@smithy/util-waiter',
       'archiver',
-      // Purposely a ^ dependency so that clients get upgrades to this library.
-      cdkAssets,
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
@@ -789,7 +764,6 @@ const toolkitLib = configureProject(
       '@jest/globals',
       '@jest/types',
       '@microsoft/api-extractor',
-      '@smithy/types',
       '@smithy/util-stream',
       '@types/fs-extra',
       '@types/split2',
@@ -828,8 +802,14 @@ const toolkitLib = configureProject(
       compilerOptions: {
         ...defaultTsOptions,
         target: 'es2022',
-        lib: ['es2022', 'esnext.disposable', 'dom'],
+        lib: ['es2022', 'esnext.disposable'],
         module: 'NodeNext',
+        isolatedModules: true,
+      },
+    },
+    tsJestOptions: {
+      transformOptions: {
+        isolatedModules: false, // we use the respective tsc setting
       },
     },
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
@@ -880,20 +860,23 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
     messages: {
       compilerMessageReporting: {
         default: {
-          logLevel: 'warning',
+          logLevel: 'error',
         },
       },
       extractorMessageReporting: {
         'default': {
-          logLevel: 'warning',
+          logLevel: 'error',
         },
         'ae-missing-release-tag': {
           logLevel: 'none',
         },
+        'ae-forgotten-export': {
+          logLevel: 'warning', // @todo fix issues and change to error
+        },
       },
       tsdocMessageReporting: {
         default: {
-          logLevel: 'warning',
+          logLevel: 'error',
         },
       },
     },
@@ -914,9 +897,14 @@ new pj.JsonFile(toolkitLib, 'tsdoc.json', {
         tagName: '@default',
         syntaxKind: 'block',
       },
+      {
+        tagName: '@module',
+        syntaxKind: 'block',
+      },
     ],
     supportForTags: {
       '@default': true,
+      '@module': true,
     },
   },
 });
@@ -997,7 +985,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
     // Copy the API model to the directory (with error handling)
     'if [ -f dist/toolkit-lib.api.json ]; then cp dist/toolkit-lib.api.json dist/api-extractor-docs/cdk/api/toolkit-lib/; else echo "Warning: API JSON file not found"; fi',
     // Add version file
-    '(cat dist/version.txt || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
+    '(cat dist/version.txt 2>/dev/null || echo "latest") > dist/api-extractor-docs/cdk/api/toolkit-lib/VERSION',
     // Copy README.md if it exists
     'if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi',
     // Copy all files from docs directory if it exists
@@ -1036,7 +1024,6 @@ const cli = configureProject(
       nodeBundle,
       yargsGen,
       cliPluginContract,
-      toolkitLib,
       '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
@@ -1063,6 +1050,7 @@ const cli = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
+      toolkitLib,
       'archiver',
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
@@ -1593,9 +1581,9 @@ const cliInteg = configureProject(
       `@aws-sdk/client-sso@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@smithy/util-retry@${CLI_SDK_V3_RANGE}`,
-      `@smithy/types@${CLI_SDK_V3_RANGE}`,
       '@cdklabs/cdk-atmosphere-client',
+      '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
+      '@smithy/types', // smithy packages don't have the same major version as SDK packages
       'axios@^1',
       'chalk@^4',
       'fs-extra@^9',

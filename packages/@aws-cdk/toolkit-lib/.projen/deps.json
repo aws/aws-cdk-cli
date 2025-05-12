@@ -25,10 +25,6 @@
       "type": "build"
     },
     {
-      "name": "@smithy/types",
-      "type": "build"
-    },
-    {
       "name": "@smithy/util-stream",
       "type": "build"
     },
@@ -165,7 +161,7 @@
     },
     {
       "name": "@aws-cdk/cli-plugin-contract",
-      "type": "runtime"
+      "type": "peer"
     },
     {
       "name": "@aws-cdk/cloud-assembly-schema",
@@ -177,10 +173,7 @@
     },
     {
       "name": "@aws-cdk/cx-api",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-cdk/region-info",
+      "version": "^2",
       "type": "runtime"
     },
     {

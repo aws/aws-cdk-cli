@@ -29,6 +29,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: npm
       - name: Install dependencies
         run: yarn install --check-files
       - name: Bump to realistic versions
@@ -129,7 +130,10 @@ jobs:
         run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
         if: always()
-        run: cat logs/md/*.md >> $GITHUB_STEP_SUMMARY
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
       - name: Upload logs
         id: logupload
         if: always()
