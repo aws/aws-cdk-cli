@@ -21,6 +21,7 @@ import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudform
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
+import { StackRetriever } from '../../../lib/api/refactoring/stack-retriever';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
@@ -1256,7 +1257,8 @@ describe('environment grouping', () => {
     async function mappings(stacks: CloudFormationStack[], excludeList?: ExcludeList) {
       const provider = new MockSdkProvider();
       provider.returnsDefaultAccounts(environment.account);
-      const movements2 = await findResourceMovements(stacks, provider, excludeList);
+      const retriever = new StackRetriever(provider);
+      const movements2 = await findResourceMovements(stacks, retriever, excludeList);
       return resourceMappings(movements2).map(toCfnMapping);
     }
   });
@@ -1370,8 +1372,9 @@ describe('environment grouping', () => {
 
     const provider = new MockSdkProvider();
     provider.returnsDefaultAccounts(environment1.account, environment2.account);
+    const retriever = new StackRetriever(provider);
 
-    const movements = await findResourceMovements([stack1, stack2], provider);
+    const movements = await findResourceMovements([stack1, stack2], retriever);
     expect(ambiguousMovements(movements)).toEqual([]);
 
     expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);

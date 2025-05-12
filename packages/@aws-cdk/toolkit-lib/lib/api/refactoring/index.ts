@@ -3,16 +3,12 @@ import {
   formatAmbiguousMappings as fmtAmbiguousMappings,
   formatTypedMappings as fmtTypedMappings,
 } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
-import type { StackSummary } from '@aws-sdk/client-cloudformation';
-import { deserializeStructure } from '../../util';
-import type { SdkProvider } from '../aws-auth/private';
-import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
-import { ResourceMapping, ResourceLocation } from './cloudformation';
+import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
-import { NeverExclude, type ExcludeList } from './exclude';
+import { type ExcludeList, NeverExclude } from './exclude';
+import type { StackRetriever } from './stack-retriever';
 
 export * from './exclude';
 
@@ -151,7 +147,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
  */
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
-  sdkProvider: SdkProvider,
+  stackRetriever: StackRetriever,
   exclude: ExcludeList = new NeverExclude(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
@@ -164,7 +160,7 @@ export async function findResourceMovements(
       stackGroups.get(key)![1].push(stack);
     } else {
       // The first time we see an environment, we need to fetch all stacks deployed to it.
-      const before = await getDeployedStacks(sdkProvider, environment);
+      const before = await stackRetriever.getDeployedStacks(environment);
       stackGroups.set(key, [before, [stack]]);
     }
   }
@@ -178,36 +174,6 @@ export async function findResourceMovements(
     const after = mov[1];
     return after.every(l => !exclude.isExcluded(l));
   });
-}
-
-async function getDeployedStacks(
-  sdkProvider: SdkProvider,
-  environment: cxapi.Environment,
-): Promise<CloudFormationStack[]> {
-  const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
-
-  const summaries = await cfn.paginatedListStacks({
-    StackStatusFilter: [
-      'CREATE_COMPLETE',
-      'UPDATE_COMPLETE',
-      'UPDATE_ROLLBACK_COMPLETE',
-      'IMPORT_COMPLETE',
-      'ROLLBACK_COMPLETE',
-    ],
-  });
-
-  const normalize = async (summary: StackSummary) => {
-    const templateCommandOutput = await cfn.getTemplate({ StackName: summary.StackName! });
-    const template = deserializeStructure(templateCommandOutput.TemplateBody ?? '{}');
-    return {
-      environment,
-      stackName: summary.StackName!,
-      template,
-    };
-  };
-
-  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  return Promise.all(summaries.map(normalize));
 }
 
 export function formatTypedMappings(mappings: TypedMapping[]): string {

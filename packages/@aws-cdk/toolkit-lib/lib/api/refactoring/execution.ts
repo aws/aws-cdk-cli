@@ -1,12 +1,16 @@
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack, ResourceMapping } from './cloudformation';
+import type { StackRetriever } from './stack-retriever';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
  * Generates a list of stack definitions to be sent to the CloudFormation API
  * by applying each mapping to the corresponding stack template(s).
  */
-export function generateStackDefinitions(mappings: ResourceMapping[], deployedStacks: CloudFormationStack[]): StackDefinition[] {
+export function generateStackDefinitions(
+  mappings: ResourceMapping[],
+  deployedStacks: CloudFormationStack[],
+): StackDefinition[] {
   const templates = Object.fromEntries(
     deployedStacks
       .filter((s) =>
@@ -42,7 +46,9 @@ export function generateStackDefinitions(mappings: ResourceMapping[], deployedSt
   // CloudFormation doesn't allow empty stacks
   for (const [stackName, template] of Object.entries(templates)) {
     if (Object.keys(template.Resources ?? {}).length === 0) {
-      throw new ToolkitError(`Stack ${stackName} has no resources after refactor. You must add a resource to this stack. This resource can be a simple one, like a waitCondition resource type.`);
+      throw new ToolkitError(
+        `Stack ${stackName} has no resources after refactor. You must add a resource to this stack. This resource can be a simple one, like a waitCondition resource type.`,
+      );
     }
   }
 
@@ -50,4 +56,29 @@ export function generateStackDefinitions(mappings: ResourceMapping[], deployedSt
     StackName: stackName,
     TemplateBody: JSON.stringify(template),
   }));
+}
+
+export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackRetriever): Promise<void> {
+  // TODO How to handle errors?
+  // TODO How to deal with environment-agnostic stacks?
+
+  await stackRetriever.forEachEnvironment(async (cfn, stacks) => {
+    const refactor = await cfn.createStackRefactor({
+      EnableStackCreation: true,
+      ResourceMappings: mappings.map((m) => m.toCloudFormation()),
+      StackDefinitions: generateStackDefinitions(mappings, stacks),
+    });
+
+    await cfn.waitUntilStackRefactorCreateComplete({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+
+    await cfn.executeStackRefactor({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+
+    await cfn.waitUntilStackRefactorExecuteComplete({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+  });
 }

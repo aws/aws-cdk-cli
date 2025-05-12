@@ -362,6 +362,12 @@ export const IO = {
     description: 'Refactor execution not yet supported',
   }),
 
+  CDK_TOOLKIT_E8900: make.error<ErrorPayload>({
+    code: 'CDK_TOOLKIT_E8900',
+    description: 'Stack refactor failed',
+    interface: 'ErrorPayload',
+  }),
+
   // 9: Bootstrap (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',

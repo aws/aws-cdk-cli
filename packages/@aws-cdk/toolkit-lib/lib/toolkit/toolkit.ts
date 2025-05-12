@@ -67,6 +67,8 @@ import {
 } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
+import { StackRetriever } from '../api/refactoring/stack-retriever';
+import { executeRefactor } from '../api/refactoring/execution';
 
 export interface ToolkitOptions {
   /**
@@ -972,9 +974,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-    const sdkProvider = await this.sdkProvider('refactor');
+    const stackRetriever = new StackRetriever(await this.sdkProvider('refactor'));
     const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
+    const movements = await findResourceMovements(stacks.stackArtifacts, stackRetriever, exclude);
     const ambiguous = ambiguousMovements(movements);
     if (ambiguous.length === 0) {
       const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
@@ -983,6 +985,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
       }));
+
+      // TODO handle all the flags properly
+      try {
+        await executeRefactor(mappings, stackRetriever);
+      } catch (e: any) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${formatErrorMessage(e)}`, { error: e }));
+      }
     } else {
       const error = new AmbiguityError(ambiguous);
       const paths = error.paths();
