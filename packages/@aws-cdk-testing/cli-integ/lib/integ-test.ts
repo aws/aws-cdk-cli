@@ -22,6 +22,7 @@ export interface TestContext {
   readonly name: string;
   readonly output: NodeJS.WritableStream;
   log(s: string): void;
+  reportWaitTime(ms: number): void;
 }
 
 /**
@@ -41,7 +42,9 @@ export function integTest(
     output.write(`${name}\n`);
     output.write('================================================================\n');
 
-    const now = Date.now();
+    const start = Date.now();
+    let waitTime = 0;
+
     process.stderr.write(`[INTEG TEST::${name}] Starting (pid ${process.pid})...\n`);
     maybePrintMemoryUsage(name);
     try {
@@ -56,9 +59,17 @@ export function integTest(
         log(s: string) {
           output.write(`${s}\n`);
         },
+        reportWaitTime(n) {
+          waitTime += n;
+        },
       });
 
-      await writeLog(name, true, output.toString());
+      await writeLog(name, {
+        success: true,
+        output: output.toString(),
+        totalDuration: Date.now() - start,
+        waitTime,
+      });
 
       return ret;
     } catch (e: any) {
@@ -68,7 +79,12 @@ export function integTest(
       output.write(e.message);
       output.write(e.stack);
 
-      await writeLog(name, false, output.toString());
+      await writeLog(name, {
+        success: false,
+        output: output.toString(),
+        totalDuration: Date.now() - start,
+        waitTime,
+      });
       process.stderr.write(`[INTEG TEST::${name}] Failed: ${e}\n`);
 
       const isGitHub = !!process.env.GITHUB_RUN_ID;
@@ -101,8 +117,8 @@ export function integTest(
       }
       throw e;
     } finally {
-      const duration = Date.now() - now;
-      process.stderr.write(`[INTEG TEST::${name}] Done (${duration} ms).\n`);
+      const duration = Date.now() - start;
+      process.stderr.write(`[INTEG TEST::${name}] Done (${humanTime(duration)}).\n`);
       maybePrintMemoryUsage(name);
     }
   }, timeoutMillis);
@@ -144,22 +160,62 @@ export function randomString() {
  * end up empty or with interleaved contents). The other writes are not
  * contended and don't need to be atomic, but the function is just ergonomic to use.
  */
-async function writeLog(testName: string, success: boolean, output: string) {
+async function writeLog(testName: string, result: {
+  success: boolean;
+  output: string;
+  totalDuration: number;
+  waitTime: number;
+}) {
   if (process.env.INTEG_LOGS) {
+    // Write the log file
     const slug = slugify(testName);
-    const logFileName = `${process.env.INTEG_LOGS}/${success ? '' : 'FAILED-'}${slug}.txt`;
-    await atomicWrite(logFileName, output);
+    const logFileName = `${process.env.INTEG_LOGS}/${result.success ? '' : 'FAILED-'}${slug}.txt`;
+    await atomicWrite(logFileName, result.output);
 
+    // Write a row for the markdown table
     // Sort failures before successes, and the table header before all
+    const mdFileName = `${process.env.INTEG_LOGS}/md/${result.success ? '2' : '1'}-${slug}.md`;
+    const columns: Array<[string, string]> = [
+      ['Result', result.success ? 'pass ✅' : 'fail ❌'],
+      ['Test Name', testName],
+      ['Test Duration', humanTime(result.totalDuration - result.waitTime)],
+      ['Wait Time', result.waitTime > 0 ? humanTime(result.waitTime) : '-'],
+    ];
     await atomicWrite(`${process.env.INTEG_LOGS}/md/0-header.md`, [
-      '| Result | Test Name |',
-      '|--------|-----------|',
+      `| ${columns.map(([col, _val]) => col).join(' | ')} |`,
+      `| ${columns.map(() => '-----------').join(' | ')} |`,
     ].map(x => `${x}\n`).join(''));
-
-    const mdFileName = `${process.env.INTEG_LOGS}/md/${success ? '2' : '1'}-${slug}.md`;
-    const firstColumn = success ? 'pass ✅' : 'fail ❌';
-    await atomicWrite(mdFileName, `| ${firstColumn} | ${testName} |\n`);
+    await atomicWrite(mdFileName,
+      `| ${columns.map(([_col, val]) => val).join(' | ')} |\n`);
   }
+}
+
+function humanTime(delta: number) {
+  const components = [];
+
+  const S = 1000;
+  const M = 60 * S;
+  const H = 60 * M;
+
+  const hours = Math.floor(delta / H);
+  if (hours > 0) {
+    components.push(`${hours}h`);
+    delta -= hours * H;
+  }
+  const minutes = Math.floor(delta / M);
+  if (minutes > 0) {
+    components.push(`${minutes}m`);
+    delta -= minutes * M;
+  }
+  const seconds = Math.floor(delta / S);
+  if (seconds > 0) {
+    components.push(`${seconds}s`);
+    delta -= seconds * S;
+  }
+  components.push(`${delta}ms`);
+
+  // Retain the 2 most significant components
+  return components.slice(0, 2).join('');
 }
 
 function slugify(x: string) {

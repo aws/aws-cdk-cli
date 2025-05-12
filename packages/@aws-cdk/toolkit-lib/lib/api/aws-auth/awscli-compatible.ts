@@ -1,12 +1,13 @@
 import { format } from 'node:util';
+import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
-import type { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
 import * as promptly from 'promptly';
 import { makeCachingProvider } from './provider-caching';
 import { ProxyAgentProvider } from './proxy-agent';
+import type { ISdkLogger } from './sdk-logger';
 import type { SdkHttpOptions } from './types';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
@@ -25,15 +26,15 @@ const DEFAULT_TIMEOUT = 300000;
 export class AwsCliCompatible {
   private readonly ioHelper: IoHelper;
   private readonly requestHandler: NodeHttpHandlerOptions;
-  private readonly logger?: Logger;
+  private readonly logger?: ISdkLogger;
 
-  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: Logger) {
+  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: ISdkLogger) {
     this.ioHelper = ioHelper;
     this.requestHandler = requestHandler;
     this.logger = logger;
   }
 
-  public async baseConfig(profile?: string): Promise<{ credentialProvider: AwsCredentialIdentityProvider; defaultRegion: string }> {
+  public async baseConfig(profile?: string): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
     const credentialProvider = await this.credentialChainBuilder({
       profile,
       logger: this.logger,
@@ -49,7 +50,7 @@ export class AwsCliCompatible {
    */
   public async credentialChainBuilder(
     options: CredentialChainOptions = {},
-  ): Promise<AwsCredentialIdentityProvider> {
+  ): Promise<SDKv3CompatibleCredentialProvider> {
     const clientConfig = {
       requestHandler: this.requestHandler,
       customUserAgent: 'aws-cdk',
@@ -267,7 +268,7 @@ function shouldPrioritizeEnv() {
 
 export interface CredentialChainOptions {
   readonly profile?: string;
-  readonly logger?: Logger;
+  readonly logger?: ISdkLogger;
 }
 
 export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {

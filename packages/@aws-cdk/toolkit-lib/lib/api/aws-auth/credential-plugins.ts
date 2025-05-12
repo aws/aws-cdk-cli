@@ -1,6 +1,5 @@
 import { inspect } from 'util';
 import type { CredentialProviderSource, ForReading, ForWriting, PluginProviderResult, SDKv2CompatibleCredentials, SDKv3CompatibleCredentialProvider, SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
-import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 import { credentialsAboutToExpire, makeCachingProvider } from './provider-caching';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
@@ -87,7 +86,7 @@ export interface PluginCredentialsFetchResult {
   /**
    * SDK-v3 compatible credential provider
    */
-  readonly credentials: AwsCredentialIdentityProvider;
+  readonly credentials: SDKv3CompatibleCredentialProvider;
 
   /**
    * Name of plugin that successfully provided credentials
@@ -110,7 +109,7 @@ export interface PluginCredentialsFetchResult {
  * - If the result is a static credential that expires, we will wrap it in an SDKv3 provider
  *   that will query the plugin again when the credential expires.
  */
-async function v3ProviderFromPlugin(producer: () => Promise<PluginProviderResult>): Promise<AwsCredentialIdentityProvider> {
+async function v3ProviderFromPlugin(producer: () => Promise<PluginProviderResult>): Promise<SDKv3CompatibleCredentialProvider> {
   const initial = await producer();
 
   if (isV3Provider(initial)) {
@@ -133,7 +132,7 @@ async function v3ProviderFromPlugin(producer: () => Promise<PluginProviderResult
 /**
  * Converts a V2 credential into a V3-compatible provider
  */
-function v3ProviderFromV2Credentials(x: SDKv2CompatibleCredentials): AwsCredentialIdentityProvider {
+function v3ProviderFromV2Credentials(x: SDKv2CompatibleCredentials): SDKv3CompatibleCredentialProvider {
   return async () => {
     // Get will fetch or refresh as necessary
     await x.getPromise();
@@ -147,7 +146,10 @@ function v3ProviderFromV2Credentials(x: SDKv2CompatibleCredentials): AwsCredenti
   };
 }
 
-function refreshFromPluginProvider(current: AwsCredentialIdentity, producer: () => Promise<PluginProviderResult>): AwsCredentialIdentityProvider {
+function refreshFromPluginProvider(
+  current: SDKv3CompatibleCredentials,
+  producer: () => Promise<PluginProviderResult>,
+): SDKv3CompatibleCredentialProvider {
   return async () => {
     if (credentialsAboutToExpire(current)) {
       const newCreds = await producer();

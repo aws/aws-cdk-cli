@@ -29,6 +29,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: npm
       - name: Install dependencies
         run: yarn install --check-files
       - name: Bump to realistic versions
@@ -88,7 +89,7 @@ jobs:
       - name: Create Verdaccio config
         run: |-
           mkdir -p $HOME/.config/verdaccio
-          echo '{"storage":"./storage","auth":{"htpasswd":{"file":"./htpasswd"}},"uplinks":{"npmjs":{"url":"https://registry.npmjs.org/"}},"packages":{"@aws-cdk/cloud-assembly-schema":{"access":"$all","publish":"$all","proxy":"npmjs"},"@aws-cdk/cloudformation-diff":{"access":"$all","publish":"$all","proxy":"none"},"cdk-assets":{"access":"$all","publish":"$all","proxy":"none"},"aws-cdk":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/cli-lib-alpha":{"access":"$all","publish":"$all","proxy":"none"},"cdk":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk-testing/cli-integ":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/toolkit-lib":{"access":"$all","publish":"$all","proxy":"none"},"**":{"access":"$all","proxy":"npmjs"}}}' > $HOME/.config/verdaccio/config.yaml
+          echo '{"storage":"./storage","auth":{"htpasswd":{"file":"./htpasswd"}},"uplinks":{"npmjs":{"url":"https://registry.npmjs.org/"}},"packages":{"@aws-cdk/cloud-assembly-schema":{"access":"$all","publish":"$all","proxy":"npmjs"},"@aws-cdk/cloudformation-diff":{"access":"$all","publish":"$all","proxy":"none"},"cdk-assets":{"access":"$all","publish":"$all","proxy":"none"},"aws-cdk":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/cli-lib-alpha":{"access":"$all","publish":"$all","proxy":"none"},"cdk":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk-testing/cli-integ":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/toolkit-lib":{"access":"$all","publish":"$all","proxy":"npmjs"},"**":{"access":"$all","proxy":"npmjs"}}}' > $HOME/.config/verdaccio/config.yaml
       - name: Start Verdaccio
         run: |-
           pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml
@@ -129,7 +130,10 @@ jobs:
         run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
         if: always()
-        run: cat logs/md/*.md >> $GITHUB_STEP_SUMMARY
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
       - name: Upload logs
         id: logupload
         if: always()

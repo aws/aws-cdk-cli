@@ -1,10 +1,9 @@
 import type * as cxapi from '@aws-cdk/cx-api';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
-import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly';
-import { BorrowedAssembly } from '../../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly/private/borrowed-assembly';
-import type { IoHelper } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { IO } from '../../../@aws-cdk/toolkit-lib/lib/api/io/private';
+import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
+import type { IoHelper } from '../../lib/api-private';
+import { BorrowedAssembly, IO } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';

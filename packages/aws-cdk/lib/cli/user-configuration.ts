@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as fs_path from 'path';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
@@ -305,8 +305,9 @@ export function commandLineArgumentsToSettings(argv: Arguments): Settings {
     ignoreNoStacks: argv['ignore-no-stacks'],
     hotswap: {
       ecs: {
-        minimumEcsHealthyPercent: argv.minimumEcsHealthyPercent,
-        maximumEcsHealthyPercent: argv.maximumEcsHealthyPercent,
+        minimumHealthyPercent: argv.hotswapEcsMinimumHealthyPercent,
+        maximumHealthyPercent: argv.hotswapEcsMaximumHealthyPercent,
+        stabilizationTimeoutSeconds: argv.hotswapEcsStabilizationTimeoutSeconds,
       },
     },
     unstable: argv.unstable,

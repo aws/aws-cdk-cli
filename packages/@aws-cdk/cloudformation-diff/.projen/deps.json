@@ -1,10 +1,6 @@
 {
   "dependencies": [
     {
-      "name": "@aws-sdk/client-cloudformation",
-      "type": "build"
-    },
-    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -101,6 +97,11 @@
       "name": "typescript",
       "version": "5.6",
       "type": "build"
+    },
+    {
+      "name": "@aws-sdk/client-cloudformation",
+      "version": "^3",
+      "type": "peer"
     },
     {
       "name": "@aws-cdk/aws-service-spec",

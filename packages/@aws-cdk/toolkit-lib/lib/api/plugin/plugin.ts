@@ -30,10 +30,10 @@ export class PluginHost implements IPluginHost {
    *
    * Will use `require.resolve()` to get the most accurate representation of what
    * code will get loaded in error messages. As such, it will not work in
-   * unit tests with Jest virtual modules becauase of <https://github.com/jestjs/jest/issues/9543>.
+   * unit tests with Jest virtual modules becauase of \<https://github.com/jestjs/jest/issues/9543\>.
    *
-   * @param moduleSpec the specification (path or name) of the plug-in module to be loaded.
-   * @param ioHost the I/O host to use for printing progress information
+   * @param moduleSpec - the specification (path or name) of the plug-in module to be loaded.
+   * @param ioHost - the I/O host to use for printing progress information
    */
   public load(moduleSpec: string, ioHost?: IIoHost) {
     try {
@@ -85,7 +85,7 @@ export class PluginHost implements IPluginHost {
   /**
    * Allows plug-ins to register new CredentialProviderSources.
    *
-   * @param source a new CredentialProviderSource to register.
+   * @param source - a new CredentialProviderSource to register.
    */
   public registerCredentialProviderSource(source: CredentialProviderSource) {
     // Forward to the right credentials-related plugin host
