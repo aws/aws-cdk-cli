@@ -1,4 +1,3 @@
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface RefactorOptions {
@@ -38,7 +37,7 @@ export interface RefactorOptions {
    * the destination must refer to a location that is not already
    * occupied by any resource.
    */
-  mappings?: UserProvidedResourceMapping[];
+  mappings?: MappingGroup[];
 
   /**
    * Modifies the behavior of the 'mappings' option by swapping source and
@@ -48,23 +47,24 @@ export interface RefactorOptions {
   revert?: boolean;
 }
 
-/**
- * Explicit mapping of a resource from one location to another, within a
- * given environment.
- */
-export interface UserProvidedResourceMapping {
+export interface MappingGroup {
   /**
-   * The source resource location, in the format `StackName.LogicalId`.
+   * The account ID of the environment in which the mapping is valid.
    */
-  source: string;
+  account: string;
 
   /**
-   * The destination resource location, in the format `StackName.LogicalId`.
+   * The region of the environment in which the mapping is valid.
    */
-  destination: string;
+  region: string;
 
   /**
-   * The environment in which the mapping is valid.
+   * A collection of resource mappings, where each key is the source location
+   * and the value is the destination location. Locations must be in the format
+   * `StackName.LogicalId`.
+   *
    */
-  environment: cxapi.Environment;
+  resources: {
+    [key: string]: string;
+  };
 }

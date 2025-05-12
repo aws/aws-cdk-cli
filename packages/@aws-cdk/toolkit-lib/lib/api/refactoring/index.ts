@@ -10,10 +10,10 @@ import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
-import { ResourceMapping, ResourceLocation } from './cloudformation';
+import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
-import { NeverExclude, type ExcludeList } from './exclude';
-import type { UserProvidedResourceMapping } from '../../actions';
+import { type ExcludeList, NeverExclude } from './exclude';
+import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export * from './exclude';
@@ -54,76 +54,66 @@ function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
 }
 
 export async function useExplicitMappings(
-  mappings: UserProvidedResourceMapping[],
+  mappingGroups: MappingGroup[],
   sdkProvider: SdkProvider,
 ): Promise<ResourceMapping[]> {
-  interface EnvironmentGroup {
-    environment: cxapi.Environment;
+  interface StackGroup extends MappingGroup {
     stacks: CloudFormationStack[];
-    mappings: UserProvidedResourceMapping[];
   }
 
-  // Group the mappings by environment
-  const environmentGroups: EnvironmentGroup[] = [];
-  for (const mapping of mappings) {
-    const environment = mapping.environment;
-    const group = environmentGroups.find(
-      (g) => g.environment.account === environment.account && g.environment.region === environment.region,
-    );
-    if (group) {
-      group.mappings.push(mapping);
-    } else {
-      const stacks = await getDeployedStacks(sdkProvider, environment);
-      environmentGroups.push({
-        environment,
-        stacks,
-        mappings: [mapping],
-      });
-    }
+  const stackGroups: StackGroup[] = [];
+  for (const group of mappingGroups) {
+    const environment = {
+      account: group.account,
+      region: group.region,
+      name: '',
+    };
+    stackGroups.push({
+      ...group,
+      stacks: await getDeployedStacks(sdkProvider, environment),
+    });
   }
 
   // Validate that there are no duplicate sources or destinations
-  for (const group of environmentGroups) {
+  for (let group of stackGroups) {
     const sources = new Set<string>();
     const destinations = new Set<string>();
 
-    for (const mapping of group.mappings) {
-      if (sources.has(mapping.source)) {
-        throw new ToolkitError(
-          `Duplicate source resource '${mapping.source}' in environment ${group.environment.name}`,
-        );
+    for (const [source, destination] of Object.entries(group.resources)) {
+      if (sources.has(source)) {
+        throw new ToolkitError(`Duplicate source resource '${source}' in environment ${group.account}/${group.region}`);
       }
-      sources.add(mapping.source);
+      sources.add(source);
 
-      if (destinations.has(mapping.destination)) {
+      if (destinations.has(destination)) {
         throw new ToolkitError(
-          `Duplicate destination resource '${mapping.destination}' in environment ${group.environment.name}`,
+          `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
         );
       }
-      destinations.add(mapping.destination);
+      destinations.add(destination);
     }
   }
 
   const result: ResourceMapping[] = [];
-  for (const group of environmentGroups) {
-    const stacks = group.stacks;
-
-    for (const mapping of group.mappings) {
-      const source = mapping.source;
-      const destination = mapping.destination;
-
-      if (!inUse(source, stacks)) {
-        throw new ToolkitError(`Source resource '${source}' does not exist in environment ${group.environment.name}`);
+  for (const group of stackGroups) {
+    for (const [source, destination] of Object.entries(group.resources)) {
+      if (!inUse(source, group.stacks)) {
+        throw new ToolkitError(`Source resource '${source}' does not exist in environment ${group.account}/${group.region}`);
       }
 
-      if (inUse(destination, stacks)) {
+      if (inUse(destination, group.stacks)) {
         throw new ToolkitError(
-          `Destination resource '${destination}' already in use in environment ${group.environment.name}`,
+          `Destination resource '${destination}' already in use in environment ${group.account}/${group.region}`,
         );
       }
 
-      const environment = group.environment;
-      const src = makeLocation(source, environment, stacks);
+      const environment = {
+        account: group.account,
+        region: group.region,
+        name: '',
+      };
+
+      const src = makeLocation(source, environment, group.stacks);
       const dst = makeLocation(destination, environment);
       result.push(new ResourceMapping(src, dst));
     }

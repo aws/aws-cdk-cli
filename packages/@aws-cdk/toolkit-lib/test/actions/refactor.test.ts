@@ -339,12 +339,10 @@ test('uses the explicit mapping when provided, instead of computing it on-the-fl
     dryRun: true,
     mappings: [
       {
-        source: 'Stack1.OldLogicalID',
-        destination: 'Stack1.NewLogicalID',
-        environment: {
-          account: '123456789012',
-          region: 'us-east-1',
-          name: 'test',
+        account: '123456789012',
+        region: 'us-east-1',
+        resources: {
+          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
         },
       },
     ],
@@ -408,17 +406,13 @@ test('uses the reverse of an explicit mapping when provided', async () => {
   await toolkit.refactor(cx, {
     dryRun: true,
     // ... this is the mapping we used...
-    mappings: [
-      {
-        source: 'Stack1.OldLogicalID',
-        destination: 'Stack1.NewLogicalID',
-        environment: {
-          account: '123456789012',
-          region: 'us-east-1',
-          name: 'test',
-        },
+    mappings: [{
+      account: '123456789012',
+      region: 'us-east-1',
+      resources: {
+        'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
       },
-    ],
+    }],
     // ...and now we want to revert it
     revert: true,
   });
@@ -450,17 +444,13 @@ test('exclude and mappings are mutually exclusive', async () => {
     toolkit.refactor(cx, {
       dryRun: true,
       exclude: ['Stack1/OldLogicalID'],
-      mappings: [
-        {
-          source: 'Stack1.OldLogicalID',
-          destination: 'Stack1.NewLogicalID',
-          environment: {
-            account: '123456789012',
-            region: 'us-east-1',
-            name: 'test',
-          },
+      mappings: [{
+        account: '123456789012',
+        region: 'us-east-1',
+        resources: {
+          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
         },
-      ],
+      }],
     }),
   ).rejects.toThrow(/Cannot use both 'exclude' and 'mappings'/);
 });

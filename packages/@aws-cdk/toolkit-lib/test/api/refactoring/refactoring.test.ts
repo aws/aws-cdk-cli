@@ -11,17 +11,17 @@ import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudform
 import { expect } from '@jest/globals';
 import type { ExcludeList } from '../../../lib/api/refactoring';
 import {
-  useExplicitMappings,
   AlwaysExclude,
   ambiguousMovements,
   findResourceMovements,
   resourceMappings,
   resourceMovements,
+  useExplicitMappings,
 } from '../../../lib/api/refactoring';
 import type {
+  CloudFormationStack,
   ResourceLocation,
   ResourceMapping,
-  CloudFormationStack,
 } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
@@ -1391,14 +1391,12 @@ describe(useExplicitMappings, () => {
     // GIVEN
     // A set of mappings that includes a source and destination stack
     const mappings = {
-      mappings: [
+      environments: [
         {
-          source: 'Foo.Bucket1',
-          destination: 'Bar.Bucket2',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
+          account: '123456789012',
+          region: 'us-east-1',
+          resources: {
+            'Foo.Bucket1': 'Bar.Bucket2',
           },
         },
       ],
@@ -1434,7 +1432,7 @@ describe(useExplicitMappings, () => {
 
     // WHEN
     const provider = new MockSdkProvider();
-    const result = await useExplicitMappings(mappings.mappings, provider);
+    const result = await useExplicitMappings(mappings.environments, provider);
 
     // THEN
     // The mappings should be generated correctly, with the template included in the source.
@@ -1445,7 +1443,7 @@ describe(useExplicitMappings, () => {
           stack: {
             stackName: 'Foo',
             environment: {
-              name: 'test',
+              name: '',
               account: '123456789012',
               region: 'us-east-1',
             },
@@ -1465,7 +1463,7 @@ describe(useExplicitMappings, () => {
             template: {},
             stackName: 'Bar',
             environment: {
-              name: 'test',
+              name: '',
               account: '123456789012',
               region: 'us-east-1',
             },
@@ -1475,89 +1473,18 @@ describe(useExplicitMappings, () => {
     ]);
   });
 
-  test('mapping with duplicate sources', async () => {
-    // GIVEN
-    // A set of mappings with the same source appearing multiple times
-    const mappings = {
-      mappings: [
-        {
-          source: 'Foo.Bucket1',
-          destination: 'Bar.Bucket2',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
-          },
-        },
-        {
-          source: 'Foo.Bucket1',
-          destination: 'Bar.Bucket3',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
-          },
-        },
-      ],
-    };
-
-    // and the fact that the source stack exists in the environment
-    cloudFormationClient.on(ListStacksCommand).resolves({
-      StackSummaries: [
-        {
-          StackName: 'Foo',
-          StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Foo',
-          StackStatus: 'CREATE_COMPLETE',
-          CreationTime: new Date(),
-        },
-      ],
-    });
-
-    // and the fact that the logical ID exists in the stack
-    cloudFormationClient
-      .on(GetTemplateCommand, {
-        StackName: 'Foo',
-      })
-      .resolves({
-        TemplateBody: JSON.stringify({
-          Resources: {
-            Bucket1: {
-              Type: 'AWS::X::Y',
-              Properties: {},
-            },
-          },
-        }),
-      });
-
-    // WHEN
-    const provider = new MockSdkProvider();
-
-    // THEN
-    await expect(useExplicitMappings(mappings.mappings, provider)).rejects
-      .toThrow('Duplicate source resource \'Foo.Bucket1\' in environment test');
-  });
-
   test('mapping with duplicate destinations', async () => {
     // GIVEN
     // A set of mappings with the same destination appearing multiple times
+
     const mappings = {
-      mappings: [
+      environments: [
         {
-          source: 'Foo.Bucket1',
-          destination: 'Bar.Bucket2',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
-          },
-        },
-        {
-          source: 'Foo.Bucket3',
-          destination: 'Bar.Bucket2',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
+          account: '123456789012',
+          region: 'us-east-1',
+          resources: {
+            'Foo.Bucket1': 'Bar.Bucket2',
+            'Foo.Bucket3': 'Bar.Bucket2',
           },
         },
       ],
@@ -1599,22 +1526,21 @@ describe(useExplicitMappings, () => {
     const provider = new MockSdkProvider();
 
     // THEN
-    await expect(useExplicitMappings(mappings.mappings, provider)).rejects
-      .toThrow('Duplicate destination resource \'Bar.Bucket2\' in environment test');
+    await expect(useExplicitMappings(mappings.environments, provider)).rejects.toThrow(
+      "Duplicate destination resource 'Bar.Bucket2' in environment 123456789012/us-east-1",
+    );
   });
 
   test('mapping with missing source stack', async () => {
     // GIVEN
     // A set of mappings with a source stack that does not exist
     const mappings = {
-      mappings: [
+      environments: [
         {
-          source: 'Foo.Bucket1',
-          destination: 'Bar.Bucket2',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
+          account: '123456789012',
+          region: 'us-east-1',
+          resources: {
+            'Foo.Bucket1': 'Bar.Bucket2',
           },
         },
       ],
@@ -1629,22 +1555,21 @@ describe(useExplicitMappings, () => {
     const provider = new MockSdkProvider();
 
     // THEN
-    await expect(useExplicitMappings(mappings.mappings, provider)).rejects
-      .toThrow('Source resource \'Foo.Bucket1\' does not exist in environment test');
+    await expect(useExplicitMappings(mappings.environments, provider)).rejects.toThrow(
+      "Source resource 'Foo.Bucket1' does not exist in environment 123456789012/us-east-1",
+    );
   });
 
   test('destination resource already in use', async () => {
     // GIVEN
     // A set of mappings with a destination resource that is already in use
     const mappings = {
-      mappings: [
+      environments: [
         {
-          source: 'Foo.Bucket1',
-          destination: 'Bar.Bucket2',
-          environment: {
-            name: 'test',
-            account: '123456789012',
-            region: 'us-east-1',
+          account: '123456789012',
+          region: 'us-east-1',
+          resources: {
+            'Foo.Bucket1': 'Bar.Bucket2',
           },
         },
       ],
@@ -1704,8 +1629,9 @@ describe(useExplicitMappings, () => {
     const provider = new MockSdkProvider();
 
     // THEN
-    await expect(useExplicitMappings(mappings.mappings, provider)).rejects
-      .toThrow('Destination resource \'Bar.Bucket2\' already in use in environment test');
+    await expect(useExplicitMappings(mappings.environments, provider)).rejects.toThrow(
+      "Destination resource 'Bar.Bucket2' already in use in environment 123456789012/us-east-1",
+    );
   });
 });
 

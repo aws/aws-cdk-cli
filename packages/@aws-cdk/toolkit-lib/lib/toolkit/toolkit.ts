@@ -28,7 +28,7 @@ import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
-import type { RefactorOptions, UserProvidedResourceMapping } from '../actions/refactor';
+import type { MappingGroup, RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
@@ -47,15 +47,7 @@ import { Deployments } from '../api/deployments';
 import { DiffFormatter } from '../api/diff';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
 import type { IoHelper } from '../api/io/private';
-import {
-  asIoHelper,
-  asSdkLogger,
-  IO,
-  SPAN,
-  withoutColor,
-  withoutEmojis,
-  withTrimmedWhitespace,
-} from '../api/io/private';
+import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { PluginHost } from '../api/plugin';
 import {
@@ -76,13 +68,7 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraphBuilder } from '../api/work-graph';
 import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import {
-  formatErrorMessage,
-  formatTime,
-  obscureTemplate,
-  serializeStructure,
-  validateSnsTopicArn,
-} from '../util';
+import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
 
@@ -1035,11 +1021,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
     }
 
-    function revert(mappings: UserProvidedResourceMapping[]): UserProvidedResourceMapping[] {
-      return mappings.map(m => ({
-        ...m,
-        source: m.destination,
-        destination: m.source,
+    function revert(mappings: MappingGroup[]): MappingGroup[] {
+      return mappings.map(group => ({
+        ...group,
+        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
       }));
     }
   }

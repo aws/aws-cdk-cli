@@ -1246,10 +1246,10 @@ export class CdkToolkit {
         throw new ToolkitError(`The mapping file ${filePath} does not exist`);
       }
       const content = JSON.parse(fs.readFileSync(filePath).toString('utf-8'));
-      if (content.mappings) {
-        return content.mappings;
+      if (content.environments) {
+        return content.environments;
       } else {
-        throw new ToolkitError(`The mapping file ${filePath} does not contain a mappings array`);
+        throw new ToolkitError(`The mapping file ${filePath} does not contain an \`environments\` array`);
       }
     }
 

@@ -1154,22 +1154,21 @@ contain a JSON object with the following format:
 {
   "mappings": [
     {
-      "source": "Foo.OldName",
-      "destination": "Bar.NewName",
-      "environment": {
-        "name": "test",
-        "account": "123456789012",
-        "region": "us-east-1"
+      "account": "123456789012",
+      "region": "us-east-1",
+      "resources": {
+        "Foo.OldName": "Bar.NewName"
       }
     }
   ]
 }
 ```
 
-where `source` and `destination` are resource locations in the format
-`StackName.LogicalId`. The source must refer to a location where there
-is a resource currently deployed, while the destination must refer to
-a location that is not already occupied by any resource.
+where `resources` is a mapping of resources from source to destination 
+locations for a given environment. Resource locations are in the format 
+`StackName.LogicalId`.The source must refer to a location where there is a 
+resource currently deployed, while the destination must refer to a location 
+that is not already occupied by any resource.
 
 If you want to undo a refactor, you can use the `--revert` option in 
 conjunction with the `--mapping-file` option. It will apply the mapping in 
