@@ -269,6 +269,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           stackNames: args.STACKS,
           quiet: args.quiet,
           fail: args.fail,
+          verbose: argv.verbose > 0,
         });
 
       case 'refactor':

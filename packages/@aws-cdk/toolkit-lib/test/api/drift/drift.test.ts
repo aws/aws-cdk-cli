@@ -185,4 +185,104 @@ describe('formatStackDrift', () => {
     expect(result.numResourcesWithDrift).toBeUndefined();
     expect(result.formattedDrift).toContain('No drift results available');
   });
+
+  test('formatting with quiet should not output when no drift', () => {
+    // GIVEN
+    const mockDriftResults: DescribeStackResourceDriftsCommandOutput = {
+      StackResourceDrifts: [],
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      ioHelper: mockIoHelper,
+      stack: mockNewTemplate,
+      driftResults: mockDriftResults,
+    });
+    const result = formatter.formatStackDrift({ quiet: true });
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(0);
+    expect(result.formattedDrift).toBe('');
+  });
+
+  test('formatting with quiet should output when drift', () => {
+    // GIVEN
+    const mockDriftedResources: DescribeStackResourceDriftsCommandOutput = {
+      StackResourceDrifts: [{
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'SomeID',
+        ResourceType: 'AWS::Lambda::Function',
+        PropertyDifferences: [{
+          PropertyPath: '/Description',
+          ExpectedValue: 'Understand Understand',
+          ActualValue: 'The Concept of Love',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(2025, 4, 20, 0, 0, 0),
+      }],
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      ioHelper: mockIoHelper,
+      stack: mockNewTemplate,
+      driftResults: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift({ quiet: true });
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(1);
+    expect(result.formattedDrift).toContain('1 resource has drifted');
+  });
+
+  test('formatting with verbose should show unchecked resources', () => {
+    // GIVEN
+    const allStackResources = new Map<string, string>([
+      ['SomeID', 'AWS::Lambda::Function'],
+      ['AnotherID', 'AWS::Lambda::Function'],
+      ['OneMoreID', 'AWS::Lambda::Function'],
+    ]);
+    const mockDriftedResources: DescribeStackResourceDriftsCommandOutput = {
+      StackResourceDrifts: [{
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'SomeID',
+        ResourceType: 'AWS::Lambda::Function',
+        PropertyDifferences: [{
+          PropertyPath: '/Description',
+          ExpectedValue: 'Understand Understand',
+          ActualValue: 'The Concept of Love',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(2025, 10, 10, 0, 0, 0),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'IN_SYNC',
+        LogicalResourceId: 'OneMoreID',
+        ResourceType: 'AWS::Lambda::Function',
+        Timestamp: new Date(2025, 10, 10, 0, 0, 0),
+      }],
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      ioHelper: mockIoHelper,
+      stack: mockNewTemplate,
+      driftResults: mockDriftedResources,
+      allStackResources: allStackResources,
+    });
+    const result = formatter.formatStackDrift({ verbose: true });
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(1);
+    expect(result.formattedDrift).toContain('1 resource has drifted');
+
+    expect(result.formattedDrift).toContain('Resources In Sync');
+    expect(result.formattedDrift).toContain('Unchecked Resources');
+  });
 });

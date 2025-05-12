@@ -73,11 +73,15 @@ export function formatSecurityChanges(
  *
  * @param stream The stream to write the formatted drift to
  * @param driftResults The stack resource drifts from CloudFormation
+ * @param allStackResources A map of all stack resources
+ * @param verbose Whether to output more verbose text (include undrifted resources)
  * @param logicalToPathMap A map from logical ID to construct path
  */
 export function formatStackDriftChanges(
   stream: FormatStream,
   driftResults: DescribeStackResourceDriftsCommandOutput,
+  allStackResources?: Map<string, string>,
+  verbose: boolean = false,
   logicalToPathMap: { [logicalId: string]: string } = {}) {
   const formatter = new Formatter(stream, logicalToPathMap);
 
@@ -87,6 +91,33 @@ export function formatStackDriftChanges(
 
   const drifts = driftResults.StackResourceDrifts;
 
+  // Process unchanged resources (if verbose)
+  const unchangedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.IN_SYNC);
+  if (unchangedResources.length > 0 && verbose) {
+    formatter.printSectionHeader('Resources In Sync');
+
+    for (const drift of unchangedResources) {
+      if (!drift.LogicalResourceId || !drift.ResourceType) continue;
+      formatter.print(`${CONTEXT} ${formatter.formatValue(drift.ResourceType, chalk.cyan)} ${formatter.formatLogicalId(drift.LogicalResourceId)}`);
+    }
+    formatter.printSectionFooter();
+  }
+
+  // Process all unchecked resources (if verbose)
+  if (allStackResources && verbose) {
+    const uncheckedResources = Array.from(allStackResources.keys()).filter((logicalId) => {
+      return !drifts.find((drift) => drift.LogicalResourceId === logicalId);
+    });
+    if (uncheckedResources.length > 0) {
+      formatter.printSectionHeader('Unchecked Resources');
+      for (const logicalId of uncheckedResources) {
+        const resourceType = allStackResources.get(logicalId);
+        formatter.print(`${CONTEXT} ${formatter.formatValue(resourceType, chalk.cyan)} ${formatter.formatLogicalId(logicalId)}`);
+      }
+      formatter.printSectionFooter();
+    }
+  }
+
   // Process modified resources
   const modifiedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.MODIFIED);
   if (modifiedResources.length > 0) {
@@ -94,21 +125,13 @@ export function formatStackDriftChanges(
 
     for (const drift of modifiedResources) {
       if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-
-      // Print the resource header
       formatter.print(`${UPDATE} ${formatter.formatValue(drift.ResourceType, chalk.cyan)} ${formatter.formatLogicalId(drift.LogicalResourceId)}`);
-
-      // Format property differences using formatTreeDiff
       if (drift.PropertyDifferences) {
         const propDiffs = drift.PropertyDifferences;
         for (let i = 0; i < propDiffs.length; i++) {
           const diff = propDiffs[i];
           if (!diff.PropertyPath) continue;
-
-          // Create a simple Difference object that formatTreeDiff can handle
           const difference = new Difference(diff.ExpectedValue, diff.ActualValue);
-
-          // Use formatTreeDiff to format the property difference
           formatter.formatTreeDiff(diff.PropertyPath, difference, i === propDiffs.length - 1);
         }
       }
@@ -120,11 +143,8 @@ export function formatStackDriftChanges(
   const deletedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.DELETED);
   if (deletedResources.length > 0) {
     formatter.printSectionHeader('Deleted Resources');
-
     for (const drift of deletedResources) {
       if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-
-      // Use formatter's print method for consistent output
       formatter.print(`${REMOVAL} ${formatter.formatValue(drift.ResourceType, chalk.cyan)} ${formatter.formatLogicalId(drift.LogicalResourceId)}`);
     }
     formatter.printSectionFooter();

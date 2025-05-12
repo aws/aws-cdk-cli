@@ -681,11 +681,14 @@ export class CdkToolkit {
   public async drift(options: DriftCommandOptions): Promise<number> {
     const stacks = await this.selectStacksForDrift(options.stackNames, options.exclusively);
     const quiet = options.quiet || false;
+    const verbose = options.verbose || false;
 
     let drifts = 0;
+    let uncheckedDrifts = 0;
 
     for (const stack of stacks.stackArtifacts) {
       const driftResults = await this.detectDriftForStack(stack);
+      const allStackResources = this.getAllStackResourceIds(stack);
 
       if (!driftResults) {
         warning('%s: unable to detect drift', chalk.bold(stack.displayName));
@@ -696,15 +699,20 @@ export class CdkToolkit {
         ioHelper: asIoHelper(this.ioHost, 'drift'),
         stack,
         driftResults,
+        allStackResources,
       });
 
-      const drift = formatter.formatStackDrift({ quiet });
+      const drift = formatter.formatStackDrift({
+        quiet,
+        verbose,
+      });
 
       info(drift.formattedDrift);
       drifts += drift.numResourcesWithDrift || 0;
+      uncheckedDrifts += drift.numResourcesUnchecked || 0;
     }
 
-    info(format('\n✨  Number of resources with drift: %s\n', drifts));
+    info(format('\n✨  Number of resources with drift: %s%s\n', drifts, uncheckedDrifts > 0 ? ` (${uncheckedDrifts} unchecked)` : ''));
 
     return drifts > 0 && options.fail ? 1 : 0;
   }
@@ -1470,6 +1478,22 @@ export class CdkToolkit {
       asIoHelper(this.ioHost, 'drift'),
       stack.stackName,
     );
+  }
+
+  private getAllStackResourceIds(stack: cxapi.CloudFormationStackArtifact) {
+    const resources = new Map<string, string>();
+
+    // Extract resources from the template
+    const template = stack.template;
+    if (template && template.Resources) {
+      for (const [logicalId, resource] of Object.entries(template.Resources)) {
+        if (typeof resource === 'object' && resource !== null && 'Type' in resource) {
+          resources.set(logicalId, resource.Type as string);
+        }
+      }
+    }
+
+    return resources;
   }
 }
 

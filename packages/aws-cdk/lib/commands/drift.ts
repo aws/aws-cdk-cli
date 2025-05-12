@@ -27,4 +27,11 @@ export interface DriftCommandOptions {
    * @default false
    */
   readonly fail?: boolean;
+
+  /**
+   * Whether to be verbose
+   *
+   * @default false
+   */
+  readonly verbose?: boolean;
 }

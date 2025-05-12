@@ -10,7 +10,7 @@ integTest(
     await fixture.cdkDeploy('driftable-lambda', {});
 
     // Assert that, right after deploying, there is no drift (because we just deployed it)
-    const drift = await fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable-lambda')]);
+    const drift = await fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable-lambda')], { verbose: false });
 
     expect(drift).toContain('No drift detected');
 
@@ -40,7 +40,7 @@ integTest(
     await waitForLambdaUpdateComplete(fixture, functionName);
 
     await expect(
-      fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable-lambda')]),
+      fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable-lambda')], { verbose: false }),
     ).rejects.toThrow('exited with error');
   }),
 );

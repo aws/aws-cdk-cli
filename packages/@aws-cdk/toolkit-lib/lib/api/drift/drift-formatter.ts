@@ -17,6 +17,11 @@ export interface FormatStackDriftOutput {
   readonly numResourcesWithDrift?: number;
 
   /**
+   * How many resources were not checked for drift
+   */
+  readonly numResourcesUnchecked?: number;
+
+  /**
    * Complete formatted drift
    */
   readonly formattedDrift: string;
@@ -40,6 +45,12 @@ export interface DriftFormatterProps {
    * The results of stack drift detection
    */
   readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
+
+  /**
+   * List of all stack resources. Used to determine what resources weren't checked
+   * for drift.
+   */
+  readonly allStackResources?: Map<string, string>;
 }
 
 /**
@@ -52,6 +63,13 @@ export interface FormatStackDriftOptions {
    * @default false
    */
   readonly quiet?: boolean;
+
+  /**
+   * Whether to be verbose
+   *
+   * @default false
+   */
+  readonly verbose?: boolean;
 }
 
 /**
@@ -60,10 +78,12 @@ export interface FormatStackDriftOptions {
 export class DriftFormatter {
   private readonly stack: cxapi.CloudFormationStackArtifact;
   private readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
+  private readonly allStackResources?: Map<string, string>;
 
   constructor(props: DriftFormatterProps) {
     this.stack = props.stack;
     this.driftResults = props.driftResults;
+    this.allStackResources = props.allStackResources;
   }
 
   /**
@@ -92,7 +112,7 @@ export class DriftFormatter {
       stream.write(format(`Stack ${chalk.bold(this.stack.stackName)}\n`));
     }
 
-    if (drifts.length === 0) {
+    if (drifts.length === 0 && !options.verbose) {
       if (!options.quiet) {
         stream.write(chalk.green('No drift detected\n'));
         stream.end();
@@ -101,13 +121,18 @@ export class DriftFormatter {
     }
 
     driftCount = drifts.length;
-    formatStackDriftChanges(stream, this.driftResults, this.buildLogicalToPathMap());
-    stream.write(chalk.yellow(`\n${driftCount} resource${driftCount === 1 ? '' : 's'} ${driftCount === 1 ? 'has' : 'have'} drifted from their expected configuration\n`));
+    formatStackDriftChanges(stream, this.driftResults, this.allStackResources, options.verbose, this.buildLogicalToPathMap());
+    if (drifts.length !== 0) {
+      stream.write(chalk.yellow(`\n${driftCount} resource${driftCount === 1 ? '' : 's'} ${driftCount === 1 ? 'has' : 'have'} drifted from their expected configuration\n`));
+    } else {
+      stream.write(chalk.green('No drift detected\n'));
+    }
     stream.end();
 
     return {
       formattedDrift: stream.toString(),
       numResourcesWithDrift: driftCount,
+      numResourcesUnchecked: this.allStackResources ? this.allStackResources.size - this.driftResults.StackResourceDrifts.length : 0,
     };
   }
 
