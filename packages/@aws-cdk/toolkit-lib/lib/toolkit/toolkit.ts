@@ -17,7 +17,7 @@ import type {
   EnvironmentBootstrapResult,
 } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, HotswapMode, type DeployOptions } from '../actions/deploy';
+import { AssetBuildTime, type DeployOptions, HotswapMode } from '../actions/deploy';
 import {
   buildParameterMap,
   createHotswapPropertyOverrides,
@@ -28,7 +28,7 @@ import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
-import type { RefactorOptions } from '../actions/refactor';
+import type { MappingGroup, RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
@@ -50,21 +50,25 @@ import type { IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { PluginHost } from '../api/plugin';
-import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
+import {
+  AmbiguityError,
+  ambiguousMovements,
+  findResourceMovements,
+  formatAmbiguousMappings,
+  formatTypedMappings,
+  fromManifestAndExclusionList,
+  resourceMappings,
+  usePrescribedMappings,
+} from '../api/refactoring';
+import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
-import type { Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/work-graph';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
 import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import {
-  formatErrorMessage,
-  formatTime,
-  obscureTemplate,
-  serializeStructure,
-  validateSnsTopicArn,
-} from '../util';
+import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
 
@@ -967,27 +971,60 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
+    if (options.mappings && options.exclude) {
+      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
+    }
+
+    if (options.revert && !options.mappings) {
+      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
+    }
+
     if (!options.dryRun) {
       throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
     }
 
-    const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const sdkProvider = await this.sdkProvider('refactor');
-    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-    const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
-    const ambiguous = ambiguousMovements(movements);
-    if (ambiguous.length === 0) {
-      const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-      const mappings = resourceMappings(movements, filteredStacks.stackArtifacts);
+    try {
+      const mappings = await getMappings();
       const typedMappings = mappings.map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
       }));
-    } else {
-      const error = new AmbiguityError(ambiguous);
-      const paths = error.paths();
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
-        ambiguousPaths: paths,
+    } catch (e) {
+      if (e instanceof AmbiguityError) {
+        const paths = e.paths();
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
+          ambiguousPaths: paths,
+        }));
+      } else {
+        throw e;
+      }
+    }
+
+    async function getMappings(): Promise<ResourceMapping[]> {
+      if (options.revert) {
+        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
+      }
+      if (options.mappings != null) {
+        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
+      } else {
+        const stacks = await assembly.selectStacksV2(ALL_STACKS);
+        const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
+        const ambiguous = ambiguousMovements(movements);
+        if (ambiguous.length === 0) {
+          const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+          return resourceMappings(movements, filteredStacks.stackArtifacts);
+        } else {
+          throw new AmbiguityError(ambiguous);
+        }
+      }
+    }
+
+    function revert(mappings: MappingGroup[]): MappingGroup[] {
+      return mappings.map(group => ({
+        ...group,
+        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
       }));
     }
   }
