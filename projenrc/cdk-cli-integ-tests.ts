@@ -194,6 +194,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           uses: 'actions/setup-node@v4',
           with: {
             'node-version': 'lts/*',
+            'cache': 'npm',
           },
         },
         {
@@ -420,7 +421,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Set workflow summary',
           if: 'always()',
           run: [
-            'cat logs/md/*.md >> $GITHUB_STEP_SUMMARY',
+            // Don't fail the glob expensaion if there are no .md files
+            'if compgen -G "logs/md/*.md" > /dev/null; then',
+            '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
+            'fi',
           ].join('\n'),
         },
         {

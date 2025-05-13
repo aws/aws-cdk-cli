@@ -37,8 +37,8 @@ export abstract class CloudAssemblySourceBuilder {
    * directory. This means that while the CloudAssembly is being used, no CDK
    * app synthesis can take place into that directory.
    *
-   * @param builder the builder function
-   * @param props additional configuration properties
+   * @param builder - the builder function
+   * @param props - additional configuration properties
    * @returns the CloudAssembly source
    */
   public async fromAssemblyBuilder(
@@ -102,7 +102,7 @@ export abstract class CloudAssemblySourceBuilder {
    * the CloudAssembly is being used, no CDK app synthesis can take place into
    * that directory.
    *
-   * @param directory the directory of a already produced Cloud Assembly.
+   * @param directory - directory the directory of a already produced Cloud Assembly.
    * @returns the CloudAssembly source
    */
   public async fromAssemblyDirectory(directory: string, props: AssemblyDirectoryProps = {}): Promise<ICloudAssemblySource> {
@@ -146,7 +146,7 @@ export abstract class CloudAssemblySourceBuilder {
    * directory.  This means that while the CloudAssembly is being used, no CDK
    * app synthesis can take place into that directory.
    *
-   * @param props additional configuration properties
+   * @param props - additional configuration properties
    * @returns the CloudAssembly source
    */
   public async fromCdkApp(app: string, props: FromCdkAppOptions = {}): Promise<ICloudAssemblySource> {

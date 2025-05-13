@@ -197,12 +197,10 @@
     },
     {
       "name": "@smithy/types",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-retry",
-      "version": "^3",
       "type": "runtime"
     },
     {

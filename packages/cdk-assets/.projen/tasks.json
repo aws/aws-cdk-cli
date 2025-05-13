@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@smithy/types,@types/archiver,@types/jest,@types/yargs,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,@aws-cdk/cx-api,@smithy/config-resolver,@smithy/node-config-provider,archiver,glob,yargs"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/yargs,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,@aws-cdk/cx-api,@smithy/config-resolver,@smithy/node-config-provider,archiver,glob,yargs"
         }
       ]
     },
@@ -61,7 +61,7 @@
       "name": "check-licenses",
       "steps": [
         {
-          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause\"",
+          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD\"",
           "receiveArgs": true
         }
       ]

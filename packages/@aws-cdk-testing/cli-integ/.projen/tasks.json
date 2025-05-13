@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,ts-jest,@cdklabs/cdk-atmosphere-client,node-pty"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,ts-jest,@cdklabs/cdk-atmosphere-client,@smithy/types,@smithy/util-retry,node-pty"
         }
       ]
     },
@@ -61,7 +61,7 @@
       "name": "check-licenses",
       "steps": [
         {
-          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause\"",
+          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD\"",
           "receiveArgs": true
         }
       ]

@@ -1,8 +1,8 @@
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { CliHelpers, type CliConfig } from '@aws-cdk/user-input-gen';
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import { StackActivityProgress } from '../commands/deploy';
-import { RequireApproval } from '../commands/diff';
 import { availableInitLanguages } from '../commands/init';
 
 export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
@@ -118,7 +118,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'all': { type: 'boolean', desc: 'Deploy all available stacks', default: false },
           'build-exclude': { type: 'array', alias: 'E', desc: 'Do not rebuild asset with the given ID. Can be specified multiple times', default: [] },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
-          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANY_CHANGE, RequireApproval.BROADENING], desc: 'What security-sensitive changes need manual approval' },
+          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING], desc: 'What security-sensitive changes need manual approval' },
           'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           // @deprecated(v2) -- tags are part of the Cloud Assembly and tags specified here will be overwritten on the next deployment
           'tags': { type: 'array', alias: 't', desc: 'Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)' },
@@ -157,6 +157,18 @@ export async function makeConfig(): Promise<CliConfig> {
               'which skips CloudFormation and updates the resources directly, ' +
               'and falls back to a full deployment if that is not possible. ' +
               'Do not use this in production environments',
+          },
+          'hotswap-ecs-minimum-healthy-percent': {
+            type: 'string',
+            desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-maximum-healthy-percent': {
+            type: 'string',
+            desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-stabilization-timeout-seconds': {
+            type: 'string',
+            desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'watch': {
             type: 'boolean',
@@ -274,6 +286,18 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: "Attempts to perform a 'hotswap' deployment, " +
               'which skips CloudFormation and updates the resources directly, ' +
               'and falls back to a full deployment if that is not possible.',
+          },
+          'hotswap-ecs-minimum-healthy-percent': {
+            type: 'string',
+            desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-maximum-healthy-percent': {
+            type: 'string',
+            desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
+          },
+          'hotswap-ecs-stabilization-timeout-seconds': {
+            type: 'string',
+            desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'logs': {
             type: 'boolean',

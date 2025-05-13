@@ -4,8 +4,8 @@ import { formatStackDriftChanges } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
-import type { IoHelper } from '../io/private';
 import { StringWriteStream } from '../streams';
+import type { IDriftIoHelper } from './interfaces';
 
 /**
  * Output of formatStackDrift
@@ -32,9 +32,9 @@ export interface FormatStackDriftOutput {
  */
 export interface DriftFormatterProps {
   /**
-   * Helper for the IoHost class
+   * Helper for IO operations
    */
-  readonly ioHelper: IoHelper;
+  readonly ioHelper: IDriftIoHelper;
 
   /**
    * The CloudFormation stack artifact

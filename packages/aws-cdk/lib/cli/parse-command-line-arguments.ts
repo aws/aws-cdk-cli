@@ -464,6 +464,21 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible. Do not use this in production environments",
         })
+        .option('hotswap-ecs-minimum-healthy-percent', {
+          default: undefined,
+          type: 'string',
+          desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
+        })
+        .option('hotswap-ecs-maximum-healthy-percent', {
+          default: undefined,
+          type: 'string',
+          desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
+        })
+        .option('hotswap-ecs-stabilization-timeout-seconds', {
+          default: undefined,
+          type: 'string',
+          desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
+        })
         .option('watch', {
           default: undefined,
           type: 'boolean',
@@ -627,6 +642,21 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'boolean',
           desc: "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible.",
+        })
+        .option('hotswap-ecs-minimum-healthy-percent', {
+          default: undefined,
+          type: 'string',
+          desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
+        })
+        .option('hotswap-ecs-maximum-healthy-percent', {
+          default: undefined,
+          type: 'string',
+          desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
+        })
+        .option('hotswap-ecs-stabilization-timeout-seconds', {
+          default: undefined,
+          type: 'string',
+          desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('logs', {
           default: true,

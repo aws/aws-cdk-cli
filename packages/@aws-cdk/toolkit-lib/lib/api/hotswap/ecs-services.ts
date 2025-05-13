@@ -131,6 +131,7 @@ export async function isHotswappableEcsServiceChange(
         let ecsHotswapProperties = hotswapPropertyOverrides.ecsHotswapProperties;
         let minimumHealthyPercent = ecsHotswapProperties?.minimumHealthyPercent;
         let maximumHealthyPercent = ecsHotswapProperties?.maximumHealthyPercent;
+        let stabilizationTimeoutSeconds = ecsHotswapProperties?.stabilizationTimeoutSeconds;
 
         // Step 2 - update the services using that TaskDefinition to point to the new TaskDefinition Revision
         // Forcing New Deployment and setting Minimum Healthy Percent to 0.
@@ -153,7 +154,7 @@ export async function isHotswappableEcsServiceChange(
             await sdk.ecs().waitUntilServicesStable({
               cluster: update.service?.clusterArn,
               services: [service.serviceArn],
-            });
+            }, stabilizationTimeoutSeconds);
           }),
         );
       },

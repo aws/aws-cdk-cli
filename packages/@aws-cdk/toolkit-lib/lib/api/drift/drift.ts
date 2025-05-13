@@ -1,21 +1,20 @@
 import { format } from 'util';
 import type { DescribeStackDriftDetectionStatusCommandOutput, DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
+import type { IDriftCloudFormationClient, IDriftIoHelper } from './interfaces';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { ICloudFormationClient } from '../aws-auth/private';
-import { IO, type IoHelper } from '../io/private';
+import { IO } from '../io/private';
 
 /**
  * Detect drift for a CloudFormation stack and wait for the detection to complete
  *
- * @param cfn        a CloudFormation client
- * @param ioHelper   helper for IO operations
- * @param stackName  the name of the stack to check for drift
- *
- * @returns     the CloudFormation description of the drift detection results
+ * @param cfn - a CloudFormation client
+ * @param ioHelper - helper for IO operations
+ * @param stackName - the name of the stack to check for drift
+ * @returns the CloudFormation description of the drift detection results
  */
 export async function detectStackDrift(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
+  cfn: IDriftCloudFormationClient,
+  ioHelper: IDriftIoHelper,
   stackName: string,
 ): Promise<DescribeStackResourceDriftsCommandOutput> {
   await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Starting drift detection for stack %s...', stackName)));
@@ -48,8 +47,8 @@ export async function detectStackDrift(
  * Wait for a drift detection operation to complete
  */
 async function waitForDriftDetection(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
+  cfn: IDriftCloudFormationClient,
+  ioHelper: IDriftIoHelper,
   driftDetectionId: string,
 ): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
   await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Waiting for drift detection %s to complete...', driftDetectionId)));

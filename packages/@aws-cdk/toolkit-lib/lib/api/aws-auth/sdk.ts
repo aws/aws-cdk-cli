@@ -1,3 +1,4 @@
+import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import type {
   FunctionConfiguration,
   GetSchemaCreationStatusCommandInput,
@@ -352,11 +353,11 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
-import type { AwsCredentialIdentityProvider, Logger } from '@smithy/types';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
 import type { WaiterResult } from '@smithy/util-waiter';
 import { AccountAccessKeyCache } from './account-cache';
 import { cachedAsync } from './cached';
+import type { ISdkLogger } from './sdk-logger';
 import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
@@ -393,11 +394,11 @@ export interface SdkOptions {
 
 export interface ConfigurationOptions {
   region: string;
-  credentials: AwsCredentialIdentityProvider;
+  credentials: SDKv3CompatibleCredentialProvider;
   requestHandler: NodeHttpHandlerOptions;
   retryStrategy: ConfiguredRetryStrategy;
   customUserAgent: string;
-  logger?: Logger;
+  logger?: ISdkLogger;
   s3DisableBodySigning?: boolean;
   computeChecksums?: boolean;
 }
@@ -504,7 +505,7 @@ export interface IECSClient {
   registerTaskDefinition(input: RegisterTaskDefinitionCommandInput): Promise<RegisterTaskDefinitionCommandOutput>;
   updateService(input: UpdateServiceCommandInput): Promise<UpdateServiceCommandOutput>;
   // Waiters
-  waitUntilServicesStable(input: DescribeServicesCommandInput): Promise<WaiterResult>;
+  waitUntilServicesStable(input: DescribeServicesCommandInput, timeoutSeconds?: number): Promise<WaiterResult>;
 }
 
 export interface IElasticLoadBalancingV2Client {
@@ -578,7 +579,7 @@ export class SDK {
 
   public readonly config: ConfigurationOptions;
 
-  protected readonly logger?: Logger;
+  protected readonly logger?: ISdkLogger;
 
   private readonly accountCache;
 
@@ -602,11 +603,11 @@ export class SDK {
   private readonly debug: (msg: string) => Promise<void>;
 
   constructor(
-    private readonly credProvider: AwsCredentialIdentityProvider,
+    private readonly credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
     requestHandler: NodeHttpHandlerOptions,
     ioHelper: IoHelper,
-    logger?: Logger,
+    logger?: ISdkLogger,
   ) {
     const debugFn = async (msg: string) => ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(msg));
     this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
@@ -851,11 +852,11 @@ export class SDK {
       updateService: (input: UpdateServiceCommandInput): Promise<UpdateServiceCommandOutput> =>
         client.send(new UpdateServiceCommand(input)),
       // Waiters
-      waitUntilServicesStable: (input: DescribeServicesCommandInput): Promise<WaiterResult> => {
+      waitUntilServicesStable: (input: DescribeServicesCommandInput, timeoutSeconds?: number): Promise<WaiterResult> => {
         return waitUntilServicesStable(
           {
             client,
-            maxWaitTime: 600,
+            maxWaitTime: timeoutSeconds ?? 600,
             minDelay: 6,
             maxDelay: 6,
           },

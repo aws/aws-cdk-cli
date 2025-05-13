@@ -2,9 +2,9 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ForReading } from '@aws-cdk/cli-plugin-contract';
 import type { Environment } from '@aws-cdk/cx-api';
 import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type {
   DescribeGeneratedTemplateCommandOutput,
   DescribeResourceScanCommandOutput,
@@ -20,10 +20,10 @@ import type {
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import * as chalk from 'chalk';
 import { cliInit } from './init';
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib';
 import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';
+import { Mode } from '../api/plugin';
 import { zipDirectory } from '../util';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');
@@ -143,7 +143,7 @@ export async function readFromStack(
   sdkProvider: SdkProvider,
   environment: Environment,
 ): Promise<string | undefined> {
-  const cloudFormation = (await sdkProvider.forEnvironment(environment, 0 satisfies ForReading)).sdk.cloudFormation();
+  const cloudFormation = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
 
   const stack = await CloudFormationStack.lookup(cloudFormation, stackName, true);
   if (stack.stackStatus.isDeploySuccess || stack.stackStatus.isRollbackSuccess) {
@@ -605,7 +605,7 @@ export function buildGenertedTemplateOutput(
  * @returns A CloudFormation sdk client
  */
 export async function buildCfnClient(sdkProvider: SdkProvider, environment: Environment) {
-  const sdk = (await sdkProvider.forEnvironment(environment, 0 satisfies ForReading)).sdk;
+  const sdk = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk;
   sdk.appendCustomUserAgent('cdk-migrate');
   return sdk.cloudFormation();
 }

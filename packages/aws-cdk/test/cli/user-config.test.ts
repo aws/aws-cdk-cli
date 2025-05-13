@@ -2,6 +2,7 @@
 import * as os from 'os';
 import * as fs_path from 'path';
 import * as fs from 'fs-extra';
+import type { Command } from '../../lib/cli/user-configuration';
 import { Configuration, PROJECT_CONFIG, PROJECT_CONTEXT } from '../../lib/cli/user-configuration';
 import { parseCommandLineArguments } from '../../lib/cli/parse-command-line-arguments';
 
@@ -10,6 +11,38 @@ jest.mock('fs-extra');
 const mockedFs = jest.mocked(fs, { shallow: true });
 
 const USER_CONFIG = fs_path.join(os.homedir(), '.cdk.json');
+
+test('correctly parses hotswap overrides', async () => {
+  const GIVEN_CONFIG: Map<string, any> = new Map([
+    [PROJECT_CONFIG, {
+      project: 'foobar',
+    }],
+    [USER_CONFIG, {
+      project: 'foo',
+      test: 'bar',
+    }],
+  ]);
+
+  // WHEN
+  mockedFs.pathExists.mockImplementation(path => {
+    return GIVEN_CONFIG.has(path);
+  });
+  mockedFs.readJSON.mockImplementation(path => {
+    return GIVEN_CONFIG.get(path);
+  });
+
+  const config = await new Configuration({
+    commandLineArguments: {
+      _: ['deploy'] as unknown as [Command, ...string[]],
+      hotswapEcsMinimumHealthyPercent: 50,
+      hotswapEcsMaximumHealthyPercent: 250,
+      hotswapEcsStabilizationTimeoutSeconds: 20,
+    },
+  }).load();
+  expect(config.settings.get(['hotswap', 'ecs', 'minimumHealthyPercent'])).toEqual(50);
+  expect(config.settings.get(['hotswap', 'ecs', 'maximumHealthyPercent'])).toEqual(250);
+  expect(config.settings.get(['hotswap', 'ecs', 'stabilizationTimeoutSeconds'])).toEqual(20);
+});
 
 test('load settings from both files if available', async () => {
   // GIVEN

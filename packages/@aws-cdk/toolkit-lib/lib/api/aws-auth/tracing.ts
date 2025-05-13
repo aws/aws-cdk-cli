@@ -1,4 +1,4 @@
-import type { Logger } from '@smithy/types';
+import type { ISdkLogger } from './sdk-logger';
 
 let ENABLED = false;
 let INDENT = 0;
@@ -10,7 +10,7 @@ export function setSdkTracing(enabled: boolean) {
 /**
  * Method decorator to trace a single static or member method, any time it's called
  */
-export function callTrace(fn: string, className?: string, logger?: Logger) {
+export function callTrace(fn: string, className?: string, logger?: ISdkLogger) {
   if (!ENABLED || !logger) {
     return;
   }

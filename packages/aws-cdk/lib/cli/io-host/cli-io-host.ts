@@ -1,13 +1,11 @@
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '../../../../@aws-cdk/toolkit-lib';
-import type { IoHelper } from '../../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel } from '../../../../@aws-cdk/toolkit-lib/lib/api/io/private';
-import { CurrentActivityPrinter, HistoryActivityPrinter } from '../../../../@aws-cdk/toolkit-lib/lib/private/activity-printer';
-import type { ActivityPrinterProps, IActivityPrinter } from '../../../../@aws-cdk/toolkit-lib/lib/private/activity-printer';
+import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };

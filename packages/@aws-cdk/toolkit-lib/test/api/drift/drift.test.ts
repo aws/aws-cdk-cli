@@ -1,11 +1,108 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
-import { DriftFormatter } from '../../../lib/api/drift';
+import { detectStackDrift, DriftFormatter } from '../../../lib/api/drift';
 import { IoHelper, IoDefaultMessages } from '../../../lib/api/io/private';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 
-jest.mock('../../../lib/api/io/private/messages', () => ({
-  IoDefaultMessages: jest.fn(),
-}));
+jest.mock('../../../lib/api/io/private', () => {
+  const originalModule = jest.requireActual('../../../lib/api/io/private');
+  return {
+    ...originalModule,
+    IO: {
+      DEFAULT_TOOLKIT_DEBUG: {
+        msg: jest.fn().mockReturnValue('mocked-message'),
+      },
+    },
+    IoDefaultMessages: jest.fn(),
+  };
+});
+
+describe('detectStackDrift', () => {
+  let mockCfn: any;
+  let mockIoHelper: any;
+
+  beforeEach(() => {
+    mockCfn = {
+      detectStackDrift: jest.fn(),
+      describeStackDriftDetectionStatus: jest.fn(),
+      describeStackResourceDrifts: jest.fn(),
+    };
+
+    mockIoHelper = {
+      notify: jest.fn().mockResolvedValue(undefined),
+    };
+  });
+
+  test('successfully detects drift and returns results', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'drift-detection-id';
+    const expectedDriftResults = { StackResourceDrifts: [], $metadata: {} };
+
+    mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+    });
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    const result = await detectStackDrift(mockCfn, mockIoHelper, stackName);
+
+    // THEN
+    expect(mockCfn.detectStackDrift).toHaveBeenCalledWith({ StackName: stackName });
+    expect(mockCfn.describeStackDriftDetectionStatus).toHaveBeenCalledWith({
+      StackDriftDetectionId: driftDetectionId,
+    });
+    expect(mockCfn.describeStackResourceDrifts).toHaveBeenCalledWith({ StackName: stackName });
+    expect(result).toBe(expectedDriftResults);
+  });
+
+  test('throws error when drift detection takes too long', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'drift-detection-id';
+
+    mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+    mockCfn.describeStackDriftDetectionStatus.mockImplementation(() => {
+      // Simulate timeout by never returning DETECTION_COMPLETE
+      return Promise.resolve({ DetectionStatus: 'DETECTION_IN_PROGRESS' });
+    });
+
+    // Mock Date.now to simulate timeout
+    const originalDateNow = Date.now;
+    const mockDateNow = jest.fn()
+      .mockReturnValueOnce(1000) // First call - start time
+      .mockReturnValueOnce(12000); // Second call - after timeout
+    Date.now = mockDateNow;
+
+    // WHEN & THEN
+    await expect(async () => {
+      try {
+        await detectStackDrift(mockCfn, mockIoHelper, stackName);
+      } finally {
+        // Restore original Date.now
+        Date.now = originalDateNow;
+      }
+    }).rejects.toThrow(ToolkitError);
+  });
+
+  test('throws error when detection status is DETECTION_FAILED', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'drift-detection-id';
+    const failureReason = 'Something went wrong';
+
+    mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_FAILED',
+      DetectionStatusReason: failureReason,
+    });
+
+    // WHEN & THEN
+    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
+      .rejects.toThrow(`Drift detection failed: ${failureReason}`);
+  });
+});
 
 describe('formatStackDrift', () => {
   let mockIoHelper: IoHelper;

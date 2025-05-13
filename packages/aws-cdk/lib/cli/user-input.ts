@@ -745,6 +745,27 @@ export interface DeployOptions {
   readonly hotswapFallback?: boolean;
 
   /**
+   * Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount
+   *
+   * @default - undefined
+   */
+  readonly hotswapEcsMinimumHealthyPercent?: string;
+
+  /**
+   * Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
+   *
+   * @default - undefined
+   */
+  readonly hotswapEcsMaximumHealthyPercent?: string;
+
+  /**
+   * Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount
+   *
+   * @default - undefined
+   */
+  readonly hotswapEcsStabilizationTimeoutSeconds?: string;
+
+  /**
    * Continuously observe the project files, and deploy the given stack(s) automatically when changes are detected. Implies --hotswap by default
    *
    * @default - undefined
@@ -982,6 +1003,27 @@ export interface WatchOptions {
    * @default - undefined
    */
   readonly hotswapFallback?: boolean;
+
+  /**
+   * Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount
+   *
+   * @default - undefined
+   */
+  readonly hotswapEcsMinimumHealthyPercent?: string;
+
+  /**
+   * Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
+   *
+   * @default - undefined
+   */
+  readonly hotswapEcsMaximumHealthyPercent?: string;
+
+  /**
+   * Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount
+   *
+   * @default - undefined
+   */
+  readonly hotswapEcsStabilizationTimeoutSeconds?: string;
 
   /**
    * Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off
