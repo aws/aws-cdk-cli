@@ -382,4 +382,69 @@ describe('formatStackDrift', () => {
     expect(result.formattedDrift).toContain('Resources In Sync');
     expect(result.formattedDrift).toContain('Unchecked Resources');
   });
+
+  test('formatting with different drift statuses', () => {
+    // GIVEN
+    const mockDriftedResources: DescribeStackResourceDriftsCommandOutput = {
+      StackResourceDrifts: [
+        {
+          StackId: 'some:stack:arn',
+          StackResourceDriftStatus: 'MODIFIED',
+          LogicalResourceId: 'Resource1',
+          PhysicalResourceId: 'physical-id-1',
+          ResourceType: 'AWS::S3::Bucket',
+          PropertyDifferences: [{
+            PropertyPath: '/BucketName',
+            ExpectedValue: 'expected-name',
+            ActualValue: 'actual-name',
+            DifferenceType: 'NOT_EQUAL',
+          }],
+          Timestamp: new Date(Date.now()),
+        },
+        {
+          StackId: 'some:stack:arn',
+          StackResourceDriftStatus: 'DELETED',
+          LogicalResourceId: 'Resource2',
+          PhysicalResourceId: 'physical-id-2',
+          ResourceType: 'AWS::IAM::Role',
+          Timestamp: new Date(Date.now()),
+        },
+        {
+          StackId: 'some:stack:arn',
+          StackResourceDriftStatus: 'IN_SYNC',
+          LogicalResourceId: 'Resource3',
+          PhysicalResourceId: 'physical-id-3',
+          ResourceType: 'AWS::Lambda::Function',
+          Timestamp: new Date(Date.now()),
+        },
+        {
+          StackId: 'some:stack:arn',
+          StackResourceDriftStatus: 'NOT_CHECKED',
+          LogicalResourceId: 'Resource4',
+          PhysicalResourceId: 'physical-id-4',
+          ResourceType: 'AWS::DynamoDB::Table',
+          Timestamp: new Date(Date.now()),
+        },
+      ],
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      ioHelper: mockIoHelper,
+      stack: mockNewTemplate,
+      driftResults: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift({});
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(2); // Only MODIFIED and DELETED count as drift
+    expect(result.formattedDrift).toContain('Modified Resources');
+    expect(result.formattedDrift).toContain('AWS::S3::Bucket');
+    expect(result.formattedDrift).toContain('Resource1');
+    expect(result.formattedDrift).toContain('Deleted Resources');
+    expect(result.formattedDrift).toContain('AWS::IAM::Role');
+    expect(result.formattedDrift).toContain('Resource2');
+    expect(result.formattedDrift).toContain('2 resources have drifted');
+  });
 });

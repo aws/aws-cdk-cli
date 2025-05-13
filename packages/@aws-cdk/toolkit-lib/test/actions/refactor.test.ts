@@ -15,6 +15,7 @@ jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
 beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
+  mockCloudFormationClient.reset();
 });
 
 test('detects the same resource in different locations', async () => {
@@ -298,4 +299,169 @@ test('resource is marked to be excluded for refactoring in the cloud assembly', 
       message: expect.stringMatching(/Nothing to refactor/),
     }),
   );
+});
+
+test('uses the explicit mapping when provided, instead of computing it on-the-fly', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(ListStacksCommand).resolves({
+    StackSummaries: [
+      {
+        StackName: 'Stack1',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+    ],
+  });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldLogicalID: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  // WHEN
+  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+    mappings: [
+      {
+        account: '123456789012',
+        region: 'us-east-1',
+        resources: {
+          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
+        },
+      },
+    ],
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldLogicalID\/Resource.*Stack1\.NewLogicalID/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldLogicalID/Resource',
+            destinationPath: 'Stack1.NewLogicalID',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    }),
+  );
+});
+
+test('uses the reverse of an explicit mapping when provided', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(ListStacksCommand).resolves({
+    StackSummaries: [
+      {
+        StackName: 'Stack1',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+    ],
+  });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          // Suppose we had already mapped OldLogicalID -> NewLogicalID...
+          NewLogicalID: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/NewLogicalID/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  // WHEN
+  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+    // ... this is the mapping we used...
+    mappings: [{
+      account: '123456789012',
+      region: 'us-east-1',
+      resources: {
+        'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
+      },
+    }],
+    // ...and now we want to revert it
+    revert: true,
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/NewLogicalID\/Resource.*Stack1\.OldLogicalID/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/NewLogicalID/Resource',
+            destinationPath: 'Stack1.OldLogicalID',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    }),
+  );
+});
+
+test('exclude and mappings are mutually exclusive', async () => {
+  // WHEN
+  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  await expect(
+    toolkit.refactor(cx, {
+      dryRun: true,
+      exclude: ['Stack1/OldLogicalID'],
+      mappings: [{
+        account: '123456789012',
+        region: 'us-east-1',
+        resources: {
+          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
+        },
+      }],
+    }),
+  ).rejects.toThrow(/Cannot use both 'exclude' and 'mappings'/);
+});
+
+test('revert can only be used with mappings', async () => {
+  // WHEN
+  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  await expect(
+    toolkit.refactor(cx, {
+      dryRun: true,
+      revert: true,
+    }),
+  ).rejects.toThrow(/The 'revert' options can only be used with the 'mappings' option/);
 });

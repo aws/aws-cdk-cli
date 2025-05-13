@@ -27,4 +27,41 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   exclude?: string[];
+
+  /**
+   * An explicit mapping to be used by the toolkit (as opposed to letting the
+   * toolkit itself compute the mapping).
+   */
+  mappings?: MappingGroup[];
+
+  /**
+   * Modifies the behavior of the 'mappings' option by swapping source and
+   * destination locations. This is useful when you want to undo a refactor
+   * that was previously applied.
+   */
+  revert?: boolean;
+}
+
+export interface MappingGroup {
+  /**
+   * The account ID of the environment in which the mapping is valid.
+   */
+  account: string;
+
+  /**
+   * The region of the environment in which the mapping is valid.
+   */
+  region: string;
+
+  /**
+   * A collection of resource mappings, where each key is the source location
+   * and the value is the destination location. Locations must be in the format
+   * `StackName.LogicalId`. The source must refer to a location where there is
+   * a resource currently deployed, while the destination must refer to a
+   * location that is not already occupied by any resource.
+   *
+   */
+  resources: {
+    [key: string]: string;
+  };
 }

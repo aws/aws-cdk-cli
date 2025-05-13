@@ -1436,6 +1436,20 @@ export interface RefactorOptions {
   readonly excludeFile?: string;
 
   /**
+   * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
+   *
+   * @default - undefined
+   */
+  readonly mappingFile?: string;
+
+  /**
+   * If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.
+   *
+   * @default - false
+   */
+  readonly revert?: boolean;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;

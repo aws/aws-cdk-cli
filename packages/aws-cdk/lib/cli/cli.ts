@@ -279,6 +279,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           dryRun: args.dryRun,
           selector,
           excludeFile: args.excludeFile,
+          mappingFile: args.mappingFile,
+          revert: args.revert,
         });
 
       case 'bootstrap':
