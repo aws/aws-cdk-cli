@@ -1969,23 +1969,23 @@ export interface RefactorOptions {
    * the following format:
    *
    *     {
-   *       "mappings": [
+   *       "environments": [
    *         {
-   *           "source": "Foo.OldName",
-   *           "destination": "Bar.NewName",
-   *           "environment": {
-   *             "name": "test",
-   *             "account": "123456789012",
-   *             "region": "us-east-1"
+   *           "account": "123456789012",
+   *           "region": "us-east-1",
+   *           "resources": {
+   *             "Foo.OldName": "Bar.NewName",
    *           }
-   *         }
+   *         },
    *       ]
    *     }
    *
-   * where `source` and `destination` are resource locations in the format
-   * `StackName.LogicalId`. The source must refer to a location where there
-   * is a resource currently deployed, while the destination must refer to
-   * a location that is not already occupied by any resource.
+   * where mappings are grouped by environment. The `resources` object contains
+   * a mapping where each key is the source location and the value is the
+   * destination location. Locations must be in the format `StackName.LogicalId`.
+   * The source must refer to a location where there is a resource currently
+   * deployed, while the destination must refer to a location that is not already
+   * occupied by any resource.
    */
   mappingFile?: string;
 

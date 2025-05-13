@@ -16,7 +16,7 @@ import {
   findResourceMovements,
   resourceMappings,
   resourceMovements,
-  useExplicitMappings,
+  usePrescribedMappings,
 } from '../../../lib/api/refactoring';
 import type {
   CloudFormationStack,
@@ -1381,7 +1381,7 @@ describe('environment grouping', () => {
   });
 });
 
-describe(useExplicitMappings, () => {
+describe(usePrescribedMappings, () => {
   beforeEach(() => {
     jest.resetAllMocks();
     cloudFormationClient.reset();
@@ -1432,7 +1432,7 @@ describe(useExplicitMappings, () => {
 
     // WHEN
     const provider = new MockSdkProvider();
-    const result = await useExplicitMappings(mappings.environments, provider);
+    const result = await usePrescribedMappings(mappings.environments, provider);
 
     // THEN
     // The mappings should be generated correctly, with the template included in the source.
@@ -1526,7 +1526,7 @@ describe(useExplicitMappings, () => {
     const provider = new MockSdkProvider();
 
     // THEN
-    await expect(useExplicitMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
       "Duplicate destination resource 'Bar.Bucket2' in environment 123456789012/us-east-1",
     );
   });
@@ -1555,7 +1555,7 @@ describe(useExplicitMappings, () => {
     const provider = new MockSdkProvider();
 
     // THEN
-    await expect(useExplicitMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
       "Source resource 'Foo.Bucket1' does not exist in environment 123456789012/us-east-1",
     );
   });
@@ -1629,10 +1629,63 @@ describe(useExplicitMappings, () => {
     const provider = new MockSdkProvider();
 
     // THEN
-    await expect(useExplicitMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
       "Destination resource 'Bar.Bucket2' already in use in environment 123456789012/us-east-1",
     );
   });
+
+  test('mapping with invalid location format', async () => {
+    // GIVEN
+    // A set of mappings with an invalid location format
+    const mappings = {
+      environments: [
+        {
+          account: '123456789012',
+          region: 'us-east-1',
+          resources: {
+            'Foo.Bucket1': 'Bar.Bucket2',
+            'InvalidLocation': 'Bar.Bucket3',
+          },
+        },
+      ],
+    };
+
+    // and the fact that the source stack exists in the environment
+    cloudFormationClient.on(ListStacksCommand).resolves({
+      StackSummaries: [
+        {
+          StackName: 'Foo',
+          StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Foo',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
+
+    // and the fact that the logical ID exists in the stack
+    cloudFormationClient
+      .on(GetTemplateCommand, {
+        StackName: 'Foo',
+      })
+      .resolves({
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket1: {
+              Type: 'AWS::X::Y',
+              Properties: {},
+            },
+          },
+        }),
+      });
+
+    // WHEN
+    const provider = new MockSdkProvider();
+
+    // THEN
+    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+      "Invalid location 'InvalidLocation'",
+    );
+  })
 });
 
 describe(generateStackDefinitions, () => {

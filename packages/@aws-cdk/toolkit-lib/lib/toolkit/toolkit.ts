@@ -58,7 +58,7 @@ import {
   formatTypedMappings,
   fromManifestAndExclusionList,
   resourceMappings,
-  useExplicitMappings,
+  usePrescribedMappings,
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { ResourceMigrator } from '../api/resource-import';
@@ -1003,10 +1003,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     async function getMappings(): Promise<ResourceMapping[]> {
       if (options.revert) {
-        return useExplicitMappings(revert(options.mappings ?? []), sdkProvider);
+        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
       }
       if (options.mappings != null) {
-        return useExplicitMappings(options.mappings ?? [], sdkProvider);
+        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
       } else {
         const stacks = await assembly.selectStacksV2(ALL_STACKS);
         const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);

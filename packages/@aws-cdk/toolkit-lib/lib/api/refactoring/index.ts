@@ -53,7 +53,7 @@ function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
   return result;
 }
 
-export async function useExplicitMappings(
+export async function usePrescribedMappings(
   mappingGroups: MappingGroup[],
   sdkProvider: SdkProvider,
 ): Promise<ResourceMapping[]> {
@@ -63,28 +63,17 @@ export async function useExplicitMappings(
 
   const stackGroups: StackGroup[] = [];
   for (const group of mappingGroups) {
-    const environment = {
-      account: group.account,
-      region: group.region,
-      name: '',
-    };
     stackGroups.push({
       ...group,
-      stacks: await getDeployedStacks(sdkProvider, environment),
+      stacks: await getDeployedStacks(sdkProvider, environmentOf(group)),
     });
   }
 
-  // Validate that there are no duplicate sources or destinations
+  // Validate that there are no duplicate destinations
   for (let group of stackGroups) {
-    const sources = new Set<string>();
     const destinations = new Set<string>();
 
-    for (const [source, destination] of Object.entries(group.resources)) {
-      if (sources.has(source)) {
-        throw new ToolkitError(`Duplicate source resource '${source}' in environment ${group.account}/${group.region}`);
-      }
-      sources.add(source);
-
+    for (const destination of Object.values(group.resources)) {
       if (destinations.has(destination)) {
         throw new ToolkitError(
           `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
@@ -107,12 +96,7 @@ export async function useExplicitMappings(
         );
       }
 
-      const environment = {
-        account: group.account,
-        region: group.region,
-        name: '',
-      };
-
+      const environment = environmentOf(group);
       const src = makeLocation(source, environment, group.stacks);
       const dst = makeLocation(destination, environment);
       result.push(new ResourceMapping(src, dst));
@@ -121,9 +105,20 @@ export async function useExplicitMappings(
   return result;
 
   function inUse(location: string, stacks: CloudFormationStack[]): boolean {
-    const [srcStackName, srcLogicalId] = location.split('.');
-    const stack = stacks.find((s) => s.stackName === srcStackName);
-    return stack != null && stack.template.Resources?.[srcLogicalId] != null;
+    const [stackName, logicalId] = location.split('.');
+    if (stackName == null || logicalId == null) {
+      throw new ToolkitError(`Invalid location '${location}'`);
+    }
+    const stack = stacks.find((s) => s.stackName === stackName);
+    return stack != null && stack.template.Resources?.[logicalId] != null;
+  }
+
+  function environmentOf(group: MappingGroup) {
+    return {
+      account: group.account,
+      region: group.region,
+      name: '',
+    };
   }
 
   function makeLocation(

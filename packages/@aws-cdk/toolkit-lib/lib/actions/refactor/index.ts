@@ -29,13 +29,8 @@ export interface RefactorOptions {
   exclude?: string[];
 
   /**
-   * An explicit mapping to be used by the toolkit (as opposed to
-   * letting the toolkit itself compute the mapping). The `source`
-   * and `destination` properties are resource locations in the
-   * format `StackName.LogicalId`. The source must refer to a
-   * location where there is a resource currently deployed, while
-   * the destination must refer to a location that is not already
-   * occupied by any resource.
+   * An explicit mapping to be used by the toolkit (as opposed to letting the
+   * toolkit itself compute the mapping).
    */
   mappings?: MappingGroup[];
 
@@ -61,7 +56,9 @@ export interface MappingGroup {
   /**
    * A collection of resource mappings, where each key is the source location
    * and the value is the destination location. Locations must be in the format
-   * `StackName.LogicalId`.
+   * `StackName.LogicalId`. The source must refer to a location where there is
+   * a resource currently deployed, while the destination must refer to a
+   * location that is not already occupied by any resource.
    *
    */
   resources: {
