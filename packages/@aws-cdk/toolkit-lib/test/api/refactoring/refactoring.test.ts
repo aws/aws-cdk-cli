@@ -1685,7 +1685,7 @@ describe(usePrescribedMappings, () => {
     await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
       "Invalid location 'InvalidLocation'",
     );
-  })
+  });
 });
 
 describe(generateStackDefinitions, () => {
