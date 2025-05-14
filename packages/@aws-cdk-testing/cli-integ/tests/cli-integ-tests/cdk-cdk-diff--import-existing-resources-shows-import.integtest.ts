@@ -19,7 +19,7 @@ integTest(
       },
     });
 
-    console.log('first diff' + diff);
+    fixture.log('first diff' + diff);
     // Assert there are no changes and diff shows import
     expect(diff).not.toContain('There were no differences');
     expect(diff).toContain('[←]');
@@ -32,7 +32,7 @@ integTest(
       },
     });
 
-    console.log('second diff' + diff);
+    fixture.log('second diff' + diff);
     // Assert there are no changes and diff shows add
     expect(diff).not.toContain('There were no differences');
     expect(diff).toContain('[+]');
