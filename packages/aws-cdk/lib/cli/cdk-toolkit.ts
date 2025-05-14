@@ -23,6 +23,7 @@ import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from 
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
 import { type Tag, tagsForStack } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
+import type { DriftCommandOptions } from '../commands/drift';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -53,7 +54,6 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
-import { DriftCommandOptions } from '../commands/drift';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports

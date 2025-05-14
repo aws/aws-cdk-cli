@@ -1,20 +1,135 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
+import type { DescribeStackResourceDriftsCommandOutput, StackResourceDrift } from '@aws-sdk/client-cloudformation';
+import {
+  DescribeStackDriftDetectionStatusCommand,
+  DescribeStackResourceDriftsCommand,
+  DetectStackDriftCommand,
+  DetectStackResourceDriftCommand,
+} from '@aws-sdk/client-cloudformation';
 import { detectStackDrift, DriftFormatter } from '../../../lib/api/drift';
 import { IoHelper, IoDefaultMessages } from '../../../lib/api/io/private';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
+import { mockCloudFormationClient, MockSdk } from '../../_helpers/mock-sdk';
 
 jest.mock('../../../lib/api/io/private', () => {
   const originalModule = jest.requireActual('../../../lib/api/io/private');
   return {
     ...originalModule,
     IO: {
+      ...originalModule.IO,
       DEFAULT_TOOLKIT_DEBUG: {
         msg: jest.fn().mockReturnValue('mocked-message'),
       },
     },
     IoDefaultMessages: jest.fn(),
   };
+});
+
+describe('CloudFormation drift commands', () => {
+  let sdk: MockSdk;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    sdk = new MockSdk();
+  });
+
+  test('detectStackDrift sends the correct command', async () => {
+    // GIVEN
+    const cfnClient = mockCloudFormationClient;
+    cfnClient.on(DetectStackDriftCommand).resolves({
+      StackDriftDetectionId: 'drift-detection-id',
+    });
+
+    // WHEN
+    await sdk.cloudFormation().detectStackDrift({
+      StackName: 'test-stack',
+    });
+
+    // THEN
+    expect(cfnClient).toHaveReceivedCommandWith(DetectStackDriftCommand, {
+      StackName: 'test-stack',
+    });
+  });
+
+  test('describeStackDriftDetectionStatus sends the correct command', async () => {
+    // GIVEN
+    const cfnClient = mockCloudFormationClient;
+    cfnClient.on(DescribeStackDriftDetectionStatusCommand).resolves({
+      StackId: 'stack-id',
+      StackDriftDetectionId: 'drift-detection-id',
+      DetectionStatus: 'DETECTION_COMPLETE',
+    });
+
+    // WHEN
+    await sdk.cloudFormation().describeStackDriftDetectionStatus({
+      StackDriftDetectionId: 'drift-detection-id',
+    });
+
+    // THEN
+    expect(cfnClient).toHaveReceivedCommandWith(DescribeStackDriftDetectionStatusCommand, {
+      StackDriftDetectionId: 'drift-detection-id',
+    });
+  });
+
+  test('describeStackResourceDrifts sends the correct command', async () => {
+    // GIVEN
+    const cfnClient = mockCloudFormationClient;
+    cfnClient.on(DescribeStackResourceDriftsCommand).resolves({
+      StackResourceDrifts: [
+        {
+          StackId: 'stack-id',
+          LogicalResourceId: 'resource-id',
+          PhysicalResourceId: 'physical-id',
+          ResourceType: 'AWS::S3::Bucket',
+          ExpectedProperties: '{}',
+          ActualProperties: '{}',
+          PropertyDifferences: [],
+          StackResourceDriftStatus: 'IN_SYNC',
+          Timestamp: new Date(),
+        },
+      ],
+    });
+
+    // WHEN
+    await sdk.cloudFormation().describeStackResourceDrifts({
+      StackName: 'test-stack',
+    });
+
+    // THEN
+    expect(cfnClient).toHaveReceivedCommandWith(DescribeStackResourceDriftsCommand, {
+      StackName: 'test-stack',
+    });
+  });
+
+  test('detectStackResourceDrift sends the correct command', async () => {
+    // GIVEN
+    const cfnClient = mockCloudFormationClient;
+    cfnClient.on(DetectStackResourceDriftCommand).resolves({
+      StackResourceDrift: {
+        StackId: 'stack-id',
+        LogicalResourceId: 'resource-id',
+        PhysicalResourceId: 'physical-id',
+        ResourceType: 'AWS::S3::Bucket',
+        ExpectedProperties: '{}',
+        ActualProperties: '{}',
+        PropertyDifferences: [],
+        StackResourceDriftStatus: 'IN_SYNC',
+        Timestamp: new Date(),
+      },
+    });
+
+    // WHEN
+    await sdk.cloudFormation().detectStackResourceDrift({
+      StackName: 'test-stack',
+      LogicalResourceId: 'resource-id',
+    });
+
+    // THEN
+    expect(cfnClient).toHaveReceivedCommandWith(DetectStackResourceDriftCommand, {
+      StackName: 'test-stack',
+      LogicalResourceId: 'resource-id',
+    });
+  });
 });
 
 describe('detectStackDrift', () => {
@@ -93,6 +208,50 @@ describe('detectStackDrift', () => {
     const failureReason = 'Something went wrong';
 
     mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_FAILED',
+      DetectionStatusReason: failureReason,
+    });
+
+    // WHEN & THEN
+    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
+      .rejects.toThrow(`Drift detection failed: ${failureReason}`);
+  });
+
+  test('throws error when detection takes too long', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockImplementation(() => {
+      // Simulate timeout by never returning DETECTION_COMPLETE
+      return Promise.resolve({ DetectionStatus: 'DETECTION_IN_PROGRESS' });
+    });
+
+    // Mock Date.now to simulate timeout
+    const originalDateNow = Date.now;
+    Date.now = jest.fn()
+      .mockReturnValueOnce(1000) // First call - start time
+      .mockReturnValueOnce(12000); // Second call - after timeout
+
+    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName)).rejects.toThrow('Timed out');
+    Date.now = originalDateNow; // Restore original Date.now
+  });
+
+  test('throws error when detection fails', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const failureReason = 'Some failure reason';
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
     mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
       DetectionStatus: 'DETECTION_FAILED',
       DetectionStatusReason: failureReason,
@@ -446,5 +605,76 @@ describe('formatStackDrift', () => {
     expect(result.formattedDrift).toContain('AWS::IAM::Role');
     expect(result.formattedDrift).toContain('Resource2');
     expect(result.formattedDrift).toContain('2 resources have drifted');
+  });
+
+  // Test the case where there are no drifts but verbose output is requested
+  test('with no drifts and verbose option', () => {
+    const mockStack = {
+      stackName: 'test-stack',
+      // Add this method to fix the error
+      findMetadataByType: jest.fn().mockReturnValue([]),
+    } as unknown as cxapi.CloudFormationStackArtifact;
+    const mockDriftedResources = {
+      StackResourceDrifts: [{
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'IN_SYNC',
+        LogicalResourceId: 'SomeID',
+        ResourceType: 'AWS::Lambda::Function',
+        Timestamp: new Date(2025, 4, 20, 0, 0, 0),
+      } as StackResourceDrift],
+      $metadata: {},
+    } as DescribeStackResourceDriftsCommandOutput;
+
+    const formatter = new DriftFormatter({
+      ioHelper: mockIoHelper,
+      stack: mockStack,
+      driftResults: mockDriftedResources,
+    });
+
+    const result = formatter.formatStackDrift({ verbose: true });
+
+    // Verify the output contains the stack name and "No drift detected"
+    expect(result.formattedDrift).toContain('test-stack');
+    expect(result.formattedDrift).toContain('No drift detected');
+    expect(result.numResourcesWithDrift).toBe(0);
+  });
+
+  // Test the behavior that depends on buildLogicalToPathMap
+  test('uses logical ID to path mapping for formatting', () => {
+    const mockStack = {
+      stackName: 'test-stack',
+      findMetadataByType: jest.fn().mockReturnValue([
+        { data: 'LogicalId1', path: 'path/to/resource1' },
+      ]),
+    } as unknown as cxapi.CloudFormationStackArtifact;
+
+    const mockDriftResults = {
+      StackResourceDrifts: [{
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'LogicalId1', // This matches one of the logical IDs in the metadata
+        ResourceType: 'AWS::Lambda::Function',
+        PropertyDifferences: [{
+          PropertyPath: '/Description',
+          ExpectedValue: 'Expected',
+          ActualValue: 'Actual',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(),
+      }] as StackResourceDrift[],
+      $metadata: {},
+    } as DescribeStackResourceDriftsCommandOutput;
+
+    const formatter = new DriftFormatter({
+      ioHelper: mockIoHelper,
+      stack: mockStack,
+      driftResults: mockDriftResults,
+    });
+
+    const result = formatter.formatStackDrift({});
+
+    // The path might be formatted differently in the output
+    // Let's check for parts of the path instead
+    expect(result.formattedDrift).toContain('to/resource1');
   });
 });
