@@ -18,7 +18,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
-import { IO, type IoHelper } from '../io/private';
+import { IO, IoDefaultMessages, type IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
 /**
@@ -173,6 +173,8 @@ export async function createDiffChangeSet(
   ioHelper: IoHelper,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
+  new IoDefaultMessages(ioHelper).info(`XXX in createDiffChagneSet options ${options.importExistingResources}`);
+
   // `options.stack` has been modified to include any nested stack templates directly inline with its own template, under a special `NestedTemplate` property.
   // Thus the parent template's Resources section contains the nested template's CDK metadata check, which uses Fn::Equals.
   // This causes CreateChangeSet to fail with `Template Error: Fn::Equals cannot be partially collapsed`.
@@ -236,6 +238,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
     ));
 
+    new IoDefaultMessages(ioHelper).info(`XXX in about to call createChangeSet ${options.importExistingResources}`);
     return await createChangeSet(ioHelper, {
       cfn,
       changeSetName: 'cdk-diff-change-set',
@@ -301,6 +304,8 @@ export async function createChangeSet(
 
   const templateParams = TemplateParameters.fromTemplate(options.stack.template);
   const stackParams = templateParams.supplyAll(options.parameters);
+
+  new IoDefaultMessages(ioHelper).info(`XXX in createChangeSet ${options.importExistingResources}`);
 
   const changeSet = await options.cfn.createChangeSet({
     StackName: options.stack.stackName,

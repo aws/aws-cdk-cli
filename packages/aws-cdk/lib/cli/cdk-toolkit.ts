@@ -219,6 +219,8 @@ export class CdkToolkit {
         );
       }
 
+      debug(`XXX in cli.diff importExistingResources ${options.importExistingResources}`);
+
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),

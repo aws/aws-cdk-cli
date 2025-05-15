@@ -96,8 +96,8 @@ describe('fixed template', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`Resources
+    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    expect(plainTextOutput).toContain(`Resources
 [~] AWS::SomeService::SomeResource SomeResource
  └─ [~] Something
      ├─ [-] old-value
