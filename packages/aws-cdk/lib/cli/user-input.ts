@@ -394,7 +394,7 @@ export interface BootstrapOptions {
   readonly bootstrapBucketName?: string;
 
   /**
-   * AWS KMS master key ID used for the SSE-KMS encryption
+   * AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)
    *
    * @default - undefined
    */
