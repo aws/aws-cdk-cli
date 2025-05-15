@@ -33,7 +33,7 @@ export async function detectStackDrift(
 
   if (driftStatus?.DetectionStatus === 'DETECTION_FAILED') {
     throw new ToolkitError(
-      `Failed to detect drift for stack ${stackName}: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
+      `Failed to detect drift: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
     );
   }
 
