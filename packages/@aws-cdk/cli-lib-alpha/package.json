@@ -83,7 +83,8 @@
   },
   "version": "0.0.0",
   "types": "lib/index.d.ts",
-  "stability": "experimental",
+  "stability": "deprecated",
+  "deprecated": "Deprecated in favor of @aws-cdk/toolkit-lib, a newer approach providing similar functionality to this package. Please migrate.",
   "jsii": {
     "outdir": "dist",
     "targets": {
@@ -99,7 +100,8 @@
         "module": "aws_cdk.cli_lib_alpha",
         "classifiers": [
           "Framework :: AWS CDK",
-          "Framework :: AWS CDK :: 2"
+          "Framework :: AWS CDK :: 2",
+          "Development Status :: 7 - Inactive"
         ]
       },
       "dotnet": {

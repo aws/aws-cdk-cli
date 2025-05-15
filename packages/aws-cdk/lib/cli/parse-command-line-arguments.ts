@@ -744,6 +744,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             alias: 'changeset',
             desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
+          })
+          .option('import-existing-resources', {
+            default: false,
+            type: 'boolean',
+            desc: 'Whether or not the change set imports resources that already exist',
           }),
     )
     .command('drift [STACKS..]', 'Detect drifts in the given CloudFormation stack(s)', (yargs: Argv) =>

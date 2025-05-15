@@ -191,6 +191,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
+        importExistingResources: args.importExistingResources,
         STACKS: args.STACKS,
       };
       break;
@@ -429,6 +430,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
+    importExistingResources: config.diff?.importExistingResources,
   };
   const driftOptions = {
     fail: config.drift?.fail,

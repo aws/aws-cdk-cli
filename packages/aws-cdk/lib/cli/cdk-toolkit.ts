@@ -214,6 +214,12 @@ export class CdkToolkit {
         throw new ToolkitError(`There is no file at ${options.templatePath}`);
       }
 
+      if (options.importExistingResources) {
+        throw new ToolkitError(
+          'Can only use --import-existing-resources flag when comparing against deployed stacks.',
+        );
+      }
+
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),
@@ -288,6 +294,7 @@ export class CdkToolkit {
               sdkProvider: this.props.sdkProvider,
               parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
               resourcesToImport,
+              importExistingResources: options.importExistingResources,
             });
           } else {
             debug(
@@ -1610,6 +1617,13 @@ export interface DiffOptions {
    * @default true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * Whether or not the change set imports resources that already exist.
+   *
+   * @default false
+   */
+  readonly importExistingResources?: boolean;
 }
 
 interface CfnDeployOptions {

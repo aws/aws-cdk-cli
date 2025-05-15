@@ -1158,6 +1158,13 @@ export interface DiffOptions {
   readonly changeSet?: boolean;
 
   /**
+   * Whether or not the change set imports resources that already exist
+   *
+   * @default - false
+   */
+  readonly importExistingResources?: boolean;
+
+  /**
    * Positional argument for diff
    */
   readonly STACKS?: Array<string>;
