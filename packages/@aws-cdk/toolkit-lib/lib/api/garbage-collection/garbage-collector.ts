@@ -55,7 +55,8 @@ export class ImageAsset {
     if (!dateIsolated || dateIsolated == '') {
       return false;
     }
-    return new Date(dateIsolated) < date;
+
+    return new Date(Number(dateIsolated)) < date;
   }
 
   public buildImageTag(inc: number) {
@@ -115,7 +116,8 @@ export class ObjectAsset {
     if (!tagValue || tagValue == '') {
       return false;
     }
-    return new Date(tagValue) < date;
+
+    return new Date(Number(tagValue)) < date;
   }
 }
 
