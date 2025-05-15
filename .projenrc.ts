@@ -1294,7 +1294,7 @@ const CLI_LIB_EXCLUDE_PATTERNS = [
   'lib/init-templates/*/typescript/*/*.template.ts',
 ];
 
-const cliLib = configureProject(
+const cliLibAlpha = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
     parent: repo,
@@ -1330,12 +1330,12 @@ const cliLib = configureProject(
 );
 
 // Do include all .ts files inside init-templates
-cliLib.npmignore?.addPatterns(
+cliLibAlpha.npmignore?.addPatterns(
   '!lib/init-templates/**/*.ts',
   '!lib/api/bootstrap/bootstrap-template.yaml',
 );
 
-cliLib.gitignore.addPatterns(
+cliLibAlpha.gitignore.addPatterns(
   ...ADDITIONAL_CLI_IGNORE_PATTERNS,
   'lib/**/*.yaml',
   'lib/**/*.yml',
@@ -1343,7 +1343,7 @@ cliLib.gitignore.addPatterns(
   'cdk.out',
 );
 
-new JsiiBuild(cliLib, {
+new JsiiBuild(cliLibAlpha, {
   jsiiVersion: TYPESCRIPT_VERSION,
   publishToNuget: {
     dotNetNamespace: 'Amazon.CDK.Cli.Lib.Alpha',
@@ -1363,29 +1363,33 @@ new JsiiBuild(cliLib, {
   pypiClassifiers: [
     'Framework :: AWS CDK',
     'Framework :: AWS CDK :: 2',
+    'Development Status :: 7 - Inactive',
   ],
   publishToGo: {
     moduleName: 'github.com/aws/aws-cdk-go',
     packageName: 'awscdkclilibalpha',
   },
   rosettaStrict: true,
-  stability: Stability.EXPERIMENTAL,
+  stability: Stability.DEPRECATED,
   composite: true,
   excludeTypescript: CLI_LIB_EXCLUDE_PATTERNS,
 });
 
+// the package is deprecated
+cliLibAlpha.package.addField('deprecated', 'Deprecated in favor of @aws-cdk/toolkit-lib, a newer approach providing similar functionality to this package. Please migrate.');
+
 // clilib needs to bundle some resources, same as the CLI
-cliLib.postCompileTask.exec('node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
-cliLib.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
+cliLibAlpha.postCompileTask.exec('node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
+cliLibAlpha.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
 for (const resourceCommand of includeCliResourcesCommands) {
-  cliLib.postCompileTask.exec(resourceCommand);
+  cliLibAlpha.postCompileTask.exec(resourceCommand);
 }
-cliLib.postCompileTask.exec('cp $(node -p \'require.resolve("aws-cdk/build-info.json")\') .');
-cliLib.postCompileTask.exec('esbuild --bundle lib/index.ts --target=node18 --platform=node --external:fsevents --minify-whitespace --outfile=lib/main.js');
-cliLib.postCompileTask.exec('node ./lib/main.js >/dev/null </dev/null'); // Smoke test
+cliLibAlpha.postCompileTask.exec('cp $(node -p \'require.resolve("aws-cdk/build-info.json")\') .');
+cliLibAlpha.postCompileTask.exec('esbuild --bundle lib/index.ts --target=node18 --platform=node --external:fsevents --minify-whitespace --outfile=lib/main.js');
+cliLibAlpha.postCompileTask.exec('node ./lib/main.js >/dev/null </dev/null'); // Smoke test
 
 // Exclude takes precedence over include
-for (const tsconfig of [cliLib.tsconfigDev]) {
+for (const tsconfig of [cliLibAlpha.tsconfigDev]) {
   for (const pat of CLI_LIB_EXCLUDE_PATTERNS) {
     tsconfig?.addExclude(pat);
   }
@@ -1699,7 +1703,7 @@ new CdkCliIntegTestsWorkflow(repo, {
     cloudFormationDiff.name,
     cdkAssets.name,
     cli.name,
-    cliLib.name,
+    cliLibAlpha.name,
     cdkAliasPackage.name,
     cliInteg.name,
     toolkitLib.name,
