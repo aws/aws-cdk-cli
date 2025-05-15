@@ -77,7 +77,7 @@ export async function makeConfig(): Promise<CliConfig> {
         description: 'Deploys the CDK toolkit stack into an AWS environment',
         options: {
           'bootstrap-bucket-name': { type: 'string', alias: ['b', 'toolkit-bucket-name'], desc: 'The name of the CDK toolkit bucket; bucket will be created and must not exist', default: undefined },
-          'bootstrap-kms-key-id': { type: 'string', desc: 'AWS KMS master key ID used for the SSE-KMS encryption', default: undefined, conflicts: 'bootstrap-customer-key' },
+          'bootstrap-kms-key-id': { type: 'string', desc: 'AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)', default: undefined, conflicts: 'bootstrap-customer-key' },
           'example-permissions-boundary': { type: 'boolean', alias: 'epb', desc: 'Use the example permissions boundary.', default: undefined, conflicts: 'custom-permissions-boundary' },
           'custom-permissions-boundary': { type: 'string', alias: 'cpb', desc: 'Use the permissions boundary specified by name.', default: undefined, conflicts: 'example-permissions-boundary' },
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
