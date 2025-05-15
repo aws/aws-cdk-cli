@@ -1,10 +1,10 @@
 import { ListObjectsV2Command, PutObjectTaggingCommand } from '@aws-sdk/client-s3';
 import { integTest, withoutBootstrap, randomString } from '../../lib';
-import { S3_ISOLATED_TAG } from '../../../../@aws-cdk/toolkit-lib/lib/api';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 const DAY = 24 * 60 * 60 * 1000;
+const S3_ISOLATED_TAG = 'aws-cdk:isolated';
 
 integTest(
   'Garbage Collection deletes unused s3 objects with rollback-buffer-days',
@@ -39,8 +39,8 @@ integTest(
 
     // Pretend the asset was tagged with an old date > 1 day ago so that garbage collection
     // should pick up and delete asset even with rollbackBufferDays=1
-    const result = await fixture.aws.s3.send(new ListObjectsV2Command({ Bucket: bootstrapBucketName }));
-    const key = result.Contents!.filter((c) => c.Key?.split('.')[1] == 'zip')[0].Key; // fancy footwork to make sure we have the asset key
+    const res = await fixture.aws.s3.send(new ListObjectsV2Command({ Bucket: bootstrapBucketName }));
+    const key = res.Contents!.filter((c) => c.Key?.split('.')[1] == 'zip')[0].Key; // fancy footwork to make sure we have the asset key
     await fixture.aws.s3.send(new PutObjectTaggingCommand({
       Bucket: bootstrapBucketName,
       Key: key,
