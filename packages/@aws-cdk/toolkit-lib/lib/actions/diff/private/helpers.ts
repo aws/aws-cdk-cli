@@ -132,7 +132,6 @@ async function changeSetDiff(
   }
 
   if (stackExists) {
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Doing a changeset diff with importExistingResources: ${importExistingResources}\n`));
     return cfnApi.createDiffChangeSet(ioHelper, {
       stack,
       uuid: uuid.v4(),

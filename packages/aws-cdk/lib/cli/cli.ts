@@ -246,7 +246,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);
-        ioHost.defaults.info('XXX about to call cli.diff');
         return cli.diff({
           stackNames: args.STACKS,
           exclusively: args.exclusively,

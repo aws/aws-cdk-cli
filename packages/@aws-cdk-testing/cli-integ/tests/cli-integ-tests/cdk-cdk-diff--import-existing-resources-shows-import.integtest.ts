@@ -13,13 +13,12 @@ integTest(
     });
 
     // THEN
-    let diff = await fixture.cdk(['diff --import-existing-resources', fixture.fullStackName('base-1')], {
+    let diff = await fixture.cdk(['diff', '--import-existing-resources', fixture.fullStackName('base-1')], {
       modEnv: {
         VERSION: 'v2',
       },
     });
 
-    fixture.log('first diff' + diff);
     // Assert there are no changes and diff shows import
     expect(diff).not.toContain('There were no differences');
     expect(diff).toContain('[←]');
@@ -32,7 +31,6 @@ integTest(
       },
     });
 
-    fixture.log('second diff' + diff);
     // Assert there are no changes and diff shows add
     expect(diff).not.toContain('There were no differences');
     expect(diff).toContain('[+]');
