@@ -916,7 +916,7 @@ describe('Garbage Collection with large # of objects', () => {
     // of the 2000 in use assets, 1000 are tagged.
     s3Client.on(GetObjectTaggingCommand).callsFake((params) => ({
       TagSet: Number(params.Key[params.Key.length - 5]) % 2 === 0
-        ? [{ Key: S3_ISOLATED_TAG, Value: new Date(2000, 1, 1).toISOString() }]
+        ? [{ Key: S3_ISOLATED_TAG, Value: new Date(2000, 1, 1).getTime() }]
         : [],
     }));
   }
