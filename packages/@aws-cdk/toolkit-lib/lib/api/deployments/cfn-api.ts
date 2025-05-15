@@ -330,6 +330,8 @@ export async function createChangeSet(
   });
   await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
 
+  new IoDefaultMessages(ioHelper).info(`XXX ChangeSet looks like ${JSON.stringify(createdChangeSet, undefined, 2)}`);
+
   return createdChangeSet;
 }
 
