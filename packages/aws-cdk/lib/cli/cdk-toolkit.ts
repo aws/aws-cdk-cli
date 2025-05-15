@@ -713,7 +713,7 @@ export class CdkToolkit {
       uncheckedDrifts += drift.numResourcesUnchecked || 0;
     }
 
-    info(format('\n✨  Number of resources with drift: %s%s\n', drifts, uncheckedDrifts > 0 ? ` (${uncheckedDrifts} unchecked)` : ''));
+    info(format('\n✨  Number of resources with drift: %s%s\n', drifts, uncheckedDrifts > 0 && options.verbose ? ` (${uncheckedDrifts} unchecked)` : ''));
 
     return drifts > 0 && options.fail ? 1 : 0;
   }
