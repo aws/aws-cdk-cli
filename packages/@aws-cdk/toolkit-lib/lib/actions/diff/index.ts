@@ -94,8 +94,10 @@ export class DiffMethod {
 export interface DiffOptions {
   /**
    * Select the stacks
+   *
+   * @default - all stacks
    */
-  readonly stacks: StackSelector;
+  readonly stacks?: StackSelector;
 
   /**
    * The method to create a stack diff.

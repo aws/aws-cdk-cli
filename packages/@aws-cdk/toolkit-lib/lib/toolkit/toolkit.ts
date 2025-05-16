@@ -212,7 +212,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Bootstrap Action
    */
-  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions = {}): Promise<BootstrapResult> {
     const startTime = Date.now();
     const results: EnvironmentBootstrapResult[] = [];
 
@@ -323,7 +323,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff }> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions = {}): Promise<{ [name: string]: TemplateDiff }> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -748,7 +748,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * This function returns immediately, starting a watcher in the background.
    */
-  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<IWatcher> {
+  public async watch(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
@@ -892,7 +892,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Rolls back the selected stacks.
    */
-  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<RollbackResult> {
+  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions = {}): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
     await using assembly = await assemblyFromSource(ioHelper, cx);
     return await this._rollback(assembly, 'rollback', options);
@@ -902,9 +902,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Helper to allow rollback being called as part of the deploy or watch action.
    */
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<RollbackResult> {
+    const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
-    const stacks = await assembly.selectStacksV2(options.stacks);
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    const stacks = await assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stacks, ioHelper);
     await synthSpan.end();
 
@@ -1034,7 +1035,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Destroys the selected Stacks.
    */
-  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<DestroyResult> {
+  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
     await using assembly = await assemblyFromSource(ioHelper, cx);
     return await this._destroy(assembly, 'destroy', options);
@@ -1044,10 +1045,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Helper to allow destroy being called as part of the deploy action.
    */
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
+    const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = (await assembly.selectStacksV2(options.stacks)).reversed();
+    const stacks = (await assembly.selectStacksV2(selectStacks)).reversed();
     await synthSpan.end();
 
     const ret: DestroyResult = {

@@ -3,11 +3,13 @@ import type { StackSelector } from '../../api/cloud-assembly';
 export interface DestroyOptions {
   /**
    * Criteria for selecting stacks to deploy
+   *
+   * @default - all stacks
    */
-  readonly stacks: StackSelector;
+  readonly stacks?: StackSelector;
 
   /**
-   * The arn of the IAM role to use
+   * The arn of the IAM role to use for the stack destroy operation
    */
   readonly roleArn?: string;
 }
