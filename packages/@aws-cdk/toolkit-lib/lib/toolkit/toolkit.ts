@@ -969,10 +969,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const stackRetriever = new StackRetriever(await this.sdkProvider('refactor'));
     const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
@@ -986,11 +982,31 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         typedMappings,
       }));
 
-      // TODO handle all the flags properly
+      if (typedMappings.length === 0 || options.dryRun) {
+        // Nothing else to do
+        return;
+      }
+
+      // TODO handle interactive vs non-interactive modes
+
+      // TODO add a --force option to skip the confirmation
+
+      const question = 'Do you wish to refactor these resources?';
+      // TODO review these error codes
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        motivation: 'Mappings might differ from what the user expects',
+      }));
+      if (!confirmed) {
+        throw new ToolkitError('Aborted by user');
+      }
+
       try {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('Refactoring...'));
         await executeRefactor(mappings, stackRetriever);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${formatErrorMessage(e)}`, { error: e }));
+        // TODO Should we throw an error here?
       }
     } else {
       const error = new AmbiguityError(ambiguous);
@@ -998,6 +1014,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
         ambiguousPaths: paths,
       }));
+      // TODO Should we throw an error here?
     }
   }
 

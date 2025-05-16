@@ -60,7 +60,6 @@ export function generateStackDefinitions(
 
 export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackRetriever): Promise<void> {
   // TODO How to handle errors?
-  // TODO How to deal with environment-agnostic stacks?
 
   await stackRetriever.forEachEnvironment(async (cfn, stacks) => {
     const refactor = await cfn.createStackRefactor({

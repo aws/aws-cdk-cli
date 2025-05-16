@@ -600,4 +600,3 @@ export function cli(args: string[] = process.argv.slice(2)) {
     });
 }
 /* c8 ignore stop */
-cli();

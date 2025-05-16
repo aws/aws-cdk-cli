@@ -62,10 +62,10 @@ export class StackRetriever {
 }
 
 function envToString(env: cxapi.Environment): string {
-  return `${env.name}:${env.account}:${env.region}`;
+  return `${env.name}#${env.account}#${env.region}`;
 }
 
 function stringToEnv(envString: string): cxapi.Environment {
-  const [name, account, region] = envString.split(':');
+  const [name, account, region] = envString.split('#');
   return { name, account, region };
 }
