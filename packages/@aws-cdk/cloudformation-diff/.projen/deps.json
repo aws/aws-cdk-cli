@@ -112,6 +112,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-cloudformation",
+      "type": "runtime"
+    },
+    {
       "name": "chalk",
       "version": "^4",
       "type": "runtime"

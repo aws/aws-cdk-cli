@@ -30,6 +30,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk acknowledge`](#cdk-acknowledge) | Acknowledge (and hide) a notice by issue number                                   |
 | [`cdk notices`](#cdk-notices)         | List all relevant notices for the application                                     |
 | [`cdk refactor`](#cdk-refactor)       | Moves resources between stacks or within the same stack                           |
+| [`cdk drift`](#cdk-drift)             | Detect drifts in the given CloudFormation stack(s)                                |
 
 - [Bundling](#bundling)
 - [MFA Support](#mfa-support)
@@ -1190,6 +1191,38 @@ that is not already occupied by any resource.
 If you want to undo a refactor, you can use the `--revert` option in 
 conjunction with the `--mapping-file` option. It will apply the mapping in 
 reverse order (source becomes destination and vice versa).
+
+### `cdk drift`
+
+Checks if there is any drift in your stack or stacks. If you need the command
+to return a non-zero if any differences are found, you need to use the `--fail`
+command line option.
+
+```console
+$ # Detect drift against the currently-deployed stack
+$ cdk drift
+
+$ # Detect drift against a specific stack
+$ cdk drift MyStackName
+```
+
+The `--quiet` command line option can also be passed to the `cdk drift` command. 
+Assuming there is no drift detected, the output to the console will **not** 
+contain strings such as the *Stack `MyStackName`* and `No drift detected`.
+
+```console
+$ # Detect drift against the currently-deployed stack with quiet flag enabled
+$ cdk drift --quiet
+```
+
+Note that there are some resources that do not support drift detection. You can
+see which of these resources were left unchecked with the `--verbose` command line
+option.
+
+```console
+$ # Detect drift against the currently-deployed stack with the verbose flag enabled
+$ cdk drift --verbose 
+```
 
 ## Notices
 

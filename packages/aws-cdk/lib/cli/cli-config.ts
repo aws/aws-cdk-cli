@@ -339,6 +339,17 @@ export async function makeConfig(): Promise<CliConfig> {
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
         },
       },
+      drift: {
+        description: 'Detect drifts in the given CloudFormation stack(s)',
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+        options: {
+          fail: { type: 'boolean', desc: 'Fail with exit code 1 if drift is detected' },
+          quiet: { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no drift to stdout' },
+        },
+      },
       metadata: {
         description: 'Returns all metadata associated with this stack',
         arg: {
