@@ -29,5 +29,6 @@ export interface IDriftCloudFormationClient {
    */
   describeStackResourceDrifts(params: {
     StackName: string;
+    StackResourceDriftStatusFilters?: string[];
   }): Promise<any>;
 }

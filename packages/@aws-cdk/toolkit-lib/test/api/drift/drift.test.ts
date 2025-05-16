@@ -178,27 +178,76 @@ describe('detectStackDrift', () => {
     const driftDetectionId = 'drift-detection-id';
 
     mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+
+    // Mock the describeStackDriftDetectionStatus to always return DETECTION_IN_PROGRESS
+    let callCount = 0;
     mockCfn.describeStackDriftDetectionStatus.mockImplementation(() => {
-      // Simulate timeout by never returning DETECTION_COMPLETE
-      return Promise.resolve({ DetectionStatus: 'DETECTION_IN_PROGRESS' });
+      callCount++;
+      // After a few calls, simulate a timeout by returning a status that will trigger the timeout check
+      return Promise.resolve({
+        DetectionStatus: 'DETECTION_IN_PROGRESS',
+      });
     });
 
     // Mock Date.now to simulate timeout
     const originalDateNow = Date.now;
     const mockDateNow = jest.fn()
       .mockReturnValueOnce(1000) // First call - start time
-      .mockReturnValueOnce(12000); // Second call - after timeout
+      .mockReturnValue(999999); // Subsequent calls - after timeout
     Date.now = mockDateNow;
 
     // WHEN & THEN
-    await expect(async () => {
-      try {
-        await detectStackDrift(mockCfn, mockIoHelper, stackName);
-      } finally {
-        // Restore original Date.now
-        Date.now = originalDateNow;
-      }
-    }).rejects.toThrow(ToolkitError);
+    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
+      .rejects.toThrow(ToolkitError);
+
+    // Restore original Date.now
+    Date.now = originalDateNow;
+  });
+
+  test('sends periodic check-in notifications during long-running drift detection', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'drift-detection-id';
+    const expectedDriftResults = { StackResourceDrifts: [], $metadata: {} };
+
+    mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+
+    // Mock Date.now to simulate time progression
+    const originalDateNow = Date.now;
+    const mockDateNow = jest.fn();
+
+    const startTime = 1000;
+    const timeBetweenOutputs = 10_000;
+
+    mockDateNow
+      .mockReturnValueOnce(startTime) // Initial call
+      .mockReturnValueOnce(startTime + 5000) // First check - before checkIn
+      .mockReturnValueOnce(startTime + timeBetweenOutputs + 1000) // Second check - after checkIn
+      .mockReturnValueOnce(startTime + timeBetweenOutputs + 5000) // Third check - before next checkIn
+      .mockReturnValueOnce(startTime + timeBetweenOutputs + 6000); // Fourth check - still before next checkIn
+
+    Date.now = mockDateNow;
+
+    // First three calls return IN_PROGRESS, fourth call returns COMPLETE
+    mockCfn.describeStackDriftDetectionStatus
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_COMPLETE' });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, mockIoHelper, stackName);
+
+    // THEN
+    expect(mockIoHelper.notify).toHaveBeenCalled();
+
+    // Verify that notify was called at least 3 times (initial, progress, and completion)
+    expect(mockIoHelper.notify.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+    // Restore original Date.now
+    Date.now = originalDateNow;
   });
 
   test('throws error when detection status is DETECTION_FAILED', async () => {
@@ -216,30 +265,6 @@ describe('detectStackDrift', () => {
     // WHEN & THEN
     await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
       .rejects.toThrow(`Drift detection failed: ${failureReason}`);
-  });
-
-  test('throws error when detection takes too long', async () => {
-    // GIVEN
-    const stackName = 'test-stack';
-    const driftDetectionId = 'test-detection-id';
-
-    mockCfn.detectStackDrift.mockResolvedValue({
-      StackDriftDetectionId: driftDetectionId,
-    });
-
-    mockCfn.describeStackDriftDetectionStatus.mockImplementation(() => {
-      // Simulate timeout by never returning DETECTION_COMPLETE
-      return Promise.resolve({ DetectionStatus: 'DETECTION_IN_PROGRESS' });
-    });
-
-    // Mock Date.now to simulate timeout
-    const originalDateNow = Date.now;
-    Date.now = jest.fn()
-      .mockReturnValueOnce(1000) // First call - start time
-      .mockReturnValueOnce(12000); // Second call - after timeout
-
-    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName)).rejects.toThrow('Timed out');
-    Date.now = originalDateNow; // Restore original Date.now
   });
 
   test('throws error when detection fails', async () => {

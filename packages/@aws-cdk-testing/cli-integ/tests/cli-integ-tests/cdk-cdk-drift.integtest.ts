@@ -15,7 +15,7 @@ integTest(
     expect(drift).toMatch(/Stack.*driftable-lambda/); // can't just .toContain because of formatting
     expect(drift).toContain('No drift detected');
     expect(drift).toContain('✨  Number of resources with drift: 0');
-    expect(drift).not.toContain('unchecked');  // should not see unchecked resources unless verbose
+    expect(drift).not.toContain('unchecked'); // should not see unchecked resources unless verbose
 
     // Get the Lambda, we want to now make it drift
     const response = await fixture.aws.cloudFormation.send(

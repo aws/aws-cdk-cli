@@ -24,6 +24,8 @@ export async function detectStackDrift(
     StackName: stackName,
   });
 
+  await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format('Detecting drift for stack %s...', stackName)));
+
   // Wait for drift detection to complete
   const driftStatus = await waitForDriftDetection(cfn, ioHelper, driftDetection.StackDriftDetectionId!);
 
@@ -53,8 +55,10 @@ async function waitForDriftDetection(
 ): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
   await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(format('Waiting for drift detection %s to complete...', driftDetectionId)));
 
-  const timeout = 10_000; // if takes longer than 10s, fail
+  const timeout = 60_000; // if takes longer than 60s, fail
+  const timeBetweenOutputs = 10_000; // how long to wait before telling user we're still checking
   const deadline = Date.now() + timeout;
+  let checkIn = Date.now() + timeBetweenOutputs;
 
   while (true) {
     const response = await cfn.describeStackDriftDetectionStatus({
@@ -72,5 +76,11 @@ async function waitForDriftDetection(
     if (Date.now() > deadline) {
       throw new ToolkitError(`Drift detection failed: Timed out after ${timeout / 1000} seconds.`);
     }
+
+    if (Date.now() > checkIn) {
+      await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg('Waiting for drift detection to complete...'));
+      checkIn = Date.now() + timeBetweenOutputs;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
 }
