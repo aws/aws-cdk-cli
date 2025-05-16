@@ -37,20 +37,21 @@ integTest(
       ],
     });
 
-    // Pretend the asset was tagged with an old date > 1 day ago so that garbage collection
+    // Pretend the assets were tagged with an old date > 1 day ago so that garbage collection
     // should pick up and delete asset even with rollbackBufferDays=1
     const res = await fixture.aws.s3.send(new ListObjectsV2Command({ Bucket: bootstrapBucketName }));
-    const key = res.Contents!.filter((c) => c.Key?.split('.')[1] == 'zip')[0].Key; // fancy footwork to make sure we have the asset key
-    await fixture.aws.s3.send(new PutObjectTaggingCommand({
-      Bucket: bootstrapBucketName,
-      Key: key,
-      Tagging: {
-        TagSet: [{
-          Key: S3_ISOLATED_TAG,
-          Value: String(Date.now() - (30 * DAY)),
-        }],
-      },
-    }));
+    for (const contents of res.Contents ?? []) {
+      await fixture.aws.s3.send(new PutObjectTaggingCommand({
+        Bucket: bootstrapBucketName,
+        Key: contents.Key,
+        Tagging: {
+          TagSet: [{
+            Key: S3_ISOLATED_TAG,
+            Value: String(Date.now() - (30 * DAY)),
+          }],
+        },
+      }));
+    }
 
     await fixture.cdkGarbageCollect({
       rollbackBufferDays: 1,
