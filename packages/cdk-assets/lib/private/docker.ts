@@ -226,7 +226,7 @@ export class Docker {
     } catch (e: any) {
       if (e.code === 'ENOENT') {
         throw new Error(
-          "Unable to execute 'docker' in order to build a container asset. Please install 'docker' and try again.",
+          `Unable to execute '${getDockerCmd()}' in order to build a container asset. Please install '${getDockerCmd()}' and try again.`,
         );
       }
       throw e;
