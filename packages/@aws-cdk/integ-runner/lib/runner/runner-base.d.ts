@@ -287,4 +287,6 @@ export declare function currentlyRecommendedAwsCdkLibFlags(): {
     "@aws-cdk/aws-dynamodb:retainTableReplica": boolean;
     "@aws-cdk/aws-stepfunctions:useDistributedMapResultWriterV2": boolean;
     "@aws-cdk/s3-notifications:addS3TrustKeyPolicyForSnsSubscriptions": boolean;
+    "@aws-cdk/aws-ec2:requirePrivateSubnetsForEgressOnlyInternetGateway": boolean;
+    "@aws-cdk/aws-s3:publicAccessBlockedByDefault": boolean;
 };
