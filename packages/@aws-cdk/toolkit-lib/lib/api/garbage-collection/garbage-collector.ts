@@ -2,7 +2,6 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
 import * as chalk from 'chalk';
-import * as promptly from 'promptly';
 import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth/private';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
@@ -728,7 +727,7 @@ export class GarbageCollector {
     } while (continuationToken);
   }
 
-  private async confirmationPrompt(printer: ProgressPrinter, deletables: GcAsset[], type: string) {
+  private async confirmationPrompt(printer: ProgressPrinter, deletables: GcAsset[], type: 'image' | 'object') {
     const pluralize = (name: string, count: number): string => {
       return count === 1 ? name : `${name}s`;
     };
@@ -739,17 +738,25 @@ export class GarbageCollector {
         `- ${type}s have been isolated for > ${this.props.rollbackBufferDays} days`,
         `- ${type}s were created > ${this.props.createdBufferDays} days ago`,
         '',
-        'Delete this batch (yes/no/delete-all)?',
+        'Delete this batch?',
       ].join('\n');
       printer.pause();
-      const response = await promptly.prompt(message,
-        { trim: true },
-      );
+      const response = await this.ioHelper.requestResponse(IO.CDK_TOOLKIT_I9210.req(message, {
+        batch: {
+          type,
+          count: deletables.length,
+          rollbackBufferDays: this.props.rollbackBufferDays,
+          createdBufferDays: this.props.createdBufferDays,
+        },
+        responseDescription: '[y]es/[n]o/[a]ll',
+      }, 'y'));
 
-      // Anything other than yes/y/delete-all is treated as no
-      if (!response || !['yes', 'y', 'delete-all'].includes(response.toLowerCase())) {
+      // Anything other than yes/all is treated as no
+      const yes = ['y', 'yes'];
+      const all = ['a', 'all', 'delete-all'];
+      if (!response || ![...yes, ...all].includes(response.toLowerCase())) {
         throw new ToolkitError('Deletion aborted by user');
-      } else if (response.toLowerCase() == 'delete-all') {
+      } else if (all.includes(response.toLowerCase())) {
         this.confirm = false;
       }
     }
