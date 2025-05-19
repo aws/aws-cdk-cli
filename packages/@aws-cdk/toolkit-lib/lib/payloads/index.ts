@@ -2,7 +2,7 @@ export * from './bootstrap-environment-progress';
 export * from './deploy';
 export * from './destroy';
 export * from './list';
-export * from './sdk-trace';
+export * from './sdk';
 export * from './context';
 export * from './rollback';
 export * from './stack-activity';

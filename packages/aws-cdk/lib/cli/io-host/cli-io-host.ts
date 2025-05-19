@@ -357,10 +357,12 @@ export class CliIoHost implements IIoHost {
       const data: {
         motivation?: string;
         concurrency?: number;
+        responseDescription?: string;
       } = msg.data ?? {};
 
       const motivation = data.motivation ?? 'User input is needed';
       const concurrency = data.concurrency ?? 0;
+      const responseDescription = data.responseDescription;
 
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
@@ -392,8 +394,10 @@ export class CliIoHost implements IIoHost {
 
       // Asking for a specific value
       const prompt = extractPromptInfo(msg);
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)} (${prompt.default})`, {
+      const desc = responseDescription ?? prompt.default;
+      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
         default: prompt.default,
+        trim: true,
       });
       return prompt.convertAnswer(answer);
     });

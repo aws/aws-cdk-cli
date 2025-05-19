@@ -99,6 +99,18 @@ export interface ConfirmationRequest {
   readonly concurrency?: number;
 }
 
+/**
+ * A generic request for data
+ */
+export interface DataRequest {
+  /**
+   * An optional description of the expected response
+   * Provides additional details on what the response can be.
+   * This can be treated as a direct instruction to end-users when prompting for input.
+   */
+  responseDescription?: string;
+}
+
 export interface ContextProviderMessageSource {
   /**
    * The name of the context provider sending the message

@@ -2,6 +2,9 @@ import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/ap
 import type { IoHelper } from '../../lib/api/io/private';
 import { asIoHelper, isMessageRelevantForLevel } from '../../lib/api/io/private';
 
+type MessageMock = jest.Mock<void, [IoMessage<any>]>;
+type RequestMock<U extends any> = jest.Mock<U, [IoRequest<any, U>]>;
+
 /**
  * An implementation of `IIoHost` that records messages,
  * lets you assert on what was logged and can be spied on.
@@ -22,8 +25,8 @@ import { asIoHelper, isMessageRelevantForLevel } from '../../lib/api/io/private'
  */
 export class TestIoHost implements IIoHost {
   public messages: Array<IoMessage<unknown>> = [];
-  public readonly notifySpy: jest.Mock<any, any, any>;
-  public readonly requestSpy: jest.Mock<any, any, any>;
+  public readonly notifySpy: MessageMock;
+  public readonly requestSpy: RequestMock<any>;
 
   constructor(public level: IoMessageLevel = 'info') {
     this.notifySpy = jest.fn();
@@ -49,10 +52,11 @@ export class TestIoHost implements IIoHost {
   }
 
   public async requestResponse<T, U>(msg: IoRequest<T, U>): Promise<U> {
+    let spyResponse;
     if (isMessageRelevantForLevel(msg, this.level)) {
-      this.requestSpy(msg);
+      spyResponse = await this.requestSpy(msg);
     }
-    return msg.defaultResponse;
+    return spyResponse ?? msg.defaultResponse;
   }
 
   public expectMessage(m: { containing: string; level?: IoMessageLevel }) {

@@ -15,7 +15,6 @@
 import * as os from 'os';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fromEnv from '@aws-sdk/credential-provider-env';
-import * as promptly from 'promptly';
 import * as uuid from 'uuid';
 import type { RegisterRoleOptions, RegisterUserOptions } from './fake-sts';
 import { FakeSts } from './fake-sts';
@@ -335,7 +334,7 @@ describe('with intercepted network calls', () => {
 
     test.each(providersForMfa)('mfa_serial in profile will ask user for token', async (metaProvider: () => Promise<SdkProvider>) => {
       // GIVEN
-      const mockPrompt = jest.spyOn(promptly, 'prompt').mockResolvedValue('1234');
+      ioHost.requestSpy.mockImplementation((msg) => msg.code === 'CDK_SDK_I1100' ? '1234' : undefined);
 
       prepareCreds({
         fakeSts,
@@ -362,7 +361,10 @@ describe('with intercepted network calls', () => {
 
       // Make sure the MFA mock was called during this test, only once
       // (Credentials need to remain cached)
-      expect(mockPrompt).toHaveBeenCalledTimes(1);
+      expect(ioHost.requestSpy).toHaveBeenCalledTimes(1);
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_SDK_I1100',
+      }));
     });
   });
 

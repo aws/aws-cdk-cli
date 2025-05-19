@@ -1,3 +1,5 @@
+import type { DataRequest } from './types';
+
 /**
  * An SDK logging trace.
  *
@@ -18,4 +20,14 @@ export interface SdkTrace {
    * @see https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/logging-sdk-calls.html
    */
   readonly content: any;
+}
+
+/**
+ * Get an MFA token for an MFA device.
+ */
+export interface MfaTokenRequest extends DataRequest {
+  /**
+   * The ARN of the MFA device a token is required for.
+   */
+  readonly deviceArn: string;
 }

@@ -113,7 +113,11 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
-  req: [T] extends [AbsentData] ? (message: string) => ActionLessMessage<AbsentData> : (message: string, data: T) => ActionLessRequest<T, U>;
+  req: [T] extends [AbsentData]
+    ? (message: string) => ActionLessMessage<AbsentData>
+    : [U] extends [boolean]
+      ? (message: string, data: T) => ActionLessRequest<T, U>
+      : (message: string, data: T, defaultResponse: U) => ActionLessRequest<T, U>;
 }
 
 /**
@@ -143,3 +147,24 @@ export const confirm = <T extends object = ImpossibleType>(details: Required<Omi
   ...details,
   defaultResponse: true,
 });
+
+/**
+ * An open ended question with a string answer, typically provided on-demand by a user.
+ */
+export function question<T>(details: CodeInfo): IoRequestMaker<T, string> {
+  const level = 'info';
+  const maker = (text: string, data: T, defaultResponse: string) => ({
+    time: new Date(),
+    level,
+    code: details.code,
+    message: text,
+    data,
+    defaultResponse,
+  } as ActionLessRequest<T, string>);
+
+  return {
+    ...details,
+    level,
+    req: maker as any,
+  };
+}

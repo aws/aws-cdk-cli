@@ -11,7 +11,7 @@ import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
-import type { SdkTrace } from '../../../payloads/sdk-trace';
+import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
 import type { StackSelectionDetails } from '../../../payloads/synth';
 import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../../../payloads/types';
@@ -516,6 +516,11 @@ export const IO = {
     code: 'CDK_SDK_I0100',
     description: 'An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level.',
     interface: 'SdkTrace',
+  }),
+  CDK_SDK_I1100: make.question<MfaTokenRequest>({
+    code: 'CDK_SDK_I1100',
+    description: 'Get an MFA token for an MFA device.',
+    interface: 'MfaTokenRequest',
   }),
 };
 

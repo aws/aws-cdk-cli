@@ -4,7 +4,6 @@ import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
-import * as promptly from 'promptly';
 import { makeCachingProvider } from './provider-caching';
 import { ProxyAgentProvider } from './proxy-agent';
 import type { ISdkLogger } from './sdk-logger';
@@ -219,18 +218,18 @@ export class AwsCliCompatible {
   }
 
   /**
-   * Ask user for MFA token for given serial
+   * Ask user for MFA token for given MFA device
    *
    * Result is send to callback function for SDK to authorize the request
    */
-  private async tokenCodeFn(serialArn: string): Promise<string> {
+  private async tokenCodeFn(deviceArn: string): Promise<string> {
     const debugFn = (msg: string, ...args: any[]) => this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(format(msg, ...args)));
-    await debugFn('Require MFA token for serial ARN', serialArn);
+    await debugFn('Require MFA token from MFA device with ARN', deviceArn);
     try {
-      const token: string = await promptly.prompt(`MFA token for ${serialArn}: `, {
-        trim: true,
-        default: '',
-      });
+      const token: string = await this.ioHelper.requestResponse(IO.CDK_SDK_I1100.req(`MFA token for ${deviceArn}`, {
+        deviceArn,
+      }, ''));
+
       await debugFn('Successfully got MFA token from user');
       return token;
     } catch (err: any) {

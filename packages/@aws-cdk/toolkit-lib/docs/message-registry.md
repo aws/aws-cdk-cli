@@ -102,3 +102,4 @@ group: Documents
 | `CDK_SDK_I0000` | An SDK debug message. | `debug` | n/a |
 | `CDK_SDK_W0000` | An SDK warning message. | `warn` | n/a |
 | `CDK_SDK_I0100` | An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level. | `trace` | {@link SdkTrace} |
+| `CDK_SDK_I1100` | Get an MFA token for an MFA device. | `info` | {@link MfaTokenRequest} |
