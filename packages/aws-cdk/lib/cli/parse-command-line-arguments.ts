@@ -882,6 +882,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           requiresArg: true,
           desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          desc: 'Do not ask for confirmation before performing the refactor, even in interactive mode',
         }),
     )
     .version(helpers.cliVersion())

@@ -262,6 +262,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         dryRun: args.dryRun,
         excludeFile: args.excludeFile,
+        force: args.force,
         STACKS: args.STACKS,
       };
       break;
@@ -455,6 +456,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const refactorOptions = {
     dryRun: config.refactor?.dryRun,
     excludeFile: config.refactor?.excludeFile,
+    force: config.refactor?.force,
   };
   const userInput: UserInput = {
     globalOptions,

@@ -440,6 +440,11 @@ export async function makeConfig(): Promise<CliConfig> {
             requiresArg: true,
             desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
           },
+          'force': {
+            type: 'boolean',
+            desc: 'Do not ask for confirmation before performing the refactor, even in interactive mode',
+            default: false,
+          },
         },
       },
     },

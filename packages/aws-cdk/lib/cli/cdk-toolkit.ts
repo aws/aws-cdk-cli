@@ -1220,6 +1220,7 @@ export class CdkToolkit {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
+        force: options.force,
       });
     } catch (e) {
       error((e as Error).message);
@@ -1934,6 +1935,14 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   excludeFile?: string;
+
+  /**
+   * Whether to go ahead with the refactor, without asking for
+   * confirmation.
+   *
+   * @default false
+   */
+  force?: boolean;
 }
 
 function buildParameterMap(

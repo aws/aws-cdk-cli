@@ -27,4 +27,12 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   exclude?: string[];
+
+  /**
+   * Whether to go ahead with the refactor, without asking for
+   * confirmation.
+   *
+   * @default false
+   */
+  force?: boolean;
 }

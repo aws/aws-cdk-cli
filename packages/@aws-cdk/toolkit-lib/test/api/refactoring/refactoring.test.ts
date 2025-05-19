@@ -20,7 +20,7 @@ import {
 import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
-import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
+import { executeRefactor, generateStackDefinitions } from '../../../lib/api/refactoring/execution';
 import { StackRetriever } from '../../../lib/api/refactoring/stack-retriever';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
@@ -1689,6 +1689,10 @@ describe(generateStackDefinitions, () => {
     expect(() => generateStackDefinitions(mappings, [stack1, stack2]))
       .toThrow(/Stack Stack1 has no resources after refactor/);
   });
+});
+
+describe(executeRefactor, () => {
+
 });
 
 function toCfnMapping(m: ResourceMapping): CfnResourceMapping {

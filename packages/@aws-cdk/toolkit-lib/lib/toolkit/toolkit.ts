@@ -51,6 +51,8 @@ import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespac
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { PluginHost } from '../api/plugin';
 import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
+import { executeRefactor } from '../api/refactoring/execution';
+import { StackRetriever } from '../api/refactoring/stack-retriever';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -67,8 +69,6 @@ import {
 } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
-import { StackRetriever } from '../api/refactoring/stack-retriever';
-import { executeRefactor } from '../api/refactoring/execution';
 
 export interface ToolkitOptions {
   /**
@@ -970,7 +970,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-    const stackRetriever = new StackRetriever(await this.sdkProvider('refactor'));
+    const stackRetriever = new StackRetriever(await this.sdkProvider('refactor'), assembly);
     const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
     const movements = await findResourceMovements(stacks.stackArtifacts, stackRetriever, exclude);
     const ambiguous = ambiguousMovements(movements);
@@ -987,16 +987,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         return;
       }
 
-      // TODO handle interactive vs non-interactive modes
-
-      // TODO add a --force option to skip the confirmation
-
-      const question = 'Do you wish to refactor these resources?';
-      // TODO review these error codes
-      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
-        motivation: 'Mappings might differ from what the user expects',
-      }));
-      if (!confirmed) {
+      // In interactive mode (TTY) we need confirmation before proceeding
+      if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
         throw new ToolkitError('Aborted by user');
       }
 
@@ -1006,7 +998,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${formatErrorMessage(e)}`, { error: e }));
-        // TODO Should we throw an error here?
       }
     } else {
       const error = new AmbiguityError(ambiguous);
@@ -1014,7 +1005,19 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
         ambiguousPaths: paths,
       }));
-      // TODO Should we throw an error here?
+    }
+
+    async function confirm(force: boolean): Promise<boolean> {
+      // If 'force' is set, it's the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
+      }
+
+      const question = 'Do you wish to refactor these resources?';
+      // TODO review these error codes
+      return ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        motivation: 'Mappings might differ from what the user expects',
+      }));
     }
   }
 

@@ -59,8 +59,6 @@ export function generateStackDefinitions(
 }
 
 export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackRetriever): Promise<void> {
-  // TODO How to handle errors?
-
   await stackRetriever.forEachEnvironment(async (cfn, stacks) => {
     const refactor = await cfn.createStackRefactor({
       EnableStackCreation: true,
