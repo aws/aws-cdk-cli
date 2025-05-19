@@ -26,9 +26,8 @@ export abstract class CloudAssemblySourceBuilder {
   /**
    * Create a Cloud Assembly from a Cloud Assembly builder function.
    *
-   * The output directory will be evaluated with respect to the working
-   * directory if relative. If not given, it will synthesize into a temporary
-   * system directory. The temporary directory will be cleaned up, unless
+   * If no output directory is given, it will synthesize into a temporary system
+   * directory. The temporary directory will be cleaned up, unless
    * `disposeOutdir: false`.
    *
    * A write lock will be acquired on the output directory for the duration of
@@ -53,8 +52,7 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
     };
 
-    const workingDirectory = props.workingDirectory ?? process.cwd();
-    const outdir = props.outdir ? path.resolve(workingDirectory, props.outdir) : undefined;
+    const outdir = props.outdir ? path.resolve(props.outdir) : undefined;
 
     return new ContextAwareCloudAssemblySource(
       {
@@ -62,24 +60,23 @@ export abstract class CloudAssemblySourceBuilder {
           await using execution = await ExecutionEnvironment.create(services, { outdir });
 
           const env = await execution.defaultEnvVars();
-          const assembly = await execution.changeDir(async () =>
-            execution.withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
-              execution.withEnv(envWithContext, async () => {
-                try {
-                  return await builder({
-                    outdir: execution.outdir,
-                    context: ctx,
-                  });
-                } catch (error: unknown) {
-                  // re-throw toolkit errors unchanged
-                  if (ToolkitError.isToolkitError(error)) {
-                    throw error;
-                  }
-                  // otherwise, wrap into an assembly error
-                  throw AssemblyError.withCause('Assembly builder failed', error);
+          const assembly = await execution.withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
+            execution.withEnv(envWithContext, async () => {
+              try {
+                return await builder({
+                  outdir: execution.outdir,
+                  context: ctx,
+                });
+              } catch (error: unknown) {
+                // re-throw toolkit errors unchanged
+                if (ToolkitError.isToolkitError(error)) {
+                  throw error;
                 }
-              }),
-            ), workingDirectory);
+                // otherwise, wrap into an assembly error
+                throw AssemblyError.withCause('Assembly builder failed', error);
+              }
+            }),
+          );
 
           // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
           const asm = cxapi.CloudAssembly.isCloudAssembly(assembly)
@@ -135,9 +132,12 @@ export abstract class CloudAssemblySourceBuilder {
   /**
    * Use a directory containing an AWS CDK app as source.
    *
-   * The output directory will be evaluated with respect to the working
-   * directory if relative. If not given, it will synthesize into a `cdk.out`
-   * subdirectory. This directory will not be cleaned up, unless
+   * The subprocess will execute in `workingDirectory`.
+   *
+   * If an output directory is supplied, relative paths are evaluated with
+   * respect to the current process' working directory. If an output directory
+   * is not supplied, the default is a `cdk.out` directory underneath
+   * `workingDirectory`. The output directory will not be cleaned up unless
    * `disposeOutdir: true`.
    *
    * A write lock will be acquired on the output directory for the duration of
@@ -160,7 +160,7 @@ export abstract class CloudAssemblySourceBuilder {
     };
 
     const workingDirectory = props.workingDirectory ?? process.cwd();
-    const outdir = path.resolve(workingDirectory, props.outdir ?? 'cdk.out');
+    const outdir = props.outdir ? path.resolve(props.outdir) : path.resolve(workingDirectory, 'cdk.out');
 
     return new ContextAwareCloudAssemblySource(
       {

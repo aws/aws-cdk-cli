@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as fs from 'fs-extra';
 import { RWLock } from '../../../lib/api/rwlock';
 import { contextproviders } from '../../../lib/api/shared-private';
@@ -61,23 +62,6 @@ describe('fromAssemblyBuilder', () => {
     }
   });
 
-  test('outdir is relative to workingDirectory parameter', async () => {
-    // GIVEN
-    await using synthDir = autoCleanOutDir();
-    const builder = builderFunctionFromFixture('two-empty-stacks');
-
-    // WHEN
-    const cx = await toolkit.fromAssemblyBuilder(builder, {
-      workingDirectory: synthDir.dir,
-      outdir: 'relative.dir',
-    });
-
-    await using asm = await toolkit.synth(cx);
-
-    // THEN - asm directory is relative to the temp dir
-    expect(asm.cloudAssembly.directory.startsWith(synthDir.dir));
-  });
-
   test('disposeOutdir can be used to disappear explicit synth dir', async() => {
     // GIVEN
     await using synthDir = autoCleanOutDir();
@@ -85,8 +69,7 @@ describe('fromAssemblyBuilder', () => {
 
     // WHEN
     const cx = await toolkit.fromAssemblyBuilder(builder, {
-      workingDirectory: synthDir.dir,
-      outdir: 'relative.dir',
+      outdir: path.join(synthDir.dir, 'relative.dir'),
       disposeOutdir: true,
     });
 
@@ -154,31 +137,40 @@ describe('fromCdkApp', () => {
   });
 
   test('synth succeeds when working directory is given and outdir is relative', async () => {
-    // WHEN
-    const app = await appFixtureConfig('two-empty-stacks');
-    const cx = await toolkit.fromCdkApp(app.app, {
-      workingDirectory: app.workingDirectory,
-      outdir: 'relative.dir',
-      disposeOutdir: true,
-    });
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+    const oldWorking = process.cwd();
+    process.chdir(synthDir.dir);
+    try {
+      // WHEN
+      const app = await appFixtureConfig('two-empty-stacks');
+      const cx = await toolkit.fromCdkApp(app.app, {
+        workingDirectory: app.workingDirectory,
+        outdir: 'relative.dir',
+        disposeOutdir: true,
+      });
 
-    await using assembly = await cx.produce();
+      await using assembly = await cx.produce();
 
-    // THEN - synth succeeds
-    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+      // THEN - synth succeeds
+      expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
 
-    // asm directory is relative to the dir containing the app
-    expect(assembly.cloudAssembly.directory.startsWith(app.workingDirectory));
+      // asm directory is relative to the dir containing the app
+      expect(assembly.cloudAssembly.directory.startsWith(app.workingDirectory));
+    } finally {
+      process.chdir(oldWorking);
+    }
   });
 
   test('disposeOutdir can be used to disappear explicit synth dir', async() => {
     // GIVEN
+    await using synthDir = autoCleanOutDir();
     const app = await appFixtureConfig('two-empty-stacks');
 
     // WHEN
     const cx = await toolkit.fromCdkApp(app.app, {
       workingDirectory: app.workingDirectory,
-      outdir: 'relative.dir',
+      outdir: path.join(synthDir.dir, 'relative.dir'),
       disposeOutdir: true,
     });
 
