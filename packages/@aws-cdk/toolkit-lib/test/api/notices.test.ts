@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as nock from 'nock';
 import { Context } from '../../lib/api/context';
-import { asIoHelper, IoDefaultMessages } from '../../lib/api/io/private';
+import { asIoHelper } from '../../lib/api/io/private';
 import { Notices } from '../../lib/api/notices';
 import { CachedDataSource } from '../../lib/api/notices/cached-data-source';
 import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
@@ -190,8 +190,7 @@ const NOTICE_FOR_APIGATEWAYV2_CFN_STAGE = {
 
 const ioHost = new FakeIoHost();
 const ioHelper = asIoHelper(ioHost, 'notices' as any);
-const ioHostEmitter = new IoDefaultMessages(ioHelper);
-const noticesFilter = new NoticesFilter(ioHostEmitter);
+const noticesFilter = new NoticesFilter(ioHelper);
 
 const fixtures = path.join(__dirname, '..', '_fixtures', 'cloud-assembly-trees');
 
@@ -262,125 +261,125 @@ describe(NoticesFilter, () => {
       const outDir = path.join(fixtures, 'built-with-2_12_0');
 
       expect(
-        noticesFilter
-          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.0.0' })
+        (await noticesFilter
+          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.0.0' }))
           .map((f) => f.notice),
       ).toEqual([BASIC_NOTICE]);
       expect(
-        noticesFilter
-          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.129.0' })
+        (await noticesFilter
+          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.129.0' }))
           .map((f) => f.notice),
       ).toEqual([MULTIPLE_AFFECTED_VERSIONS_NOTICE]);
       expect(
-        noticesFilter
-          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.126.0' })
+        (await noticesFilter
+          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.126.0' }))
           .map((f) => f.notice),
       ).toEqual([BASIC_NOTICE, MULTIPLE_AFFECTED_VERSIONS_NOTICE]);
       expect(
-        noticesFilter
-          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.130.0' })
+        (await noticesFilter
+          .filter({ data: notices, bootstrappedEnvironments: [], outDir, cliVersion: '1.130.0' }))
           .map((f) => f.notice),
       ).toEqual([]);
     });
 
-    test('framework', () => {
+    test('framework', async () => {
       const notices = [FRAMEWORK_2_1_0_AFFECTED_NOTICE];
 
       // doesn't matter for this test because our data only has framework notices
       const cliVersion = '1.0.0';
 
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: notices,
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'built-with-2_12_0'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([]);
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: notices,
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'built-with-1_144_0'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([FRAMEWORK_2_1_0_AFFECTED_NOTICE]);
     });
 
-    test('module', () => {
+    test('module', async () => {
       // doesn't matter for this test because our data only has framework notices
       const cliVersion = '1.0.0';
 
       // module-level match
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: [NOTICE_FOR_APIGATEWAYV2],
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'experimental-module'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([NOTICE_FOR_APIGATEWAYV2]);
 
       // no apigatewayv2 in the tree
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: [NOTICE_FOR_APIGATEWAYV2],
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'built-with-2_12_0'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([]);
       // module name mismatch: apigateway != apigatewayv2
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: [NOTICE_FOR_APIGATEWAY],
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'experimental-module'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([]);
 
       // construct-level match
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: [NOTICE_FOR_APIGATEWAYV2_CFN_STAGE],
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'experimental-module'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([NOTICE_FOR_APIGATEWAYV2_CFN_STAGE]);
     });
 
-    test('module with pre-release version', () => {
+    test('module with pre-release version', async () => {
       // doesn't matter for this test because our data only has framework notices
       const cliVersion = '1.0.0';
 
       // module-level match
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: [NOTICES_FOR_IDENTITY_POOL],
             cliVersion,
             bootstrappedEnvironments: [],
             outDir: path.join(fixtures, 'experimental-module-pre-release-semver'),
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([NOTICES_FOR_IDENTITY_POOL]);
     });
 
-    test('bootstrap', () => {
+    test('bootstrap', async () => {
       // doesn't matter for this test because our data only has bootstrap notices
       const outDir = path.join(fixtures, 'built-with-2_12_0');
       const cliVersion = '1.0.0';
@@ -421,17 +420,17 @@ describe(NoticesFilter, () => {
         outDir,
         bootstrappedEnvironments: bootstrappedEnvironments,
       });
-      expect(filtered.map((f) => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
-      expect(filtered.map((f) => f.format()).join('\n')).toContain('env1,env2');
+      expect((await filtered).map((f) => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
+      expect((await filtered).map((f) => f.format()).join('\n')).toContain('env1,env2');
     });
 
-    test('ignores invalid bootstrap versions', () => {
+    test('ignores invalid bootstrap versions', async () => {
       // doesn't matter for this test because our data only has bootstrap notices
       const outDir = path.join(fixtures, 'built-with-2_12_0');
       const cliVersion = '1.0.0';
 
       expect(
-        noticesFilter
+        (await noticesFilter
           .filter({
             data: [BASIC_BOOTSTRAP_NOTICE],
             cliVersion,
@@ -439,12 +438,12 @@ describe(NoticesFilter, () => {
             bootstrappedEnvironments: [
               { bootstrapStackVersion: NaN, environment: { account: 'account', region: 'region', name: 'env' } },
             ],
-          })
+          }))
           .map((f) => f.notice),
       ).toEqual([]);
     });
 
-    test('node version', () => {
+    test('node version', async () => {
       // can match node version
       const outDir = path.join(fixtures, 'built-with-2_12_0');
       const cliVersion = '1.0.0';
@@ -481,9 +480,9 @@ describe(NoticesFilter, () => {
         bootstrappedEnvironments: [],
       });
 
-      expect(filtered.map((f) => f.notice.title)).toEqual(['matchme']);
+      expect((await filtered).map((f) => f.notice.title)).toEqual(['matchme']);
       const nodeVersion = process.version.replace(/^v/, '');
-      expect(filtered.map((f) => f.format()).join('\n')).toContain(`You are running ${nodeVersion}`);
+      expect((await filtered).map((f) => f.format()).join('\n')).toContain(`You are running ${nodeVersion}`);
     });
 
     test.each([
@@ -497,7 +496,7 @@ describe(NoticesFilter, () => {
       [[['cli 1.0.0', 'node >=14.x'], ['cli >999.0.0']], true],
       // Can combine matching against a construct and e.g. node version in the same query
       [[['aws-cdk-lib.App ^2', 'node >=14.x']], true],
-    ])('disjunctive normal form: %j => %p', (components: string[][], shouldMatch) => {
+    ])('disjunctive normal form: %j => %p', async (components: string[][], shouldMatch) => {
       // can match node version
       const outDir = path.join(fixtures, 'built-with-2_12_0');
       const cliVersion = '1.0.0';
@@ -519,7 +518,7 @@ describe(NoticesFilter, () => {
       });
 
       // THEN
-      expect(filtered.map((f) => f.notice.title)).toEqual(shouldMatch ? ['match'] : []);
+      expect((await filtered).map((f) => f.notice.title)).toEqual(shouldMatch ? ['match'] : []);
     });
   });
 });
@@ -696,7 +695,7 @@ describe(CachedDataSource, () => {
     const delegate = {
       fetch: jest.fn().mockRejectedValue(new Error('fetching failed')),
     };
-    const dataSource = new CachedDataSource(ioHostEmitter, fileName, delegate, true);
+    const dataSource = new CachedDataSource(ioHelper, fileName, delegate, true);
 
     // WHEN
     expect.assertions(2);
@@ -715,7 +714,7 @@ describe(CachedDataSource, () => {
     };
 
     delegate.fetch.mockResolvedValue(notices);
-    return new CachedDataSource(ioHostEmitter, file, delegate, ignoreCache);
+    return new CachedDataSource(ioHelper, file, delegate, ignoreCache);
   }
 });
 

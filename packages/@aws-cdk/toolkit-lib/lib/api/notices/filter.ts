@@ -1,5 +1,5 @@
 import * as semver from 'semver';
-import { IO, type IoDefaultMessages } from '../io/private';
+import { IO, type IoHelper } from '../io/private';
 import type { ConstructTreeNode } from '../tree';
 import { loadTreeFromDir } from '../tree';
 import type { BootstrappedEnvironment, Component, Notice } from './types';
@@ -58,13 +58,16 @@ export interface NoticesFilterFilterOptions {
 }
 
 export class NoticesFilter {
-  constructor(private readonly ioMessages: IoDefaultMessages) {
+  private readonly ioHelper: IoHelper;
+
+  constructor(ioHelper: IoHelper) {
+    this.ioHelper = ioHelper;
   }
 
-  public filter(options: NoticesFilterFilterOptions): FilteredNotice[] {
+  public async filter(options: NoticesFilterFilterOptions): Promise<FilteredNotice[]> {
     const components = [
-      ...this.constructTreeComponents(options.outDir),
-      ...this.otherComponents(options),
+      ...(await this.constructTreeComponents(options.outDir)),
+      ...(await this.otherComponents(options)),
     ];
 
     return this.findForNamedComponents(options.data, components);
@@ -73,7 +76,25 @@ export class NoticesFilter {
   /**
    * From a set of input options, return the notices components we are searching for
    */
-  private otherComponents(options: NoticesFilterFilterOptions): ActualComponent[] {
+  private async otherComponents(options: NoticesFilterFilterOptions): Promise<ActualComponent[]> {
+    // Bootstrap environments
+    let bootstrappedEnvironments = [];
+    for (const env of options.bootstrappedEnvironments) {
+      const semverBootstrapVersion = semver.coerce(env.bootstrapStackVersion);
+      if (!semverBootstrapVersion) {
+        // we don't throw because notices should never crash the cli.
+        await this.ioHelper.defaults.warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
+        continue;
+      }
+
+      bootstrappedEnvironments.push({
+        name: 'bootstrap',
+        version: `${semverBootstrapVersion}`,
+        dynamicName: 'ENVIRONMENTS',
+        dynamicValue: env.environment.name,
+      });
+    }
+
     return [
       // CLI
       {
@@ -89,21 +110,7 @@ export class NoticesFilter {
       },
 
       // Bootstrap environments
-      ...options.bootstrappedEnvironments.flatMap(env => {
-        const semverBootstrapVersion = semver.coerce(env.bootstrapStackVersion);
-        if (!semverBootstrapVersion) {
-          // we don't throw because notices should never crash the cli.
-          this.ioMessages.warning(`While filtering notices, could not coerce bootstrap version '${env.bootstrapStackVersion}' into semver`);
-          return [];
-        }
-
-        return [{
-          name: 'bootstrap',
-          version: `${semverBootstrapVersion}`,
-          dynamicName: 'ENVIRONMENTS',
-          dynamicValue: env.environment.name,
-        }];
-      }),
+      ...bootstrappedEnvironments,
     ];
   }
 
@@ -185,8 +192,8 @@ export class NoticesFilter {
   /**
    * Load the construct tree from the given directory and return its components
    */
-  private constructTreeComponents(manifestDir: string): ActualComponent[] {
-    const tree = loadTreeFromDir(manifestDir, (msg: string) => void this.ioMessages.notify(IO.DEFAULT_ASSEMBLY_TRACE.msg(msg)));
+  private async constructTreeComponents(manifestDir: string): Promise<ActualComponent[]> {
+    const tree = await loadTreeFromDir(manifestDir, (msg: string) => this.ioHelper.notify(IO.DEFAULT_ASSEMBLY_TRACE.msg(msg)));
     if (!tree) {
       return [];
     }

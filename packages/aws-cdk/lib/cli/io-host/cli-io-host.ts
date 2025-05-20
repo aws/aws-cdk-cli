@@ -5,7 +5,7 @@ import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, Tool
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
-import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -204,7 +204,7 @@ export class CliIoHost implements IIoHost {
   }
 
   public get defaults() {
-    return new IoDefaultMessages(this.asIoHelper());
+    return this.asIoHelper().defaults;
   }
 
   public asIoHelper(): IoHelper {

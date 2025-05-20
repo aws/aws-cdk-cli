@@ -10,45 +10,48 @@ import { IO } from './messages';
  * for the various log levels.
  */
 export class IoDefaultMessages {
-  constructor(private readonly ioHelper: IoHelper) {
+  private readonly ioHelper: IoHelper;
+
+  constructor(ioHelper: IoHelper) {
+    this.ioHelper = ioHelper;
   }
 
-  public notify(msg: ActionLessMessage<unknown>): Promise<void> {
+  public async notify(msg: ActionLessMessage<unknown>): Promise<void> {
     return this.ioHelper.notify(msg);
   }
 
-  public requestResponse<T, U>(msg: ActionLessRequest<T, U>): Promise<U> {
+  public async requestResponse<T, U>(msg: ActionLessRequest<T, U>): Promise<U> {
     return this.ioHelper.requestResponse(msg);
   }
 
-  public error(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_ERROR, input, ...args);
+  public async error(input: string, ...args: unknown[]): Promise<void> {
+    return this.emitMessage(IO.DEFAULT_TOOLKIT_ERROR, input, ...args);
   }
 
-  public warn(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
+  public async warn(input: string, ...args: unknown[]): Promise<void> {
+    return this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
   }
 
-  public warning(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
+  public async warning(input: string, ...args: unknown[]): Promise<void> {
+    return this.emitMessage(IO.DEFAULT_TOOLKIT_WARN, input, ...args);
   }
 
-  public info(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_INFO, input, ...args);
+  public async info(input: string, ...args: unknown[]): Promise<void> {
+    return this.emitMessage(IO.DEFAULT_TOOLKIT_INFO, input, ...args);
   }
 
-  public debug(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_DEBUG, input, ...args);
+  public async debug(input: string, ...args: unknown[]): Promise<void> {
+    return this.emitMessage(IO.DEFAULT_TOOLKIT_DEBUG, input, ...args);
   }
 
-  public trace(input: string, ...args: unknown[]) {
-    this.emitMessage(IO.DEFAULT_TOOLKIT_TRACE, input, ...args);
+  public async trace(input: string, ...args: unknown[]): Promise<void> {
+    return this.emitMessage(IO.DEFAULT_TOOLKIT_TRACE, input, ...args);
   }
 
-  public result(input: string, ...args: unknown[]) {
+  public async result(input: string, ...args: unknown[]): Promise<void> {
     const message = args.length > 0 ? util.format(input, ...args) : input;
     // This is just the default "info" message but with a level of "result"
-    void this.ioHelper.notify({
+    return this.ioHelper.notify({
       time: new Date(),
       code: IO.DEFAULT_TOOLKIT_INFO.code,
       level: 'result',
@@ -57,9 +60,9 @@ export class IoDefaultMessages {
     });
   }
 
-  private emitMessage(maker: IoMessageMaker<void>, input: string, ...args: unknown[]) {
+  private async emitMessage(maker: IoMessageMaker<void>, input: string, ...args: unknown[]): Promise<void> {
     // Format message if args are provided
     const message = args.length > 0 ? util.format(input, ...args) : input;
-    void this.ioHelper.notify(maker.msg(message));
+    return this.ioHelper.notify(maker.msg(message));
   }
 }

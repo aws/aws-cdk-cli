@@ -345,7 +345,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({
-        ioHelper,
         templateInfo,
       });
 
@@ -510,7 +509,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const currentTemplate = await deployments.readCurrentTemplate(stack);
 
       const formatter = new DiffFormatter({
-        ioHelper,
         templateInfo: {
           oldTemplate: currentTemplate,
           newTemplate: stack,

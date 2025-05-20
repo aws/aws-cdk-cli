@@ -3,7 +3,7 @@ import type { CredentialProviderSource, IPluginHost, Plugin } from '@aws-cdk/cli
 import { type ContextProviderPlugin, isContextProviderPlugin } from './context-provider-plugin';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { IIoHost } from '../io';
-import { IoDefaultMessages, IoHelper } from '../io/private';
+import { IoHelper } from '../io/private';
 
 /**
  * Class to manage a plugin collection
@@ -35,11 +35,11 @@ export class PluginHost implements IPluginHost {
    * @param moduleSpec - the specification (path or name) of the plug-in module to be loaded.
    * @param ioHost - the I/O host to use for printing progress information
    */
-  public load(moduleSpec: string, ioHost?: IIoHost) {
+  public async load(moduleSpec: string, ioHost?: IIoHost) {
     try {
       const resolved = require.resolve(moduleSpec);
       if (ioHost) {
-        new IoDefaultMessages(IoHelper.fromIoHost(ioHost, 'init')).debug(`Loading plug-in: ${resolved} from ${moduleSpec}`);
+        await IoHelper.fromIoHost(ioHost, 'init').defaults.debug(`Loading plug-in: ${resolved} from ${moduleSpec}`);
       }
       return this._doLoad(resolved);
     } catch (e: any) {

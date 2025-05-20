@@ -11,8 +11,6 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates } from '../cloudformation';
-import type { IoHelper } from '../io/private';
-import { IoDefaultMessages } from '../io/private';
 import { StringWriteStream } from '../streams';
 
 /**
@@ -51,11 +49,6 @@ interface FormatStackDiffOutput {
  */
 interface DiffFormatterProps {
   /**
-   * Helper for the IoHost class
-   */
-  readonly ioHelper: IoHelper;
-
-  /**
    * The relevant information for the Template that is being diffed.
    * Includes the old/current state of the stack as well as the new state.
    */
@@ -89,7 +82,6 @@ interface FormatStackDiffOptions {
 }
 
 interface ReusableStackDiffOptions extends FormatStackDiffOptions {
-  readonly ioDefaultHelper: IoDefaultMessages;
 }
 
 /**
@@ -136,7 +128,6 @@ export interface TemplateInfo {
  * Class for formatting the diff output
  */
 export class DiffFormatter {
-  private readonly ioHelper: IoHelper;
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
   private readonly stackName: string;
@@ -151,7 +142,6 @@ export class DiffFormatter {
   private _diffs: { [name: string]: TemplateDiff } = {};
 
   constructor(props: DiffFormatterProps) {
-    this.ioHelper = props.ioHelper;
     this.oldTemplate = props.templateInfo.oldTemplate;
     this.newTemplate = props.templateInfo.newTemplate;
     this.stackName = props.templateInfo.newTemplate.displayName ?? props.templateInfo.newTemplate.stackName;
@@ -204,15 +194,11 @@ export class DiffFormatter {
    * Format the stack diff
    */
   public formatStackDiff(options: FormatStackDiffOptions = {}): FormatStackDiffOutput {
-    const ioDefaultHelper = new IoDefaultMessages(this.ioHelper);
     return this.formatStackDiffHelper(
       this.oldTemplate,
       this.stackName,
       this.nestedStacks,
-      {
-        ...options,
-        ioDefaultHelper,
-      },
+      options,
     );
   }
 

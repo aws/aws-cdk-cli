@@ -9,7 +9,7 @@ import { NoticesFilter } from './filter';
 import type { BootstrappedEnvironment, Notice, NoticeDataSource } from './types';
 import { WebsiteNoticeDataSource } from './web-data-source';
 import type { IoHelper } from '../io/private';
-import { IO, asIoHelper, IoDefaultMessages } from '../io/private';
+import { IO, asIoHelper } from '../io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 
@@ -102,7 +102,6 @@ export class Notices {
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly httpOptions: SdkHttpOptions;
   private readonly ioHelper: IoHelper;
-  private readonly ioMessages: IoDefaultMessages;
   private readonly cliVersion: string;
 
   private data: Set<Notice> = new Set();
@@ -116,7 +115,6 @@ export class Notices {
     this.output = props.output ?? 'cdk.out';
     this.httpOptions = props.httpOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
-    this.ioMessages = new IoDefaultMessages(this.ioHelper);
     this.cliVersion = props.cliVersion;
   }
 
@@ -144,7 +142,7 @@ export class Notices {
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
     const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
-    const dataSource = new CachedDataSource(this.ioMessages, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
+    const dataSource = new CachedDataSource(this.ioHelper, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
     const notices = await dataSource.fetch();
     this.data = new Set(notices);
   }
@@ -152,8 +150,8 @@ export class Notices {
   /**
    * Filter the data sourece for relevant notices
    */
-  public filter(options: NoticesDisplayOptions = {}): FilteredNotice[] {
-    return new NoticesFilter(this.ioMessages).filter({
+  public filter(options: NoticesDisplayOptions = {}): Promise<FilteredNotice[]> {
+    return new NoticesFilter(this.ioHelper).filter({
       data: this.noticesFromData(options.includeAcknowledged ?? false),
       cliVersion: this.cliVersion,
       outDir: this.output,
@@ -165,7 +163,7 @@ export class Notices {
    * Display the relevant notices (unless context dictates we shouldn't).
    */
   public async display(options: NoticesDisplayOptions = {}): Promise<void> {
-    const filteredNotices = this.filter(options);
+    const filteredNotices = await this.filter(options);
 
     if (filteredNotices.length > 0) {
       await this.ioHelper.notify(IO.CDK_TOOLKIT_I0100.msg([

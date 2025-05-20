@@ -73,11 +73,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     await checkForPlatformWarnings();
   } catch (e) {
-    ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
+    await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
-  ioHost.defaults.debug('Command line arguments:', argv);
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
+  await ioHost.defaults.debug('Command line arguments:', argv);
 
   const configuration = new Configuration({
     commandLineArguments: {
@@ -143,16 +143,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
 
   /** Function to load plug-ins, using configurations additively. */
-  function loadPlugins(...settings: Settings[]) {
+  async function loadPlugins(...settings: Settings[]) {
     for (const source of settings) {
       const plugins: string[] = source.get(['plugin']) || [];
       for (const plugin of plugins) {
-        GLOBAL_PLUGIN_HOST.load(plugin, ioHost);
+        await GLOBAL_PLUGIN_HOST.load(plugin, ioHost);
       }
     }
   }
 
-  loadPlugins(configuration.settings);
+  await loadPlugins(configuration.settings);
 
   if ((typeof cmd) !== 'string') {
     throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof cmd})`);
@@ -182,7 +182,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   async function main(command: string, args: any): Promise<number | void> {
     ioHost.currentAction = command as any;
     const toolkitStackName: string = ToolkitInfo.determineName(configuration.settings.get(['toolkitStackName']));
-    ioHost.defaults.debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
+    await ioHost.defaults.debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
 
     const cloudFormation = new Deployments({
       sdkProvider,
@@ -277,7 +277,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'bootstrap':
         ioHost.currentAction = 'bootstrap';
-        const source: BootstrapSource = determineBootstrapVersion(ioHost, args);
+        const source: BootstrapSource = await determineBootstrapVersion(ioHost, args);
 
         if (args.showTemplate) {
           const bootstrapper = new Bootstrapper(source, asIoHelper(ioHost, ioHost.currentAction));
@@ -530,13 +530,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 /**
  * Determine which version of bootstrapping
  */
-function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): BootstrapSource {
+async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): Promise<BootstrapSource> {
   let source: BootstrapSource;
   if (args.template) {
-    ioHost.defaults.info(`Using bootstrapping template from ${args.template}`);
+    await ioHost.defaults.info(`Using bootstrapping template from ${args.template}`);
     source = { source: 'custom', templateFile: args.template };
   } else if (process.env.CDK_LEGACY_BOOTSTRAP) {
-    ioHost.defaults.info('CDK_LEGACY_BOOTSTRAP set, using legacy-style bootstrapping');
+    await ioHost.defaults.info('CDK_LEGACY_BOOTSTRAP set, using legacy-style bootstrapping');
     source = { source: 'legacy' };
   } else {
     // in V2, the "new" bootstrapping is the default

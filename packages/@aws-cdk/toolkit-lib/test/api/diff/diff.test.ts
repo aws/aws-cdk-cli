@@ -1,37 +1,11 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { DiffFormatter } from '../../../lib/api/diff/diff-formatter';
-import { IoHelper, IoDefaultMessages } from '../../../lib/api/io/private';
-
-jest.mock('../../../lib/api/io/private/messages', () => ({
-  IoDefaultMessages: jest.fn(),
-}));
 
 describe('formatStackDiff', () => {
-  let mockIoHelper: IoHelper;
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
-  let mockIoDefaultMessages: any;
 
   beforeEach(() => {
-    const mockNotify = jest.fn().mockResolvedValue(undefined);
-    const mockRequestResponse = jest.fn().mockResolvedValue(undefined);
-
-    mockIoHelper = IoHelper.fromIoHost(
-      { notify: mockNotify, requestResponse: mockRequestResponse },
-      'diff',
-    );
-
-    mockIoDefaultMessages = {
-      info: jest.fn(),
-      warning: jest.fn(),
-      error: jest.fn(),
-    };
-
-    jest.spyOn(mockIoHelper, 'notify').mockImplementation(() => Promise.resolve());
-    jest.spyOn(mockIoHelper, 'requestResponse').mockImplementation(() => Promise.resolve());
-
-    (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
-
     mockNewTemplate = {
       template: {
         Resources: {
@@ -57,7 +31,6 @@ describe('formatStackDiff', () => {
   test('returns no differences when templates are identical', () => {
     // WHEN
     const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
@@ -78,7 +51,6 @@ describe('formatStackDiff', () => {
   test('formats differences when changes exist', () => {
     // WHEN
     const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
@@ -100,7 +72,6 @@ describe('formatStackDiff', () => {
   test('formats differences with isImport', () => {
     // WHEN
     const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
@@ -141,7 +112,6 @@ describe('formatStackDiff', () => {
 
     // WHEN
     const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,
@@ -159,31 +129,9 @@ describe('formatStackDiff', () => {
 });
 
 describe('formatSecurityDiff', () => {
-  let mockIoHelper: IoHelper;
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
-  let mockIoDefaultMessages: any;
 
   beforeEach(() => {
-    const mockNotify = jest.fn().mockResolvedValue(undefined);
-    const mockRequestResponse = jest.fn().mockResolvedValue(undefined);
-
-    mockIoHelper = IoHelper.fromIoHost(
-      { notify: mockNotify, requestResponse: mockRequestResponse },
-      'diff',
-    );
-
-    mockIoDefaultMessages = {
-      info: jest.fn(),
-      warning: jest.fn(),
-      error: jest.fn(),
-    };
-
-    jest.spyOn(mockIoHelper, 'notify').mockImplementation(() => Promise.resolve());
-    jest.spyOn(mockIoHelper, 'requestResponse').mockImplementation(() => Promise.resolve());
-
-    // Mock IoDefaultMessages constructor to return our mock instance
-    (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
-
     mockNewTemplate = {
       template: {
         Resources: {
@@ -216,7 +164,6 @@ describe('formatSecurityDiff', () => {
   test('returns information on security changes for the IoHost to interpret', () => {
     // WHEN
     const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
       templateInfo: {
         oldTemplate: mockNewTemplate.template,
         newTemplate: mockNewTemplate,
@@ -226,13 +173,11 @@ describe('formatSecurityDiff', () => {
 
     // THEN
     expect(result.permissionChangeType).toEqual('none');
-    expect(mockIoDefaultMessages.warning).not.toHaveBeenCalled();
   });
 
   test('returns formatted diff for broadening security changes', () => {
     // WHEN
     const formatter = new DiffFormatter({
-      ioHelper: mockIoHelper,
       templateInfo: {
         oldTemplate: {},
         newTemplate: mockNewTemplate,

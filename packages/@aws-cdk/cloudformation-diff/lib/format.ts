@@ -61,7 +61,8 @@ export function formatSecurityChanges(
   stream: NodeJS.WritableStream,
   templateDiff: TemplateDiff,
   logicalToPathMap: { [logicalId: string]: string } = {},
-  context?: number) {
+  context?: number,
+) {
   const formatter = new Formatter(stream, logicalToPathMap, templateDiff, context);
 
   formatSecurityChangesWithBanner(formatter, templateDiff);

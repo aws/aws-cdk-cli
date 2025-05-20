@@ -221,7 +221,6 @@ export class CdkToolkit {
 
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
-        ioHelper: asIoHelper(this.ioHost, 'diff'),
         templateInfo: {
           oldTemplate: template,
           newTemplate: stacks.firstStack,
@@ -303,7 +302,6 @@ export class CdkToolkit {
         }
 
         const formatter = new DiffFormatter({
-          ioHelper: asIoHelper(this.ioHost, 'diff'),
           templateInfo: {
             oldTemplate: currentTemplate,
             newTemplate: stack,
@@ -452,7 +450,6 @@ export class CdkToolkit {
       if (requireApproval !== RequireApproval.NEVER) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
-          ioHelper: asIoHelper(this.ioHost, 'deploy'),
           templateInfo: {
             oldTemplate: currentTemplate,
             newTemplate: stack,

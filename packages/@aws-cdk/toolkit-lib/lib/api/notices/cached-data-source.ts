@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import type { Notice, NoticeDataSource } from './types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { IoDefaultMessages } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 interface CachedNotices {
   expiration: number;
@@ -13,7 +13,7 @@ const TIME_TO_LIVE_ERROR = 1 * 60 * 1000; // 1 minute
 
 export class CachedDataSource implements NoticeDataSource {
   constructor(
-    private readonly ioMessages: IoDefaultMessages,
+    private readonly ioHelper: IoHelper,
     private readonly fileName: string,
     private readonly dataSource: NoticeDataSource,
     private readonly skipCache?: boolean,
@@ -31,7 +31,7 @@ export class CachedDataSource implements NoticeDataSource {
       try {
         updatedData = await this.fetchInner();
       } catch (e) {
-        this.ioMessages.debug(`Could not refresh notices: ${e}`);
+        await this.ioHelper.defaults.debug(`Could not refresh notices: ${e}`);
         updatedData = {
           expiration: Date.now() + TIME_TO_LIVE_ERROR,
           notices: [],
@@ -42,7 +42,7 @@ export class CachedDataSource implements NoticeDataSource {
       }
       return updatedData.notices;
     } else {
-      this.ioMessages.debug(`Reading cached notices from ${this.fileName}`);
+      await this.ioHelper.defaults.debug(`Reading cached notices from ${this.fileName}`);
       return data;
     }
   }
@@ -65,7 +65,7 @@ export class CachedDataSource implements NoticeDataSource {
         ? await fs.readJSON(this.fileName) as CachedNotices
         : defaultValue;
     } catch (e) {
-      this.ioMessages.debug(`Failed to load notices from cache: ${e}`);
+      await this.ioHelper.defaults.debug(`Failed to load notices from cache: ${e}`);
       return defaultValue;
     }
   }
@@ -74,7 +74,7 @@ export class CachedDataSource implements NoticeDataSource {
     try {
       await fs.writeJSON(this.fileName, cached);
     } catch (e) {
-      this.ioMessages.debug(`Failed to store notices in the cache: ${e}`);
+      await this.ioHelper.defaults.debug(`Failed to store notices in the cache: ${e}`);
     }
   }
 }
