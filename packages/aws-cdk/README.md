@@ -1101,20 +1101,19 @@ $ cdk doctor
 
 ### `cdk refactor`
 
-⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have 
-breaking changes in the future. Make sure to use the `--unstable=refactor` flag 
-when using this command.
+⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have breaking
+changes in the future. Make sure to use the `--unstable=refactor` flag when
+using this command.
 
-Compares the infrastructure specified in the current state of the CDK app with 
-the currently deployed application, to determine if any resource was moved 
-(to a different stack or to a different logical ID, or both). The CLI will 
-show the correspondence between the old and new locations in a table:
+This command compares the infrastructure specified in the current state of the
+CDK app with the currently deployed application, to determine if any resource
+was moved (to a different stack or to a different logical ID, or both). The CLI
+will show the correspondence between the old and new locations in a table:
 
 ```
 $ cdk refactor --unstable=refactor --dry-run
 
 The following resources were moved or renamed:
-
 ┌───────────────────────────────┬───────────────────────────────┬───────────────────────────────────┐
 │ Resource Type                 │ Old Construct Path            │ New Construct Path                │
 ├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
@@ -1126,18 +1125,17 @@ The following resources were moved or renamed:
 └───────────────────────────────┴───────────────────────────────┴───────────────────────────────────┘
 ```
 
-Note the use of the `--dry-run` flag. When this flag is used, the CLI will 
-show this table and exit. Eventually, the CLI will also be able to automatically  
-apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
-mode is supported.
+Note the use of the `--dry-run` flag. When this flag is used, the CLI will show
+this table and exit. By omitting the `--dry-run` flag, the CLI will actually
+execute the refactor summarized in the table.
 
-If you want to exclude some resources from the refactor, you can pass an 
-exclude file, containing a list of destination locations to exclude. A 
-location can be either the stack name + logical ID, or the construct path. For  
-example, if you don't want to include the bucket and the distribution from 
-the table above in the refactor, you can create a file called 
-`exclude.txt` with the following content (destination locations separated by 
-newlines): 
+If you want to exclude some resources from the refactor, you can pass an exclude
+file, containing a list of destination locations to exclude. A location can be
+either the stack name + logical ID, or the construct path. For  
+example, if you don't want to include the bucket and the distribution from the
+table above in the refactor, you can create a file called
+`exclude.txt` with the following content (destination locations separated by
+newlines):
 
 ```
 Web/Website/Origin/Resource
@@ -1147,25 +1145,25 @@ Web/Website/Distribution/Resource
 and pass it to the CLI via the `--exclude-file` flag:
 
 ```shell
-$ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
+$ cdk refactor --exclude-file exclude.txt --unstable=refactor
 ```
 
-If your application has more than one stack, and you want the refactor 
-command to consider only a subset of them, you can pass a list of stack 
-patterns as a parameter:
+If your application has more than one stack, and you want the refactor command
+to consider only a subset of them, you can pass a list of stack patterns as a
+parameter:
 
 ```shell
-$ cdk refactor Web* --unstable=refactor --dry-run 
+$ cdk refactor Web* --unstable=refactor 
 ```
 
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
 
-If, instead of letting the CLI decide which resources to move, you want to 
+If, instead of letting the CLI decide which resources to move, you want to
 provide your own mapping of old to new locations, you can do so by passing a
-mapping file to the CLI via the `--mapping-file` flag. This file should 
-contain a JSON object with the following format: 
+mapping file to the CLI via the `--mapping-file` flag. This file should contain
+a JSON object with the following format:
 
 ```json
 {
@@ -1181,15 +1179,46 @@ contain a JSON object with the following format:
 }
 ```
 
-where `resources` is a mapping of resources from source to destination 
-locations for a given environment. Resource locations are in the format 
-`StackName.LogicalId`.The source must refer to a location where there is a 
-resource currently deployed, while the destination must refer to a location 
-that is not already occupied by any resource.
+where `resources` is a mapping of resources from source to destination locations
+for a given environment. Resource locations are in the format
+`StackName.LogicalId`.The source must refer to a location where there is a
+resource currently deployed, while the destination must refer to a location that
+is not already occupied by any resource.
 
-If you want to undo a refactor, you can use the `--revert` option in 
-conjunction with the `--mapping-file` option. It will apply the mapping in 
-reverse order (source becomes destination and vice versa).
+If you want to undo a refactor, you can use the `--revert` option in conjunction
+with the `--mapping-file` option. It will apply the mapping in reverse order (
+source becomes destination and vice versa):
+
+```shell
+$ cdk refactor --unstable=refactor --revert --mapping-file mapping.json
+```
+
+#### Interactive vs. non-interactive modes
+
+If you are running the `refactor` command in an interactive shell, by default
+you will be asked to confirm the refactor before it is executed:
+
+```
+$ cdk refactor --unstable=refactor
+
+The following resources were moved or renamed:
+┌───────────────────────────────┬───────────────────────────────┬───────────────────────────────────┐
+│ Resource Type                 │ Old Construct Path            │ New Construct Path                │
+├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
+│ AWS::S3::Bucket               │ MyStack/Bucket/Resource       │ Web/Website/Origin/Resource       │
+├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
+│ AWS::CloudFront::Distribution │ MyStack/Distribution/Resource │ Web/Website/Distribution/Resource │
+├───────────────────────────────┼───────────────────────────────┼───────────────────────────────────┤
+│ AWS::Lambda::Function         │ MyStack/Function/Resource     │ Service/Function/Resource         │
+└───────────────────────────────┴───────────────────────────────┴───────────────────────────────────┘
+Do you wish to refactor these resources? (y/n)
+```
+
+To instruct the CLI to go ahead with the refactoring without prompting, use 
+the `--force` flag.
+
+When running in a non-interactive shell, the CLI will not prompt for
+confirmation.
 
 ## Notices
 
