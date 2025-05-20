@@ -10,7 +10,8 @@ import { deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { EnvironmentResourcesRegistry } from '../environment';
-import { IO, IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
+import { IO } from '../io/private';
 
 /**
  * A container for stacks in all environments.
@@ -73,8 +74,9 @@ export class StackContainer {
 
       const envResources = this.environmentResourcesRegistry.for(env, sdk, this.ioHelper);
       if ((await envResources.lookupToolkit()).version < 28) {
+        const resolvedEnv = await this.sdkProvider.resolveEnvironment(env);
         throw new ToolkitError(
-          `The CDK toolkit stack in environment aws://${env.account}/${env.region} doesn't support refactoring. Please run 'cdk bootstrap' to update it.`,
+          `The CDK toolkit stack in environment aws://${resolvedEnv.account}/${resolvedEnv.region} doesn't support refactoring. Please run 'cdk bootstrap' to update it.`,
         );
       }
 
@@ -83,7 +85,8 @@ export class StackContainer {
       try {
         await cb(cfn, stacks);
       } catch (e: any) {
-        await this.ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor execution failed for environment aws://${env.account}/${env.region}`, { error: e }));
+        const resolvedEnv = await this.sdkProvider.resolveEnvironment(env);
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor execution failed for environment aws://${resolvedEnv.account}/${resolvedEnv.region}`, { error: e }));
       }
     }
   }

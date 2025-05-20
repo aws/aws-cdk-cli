@@ -29,7 +29,7 @@ beforeEach(() => {
   ioHost.requestSpy.mockClear();
 });
 
-describe.each([true, false])('refactor detection', dryRun => {
+describe.each([true, false])('refactor detection', (dryRun) => {
   test('detects the same resource in different locations', async () => {
     // GIVEN
     givenStackWithResources('Stack1', {
@@ -370,6 +370,191 @@ describe('refactor execution', () => {
     // No confirmation is requested from the user
     expect(ioHost.requestSpy).not.toHaveBeenCalled();
   });
+
+  test('refactor execution fails', async () => {
+    // GIVEN
+    givenStackWithResources('Stack1', {
+      OldLogicalID: {
+        Type: 'AWS::S3::Bucket',
+        UpdateReplacePolicy: 'Retain',
+        DeletionPolicy: 'Retain',
+        Metadata: {
+          'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+        },
+      },
+    });
+
+    mockSTSClient.on(GetCallerIdentityCommand).resolves({
+      Account: '999999999999',
+      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+    });
+
+    mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+      Stacks: [
+        {
+          StackName: 'CDKToolkit',
+          CreationTime: new Date(),
+          StackStatus: 'UPDATE_COMPLETE',
+          Outputs: [
+            {
+              OutputKey: 'BootstrapVersion',
+              OutputValue: '28',
+            },
+          ],
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(CreateStackRefactorCommand).resolves({
+      StackRefactorId: 'refactor-id',
+    });
+
+    mockCloudFormationClient.on(DescribeStackRefactorCommand).resolves({
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'EXECUTE_FAILED',
+    });
+
+    mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.refactor(cx, {
+      dryRun: false,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'refactor',
+        code: 'CDK_TOOLKIT_E8900',
+        level: 'error',
+        message: 'Refactor execution failed for environment aws://123456789012/us-east-1',
+      }),
+    );
+  });
+
+  test('refactor creation fails', async () => {
+    // GIVEN
+    givenStackWithResources('Stack1', {
+      OldLogicalID: {
+        Type: 'AWS::S3::Bucket',
+        UpdateReplacePolicy: 'Retain',
+        DeletionPolicy: 'Retain',
+        Metadata: {
+          'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+        },
+      },
+    });
+
+    mockSTSClient.on(GetCallerIdentityCommand).resolves({
+      Account: '999999999999',
+      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+    });
+
+    mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+      Stacks: [
+        {
+          StackName: 'CDKToolkit',
+          CreationTime: new Date(),
+          StackStatus: 'UPDATE_COMPLETE',
+          Outputs: [
+            {
+              OutputKey: 'BootstrapVersion',
+              OutputValue: '28',
+            },
+          ],
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(CreateStackRefactorCommand).resolves({
+      StackRefactorId: 'refactor-id',
+    });
+
+    mockCloudFormationClient.on(DescribeStackRefactorCommand).resolves({
+      Status: 'CREATE_FAILED',
+    });
+
+    mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.refactor(cx, {
+      dryRun: false,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'refactor',
+        code: 'CDK_TOOLKIT_E8900',
+        level: 'error',
+        message: 'Refactor execution failed for environment aws://123456789012/us-east-1',
+      }),
+    );
+  });
+
+  test('bootstrap version lower than minimum required', async () => {
+    // GIVEN
+    givenStackWithResources('Stack1', {
+      OldLogicalID: {
+        Type: 'AWS::S3::Bucket',
+        UpdateReplacePolicy: 'Retain',
+        DeletionPolicy: 'Retain',
+        Metadata: {
+          'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+        },
+      },
+    });
+
+    mockSTSClient.on(GetCallerIdentityCommand).resolves({
+      Account: '999999999999',
+      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+    });
+
+    mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+      Stacks: [
+        {
+          StackName: 'CDKToolkit',
+          CreationTime: new Date(),
+          StackStatus: 'UPDATE_COMPLETE',
+          Outputs: [
+            {
+              OutputKey: 'BootstrapVersion',
+              OutputValue: '27',
+            },
+          ],
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(CreateStackRefactorCommand).resolves({
+      StackRefactorId: 'refactor-id',
+    });
+
+    mockCloudFormationClient.on(DescribeStackRefactorCommand).resolves({
+      Status: 'CREATE_FAILED',
+    });
+
+    mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.refactor(cx, {
+      dryRun: false,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'refactor',
+        code: 'CDK_TOOLKIT_E8900',
+        level: 'error',
+        message:
+          "Refactor failed: The CDK toolkit stack in environment aws://123456789012/us-east-1 doesn't support refactoring. Please run 'cdk bootstrap' to update it.",
+      }),
+    );
+  });
 });
 
 function givenStackWithResources(stackName: string, resources: Record<string, any>) {
@@ -394,4 +579,3 @@ function givenStackWithResources(stackName: string, resources: Record<string, an
       }),
     });
 }
-
