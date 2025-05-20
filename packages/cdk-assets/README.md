@@ -1,19 +1,5 @@
 # cdk-assets
 
-<!--BEGIN STABILITY BANNER-->
-
----
-
-> V3 of cdk-assets is still under active development and is subject to non-backward compatible changes while
-> being released with the `rc` suffix. 
-> 
-> These changes are not subject to the [Semantic Versioning](https://semver.org/) model and breaking changes 
-> will be announced in the release notes.
-
----
-
-<!--END STABILITY BANNER-->
-
 A tool for publishing CDK assets to AWS environments.
 
 ## Overview

@@ -17,7 +17,7 @@ import type {
   EnvironmentBootstrapResult,
 } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, HotswapMode, type DeployOptions } from '../actions/deploy';
+import { AssetBuildTime, type DeployOptions, HotswapMode } from '../actions/deploy';
 import {
   buildParameterMap,
   createHotswapPropertyOverrides,
@@ -28,7 +28,7 @@ import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import { type ListOptions } from '../actions/list';
-import type { RefactorOptions } from '../actions/refactor';
+import type { MappingGroup, RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
@@ -53,20 +53,25 @@ import { PluginHost } from '../api/plugin';
 import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
 import { executeRefactor } from '../api/refactoring/execution';
 import { StackContainer } from '../api/refactoring/stack-container';
+import {
+  AmbiguityError,
+  ambiguousMovements,
+  findResourceMovements,
+  formatAmbiguousMappings,
+  formatTypedMappings,
+  fromManifestAndExclusionList,
+  resourceMappings,
+  usePrescribedMappings,
+} from '../api/refactoring';
+import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
-import type { Concurrency, AssetBuildNode, AssetPublishNode, StackNode } from '../api/work-graph';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
 import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import {
-  formatErrorMessage,
-  formatTime,
-  obscureTemplate,
-  serializeStructure,
-  validateSnsTopicArn,
-} from '../util';
+import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
 
@@ -210,7 +215,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Bootstrap Action
    */
-  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions = {}): Promise<BootstrapResult> {
     const startTime = Date.now();
     const results: EnvironmentBootstrapResult[] = [];
 
@@ -321,7 +326,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff }> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions = {}): Promise<{ [name: string]: TemplateDiff }> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -746,7 +751,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * This function returns immediately, starting a watcher in the background.
    */
-  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<IWatcher> {
+  public async watch(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
@@ -890,7 +895,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Rolls back the selected stacks.
    */
-  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<RollbackResult> {
+  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions = {}): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
     await using assembly = await assemblyFromSource(ioHelper, cx);
     return await this._rollback(assembly, 'rollback', options);
@@ -900,9 +905,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Helper to allow rollback being called as part of the deploy or watch action.
    */
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<RollbackResult> {
+    const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
-    const stacks = await assembly.selectStacksV2(options.stacks);
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    const stacks = await assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stacks, ioHelper);
     await synthSpan.end();
 
@@ -969,17 +975,19 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    const stacks = await assembly.selectStacksV2(ALL_STACKS);
+    if (options.mappings && options.exclude) {
+      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
+    }
+
+    if (options.revert && !options.mappings) {
+      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
+    }
+
     const sdkProvider = await this.sdkProvider('refactor');
     const localStacks = assembly.cloudAssembly.stacks;
-    const stackRetriever = new StackContainer(sdkProvider, ioHelper, localStacks);
-    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-    const movements = await findResourceMovements(stacks.stackArtifacts, stackRetriever, exclude);
-    const ambiguous = ambiguousMovements(movements);
-
-    if (ambiguous.length === 0) {
-      const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-      const mappings = resourceMappings(movements, filteredStacks.stackArtifacts);
+    const stackContainer = new StackContainer(sdkProvider, ioHelper, localStacks);
+    try {
+      const mappings = await getMappings();
       const typedMappings = mappings.map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
@@ -997,16 +1005,46 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       try {
         await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('Refactoring...'));
-        await executeRefactor(mappings, stackRetriever);
+        await executeRefactor(mappings, stackContainer);
         await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${formatErrorMessage(e)}`, { error: e }));
       }
-    } else {
-      const error = new AmbiguityError(ambiguous);
-      const paths = error.paths();
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
-        ambiguousPaths: paths,
+    } catch (e) {
+      if (e instanceof AmbiguityError) {
+        const paths = e.paths();
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
+          ambiguousPaths: paths,
+        }));
+      } else {
+        throw e;
+      }
+    }
+
+    async function getMappings(): Promise<ResourceMapping[]> {
+      if (options.revert) {
+        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
+      }
+      if (options.mappings != null) {
+        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
+      } else {
+        const stacks = await assembly.selectStacksV2(ALL_STACKS);
+        const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
+        const ambiguous = ambiguousMovements(movements);
+        if (ambiguous.length === 0) {
+          const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+          return resourceMappings(movements, filteredStacks.stackArtifacts);
+        } else {
+          throw new AmbiguityError(ambiguous);
+        }
+      }
+    }
+
+    function revert(mappings: MappingGroup[]): MappingGroup[] {
+      return mappings.map(group => ({
+        ...group,
+        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
       }));
     }
 
@@ -1029,7 +1067,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Destroys the selected Stacks.
    */
-  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<DestroyResult> {
+  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
     await using assembly = await assemblyFromSource(ioHelper, cx);
     return await this._destroy(assembly, 'destroy', options);
@@ -1039,10 +1077,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Helper to allow destroy being called as part of the deploy action.
    */
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
+    const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = (await assembly.selectStacksV2(options.stacks)).reversed();
+    const stacks = (await assembly.selectStacksV2(selectStacks)).reversed();
     await synthSpan.end();
 
     const ret: DestroyResult = {

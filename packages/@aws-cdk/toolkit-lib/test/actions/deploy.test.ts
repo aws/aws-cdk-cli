@@ -1,7 +1,6 @@
 import { StackParameters } from '../../lib/actions/deploy';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deployments';
 import * as deployments from '../../lib/api/deployments';
-import { RequireApproval } from '../../lib/api/require-approval';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
@@ -14,8 +13,6 @@ let mockDeployStack: jest.SpyInstance<Promise<DeployStackResult>, [DeployStackOp
 beforeEach(() => {
   jest.restoreAllMocks();
   ioHost = new TestIoHost();
-  ioHost.requireDeployApproval = RequireApproval.NEVER;
-
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
@@ -46,11 +43,8 @@ describe('deploy', () => {
     successfulDeployment();
   });
 
-  test('request response when changes exceed require approval threshold', async () => {
+  test('request response contains security diff', async () => {
     // WHEN
-    // this is the lowest threshold; always require approval
-    ioHost.requireDeployApproval = RequireApproval.ANY_CHANGE;
-
     const cx = await builderFixture(toolkit, 'stack-with-role');
     await toolkit.deploy(cx);
 
@@ -89,27 +83,6 @@ IAM Statement Changes
             }),
           }),
         }),
-      }),
-    }));
-  });
-
-  test('skips response when changes do not meet require approval threshold', async () => {
-    // WHEN
-    // never require approval, so we expect the IoHost to skip
-    ioHost.requireDeployApproval = RequireApproval.NEVER;
-
-    const cx = await builderFixture(toolkit, 'stack-with-role');
-    await toolkit.deploy(cx);
-
-    // THEN
-    expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
-      action: 'deploy',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I5060',
-      message: expect.stringContaining('Do you wish to deploy these changes'),
-      data: expect.objectContaining({
-        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
-        permissionChangeType: 'broadening',
       }),
     }));
   });

@@ -201,7 +201,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('bootstrap-kms-key-id', {
           default: undefined,
           type: 'string',
-          desc: 'AWS KMS master key ID used for the SSE-KMS encryption',
+          desc: 'AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)',
           conflicts: 'bootstrap-customer-key',
         })
         .option('example-permissions-boundary', {
@@ -744,6 +744,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             alias: 'changeset',
             desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
+          })
+          .option('import-existing-resources', {
+            default: false,
+            type: 'boolean',
+            desc: 'Whether or not the change set imports resources that already exist',
           }),
     )
     .command('metadata [STACK]', 'Returns all metadata associated with this stack')
@@ -887,6 +892,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Do not ask for confirmation before performing the refactor, even in interactive mode',
+        })
+        .option('mapping-file', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+        })
+        .option('revert', {
+          default: false,
+          type: 'boolean',
+          desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
         }),
     )
     .version(helpers.cliVersion())

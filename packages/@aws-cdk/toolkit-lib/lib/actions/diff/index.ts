@@ -26,6 +26,13 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
    * @default - no parameters
    */
   readonly parameters?: { [name: string]: string | undefined };
+
+  /**
+   * Whether or not the change set imports resources that already exist
+   *
+   * @default false
+   */
+  readonly importExistingResources?: boolean;
 }
 
 export interface LocalFileDiffOptions {
@@ -87,8 +94,10 @@ export class DiffMethod {
 export interface DiffOptions {
   /**
    * Select the stacks
+   *
+   * @default - all stacks
    */
-  readonly stacks: StackSelector;
+  readonly stacks?: StackSelector;
 
   /**
    * The method to create a stack diff.

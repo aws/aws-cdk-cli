@@ -213,6 +213,12 @@ export class CdkToolkit {
         throw new ToolkitError(`There is no file at ${options.templatePath}`);
       }
 
+      if (options.importExistingResources) {
+        throw new ToolkitError(
+          'Can only use --import-existing-resources flag when comparing against deployed stacks.',
+        );
+      }
+
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
       const formatter = new DiffFormatter({
         ioHelper: asIoHelper(this.ioHost, 'diff'),
@@ -287,6 +293,7 @@ export class CdkToolkit {
               sdkProvider: this.props.sdkProvider,
               parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
               resourcesToImport,
+              importExistingResources: options.importExistingResources,
             });
           } else {
             debug(
@@ -1204,22 +1211,24 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    let exclude: string[] = [];
-    if (options.excludeFile != null) {
-      if (!(await fs.pathExists(options.excludeFile))) {
-        throw new ToolkitError(`The exclude file '${options.excludeFile}' does not exist`);
-      }
-      exclude = fs.readFileSync(options.excludeFile).toString('utf-8').split('\n');
+    if (options.mappingFile && options.excludeFile) {
+      throw new ToolkitError('Cannot use both --exclude-file and mapping-file.');
+    }
+
+    if (options.revert && !options.mappingFile) {
+      throw new ToolkitError('The --revert option can only be used with the --mapping-file option.');
     }
 
     try {
       await this.toolkit.refactor(this.props.cloudExecutable, {
         dryRun: options.dryRun,
-        exclude,
         stacks: {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
+        exclude: await readExcludeFile(options.excludeFile),
+        mappings: await readMappingFile(options.mappingFile),
+        revert: options.revert,
         force: options.force,
       });
     } catch (e) {
@@ -1228,6 +1237,31 @@ export class CdkToolkit {
     }
 
     return 0;
+
+    async function readMappingFile(filePath: string | undefined) {
+      if (filePath == null) {
+        return undefined;
+      }
+      if (!(await fs.pathExists(filePath))) {
+        throw new ToolkitError(`The mapping file ${filePath} does not exist`);
+      }
+      const content = JSON.parse(fs.readFileSync(filePath).toString('utf-8'));
+      if (content.environments) {
+        return content.environments;
+      } else {
+        throw new ToolkitError(`The mapping file ${filePath} does not contain an \`environments\` array`);
+      }
+    }
+
+    async function readExcludeFile(filePath: string | undefined) {
+      if (filePath != null) {
+        if (!(await fs.pathExists(filePath))) {
+          throw new ToolkitError(`The exclude file '${filePath}' does not exist`);
+        }
+        return fs.readFileSync(filePath).toString('utf-8').split('\n');
+      }
+      return undefined;
+    }
   }
 
   private async selectStacksForList(patterns: string[]) {
@@ -1488,6 +1522,13 @@ export interface DiffOptions {
    * @default true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * Whether or not the change set imports resources that already exist.
+   *
+   * @default false
+   */
+  readonly importExistingResources?: boolean;
 }
 
 interface CfnDeployOptions {
@@ -1935,6 +1976,40 @@ export interface RefactorOptions {
    * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
    */
   excludeFile?: string;
+
+  /**
+   * The absolute path to a file that contains an explicit mapping to
+   * be used by the toolkit (as opposed to letting the toolkit itself
+   * compute the mapping). This file should contain a JSON object with
+   * the following format:
+   *
+   *     {
+   *       "environments": [
+   *         {
+   *           "account": "123456789012",
+   *           "region": "us-east-1",
+   *           "resources": {
+   *             "Foo.OldName": "Bar.NewName",
+   *           }
+   *         },
+   *       ]
+   *     }
+   *
+   * where mappings are grouped by environment. The `resources` object contains
+   * a mapping where each key is the source location and the value is the
+   * destination location. Locations must be in the format `StackName.LogicalId`.
+   * The source must refer to a location where there is a resource currently
+   * deployed, while the destination must refer to a location that is not already
+   * occupied by any resource.
+   */
+  mappingFile?: string;
+
+  /**
+   * Modifies the behavior of the `mappingFile` option by swapping source and
+   * destination locations. This is useful when you want to undo a refactor
+   * that was previously applied.
+   */
+  revert?: boolean;
 
   /**
    * Whether to go ahead with the refactor, without asking for

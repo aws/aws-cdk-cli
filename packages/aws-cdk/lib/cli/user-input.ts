@@ -394,7 +394,7 @@ export interface BootstrapOptions {
   readonly bootstrapBucketName?: string;
 
   /**
-   * AWS KMS master key ID used for the SSE-KMS encryption
+   * AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)
    *
    * @default - undefined
    */
@@ -1153,6 +1153,13 @@ export interface DiffOptions {
   readonly changeSet?: boolean;
 
   /**
+   * Whether or not the change set imports resources that already exist
+   *
+   * @default - false
+   */
+  readonly importExistingResources?: boolean;
+
+  /**
    * Positional argument for diff
    */
   readonly STACKS?: Array<string>;
@@ -1408,6 +1415,20 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly force?: boolean;
+
+  /**
+   * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
+   *
+   * @default - undefined
+   */
+  readonly mappingFile?: string;
+
+  /**
+   * If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.
+   *
+   * @default - false
+   */
+  readonly revert?: boolean;
 
   /**
    * Positional argument for refactor

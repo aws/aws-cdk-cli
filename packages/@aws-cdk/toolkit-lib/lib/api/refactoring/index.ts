@@ -9,6 +9,9 @@ import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 import { type ExcludeList, NeverExclude } from './exclude';
 import type { StackContainer } from './stack-container';
+import { type ExcludeList, NeverExclude } from './exclude';
+import type { MappingGroup } from '../../actions';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export * from './exclude';
 
@@ -47,6 +50,93 @@ function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
   return result;
 }
 
+export async function usePrescribedMappings(
+  mappingGroups: MappingGroup[],
+  sdkProvider: SdkProvider,
+): Promise<ResourceMapping[]> {
+  interface StackGroup extends MappingGroup {
+    stacks: CloudFormationStack[];
+  }
+
+  const stackGroups: StackGroup[] = [];
+  for (const group of mappingGroups) {
+    stackGroups.push({
+      ...group,
+      stacks: await getDeployedStacks(sdkProvider, environmentOf(group)),
+    });
+  }
+
+  // Validate that there are no duplicate destinations
+  for (let group of stackGroups) {
+    const destinations = new Set<string>();
+
+    for (const destination of Object.values(group.resources)) {
+      if (destinations.has(destination)) {
+        throw new ToolkitError(
+          `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
+        );
+      }
+      destinations.add(destination);
+    }
+  }
+
+  const result: ResourceMapping[] = [];
+  for (const group of stackGroups) {
+    for (const [source, destination] of Object.entries(group.resources)) {
+      if (!inUse(source, group.stacks)) {
+        throw new ToolkitError(`Source resource '${source}' does not exist in environment ${group.account}/${group.region}`);
+      }
+
+      if (inUse(destination, group.stacks)) {
+        throw new ToolkitError(
+          `Destination resource '${destination}' already in use in environment ${group.account}/${group.region}`,
+        );
+      }
+
+      const environment = environmentOf(group);
+      const src = makeLocation(source, environment, group.stacks);
+      const dst = makeLocation(destination, environment);
+      result.push(new ResourceMapping(src, dst));
+    }
+  }
+  return result;
+
+  function inUse(location: string, stacks: CloudFormationStack[]): boolean {
+    const [stackName, logicalId] = location.split('.');
+    if (stackName == null || logicalId == null) {
+      throw new ToolkitError(`Invalid location '${location}'`);
+    }
+    const stack = stacks.find((s) => s.stackName === stackName);
+    return stack != null && stack.template.Resources?.[logicalId] != null;
+  }
+
+  function environmentOf(group: MappingGroup) {
+    return {
+      account: group.account,
+      region: group.region,
+      name: '',
+    };
+  }
+
+  function makeLocation(
+    loc: string,
+    environment: cxapi.Environment,
+    stacks: CloudFormationStack[] = [],
+  ): ResourceLocation {
+    const [stackName, logicalId] = loc.split('.');
+    const stack = stacks.find((s) => s.stackName === stackName);
+
+    return new ResourceLocation(
+      {
+        stackName,
+        environment,
+        template: stack?.template ?? {},
+      },
+      logicalId,
+    );
+  }
+}
+
 export function resourceMovements(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMovement[] {
   return Object.values(
     removeUnmovedResources(
@@ -68,10 +158,7 @@ export function ambiguousMovements(movements: ResourceMovement[]) {
  * Converts a list of unambiguous resource movements into a list of resource mappings.
  *
  */
-export function resourceMappings(
-  movements: ResourceMovement[],
-  stacks?: CloudFormationStack[],
-): ResourceMapping[] {
+export function resourceMappings(movements: ResourceMovement[], stacks?: CloudFormationStack[]): ResourceMapping[] {
   const stacksPredicate =
     stacks == null
       ? () => true
@@ -170,9 +257,9 @@ export async function findResourceMovements(
     result.push(...resourceMovements(before, after));
   }
 
-  return result.filter(mov => {
+  return result.filter((mov) => {
     const after = mov[1];
-    return after.every(l => !exclude.isExcluded(l));
+    return after.every((l) => !exclude.isExcluded(l));
   });
 }
 

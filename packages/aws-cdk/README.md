@@ -189,6 +189,23 @@ The `change-set` flag will make `diff` create a change set and extract resource 
 The `--no-change-set` mode will consider any change to a property that requires replacement to be a resource replacement,
 even if the change is purely cosmetic (like replacing a resource reference with a hardcoded arn).
 
+The `--import-existing-resources` option will make `diff` create a change set and compare it using
+the CloudFormation resource import mechanism. This allows CDK to detect changes and show report of resources that
+will be imported rather added. Use this flag when preparing to import existing resources into a CDK stack to
+ensure and validate the changes are correctly reflected by showing 'import'.
+
+```console
+$ cdk diff
+[+] AWS::DynamoDB::GlobalTable MyGlobalTable MyGlobalTable5DC12DB4
+
+$ cdk diff --import-existing-resources
+[←] AWS::DynamoDB::GlobalTable MyGlobalTable MyGlobalTable5DC12DB4 import
+```
+
+In the output above:
+[+] indicates a new resource that would be created.
+[←] indicates a resource that would be imported into the stack instead.
+
 ### `cdk deploy`
 
 Deploys a stack of your CDK app to its environment. During the deployment, the toolkit will output progress
@@ -1119,12 +1136,12 @@ exclude file, containing a list of destination locations to exclude. A
 location can be either the stack name + logical ID, or the construct path. For  
 example, if you don't want to include the bucket and the distribution from 
 the table above in the refactor, you can create a file called 
-`exclude.txt`with the following content: 
+`exclude.txt` with the following content (destination locations separated by 
+newlines): 
 
 ```
 Web/Website/Origin/Resource
 Web/Website/Distribution/Resource
-]
 ```
 
 and pass it to the CLI via the `--exclude-file` flag:
@@ -1144,6 +1161,35 @@ $ cdk refactor Web* --unstable=refactor --dry-run
 The pattern language is the same as the one used in the `cdk deploy` command. 
 However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
 considered.
+
+If, instead of letting the CLI decide which resources to move, you want to 
+provide your own mapping of old to new locations, you can do so by passing a
+mapping file to the CLI via the `--mapping-file` flag. This file should 
+contain a JSON object with the following format: 
+
+```json
+{
+  "mappings": [
+    {
+      "account": "123456789012",
+      "region": "us-east-1",
+      "resources": {
+        "Foo.OldName": "Bar.NewName"
+      }
+    }
+  ]
+}
+```
+
+where `resources` is a mapping of resources from source to destination 
+locations for a given environment. Resource locations are in the format 
+`StackName.LogicalId`.The source must refer to a location where there is a 
+resource currently deployed, while the destination must refer to a location 
+that is not already occupied by any resource.
+
+If you want to undo a refactor, you can use the `--revert` option in 
+conjunction with the `--mapping-file` option. It will apply the mapping in 
+reverse order (source becomes destination and vice versa).
 
 ## Notices
 

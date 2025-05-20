@@ -77,7 +77,7 @@ export async function makeConfig(): Promise<CliConfig> {
         description: 'Deploys the CDK toolkit stack into an AWS environment',
         options: {
           'bootstrap-bucket-name': { type: 'string', alias: ['b', 'toolkit-bucket-name'], desc: 'The name of the CDK toolkit bucket; bucket will be created and must not exist', default: undefined },
-          'bootstrap-kms-key-id': { type: 'string', desc: 'AWS KMS master key ID used for the SSE-KMS encryption', default: undefined, conflicts: 'bootstrap-customer-key' },
+          'bootstrap-kms-key-id': { type: 'string', desc: 'AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)', default: undefined, conflicts: 'bootstrap-customer-key' },
           'example-permissions-boundary': { type: 'boolean', alias: 'epb', desc: 'Use the example permissions boundary.', default: undefined, conflicts: 'custom-permissions-boundary' },
           'custom-permissions-boundary': { type: 'string', alias: 'cpb', desc: 'Use the permissions boundary specified by name.', default: undefined, conflicts: 'example-permissions-boundary' },
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
@@ -336,6 +336,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
+          'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
         },
       },
       metadata: {
@@ -439,6 +440,16 @@ export async function makeConfig(): Promise<CliConfig> {
             type: 'string',
             requiresArg: true,
             desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
+          },
+          'mapping-file': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+          },
+          'revert': {
+            type: 'boolean',
+            default: false,
+            desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
           },
           'force': {
             type: 'boolean',

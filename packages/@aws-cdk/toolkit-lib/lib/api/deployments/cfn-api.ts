@@ -142,6 +142,7 @@ export type PrepareChangeSetOptions = {
   sdkProvider: SdkProvider;
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
+  importExistingResources?: boolean;
   /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
@@ -161,6 +162,7 @@ export type CreateChangeSetOptions = {
   bodyParameter: TemplateBodyParameter;
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourceToImport[];
+  importExistingResources?: boolean;
   role?: string;
 };
 
@@ -244,6 +246,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       bodyParameter,
       parameters: options.parameters,
       resourcesToImport: options.resourcesToImport,
+      importExistingResources: options.importExistingResources,
       role: executionRoleArn,
     });
   } catch (e: any) {
@@ -309,6 +312,7 @@ export async function createChangeSet(
     TemplateBody: options.bodyParameter.TemplateBody,
     Parameters: stackParams.apiParameters,
     ResourcesToImport: options.resourcesToImport,
+    ImportExistingResources: options.importExistingResources,
     RoleARN: options.role,
     Tags: toCfnTags(options.stack.tags),
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],

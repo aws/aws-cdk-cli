@@ -4,7 +4,7 @@ import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
-import { RequireApproval } from '../../lib/api/require-approval';
+import { cfnApi } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
@@ -17,8 +17,6 @@ beforeEach(() => {
   restoreSdkMocksToDefault();
   setDefaultSTSMocks();
   ioHost = new TestIoHost();
-  ioHost.requireDeployApproval = RequireApproval.NEVER;
-
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
@@ -240,6 +238,35 @@ describe('diff', () => {
         code: 'CDK_TOOLKIT_I0000',
         message: expect.stringContaining('Could not create a change set, will base the diff on template differences'),
       }));
+    });
+
+    test('ChangeSet diff method with import existing resources option enabled', async () => {
+      // Setup mock BEFORE calling the function
+      const createDiffChangeSetMock = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+        return {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'MyBucketF68F3FF0',
+              },
+            },
+          ],
+        };
+      });
+
+      // WHEN
+      ioHost.level = 'debug';
+      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ importExistingResources: true }),
+      });
+
+      // THEN
+      expect(createDiffChangeSetMock).toHaveBeenCalled();
+      expect(result.Stack1.resources.get('MyBucketF68F3FF0').isImport).toBe(true);
     });
 
     test('ChangeSet diff method throws if changeSet fails and fallBackToTemplate = false', async () => {

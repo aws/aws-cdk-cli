@@ -1,31 +1,27 @@
-# AWS CDK CLI Library
+# AWS CDK CLI Library (deprecated)
+
 <!--BEGIN STABILITY BANNER-->
 
 ---
 
-![cdk-constructs: Experimental](https://img.shields.io/badge/cdk--constructs-experimental-important.svg?style=for-the-badge)
+![@aws-cdk/cli-lib-lpha: Deprecated](https://img.shields.io/badge/@aws--cdk/cli--lib--alpha-deprectated-red.svg?style=for-the-badge)
 
-> The APIs of higher level constructs in this module are experimental and under active development.
-> They are subject to non-backward compatible changes or removal in any future version. These are
-> not subject to the [Semantic Versioning](https://semver.org/) model and breaking changes will be
-> announced in the release notes. This means that while you may use them, you may need to update
-> your source code when upgrading to a newer version of this package.
+> This package has been deprecated in favor of [@aws-cdk/toolkit-lib](https://github.com/aws/aws-cdk-cli/issues/155),
+> a newer approach providing similar functionality to what this package offered.
+> Please migrate as soon as possible.
+> For any migration problems, please open [an issue](https://github.com/aws/aws-cdk-cli/issues/new/choose).
+> We are committed to supporting the same feature set that this package offered.
 
 ---
 
 <!--END STABILITY BANNER-->
 
-## ⚠️ Experimental module
+## ⚠️ Deprecated module
 
-This package is highly experimental. Expect frequent API changes and incomplete features.
-Known issues include:
+This package is has been deprecated.
+Already published versions can be used, but no support is provided whatsoever and we will soon stop publishing new versions.
 
-- **JavaScript/TypeScript only**\
-  The jsii packages are currently not in a working state.
-- **No useful return values**\
-  All output is currently printed to stdout/stderr
-- **Missing or Broken options**\
-  Some CLI options might not be available in this package or broken
+Instead, please use [@aws-cdk/toolkit-lib](https://github.com/aws/aws-cdk-cli/issues/155).
 
 ## Overview
 
@@ -37,6 +33,17 @@ Currently the package includes implementations for:
 - `cdk bootstrap`
 - `cdk destroy`
 - `cdk list`
+
+## Known issues
+
+- **JavaScript/TypeScript only**\
+  The jsii packages are currently not in a working state.
+- **No useful return values**\
+  All output is currently printed to stdout/stderr
+- **Missing or Broken options**\
+  Some CLI options might not be available in this package or broken
+
+Due to the deprecation of the package, this issues will not be resolved.
 
 ## Setup
 

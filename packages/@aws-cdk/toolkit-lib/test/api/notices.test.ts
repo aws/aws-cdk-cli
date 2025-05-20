@@ -11,7 +11,7 @@ import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
 import type { BootstrappedEnvironment, Component, Notice } from '../../lib/api/notices/types';
 import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
 import { Settings } from '../../lib/api/settings';
-import { FakeIoHost } from '../_helpers/fake-io-host';
+import { TestIoHost } from '../_helpers';
 
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
@@ -188,7 +188,7 @@ const NOTICE_FOR_APIGATEWAYV2_CFN_STAGE = {
   schemaVersion: '1',
 };
 
-const ioHost = new FakeIoHost();
+const ioHost = new TestIoHost();
 const ioHelper = asIoHelper(ioHost, 'notices' as any);
 const ioHostEmitter = new IoDefaultMessages(ioHelper);
 const noticesFilter = new NoticesFilter(ioHostEmitter);
@@ -895,10 +895,11 @@ describe(Notices, () => {
     });
 
     test('nothing when there are no notices', async () => {
-      await Notices.create({ ioHost, context: new Context(), cliVersion }).display();
+      const traceHost = new TestIoHost('trace');
+      await Notices.create({ ioHost: traceHost, context: new Context(), cliVersion }).display();
       // expect a single trace that the tree.json was not found, but nothing else
-      expect(ioHost.messages.length).toBe(1);
-      ioHost.expectMessage({ level: 'trace', containing: 'Failed to get tree.json file' });
+      expect(traceHost.messages.length).toBe(1);
+      traceHost.expectMessage({ level: 'trace', containing: 'Failed to get tree.json file' });
     });
 
     test('total count when show total is true', async () => {

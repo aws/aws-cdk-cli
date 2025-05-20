@@ -18,6 +18,8 @@ export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
 
     await shell(['node', require.resolve('npm'), 'install', `aws-cdk@${this.range}`], {
       cwd: tempDir,
+      show: 'error',
+      outputs: [process.stderr],
     });
     const installedVersion = await npmQueryInstalledVersion('aws-cdk', tempDir);
 

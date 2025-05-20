@@ -191,6 +191,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
+        importExistingResources: args.importExistingResources,
         STACKS: args.STACKS,
       };
       break;
@@ -262,6 +263,8 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         dryRun: args.dryRun,
         excludeFile: args.excludeFile,
+        mappingFile: args.mappingFile,
+        revert: args.revert,
         force: args.force,
         STACKS: args.STACKS,
       };
@@ -420,6 +423,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
+    importExistingResources: config.diff?.importExistingResources,
   };
   const metadataOptions = {};
   const acknowledgeOptions = {};
@@ -457,6 +461,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     dryRun: config.refactor?.dryRun,
     excludeFile: config.refactor?.excludeFile,
     force: config.refactor?.force,
+    mappingFile: config.refactor?.mappingFile,
+    revert: config.refactor?.revert,
   };
   const userInput: UserInput = {
     globalOptions,
