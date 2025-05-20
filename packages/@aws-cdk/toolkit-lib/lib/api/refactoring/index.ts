@@ -8,7 +8,7 @@ import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 import { type ExcludeList, NeverExclude } from './exclude';
-import type { StackRetriever } from './stack-retriever';
+import type { StackContainer } from './stack-container';
 
 export * from './exclude';
 
@@ -147,7 +147,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
  */
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
-  stackRetriever: StackRetriever,
+  stackRetriever: StackContainer,
   exclude: ExcludeList = new NeverExclude(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();

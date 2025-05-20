@@ -20,8 +20,9 @@ import {
 import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
-import { executeRefactor, generateStackDefinitions } from '../../../lib/api/refactoring/execution';
-import { StackRetriever } from '../../../lib/api/refactoring/stack-retriever';
+import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
+import { StackContainer } from '../../../lib/api/refactoring/stack-container';
+import { TestIoHost } from '../../_helpers';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
@@ -1257,8 +1258,9 @@ describe('environment grouping', () => {
     async function mappings(stacks: CloudFormationStack[], excludeList?: ExcludeList) {
       const provider = new MockSdkProvider();
       provider.returnsDefaultAccounts(environment.account);
-      const retriever = new StackRetriever(provider);
-      const movements2 = await findResourceMovements(stacks, retriever, excludeList);
+      const ioHelper = new TestIoHost().asHelper('refactor');
+      const container = new StackContainer(provider, ioHelper, []);
+      const movements2 = await findResourceMovements(stacks, container, excludeList);
       return resourceMappings(movements2).map(toCfnMapping);
     }
   });
@@ -1372,7 +1374,8 @@ describe('environment grouping', () => {
 
     const provider = new MockSdkProvider();
     provider.returnsDefaultAccounts(environment1.account, environment2.account);
-    const retriever = new StackRetriever(provider);
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const retriever = new StackContainer(provider, ioHelper, []);
 
     const movements = await findResourceMovements([stack1, stack2], retriever);
     expect(ambiguousMovements(movements)).toEqual([]);
@@ -1689,10 +1692,6 @@ describe(generateStackDefinitions, () => {
     expect(() => generateStackDefinitions(mappings, [stack1, stack2]))
       .toThrow(/Stack Stack1 has no resources after refactor/);
   });
-});
-
-describe(executeRefactor, () => {
-
 });
 
 function toCfnMapping(m: ResourceMapping): CfnResourceMapping {

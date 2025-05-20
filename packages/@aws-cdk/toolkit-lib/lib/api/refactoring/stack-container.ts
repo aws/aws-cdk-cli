@@ -9,19 +9,23 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
-import type { StackAssembly } from '../cloud-assembly/private';
+import { EnvironmentResourcesRegistry } from '../environment';
+import { IO, IoHelper } from '../io/private';
 
 /**
- * Stateful retriever of stacks deployed in an environment.
+ * A container for stacks in all environments.
  */
-// TODO Maybe this class should have another name, along the lines of
-//  "StackContainer".
-export class StackRetriever {
+export class StackContainer {
   private readonly aws: IAws;
   private readonly stacksByEnvironment: Map<string, CloudFormationStack[]> = new Map();
+  private readonly environmentResourcesRegistry: EnvironmentResourcesRegistry;
 
-  constructor(private readonly sdkProvider: SdkProvider, private readonly assembly: StackAssembly) {
+  constructor(
+    private readonly sdkProvider: SdkProvider,
+    private readonly ioHelper: IoHelper,
+    private readonly localStacks: (CloudFormationStack & { assumeRoleArn?: string })[]) {
     this.aws = new DefaultAwsClient();
+    this.environmentResourcesRegistry = new EnvironmentResourcesRegistry();
   }
 
   public async getDeployedStacks(environment: cxapi.Environment): Promise<CloudFormationStack[]> {
@@ -63,40 +67,58 @@ export class StackRetriever {
   ): Promise<void> {
     const environments = Array.from(this.stacksByEnvironment.keys()).map(stringToEnv);
     for (const env of environments) {
-      const cfn = (
-        await this.sdkProvider.forEnvironment(env, Mode.ForWriting, {
-          assumeRoleArn: await this.assumeRoleArn(env),
-        })
-      ).sdk.cloudFormation();
+      const sdk = (await this.sdkProvider.forEnvironment(env, Mode.ForWriting, {
+        assumeRoleArn: await this.assumeRoleArn(env),
+      })).sdk;
+
+      const envResources = this.environmentResourcesRegistry.for(env, sdk, this.ioHelper);
+      if ((await envResources.lookupToolkit()).version < 28) {
+        throw new ToolkitError(
+          `The CDK toolkit stack in environment aws://${env.account}/${env.region} doesn't support refactoring. Please run 'cdk bootstrap' to update it.`,
+        );
+      }
+
+      const cfn = sdk.cloudFormation();
       const stacks = await this.getDeployedStacks(env);
-      await cb(cfn, stacks);
+      try {
+        await cb(cfn, stacks);
+      } catch (e: any) {
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor execution failed for environment aws://${env.account}/${env.region}`, { error: e }));
+      }
     }
   }
 
   private async assumeRoleArn(env: cxapi.Environment): Promise<string | undefined> {
-    const arn = this.deploymentRoleArnFor(env);
-    if (arn != null) {
-      return (await replaceAwsPlaceholders({ region: undefined, assumeRoleArn: arn }, this.aws)).assumeRoleArn;
-    }
-    return undefined;
-  }
+    // To execute a refactor, we need the deployment role ARN for the given
+    // environment. Most toolkit commands get the information about which roles to
+    // assume from the cloud assembly (and ultimately from the CDK framework). Refactor
+    // is different because it is not the application/framework that dictates what the
+    // toolkit should do, but it is the toolkit itself that has to figure it out.
+    //
+    // Nevertheless, the cloud assembly is the most reliable source for this kind of
+    // information. For the deployment role ARN, in particular, what we do here
+    // is look at all the stacks for a given environment in the cloud assembly and
+    // extract the deployment role ARN that is common to all of them. If no role is
+    // found, we go ahead without assuming a role. If there is more than one role,
+    // we consider that an invariant was violated, and throw an error.
 
-  private deploymentRoleArnFor(env: cxapi.Environment): string | undefined {
     const roleArns = new Set(
-      this.assembly.cloudAssembly.stacks
+      this.localStacks
         .filter((s) => s.environment.account === env.account && s.environment.region === env.region)
         .map((s) => s.assumeRoleArn),
     );
 
-    // Validating that all stacks in the same environment have the same role ARN.
-    // This should normally be the case, but in case it isn't, all bets are off.
     if (roleArns.size !== 1) {
       throw new ToolkitError(
         'Multiple stacks in the same environment have different deployment role ARNs. This is not supported.',
       );
     }
 
-    return Array.from(roleArns)[0];
+    const arn = Array.from(roleArns)[0];
+    if (arn != null) {
+      return (await replaceAwsPlaceholders({ region: undefined, assumeRoleArn: arn }, this.aws)).assumeRoleArn;
+    }
+    return undefined;
   }
 }
 

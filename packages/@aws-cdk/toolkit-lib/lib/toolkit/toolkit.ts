@@ -52,7 +52,7 @@ import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-
 import { PluginHost } from '../api/plugin';
 import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
 import { executeRefactor } from '../api/refactoring/execution';
-import { StackRetriever } from '../api/refactoring/stack-retriever';
+import { StackContainer } from '../api/refactoring/stack-container';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -970,10 +970,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-    const stackRetriever = new StackRetriever(await this.sdkProvider('refactor'), assembly);
+    const sdkProvider = await this.sdkProvider('refactor');
+    const localStacks = assembly.cloudAssembly.stacks;
+    const stackRetriever = new StackContainer(sdkProvider, ioHelper, localStacks);
     const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
     const movements = await findResourceMovements(stacks.stackArtifacts, stackRetriever, exclude);
     const ambiguous = ambiguousMovements(movements);
+
     if (ambiguous.length === 0) {
       const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
       const mappings = resourceMappings(movements, filteredStacks.stackArtifacts);

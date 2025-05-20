@@ -69,6 +69,8 @@ group: Documents
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I8900` | Refactor result | `result` | {@link RefactorResult} |
+| `CDK_TOOLKIT_I8910` | Confirm refactor | `info` | {@link ConfirmationRequest} |
+| `CDK_TOOLKIT_I8901` | Generic refactor messages | `info` | n/a |
 | `CDK_TOOLKIT_W8010` | Refactor execution not yet supported | `warn` | n/a |
 | `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I9000` | Provides bootstrap times | `info` | {@link Duration} |

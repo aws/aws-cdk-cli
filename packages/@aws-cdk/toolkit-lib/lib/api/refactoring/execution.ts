@@ -1,6 +1,6 @@
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack, ResourceMapping } from './cloudformation';
-import type { StackRetriever } from './stack-retriever';
+import type { StackContainer } from './stack-container';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
@@ -58,7 +58,7 @@ export function generateStackDefinitions(
   }));
 }
 
-export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackRetriever): Promise<void> {
+export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackContainer): Promise<void> {
   await stackRetriever.forEachEnvironment(async (cfn, stacks) => {
     const refactor = await cfn.createStackRefactor({
       EnableStackCreation: true,
