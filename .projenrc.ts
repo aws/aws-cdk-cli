@@ -1706,6 +1706,7 @@ new CdkCliIntegTestsWorkflow(repo, {
     cdkAliasPackage.name,
     cliInteg.name,
     toolkitLib.name,
+    cliPluginContract.name,
   ],
 
   allowUpstreamVersions: [
