@@ -4,7 +4,6 @@ import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
-import { RequireApproval } from '../../lib/api/require-approval';
 import { cfnApi } from '../../lib/api/shared-private';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
@@ -18,8 +17,6 @@ beforeEach(() => {
   restoreSdkMocksToDefault();
   setDefaultSTSMocks();
   ioHost = new TestIoHost();
-  ioHost.requireDeployApproval = RequireApproval.NEVER;
-
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
