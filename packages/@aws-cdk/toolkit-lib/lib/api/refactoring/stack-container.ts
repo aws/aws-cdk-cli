@@ -73,7 +73,14 @@ export class StackContainer {
       })).sdk;
 
       const envResources = this.environmentResourcesRegistry.for(env, sdk, this.ioHelper);
-      if ((await envResources.lookupToolkit()).version < 28) {
+      let bootstrapVersion: number | undefined = undefined;
+      try {
+        // Try to get the bootstrap version
+        bootstrapVersion = (await envResources.lookupToolkit()).version;
+      } catch (e) {
+        // But if we can't, keep going. Maybe we can still succeed.
+      }
+      if (bootstrapVersion != null && bootstrapVersion < 28) {
         const resolvedEnv = await this.sdkProvider.resolveEnvironment(env);
         throw new ToolkitError(
           `The CDK toolkit stack in environment aws://${resolvedEnv.account}/${resolvedEnv.region} doesn't support refactoring. Please run 'cdk bootstrap' to update it.`,
@@ -111,9 +118,16 @@ export class StackContainer {
         .map((s) => s.assumeRoleArn),
     );
 
-    if (roleArns.size !== 1) {
+    if (roleArns.size === 0) {
       throw new ToolkitError(
-        'Multiple stacks in the same environment have different deployment role ARNs. This is not supported.',
+        `No deployment role ARN found for environment aws://${env.account}/${env.region}. Cannot proceed.`,
+      );
+    }
+
+    if (roleArns.size !== 1) {
+      // Unlikely to happen. But if it does, we can't proceed
+      throw new ToolkitError(
+        `Multiple stacks in environment aws://${env.account}/${env.region} have different deployment role ARNs. Cannot proceed.`,
       );
     }
 
@@ -121,6 +135,8 @@ export class StackContainer {
     if (arn != null) {
       return (await replaceAwsPlaceholders({ region: undefined, assumeRoleArn: arn }, this.aws)).assumeRoleArn;
     }
+    // If we couldn't find a role ARN, we can proceed without assuming a role.
+    // Maybe the default credentials have permissions to do what we need.
     return undefined;
   }
 }

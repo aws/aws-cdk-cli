@@ -18,9 +18,7 @@ import {
   resourceMovements,
   usePrescribedMappings,
 } from '../../../lib/api/refactoring';
-import type {
-  CloudFormationStack,
-} from '../../../lib/api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
@@ -1438,7 +1436,9 @@ describe(usePrescribedMappings, () => {
 
     // WHEN
     const provider = new MockSdkProvider();
-    const result = await usePrescribedMappings(mappings.environments, provider);
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
+    const result = await usePrescribedMappings(mappings.environments, container);
 
     // THEN
     // The mappings should be generated correctly, with the template included in the source.
@@ -1528,11 +1528,12 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Duplicate destination resource 'Bar.Bucket2' in environment 123456789012/us-east-1",
     );
   });
@@ -1557,11 +1558,12 @@ describe(usePrescribedMappings, () => {
       StackSummaries: [],
     });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Source resource 'Foo.Bucket1' does not exist in environment 123456789012/us-east-1",
     );
   });
@@ -1631,11 +1633,12 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Destination resource 'Bar.Bucket2' already in use in environment 123456789012/us-east-1",
     );
   });
@@ -1684,11 +1687,12 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Invalid location 'InvalidLocation'",
     );
   });

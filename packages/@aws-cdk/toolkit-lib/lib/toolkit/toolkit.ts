@@ -36,7 +36,7 @@ import { patternsArrayForWatch } from '../actions/watch/private';
 import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
 import { makeRequestHandler } from '../api/aws-auth/awscli-compatible';
 import type { SdkProviderServices } from '../api/aws-auth/private';
-import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
+import { IoHostSdkLogger, SdkProvider } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
@@ -50,9 +50,6 @@ import type { IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { PluginHost } from '../api/plugin';
-import { AmbiguityError, ambiguousMovements, findResourceMovements, formatAmbiguousMappings, formatTypedMappings, fromManifestAndExclusionList, resourceMappings } from '../api/refactoring';
-import { executeRefactor } from '../api/refactoring/execution';
-import { StackContainer } from '../api/refactoring/stack-container';
 import {
   AmbiguityError,
   ambiguousMovements,
@@ -64,6 +61,8 @@ import {
   usePrescribedMappings,
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import { executeRefactor } from '../api/refactoring/execution';
+import { StackContainer } from '../api/refactoring/stack-container';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -1023,14 +1022,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     async function getMappings(): Promise<ResourceMapping[]> {
       if (options.revert) {
-        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
+        return usePrescribedMappings(revert(options.mappings ?? []), stackContainer);
       }
       if (options.mappings != null) {
-        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
+        return usePrescribedMappings(options.mappings ?? [], stackContainer);
       } else {
         const stacks = await assembly.selectStacksV2(ALL_STACKS);
         const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
+        const movements = await findResourceMovements(stacks.stackArtifacts, stackContainer, exclude);
         const ambiguous = ambiguousMovements(movements);
         if (ambiguous.length === 0) {
           const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);

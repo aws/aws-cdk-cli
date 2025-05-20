@@ -3,13 +3,13 @@ import {
   formatAmbiguousMappings as fmtAmbiguousMappings,
   formatTypedMappings as fmtTypedMappings,
 } from '@aws-cdk/cloudformation-diff';
+import type * as cxapi from '@aws-cdk/cx-api';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests, hashObject } from './digest';
 import { type ExcludeList, NeverExclude } from './exclude';
 import type { StackContainer } from './stack-container';
-import { type ExcludeList, NeverExclude } from './exclude';
 import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
@@ -52,7 +52,7 @@ function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
 
 export async function usePrescribedMappings(
   mappingGroups: MappingGroup[],
-  sdkProvider: SdkProvider,
+  stackContainer: StackContainer,
 ): Promise<ResourceMapping[]> {
   interface StackGroup extends MappingGroup {
     stacks: CloudFormationStack[];
@@ -62,7 +62,7 @@ export async function usePrescribedMappings(
   for (const group of mappingGroups) {
     stackGroups.push({
       ...group,
-      stacks: await getDeployedStacks(sdkProvider, environmentOf(group)),
+      stacks: await stackContainer.getDeployedStacks(environmentOf(group)),
     });
   }
 
