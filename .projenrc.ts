@@ -601,7 +601,7 @@ const cdkAssets = configureProject(
     description: 'CDK Asset Publishing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cxApi,
       'archiver',
       'glob',
@@ -708,13 +708,13 @@ const toolkitLib = configureProject(
       },
     },
     peerDeps: [
-      cliPluginContract.customizeReference({ versionType: 'major' }), // allow consumers to easily de-depulicate this
+      cliPluginContract.customizeReference({ versionType: 'any-minor' }), // allow consumers to easily de-depulicate this
     ],
     deps: [
-      cloudAssemblySchema, // @todo need to find the minmal required version
-      cloudFormationDiff.customizeReference({ versionType: 'major' }), // allow consumers with old toolkit-lib versions to get upgrades
-      cdkAssets.customizeReference({ versionType: 'major' }), // allow consumers with old toolkit-lib versions to get upgrades
-      `${cxApi}@^2`, // allow consumers with old toolkit-lib versions to get upgrades
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }), // needs to be newer than what this was build with
+      cloudFormationDiff.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
+      cdkAssets.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
+      `${cxApi}@^2`, // stay within the same MV, otherwise any should work
       `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
@@ -1047,7 +1047,7 @@ const cli = configureProject(
       'xml-js',
     ],
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
       toolkitLib,
@@ -1466,7 +1466,7 @@ const integRunner = configureProject(
     description: 'CDK Integration Testing Tool',
     srcdir: 'lib',
     deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'minimal' }),
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cxApi,
       cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
