@@ -737,7 +737,7 @@ export async function ensureBootstrapped(fixture: TestFixture) {
 }
 
 async function doBootstrap(envSpecifier: string, fixture: TestFixture, allowErrExit: boolean) {
-  return fixture.cdk(['bootstrap', envSpecifier], {
+  return fixture.cdk(['bootstrap', '--bootstrap-kms-key-id', 'AWS_MANAGED_KEY', envSpecifier], {
     modEnv: {
       // Even for v1, use new bootstrap
       CDK_NEW_BOOTSTRAP: '1',

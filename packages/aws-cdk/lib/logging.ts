@@ -1,11 +1,11 @@
 import * as chalk from 'chalk';
-import { asIoHelper, IoDefaultMessages } from '../lib/api-private';
+import { asIoHelper } from '../lib/api-private';
 import type { IoMessageLevel } from './cli/io-host/cli-io-host';
 import { CliIoHost } from './cli/io-host/cli-io-host';
 
-export type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
-export type IoCodeLevel = 'E' | 'W' | 'I';
-export type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
+type IoMessageCodeCategory = 'TOOLKIT' | 'SDK' | 'ASSETS';
+type IoCodeLevel = 'E' | 'W' | 'I';
+type IoMessageSpecificCode<L extends IoCodeLevel> = `CDK_${IoMessageCodeCategory}_${L}${number}${number}${number}${number}`;
 
 /**
  * Logs messages to the global CliIoHost
@@ -24,8 +24,7 @@ function formatMessageAndLog(
   const helper = asIoHelper(singletonHost, singletonHost.currentAction as any);
 
   if (typeof input === 'string') {
-    const messages = new IoDefaultMessages(helper);
-    messages[level](input, ...args);
+    void singletonHost.defaults[level](input, ...args);
   } else {
     void helper.notify({
       data: undefined,
@@ -127,21 +126,6 @@ export const result = (input: LogInput<'I'>, ...args: unknown[]) => {
  */
 export const debug = (input: LogInput<'I'>, ...args: unknown[]) => {
   return formatMessageAndLog('debug', input, ...args);
-};
-
-/**
- * Logs a trace level message.
- *
- * Can be used in multiple ways:
- * ```ts
- * trace(`entered ${name} with ${args}`) // infers default info code `CDK_TOOLKIT_I000`
- * trace('method: %s, args: %j', name, args) // infers default info code `CDK_TOOLKIT_I000`
- * trace({ message: 'entered', code: 'CDK_TOOLKIT_I001' }) // specifies info code `CDK_TOOLKIT_I001`
- * trace({ message: 'method: %s', code: 'CDK_TOOLKIT_I001' }, name) // specifies info code `CDK_TOOLKIT_I001`
- * ```
- */
-export const trace = (input: LogInput<'I'>, ...args: unknown[]) => {
-  return formatMessageAndLog('trace', input, ...args);
 };
 
 /**

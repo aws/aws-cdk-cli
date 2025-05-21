@@ -29,6 +29,7 @@ export async function npmQueryInstalledVersion(packageName: string, dir: string)
     cwd: dir,
     show: 'error',
     captureStderr: false,
+    outputs: [process.stderr],
   });
   const report = JSON.parse(reportStr);
   return report.dependencies[packageName].version;

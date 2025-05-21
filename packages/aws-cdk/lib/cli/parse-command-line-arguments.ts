@@ -201,7 +201,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('bootstrap-kms-key-id', {
           default: undefined,
           type: 'string',
-          desc: 'AWS KMS master key ID used for the SSE-KMS encryption',
+          desc: 'AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)',
           conflicts: 'bootstrap-customer-key',
         })
         .option('example-permissions-boundary', {

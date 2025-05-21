@@ -2,7 +2,6 @@ import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { ToolkitInfo } from '../../../lib/api';
 import { Context } from '../../../lib/api/context';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
-import { FakeIoHost } from '../../../lib/api/io/private/testing/fake-io-host';
 import { Notices } from '../../../lib/api/notices';
 import { CachedDataSource } from '../../../lib/api/notices/cached-data-source';
 import { NoticesFilter } from '../../../lib/api/notices/filter';
@@ -103,7 +102,7 @@ describe('validateversion without bootstrap stack', () => {
       .mockImplementation(() => Promise.resolve({ expiration: 0, notices: [] }));
 
     // THEN
-    const myIoHost = new FakeIoHost();
+    const myIoHost = new TestIoHost();
     const notices = Notices.create({ context: new Context(), ioHost: myIoHost, cliVersion: '1.0.0' });
     await notices.refresh({ dataSource: { fetch: async () => [] } });
     await expect(envResources().validateVersion(8, '/abc')).resolves.toBeUndefined();

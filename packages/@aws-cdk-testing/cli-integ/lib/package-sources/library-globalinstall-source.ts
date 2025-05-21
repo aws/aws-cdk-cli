@@ -24,6 +24,7 @@ export class RunnerLibraryGlobalInstallSource implements IRunnerSource<ITestLibr
     await shell(['node', require.resolve('npm'), 'install', `${this.packageName}@${this.range}`], {
       cwd: tempDir,
       show: 'error',
+      outputs: [process.stderr],
     });
 
     const symlinkPath = path.join(__dirname, '..', '..', 'node_modules', this.packageName);

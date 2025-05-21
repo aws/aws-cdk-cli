@@ -3,13 +3,14 @@ import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
+import type { SdkProvider } from '../../../api/aws-auth/private';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
 import type { Deployments } from '../../../api/deployments';
+import * as cfnApi from '../../../api/deployments/cfn-api';
 import type { TemplateInfo } from '../../../api/diff';
+import type { IoHelper } from '../../../api/io/private';
 import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
-import type { IoHelper, SdkProvider } from '../../../api/shared-private';
-import { IO, cfnApi } from '../../../api/shared-private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { deserializeStructure, formatErrorMessage } from '../../../util';
 
@@ -126,8 +127,8 @@ async function changeSetDiff(
       throw new ToolkitError(`describeStacks call failed with ${e} for ${stack.stackName}, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
     }
 
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`));
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(formatErrorMessage(e)));
+    await ioHelper.defaults.debug(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`);
+    await ioHelper.defaults.debug(formatErrorMessage(e));
     stackExists = false;
   }
 
@@ -148,7 +149,7 @@ async function changeSetDiff(
       throw new ToolkitError(`the stack '${stack.stackName}' has not been deployed to CloudFormation, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
     }
 
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`));
+    await ioHelper.defaults.debug(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`);
     return;
   }
 }

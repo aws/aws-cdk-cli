@@ -1,9 +1,10 @@
 import * as util from 'node:util';
 import * as uuid from 'uuid';
 import type { ActionLessMessage, IoHelper } from './io-helper';
-import type { IoMessageMaker } from './message-maker';
+import type * as make from './message-maker';
 import type { Duration } from '../../../payloads/types';
 import { formatTime } from '../../../util';
+import type { IoMessageLevel } from '../io-message';
 
 export interface SpanEnd {
   readonly duration: number;
@@ -17,8 +18,8 @@ export interface SpanEnd {
  */
 export interface SpanDefinition<S extends object, E extends SpanEnd> {
   readonly name: string;
-  readonly start: IoMessageMaker<S>;
-  readonly end: IoMessageMaker<E>;
+  readonly start: make.IoMessageMaker<S>;
+  readonly end: make.IoMessageMaker<E>;
 }
 
 /**
@@ -65,11 +66,15 @@ export interface IMessageSpan<E extends SpanEnd> {
    * Sends a simple, generic message with the current timing
    * For more complex intermediate messages, get the `elapsedTime` and use `notify`
    */
-  timing(maker: IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime>;
+  timing(maker: make.IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime>;
   /**
    * Sends an arbitrary intermediate message as part of the span
    */
   notify(message: ActionLessMessage<unknown>): Promise<void>;
+  /**
+   * Sends an arbitrary intermediate default message as part of the span
+   */
+  notifyDefault(level: IoMessageLevel, message: string): Promise<void>;
   /**
    * End the span with a payload
    */
@@ -141,7 +146,11 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
         await notify(msg);
       },
 
-      timing: async(maker: IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime> => {
+      notifyDefault: async(level: IoMessageLevel, msg: string): Promise<void> => {
+        await notify(this.ioHelper.defaults.msg(level, msg));
+      },
+
+      timing: async(maker: make.IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime> => {
         const duration = time();
         const timingMsg = message ? message : util.format(timingMsgTemplate, this.definition.name, duration.asSec);
         await notify(maker.msg(timingMsg, {

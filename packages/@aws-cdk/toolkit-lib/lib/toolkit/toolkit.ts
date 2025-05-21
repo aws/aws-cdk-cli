@@ -215,7 +215,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Bootstrap Action
    */
-  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions): Promise<BootstrapResult> {
+  public async bootstrap(environments: BootstrapEnvironments, options: BootstrapOptions = {}): Promise<BootstrapResult> {
     const startTime = Date.now();
     const results: EnvironmentBootstrapResult[] = [];
 
@@ -317,7 +317,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     } else {
       // not outputting template to stdout, let's explain things to the user a little bit...
       await ioHelper.notify(IO.CDK_TOOLKIT_I1902.msg(chalk.green(message), assemblyData));
-      await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`));
+      await ioHelper.defaults.info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`);
     }
 
     return new CachedCloudAssembly(assembly);
@@ -326,7 +326,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Diff Action
    */
-  public async diff(cx: ICloudAssemblySource, options: DiffOptions): Promise<{ [name: string]: TemplateDiff }> {
+  public async diff(cx: ICloudAssemblySource, options: DiffOptions = {}): Promise<{ [name: string]: TemplateDiff }> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -348,7 +348,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({
-        ioHelper,
         templateInfo,
       });
 
@@ -357,7 +356,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // In Diff, we only care about BROADENING security diffs
         if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
           const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
-          await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(warningMessage));
+          await ioHelper.defaults.warn(warningMessage);
           formattedSecurityDiff = securityDiff.formattedDiff;
           diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
         }
@@ -410,7 +409,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       });
 
       if (!driftResults) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${chalk.bold(stack.displayName)}: unable to detect drift`));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4505.msg(`${chalk.bold(stack.displayName)}: unable to detect drift`));
         continue;
       }
 
@@ -424,35 +423,33 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const driftOutput = formatter.formatStackDrift();
 
       if (driftOutput.formattedDrift.stackHeader) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(driftOutput.formattedDrift.stackHeader));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.stackHeader, driftOutput));
         output.push(driftOutput.formattedDrift.stackHeader);
       }
       if (driftOutput.formattedDrift.unchanged) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.unchanged, driftOutput));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.formattedDrift.unchanged, driftOutput));
         output.push(driftOutput.formattedDrift.unchanged);
       }
       if (driftOutput.formattedDrift.unchecked) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.formattedDrift.unchecked, driftOutput));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.formattedDrift.unchecked, driftOutput));
         output.push(driftOutput.formattedDrift.unchecked);
       }
       if (driftOutput.formattedDrift.modified) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.formattedDrift.modified, driftOutput));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.formattedDrift.modified, driftOutput));
         output.push(driftOutput.formattedDrift.modified);
       }
       if (driftOutput.formattedDrift.deleted) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.formattedDrift.deleted, driftOutput));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4504.msg(driftOutput.formattedDrift.deleted, driftOutput));
         output.push(driftOutput.formattedDrift.deleted);
       }
       if (driftOutput.formattedDrift.finalResult) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(driftOutput.formattedDrift.finalResult));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.finalResult, driftOutput));
         output.push(driftOutput.formattedDrift.finalResult);
       }
       drifts += driftOutput.numResourcesWithDrift === -1 ? 0 : driftOutput.numResourcesWithDrift || 0;
       uncheckedResources += driftOutput.numResourcesUnchecked === -1 ? 0 : driftOutput.numResourcesUnchecked || 0;
       output.push(driftOutput.formattedDrift);
-      await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`All stack resources: ${JSON.stringify(Array.from(allStackResources.entries()))}\nCounts: ${allStackResources.size}, ${driftResults.StackResourceDrifts?.length} vs ${driftOutput.numResourcesWithDrift}, ${driftOutput.numResourcesUnchecked}`));
     }
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Counts: ${drifts}, ${uncheckedResources}`));
 
     return {
       numResourcesWithDrift: drifts,
@@ -564,7 +561,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const deployStack = async (stackNode: StackNode) => {
       const stack = stackNode.stack;
       if (stackCollection.stackCount !== 1) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.bold(stack.displayName)));
+        await ioHelper.defaults.info(chalk.bold(stack.displayName));
       }
 
       if (!stack.environment) {
@@ -594,7 +591,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const currentTemplate = await deployments.readCurrentTemplate(stack);
 
       const formatter = new DiffFormatter({
-        ioHelper,
         templateInfo: {
           oldTemplate: currentTemplate,
           newTemplate: stack,
@@ -832,7 +828,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * This function returns immediately, starting a watcher in the background.
    */
-  public async watch(cx: ICloudAssemblySource, options: WatchOptions): Promise<IWatcher> {
+  public async watch(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
@@ -926,7 +922,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       })
       .on('ready', async () => {
         latch = 'open';
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment"));
+        await ioHelper.defaults.debug("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment");
         await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg("Triggering initial 'cdk deploy'"));
         await deployAndWatch();
       })
@@ -976,7 +972,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Rolls back the selected stacks.
    */
-  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions): Promise<RollbackResult> {
+  public async rollback(cx: ICloudAssemblySource, options: RollbackOptions = {}): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
     await using assembly = await assemblyFromSource(ioHelper, cx);
     return await this._rollback(assembly, 'rollback', options);
@@ -986,9 +982,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Helper to allow rollback being called as part of the deploy or watch action.
    */
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<RollbackResult> {
+    const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
-    const stacks = await assembly.selectStacksV2(options.stacks);
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    const stacks = await assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stacks, ioHelper);
     await synthSpan.end();
 
@@ -1118,7 +1115,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    *
    * Destroys the selected Stacks.
    */
-  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions): Promise<DestroyResult> {
+  public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
     await using assembly = await assemblyFromSource(ioHelper, cx);
     return await this._destroy(assembly, 'destroy', options);
@@ -1128,10 +1125,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Helper to allow destroy being called as part of the deploy action.
    */
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
+    const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: options.stacks });
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = (await assembly.selectStacksV2(options.stacks)).reversed();
+    const stacks = (await assembly.selectStacksV2(selectStacks)).reversed();
     await synthSpan.end();
 
     const ret: DestroyResult = {

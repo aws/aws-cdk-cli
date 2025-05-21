@@ -3,8 +3,10 @@ import type { StackSelector } from '../../api/cloud-assembly';
 export interface RollbackOptions {
   /**
    * Criteria for selecting stacks to rollback
+   *
+   * @default - all stacks
    */
-  readonly stacks: StackSelector;
+  readonly stacks?: StackSelector;
 
   /**
    * Role to pass to CloudFormation for deployment

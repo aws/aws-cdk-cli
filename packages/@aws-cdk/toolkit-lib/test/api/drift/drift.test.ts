@@ -7,7 +7,7 @@ import {
   DetectStackResourceDriftCommand,
 } from '@aws-sdk/client-cloudformation';
 import { detectStackDrift, DriftFormatter } from '../../../lib/api/drift';
-import { IoHelper, IoDefaultMessages } from '../../../lib/api/io/private';
+import { IoHelper } from '../../../lib/api/io/private';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { mockCloudFormationClient, MockSdk } from '../../_helpers/mock-sdk';
 
@@ -21,7 +21,6 @@ jest.mock('../../../lib/api/io/private', () => {
         msg: jest.fn().mockReturnValue('mocked-message'),
       },
     },
-    IoDefaultMessages: jest.fn(),
   };
 });
 
@@ -291,7 +290,6 @@ describe('detectStackDrift', () => {
 describe('formatStackDrift', () => {
   let mockIoHelper: IoHelper;
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
-  let mockIoDefaultMessages: any;
 
   beforeEach(() => {
     const mockNotify = jest.fn().mockResolvedValue(undefined);
@@ -302,16 +300,8 @@ describe('formatStackDrift', () => {
       'diff',
     );
 
-    mockIoDefaultMessages = {
-      info: jest.fn(),
-      warning: jest.fn(),
-      error: jest.fn(),
-    };
-
     jest.spyOn(mockIoHelper, 'notify').mockImplementation(() => Promise.resolve());
     jest.spyOn(mockIoHelper, 'requestResponse').mockImplementation(() => Promise.resolve());
-
-    (IoDefaultMessages as jest.Mock).mockImplementation(() => mockIoDefaultMessages);
 
     mockNewTemplate = {
       template: {

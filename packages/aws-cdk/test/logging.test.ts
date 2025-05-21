@@ -1,5 +1,5 @@
 import { CliIoHost } from '../lib/cli/io-host';
-import { result, success, highlight, error, warning, info, debug, trace } from '../lib/logging';
+import { result, success, highlight, error, warning, info, debug } from '../lib/logging';
 
 describe('logging', () => {
   const ioHost = CliIoHost.instance({}, true);
@@ -91,18 +91,6 @@ describe('logging', () => {
       debug('debug message');
       expect(mockStderr).toHaveBeenCalledWith(
         expect.stringMatching(/^\[\d{2}:\d{2}:\d{2}\] debug message\n$/),
-      );
-    });
-
-    test('trace messages only show at trace level with both styles', () => {
-      ioHost.logLevel = 'debug';
-      trace('trace message');
-      expect(mockStderr).not.toHaveBeenCalled();
-
-      ioHost.logLevel = 'trace';
-      trace('trace message');
-      expect(mockStderr).toHaveBeenCalledWith(
-        expect.stringMatching(/^\[\d{2}:\d{2}:\d{2}\] trace message\n$/),
       );
     });
   });

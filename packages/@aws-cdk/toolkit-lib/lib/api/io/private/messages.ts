@@ -7,12 +7,13 @@ import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-e
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
+import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
-import type { SdkTrace } from '../../../payloads/sdk-trace';
+import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
 import type { StackSelectionDetails } from '../../../payloads/synth';
 import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../../../payloads/types';
@@ -25,28 +26,6 @@ import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
  * - X900-X999 are reserved for results
  */
 export const IO = {
-  // Defaults (0000)
-  DEFAULT_TOOLKIT_INFO: make.info({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default info messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_DEBUG: make.debug({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default debug messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_WARN: make.warn({
-    code: 'CDK_TOOLKIT_W0000',
-    description: 'Default warning messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_ERROR: make.error({
-    code: 'CDK_TOOLKIT_E0000',
-    description: 'Default error messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_TRACE: make.trace({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default trace messages emitted from the Toolkit',
-  }),
-
   // warnings & errors
   CDK_TOOLKIT_W0100: make.warn({
     code: 'CDK_TOOLKIT_W0100',
@@ -100,25 +79,38 @@ export const IO = {
     description: 'Output of the diff command',
     interface: 'DiffResult',
   }),
-  CDK_TOOLKIT_I4500: make.debug<DriftResult>({
+  CDK_TOOLKIT_I4500: make.info<DriftResult>({
     code: 'CDK_TOOLKIT_I4500',
-    description: 'Unchanged resources in the drift command output',
+    description: 'Output of the drift command',
     interface: 'DriftResult',
   }),
   CDK_TOOLKIT_I4501: make.debug<DriftResult>({
     code: 'CDK_TOOLKIT_I4501',
-    description: 'Unchecked resources in the drift command output',
+    description: 'Unchanged resources in the drift command output',
     interface: 'DriftResult',
   }),
-  CDK_TOOLKIT_I4502: make.result<DriftResult>({
+  CDK_TOOLKIT_I4502: make.debug<DriftResult>({
     code: 'CDK_TOOLKIT_I4502',
-    description: 'Modified resources in the drift command output',
+    description: 'Unchecked resources in the drift command output',
     interface: 'DriftResult',
   }),
   CDK_TOOLKIT_I4503: make.result<DriftResult>({
     code: 'CDK_TOOLKIT_I4503',
+    description: 'Modified resources in the drift command output',
+    interface: 'DriftResult',
+  }),
+  CDK_TOOLKIT_I4504: make.result<DriftResult>({
+    code: 'CDK_TOOLKIT_I4504',
     description: 'Deleted resources in the drift command output',
     interface: 'DriftResult',
+  }),
+  CDK_TOOLKIT_I4505: make.error({
+    code: 'CDK_TOOLKIT_I4505',
+    description: 'Drift detection error',
+  }),
+  CDK_TOOLKIT_I4506: make.trace({
+    code: 'CDK_TOOLKIT_I4506',
+    description: 'Drift detection is starting',
   }),
 
   // 5: Deploy & Watch (5xxx)
@@ -383,7 +375,7 @@ export const IO = {
     description: 'Refactor execution not yet supported',
   }),
 
-  // 9: Bootstrap (9xxx)
+  // 9: Bootstrap  & gc (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',
     description: 'Provides bootstrap times',
@@ -393,6 +385,13 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9100',
     description: 'Bootstrap progress',
     interface: 'BootstrapEnvironmentProgress',
+  }),
+
+  // gc (92xx)
+  CDK_TOOLKIT_I9210: make.question<AssetBatchDeletionRequest>({
+    code: 'CDK_TOOLKIT_I9210',
+    description: 'Confirm the deletion of a batch of assets',
+    interface: 'AssetBatchDeletionRequest',
   }),
 
   CDK_TOOLKIT_I9900: make.result<{ environment: cxapi.Environment }>({
@@ -521,10 +520,6 @@ export const IO = {
   }),
 
   // SDK codes
-  DEFAULT_SDK_TRACE: make.trace({
-    code: 'CDK_SDK_I0000',
-    description: 'An SDK trace message.',
-  }),
   DEFAULT_SDK_DEBUG: make.debug({
     code: 'CDK_SDK_I0000',
     description: 'An SDK debug message.',
@@ -537,6 +532,11 @@ export const IO = {
     code: 'CDK_SDK_I0100',
     description: 'An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level.',
     interface: 'SdkTrace',
+  }),
+  CDK_SDK_I1100: make.question<MfaTokenRequest>({
+    code: 'CDK_SDK_I1100',
+    description: 'Get an MFA token for an MFA device.',
+    interface: 'MfaTokenRequest',
   }),
 };
 

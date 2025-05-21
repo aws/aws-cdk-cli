@@ -5,7 +5,7 @@ import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, Tool
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
-import { asIoHelper, IO, IoDefaultMessages, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -204,7 +204,7 @@ export class CliIoHost implements IIoHost {
   }
 
   public get defaults() {
-    return new IoDefaultMessages(this.asIoHelper());
+    return this.asIoHelper().defaults;
   }
 
   public asIoHelper(): IoHelper {
@@ -357,10 +357,12 @@ export class CliIoHost implements IIoHost {
       const data: {
         motivation?: string;
         concurrency?: number;
+        responseDescription?: string;
       } = msg.data ?? {};
 
       const motivation = data.motivation ?? 'User input is needed';
       const concurrency = data.concurrency ?? 0;
+      const responseDescription = data.responseDescription;
 
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
@@ -392,8 +394,10 @@ export class CliIoHost implements IIoHost {
 
       // Asking for a specific value
       const prompt = extractPromptInfo(msg);
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)} (${prompt.default})`, {
+      const desc = responseDescription ?? prompt.default;
+      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
         default: prompt.default,
+        trim: true,
       });
       return prompt.convertAnswer(answer);
     });

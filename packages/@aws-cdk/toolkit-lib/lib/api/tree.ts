@@ -47,11 +47,11 @@ export async function loadTree(assembly: CloudAssembly, trace: (msg: string) => 
   }
 }
 
-export function loadTreeFromDir(outdir: string, trace: (msg: string) => void): ConstructTreeNode | undefined {
+export async function loadTreeFromDir(outdir: string, trace: (msg: string) => Promise<void>): Promise<ConstructTreeNode | undefined> {
   try {
     return fs.readJSONSync(path.join(outdir, 'tree.json')).tree;
   } catch (e) {
-    trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
+    await trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
     return undefined;
   }
 }

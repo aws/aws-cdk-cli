@@ -1,6 +1,7 @@
 import type { IIoHost } from '../io-host';
 import type { IoMessage, IoRequest } from '../io-message';
 import type { ToolkitAction } from '../toolkit-action';
+import { IoDefaultMessages } from './io-default-messages';
 import type { SpanEnd, SpanDefinition } from './span';
 import { SpanMaker } from './span';
 
@@ -15,12 +16,18 @@ export class IoHelper implements IIoHost {
     return new IoHelper(ioHost, action);
   }
 
+  /**
+   * Simplified access to emit default messages.
+   */
+  public readonly defaults: IoDefaultMessages;
+
   private readonly ioHost: IIoHost;
   private readonly action: ToolkitAction;
 
   private constructor(ioHost: IIoHost, action: ToolkitAction) {
     this.ioHost = ioHost;
     this.action = action;
+    this.defaults = new IoDefaultMessages(this);
   }
 
   /**

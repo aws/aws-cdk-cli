@@ -104,14 +104,14 @@ describe('some', () => {
 });
 
 describe('loadTreeFromDir', () => {
-  test('can find tree', () => {
-    const tree = loadTreeFromDir(path.join(__dirname, '..', '_fixtures', 'cloud-assembly-trees', 'built-with-1_144_0'), () => {
+  test('can find tree', async () => {
+    const tree = await loadTreeFromDir(path.join(__dirname, '..', '_fixtures', 'cloud-assembly-trees', 'built-with-1_144_0'), async () => {
     });
     expect(tree?.id).toEqual('App');
   });
 
-  test('cannot find tree', () => {
-    const tree = loadTreeFromDir(path.join(__dirname, '..', '_fixtures', 'cloud-assembly-trees', 'foo'), () => {
+  test('cannot find tree', async () => {
+    const tree = await loadTreeFromDir(path.join(__dirname, '..', '_fixtures', 'cloud-assembly-trees', 'foo'), async () => {
     });
     expect(tree).toEqual(undefined);
   });

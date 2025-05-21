@@ -5,7 +5,7 @@ import * as chalk from 'chalk';
 import type { AssetManifestBuilder } from './asset-manifest-builder';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { EnvironmentResources } from '../environment';
-import { IO, type IoHelper } from '../io/private';
+import { type IoHelper } from '../io/private';
 import type { ToolkitInfo } from '../toolkit-info';
 
 /**
@@ -42,11 +42,11 @@ export async function addMetadataAssetsToManifest(
     const reuseAsset = reuse.indexOf(asset.id) > -1;
 
     if (reuseAsset) {
-      await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Reusing asset ${asset.id}: ${JSON.stringify(asset)}`));
+      await ioHelper.defaults.debug(`Reusing asset ${asset.id}: ${JSON.stringify(asset)}`);
       continue;
     }
 
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Preparing asset ${asset.id}: ${JSON.stringify(asset)}`));
+    await ioHelper.defaults.debug(`Preparing asset ${asset.id}: ${JSON.stringify(asset)}`);
     if (!stack.assembly) {
       throw new ToolkitError('Unexpected: stack assembly is required in order to find assets in assembly directory');
     }
@@ -96,7 +96,7 @@ async function prepareFileAsset(
   const key = `${s3Prefix}${baseName}`;
   const s3url = `s3://${toolkitInfo.bucketName}/${key}`;
 
-  await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Storing asset ${asset.path} at ${s3url}`));
+  await ioHelper.defaults.debug(`Storing asset ${asset.path} at ${s3url}`);
 
   assetManifest.addFileAsset(asset.sourceHash, {
     path: asset.path,

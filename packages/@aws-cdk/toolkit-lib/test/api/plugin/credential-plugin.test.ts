@@ -1,7 +1,7 @@
 import type { CredentialProviderSource, SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import { CredentialPlugins, credentialsAboutToExpire } from '../../../lib/api/aws-auth/private';
-import { TestIoHost } from '../../../lib/api/io/private/testing';
 import { Mode, PluginHost } from '../../../lib/api/plugin';
+import { TestIoHost } from '../../_helpers/test-io-host';
 
 let host: PluginHost;
 let credentialPlugins: CredentialPlugins;

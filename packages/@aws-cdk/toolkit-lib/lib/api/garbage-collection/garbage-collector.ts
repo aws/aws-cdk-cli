@@ -2,7 +2,6 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
 import * as chalk from 'chalk';
-import * as promptly from 'promptly';
 import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth/private';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
@@ -55,7 +54,8 @@ export class ImageAsset {
     if (!dateIsolated || dateIsolated == '') {
       return false;
     }
-    return new Date(dateIsolated) < date;
+
+    return new Date(Number(dateIsolated)) < date;
   }
 
   public buildImageTag(inc: number) {
@@ -115,7 +115,8 @@ export class ObjectAsset {
     if (!tagValue || tagValue == '') {
       return false;
     }
-    return new Date(tagValue) < date;
+
+    return new Date(Number(tagValue)) < date;
   }
 }
 
@@ -208,7 +209,7 @@ export class GarbageCollector {
    * Perform garbage collection on the resolved environment.
    */
   public async garbageCollect() {
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${this.garbageCollectS3Assets} ${this.garbageCollectEcrAssets}`));
+    await this.ioHelper.defaults.debug(`${this.garbageCollectS3Assets} ${this.garbageCollectEcrAssets}`);
 
     // SDKs
     const sdk = (await this.props.sdkProvider.forEnvironment(this.props.resolvedEnvironment, Mode.ForWriting)).sdk;
@@ -252,7 +253,7 @@ export class GarbageCollector {
     const numImages = await this.numImagesInRepo(ecr, repo);
     const printer = new ProgressPrinter(this.ioHelper, numImages, 1000);
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Found bootstrap repo ${repo} with ${numImages} images`));
+    await this.ioHelper.defaults.debug(`Found bootstrap repo ${repo} with ${numImages} images`);
 
     try {
       // const batches = 1;
@@ -260,7 +261,7 @@ export class GarbageCollector {
       const currentTime = Date.now();
       const graceDays = this.props.rollbackBufferDays;
 
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Parsing through ${numImages} images in batches`));
+      await this.ioHelper.defaults.debug(`Parsing through ${numImages} images in batches`);
 
       printer.start();
 
@@ -269,16 +270,16 @@ export class GarbageCollector {
 
         const { included: isolated, excluded: notIsolated } = partition(batch, asset => !asset.tags.some(t => activeAssets.contains(t)));
 
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${isolated.length} isolated images`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${notIsolated.length} not isolated images`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${batch.length} images total`));
+        await this.ioHelper.defaults.debug(`${isolated.length} isolated images`);
+        await this.ioHelper.defaults.debug(`${notIsolated.length} not isolated images`);
+        await this.ioHelper.defaults.debug(`${batch.length} images total`);
 
         let deletables: ImageAsset[] = isolated;
         let taggables: ImageAsset[] = [];
         let untaggables: ImageAsset[] = [];
 
         if (graceDays > 0) {
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Filtering out images that are not old enough to delete'));
+          await this.ioHelper.defaults.debug('Filtering out images that are not old enough to delete');
 
           // We delete images that are not referenced in ActiveAssets and have the Isolated Tag with a date
           // earlier than the current time - grace period.
@@ -291,9 +292,9 @@ export class GarbageCollector {
           untaggables = notIsolated.filter(img => img.hasIsolatedTag());
         }
 
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${deletables.length} deletable assets`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${taggables.length} taggable assets`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${untaggables.length} assets to untag`));
+        await this.ioHelper.defaults.debug(`${deletables.length} deletable assets`);
+        await this.ioHelper.defaults.debug(`${taggables.length} taggable assets`);
+        await this.ioHelper.defaults.debug(`${untaggables.length} assets to untag`);
 
         if (this.permissionToDelete && deletables.length > 0) {
           await this.confirmationPrompt(printer, deletables, 'image');
@@ -326,14 +327,14 @@ export class GarbageCollector {
     const numObjects = await this.numObjectsInBucket(s3, bucket);
     const printer = new ProgressPrinter(this.ioHelper, numObjects, 1000);
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Found bootstrap bucket ${bucket} with ${numObjects} objects`));
+    await this.ioHelper.defaults.debug(`Found bootstrap bucket ${bucket} with ${numObjects} objects`);
 
     try {
       const batchSize = 1000;
       const currentTime = Date.now();
       const graceDays = this.props.rollbackBufferDays;
 
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Parsing through ${numObjects} objects in batches`));
+      await this.ioHelper.defaults.debug(`Parsing through ${numObjects} objects in batches`);
 
       printer.start();
 
@@ -345,16 +346,16 @@ export class GarbageCollector {
 
         const { included: isolated, excluded: notIsolated } = partition(batch, asset => !activeAssets.contains(asset.fileName()));
 
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${isolated.length} isolated assets`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${notIsolated.length} not isolated assets`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${batch.length} objects total`));
+        await this.ioHelper.defaults.debug(`${isolated.length} isolated assets`);
+        await this.ioHelper.defaults.debug(`${notIsolated.length} not isolated assets`);
+        await this.ioHelper.defaults.debug(`${batch.length} objects total`);
 
         let deletables: ObjectAsset[] = isolated;
         let taggables: ObjectAsset[] = [];
         let untaggables: ObjectAsset[] = [];
 
         if (graceDays > 0) {
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Filtering out assets that are not old enough to delete'));
+          await this.ioHelper.defaults.debug('Filtering out assets that are not old enough to delete');
           await this.parallelReadAllTags(s3, batch);
 
           // We delete objects that are not referenced in ActiveAssets and have the Isolated Tag with a date
@@ -368,9 +369,9 @@ export class GarbageCollector {
           untaggables = notIsolated.filter(obj => obj.hasIsolatedTag());
         }
 
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${deletables.length} deletable assets`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${taggables.length} taggable assets`));
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`${untaggables.length} assets to untag`));
+        await this.ioHelper.defaults.debug(`${deletables.length} deletable assets`);
+        await this.ioHelper.defaults.debug(`${taggables.length} taggable assets`);
+        await this.ioHelper.defaults.debug(`${untaggables.length} assets to untag`);
 
         if (this.permissionToDelete && deletables.length > 0) {
           await this.confirmationPrompt(printer, deletables, 'object');
@@ -421,7 +422,7 @@ export class GarbageCollector {
       );
     }
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Untagged ${untaggables.length} assets`));
+    await this.ioHelper.defaults.debug(`Untagged ${untaggables.length} assets`);
   }
 
   /**
@@ -452,7 +453,7 @@ export class GarbageCollector {
       );
     }
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Untagged ${untaggables.length} assets`));
+    await this.ioHelper.defaults.debug(`Untagged ${untaggables.length} assets`);
   }
 
   /**
@@ -475,14 +476,14 @@ export class GarbageCollector {
           // This is a false negative -- an isolated asset is untagged
           // likely due to an imageTag collision. We can safely ignore,
           // and the isolated asset will be tagged next time.
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Warning: unable to tag image ${JSON.stringify(img.tags)} with ${img.buildImageTag(i)} due to the following error: ${error}`));
+          await this.ioHelper.defaults.debug(`Warning: unable to tag image ${JSON.stringify(img.tags)} with ${img.buildImageTag(i)} due to the following error: ${error}`);
         }
       };
       await limit(() => tagEcr());
     }
 
     printer.reportTaggedAsset(taggables);
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Tagged ${taggables.length} assets`));
+    await this.ioHelper.defaults.debug(`Tagged ${taggables.length} assets`);
   }
 
   /**
@@ -510,7 +511,7 @@ export class GarbageCollector {
     }
 
     printer.reportTaggedAsset(taggables);
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Tagged ${taggables.length} assets`));
+    await this.ioHelper.defaults.debug(`Tagged ${taggables.length} assets`);
   }
 
   /**
@@ -535,11 +536,11 @@ export class GarbageCollector {
         });
 
         const deletedCount = batch.length;
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Deleted ${deletedCount} assets`));
+        await this.ioHelper.defaults.debug(`Deleted ${deletedCount} assets`);
         printer.reportDeletedAsset(deletables.slice(0, deletedCount));
       }
     } catch (err) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_ERROR.msg(`Error deleting images: ${err}`));
+      await this.ioHelper.defaults.error(`Error deleting images: ${err}`);
     }
   }
 
@@ -568,11 +569,11 @@ export class GarbageCollector {
         });
 
         const deletedCount = batch.length;
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Deleted ${deletedCount} assets`));
+        await this.ioHelper.defaults.debug(`Deleted ${deletedCount} assets`);
         printer.reportDeletedAsset(deletables.slice(0, deletedCount));
       }
     } catch (err) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(chalk.red(`Error deleting objects: ${err}`)));
+      await this.ioHelper.defaults.debug(chalk.red(`Error deleting objects: ${err}`));
     }
   }
 
@@ -726,7 +727,7 @@ export class GarbageCollector {
     } while (continuationToken);
   }
 
-  private async confirmationPrompt(printer: ProgressPrinter, deletables: GcAsset[], type: string) {
+  private async confirmationPrompt(printer: ProgressPrinter, deletables: GcAsset[], type: 'image' | 'object') {
     const pluralize = (name: string, count: number): string => {
       return count === 1 ? name : `${name}s`;
     };
@@ -737,17 +738,25 @@ export class GarbageCollector {
         `- ${type}s have been isolated for > ${this.props.rollbackBufferDays} days`,
         `- ${type}s were created > ${this.props.createdBufferDays} days ago`,
         '',
-        'Delete this batch (yes/no/delete-all)?',
+        'Delete this batch?',
       ].join('\n');
       printer.pause();
-      const response = await promptly.prompt(message,
-        { trim: true },
-      );
+      const response = await this.ioHelper.requestResponse(IO.CDK_TOOLKIT_I9210.req(message, {
+        batch: {
+          type,
+          count: deletables.length,
+          rollbackBufferDays: this.props.rollbackBufferDays,
+          createdBufferDays: this.props.createdBufferDays,
+        },
+        responseDescription: '[y]es/[n]o/[a]ll',
+      }, 'y'));
 
-      // Anything other than yes/y/delete-all is treated as no
-      if (!response || !['yes', 'y', 'delete-all'].includes(response.toLowerCase())) {
+      // Anything other than yes/all is treated as no
+      const yes = ['y', 'yes'];
+      const all = ['a', 'all', 'delete-all'];
+      if (!response || ![...yes, ...all].includes(response.toLowerCase())) {
         throw new ToolkitError('Deletion aborted by user');
-      } else if (response.toLowerCase() == 'delete-all') {
+      } else if (all.includes(response.toLowerCase())) {
         this.confirm = false;
       }
     }
