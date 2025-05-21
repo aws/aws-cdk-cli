@@ -8,7 +8,7 @@ integTest('can deploy without execution role and with session tags on deploy rol
 
   await fixture.cdkBootstrapModern({
     toolkitStackName: bootstrapStackName,
-    bootstrapTemplate: path.join(__dirname, '..', '..', 'resources', 'bootstrap-templates', 'session-tags.deploy-role-deny-sqs.yaml'),
+    bootstrapTemplate: path.join(__dirname, '..', '..', '..', 'resources', 'bootstrap-templates', 'session-tags.deploy-role-deny-sqs.yaml'),
   });
 
   await fixture.cdkDeploy('session-tags-with-custom-synthesizer', {

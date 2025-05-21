@@ -8,7 +8,7 @@ integTest('can deploy with session tags on the deploy, lookup, file asset, and i
 
   await fixture.cdkBootstrapModern({
     toolkitStackName: bootstrapStackName,
-    bootstrapTemplate: path.join(__dirname, '..', '..', 'resources', 'bootstrap-templates', 'session-tags.all-roles-deny-all.yaml'),
+    bootstrapTemplate: path.join(__dirname, '..', '..', '..', 'resources', 'bootstrap-templates', 'session-tags.all-roles-deny-all.yaml'),
   });
 
   await fixture.cdkDeploy('session-tags', {
