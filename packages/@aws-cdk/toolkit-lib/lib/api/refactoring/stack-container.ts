@@ -150,7 +150,9 @@ export class StackContainer {
 
     const arn = Array.from(roleArns)[0];
     if (arn != null) {
-      return (await replaceAwsPlaceholders({ region: undefined, assumeRoleArn: arn }, this.aws)).assumeRoleArn;
+      const resolvedEnv = await this.sdkProvider.resolveEnvironment(env);
+      const region = resolvedEnv.region;
+      return (await replaceAwsPlaceholders({ region, assumeRoleArn: arn }, this.aws)).assumeRoleArn;
     }
     // If we couldn't find a role ARN, we can proceed without assuming a role.
     // Maybe the default credentials have permissions to do what we need.
