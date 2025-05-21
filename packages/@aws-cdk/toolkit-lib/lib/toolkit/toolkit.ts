@@ -404,12 +404,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       // Get all stack resources if we want to show all
       const allStackResources = new Map<string, string>();
-      if (options.showAll) {
-        Object.keys(stack.template.Resources || {}).forEach(id => {
-          const resource = stack.template.Resources[id];
-          allStackResources.set(id, resource.Type);
-        });
-      }
+      Object.keys(stack.template.Resources || {}).forEach(id => {
+        const resource = stack.template.Resources[id];
+        allStackResources.set(id, resource.Type);
+      });
 
       if (!driftResults) {
         await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${chalk.bold(stack.displayName)}: unable to detect drift`));
@@ -423,9 +421,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         allStackResources,
       });
 
-      const driftOutput = formatter.formatStackDrift({
-        ...options,
-      });
+      const driftOutput = formatter.formatStackDrift();
 
       await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(driftOutput.formattedDrift));
       drifts += driftOutput.numResourcesWithDrift || 0;

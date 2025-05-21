@@ -81,7 +81,6 @@ export function formatStackDriftChanges(
   stream: FormatStream,
   driftResults: DescribeStackResourceDriftsCommandOutput,
   allStackResources?: Map<string, string>,
-  verbose: boolean = false,
   logicalToPathMap: { [logicalId: string]: string } = {}) {
   const formatter = new Formatter(stream, logicalToPathMap);
 
@@ -93,7 +92,7 @@ export function formatStackDriftChanges(
 
   // Process unchanged resources (if verbose)
   const unchangedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.IN_SYNC);
-  if (unchangedResources.length > 0 && verbose) {
+  if (unchangedResources.length > 0) {
     formatter.printSectionHeader('Resources In Sync');
 
     for (const drift of unchangedResources) {
@@ -104,7 +103,7 @@ export function formatStackDriftChanges(
   }
 
   // Process all unchecked resources (if verbose)
-  if (allStackResources && verbose) {
+  if (allStackResources) {
     const uncheckedResources = Array.from(allStackResources.keys()).filter((logicalId) => {
       return !drifts.find((drift) => drift.LogicalResourceId === logicalId);
     });

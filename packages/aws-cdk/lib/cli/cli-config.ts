@@ -347,7 +347,6 @@ export async function makeConfig(): Promise<CliConfig> {
         },
         options: {
           fail: { type: 'boolean', desc: 'Fail with exit code 1 if drift is detected' },
-          quiet: { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no drift to stdout' },
         },
       },
       metadata: {

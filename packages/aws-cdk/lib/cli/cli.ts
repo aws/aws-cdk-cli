@@ -265,9 +265,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'drift';
         return cli.drift({
           selector,
-          quiet: args.quiet,
           fail: args.fail,
-          showAll: args.showAll,
         });
 
       case 'refactor':

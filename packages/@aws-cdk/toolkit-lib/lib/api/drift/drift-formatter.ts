@@ -35,25 +35,6 @@ export interface DriftFormatterProps {
 }
 
 /**
- * Properties specific to formatting the stack drift
- */
-export interface FormatStackDriftOptions {
-  /**
-   * Silences 'No drift detected' messages
-   *
-   * @default false
-   */
-  readonly quiet?: boolean;
-
-  /**
-   * Whether to be verbose
-   *
-   * @default false
-   */
-  readonly verbose?: boolean;
-}
-
-/**
  * Class for formatting drift detection output
  */
 export class DriftFormatter {
@@ -70,16 +51,14 @@ export class DriftFormatter {
   /**
    * Format the stack drift detection results
    */
-  public formatStackDrift(options: FormatStackDriftOptions = {}): DriftResult {
+  public formatStackDrift(): DriftResult {
     const stream = new StringWriteStream();
 
     let driftCount = 0;
 
     if (!this.driftResults?.StackResourceDrifts) {
-      if (!options.quiet) {
-        stream.write('No drift results available.');
-        stream.end();
-      }
+      stream.write('No drift results available.');
+      stream.end();
       return { formattedDrift: stream.toString() };
     }
 
@@ -88,21 +67,19 @@ export class DriftFormatter {
       d.StackResourceDriftStatus === 'DELETED',
     );
 
-    // must output the stack name if there are drifts, even if quiet
-    if (this.stack.stackName && (!options.quiet || drifts.length !== 0)) {
+    // must output the stack name if there are drifts
+    if (this.stack.stackName && drifts.length !== 0) {
       stream.write(format(`Stack ${chalk.bold(this.stack.stackName)}\n`));
     }
 
-    if (drifts.length === 0 && !options.verbose) {
-      if (!options.quiet) {
-        stream.write(chalk.green('No drift detected\n'));
-        stream.end();
-      }
+    if (drifts.length === 0) {
+      stream.write(chalk.green('No drift detected\n'));
+      stream.end();
       return { formattedDrift: stream.toString(), numResourcesWithDrift: 0 };
     }
 
     driftCount = drifts.length;
-    formatStackDriftChanges(stream, this.driftResults, this.allStackResources, options.verbose, this.buildLogicalToPathMap());
+    formatStackDriftChanges(stream, this.driftResults, this.allStackResources, this.buildLogicalToPathMap());
     if (drifts.length !== 0) {
       stream.write(chalk.yellow(`\n${driftCount} resource${driftCount === 1 ? '' : 's'} ${driftCount === 1 ? 'has' : 'have'} drifted from their expected configuration\n`));
     } else {

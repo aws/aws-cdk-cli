@@ -199,7 +199,6 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'drift':
       commandOptions = {
         fail: args.fail,
-        quiet: args.quiet,
         STACKS: args.STACKS,
       };
       break;
@@ -434,7 +433,6 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const driftOptions = {
     fail: config.drift?.fail,
-    quiet: config.drift?.quiet,
   };
   const metadataOptions = {};
   const acknowledgeOptions = {};

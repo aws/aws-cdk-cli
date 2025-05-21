@@ -689,7 +689,6 @@ export class CdkToolkit {
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         fail: options.fail,
-        showAll: options.showAll,
       });
       drifts = driftResult.numResourcesWithDrift === undefined ? -1 : driftResult.numResourcesWithDrift;
       uncheckedDrifts = driftResult.numResourcesUnchecked === undefined ? -1 : driftResult.numResourcesUnchecked;

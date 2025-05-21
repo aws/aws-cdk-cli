@@ -1184,15 +1184,6 @@ export interface DriftOptions {
   readonly fail?: boolean;
 
   /**
-   * Do not print stack name and default message when there is no drift to stdout
-   *
-   * aliases: q
-   *
-   * @default - undefined
-   */
-  readonly quiet?: boolean;
-
-  /**
    * Positional argument for drift
    */
   readonly STACKS?: Array<string>;
