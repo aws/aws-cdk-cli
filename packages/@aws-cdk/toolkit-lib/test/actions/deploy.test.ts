@@ -166,7 +166,7 @@ IAM Statement Changes
       // passed through correctly to Deployments
       expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
         hotswapPropertyOverrides: {
-          ecsHotswapProperties: {
+          ecs: {
             maximumHealthyPercent: 100,
             minimumHealthyPercent: 0,
           },

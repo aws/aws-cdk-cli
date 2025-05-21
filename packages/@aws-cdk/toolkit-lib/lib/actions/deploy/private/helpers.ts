@@ -41,7 +41,7 @@ export async function removePublishedAssetsFromWorkGraph(graph: WorkGraph, deplo
  */
 export function createHotswapPropertyOverrides(hotswapProperties: HotswapProperties): HotswapPropertyOverrides {
   return new HotswapPropertyOverrides(new EcsHotswapProperties(
-    hotswapProperties.ecs.minimumHealthyPercent,
-    hotswapProperties.ecs.maximumHealthyPercent,
+    hotswapProperties.ecs?.minimumHealthyPercent,
+    hotswapProperties.ecs?.maximumHealthyPercent,
   ));
 }

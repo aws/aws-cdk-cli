@@ -28,6 +28,13 @@ export interface ChangeSetDeploymentMethod {
    * If not provided, a name will be generated automatically.
    */
   readonly changeSetName?: string;
+
+  /**
+   * Indicates if the change set imports resources that already exist.
+   *
+   * @default false
+   */
+  readonly importExistingResources?: boolean;
 }
 
 /**
@@ -154,13 +161,18 @@ export interface EcsHotswapProperties {
    * The lower limit on the number of your service's tasks that must remain
    * in the RUNNING state during a deployment, as a percentage of the desiredCount.
    */
-  readonly minimumHealthyPercent: number;
+  readonly minimumHealthyPercent?: number;
 
   /**
    * The upper limit on the number of your service's tasks that are allowed
    * in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount.
    */
-  readonly maximumHealthyPercent: number;
+  readonly maximumHealthyPercent?: number;
+
+  /**
+   * The number of seconds to wait for a single service to reach stable state.
+   */
+  readonly stabilizationTimeoutSeconds?: number;
 }
 
 /**
@@ -170,5 +182,5 @@ export interface HotswapProperties {
   /**
    * ECS specific hotswap property overrides
    */
-  readonly ecs: EcsHotswapProperties;
+  readonly ecs?: EcsHotswapProperties;
 }

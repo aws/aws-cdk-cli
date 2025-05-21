@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
+import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
@@ -18,7 +19,6 @@ import { ToolkitInfo, Notices } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, makeRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import type { Settings } from '../api/settings';

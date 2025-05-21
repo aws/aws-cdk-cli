@@ -14,8 +14,8 @@ import {
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 
 import { deployStack, destroyStack } from './deploy-stack';
-import type { DeploymentMethod } from './deployment-method';
 import type { DeployStackResult } from './deployment-result';
+import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';

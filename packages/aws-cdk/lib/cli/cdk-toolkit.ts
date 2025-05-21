@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit } from '@aws-cdk/toolkit-lib';
-import type { ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -19,7 +19,7 @@ import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
-import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
+import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
 import { type Tag, tagsForStack } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
@@ -383,11 +383,12 @@ export class CdkToolkit {
 
     let hotswapPropertiesFromSettings = this.props.configuration.settings.get(['hotswap']) || {};
 
-    let hotswapPropertyOverrides = new HotswapPropertyOverrides();
-    hotswapPropertyOverrides.ecsHotswapProperties = new EcsHotswapProperties(
-      hotswapPropertiesFromSettings.ecs?.minimumHealthyPercent,
-      hotswapPropertiesFromSettings.ecs?.maximumHealthyPercent,
-      hotswapPropertiesFromSettings.ecs?.stabilizationTimeoutSeconds,
+    let hotswapPropertyOverrides = new HotswapPropertyOverrides(
+      new EcsHotswapProperties(
+        hotswapPropertiesFromSettings.ecs?.minimumHealthyPercent,
+        hotswapPropertiesFromSettings.ecs?.maximumHealthyPercent,
+        hotswapPropertiesFromSettings.ecs?.stabilizationTimeoutSeconds,
+      ),
     );
 
     const stacks = stackCollection.stackArtifacts;

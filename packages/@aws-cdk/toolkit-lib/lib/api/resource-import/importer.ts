@@ -6,8 +6,9 @@ import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/clien
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
+import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { DeploymentMethod, Deployments } from '../deployments';
+import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
