@@ -14,7 +14,56 @@ export interface DriftOptions {
   readonly fail?: boolean;
 }
 
+export interface FormattedDrift {
+  /**
+   * Resources that have not changed
+   */
+  readonly unchanged?: string;
+
+  /**
+   * Resources that were not checked for drift
+   */
+  readonly unchecked?: string;
+
+  /**
+   * Resources with drift
+   */
+  readonly modified?: string;
+
+  /**
+   * Resources that have been deleted (drift)
+   */
+  readonly deleted?: string;
+
+  /**
+   * The header, containing the stack name
+   */
+  readonly stackHeader?: string;
+
+  /**
+   * The final results (TL;DR) of the drift results
+   */
+  readonly finalResult?: string;
+}
+
 export interface DriftResult {
+  /**
+   * Number of resources with drift
+   */
+  readonly numResourcesWithDrift?: number;
+
+  /**
+   * How many resources were not checked for drift
+   */
+  readonly numResourcesUnchecked?: number;
+
+  /**
+   * Complete formatted drift
+   */
+  readonly formattedDrift: FormattedDrift;
+}
+
+export interface DriftCommandResult {
   /**
    * Number of resources with drift
    */

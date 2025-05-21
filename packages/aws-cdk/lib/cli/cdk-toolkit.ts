@@ -694,13 +694,13 @@ export class CdkToolkit {
       uncheckedDrifts = driftResult.numResourcesUnchecked === undefined ? -1 : driftResult.numResourcesUnchecked;
     } catch (e) {
       error((e as Error).message);
-      return 2;
+      return 1;
     }
 
-    info(format('\n✨  Number of resources with drift: %s%s\n',
+    info(format('\n✨  Number of resources with drift: %s',
       drifts === -1 ? 'unknown' : drifts,
-      uncheckedDrifts > 0 && options.showAll ? ` (${uncheckedDrifts} unchecked)` : '',
     ));
+    debug(` (${uncheckedDrifts === -1 ? 'unknown' : uncheckedDrifts} unchecked)`);
 
     return drifts > 0 && options.fail ? 1 : 0;
   }
