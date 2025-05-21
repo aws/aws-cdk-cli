@@ -24,28 +24,6 @@ import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
  * - X900-X999 are reserved for results
  */
 export const IO = {
-  // Defaults (0000)
-  DEFAULT_TOOLKIT_INFO: make.info({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default info messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_DEBUG: make.debug({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default debug messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_WARN: make.warn({
-    code: 'CDK_TOOLKIT_W0000',
-    description: 'Default warning messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_ERROR: make.error({
-    code: 'CDK_TOOLKIT_E0000',
-    description: 'Default error messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_TRACE: make.trace({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default trace messages emitted from the Toolkit',
-  }),
-
   // warnings & errors
   CDK_TOOLKIT_W0100: make.warn({
     code: 'CDK_TOOLKIT_W0100',
@@ -500,10 +478,6 @@ export const IO = {
   }),
 
   // SDK codes
-  DEFAULT_SDK_TRACE: make.trace({
-    code: 'CDK_SDK_I0000',
-    description: 'An SDK trace message.',
-  }),
   DEFAULT_SDK_DEBUG: make.debug({
     code: 'CDK_SDK_I0000',
     description: 'An SDK debug message.',

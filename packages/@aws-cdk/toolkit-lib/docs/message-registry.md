@@ -6,11 +6,6 @@ group: Documents
 
 | Code | Description | Level | Data Interface |
 |------|-------------|-------|----------------|
-| `CDK_TOOLKIT_I0000` | Default info messages emitted from the Toolkit | `info` | n/a |
-| `CDK_TOOLKIT_I0000` | Default debug messages emitted from the Toolkit | `debug` | n/a |
-| `CDK_TOOLKIT_W0000` | Default warning messages emitted from the Toolkit | `warn` | n/a |
-| `CDK_TOOLKIT_E0000` | Default error messages emitted from the Toolkit | `error` | n/a |
-| `CDK_TOOLKIT_I0000` | Default trace messages emitted from the Toolkit | `trace` | n/a |
 | `CDK_TOOLKIT_W0100` | Credential plugin warnings | `warn` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
@@ -98,7 +93,6 @@ group: Documents
 | `CDK_ASSEMBLY_I9999` | Annotations emitted by the cloud assembly | `info` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_W9999` | Warnings emitted by the cloud assembly | `warn` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_E9999` | Errors emitted by the cloud assembly | `error` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
-| `CDK_SDK_I0000` | An SDK trace message. | `trace` | n/a |
 | `CDK_SDK_I0000` | An SDK debug message. | `debug` | n/a |
 | `CDK_SDK_W0000` | An SDK warning message. | `warn` | n/a |
 | `CDK_SDK_I0100` | An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level. | `trace` | {@link SdkTrace} |

@@ -7,7 +7,6 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
 import { ProxyAgentProvider } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
-import { IO } from '../io/private';
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {
   private readonly options: SdkHttpOptions;
@@ -70,7 +69,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       }
     });
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Notices refreshed'));
+    await this.ioHelper.defaults.debug('Notices refreshed');
     return notices;
   }
 }

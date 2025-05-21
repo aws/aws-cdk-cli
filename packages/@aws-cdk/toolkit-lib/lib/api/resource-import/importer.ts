@@ -149,19 +149,19 @@ export class ResourceImporter {
       const descr = this.describeResource(resource.logicalId);
       const idProps = contents[resource.logicalId];
       if (idProps) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps)))));
+        await this.ioHelper.defaults.info(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps))));
 
         ret.importResources.push(resource);
         ret.resourceMap[resource.logicalId] = idProps;
         delete contents[resource.logicalId];
       } else {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format('%s: skipping', chalk.blue(descr))));
+        await this.ioHelper.defaults.info(format('%s: skipping', chalk.blue(descr)));
       }
     }
 
     const unknown = Object.keys(contents);
     if (unknown.length > 0) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`));
+      await this.ioHelper.defaults.warn(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`);
     }
 
     return ret;
@@ -211,7 +211,7 @@ export class ResourceImporter {
         ? ' ✅  %s (no changes)'
         : ' ✅  %s';
 
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg('\n' + chalk.green(format(message, this.stack.displayName))));
+      await this.ioHelper.defaults.info('\n' + chalk.green(format(message, this.stack.displayName)));
     } catch (e) {
       await this.ioHelper.notify(IO.CDK_TOOLKIT_E3900.msg(format('\n ❌  %s failed: %s', chalk.bold(this.stack.displayName), e), { error: e as any }));
       throw e;
@@ -242,7 +242,7 @@ export class ResourceImporter {
       const offendingResources = nonAdditions.map(([logId, _]) => this.describeResource(logId));
 
       if (allowNonAdditions) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`));
+        await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
       } else {
         throw new ToolkitError('No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
           `to existing resources, before attempting an import. Updated/deleted resources: ${offendingResources.join(', ')} (--force to override)`);
@@ -330,7 +330,7 @@ export class ResourceImporter {
     // Skip resources that do not support importing
     const resourceType = chg.resourceDiff.newResourceType;
     if (resourceType === undefined || !(resourceType in resourceIdentifiers)) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${resourceName}: unsupported resource type ${resourceType}, skipping import.`));
+      await this.ioHelper.defaults.warn(`${resourceName}: unsupported resource type ${resourceType}, skipping import.`);
       return undefined;
     }
 
@@ -356,7 +356,7 @@ export class ResourceImporter {
 
     // If we got here and the user rejected any available identifiers, then apparently they don't want the resource at all
     if (satisfiedPropSets.length > 0) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.grey(`Skipping import of ${resourceName}`)));
+      await this.ioHelper.defaults.info(chalk.grey(`Skipping import of ${resourceName}`));
       return undefined;
     }
 
@@ -374,7 +374,7 @@ export class ResourceImporter {
 
     // Do the input loop here
     if (preamble) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(preamble));
+      await this.ioHelper.defaults.info(preamble);
     }
     for (const idProps of idPropSets) {
       const input: Record<string, string> = {};
@@ -409,7 +409,7 @@ export class ResourceImporter {
       }
     }
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.grey(`Skipping import of ${resourceName}`)));
+    await this.ioHelper.defaults.info(chalk.grey(`Skipping import of ${resourceName}`));
     return undefined;
   }
 

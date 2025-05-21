@@ -7,7 +7,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { SuccessfulDeployStackResult } from '../deployments';
-import { IO, type IoHelper } from '../io/private';
+import { type IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
@@ -123,16 +123,16 @@ export class Bootstrapper {
       accounts.filter(acc => !params.untrustedAccounts?.map(String).includes(String(acc)));
 
     const trustedAccounts = removeUntrusted(params.trustedAccounts ?? splitCfnArray(current.parameters.TrustedAccounts));
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
+    await this.ioHelper.defaults.info(
       `Trusted accounts for deployment: ${trustedAccounts.length > 0 ? trustedAccounts.join(', ') : '(none)'}`,
-    ));
+    );
 
     const trustedAccountsForLookup = removeUntrusted(
       params.trustedAccountsForLookup ?? splitCfnArray(current.parameters.TrustedAccountsForLookup),
     );
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(
+    await this.ioHelper.defaults.info(
       `Trusted accounts for lookup: ${trustedAccountsForLookup.length > 0 ? trustedAccountsForLookup.join(', ') : '(none)'}`,
-    ));
+    );
 
     const cloudFormationExecutionPolicies =
       params.cloudFormationExecutionPolicies ?? splitCfnArray(current.parameters.CloudFormationExecutionPolicies);
@@ -151,16 +151,16 @@ export class Bootstrapper {
       // Would leave AdministratorAccess policies with a trust relationship, without the user explicitly
       // approving the trust policy.
       const implicitPolicy = `arn:${partition}:iam::aws:policy/AdministratorAccess`;
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
+      await this.ioHelper.defaults.warn(
         `Using default execution policy of '${implicitPolicy}'. Pass '--cloudformation-execution-policies' to customize.`,
-      ));
+      );
     } else if (cloudFormationExecutionPolicies.length === 0) {
       throw new ToolkitError(
         `Please pass \'--cloudformation-execution-policies\' when using \'--trust\' to specify deployment permissions. Try a managed policy of the form \'arn:${partition}:iam::aws:policy/<PolicyName>\'.`,
       );
     } else {
       // Remind people what the current settings are
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`Execution policies: ${cloudFormationExecutionPolicies.join(', ')}`));
+      await this.ioHelper.defaults.info(`Execution policies: ${cloudFormationExecutionPolicies.join(', ')}`);
     }
 
     // * If an ARN is given, that ARN. Otherwise:
@@ -199,17 +199,17 @@ export class Bootstrapper {
     }
     if (currentPermissionsBoundary !== policyName) {
       if (!currentPermissionsBoundary) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
+        await this.ioHelper.defaults.warn(
           `Adding new permissions boundary ${policyName}`,
-        ));
+        );
       } else if (!policyName) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
+        await this.ioHelper.defaults.warn(
           `Removing existing permissions boundary ${currentPermissionsBoundary}`,
-        ));
+        );
       } else {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
+        await this.ioHelper.defaults.warn(
           `Changing permissions boundary from ${currentPermissionsBoundary} to ${policyName}`,
-        ));
+        );
       }
     }
 

@@ -12,7 +12,7 @@ import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { asIoHelper, IO } from '../../lib/api-private';
+import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, makeRequestHandler } from '../api/aws-auth';
@@ -108,7 +108,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       try {
         return await notices.refresh();
       } catch (e: any) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Could not refresh notices: ${e}`));
+        await ioHelper.defaults.debug(`Could not refresh notices: ${e}`);
       }
     }
   })();

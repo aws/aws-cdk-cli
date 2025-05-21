@@ -4,7 +4,6 @@ import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import { EvaluateCloudFormationTemplate, LazyListStackResources } from '../cloudformation';
 import { EnvironmentAccess } from '../environment';
-import { IO } from '../io/private';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
@@ -47,7 +46,7 @@ export async function findCloudWatchLogGroups(
   try {
     sdk = (await new EnvironmentAccess(sdkProvider, DEFAULT_TOOLKIT_STACK_NAME, ioHelper).accessStackForLookup(stackArtifact)).sdk;
   } catch (e: any) {
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Failed to access SDK environment: ${formatErrorMessage(e)}`));
+    await ioHelper.defaults.debug(`Failed to access SDK environment: ${formatErrorMessage(e)}`);
     sdk = (await sdkProvider.forEnvironment(resolvedEnv, Mode.ForReading)).sdk;
   }
 

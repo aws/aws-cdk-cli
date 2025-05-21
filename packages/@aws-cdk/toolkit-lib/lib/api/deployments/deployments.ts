@@ -31,7 +31,7 @@ import {
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
-import { IO, type IoHelper } from '../io/private';
+import { type IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
@@ -348,7 +348,7 @@ export class Deployments {
   }
 
   public async readCurrentTemplate(stackArtifact: cxapi.CloudFormationStackArtifact): Promise<Template> {
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Reading existing template for stack ${stackArtifact.displayName}.`));
+    await this.ioHelper.defaults.debug(`Reading existing template for stack ${stackArtifact.displayName}.`);
     const env = await this.envs.accessStackForLookupBestEffort(stackArtifact);
     return loadCurrentTemplate(stackArtifact, env.sdk);
   }
@@ -356,7 +356,7 @@ export class Deployments {
   public async resourceIdentifierSummaries(
     stackArtifact: cxapi.CloudFormationStackArtifact,
   ): Promise<ResourceIdentifierSummaries> {
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Retrieving template summary for stack ${stackArtifact.displayName}.`));
+    await this.ioHelper.defaults.debug(`Retrieving template summary for stack ${stackArtifact.displayName}.`);
     // Currently, needs to use `deploy-role` since it may need to read templates in the staging
     // bucket which have been encrypted with a KMS key (and lookup-role may not read encrypted things)
     const env = await this.envs.accessStackForReadOnlyStackOperations(stackArtifact);
@@ -388,7 +388,7 @@ export class Deployments {
 
     const response = await cfn.getTemplateSummary(cfnParam);
     if (!response.ResourceIdentifierSummaries) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('GetTemplateSummary API call did not return "ResourceIdentifierSummaries"'));
+      await this.ioHelper.defaults.debug('GetTemplateSummary API call did not return "ResourceIdentifierSummaries"');
     }
     return response.ResourceIdentifierSummaries ?? [];
   }
@@ -474,11 +474,11 @@ export class Deployments {
 
       switch (cloudFormationStack.stackStatus.rollbackChoice) {
         case RollbackChoice.NONE:
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`));
+          await this.ioHelper.defaults.warn(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`);
           return { stackArn: cloudFormationStack.stackId, notInRollbackableState: true };
 
         case RollbackChoice.START_ROLLBACK:
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Initiating rollback of stack ${deployName}`));
+          await this.ioHelper.defaults.debug(`Initiating rollback of stack ${deployName}`);
           await cfn.rollbackStack({
             StackName: deployName,
             RoleARN: executionRoleArn,
@@ -504,7 +504,7 @@ export class Deployments {
           }
 
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Continuing rollback of stack ${deployName}${skipDescription}`));
+          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${skipDescription}`);
           await cfn.continueUpdateRollback({
             StackName: deployName,
             ClientRequestToken: randomUUID(),
@@ -514,9 +514,9 @@ export class Deployments {
           break;
 
         case RollbackChoice.ROLLBACK_FAILED:
-          await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(
+          await this.ioHelper.defaults.warn(
             `Stack ${deployName} failed creation and rollback. This state cannot be rolled back. You can recreate this stack by running 'cdk deploy'.`,
-          ));
+          );
           return { stackArn, notInRollbackableState: true };
 
         default:

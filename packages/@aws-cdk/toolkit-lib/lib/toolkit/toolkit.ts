@@ -314,7 +314,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     } else {
       // not outputting template to stdout, let's explain things to the user a little bit...
       await ioHelper.notify(IO.CDK_TOOLKIT_I1902.msg(chalk.green(message), assemblyData));
-      await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`));
+      await ioHelper.defaults.info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`);
     }
 
     return new CachedCloudAssembly(assembly);
@@ -353,7 +353,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // In Diff, we only care about BROADENING security diffs
         if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
           const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
-          await ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(warningMessage));
+          await ioHelper.defaults.warn(warningMessage);
           formattedSecurityDiff = securityDiff.formattedDiff;
           diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
         }
@@ -479,7 +479,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const deployStack = async (stackNode: StackNode) => {
       const stack = stackNode.stack;
       if (stackCollection.stackCount !== 1) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.bold(stack.displayName)));
+        await ioHelper.defaults.info(chalk.bold(stack.displayName));
       }
 
       if (!stack.environment) {
@@ -840,7 +840,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       })
       .on('ready', async () => {
         latch = 'open';
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment"));
+        await ioHelper.defaults.debug("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment");
         await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg("Triggering initial 'cdk deploy'"));
         await deployAndWatch();
       })

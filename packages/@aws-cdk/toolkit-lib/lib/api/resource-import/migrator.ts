@@ -37,13 +37,13 @@ export class ResourceMigrator {
     const resourcesToImport = await this.tryGetResources(await migrateDeployment.resolveEnvironment());
 
     if (resourcesToImport) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`${chalk.bold(stack.displayName)}: creating stack for resource migration...`));
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`${chalk.bold(stack.displayName)}: importing resources into stack...`));
+      await this.ioHelper.defaults.info(`${chalk.bold(stack.displayName)}: creating stack for resource migration...`);
+      await this.ioHelper.defaults.info(`${chalk.bold(stack.displayName)}: importing resources into stack...`);
 
       await this.performResourceMigration(migrateDeployment, resourcesToImport, options);
 
       fs.rmSync('migrate.json');
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(`${chalk.bold(stack.displayName)}: applying CDKMetadata and Outputs to stack (if applicable)...`));
+      await this.ioHelper.defaults.info(`${chalk.bold(stack.displayName)}: applying CDKMetadata and Outputs to stack (if applicable)...`);
     }
   }
 
