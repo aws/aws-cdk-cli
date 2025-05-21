@@ -129,13 +129,13 @@ describe.each([true, false])('refactor detection', (dryRun) => {
       StackSummaries: [
         {
           StackName: 'Stack1',
-          StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+          StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Stack1',
           StackStatus: 'CREATE_COMPLETE',
           CreationTime: new Date(),
         },
         {
           StackName: 'Stack2',
-          StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack2',
+          StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Stack2',
           StackStatus: 'CREATE_COMPLETE',
           CreationTime: new Date(),
         },
@@ -268,8 +268,8 @@ describe('refactor execution', () => {
     });
 
     mockSTSClient.on(GetCallerIdentityCommand).resolves({
-      Account: '999999999999',
-      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+      Account: '333333333333',
+      Arn: 'arn:aws:sts::333333333333:assumed-role/role-name/role-session-name',
     });
 
     mockCloudFormationClient.on(DescribeStacksCommand).resolves({
@@ -386,8 +386,8 @@ describe('refactor execution', () => {
     });
 
     mockSTSClient.on(GetCallerIdentityCommand).resolves({
-      Account: '999999999999',
-      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+      Account: '333333333333',
+      Arn: 'arn:aws:sts::333333333333:assumed-role/role-name/role-session-name',
     });
 
     mockCloudFormationClient.on(DescribeStacksCommand).resolves({
@@ -448,8 +448,8 @@ describe('refactor execution', () => {
     });
 
     mockSTSClient.on(GetCallerIdentityCommand).resolves({
-      Account: '999999999999',
-      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+      Account: '333333333333',
+      Arn: 'arn:aws:sts::333333333333:assumed-role/role-name/role-session-name',
     });
 
     mockCloudFormationClient.on(DescribeStacksCommand).resolves({
@@ -509,8 +509,8 @@ describe('refactor execution', () => {
     });
 
     mockSTSClient.on(GetCallerIdentityCommand).resolves({
-      Account: '999999999999',
-      Arn: 'arn:aws:sts::999999999999:assumed-role/role-name/role-session-name',
+      Account: '333333333333',
+      Arn: 'arn:aws:sts::333333333333:assumed-role/role-name/role-session-name',
     });
 
     mockCloudFormationClient.on(DescribeStacksCommand).resolves({
@@ -563,7 +563,7 @@ function givenStackWithResources(stackName: string, resources: Record<string, an
     StackSummaries: [
       {
         StackName: stackName,
-        StackId: `arn:aws:cloudformation:us-east-1:999999999999:stack/${stackName}`,
+        StackId: `arn:aws:cloudformation:us-east-1:333333333333:stack/${stackName}`,
         StackStatus: 'CREATE_COMPLETE',
         CreationTime: new Date(),
       },
