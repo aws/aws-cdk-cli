@@ -1410,13 +1410,6 @@ export interface RefactorOptions {
   readonly excludeFile?: string;
 
   /**
-   * Do not ask for confirmation before performing the refactor, even in interactive mode
-   *
-   * @default - false
-   */
-  readonly force?: boolean;
-
-  /**
    * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
    *
    * @default - undefined
@@ -1429,6 +1422,13 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly revert?: boolean;
+
+  /**
+   * Do not ask for confirmation before performing the refactor, even in interactive mode
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
 
   /**
    * Positional argument for refactor

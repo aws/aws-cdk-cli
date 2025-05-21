@@ -888,11 +888,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
           desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
         })
-        .option('force', {
-          default: false,
-          type: 'boolean',
-          desc: 'Do not ask for confirmation before performing the refactor, even in interactive mode',
-        })
         .option('mapping-file', {
           default: undefined,
           type: 'string',
@@ -903,6 +898,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          desc: 'Do not ask for confirmation before performing the refactor, even in interactive mode',
         }),
     )
     .version(helpers.cliVersion())

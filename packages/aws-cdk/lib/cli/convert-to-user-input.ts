@@ -460,9 +460,9 @@ export function convertConfigToUserInput(config: any): UserInput {
   const refactorOptions = {
     dryRun: config.refactor?.dryRun,
     excludeFile: config.refactor?.excludeFile,
-    force: config.refactor?.force,
     mappingFile: config.refactor?.mappingFile,
     revert: config.refactor?.revert,
+    force: config.refactor?.force,
   };
   const userInput: UserInput = {
     globalOptions,
