@@ -119,6 +119,17 @@ export class EcsHotswapProperties implements IEcsHotswapProperties {
   }
 }
 
+/**
+ * Create the HotswapPropertyOverrides class out of the Interface exposed to users
+ */
+export function createHotswapPropertyOverrides(props: HotswapProperties): HotswapPropertyOverrides {
+  return new HotswapPropertyOverrides(new EcsHotswapProperties(
+    props.ecs?.minimumHealthyPercent,
+    props.ecs?.maximumHealthyPercent,
+    props.ecs?.stabilizationTimeoutSeconds,
+  ));
+}
+
 type PropDiffs = Record<string, PropertyDifference<any>>;
 
 class ClassifiedChanges {

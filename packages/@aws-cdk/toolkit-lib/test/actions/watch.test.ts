@@ -45,7 +45,7 @@ jest.mock('chokidar', () => ({
 }));
 
 import * as path from 'node:path';
-import { HotswapMode } from '../../lib/actions/deploy';
+import type { DeploymentMethod } from '../../lib/actions/deploy';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
@@ -196,18 +196,18 @@ describe('watch', () => {
     expect(mockChokidarWatcherUnref).toHaveBeenCalled();
   });
 
-  describe.each([
-    [HotswapMode.FALL_BACK, 'on'],
-    [HotswapMode.HOTSWAP_ONLY, 'on'],
-    [HotswapMode.FULL_DEPLOYMENT, 'off'],
-  ])('%p mode', (hotswapMode, userAgent) => {
+  describe.each<[DeploymentMethod, string]>([
+    [{ method: 'hotswap', fallback: { method: 'change-set' } }, 'on'],
+    [{ method: 'hotswap' }, 'on'],
+    [{ method: 'change-set' }, 'off'],
+  ])('%p mode', (deploymentMethod, userAgent) => {
     test('passes through the correct hotswap mode to deployStack()', async () => {
       // GIVEN
       const cx = await builderFixture(toolkit, 'stack-with-role');
       ioHost.level = 'warn';
       await toolkit.watch(cx, {
         include: [],
-        hotswap: hotswapMode,
+        deploymentMethod,
       });
 
       // WHEN
@@ -215,26 +215,26 @@ describe('watch', () => {
 
       // THEN
       expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
-        hotswap: hotswapMode,
+        deploymentMethod: deploymentMethod,
         extraUserAgent: `cdk-watch/hotswap-${userAgent}`,
       }));
     });
   });
 
-  test('defaults hotswap to HOTSWAP_ONLY', async () => {
+  test('defaults hotswap to hotswap only deployment', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     ioHost.level = 'warn';
     await toolkit.watch(cx, {
       include: [],
-      hotswap: undefined, // force the default
+      deploymentMethod: undefined,
     });
 
     await fakeChokidarWatcherOn.readyCallback();
 
     // THEN
     expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
       extraUserAgent: 'cdk-watch/hotswap-on',
     }));
   });
@@ -246,7 +246,7 @@ describe('watch', () => {
     // WHEN
     const watcher = await toolkit.watch(assemblySource, {
       include: [],
-      hotswap: undefined, // force the default
+      deploymentMethod: undefined,
     });
     await watcher.dispose();
 

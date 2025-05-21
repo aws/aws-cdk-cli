@@ -1,6 +1,5 @@
-import type { DeployOptions, HotswapProperties } from '..';
+import type { DeployOptions } from '..';
 import type { Deployments } from '../../../api/deployments';
-import { EcsHotswapProperties, HotswapPropertyOverrides } from '../../../api/hotswap';
 import type { WorkGraph } from '../../../api/work-graph';
 
 export function buildParameterMap(parameters?: Map<string, string | undefined>): { [name: string]: { [name: string]: string | undefined } } {
@@ -34,14 +33,4 @@ export async function removePublishedAssetsFromWorkGraph(graph: WorkGraph, deplo
     roleArn: options.roleArn,
     stackName: assetNode.parentStack.stackName,
   }));
-}
-
-/**
- * Create the HotswapPropertyOverrides class out of the Interface exposed to users
- */
-export function createHotswapPropertyOverrides(hotswapProperties: HotswapProperties): HotswapPropertyOverrides {
-  return new HotswapPropertyOverrides(new EcsHotswapProperties(
-    hotswapProperties.ecs?.minimumHealthyPercent,
-    hotswapProperties.ecs?.maximumHealthyPercent,
-  ));
 }

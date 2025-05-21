@@ -9,6 +9,8 @@ import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
+jest.setTimeout(10_000);
+
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 

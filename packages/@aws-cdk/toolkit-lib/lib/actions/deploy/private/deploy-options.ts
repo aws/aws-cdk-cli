@@ -1,4 +1,4 @@
-import type { DeploymentMethod, DeployOptions, HotswapMode } from '..';
+import type { DeploymentMethod, DeployOptions } from '..';
 import type { StackSelector } from '../../../api/cloud-assembly';
 import type { CloudWatchLogEventMonitor } from '../../../api/logs-monitor/logs-monitor';
 
@@ -24,17 +24,10 @@ export interface BaseDeployOptions {
 
   /**
    * Deployment method
+   *
+   * @default ChangeSetDeployment
    */
   readonly deploymentMethod?: DeploymentMethod;
-
-  /**
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - no hotswap
-   */
-  readonly hotswap?: HotswapMode;
 
   /**
    * Rollback failed deployments

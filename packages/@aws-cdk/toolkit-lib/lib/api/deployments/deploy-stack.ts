@@ -26,14 +26,14 @@ import {
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
-import type { ChangeSetDeploymentMethod, DeploymentMethod } from '../../actions/deploy';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
-import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
+import { HotswapPropertyOverrides, HotswapMode, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import { type IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
@@ -158,17 +158,21 @@ export interface DeployStackOptions {
    */
   readonly rollback?: boolean;
 
-  /*
+  /**
    * Whether to perform a 'hotswap' deployment.
    * A 'hotswap' deployment will attempt to short-circuit CloudFormation
    * and update the affected resources like Lambda functions directly.
    *
    * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
+   *
+   * @deprecated  Use 'deploymentMethod' instead
    */
   readonly hotswap?: HotswapMode;
 
   /**
    * Extra properties that configure hotswap behavior
+   *
+   * @deprecated Use 'deploymentMethod' instead
    */
   readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
 
@@ -202,8 +206,30 @@ export interface DeployStackOptions {
 
 export async function deployStack(options: DeployStackOptions, ioHelper: IoHelper): Promise<DeployStackResult> {
   const stackArtifact = options.stack;
-
   const stackEnv = options.resolvedEnvironment;
+
+  let deploymentMethod = options.deploymentMethod ?? { method: 'change-set' };
+  // Honour old hotswap option
+  // @TODO remove when we don't care about this export anymore
+  if (options.hotswap && deploymentMethod?.method !== 'hotswap') {
+    switch (options.hotswap) {
+      case HotswapMode.HOTSWAP_ONLY:
+        deploymentMethod = {
+          method: 'hotswap',
+          properties: options.hotswapPropertyOverrides,
+        };
+        break;
+      case HotswapMode.FALL_BACK:
+        deploymentMethod = {
+          method: 'hotswap',
+          properties: options.hotswapPropertyOverrides,
+          fallback: deploymentMethod,
+        };
+        break;
+      case HotswapMode.FULL_DEPLOYMENT:
+        break;
+    }
+  }
 
   options.sdk.appendCustomUserAgent(options.extraUserAgent);
   const cfn = options.sdk.cloudFormation();
@@ -246,14 +272,11 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     ? templateParams.updateExisting(finalParameterValues, cloudFormationStack.parameters)
     : templateParams.supplyAll(finalParameterValues);
 
-  const hotswapMode = options.hotswap ?? HotswapMode.FULL_DEPLOYMENT;
-  const hotswapPropertyOverrides = options.hotswapPropertyOverrides ?? new HotswapPropertyOverrides();
-
   if (await canSkipDeploy(options, cloudFormationStack, stackParams.hasChanges(cloudFormationStack.parameters), ioHelper)) {
     await ioHelper.defaults.debug(`${deployName}: skipping deployment (use --force to override)`);
     // if we can skip deployment and we are performing a hotswap, let the user know
     // that no hotswap deployment happened
-    if (hotswapMode !== HotswapMode.FULL_DEPLOYMENT) {
+    if (deploymentMethod?.method === 'hotswap') {
       await ioHelper.defaults.info(
         format(
           `\n ${ICON} %s\n`,
@@ -290,16 +313,21 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     allowCrossAccount: await determineAllowCrossAccountAssetPublishing(options.sdk, ioHelper, bootstrapStackName),
   }, ioHelper);
 
-  if (hotswapMode !== HotswapMode.FULL_DEPLOYMENT) {
-    // attempt to short-circuit the deployment if possible
+  // attempt to short-circuit the deployment if possible
+  if (deploymentMethod?.method === 'hotswap') {
     try {
+      const hotswapModeNew = deploymentMethod?.fallback ? 'fall-back' : 'hotswap-only';
+      const hotswapPropertyOverrides = deploymentMethod.properties
+        ? createHotswapPropertyOverrides(deploymentMethod.properties)
+        : new HotswapPropertyOverrides();
+
       const hotswapDeploymentResult = await tryHotswapDeployment(
         options.sdkProvider,
         ioHelper,
         stackParams.values,
         cloudFormationStack,
         stackArtifact,
-        hotswapMode,
+        hotswapModeNew,
         hotswapPropertyOverrides,
       );
 
@@ -321,9 +349,10 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       ));
     }
 
-    if (hotswapMode === HotswapMode.FALL_BACK) {
+    if (deploymentMethod.fallback) {
       await ioHelper.defaults.info('Falling back to doing a full deployment');
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
+      deploymentMethod = deploymentMethod.fallback;
     } else {
       return {
         type: 'did-deploy-stack',
@@ -336,6 +365,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
 
   // could not short-circuit the deployment, perform a full CFN deploy instead
   const fullDeployment = new FullCloudFormationDeployment(
+    deploymentMethod,
     options,
     cloudFormationStack,
     stackArtifact,
@@ -364,6 +394,7 @@ class FullCloudFormationDeployment {
   private readonly uuid: string;
 
   constructor(
+    private readonly deploymentMethod: DirectDeployment | ChangeSetDeployment,
     private readonly options: DeployStackOptions,
     private readonly cloudFormationStack: CloudFormationStack,
     private readonly stackArtifact: cxapi.CloudFormationStackArtifact,
@@ -380,9 +411,7 @@ class FullCloudFormationDeployment {
   }
 
   public async performDeployment(): Promise<DeployStackResult> {
-    const deploymentMethod = this.options.deploymentMethod ?? {
-      method: 'change-set',
-    };
+    const deploymentMethod = this.deploymentMethod ?? { method: 'change-set' };
 
     if (deploymentMethod.method === 'direct' && this.options.resourcesToImport) {
       throw new ToolkitError('Importing resources requires a changeset deployment');
@@ -397,7 +426,7 @@ class FullCloudFormationDeployment {
     }
   }
 
-  private async changeSetDeployment(deploymentMethod: ChangeSetDeploymentMethod): Promise<DeployStackResult> {
+  private async changeSetDeployment(deploymentMethod: ChangeSetDeployment): Promise<DeployStackResult> {
     const changeSetName = deploymentMethod.changeSetName ?? 'cdk-deploy-change-set';
     const execute = deploymentMethod.execute ?? true;
     const importExistingResources = deploymentMethod.importExistingResources ?? false;
