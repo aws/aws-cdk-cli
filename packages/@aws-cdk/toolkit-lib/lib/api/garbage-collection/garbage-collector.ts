@@ -7,7 +7,7 @@ import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import { type IoHelper } from '../io/private';
+import { IO, type IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 
 // Must use a require() otherwise esbuild complains
