@@ -89,7 +89,6 @@ export class EcsHotswapProperties implements IEcsHotswapProperties {
   readonly maximumHealthyPercent?: number;
   // The number of seconds to wait for a single service to reach stable state.
   readonly stabilizationTimeoutSeconds?: number;
-  readonly foo?: number;
 
   public constructor (minimumHealthyPercent?: number, maximumHealthyPercent?: number, stabilizationTimeoutSeconds?: number) {
     if (minimumHealthyPercent !== undefined && minimumHealthyPercent < 0 ) {
