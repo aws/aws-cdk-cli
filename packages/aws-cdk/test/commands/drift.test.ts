@@ -150,7 +150,7 @@ No drift detected
     });
 
     // Mock the toolkit.drift method from toolkit-lib
-    jest.spyOn(toolkit.toolkit, 'drift').mockImplementation(async (_, options) => {
+    jest.spyOn((toolkit as any).toolkit, 'drift').mockImplementation(async (_, options: any) => {
       if (options.stacks.patterns?.includes('Stack1')) {
         return {
           numResourcesWithDrift: 1,

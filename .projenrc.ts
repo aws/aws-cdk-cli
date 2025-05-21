@@ -425,9 +425,6 @@ const cloudFormationDiff = configureProject(
     devDeps: [
       'fast-check',
     ],
-    peerDeps: [
-      '@aws-sdk/client-cloudformation@^3',
-    ],
     deps: [
       '@aws-cdk/aws-service-spec',
       '@aws-cdk/service-spec-types',

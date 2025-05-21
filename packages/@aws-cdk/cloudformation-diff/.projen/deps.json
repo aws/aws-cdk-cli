@@ -99,11 +99,6 @@
       "type": "build"
     },
     {
-      "name": "@aws-sdk/client-cloudformation",
-      "version": "^3",
-      "type": "peer"
-    },
-    {
       "name": "@aws-cdk/aws-service-spec",
       "type": "runtime"
     },
