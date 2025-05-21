@@ -4,28 +4,9 @@ import { formatStackDriftChanges } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
+import type { DriftResult } from '../../actions/drift';
+import type { IoHelper } from '../shared-private';
 import { StringWriteStream } from '../streams';
-import type { IDriftIoHelper } from './interfaces';
-
-/**
- * Output of formatStackDrift
- */
-export interface FormatStackDriftOutput {
-  /**
-   * Number of resources with drift
-   */
-  readonly numResourcesWithDrift?: number;
-
-  /**
-   * How many resources were not checked for drift
-   */
-  readonly numResourcesUnchecked?: number;
-
-  /**
-   * Complete formatted drift
-   */
-  readonly formattedDrift: string;
-}
 
 /**
  * Props for the Drift Formatter
@@ -34,7 +15,7 @@ export interface DriftFormatterProps {
   /**
    * Helper for IO operations
    */
-  readonly ioHelper: IDriftIoHelper;
+  readonly ioHelper: IoHelper;
 
   /**
    * The CloudFormation stack artifact
@@ -89,7 +70,7 @@ export class DriftFormatter {
   /**
    * Format the stack drift detection results
    */
-  public formatStackDrift(options: FormatStackDriftOptions = {}): FormatStackDriftOutput {
+  public formatStackDrift(options: FormatStackDriftOptions = {}): DriftResult {
     const stream = new StringWriteStream();
 
     let driftCount = 0;

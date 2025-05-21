@@ -2,6 +2,7 @@ export * from './bootstrap';
 export * from './deploy';
 export * from './destroy';
 export * from './diff';
+export * from './drift';
 export * from './list';
 export * from './refactor';
 export * from './rollback';

@@ -264,10 +264,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'drift':
         ioHost.currentAction = 'drift';
         return cli.drift({
-          stackNames: args.STACKS,
+          selector,
           quiet: args.quiet,
           fail: args.fail,
-          verbose: argv.verbose > 0,
+          showAll: args.showAll,
         });
 
       case 'refactor':

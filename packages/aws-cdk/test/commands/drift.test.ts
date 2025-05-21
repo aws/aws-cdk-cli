@@ -9,8 +9,8 @@ jest.mock('@aws-cdk/toolkit-lib', () => {
     ...original,
     DriftFormatter: jest.fn().mockImplementation(() => {
       return {
-        formatStackDrift: jest.fn().mockImplementation(({ verbose }) => {
-          if (verbose) {
+        formatStackDrift: jest.fn().mockImplementation(({ showAll }) => {
+          if (showAll) {
             return {
               formattedDrift: `Stack Stack1
 Modified Resources
@@ -87,6 +87,21 @@ describe('drift', () => {
   let ioHost: CliIoHost;
   let notifySpy: jest.SpyInstance<Promise<void>>;
 
+  const stack1Output = `Stack Stack1
+Modified Resources
+[~] AWS::Lambda::Function HelloWorldFunction HelloWorldFunctionB2AB6E79
+ └─ [~] /Description
+     ├─ [-] A simple hello world Lambda function
+     └─ [+] A simple, drifted hello world Lambda function
+
+
+1 resource has drifted from their expected configuration
+`;
+  const stack2Output = `Stack Stack2
+No drift detected
+
+`;
+
   beforeEach(() => {
     ioHost = CliIoHost.instance();
     notifySpy = jest.spyOn(ioHost, 'notify');
@@ -134,36 +149,19 @@ describe('drift', () => {
       sdkProvider: mockSdkProvider as any,
     });
 
-    jest.spyOn(toolkit as any, 'detectDriftForStack').mockImplementation(async (stack: any) => {
-      if (stack.stackName === 'Stack1') {
+    // Mock the toolkit.drift method from toolkit-lib
+    jest.spyOn(toolkit.toolkit, 'drift').mockImplementation(async (_, options) => {
+      if (options.stacks.patterns?.includes('Stack1')) {
         return {
-          stackId: 'Stack1',
-          stackDriftStatus: 'DRIFTED',
-          driftedStackResourceCount: 1,
-          stackResourceDrifts: [
-            {
-              logicalResourceId: 'HelloWorldFunction',
-              resourceType: 'AWS::Lambda::Function',
-              physicalResourceId: 'HelloWorldFunctionB2AB6E79',
-              expectedProperties: JSON.stringify({ Description: 'A simple hello world Lambda function' }),
-              actualProperties: JSON.stringify({ Description: 'A simple, drifted hello world Lambda function' }),
-              propertyDifferences: [
-                {
-                  propertyPath: '/Description',
-                  expectedValue: 'A simple hello world Lambda function',
-                  actualValue: 'A simple, drifted hello world Lambda function',
-                },
-              ],
-              stackResourceDriftStatus: 'MODIFIED',
-            },
-          ],
+          numResourcesWithDrift: 1,
+          numResourcesUnchecked: 0,
+          formattedDrift: stack1Output,
         };
       } else {
         return {
-          stackId: 'Stack2',
-          stackDriftStatus: 'IN_SYNC',
-          driftedStackResourceCount: 0,
-          stackResourceDrifts: [],
+          numResourcesWithDrift: 0,
+          numResourcesUnchecked: 0,
+          formattedDrift: stack2Output,
         };
       }
     });
@@ -182,8 +180,10 @@ describe('drift', () => {
 
     // WHEN
     const exitCode = await toolkit.drift({
-      stackNames: ['Stack1'],
+      selector: { patterns: ['Stack1'] },
     });
+
+    messages.unshift(stack1Output);
 
     // THEN
     expect(exitCode).toBe(0);
@@ -226,8 +226,10 @@ No drift detected
 
     // WHEN
     const exitCode = await toolkit.drift({
-      stackNames: ['Stack2'],
+      selector: { patterns: ['Stack2'] },
     });
+
+    messages.unshift(stack2Output);
 
     // THEN
     expect(exitCode).toBe(0);
@@ -251,7 +253,7 @@ No drift detected
 
     // WHEN
     const exitCode = await toolkit.drift({
-      stackNames: ['Stack1'],
+      selector: { patterns: ['Stack1'] },
       fail: true,
     });
 
@@ -286,7 +288,7 @@ No drift detected
 
     // WHEN
     const exitCode = await toolkit.drift({
-      stackNames: ['Stack2'],
+      selector: { patterns: ['Stack2'] },
       fail: true,
     });
 

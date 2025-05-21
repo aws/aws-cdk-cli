@@ -2,7 +2,7 @@ import * as path from 'path';
 import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit, Mode, detectStackDrift, DriftFormatter } from '@aws-cdk/toolkit-lib';
+import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -23,7 +23,6 @@ import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from 
 import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
 import { type Tag, tagsForStack } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
-import type { DriftCommandOptions } from '../commands/drift';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -679,41 +678,30 @@ export class CdkToolkit {
   /**
    * Detect infrastructure drift for the given stack(s)
    */
-  public async drift(options: DriftCommandOptions): Promise<number> {
-    const stacks = await this.selectStacksForDrift(options.stackNames, options.exclusively);
-    const quiet = options.quiet || false;
-    const verbose = options.verbose || false;
-
+  public async drift(options: DriftOptions): Promise<number> {
     let drifts = 0;
     let uncheckedDrifts = 0;
 
-    for (const stack of stacks.stackArtifacts) {
-      const driftResults = await this.detectDriftForStack(stack);
-      const allStackResources = this.getAllStackResourceIds(stack);
-
-      if (!driftResults) {
-        warning('%s: unable to detect drift', chalk.bold(stack.displayName));
-        continue;
-      }
-
-      const formatter = new DriftFormatter({
-        ioHelper: asIoHelper(this.ioHost, 'drift'),
-        stack,
-        driftResults,
-        allStackResources,
+    try {
+      const driftResult = await this.toolkit.drift(this.props.cloudExecutable, {
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+        },
+        fail: options.fail,
+        showAll: options.showAll,
       });
-
-      const drift = formatter.formatStackDrift({
-        quiet,
-        verbose,
-      });
-
-      info(drift.formattedDrift);
-      drifts += drift.numResourcesWithDrift || 0;
-      uncheckedDrifts += drift.numResourcesUnchecked || 0;
+      drifts = driftResult.numResourcesWithDrift === undefined ? -1 : driftResult.numResourcesWithDrift;
+      uncheckedDrifts = driftResult.numResourcesUnchecked === undefined ? -1 : driftResult.numResourcesUnchecked;
+    } catch (e) {
+      error((e as Error).message);
+      return 2;
     }
 
-    info(format('\n✨  Number of resources with drift: %s%s\n', drifts, uncheckedDrifts > 0 && options.verbose ? ` (${uncheckedDrifts} unchecked)` : ''));
+    info(format('\n✨  Number of resources with drift: %s%s\n',
+      drifts === -1 ? 'unknown' : drifts,
+      uncheckedDrifts > 0 && options.showAll ? ` (${uncheckedDrifts} unchecked)` : '',
+    ));
 
     return drifts > 0 && options.fail ? 1 : 0;
   }
@@ -1474,55 +1462,55 @@ export class CdkToolkit {
   /**
    * Select stacks for drift detection
    */
-  private async selectStacksForDrift(
-    stackNames: string[],
-    exclusively?: boolean,
-  ): Promise<StackCollection> {
-    const assembly = await this.assembly();
+  // private async selectStacksForDrift(
+  //   stackNames: string[],
+  //   exclusively?: boolean,
+  // ): Promise<StackCollection> {
+  //   const assembly = await this.assembly();
 
-    const selectedForDrift = await assembly.selectStacks(
-      { patterns: stackNames },
-      {
-        extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
-        defaultBehavior: DefaultSelection.MainAssembly,
-      },
-    );
+  //   const selectedForDrift = await assembly.selectStacks(
+  //     { patterns: stackNames },
+  //     {
+  //       extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
+  //       defaultBehavior: DefaultSelection.MainAssembly,
+  //     },
+  //   );
 
-    this.validateStacksSelected(selectedForDrift, stackNames);
-    await this.validateStacks(selectedForDrift);
+  //   this.validateStacksSelected(selectedForDrift, stackNames);
+  //   await this.validateStacks(selectedForDrift);
 
-    return selectedForDrift;
-  }
+  //   return selectedForDrift;
+  // }
 
   /**
    * Detect drift for a single CloudFormation stack
    */
-  private async detectDriftForStack(stack: cxapi.CloudFormationStackArtifact) {
-    const env = await this.props.deployments.resolveEnvironment(stack);
-    const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
+  // private async detectDriftForStack(stack: cxapi.CloudFormationStackArtifact) {
+  //   const env = await this.props.deployments.resolveEnvironment(stack);
+  //   const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
 
-    return detectStackDrift(
-      cfn,
-      asIoHelper(this.ioHost, 'drift'),
-      stack.stackName,
-    );
-  }
+  //   return detectStackDrift(
+  //     cfn,
+  //     asIoHelper(this.ioHost, 'drift'),
+  //     stack.stackName,
+  //   );
+  // }
 
-  private getAllStackResourceIds(stack: cxapi.CloudFormationStackArtifact) {
-    const resources = new Map<string, string>();
+  // private getAllStackResourceIds(stack: cxapi.CloudFormationStackArtifact) {
+  //   const resources = new Map<string, string>();
 
-    // Extract resources from the template
-    const template = stack.template;
-    if (template && template.Resources) {
-      for (const [logicalId, resource] of Object.entries(template.Resources)) {
-        if (typeof resource === 'object' && resource !== null && 'Type' in resource) {
-          resources.set(logicalId, resource.Type as string);
-        }
-      }
-    }
+  //   // Extract resources from the template
+  //   const template = stack.template;
+  //   if (template && template.Resources) {
+  //     for (const [logicalId, resource] of Object.entries(template.Resources)) {
+  //       if (typeof resource === 'object' && resource !== null && 'Type' in resource) {
+  //         resources.set(logicalId, resource.Type as string);
+  //       }
+  //     }
+  //   }
 
-    return resources;
-  }
+  //   return resources;
+  // }
 }
 
 /**
@@ -2112,9 +2100,9 @@ export interface RefactorOptions {
  */
 export interface DriftOptions {
   /**
-   * Stack names to check for drift
+   * Criteria for selecting stacks to detect drift on
    */
-  readonly stackNames: string[];
+  selector: StackSelector;
 
   /**
    * Run in quiet mode without printing status messages
@@ -2129,6 +2117,13 @@ export interface DriftOptions {
    * @default false
    */
   readonly fail?: boolean;
+
+  /**
+   * Whether to show all resources, including those without drift
+   *
+   * @default false
+   */
+  readonly showAll?: boolean;
 }
 
 function buildParameterMap(
