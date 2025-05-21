@@ -63,6 +63,20 @@ export class StackContainer {
     return result;
   }
 
+  /**
+   * Executes a callback for each known environment. The callback receives the
+   * CloudFormation client and the stacks that are deployed in that
+   * environment. The CloudFormation client is already configured to assume the
+   * role that is needed to deploy the stacks in that environment. In most cases,
+   * this will be the deployment role of a modern bootstrap stack. If this role
+   * cannot be found, it will proceed without assuming a role, falling back to
+   * the default credentials.
+   *
+   * The callback can throw an error. If it does, the error will be logged, and
+   * the next environment will be processed. This function returns true if, and
+   * only if, all environments were processed successfully.
+   *
+   */
   public async forEachEnvironment(
     cb: (client: ICloudFormationClient, stacks: CloudFormationStack[]) => Promise<void>,
   ): Promise<boolean> {
