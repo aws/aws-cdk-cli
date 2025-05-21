@@ -234,7 +234,7 @@ function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation]
  */
 export async function findResourceMovements(
   stacks: CloudFormationStack[],
-  stackRetriever: StackContainer,
+  stackContainer: StackContainer,
   exclude: ExcludeList = new NeverExclude(),
 ): Promise<ResourceMovement[]> {
   const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
@@ -247,7 +247,7 @@ export async function findResourceMovements(
       stackGroups.get(key)![1].push(stack);
     } else {
       // The first time we see an environment, we need to fetch all stacks deployed to it.
-      const before = await stackRetriever.getDeployedStacks(environment);
+      const before = await stackContainer.getDeployedStacks(environment);
       stackGroups.set(key, [before, [stack]]);
     }
   }
