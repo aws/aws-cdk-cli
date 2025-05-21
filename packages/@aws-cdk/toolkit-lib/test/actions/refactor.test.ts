@@ -429,7 +429,7 @@ describe('refactor execution', () => {
         action: 'refactor',
         code: 'CDK_TOOLKIT_E8900',
         level: 'error',
-        message: 'Refactor execution failed for environment aws://123456789012/us-east-1',
+        message: expect.stringMatching('Refactor execution failed for environment aws://123456789012/us-east-1'),
       }),
     );
   });
@@ -490,7 +490,7 @@ describe('refactor execution', () => {
         action: 'refactor',
         code: 'CDK_TOOLKIT_E8900',
         level: 'error',
-        message: 'Refactor execution failed for environment aws://123456789012/us-east-1',
+        message: expect.stringMatching('Refactor execution failed for environment aws://123456789012/us-east-1'),
       }),
     );
   });

@@ -368,11 +368,6 @@ export const IO = {
     description: 'Generic refactor messages',
   }),
 
-  CDK_TOOLKIT_W8010: make.warn({
-    code: 'CDK_TOOLKIT_W8010',
-    description: 'Refactor execution not yet supported',
-  }),
-
   CDK_TOOLKIT_E8900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E8900',
     description: 'Stack refactor failed',

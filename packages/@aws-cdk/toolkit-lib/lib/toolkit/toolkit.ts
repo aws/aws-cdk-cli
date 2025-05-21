@@ -1004,8 +1004,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       try {
         await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('Refactoring...'));
-        await executeRefactor(mappings, stackContainer);
-        await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
+        if (await executeRefactor(mappings, stackContainer)) {
+          await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
+        }
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${formatErrorMessage(e)}`, { error: e }));
       }
@@ -1054,10 +1055,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
 
       const question = 'Do you wish to refactor these resources?';
-      // TODO review these error codes
-      return ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
-        motivation: 'Mappings might differ from what the user expects',
-      }));
+      const motivation = 'Mappings might differ from what the user expects';
+      return ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, { motivation }));
     }
   }
 

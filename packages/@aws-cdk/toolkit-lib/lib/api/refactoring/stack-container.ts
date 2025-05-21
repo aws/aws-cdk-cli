@@ -6,7 +6,7 @@ import { replaceAwsPlaceholders } from 'cdk-assets/lib/private/placeholders';
 import { Mode } from '../plugin';
 import type { CloudFormationStack } from './cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import { deserializeStructure } from '../../util';
+import { deserializeStructure, formatErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { EnvironmentResourcesRegistry } from '../environment';
@@ -65,7 +65,8 @@ export class StackContainer {
 
   public async forEachEnvironment(
     cb: (client: ICloudFormationClient, stacks: CloudFormationStack[]) => Promise<void>,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    let success = true;
     const environments = Array.from(this.stacksByEnvironment.keys()).map(stringToEnv);
     for (const env of environments) {
       const sdk = (await this.sdkProvider.forEnvironment(env, Mode.ForWriting, {
@@ -92,10 +93,12 @@ export class StackContainer {
       try {
         await cb(cfn, stacks);
       } catch (e: any) {
+        success = false;
         const resolvedEnv = await this.sdkProvider.resolveEnvironment(env);
-        await this.ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor execution failed for environment aws://${resolvedEnv.account}/${resolvedEnv.region}`, { error: e }));
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor execution failed for environment aws://${resolvedEnv.account}/${resolvedEnv.region}. ${formatErrorMessage(e)}`, { error: e }));
       }
     }
+    return success;
   }
 
   private async assumeRoleArn(env: cxapi.Environment): Promise<string | undefined> {

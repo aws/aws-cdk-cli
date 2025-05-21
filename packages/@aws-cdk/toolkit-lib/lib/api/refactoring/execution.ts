@@ -58,8 +58,8 @@ export function generateStackDefinitions(
   }));
 }
 
-export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackContainer): Promise<void> {
-  await stackRetriever.forEachEnvironment(async (cfn, stacks) => {
+export async function executeRefactor(mappings: ResourceMapping[], stackRetriever: StackContainer): Promise<boolean> {
+  return stackRetriever.forEachEnvironment(async (cfn, stacks) => {
     const refactor = await cfn.createStackRefactor({
       EnableStackCreation: true,
       ResourceMappings: mappings.map((m) => m.toCloudFormation()),

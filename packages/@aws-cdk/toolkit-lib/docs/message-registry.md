@@ -71,7 +71,6 @@ group: Documents
 | `CDK_TOOLKIT_I8900` | Refactor result | `result` | {@link RefactorResult} |
 | `CDK_TOOLKIT_I8910` | Confirm refactor | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I8901` | Generic refactor messages | `info` | n/a |
-| `CDK_TOOLKIT_W8010` | Refactor execution not yet supported | `warn` | n/a |
 | `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I9000` | Provides bootstrap times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
