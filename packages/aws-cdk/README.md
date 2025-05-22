@@ -1206,15 +1206,6 @@ $ # Detect drift against a specific stack
 $ cdk drift MyStackName
 ```
 
-The `--quiet` command line option can also be passed to the `cdk drift` command. 
-Assuming there is no drift detected, the output to the console will **not** 
-contain strings such as the *Stack `MyStackName`* and `No drift detected`.
-
-```console
-$ # Detect drift against the currently-deployed stack with quiet flag enabled
-$ cdk drift --quiet
-```
-
 Note that there are some resources that do not support drift detection. You can
 see which of these resources were left unchecked with the `--verbose` command line
 option.
