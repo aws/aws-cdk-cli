@@ -41,7 +41,7 @@ export interface FormattedDrift {
   readonly stackHeader?: string;
 
   /**
-   * The final results (TL;DR) of the drift results
+   * The final results (summary) of the drift results
    */
   readonly finalResult?: string;
 }
