@@ -351,7 +351,7 @@ import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
-import { IO, type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 export interface S3ClientOptions {
   /**
@@ -593,7 +593,7 @@ export class SDK {
     ioHelper: IoHelper,
     logger?: ISdkLogger,
   ) {
-    const debugFn = async (msg: string) => ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(msg));
+    const debugFn = async (msg: string) => ioHelper.sdkDefaults.debug(msg);
     this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
     this.debug = debugFn;
     this.config = {

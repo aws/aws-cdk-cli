@@ -173,12 +173,12 @@ export class SdkProvider {
       // feed the CLI credentials which are sufficient by themselves. Prefer to assume the correct role if we can,
       // but if we can't then let's just try with available credentials anyway.
       if (baseCreds.source === 'correctDefault' || baseCreds.source === 'plugin') {
-        await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(err.message));
+        await this.ioHelper.sdkDefaults.debug(err.message);
 
-        const maker = quiet ? IO.DEFAULT_SDK_DEBUG : IO.DEFAULT_SDK_WARN;
-        await this.ioHelper.notify(maker.msg(
+        const level = quiet ? 'debug' : 'warn';
+        await this.ioHelper.sdkDefaults[level](
           `${fmtObtainedCredentials(baseCreds)} could not be used to assume '${options.assumeRoleArn}', but are for the right account. Proceeding anyway.`,
-        ));
+        );
         return {
           sdk: this._makeSdk(baseCreds.credentials, env.region),
           didAssumeRole: false,
@@ -252,13 +252,13 @@ export class SdkProvider {
         // they are complaining about if we fail 'cdk synth' on them. We loudly complain in order to show that
         // the current situation is probably undesirable, but we don't fail.
         if (e.name === 'ExpiredToken') {
-          await this.ioHelper.notify(IO.DEFAULT_SDK_WARN.msg(
+          await this.ioHelper.sdkDefaults.warn(
             'There are expired AWS credentials in your environment. The CDK app will synth without current account information.',
-          ));
+          );
           return undefined;
         }
 
-        await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(`Unable to determine the default AWS account (${e.name}): ${formatErrorMessage(e)}`));
+        await this.ioHelper.sdkDefaults.debug(`Unable to determine the default AWS account (${e.name}): ${formatErrorMessage(e)}`);
         return undefined;
       }
     });
@@ -320,7 +320,7 @@ export class SdkProvider {
     additionalOptions?: AssumeRoleAdditionalOptions,
     region?: string,
   ): Promise<SDK> {
-    await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(`Assuming role '${roleArn}'.`));
+    await this.ioHelper.sdkDefaults.debug(`Assuming role '${roleArn}'.`);
 
     region = region ?? this.defaultRegion;
 
@@ -354,7 +354,7 @@ export class SdkProvider {
         throw err;
       }
 
-      await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(`Assuming role failed: ${err.message}`));
+      await this.ioHelper.sdkDefaults.debug(`Assuming role failed: ${err.message}`);
       throw new AuthenticationError(
         [
           'Could not assume role in target account',
