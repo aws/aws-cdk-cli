@@ -390,23 +390,6 @@ export const IO = {
   }),
 
   // Assembly codes
-  DEFAULT_ASSEMBLY_TRACE: make.trace({
-    code: 'CDK_ASSEMBLY_I0000',
-    description: 'Default trace messages emitted from Cloud Assembly operations',
-  }),
-  DEFAULT_ASSEMBLY_DEBUG: make.debug({
-    code: 'CDK_ASSEMBLY_I0000',
-    description: 'Default debug messages emitted from Cloud Assembly operations',
-  }),
-  DEFAULT_ASSEMBLY_INFO: make.info({
-    code: 'CDK_ASSEMBLY_I0000',
-    description: 'Default info messages emitted from Cloud Assembly operations',
-  }),
-  DEFAULT_ASSEMBLY_WARN: make.warn({
-    code: 'CDK_ASSEMBLY_W0000',
-    description: 'Default warning messages emitted from Cloud Assembly operations',
-  }),
-
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
     description: 'Generic environment preparation debug messages',
@@ -486,14 +469,6 @@ export const IO = {
   }),
 
   // SDK codes
-  DEFAULT_SDK_DEBUG: make.debug({
-    code: 'CDK_SDK_I0000',
-    description: 'An SDK debug message.',
-  }),
-  DEFAULT_SDK_WARN: make.warn({
-    code: 'CDK_SDK_W0000',
-    description: 'An SDK warning message.',
-  }),
   CDK_SDK_I0100: make.trace<SdkTrace>({
     code: 'CDK_SDK_I0100',
     description: 'An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level.',
