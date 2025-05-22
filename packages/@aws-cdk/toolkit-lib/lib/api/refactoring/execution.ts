@@ -41,6 +41,12 @@ export function generateStackDefinitions(
     // Do the move
     destinationTemplate.Resources[destinationLogicalId] = sourceTemplate.Resources[sourceLogicalId];
     delete sourceTemplate.Resources[sourceLogicalId];
+
+    if (isReferencedByOutput(sourceLogicalId, sourceTemplate.Outputs)) {
+      throw new ToolkitError(
+        `Resource ${sourceLogicalId} in stack ${sourceStackName} is referenced by an output. This use case is not supported yet.`,
+      );
+    }
   });
 
   // CloudFormation doesn't allow empty stacks
@@ -56,6 +62,20 @@ export function generateStackDefinitions(
     StackName: stackName,
     TemplateBody: JSON.stringify(template),
   }));
+}
+
+function isReferencedByOutput(sourceId: string, outputs: Record<string, any> = {}): boolean {
+  return Object.values(outputs).some((output: any) => {
+    const value = output.Value ?? {};
+    if (value['Fn::GetAtt'] != null) {
+      const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
+      return refTarget === sourceId;
+    }
+    if (value.Ref != null) {
+      return value.Ref === sourceId;
+    }
+    return false;
+  });
 }
 
 export async function executeRefactor(mappings: ResourceMapping[], stackContainer: StackContainer): Promise<boolean> {
