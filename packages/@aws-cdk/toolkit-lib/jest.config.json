@@ -63,7 +63,7 @@
       "ts-jest",
       {
         "tsconfig": "tsconfig.dev.json",
-        "isolatedModules": false
+        "isolatedModules": true
       }
     ]
   },

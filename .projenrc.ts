@@ -807,7 +807,7 @@ const toolkitLib = configureProject(
     },
     tsJestOptions: {
       transformOptions: {
-        isolatedModules: false, // we use the respective tsc setting
+        isolatedModules: true,
       },
     },
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
