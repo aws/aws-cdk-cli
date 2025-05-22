@@ -144,7 +144,6 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'warn',
-      code: 'CDK_TOOLKIT_W0000',
       message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -238,7 +237,6 @@ describe('diff', () => {
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         action: 'diff',
         level: 'info',
-        code: 'CDK_TOOLKIT_I0000',
         message: expect.stringContaining('Could not create a change set, will base the diff on template differences'),
       }));
     });
@@ -354,7 +352,6 @@ describe('diff', () => {
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         action: 'diff',
         level: 'warn',
-        code: 'CDK_TOOLKIT_W0000',
         message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
       }));
       expect(result.Stack1).toMatchObject(expect.objectContaining({
