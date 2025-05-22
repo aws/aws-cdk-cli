@@ -209,8 +209,8 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   const stackEnv = options.resolvedEnvironment;
 
   let deploymentMethod = options.deploymentMethod ?? { method: 'change-set' };
-  // Honour old hotswap option
-  // @TODO remove when we don't care about this export anymore
+  // Honor the old hotswap option because this API is exported from the CLI as part of the legacy exports
+  // @TODO remove when we don't have legacy exports anymore
   if (options.hotswap && deploymentMethod?.method !== 'hotswap') {
     switch (options.hotswap) {
       case HotswapMode.HOTSWAP_ONLY:

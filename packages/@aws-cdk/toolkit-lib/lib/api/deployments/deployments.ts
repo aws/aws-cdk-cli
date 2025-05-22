@@ -399,8 +399,8 @@ export class Deployments {
 
   public async deployStack(options: DeployStackOptions): Promise<DeployStackResult> {
     let deploymentMethod = options.deploymentMethod;
-    // @deprecated changeSetName and execute
-    // @TODO remove when we don't care about this export anymore
+    // Honor the old options because this API is exported from the CLI as part of the legacy exports
+    // @TODO remove when we don't have legacy exports anymore
     if (options.changeSetName || options.execute !== undefined) {
       if (deploymentMethod) {
         throw new ToolkitError(
