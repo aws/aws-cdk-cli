@@ -35,7 +35,7 @@ import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { HotswapMode, HotswapPropertyOverrides, ICON } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
 

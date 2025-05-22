@@ -9,7 +9,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { contentHash, toYAML } from '../../util';
 import type { AssetManifestBuilder } from '../deployments';
 import type { EnvironmentResources } from '../environment';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 export type TemplateBodyParameter = {
   TemplateBody?: string;

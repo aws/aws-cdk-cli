@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import { ProxyAgent } from 'proxy-agent';
 import type { SdkHttpOptions } from './types';
-import { IO, type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 export class ProxyAgentProvider {
   private readonly ioHelper: IoHelper;

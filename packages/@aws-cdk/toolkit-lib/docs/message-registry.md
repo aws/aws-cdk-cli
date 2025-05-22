@@ -74,10 +74,6 @@ group: Documents
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |
 | `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
-| `CDK_ASSEMBLY_I0000` | Default trace messages emitted from Cloud Assembly operations | `trace` | n/a |
-| `CDK_ASSEMBLY_I0000` | Default debug messages emitted from Cloud Assembly operations | `debug` | n/a |
-| `CDK_ASSEMBLY_I0000` | Default info messages emitted from Cloud Assembly operations | `info` | n/a |
-| `CDK_ASSEMBLY_W0000` | Default warning messages emitted from Cloud Assembly operations | `warn` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
 | `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |
@@ -94,7 +90,5 @@ group: Documents
 | `CDK_ASSEMBLY_I9999` | Annotations emitted by the cloud assembly | `info` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_W9999` | Warnings emitted by the cloud assembly | `warn` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_E9999` | Errors emitted by the cloud assembly | `error` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
-| `CDK_SDK_I0000` | An SDK debug message. | `debug` | n/a |
-| `CDK_SDK_W0000` | An SDK warning message. | `warn` | n/a |
 | `CDK_SDK_I0100` | An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level. | `trace` | {@link SdkTrace} |
 | `CDK_SDK_I1100` | Get an MFA token for an MFA device. | `info` | {@link MfaTokenRequest} |

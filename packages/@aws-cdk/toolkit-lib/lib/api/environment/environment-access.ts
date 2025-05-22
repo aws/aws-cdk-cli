@@ -6,7 +6,7 @@ import { replaceEnvPlaceholders } from './placeholders';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, CredentialsOptions, SdkForEnvironment, SdkProvider } from '../aws-auth/private';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 
 /**

@@ -13,7 +13,7 @@ import {
 import type { CloudFormationStack } from './cloudformation';
 import { ToolkitError } from '../toolkit/toolkit-error';
 import { stabilizeStack } from './deployments/cfn-api';
-import { type IoHelper } from './io/private';
+import type { IoHelper } from './io/private';
 
 export const DEFAULT_TOOLKIT_STACK_NAME = 'CDKToolkit';
 

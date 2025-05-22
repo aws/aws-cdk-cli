@@ -16,7 +16,7 @@ import type { SuccessfulDeployStackResult } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { deployStack } from '../deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../environment';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 

@@ -14,7 +14,7 @@ import { SDK } from './sdk';
 import { callTrace, traceMemberMethods } from './tracing';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
-import { IO, type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import { PluginHost, Mode } from '../plugin';
 import type { ISdkLogger } from './sdk-logger';
 

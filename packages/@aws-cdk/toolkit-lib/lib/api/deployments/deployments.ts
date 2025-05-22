@@ -31,7 +31,7 @@ import {
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
