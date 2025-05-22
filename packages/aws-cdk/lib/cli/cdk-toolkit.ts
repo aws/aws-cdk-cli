@@ -1455,59 +1455,6 @@ export class CdkToolkit {
       stackName: assetNode.parentStack.stackName,
     }));
   }
-
-  /**
-   * Select stacks for drift detection
-   */
-  // private async selectStacksForDrift(
-  //   stackNames: string[],
-  //   exclusively?: boolean,
-  // ): Promise<StackCollection> {
-  //   const assembly = await this.assembly();
-
-  //   const selectedForDrift = await assembly.selectStacks(
-  //     { patterns: stackNames },
-  //     {
-  //       extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
-  //       defaultBehavior: DefaultSelection.MainAssembly,
-  //     },
-  //   );
-
-  //   this.validateStacksSelected(selectedForDrift, stackNames);
-  //   await this.validateStacks(selectedForDrift);
-
-  //   return selectedForDrift;
-  // }
-
-  /**
-   * Detect drift for a single CloudFormation stack
-   */
-  // private async detectDriftForStack(stack: cxapi.CloudFormationStackArtifact) {
-  //   const env = await this.props.deployments.resolveEnvironment(stack);
-  //   const cfn = (await this.props.sdkProvider.forEnvironment(env, Mode.ForReading)).sdk.cloudFormation();
-
-  //   return detectStackDrift(
-  //     cfn,
-  //     asIoHelper(this.ioHost, 'drift'),
-  //     stack.stackName,
-  //   );
-  // }
-
-  // private getAllStackResourceIds(stack: cxapi.CloudFormationStackArtifact) {
-  //   const resources = new Map<string, string>();
-
-  //   // Extract resources from the template
-  //   const template = stack.template;
-  //   if (template && template.Resources) {
-  //     for (const [logicalId, resource] of Object.entries(template.Resources)) {
-  //       if (typeof resource === 'object' && resource !== null && 'Type' in resource) {
-  //         resources.set(logicalId, resource.Type as string);
-  //       }
-  //     }
-  //   }
-
-  //   return resources;
-  // }
 }
 
 /**
