@@ -49,16 +49,16 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
       const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
       return [refTarget];
     }
+    const result = [];
     if ('DependsOn' in value) {
-      const result = Object.values(value).flatMap(findDependencies);
       if (Array.isArray(value.DependsOn)) {
         result.push(...value.DependsOn);
       } else {
         result.push(value.DependsOn);
       }
-      return result;
     }
-    return Object.values(value).flatMap(findDependencies);
+    result.push(...Object.values(value).flatMap(findDependencies));
+    return result;
   };
 
   for (const [id, res] of Object.entries(resources)) {
