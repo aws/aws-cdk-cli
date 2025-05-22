@@ -199,6 +199,42 @@ describe('computeResourceDigests', () => {
     expect(result.Topic1).toEqual(result.Topic2);
   });
 
+  test('different resources - DependsOn plus Ref in properties', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        Bucket3: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { AnotherProp: 'foobar' },
+        },
+        Topic1: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'my-topic',
+          },
+        },
+        Topic2: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket2',
+          Properties: {
+            DisplayName: 'my-topic',
+            SomeRef: { Ref: 'Bucket3' },
+          },
+        },
+      },
+    };
+    const result = computeResourceDigests(template);
+    expect(result.Topic1).not.toEqual(result.Topic2);
+  });
+
   test('different resources - DependsOn', () => {
     const template = {
       Resources: {

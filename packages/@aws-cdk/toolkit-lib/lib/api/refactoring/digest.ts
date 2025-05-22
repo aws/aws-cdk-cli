@@ -50,7 +50,13 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
       return [refTarget];
     }
     if ('DependsOn' in value) {
-      return [value.DependsOn];
+      const result = Object.values(value).flatMap(findDependencies);
+      if (Array.isArray(value.DependsOn)) {
+        result.push(...value.DependsOn);
+      } else {
+        result.push(value.DependsOn);
+      }
+      return result;
     }
     return Object.values(value).flatMap(findDependencies);
   };
