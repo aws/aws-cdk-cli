@@ -31,7 +31,7 @@ import {
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
@@ -136,17 +136,21 @@ export interface DeployStackOptions {
    */
   readonly rollback?: boolean;
 
-  /*
+  /**
    * Whether to perform a 'hotswap' deployment.
    * A 'hotswap' deployment will attempt to short-circuit CloudFormation
    * and update the affected resources like Lambda functions directly.
    *
    * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
+   *
+   * @deprecated Use 'deploymentMethod' instead
    */
   readonly hotswap?: HotswapMode;
 
   /**
    * Properties that configure hotswap behavior
+   *
+   * @deprecated Use 'deploymentMethod' instead
    */
   readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
 
@@ -395,6 +399,8 @@ export class Deployments {
 
   public async deployStack(options: DeployStackOptions): Promise<DeployStackResult> {
     let deploymentMethod = options.deploymentMethod;
+    // Honor the old options because this API is exported from the CLI as part of the legacy exports
+    // @TODO remove when we don't have legacy exports anymore
     if (options.changeSetName || options.execute !== undefined) {
       if (deploymentMethod) {
         throw new ToolkitError(

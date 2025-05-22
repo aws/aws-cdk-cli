@@ -1,6 +1,6 @@
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/private';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 export async function determineAllowCrossAccountAssetPublishing(
   sdk: SDK,

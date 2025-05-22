@@ -1,6 +1,6 @@
 import * as util from 'util';
 import type { ActionLessMessage, ActionLessRequest, IoHelper } from './io-helper';
-import type { IoMessageLevel } from '../io-message';
+import type { IoMessageCode, IoMessageLevel } from '../io-message';
 
 /**
  * Helper class to emit standard log messages to an IoHost
@@ -10,15 +10,17 @@ import type { IoMessageLevel } from '../io-message';
  */
 export class IoDefaultMessages {
   private readonly ioHelper: IoHelper;
+  private readonly category: 'TOOLKIT' | 'ASSEMBLY' | 'SDK';
 
-  constructor(ioHelper: IoHelper) {
+  constructor(ioHelper: IoHelper, category: 'TOOLKIT' | 'ASSEMBLY' | 'SDK') {
     this.ioHelper = ioHelper;
+    this.category = category;
   }
 
   public async notify(msg: Omit<ActionLessMessage<unknown>, 'code'>): Promise<void> {
     return this.ioHelper.notify({
       ...msg,
-      code: levelToCode(msg.level),
+      code: levelToCode(this.category, msg.level),
     });
   }
 
@@ -63,7 +65,7 @@ export class IoDefaultMessages {
 
     return {
       time: new Date(),
-      code: levelToCode(level),
+      code: levelToCode(this.category, level),
       level,
       message,
       data: undefined,
@@ -75,13 +77,13 @@ export class IoDefaultMessages {
   }
 }
 
-function levelToCode(level: IoMessageLevel) {
+function levelToCode(category: string, level: IoMessageLevel): IoMessageCode {
   switch (level) {
     case 'error':
-      return 'CDK_TOOLKIT_E0000';
+      return `CDK_${category}_E0000`;
     case 'warn':
-      return 'CDK_TOOLKIT_W0000';
+      return `CDK_${category}_W0000`;
     default:
-      return 'CDK_TOOLKIT_I0000';
+      return `CDK_${category}_I0000`;
   }
 }

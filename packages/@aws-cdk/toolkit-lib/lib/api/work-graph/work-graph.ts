@@ -2,7 +2,7 @@ import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode } from './wo
 import { DeploymentState } from './work-graph-types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { parallelPromises } from '../../util';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
 export class WorkGraph {

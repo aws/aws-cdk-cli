@@ -7,7 +7,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { SuccessfulDeployStackResult } from '../deployments';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 

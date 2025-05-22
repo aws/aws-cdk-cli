@@ -38,16 +38,9 @@ export interface AssemblyDirectoryProps {
  */
 export interface AssemblySourceProps {
   /**
-   * Execute the application in this working directory.
+   * Emits the synthesized cloud assembly into the given directory
    *
-   * @default - current working directory
-   */
-  readonly workingDirectory?: string;
-
-  /**
-   * Emits the synthesized cloud assembly into a directory
-   *
-   * @default cdk.out
+   * @default "cdk.out"
    */
   readonly outdir?: string;
 
@@ -93,6 +86,13 @@ export interface AssemblySourceProps {
  * Options for the `fromCdkApp` Assembly Source constructor
  */
 export interface FromCdkAppOptions extends AssemblySourceProps {
+  /**
+   * Execute the application in this working directory.
+   *
+   * @default - current working directory
+   */
+  readonly workingDirectory?: string;
+
   /**
    * Additional environment variables
    *

@@ -2,7 +2,7 @@ import type { Environment } from '@aws-cdk/cx-api';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth/private';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import { Notices } from '../notices';
 import { type EcrRepositoryInfo, ToolkitInfo } from '../toolkit-info';
 

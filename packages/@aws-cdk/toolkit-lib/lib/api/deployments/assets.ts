@@ -5,7 +5,7 @@ import * as chalk from 'chalk';
 import type { AssetManifestBuilder } from './asset-manifest-builder';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { EnvironmentResources } from '../environment';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import type { ToolkitInfo } from '../toolkit-info';
 
 /**

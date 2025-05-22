@@ -3,7 +3,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
 import type { IoHelper } from '../../lib/api-private';
-import { BorrowedAssembly, IO } from '../../lib/api-private';
+import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';
@@ -97,14 +97,14 @@ export class CloudExecutable implements ICloudAssemblySource {
 
         let tryLookup = true;
         if (previouslyMissingKeys && setsEqual(missingKeys, previouslyMissingKeys)) {
-          await this.props.ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg('Not making progress trying to resolve environmental context. Giving up.'));
+          await this.props.ioHelper.assemblyDefaults.debug('Not making progress trying to resolve environmental context. Giving up.');
           tryLookup = false;
         }
 
         previouslyMissingKeys = missingKeys;
 
         if (tryLookup) {
-          await this.props.ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg('Some context information is missing. Fetching...'));
+          await this.props.ioHelper.assemblyDefaults.debug('Some context information is missing. Fetching...');
 
           await contextproviders.provideContextValues(
             assembly.manifest.missing,

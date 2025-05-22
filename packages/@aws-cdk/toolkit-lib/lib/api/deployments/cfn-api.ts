@@ -18,7 +18,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
-import { type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
 /**

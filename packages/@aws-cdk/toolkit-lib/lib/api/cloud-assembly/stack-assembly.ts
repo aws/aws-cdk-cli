@@ -3,7 +3,6 @@ import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
 import { StackCollection } from './stack-collection';
 import { flatten } from '../../util';
-import { IO } from '../io/private';
 import type { IoHelper } from '../io/private/io-helper';
 
 export interface IStackAssembly {
@@ -149,7 +148,7 @@ async function includeDownstreamStacks(
   } while (madeProgress);
 
   if (added.length > 0) {
-    await ioHelper.notify(IO.DEFAULT_ASSEMBLY_INFO.msg(`Including depending stacks: ${chalk.bold(added.join(', '))}`));
+    await ioHelper.assemblyDefaults.info(`Including depending stacks: ${chalk.bold(added.join(', '))}`);
   }
 }
 
@@ -181,6 +180,6 @@ async function includeUpstreamStacks(
   }
 
   if (added.length > 0) {
-    await ioHelper.notify(IO.DEFAULT_ASSEMBLY_INFO.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
+    await ioHelper.assemblyDefaults.info(`Including dependency stacks: ${chalk.bold(added.join(', '))}`);
   }
 }
