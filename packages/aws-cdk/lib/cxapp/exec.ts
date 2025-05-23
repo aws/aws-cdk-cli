@@ -1,19 +1,15 @@
 import * as childProcess from 'child_process';
-import * as os from 'os';
-import * as path from 'path';
 import { format } from 'util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import * as semver from 'semver';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock } from '../api';
-import { RWLock, guessExecutable, loadTree, contextFromSettings, prepareDefaultEnvironment, some, spaceAvailableForContext } from '../api';
+import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
-import { splitBySize } from '../util';
 
 export interface ExecProgramResult {
   readonly assembly: cxapi.CloudAssembly;
@@ -23,9 +19,24 @@ export interface ExecProgramResult {
 /** Invokes the cloud executable and returns JSON output */
 export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: Configuration): Promise<ExecProgramResult> {
   const debugFn = (msg: string) => ioHelper.assemblyDefaults.debug(msg);
-  const env = await prepareDefaultEnvironment(aws, debugFn);
-  const context = await contextFromSettings(config.settings, config.context.all, env, debugFn);
 
+  const params = synthParametersFromSettings(config.settings);
+
+  const context = {
+    ...config.context.all,
+    ...params.context,
+  };
+  await debugFn(format('context:', context));
+
+  const env: Record<string, string> = noUndefined({
+    // Need to start with full env of `writeContextToEnv` will not be able to do the size
+    // calculation correctly.
+    ...process.env,
+    // Versioning, outdir, default account and region
+    ...await prepareDefaultEnvironment(aws, debugFn),
+    // Environment variables derived from settings
+    ...params.env,
+  });
   const build = config.settings.get(['build']);
   if (build) {
     await exec(build);
@@ -67,38 +78,24 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   // Acquire a lock on the output directory
   const writerLock = await new RWLock(outdir).acquireWrite();
 
+  // Send version information
+  env[cxapi.CLI_ASM_VERSION_ENV] = cxschema.Manifest.version();
+  env[cxapi.CLI_VERSION_ENV] = versionNumber();
+
+  await debugFn(format('env:', env));
+
+  const cleanupTemp = writeContextToEnv(env, context);
   try {
-    // Send version information
-    env[cxapi.CLI_ASM_VERSION_ENV] = cxschema.Manifest.version();
-    env[cxapi.CLI_VERSION_ENV] = versionNumber();
-
-    await debugFn(format('env:', env));
-
-    const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
-    const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(env, envVariableSizeLimit));
-
-    // Store the safe part in the environment variable
-    env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
-
-    // If there was any overflow, write it to a temporary file
-    let contextOverflowLocation;
-    if (Object.keys(overflow ?? {}).length > 0) {
-      const contextDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cdk-context'));
-      contextOverflowLocation = path.join(contextDir, 'context-overflow.json');
-      fs.writeJSONSync(contextOverflowLocation, overflow);
-      env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
-    }
-
     await exec(commandLine.join(' '));
 
     const assembly = createAssembly(outdir);
-
-    await contextOverflowCleanup(contextOverflowLocation, assembly, ioHelper);
 
     return { assembly, lock: await writerLock.convertToReaderLock() };
   } catch (e) {
     await writerLock.release();
     throw e;
+  } finally {
+    await cleanupTemp();
   }
 
   async function exec(commandAndArgs: string) {
@@ -160,26 +157,6 @@ export function createAssembly(appDir: string) {
   }
 }
 
-async function contextOverflowCleanup(
-  location: string | undefined,
-  assembly: cxapi.CloudAssembly,
-  ioHelper: IoHelper,
-) {
-  if (location) {
-    fs.removeSync(path.dirname(location));
-
-    const tree = await loadTree(assembly, (msg: string) => ioHelper.assemblyDefaults.trace(msg));
-    const frameworkDoesNotSupportContextOverflow = some(tree, node => {
-      const fqn = node.constructInfo?.fqn;
-      const version = node.constructInfo?.version;
-      return (fqn === 'aws-cdk-lib.App' && version != null && semver.lte(version, '2.38.0'))
-        || fqn === '@aws-cdk/core.App'; // v1
-    });
-
-    // We're dealing with an old version of the framework here. It is unaware of the temporary
-    // file, which means that it will ignore the context overflow.
-    if (frameworkDoesNotSupportContextOverflow) {
-      await ioHelper.assemblyDefaults.warn('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.');
-    }
-  }
+function noUndefined<A>(xs: Record<string, A>): Record<string, NonNullable<A>> {
+  return Object.fromEntries(Object.entries(xs).filter(([_, v]) => v !== undefined)) as any;
 }

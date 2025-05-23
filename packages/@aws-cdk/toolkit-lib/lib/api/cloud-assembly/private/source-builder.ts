@@ -209,27 +209,32 @@ export abstract class CloudAssemblySourceBuilder {
             // Need to start with full env of `writeContextToEnv` will not be able to do the size
             // calculation correctly.
             ...process.env,
+            // User gave us something
+            ...props.env,
             // Versioning, outdir, default account and region
             ...await execution.defaultEnvVars(),
             // Environment variables derived from settings
             ...synthParams.env,
           });
-          await using _envTemp = writeContextToEnv(env, fullContext);
-
-          await execInChildProcess(commandLine.join(' '), {
-            eventPublisher: async (type, line) => {
-              switch (type) {
-                case 'data_stdout':
-                  await services.ioHelper.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
-                  break;
-                case 'data_stderr':
-                  await services.ioHelper.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
-                  break;
-              }
-            },
-            env,
-            cwd: workingDirectory,
-          });
+          const cleanupTemp = writeContextToEnv(env, fullContext);
+          try {
+            await execInChildProcess(commandLine.join(' '), {
+              eventPublisher: async (type, line) => {
+                switch (type) {
+                  case 'data_stdout':
+                    await services.ioHelper.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
+                    break;
+                  case 'data_stderr':
+                    await services.ioHelper.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
+                    break;
+                }
+              },
+              env,
+              cwd: workingDirectory,
+            });
+          } finally {
+            await cleanupTemp();
+          }
 
           const asm = await assemblyFromDirectory(outdir, services.ioHelper, props.loadAssemblyOptions);
 

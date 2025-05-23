@@ -172,13 +172,14 @@ export class ExecutionEnvironment implements AsyncDisposable {
 /**
  * Serializes the given context to a set if environment variables environment variables
  *
- * Needs to know the size of the rest of the env because that's necessary to do an overflow
- * computation on Windows. This function will mutate the given environment in-place. It
- * should be called as the very last operation on the environment, because afterwards is
- * might be at the maximum size.
+ * Needs to know the size of the rest of the env because that's necessary to do
+ * an overflow computation on Windows. This function will mutate the given
+ * environment in-place. It should be called as the very last operation on the
+ * environment, because afterwards is might be at the maximum size.
  *
- * Returns a disposable object that cleans up any temporary files. Use with
- * `await using`.
+ * This *would* have returned an `IAsyncDisposable` but that requires messing
+ * with TypeScript type definitions to use it in aws-cdk, so returning an
+ * explicit cleanup function is easier.
  */
 export function writeContextToEnv(env: Env, context: Context) {
   let contextOverflowLocation = null;
@@ -200,12 +201,10 @@ export function writeContextToEnv(env: Env, context: Context) {
     env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
   }
 
-  return {
-    [Symbol.asyncDispose]: async () => {
-      if (contextOverflowLocation) {
-        await fs.promises.rm(path.dirname(contextOverflowLocation), { recursive: true, force: true });
-      }
-    },
+  return async () => {
+    if (contextOverflowLocation) {
+      await fs.promises.rm(path.dirname(contextOverflowLocation), { recursive: true, force: true });
+    }
   };
 }
 
