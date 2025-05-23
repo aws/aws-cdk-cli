@@ -6,7 +6,6 @@ import { StackResourceDriftStatus, type DescribeStackResourceDriftsCommandOutput
 import * as chalk from 'chalk';
 import type { DriftResult } from '../../actions/drift';
 import type { IoHelper } from '../shared-private';
-import { StringWriteStream } from '../streams';
 
 /**
  * Props for the Drift Formatter
@@ -74,8 +73,6 @@ export class DriftFormatter {
    * Format the stack drift detection results
    */
   public formatStackDrift(): DriftResult {
-    const stream = new StringWriteStream();
-
     let driftCount = 0;
 
     if (!this.driftResults?.StackResourceDrifts) {
@@ -96,10 +93,11 @@ export class DriftFormatter {
     }
 
     if (drifts.length === 0) {
+      const finalResult = chalk.green('No drift detected\n');
       return {
-        formattedDrift: { stackHeader, finalResult: chalk.green('No drift detected\n') },
         numResourcesWithDrift: 0,
         numResourcesUnchecked: this.allStackResources ? this.allStackResources.size - this.driftResults.StackResourceDrifts.length : -1,
+        formattedDrift: { stackHeader, finalResult },
       };
     }
 
@@ -110,7 +108,6 @@ export class DriftFormatter {
     } else {
       finalResult = chalk.green('No drift detected\n');
     }
-    stream.end();
 
     return {
       formattedDrift: {

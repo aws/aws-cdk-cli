@@ -673,7 +673,6 @@ export class CdkToolkit {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
-        fail: options.fail,
       });
       drifts = driftResult.numResourcesWithDrift === undefined ? -1 : driftResult.numResourcesWithDrift;
       uncheckedDrifts = driftResult.numResourcesUnchecked === undefined ? -1 : driftResult.numResourcesUnchecked;
@@ -2026,25 +2025,11 @@ export interface DriftOptions {
   selector: StackSelector;
 
   /**
-   * Run in quiet mode without printing status messages
-   *
-   * @default false
-   */
-  readonly quiet?: boolean;
-
-  /**
    * Whether to fail with exit code 1 if drift is detected
    *
    * @default false
    */
   readonly fail?: boolean;
-
-  /**
-   * Whether to show all resources, including those without drift
-   *
-   * @default false
-   */
-  readonly showAll?: boolean;
 }
 
 function buildParameterMap(
