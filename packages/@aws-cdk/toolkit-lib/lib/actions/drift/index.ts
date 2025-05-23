@@ -39,7 +39,7 @@ export interface FormattedDrift {
   readonly finalResult?: string;
 }
 
-export interface DriftResult {
+export interface DriftCommandResult {
   /**
    * Number of resources with drift
    */
@@ -53,5 +53,5 @@ export interface DriftResult {
   /**
    * Complete formatted drift
    */
-  readonly formattedDrift: FormattedDrift;
+  readonly formattedDrift: string;
 }

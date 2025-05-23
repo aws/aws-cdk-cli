@@ -15,11 +15,11 @@ group: Documents
 | `CDK_TOOLKIT_E3900` | Resource import failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I4000` | Diff stacks is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I4001` | Output of the diff command | `info` | {@link DiffResult} |
-| `CDK_TOOLKIT_I4500` | Output of the drift command | `info` | {@link DriftResult} |
-| `CDK_TOOLKIT_I4501` | Unchanged resources in the drift command output | `debug` | {@link DriftResult} |
-| `CDK_TOOLKIT_I4502` | Unchecked resources in the drift command output | `debug` | {@link DriftResult} |
-| `CDK_TOOLKIT_I4503` | Modified resources in the drift command output | `result` | {@link DriftResult} |
-| `CDK_TOOLKIT_I4504` | Deleted resources in the drift command output | `result` | {@link DriftResult} |
+| `CDK_TOOLKIT_I4500` | Output of the drift command | `info` | n/a |
+| `CDK_TOOLKIT_I4501` | Unchanged resources in the drift command output | `debug` | n/a |
+| `CDK_TOOLKIT_I4502` | Unchecked resources in the drift command output | `debug` | n/a |
+| `CDK_TOOLKIT_I4503` | Modified resources in the drift command output | `result` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I4504` | Deleted resources in the drift command output | `result` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I4505` | Drift detection error | `error` | n/a |
 | `CDK_TOOLKIT_I4506` | Drift detection is starting | `trace` | n/a |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |

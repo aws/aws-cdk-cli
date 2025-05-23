@@ -1,7 +1,6 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
-import type { DriftResult } from '../../../actions';
 import type { DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
@@ -79,30 +78,27 @@ export const IO = {
     description: 'Output of the diff command',
     interface: 'DiffResult',
   }),
-  CDK_TOOLKIT_I4500: make.info<DriftResult>({
+  CDK_TOOLKIT_I4500: make.info({
     code: 'CDK_TOOLKIT_I4500',
     description: 'Output of the drift command',
-    interface: 'DriftResult',
   }),
-  CDK_TOOLKIT_I4501: make.debug<DriftResult>({
+  CDK_TOOLKIT_I4501: make.debug({
     code: 'CDK_TOOLKIT_I4501',
     description: 'Unchanged resources in the drift command output',
-    interface: 'DriftResult',
   }),
-  CDK_TOOLKIT_I4502: make.debug<DriftResult>({
+  CDK_TOOLKIT_I4502: make.debug({
     code: 'CDK_TOOLKIT_I4502',
     description: 'Unchecked resources in the drift command output',
-    interface: 'DriftResult',
   }),
-  CDK_TOOLKIT_I4503: make.result<DriftResult>({
+  CDK_TOOLKIT_I4503: make.result<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I4503',
     description: 'Modified resources in the drift command output',
-    interface: 'DriftResult',
+    interface: 'StackSelectionDetails',
   }),
-  CDK_TOOLKIT_I4504: make.result<DriftResult>({
+  CDK_TOOLKIT_I4504: make.result<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I4504',
     description: 'Deleted resources in the drift command output',
-    interface: 'DriftResult',
+    interface: 'StackSelectionDetails',
   }),
   CDK_TOOLKIT_I4505: make.error({
     code: 'CDK_TOOLKIT_I4505',

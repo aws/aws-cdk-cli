@@ -26,7 +26,7 @@ import {
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
-import type { DriftOptions, DriftResult, FormattedDrift } from '../actions/drift';
+import type { DriftCommandResult, DriftOptions } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { MappingGroup, RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
@@ -381,7 +381,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Drift Action
    */
-  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<DriftResult> {
+  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<DriftCommandResult> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     await using assembly = await assemblyFromSource(ioHelper, cx);
@@ -389,7 +389,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     let drifts = 0;
     let uncheckedResources = 0;
-    const output: Map<string, string> = new Map<string, string>();
+    const output = [];
 
     for (const stack of stacks.stackArtifacts) {
       const cfn = (await (await this.sdkProvider('drift')).forEnvironment(stack.environment, Mode.ForReading)).sdk.cloudFormation();
@@ -407,11 +407,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         allStackResources.set(id, resource.Type);
       });
 
-      if (!driftResults) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4505.msg(`${chalk.bold(stack.displayName)}: unable to detect drift`));
-        continue;
-      }
-
       const formatter = new DriftFormatter({
         ioHelper: asIoHelper(this.ioHost, 'drift'),
         stack,
@@ -422,46 +417,37 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const driftOutput = formatter.formatStackDrift();
 
       if (driftOutput.formattedDrift.stackHeader) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.stackHeader, driftOutput));
-        output.set('stackHeader', driftOutput.formattedDrift.stackHeader);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.stackHeader));
+        output.push(driftOutput.formattedDrift.stackHeader);
       }
       if (driftOutput.formattedDrift.unchanged) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.formattedDrift.unchanged, driftOutput));
-        output.set('unchanged', driftOutput.formattedDrift.unchanged);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.formattedDrift.unchanged));
+        output.push(driftOutput.formattedDrift.unchanged);
       }
       if (driftOutput.formattedDrift.unchecked) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.formattedDrift.unchecked, driftOutput));
-        output.set('unchecked', driftOutput.formattedDrift.unchecked);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.formattedDrift.unchecked));
+        output.push(driftOutput.formattedDrift.unchecked);
       }
       if (driftOutput.formattedDrift.modified) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.formattedDrift.modified, driftOutput));
-        output.set('modified', driftOutput.formattedDrift.modified);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.formattedDrift.modified, { stacks: selectStacks }));
+        output.push(driftOutput.formattedDrift.modified);
       }
       if (driftOutput.formattedDrift.deleted) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4504.msg(driftOutput.formattedDrift.deleted, driftOutput));
-        output.set('deleted', driftOutput.formattedDrift.deleted);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4504.msg(driftOutput.formattedDrift.deleted, { stacks: selectStacks }));
+        output.push(driftOutput.formattedDrift.deleted);
       }
       if (driftOutput.formattedDrift.finalResult) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.finalResult, driftOutput));
-        output.set('finalResult', driftOutput.formattedDrift.finalResult);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.finalResult));
+        output.push(driftOutput.formattedDrift.finalResult);
       }
       drifts += driftOutput.numResourcesWithDrift === -1 ? 0 : driftOutput.numResourcesWithDrift || 0;
       uncheckedResources += driftOutput.numResourcesUnchecked === -1 ? 0 : driftOutput.numResourcesUnchecked || 0;
     }
 
-    const formattedDrift: FormattedDrift = {
-      stackHeader: output.get('stackHeader'),
-      unchanged: output.get('unchanged'),
-      unchecked: output.get('unchecked'),
-      modified: output.get('modified'),
-      deleted: output.get('deleted'),
-      finalResult: output.get('finalResult'),
-    };
-
     return {
       numResourcesWithDrift: drifts,
       numResourcesUnchecked: uncheckedResources,
-      formattedDrift,
+      formattedDrift: output.join('\n\n'),
     };
   }
 

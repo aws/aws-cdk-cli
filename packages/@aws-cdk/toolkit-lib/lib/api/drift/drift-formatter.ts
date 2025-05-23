@@ -4,7 +4,7 @@ import { Difference } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { StackResourceDriftStatus, type DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
-import type { DriftResult } from '../../actions/drift';
+import type { FormattedDrift } from '../../actions/drift';
 import type { IoHelper } from '../shared-private';
 
 /**
@@ -53,6 +53,23 @@ interface DriftFormatterOutput {
    * Resources that have been deleted (drift)
    */
   readonly deleted?: string;
+}
+
+export interface DriftResult {
+  /**
+   * Number of resources with drift
+   */
+  readonly numResourcesWithDrift?: number;
+
+  /**
+   * How many resources were not checked for drift
+   */
+  readonly numResourcesUnchecked?: number;
+
+  /**
+   * Complete formatted drift
+   */
+  readonly formattedDrift: FormattedDrift;
 }
 
 /**
