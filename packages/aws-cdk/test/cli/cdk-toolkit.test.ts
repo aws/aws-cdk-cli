@@ -63,6 +63,7 @@ import * as path from 'path';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
+import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -82,7 +83,6 @@ import type {
 import {
   Deployments,
 } from '../../lib/api/deployments';
-import { HotswapMode } from '../../lib/api/hotswap';
 import { Mode } from '../../lib/api/plugin';
 import type { Tag } from '../../lib/api/tags';
 import { asIoHelper } from '../../lib/api-private';
@@ -189,7 +189,7 @@ describe('deploy', () => {
     await expect(() =>
       toolkit.deploy({
         selector: { patterns: ['Test-Stack-D'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       }),
     ).rejects.toThrow('No stacks match the name(s) Test-Stack-D');
   });
@@ -218,13 +218,19 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-A-Display-Name'] },
         requireApproval: RequireApproval.NEVER,
-        hotswap: HotswapMode.FALL_BACK,
+        deploymentMethod: {
+          method: 'hotswap',
+          fallback: { method: 'change-set' },
+        },
       });
 
       // THEN
       expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
         expect.objectContaining({
-          hotswap: HotswapMode.FALL_BACK,
+          deploymentMethod: {
+            method: 'hotswap',
+            fallback: { method: 'change-set' },
+          },
         }),
       );
     });
@@ -238,7 +244,7 @@ describe('deploy', () => {
       // WHEN
       await toolkit.deploy({
         selector: { patterns: ['Test-Stack-A', 'Test-Stack-B'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
     });
 
@@ -249,7 +255,7 @@ describe('deploy', () => {
       // WHEN
       await toolkit.deploy({
         selector: { patterns: ['**'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
     });
 
@@ -260,7 +266,7 @@ describe('deploy', () => {
       // WHEN
       await toolkit.deploy({
         selector: { patterns: ['Test-Stack-A-Display-Name'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
     });
 
@@ -283,7 +289,7 @@ describe('deploy', () => {
       // WHEN
       await toolkit.deploy({
         selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -308,7 +314,7 @@ describe('deploy', () => {
       // WHEN
       await toolkit.deploy({
         selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
         force: true,
       });
 
@@ -327,7 +333,7 @@ describe('deploy', () => {
       // WHEN
       await toolkit.deploy({
         selector: { patterns: ['*'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
     });
 
@@ -366,7 +372,7 @@ describe('deploy', () => {
           // Stacks should be selected by their hierarchical ID, which is their displayName, not by the stack ID.
           selector: { patterns: ['Test-Stack-A-Display-Name'] },
           notificationArns,
-          hotswap: HotswapMode.FULL_DEPLOYMENT,
+          deploymentMethod: { method: 'change-set' },
         });
       });
 
@@ -391,7 +397,7 @@ describe('deploy', () => {
             // Stacks should be selected by their hierarchical ID, which is their displayName, not by the stack ID.
             selector: { patterns: ['Test-Stack-A-Display-Name'] },
             notificationArns,
-            hotswap: HotswapMode.FULL_DEPLOYMENT,
+            deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
@@ -414,7 +420,7 @@ describe('deploy', () => {
         // WHEN
         await toolkit.deploy({
           selector: { patterns: ['Test-Stack-Notification-Arns'] },
-          hotswap: HotswapMode.FULL_DEPLOYMENT,
+          deploymentMethod: { method: 'change-set' },
         });
       });
 
@@ -433,7 +439,7 @@ describe('deploy', () => {
         await expect(() =>
           toolkit.deploy({
             selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
-            hotswap: HotswapMode.FULL_DEPLOYMENT,
+            deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:1337:123456789012:sns:bad is not a valid arn for an SNS topic');
       });
@@ -464,7 +470,7 @@ describe('deploy', () => {
         await toolkit.deploy({
           selector: { patterns: ['Test-Stack-Notification-Arns'] },
           notificationArns,
-          hotswap: HotswapMode.FULL_DEPLOYMENT,
+          deploymentMethod: { method: 'change-set' },
         });
       });
 
@@ -488,7 +494,7 @@ describe('deploy', () => {
           toolkit.deploy({
             selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
             notificationArns,
-            hotswap: HotswapMode.FULL_DEPLOYMENT,
+            deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
@@ -513,7 +519,7 @@ describe('deploy', () => {
           toolkit.deploy({
             selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
             notificationArns,
-            hotswap: HotswapMode.FULL_DEPLOYMENT,
+            deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:1337:123456789012:sns:bad is not a valid arn for an SNS topic');
       });
@@ -538,7 +544,7 @@ describe('deploy', () => {
           toolkit.deploy({
             selector: { patterns: ['Test-Stack-Notification-Arns'] },
             notificationArns,
-            hotswap: HotswapMode.FULL_DEPLOYMENT,
+            deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
@@ -702,7 +708,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -742,7 +748,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -807,7 +813,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -863,7 +869,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -919,7 +925,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-C'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -972,7 +978,7 @@ describe('deploy', () => {
       // WHEN
       await cdkToolkit.deploy({
         selector: { patterns: ['Test-Stack-A'] },
-        hotswap: HotswapMode.FULL_DEPLOYMENT,
+        deploymentMethod: { method: 'change-set' },
       });
 
       // THEN
@@ -1036,7 +1042,10 @@ describe('deploy', () => {
     await toolkit.deploy({
       progress: StackActivityProgress.EVENTS,
       selector: { patterns: ['**'] },
-      hotswap: HotswapMode.FALL_BACK,
+      deploymentMethod: {
+        method: 'hotswap',
+        fallback: { method: 'change-set' },
+      },
     });
 
     // now expect it to be updated
@@ -1066,7 +1075,7 @@ describe('watch', () => {
     await expect(() => {
       return toolkit.watch({
         selector: { patterns: [] },
-        hotswap: HotswapMode.HOTSWAP_ONLY,
+        deploymentMethod: { method: 'hotswap' },
       });
     }).rejects.toThrow(
       "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
@@ -1080,7 +1089,7 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
 
     const includeArgs = fakeChokidarWatch.includeArgs;
@@ -1095,7 +1104,7 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
 
     expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir']);
@@ -1109,7 +1118,7 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
 
     expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir1', '**/my-dir2/*']);
@@ -1122,7 +1131,7 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
 
     expect(fakeChokidarWatch.excludeArgs).toStrictEqual(['cdk.out/**', '**/.*', '**/.*/**', '**/node_modules/**']);
@@ -1136,7 +1145,7 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
 
     const excludeArgs = fakeChokidarWatch.excludeArgs;
@@ -1152,7 +1161,7 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
 
     const excludeArgs = fakeChokidarWatch.excludeArgs;
@@ -1170,14 +1179,17 @@ describe('watch', () => {
     await toolkit.watch({
       selector: { patterns: [] },
       concurrency: 3,
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
     await fakeChokidarWatcherOn.readyCallback();
 
     expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ concurrency: 3 }));
   });
 
-  describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
+  describe.each<[string, DeploymentMethod]>([
+    ['hotswap-only', { method: 'hotswap' }],
+    ['fallback', { method: 'hotswap', fallback: { method: 'change-set' } }],
+  ])('%s mode', (_desc, deploymentMethod) => {
     test('passes through the correct hotswap mode to deployStack()', async () => {
       cloudExecutable.configuration.settings.set(['watch'], {});
       const toolkit = defaultToolkitSetup();
@@ -1186,15 +1198,15 @@ describe('watch', () => {
 
       await toolkit.watch({
         selector: { patterns: [] },
-        hotswap: hotswapMode,
+        deploymentMethod,
       });
       await fakeChokidarWatcherOn.readyCallback();
 
-      expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: hotswapMode }));
+      expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ deploymentMethod }));
     });
   });
 
-  test('respects HotswapMode.HOTSWAP_ONLY', async () => {
+  test('respects hotswap only', async () => {
     cloudExecutable.configuration.settings.set(['watch'], {});
     const toolkit = defaultToolkitSetup();
     const cdkDeployMock = jest.fn();
@@ -1202,14 +1214,14 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: { method: 'hotswap' },
     });
     await fakeChokidarWatcherOn.readyCallback();
 
-    expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: HotswapMode.HOTSWAP_ONLY }));
+    expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ deploymentMethod: { method: 'hotswap' } }));
   });
 
-  test('respects HotswapMode.FALL_BACK', async () => {
+  test('respects hotswap with fallback', async () => {
     cloudExecutable.configuration.settings.set(['watch'], {});
     const toolkit = defaultToolkitSetup();
     const cdkDeployMock = jest.fn();
@@ -1217,14 +1229,22 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.FALL_BACK,
+      deploymentMethod: {
+        method: 'hotswap',
+        fallback: { method: 'change-set' },
+      },
     });
     await fakeChokidarWatcherOn.readyCallback();
 
-    expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: HotswapMode.FALL_BACK }));
+    expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({
+      deploymentMethod: {
+        method: 'hotswap',
+        fallback: { method: 'change-set' },
+      },
+    }));
   });
 
-  test('respects HotswapMode.FULL_DEPLOYMENT', async () => {
+  test('respects full deployment (no hotswap)', async () => {
     cloudExecutable.configuration.settings.set(['watch'], {});
     const toolkit = defaultToolkitSetup();
     const cdkDeployMock = jest.fn();
@@ -1232,11 +1252,12 @@ describe('watch', () => {
 
     await toolkit.watch({
       selector: { patterns: [] },
-      hotswap: HotswapMode.FULL_DEPLOYMENT,
+      deploymentMethod: { method: 'change-set' },
     });
     await fakeChokidarWatcherOn.readyCallback();
 
-    expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ hotswap: HotswapMode.FULL_DEPLOYMENT }));
+    expect(cdkDeployMock).toHaveBeenCalledWith(expect.objectContaining({ deploymentMethod: { method: 'change-set' } }));
+    expect(cdkDeployMock).not.toHaveBeenCalledWith(expect.objectContaining({ hotswap: expect.anything() }));
   });
 
   describe('with file change events', () => {
@@ -1250,7 +1271,7 @@ describe('watch', () => {
       toolkit.deploy = cdkDeployMock;
       await toolkit.watch({
         selector: { patterns: [] },
-        hotswap: HotswapMode.HOTSWAP_ONLY,
+        deploymentMethod: { method: 'hotswap' },
       });
     });
 
@@ -1627,7 +1648,7 @@ describe('rollback', () => {
 
     await toolkit.deploy({
       selector: { patterns: [] },
-      hotswap: HotswapMode.FULL_DEPLOYMENT,
+      deploymentMethod: { method: 'change-set' },
       rollback: false,
       requireApproval: RequireApproval.NEVER,
       force: useForce,
