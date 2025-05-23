@@ -26,7 +26,7 @@ import {
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
-import type { DriftCommandResult, DriftOptions } from '../actions/drift';
+import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { MappingGroup, RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
@@ -381,7 +381,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Drift Action
    */
-  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<DriftCommandResult> {
+  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<DriftResult> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     await using assembly = await assemblyFromSource(ioHelper, cx);
@@ -408,7 +408,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       });
 
       const formatter = new DriftFormatter({
-        ioHelper: asIoHelper(this.ioHost, 'drift'),
+        ioHelper,
         stack,
         driftResults,
         allStackResources,
@@ -416,29 +416,29 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       const driftOutput = formatter.formatStackDrift();
 
-      if (driftOutput.formattedDrift.stackHeader) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.stackHeader));
-        output.push(driftOutput.formattedDrift.stackHeader);
+      if (driftOutput.sections?.stackHeader) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.sections?.stackHeader));
+        output.push(driftOutput.sections?.stackHeader);
       }
-      if (driftOutput.formattedDrift.unchanged) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.formattedDrift.unchanged));
-        output.push(driftOutput.formattedDrift.unchanged);
+      if (driftOutput.sections?.unchanged) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.sections?.unchanged));
+        output.push(driftOutput.sections?.unchanged);
       }
-      if (driftOutput.formattedDrift.unchecked) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.formattedDrift.unchecked));
-        output.push(driftOutput.formattedDrift.unchecked);
+      if (driftOutput.sections?.unchecked) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.sections?.unchecked));
+        output.push(driftOutput.sections?.unchecked);
       }
-      if (driftOutput.formattedDrift.modified) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.formattedDrift.modified, { stacks: selectStacks }));
-        output.push(driftOutput.formattedDrift.modified);
+      if (driftOutput.sections?.modified) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.sections?.modified, { stacks: selectStacks }));
+        output.push(driftOutput.sections?.modified);
       }
-      if (driftOutput.formattedDrift.deleted) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4504.msg(driftOutput.formattedDrift.deleted, { stacks: selectStacks }));
-        output.push(driftOutput.formattedDrift.deleted);
+      if (driftOutput.sections?.deleted) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4504.msg(driftOutput.sections?.deleted, { stacks: selectStacks }));
+        output.push(driftOutput.sections?.deleted);
       }
-      if (driftOutput.formattedDrift.finalResult) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.formattedDrift.finalResult));
-        output.push(driftOutput.formattedDrift.finalResult);
+      if (driftOutput.sections?.finalResult) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.sections?.finalResult));
+        output.push(driftOutput.sections?.finalResult);
       }
       drifts += driftOutput.numResourcesWithDrift === -1 ? 0 : driftOutput.numResourcesWithDrift || 0;
       uncheckedResources += driftOutput.numResourcesUnchecked === -1 ? 0 : driftOutput.numResourcesUnchecked || 0;

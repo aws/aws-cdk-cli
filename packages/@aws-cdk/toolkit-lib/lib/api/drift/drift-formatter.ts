@@ -4,7 +4,7 @@ import { Difference } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { StackResourceDriftStatus, type DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
-import type { FormattedDrift } from '../../actions/drift';
+import type { DriftResult } from '../../actions/drift';
 import type { IoHelper } from '../shared-private';
 
 /**
@@ -55,23 +55,6 @@ interface DriftFormatterOutput {
   readonly deleted?: string;
 }
 
-export interface DriftResult {
-  /**
-   * Number of resources with drift
-   */
-  readonly numResourcesWithDrift?: number;
-
-  /**
-   * How many resources were not checked for drift
-   */
-  readonly numResourcesUnchecked?: number;
-
-  /**
-   * Complete formatted drift
-   */
-  readonly formattedDrift: FormattedDrift;
-}
-
 /**
  * Class for formatting drift detection output
  */
@@ -93,10 +76,17 @@ export class DriftFormatter {
     let driftCount = 0;
 
     if (!this.driftResults?.StackResourceDrifts) {
-      return { formattedDrift: { finalResult: 'No drift results available' } };
+      return {
+        sections: {
+          finalResult: 'No drift results available',
+        },
+        formattedDrift: 'No drift results available',
+      };
     }
 
     const formatterOutput = this.formatStackDriftChanges(this.driftResults, this.allStackResources, this.buildLogicalToPathMap());
+    const output: string[] = [];
+    const formatOutput = () => output.join('\n\n');
 
     const drifts = this.driftResults.StackResourceDrifts.filter(d =>
       d.StackResourceDriftStatus === 'MODIFIED' ||
@@ -107,14 +97,27 @@ export class DriftFormatter {
     let stackHeader;
     if (this.stack.stackName) {
       stackHeader = format(`Stack ${chalk.bold(this.stack.stackName)}\n`);
+      output.push(stackHeader);
     }
+
+    const outputSections = ['unchanged', 'unchecked', 'modified', 'deleted'] as const;
+    outputSections.forEach(section => {
+      if (formatterOutput[section]) {
+        output.push(formatterOutput[section]);
+      }
+    });
 
     if (drifts.length === 0) {
       const finalResult = chalk.green('No drift detected\n');
+      output.push(finalResult);
       return {
         numResourcesWithDrift: 0,
         numResourcesUnchecked: this.allStackResources ? this.allStackResources.size - this.driftResults.StackResourceDrifts.length : -1,
-        formattedDrift: { stackHeader, finalResult },
+        sections: {
+          stackHeader,
+          finalResult,
+        },
+        formattedDrift: formatOutput(),
       };
     }
 
@@ -125,15 +128,20 @@ export class DriftFormatter {
     } else {
       finalResult = chalk.green('No drift detected\n');
     }
+    output.push(finalResult);
 
     return {
-      formattedDrift: {
-        stackHeader,
-        finalResult,
-        ...formatterOutput,
-      },
       numResourcesWithDrift: driftCount,
       numResourcesUnchecked: this.allStackResources ? this.allStackResources.size - this.driftResults.StackResourceDrifts.length : -1,
+      sections: {
+        stackHeader,
+        unchanged: formatterOutput.unchanged,
+        unchecked: formatterOutput.unchecked,
+        modified: formatterOutput.modified,
+        deleted: formatterOutput.deleted,
+        finalResult,
+      },
+      formattedDrift: formatOutput(),
     };
   }
 

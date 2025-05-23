@@ -39,7 +39,7 @@ export interface FormattedDrift {
   readonly finalResult?: string;
 }
 
-export interface DriftCommandResult {
+export interface DriftResult {
   /**
    * Number of resources with drift
    */
@@ -49,6 +49,11 @@ export interface DriftCommandResult {
    * How many resources were not checked for drift
    */
   readonly numResourcesUnchecked?: number;
+
+  /**
+   * Formatted sections of the drift results
+   */
+  readonly sections?: FormattedDrift;
 
   /**
    * Complete formatted drift

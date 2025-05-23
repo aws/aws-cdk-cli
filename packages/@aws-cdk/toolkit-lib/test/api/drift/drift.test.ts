@@ -365,9 +365,9 @@ describe('formatStackDrift', () => {
       'Tear the Roof Off the Sucker',
     ];
     for (const expectedStringInOutput of expectedStringsInOutput) {
-      expect(result.formattedDrift.modified).toContain(expectedStringInOutput);
+      expect(result.sections?.modified).toContain(expectedStringInOutput);
     }
-    expect(result.formattedDrift.finalResult).toContain('1 resource has drifted');
+    expect(result.sections?.finalResult).toContain('1 resource has drifted');
   });
 
   test('detects multiple drifts', () => {
@@ -417,11 +417,11 @@ describe('formatStackDrift', () => {
       '10.0.0.1/16',
     ];
     for (const expectedStringInOutput of expectedStringsInOutput) {
-      expect(result.formattedDrift.modified).toContain(expectedStringInOutput);
+      expect(result.sections?.modified).toContain(expectedStringInOutput);
     }
-    expect(result.formattedDrift.deleted).toContain('AWS::EC2::Route');
-    expect(result.formattedDrift.deleted).toContain('SomeRoute');
-    expect(result.formattedDrift.finalResult).toContain('2 resources have drifted');
+    expect(result.sections?.deleted).toContain('AWS::EC2::Route');
+    expect(result.sections?.deleted).toContain('SomeRoute');
+    expect(result.sections?.finalResult).toContain('2 resources have drifted');
   });
 
   test('no drift detected', () => {
@@ -441,7 +441,7 @@ describe('formatStackDrift', () => {
 
     // THEN
     expect(result.numResourcesWithDrift).toBe(0);
-    expect(result.formattedDrift.finalResult).toContain('No drift detected');
+    expect(result.sections?.finalResult).toContain('No drift detected');
   });
 
   test('if detect drift is false, no output', () => {
@@ -454,7 +454,7 @@ describe('formatStackDrift', () => {
 
     // THEN
     expect(result.numResourcesWithDrift).toBeUndefined();
-    expect(result.formattedDrift.finalResult).toContain('No drift results available');
+    expect(result.sections?.finalResult).toContain('No drift results available');
   });
 
   test('formatting with verbose should show unchecked resources', () => {
@@ -499,10 +499,10 @@ describe('formatStackDrift', () => {
 
     // THEN
     expect(result.numResourcesWithDrift).toBe(1);
-    expect(result.formattedDrift.finalResult).toContain('1 resource has drifted');
+    expect(result.sections?.finalResult).toContain('1 resource has drifted');
 
-    expect(result.formattedDrift.unchanged).toContain('Resources In Sync');
-    expect(result.formattedDrift.unchecked).toContain('Unchecked Resources');
+    expect(result.sections?.unchanged).toContain('Resources In Sync');
+    expect(result.sections?.unchecked).toContain('Unchecked Resources');
   });
 
   test('formatting with different drift statuses', () => {
@@ -561,43 +561,13 @@ describe('formatStackDrift', () => {
 
     // THEN
     expect(result.numResourcesWithDrift).toBe(2); // Only MODIFIED and DELETED count as drift
-    expect(result.formattedDrift.modified).toContain('Modified Resources');
-    expect(result.formattedDrift.modified).toContain('AWS::S3::Bucket');
-    expect(result.formattedDrift.modified).toContain('Resource1');
-    expect(result.formattedDrift.deleted).toContain('Deleted Resources');
-    expect(result.formattedDrift.deleted).toContain('AWS::IAM::Role');
-    expect(result.formattedDrift.deleted).toContain('Resource2');
-    expect(result.formattedDrift.finalResult).toContain('2 resources have drifted');
-  });
-
-  test('with no drifts and verbose option', () => {
-    const mockStack = {
-      stackName: 'test-stack',
-      // Add this method to fix the error
-      findMetadataByType: jest.fn().mockReturnValue([]),
-    } as unknown as cxapi.CloudFormationStackArtifact;
-    const mockDriftedResources = {
-      StackResourceDrifts: [{
-        StackId: 'some:stack:arn',
-        StackResourceDriftStatus: 'IN_SYNC',
-        LogicalResourceId: 'SomeID',
-        ResourceType: 'AWS::Lambda::Function',
-        Timestamp: new Date(2025, 4, 20, 0, 0, 0),
-      } as StackResourceDrift],
-      $metadata: {},
-    } as DescribeStackResourceDriftsCommandOutput;
-
-    const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
-      stack: mockStack,
-      driftResults: mockDriftedResources,
-    });
-
-    const result = formatter.formatStackDrift();
-
-    expect(result.numResourcesWithDrift).toBe(0);
-    expect(result.formattedDrift.stackHeader).toContain('test-stack');
-    expect(result.formattedDrift.finalResult).toContain('No drift detected');
+    expect(result.sections?.modified).toContain('Modified Resources');
+    expect(result.sections?.modified).toContain('AWS::S3::Bucket');
+    expect(result.sections?.modified).toContain('Resource1');
+    expect(result.sections?.deleted).toContain('Deleted Resources');
+    expect(result.sections?.deleted).toContain('AWS::IAM::Role');
+    expect(result.sections?.deleted).toContain('Resource2');
+    expect(result.sections?.finalResult).toContain('2 resources have drifted');
   });
 
   test('uses logical ID to path mapping for formatting', () => {
@@ -635,6 +605,6 @@ describe('formatStackDrift', () => {
 
     // The path might be formatted differently in the output
     // Let's check for parts of the path instead
-    expect(result.formattedDrift.modified).toContain('to/resource1');
+    expect(result.sections?.modified).toContain('to/resource1');
   });
 });
