@@ -9,7 +9,7 @@ import * as fs from 'fs-extra';
 import * as semver from 'semver';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock } from '../api';
-import { RWLock, guessExecutable, loadTree, prepareContext, prepareDefaultEnvironment, some, spaceAvailableForContext } from '../api';
+import { RWLock, guessExecutable, loadTree, contextFromSettings, prepareDefaultEnvironment, some, spaceAvailableForContext } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -24,7 +24,7 @@ export interface ExecProgramResult {
 export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: Configuration): Promise<ExecProgramResult> {
   const debugFn = (msg: string) => ioHelper.assemblyDefaults.debug(msg);
   const env = await prepareDefaultEnvironment(aws, debugFn);
-  const context = await prepareContext(config.settings, config.context.all, env, debugFn);
+  const context = await contextFromSettings(config.settings, config.context.all, env, debugFn);
 
   const build = config.settings.get(['build']);
   if (build) {

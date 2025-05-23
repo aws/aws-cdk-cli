@@ -1,4 +1,5 @@
-import { exec as runCli, debug, createAssembly, prepareContext, prepareDefaultEnvironment } from './aws-cdk';
+import { format } from 'util';
+import { exec as runCli, debug, createAssembly, contextFromSettings, prepareDefaultEnvironment } from './aws-cdk';
 import type { SharedOptions, DeployOptions, DestroyOptions, BootstrapOptions, SynthOptions, ListOptions } from './commands';
 import { StackActivityProgress, HotswapMode } from './commands';
 
@@ -123,9 +124,14 @@ export class AwsCdkCli implements IAwsCdkCli {
     return new AwsCdkCli(async (args) => changeDir(
       () => runCli(args, async (sdk, config) => {
         const env = await prepareDefaultEnvironment(sdk, debugFn);
-        const context = await prepareContext(config.settings, config.context.all, env, debugFn);
 
-        return withEnv(async() => createAssembly(await producer.produce(context)), env);
+        const fullCtx = {
+          ...config.context.all,
+          ...contextFromSettings(config.settings),
+        };
+        await debugFn(format('context:', fullCtx));
+
+        return withEnv(async() => createAssembly(await producer.produce(fullCtx)), env);
       }),
       producer.workingDirectory,
     ));
