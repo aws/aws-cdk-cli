@@ -132,6 +132,7 @@ export class AwsCdkCli implements IAwsCdkCli {
         await debugFn(format('context:', fullCtx));
 
         const env = {
+          ...process.env,
           ...await prepareDefaultEnvironment(sdk, debugFn),
           ...params.env,
         };
