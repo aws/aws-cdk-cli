@@ -28,28 +28,18 @@ import type {
   ListResourcesCommandInput,
   ListResourcesCommandOutput,
 } from '@aws-sdk/client-cloudcontrol';
-import {
-  CloudControlClient,
-  GetResourceCommand,
-  ListResourcesCommand,
-} from '@aws-sdk/client-cloudcontrol';
+import { CloudControlClient, GetResourceCommand, ListResourcesCommand } from '@aws-sdk/client-cloudcontrol';
 import type {
   ContinueUpdateRollbackCommandInput,
   ContinueUpdateRollbackCommandOutput,
-  DescribeStackEventsCommandOutput,
-  DescribeStackResourcesCommandInput,
-  DescribeStackResourcesCommandOutput,
-  ListStacksCommandInput,
-  ListStacksCommandOutput,
-  RollbackStackCommandInput,
-  RollbackStackCommandOutput,
-  StackResourceSummary,
   CreateChangeSetCommandInput,
   CreateChangeSetCommandOutput,
   CreateGeneratedTemplateCommandInput,
   CreateGeneratedTemplateCommandOutput,
   CreateStackCommandInput,
   CreateStackCommandOutput,
+  CreateStackRefactorCommandInput,
+  CreateStackRefactorCommandOutput,
   DeleteChangeSetCommandInput,
   DeleteChangeSetCommandOutput,
   DeleteGeneratedTemplateCommandInput,
@@ -63,10 +53,15 @@ import type {
   DescribeResourceScanCommandInput,
   DescribeResourceScanCommandOutput,
   DescribeStackEventsCommandInput,
+  DescribeStackEventsCommandOutput,
+  DescribeStackResourcesCommandInput,
+  DescribeStackResourcesCommandOutput,
   DescribeStacksCommandInput,
   DescribeStacksCommandOutput,
   ExecuteChangeSetCommandInput,
   ExecuteChangeSetCommandOutput,
+  ExecuteStackRefactorCommandInput,
+  ExecuteStackRefactorCommandOutput,
   GetGeneratedTemplateCommandInput,
   GetGeneratedTemplateCommandOutput,
   GetTemplateCommandInput,
@@ -82,21 +77,26 @@ import type {
   ListResourceScansCommandInput,
   ListResourceScansCommandOutput,
   ListStackResourcesCommandInput,
+  ListStacksCommandInput,
+  ListStacksCommandOutput,
+  RollbackStackCommandInput,
+  RollbackStackCommandOutput,
+  StackResourceSummary,
+  StackSummary,
   StartResourceScanCommandInput,
   StartResourceScanCommandOutput,
   UpdateStackCommandInput,
   UpdateStackCommandOutput,
   UpdateTerminationProtectionCommandInput,
   UpdateTerminationProtectionCommandOutput,
-  StackSummary,
 } from '@aws-sdk/client-cloudformation';
 import {
-  paginateListStacks,
   CloudFormationClient,
   ContinueUpdateRollbackCommand,
   CreateChangeSetCommand,
   CreateGeneratedTemplateCommand,
   CreateStackCommand,
+  CreateStackRefactorCommand,
   DeleteChangeSetCommand,
   DeleteGeneratedTemplateCommand,
   DeleteStackCommand,
@@ -107,6 +107,7 @@ import {
   DescribeStackResourcesCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
+  ExecuteStackRefactorCommand,
   GetGeneratedTemplateCommand,
   GetTemplateCommand,
   GetTemplateSummaryCommand,
@@ -116,16 +117,20 @@ import {
   ListResourceScansCommand,
   ListStacksCommand,
   paginateListStackResources,
+  paginateListStacks,
   RollbackStackCommand,
   StartResourceScanCommand,
   UpdateStackCommand,
   UpdateTerminationProtectionCommand,
+  waitUntilStackRefactorCreateComplete,
+  waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
+import type { DescribeStackRefactorCommandInput } from '@aws-sdk/client-cloudformation/dist-types/commands/DescribeStackRefactorCommand';
 import type {
-  FilterLogEventsCommandInput,
-  FilterLogEventsCommandOutput,
   DescribeLogGroupsCommandInput,
   DescribeLogGroupsCommandOutput,
+  FilterLogEventsCommandInput,
+  FilterLogEventsCommandOutput,
 } from '@aws-sdk/client-cloudwatch-logs';
 import {
   CloudWatchLogsClient,
@@ -171,10 +176,6 @@ import {
 import type {
   BatchDeleteImageCommandInput,
   BatchDeleteImageCommandOutput,
-  ListImagesCommandInput,
-  ListImagesCommandOutput,
-  PutImageCommandInput,
-  PutImageCommandOutput,
   BatchGetImageCommandInput,
   BatchGetImageCommandOutput,
   CreateRepositoryCommandInput,
@@ -185,11 +186,16 @@ import type {
   DescribeRepositoriesCommandOutput,
   GetAuthorizationTokenCommandInput,
   GetAuthorizationTokenCommandOutput,
+  ListImagesCommandInput,
+  ListImagesCommandOutput,
+  PutImageCommandInput,
+  PutImageCommandOutput,
   PutImageScanningConfigurationCommandInput,
   PutImageScanningConfigurationCommandOutput,
 } from '@aws-sdk/client-ecr';
 import {
   BatchDeleteImageCommand,
+  BatchGetImageCommand,
   CreateRepositoryCommand,
   DescribeImagesCommand as ECRDescribeImagesCommand,
   DescribeRepositoriesCommand,
@@ -198,13 +204,12 @@ import {
   ListImagesCommand,
   PutImageCommand,
   PutImageScanningConfigurationCommand,
-  BatchGetImageCommand,
 } from '@aws-sdk/client-ecr';
 import type {
   DescribeServicesCommandInput,
-  RegisterTaskDefinitionCommandInput,
   ListClustersCommandInput,
   ListClustersCommandOutput,
+  RegisterTaskDefinitionCommandInput,
   RegisterTaskDefinitionCommandOutput,
   UpdateServiceCommandInput,
   UpdateServiceCommandOutput,
@@ -217,14 +222,14 @@ import {
   waitUntilServicesStable,
 } from '@aws-sdk/client-ecs';
 import type {
-  Listener,
-  LoadBalancer,
   DescribeListenersCommandInput,
   DescribeListenersCommandOutput,
   DescribeLoadBalancersCommandInput,
   DescribeLoadBalancersCommandOutput,
   DescribeTagsCommandInput,
   DescribeTagsCommandOutput,
+  Listener,
+  LoadBalancer,
 } from '@aws-sdk/client-elastic-load-balancing-v2';
 import {
   DescribeListenersCommand,
@@ -287,24 +292,24 @@ import {
   Route53Client,
 } from '@aws-sdk/client-route-53';
 import type {
+  CompleteMultipartUploadCommandOutput,
   DeleteObjectsCommandInput,
   DeleteObjectsCommandOutput,
   DeleteObjectTaggingCommandInput,
   DeleteObjectTaggingCommandOutput,
-  GetObjectTaggingCommandInput,
-  GetObjectTaggingCommandOutput,
-  PutObjectTaggingCommandInput,
-  PutObjectTaggingCommandOutput,
-  CompleteMultipartUploadCommandOutput,
   GetBucketEncryptionCommandInput,
   GetBucketEncryptionCommandOutput,
   GetBucketLocationCommandInput,
   GetBucketLocationCommandOutput,
   GetObjectCommandInput,
   GetObjectCommandOutput,
+  GetObjectTaggingCommandInput,
+  GetObjectTaggingCommandOutput,
   ListObjectsV2CommandInput,
   ListObjectsV2CommandOutput,
   PutObjectCommandInput,
+  PutObjectTaggingCommandInput,
+  PutObjectTaggingCommandOutput,
 } from '@aws-sdk/client-s3';
 import {
   DeleteObjectsCommand,
@@ -323,14 +328,8 @@ import {
   type GetSecretValueCommandOutput,
   SecretsManagerClient,
 } from '@aws-sdk/client-secrets-manager';
-import type {
-  UpdateStateMachineCommandInput,
-  UpdateStateMachineCommandOutput,
-} from '@aws-sdk/client-sfn';
-import {
-  SFNClient,
-  UpdateStateMachineCommand,
-} from '@aws-sdk/client-sfn';
+import type { UpdateStateMachineCommandInput, UpdateStateMachineCommandOutput } from '@aws-sdk/client-sfn';
+import { SFNClient, UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
 import {
   GetParameterCommand,
   type GetParameterCommandInput,
@@ -444,6 +443,10 @@ export interface ICloudFormationClient {
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
+  createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
+  executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
+  waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
+  waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -741,6 +744,34 @@ export class SDK {
           stackResources.push(...(page?.StackSummaries || []));
         }
         return stackResources;
+      },
+      createStackRefactor: (input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput> => {
+        return client.send(new CreateStackRefactorCommand(input));
+      },
+      executeStackRefactor: (input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput> => {
+        return client.send(new ExecuteStackRefactorCommand(input));
+      },
+      waitUntilStackRefactorCreateComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorCreateComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
+      },
+      waitUntilStackRefactorExecuteComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorExecuteComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
       },
     };
   }

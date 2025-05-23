@@ -1214,6 +1214,7 @@ export class CdkToolkit {
         exclude: await readExcludeFile(options.excludeFile),
         mappings: await readMappingFile(options.mappingFile),
         revert: options.revert,
+        force: options.force,
       });
     } catch (e) {
       error((e as Error).message);
@@ -1984,6 +1985,14 @@ export interface RefactorOptions {
    * that was previously applied.
    */
   revert?: boolean;
+
+  /**
+   * Whether to go ahead with the refactor, without asking for
+   * confirmation.
+   *
+   * @default false
+   */
+  force?: boolean;
 }
 
 function buildParameterMap(

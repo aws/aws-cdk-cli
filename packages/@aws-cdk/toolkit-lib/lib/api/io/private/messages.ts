@@ -336,9 +336,21 @@ export const IO = {
     interface: 'RefactorResult',
   }),
 
-  CDK_TOOLKIT_W8010: make.warn({
-    code: 'CDK_TOOLKIT_W8010',
-    description: 'Refactor execution not yet supported',
+  CDK_TOOLKIT_I8910: make.confirm<ConfirmationRequest>({
+    code: 'CDK_TOOLKIT_I8910',
+    description: 'Confirm refactor',
+    interface: 'ConfirmationRequest',
+  }),
+
+  CDK_TOOLKIT_I8901: make.info({
+    code: 'CDK_TOOLKIT_I8901',
+    description: 'Generic refactor messages',
+  }),
+
+  CDK_TOOLKIT_E8900: make.error<ErrorPayload>({
+    code: 'CDK_TOOLKIT_E8900',
+    description: 'Stack refactor failed',
+    interface: 'ErrorPayload',
   }),
 
   // 9: Bootstrap  & gc (9xxx)

@@ -35,7 +35,7 @@ import { patternsArrayForWatch } from '../actions/watch/private';
 import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
 import { makeRequestHandler } from '../api/aws-auth/awscli-compatible';
 import type { SdkProviderServices } from '../api/aws-auth/private';
-import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
+import { IoHostSdkLogger, SdkProvider } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
@@ -60,6 +60,8 @@ import {
   usePrescribedMappings,
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import { executeRefactor } from '../api/refactoring/execution';
+import { StackContainer } from '../api/refactoring/stack-container';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -974,17 +976,41 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
     }
 
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
     const sdkProvider = await this.sdkProvider('refactor');
+    const localStacks = assembly.cloudAssembly.stacks;
+    const stackContainer = new StackContainer(sdkProvider, ioHelper, localStacks);
     try {
       const mappings = await getMappings();
       const typedMappings = mappings.map(m => m.toTypedMapping());
       await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
         typedMappings,
       }));
+
+      if (typedMappings.length === 0 || options.dryRun) {
+        // Nothing else to do
+        return;
+      }
+
+      // In interactive mode (TTY) we need confirmation before proceeding
+      if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+        throw new ToolkitError('Aborted by user');
+      }
+
+      try {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('Refactoring...'));
+        if (await executeRefactor(mappings, stackContainer)) {
+          await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
+        }
+      } catch (e: any) {
+        let message = '';
+        try {
+          const statusReason = JSON.parse(e.message).reason?.StatusReason;
+          message = statusReason ?? formatErrorMessage(e);
+        } catch (parseError) {
+          message = formatErrorMessage(e);
+        }
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${message}`, { error: e }));
+      }
     } catch (e) {
       if (e instanceof AmbiguityError) {
         const paths = e.paths();
@@ -998,14 +1024,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     async function getMappings(): Promise<ResourceMapping[]> {
       if (options.revert) {
-        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
+        return usePrescribedMappings(revert(options.mappings ?? []), stackContainer);
       }
       if (options.mappings != null) {
-        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
+        return usePrescribedMappings(options.mappings ?? [], stackContainer);
       } else {
         const stacks = await assembly.selectStacksV2(ALL_STACKS);
         const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
+        const movements = await findResourceMovements(stacks.stackArtifacts, stackContainer, exclude);
         const ambiguous = ambiguousMovements(movements);
         if (ambiguous.length === 0) {
           const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
@@ -1021,6 +1047,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ...group,
         resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
       }));
+    }
+
+    async function confirm(force: boolean): Promise<boolean> {
+      // If 'force' is set, it's the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
+      }
+
+      const question = 'Do you wish to refactor these resources?';
+      const motivation = 'Mappings might differ from what the user expects';
+      return ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, { motivation }));
     }
   }
 

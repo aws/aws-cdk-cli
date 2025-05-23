@@ -29,6 +29,14 @@ export interface RefactorOptions {
   exclude?: string[];
 
   /**
+   * Whether to go ahead with the refactor, without asking for
+   * confirmation.
+   *
+   * @default false
+   */
+  force?: boolean;
+
+  /**
    * An explicit mapping to be used by the toolkit (as opposed to letting the
    * toolkit itself compute the mapping).
    */

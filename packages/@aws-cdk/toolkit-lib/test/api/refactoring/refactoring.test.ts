@@ -18,12 +18,12 @@ import {
   resourceMovements,
   usePrescribedMappings,
 } from '../../../lib/api/refactoring';
-import type {
-  CloudFormationStack,
-} from '../../../lib/api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
+import { StackContainer } from '../../../lib/api/refactoring/stack-container';
+import { TestIoHost } from '../../_helpers';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
@@ -1295,7 +1295,9 @@ describe('environment grouping', () => {
     async function mappings(stacks: CloudFormationStack[], excludeList?: ExcludeList) {
       const provider = new MockSdkProvider();
       provider.returnsDefaultAccounts(environment.account);
-      const movements2 = await findResourceMovements(stacks, provider, excludeList);
+      const ioHelper = new TestIoHost().asHelper('refactor');
+      const container = new StackContainer(provider, ioHelper, []);
+      const movements2 = await findResourceMovements(stacks, container, excludeList);
       return resourceMappings(movements2).map(toCfnMapping);
     }
   });
@@ -1409,8 +1411,10 @@ describe('environment grouping', () => {
 
     const provider = new MockSdkProvider();
     provider.returnsDefaultAccounts(environment1.account, environment2.account);
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const retriever = new StackContainer(provider, ioHelper, []);
 
-    const movements = await findResourceMovements([stack1, stack2], provider);
+    const movements = await findResourceMovements([stack1, stack2], retriever);
     expect(ambiguousMovements(movements)).toEqual([]);
 
     expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);
@@ -1468,7 +1472,9 @@ describe(usePrescribedMappings, () => {
 
     // WHEN
     const provider = new MockSdkProvider();
-    const result = await usePrescribedMappings(mappings.environments, provider);
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
+    const result = await usePrescribedMappings(mappings.environments, container);
 
     // THEN
     // The mappings should be generated correctly, with the template included in the source.
@@ -1558,11 +1564,12 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Duplicate destination resource 'Bar.Bucket2' in environment 123456789012/us-east-1",
     );
   });
@@ -1587,11 +1594,12 @@ describe(usePrescribedMappings, () => {
       StackSummaries: [],
     });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Source resource 'Foo.Bucket1' does not exist in environment 123456789012/us-east-1",
     );
   });
@@ -1661,11 +1669,12 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Destination resource 'Bar.Bucket2' already in use in environment 123456789012/us-east-1",
     );
   });
@@ -1714,11 +1723,12 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    // WHEN
     const provider = new MockSdkProvider();
+    const ioHelper = new TestIoHost().asHelper('refactor');
+    const container = new StackContainer(provider, ioHelper, []);
 
     // THEN
-    await expect(usePrescribedMappings(mappings.environments, provider)).rejects.toThrow(
+    await expect(usePrescribedMappings(mappings.environments, container)).rejects.toThrow(
       "Invalid location 'InvalidLocation'",
     );
   });
@@ -1743,6 +1753,12 @@ describe(generateStackDefinitions, () => {
           NotInvolved: {
             Type: 'AWS::X::Y',
           },
+          Consumer: {
+            Type: 'AWS::X::Y',
+            Properties: {
+              Bucket: { Ref: 'Bucket1' },
+            },
+          },
         },
       },
     };
@@ -1751,7 +1767,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack, 'Bucket1'), new ResourceLocation(stack, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack]);
+    const result = generateStackDefinitions(mappings, [stack], []);
     expect(result).toEqual([
       {
         StackName: 'Foo',
@@ -1761,6 +1777,13 @@ describe(generateStackDefinitions, () => {
             // original template. Should be included.
             NotInvolved: {
               Type: 'AWS::X::Y',
+            },
+            Consumer: {
+              Type: 'AWS::X::Y',
+              Properties: {
+                // The reference has also been updated
+                Bucket: { Ref: 'Bucket2' },
+              },
             },
             Bucket2: {
               Type: 'AWS::S3::Bucket',
@@ -1803,7 +1826,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [stack1, stack2], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1869,7 +1892,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1]);
+    const result = generateStackDefinitions(mappings, [stack1], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1932,7 +1955,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack2, 'Bucket3'), new ResourceLocation(stack1, 'Bucket6')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [stack1, stack2], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1989,7 +2012,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack1, 'Bucket3')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [stack1, stack2], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2029,7 +2052,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
     ];
 
-    expect(() => generateStackDefinitions(mappings, [stack1, stack2]))
+    expect(() => generateStackDefinitions(mappings, [stack1, stack2], []))
       .toThrow(/Stack Stack1 has no resources after refactor/);
   });
 });
