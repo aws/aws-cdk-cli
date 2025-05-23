@@ -1,6 +1,6 @@
 import { DescribeStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetFunctionCommand, UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
-import { integTest, sleep, withDefaultFixture } from '../../lib';
+import { integTest, sleep, withDefaultFixture } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
