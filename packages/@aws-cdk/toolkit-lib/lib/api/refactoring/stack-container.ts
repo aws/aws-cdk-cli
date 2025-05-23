@@ -29,6 +29,12 @@ export class StackContainer {
     this.environmentResourcesRegistry = new EnvironmentResourcesRegistry();
   }
 
+  public getLocalStacks(environment: cxapi.Environment): CloudFormationStack[] {
+    return this.localStacks.filter(
+      (s) => s.environment.account === environment.account && s.environment.region === environment.region,
+    );
+  }
+
   public async getDeployedStacks(environment: cxapi.Environment): Promise<CloudFormationStack[]> {
     const envKey = envToString(environment);
     if (this.stacksByEnvironment.has(envKey)) {
@@ -78,7 +84,7 @@ export class StackContainer {
    *
    */
   public async forEachEnvironment(
-    cb: (client: ICloudFormationClient, stacks: CloudFormationStack[]) => Promise<void>,
+    cb: (client: ICloudFormationClient, deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]) => Promise<void>,
   ): Promise<boolean> {
     let success = true;
     const environments = Array.from(this.stacksByEnvironment.keys()).map(stringToEnv);
@@ -103,9 +109,10 @@ export class StackContainer {
       }
 
       const cfn = sdk.cloudFormation();
-      const stacks = await this.getDeployedStacks(env);
+      const deployedStacks = await this.getDeployedStacks(env);
+      const localStacks = this.getLocalStacks(env);
       try {
-        await cb(cfn, stacks);
+        await cb(cfn, deployedStacks, localStacks);
       } catch (e: any) {
         success = false;
         const resolvedEnv = await this.sdkProvider.resolveEnvironment(env);

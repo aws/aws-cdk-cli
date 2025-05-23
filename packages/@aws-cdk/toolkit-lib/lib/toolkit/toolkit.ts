@@ -1008,7 +1008,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await ioHelper.notify(IO.CDK_TOOLKIT_I8901.msg('✅  Stack refactor complete'));
         }
       } catch (e: any) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${formatErrorMessage(e)}`, { error: e }));
+        let message = '';
+        try {
+          const statusReason = JSON.parse(e.message).reason?.StatusReason;
+          message = statusReason ?? formatErrorMessage(e);
+        } catch (parseError) {
+          message = formatErrorMessage(e);
+        }
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(`Refactor failed: ${message}`, { error: e }));
       }
     } catch (e) {
       if (e instanceof AmbiguityError) {

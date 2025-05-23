@@ -10,6 +10,7 @@ export interface CloudFormationTemplate {
       Metadata?: Record<string, any>;
     };
   };
+  Outputs?: Record<string, any>;
 }
 
 export interface CloudFormationStack {

@@ -1717,6 +1717,12 @@ describe(generateStackDefinitions, () => {
           NotInvolved: {
             Type: 'AWS::X::Y',
           },
+          Consumer: {
+            Type: 'AWS::X::Y',
+            Properties: {
+              Bucket: { Ref: 'Bucket1' },
+            },
+          },
         },
       },
     };
@@ -1725,7 +1731,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack, 'Bucket1'), new ResourceLocation(stack, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack]);
+    const result = generateStackDefinitions(mappings, [stack], []);
     expect(result).toEqual([
       {
         StackName: 'Foo',
@@ -1735,6 +1741,13 @@ describe(generateStackDefinitions, () => {
             // original template. Should be included.
             NotInvolved: {
               Type: 'AWS::X::Y',
+            },
+            Consumer: {
+              Type: 'AWS::X::Y',
+              Properties: {
+                // The reference has also been updated
+                Bucket: { Ref: 'Bucket2' },
+              },
             },
             Bucket2: {
               Type: 'AWS::S3::Bucket',
@@ -1777,7 +1790,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [stack1, stack2], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1843,7 +1856,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1]);
+    const result = generateStackDefinitions(mappings, [stack1], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1906,7 +1919,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack2, 'Bucket3'), new ResourceLocation(stack1, 'Bucket6')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [stack1, stack2], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1963,7 +1976,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack1, 'Bucket3')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [stack1, stack2], []);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2003,7 +2016,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
     ];
 
-    expect(() => generateStackDefinitions(mappings, [stack1, stack2]))
+    expect(() => generateStackDefinitions(mappings, [stack1, stack2], []))
       .toThrow(/Stack Stack1 has no resources after refactor/);
   });
 });
