@@ -426,10 +426,12 @@ const cloudFormationDiff = configureProject(
     devDeps: [
       'fast-check',
     ],
+    peerDeps: [
+      '@aws-sdk/client-cloudformation@^3',
+    ],
     deps: [
       '@aws-cdk/aws-service-spec',
       '@aws-cdk/service-spec-types',
-      '@aws-sdk/client-cloudformation',
       'chalk@^4',
       'diff',
       'fast-deep-equal',
@@ -808,7 +810,7 @@ const toolkitLib = configureProject(
     },
     tsJestOptions: {
       transformOptions: {
-        isolatedModules: true,
+        isolatedModules: false, // we use the respective tsc setting
       },
     },
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',

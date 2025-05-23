@@ -2,7 +2,7 @@ import { format } from 'util';
 import * as chalk from 'chalk';
 import type { DifferenceCollection, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
-import type { ResourceDifference, Difference } from './diff-template';
+import type { Difference, ResourceDifference } from './diff-template';
 import { isPropertyDifference, ResourceImpact } from './diff-template';
 import { formatTable } from './format-table';
 import type { IamChanges } from './iam/iam-changes';
