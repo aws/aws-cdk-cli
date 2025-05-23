@@ -166,7 +166,7 @@ const styleMap: Record<IoMessageLevel, (str: string) => string> = {
  * Detect stack activity messages so they can be send to the printer.
  */
 function isStackActivity(msg: IoMessage<unknown>) {
-  return [
+  return msg.code && [
     'CDK_TOOLKIT_I5501',
     'CDK_TOOLKIT_I5502',
     'CDK_TOOLKIT_I5503',

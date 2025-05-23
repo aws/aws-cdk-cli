@@ -20,8 +20,6 @@ export class IoHelper implements IIoHost {
    * Simplified access to emit default messages.
    */
   public readonly defaults: IoDefaultMessages;
-  public readonly assemblyDefaults: IoDefaultMessages;
-  public readonly sdkDefaults: IoDefaultMessages;
 
   private readonly ioHost: IIoHost;
   private readonly action: ToolkitAction;
@@ -29,9 +27,7 @@ export class IoHelper implements IIoHost {
   private constructor(ioHost: IIoHost, action: ToolkitAction) {
     this.ioHost = ioHost;
     this.action = action;
-    this.defaults = new IoDefaultMessages(this, 'TOOLKIT');
-    this.assemblyDefaults = new IoDefaultMessages(this, 'ASSEMBLY');
-    this.sdkDefaults = new IoDefaultMessages(this, 'SDK');
+    this.defaults = new IoDefaultMessages(this);
   }
 
   /**

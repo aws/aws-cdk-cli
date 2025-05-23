@@ -97,14 +97,14 @@ export class CloudExecutable implements ICloudAssemblySource {
 
         let tryLookup = true;
         if (previouslyMissingKeys && setsEqual(missingKeys, previouslyMissingKeys)) {
-          await this.props.ioHelper.assemblyDefaults.debug('Not making progress trying to resolve environmental context. Giving up.');
+          await this.props.ioHelper.defaults.debug('Not making progress trying to resolve environmental context. Giving up.');
           tryLookup = false;
         }
 
         previouslyMissingKeys = missingKeys;
 
         if (tryLookup) {
-          await this.props.ioHelper.assemblyDefaults.debug('Some context information is missing. Fetching...');
+          await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
 
           await contextproviders.provideContextValues(
             assembly.manifest.missing,

@@ -22,7 +22,7 @@ export interface ExecProgramResult {
 
 /** Invokes the cloud executable and returns JSON output */
 export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: Configuration): Promise<ExecProgramResult> {
-  const debugFn = (msg: string) => ioHelper.assemblyDefaults.debug(msg);
+  const debugFn = (msg: string) => ioHelper.defaults.debug(msg);
   const env = await prepareDefaultEnvironment(aws, debugFn);
   const context = await prepareContext(config.settings, config.context.all, env, debugFn);
 
@@ -168,7 +168,7 @@ async function contextOverflowCleanup(
   if (location) {
     fs.removeSync(path.dirname(location));
 
-    const tree = await loadTree(assembly, (msg: string) => ioHelper.assemblyDefaults.trace(msg));
+    const tree = await loadTree(assembly, (msg: string) => ioHelper.defaults.trace(msg));
     const frameworkDoesNotSupportContextOverflow = some(tree, node => {
       const fqn = node.constructInfo?.fqn;
       const version = node.constructInfo?.version;
@@ -179,7 +179,7 @@ async function contextOverflowCleanup(
     // We're dealing with an old version of the framework here. It is unaware of the temporary
     // file, which means that it will ignore the context overflow.
     if (frameworkDoesNotSupportContextOverflow) {
-      await ioHelper.assemblyDefaults.warn('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.');
+      await ioHelper.defaults.warn('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.');
     }
   }
 }
