@@ -661,6 +661,35 @@ export class CdkToolkit {
   }
 
   /**
+   * Detect infrastructure drift for the given stack(s)
+   */
+  public async drift(options: DriftOptions): Promise<number> {
+    let drifts = 0;
+    let uncheckedDrifts = 0;
+
+    try {
+      const driftResult = await this.toolkit.drift(this.props.cloudExecutable, {
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+        },
+      });
+      drifts = driftResult.numResourcesWithDrift === undefined ? -1 : driftResult.numResourcesWithDrift;
+      uncheckedDrifts = driftResult.numResourcesUnchecked === undefined ? -1 : driftResult.numResourcesUnchecked;
+    } catch (e) {
+      error((e as Error).message);
+      return 1;
+    }
+
+    info(format('\n✨  Number of resources with drift: %s',
+      drifts === -1 ? 'unknown' : drifts,
+    ));
+    debug(` (${uncheckedDrifts === -1 ? 'unknown' : uncheckedDrifts} unchecked)`);
+
+    return drifts > 0 && options.fail ? 1 : 0;
+  }
+
+  /**
    * Roll back the given stack or stacks.
    */
   public async rollback(options: RollbackOptions) {
@@ -1984,6 +2013,23 @@ export interface RefactorOptions {
    * that was previously applied.
    */
   revert?: boolean;
+}
+
+/**
+ * Options for the drift command
+ */
+export interface DriftOptions {
+  /**
+   * Criteria for selecting stacks to detect drift on
+   */
+  selector: StackSelector;
+
+  /**
+   * Whether to fail with exit code 1 if drift is detected
+   *
+   * @default false
+   */
+  readonly fail?: boolean;
 }
 
 function buildParameterMap(

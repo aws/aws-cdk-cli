@@ -196,6 +196,13 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'drift':
+      commandOptions = {
+        fail: args.fail,
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'metadata':
       commandOptions = {
         STACK: args.STACK,
@@ -424,6 +431,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     changeSet: config.diff?.changeSet,
     importExistingResources: config.diff?.importExistingResources,
   };
+  const driftOptions = {
+    fail: config.drift?.fail,
+  };
   const metadataOptions = {};
   const acknowledgeOptions = {};
   const noticesOptions = {
@@ -474,6 +484,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     watch: watchOptions,
     destroy: destroyOptions,
     diff: diffOptions,
+    drift: driftOptions,
     metadata: metadataOptions,
     acknowledge: acknowledgeOptions,
     notices: noticesOptions,

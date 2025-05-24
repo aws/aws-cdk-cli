@@ -67,7 +67,7 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // 4: Diff (4xxx)
+  // 4: Diff & Drift (4xxx)
   CDK_TOOLKIT_I4000: make.trace<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I4000',
     description: 'Diff stacks is starting',
@@ -77,6 +77,24 @@ export const IO = {
     code: 'CDK_TOOLKIT_I4001',
     description: 'Output of the diff command',
     interface: 'DiffResult',
+  }),
+  CDK_TOOLKIT_I4500: make.debug({
+    code: 'CDK_TOOLKIT_I4500',
+    description: 'Unchanged resources in the drift command output',
+  }),
+  CDK_TOOLKIT_I4501: make.debug({
+    code: 'CDK_TOOLKIT_I4501',
+    description: 'Unchecked resources in the drift command output',
+  }),
+  CDK_TOOLKIT_I4502: make.result<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4502',
+    description: 'Modified resources in the drift command output',
+    interface: 'StackSelectionDetails',
+  }),
+  CDK_TOOLKIT_I4503: make.result<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4503',
+    description: 'Deleted resources in the drift command output',
+    interface: 'StackSelectionDetails',
   }),
 
   // 5: Deploy & Watch (5xxx)

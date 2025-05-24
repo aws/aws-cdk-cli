@@ -1854,7 +1854,7 @@ The @aws-cdk/cli-lib-alpha package includes the following third-party software/l
 
 ----------------
 
-** @aws-sdk/client-ec2@3.812.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.812.0 | Apache-2.0
+** @aws-sdk/client-ec2@3.815.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.815.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3502,7 +3502,7 @@ The @aws-cdk/cli-lib-alpha package includes the following third-party software/l
 
 ----------------
 
-** @aws-sdk/client-s3@3.812.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.812.0 | Apache-2.0
+** @aws-sdk/client-s3@3.815.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.815.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6592,7 +6592,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/lib-storage@3.812.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.812.0 | Apache-2.0
+** @aws-sdk/lib-storage@3.815.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.815.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7209,7 +7209,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-flexible-checksums@3.812.0 - https://www.npmjs.com/package/@aws-sdk/middleware-flexible-checksums/v/3.812.0 | Apache-2.0
+** @aws-sdk/middleware-flexible-checksums@3.815.0 - https://www.npmjs.com/package/@aws-sdk/middleware-flexible-checksums/v/3.815.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11120,7 +11120,7 @@ Apache License
 
 ----------------
 
-** @smithy/abort-controller@4.0.2 - https://www.npmjs.com/package/@smithy/abort-controller/v/4.0.2 | Apache-2.0
+** @smithy/abort-controller@4.0.3 - https://www.npmjs.com/package/@smithy/abort-controller/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11325,7 +11325,7 @@ Apache License
 
 ----------------
 
-** @smithy/config-resolver@4.1.2 - https://www.npmjs.com/package/@smithy/config-resolver/v/4.1.2 | Apache-2.0
+** @smithy/config-resolver@4.1.3 - https://www.npmjs.com/package/@smithy/config-resolver/v/4.1.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11530,7 +11530,7 @@ Apache License
 
 ----------------
 
-** @smithy/core@3.3.3 - https://www.npmjs.com/package/@smithy/core/v/3.3.3 | Apache-2.0
+** @smithy/core@3.4.0 - https://www.npmjs.com/package/@smithy/core/v/3.4.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11736,7 +11736,7 @@ Apache License
 
 ----------------
 
-** @smithy/credential-provider-imds@4.0.4 - https://www.npmjs.com/package/@smithy/credential-provider-imds/v/4.0.4 | Apache-2.0
+** @smithy/credential-provider-imds@4.0.5 - https://www.npmjs.com/package/@smithy/credential-provider-imds/v/4.0.5 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11941,7 +11941,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-codec@4.0.2 - https://www.npmjs.com/package/@smithy/eventstream-codec/v/4.0.2 | Apache-2.0
+** @smithy/eventstream-codec@4.0.3 - https://www.npmjs.com/package/@smithy/eventstream-codec/v/4.0.3 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12147,7 +12147,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-serde-config-resolver@4.1.0 - https://www.npmjs.com/package/@smithy/eventstream-serde-config-resolver/v/4.1.0 | Apache-2.0
+** @smithy/eventstream-serde-config-resolver@4.1.1 - https://www.npmjs.com/package/@smithy/eventstream-serde-config-resolver/v/4.1.1 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12353,7 +12353,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-serde-node@4.0.2 - https://www.npmjs.com/package/@smithy/eventstream-serde-node/v/4.0.2 | Apache-2.0
+** @smithy/eventstream-serde-node@4.0.3 - https://www.npmjs.com/package/@smithy/eventstream-serde-node/v/4.0.3 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12559,7 +12559,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-serde-universal@4.0.2 - https://www.npmjs.com/package/@smithy/eventstream-serde-universal/v/4.0.2 | Apache-2.0
+** @smithy/eventstream-serde-universal@4.0.3 - https://www.npmjs.com/package/@smithy/eventstream-serde-universal/v/4.0.3 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12765,7 +12765,7 @@ Apache License
 
 ----------------
 
-** @smithy/fetch-http-handler@5.0.2 - https://www.npmjs.com/package/@smithy/fetch-http-handler/v/5.0.2 | Apache-2.0
+** @smithy/fetch-http-handler@5.0.3 - https://www.npmjs.com/package/@smithy/fetch-http-handler/v/5.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12970,7 +12970,7 @@ Apache License
 
 ----------------
 
-** @smithy/hash-node@4.0.2 - https://www.npmjs.com/package/@smithy/hash-node/v/4.0.2 | Apache-2.0
+** @smithy/hash-node@4.0.3 - https://www.npmjs.com/package/@smithy/hash-node/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13175,7 +13175,7 @@ Apache License
 
 ----------------
 
-** @smithy/hash-stream-node@4.0.2 - https://www.npmjs.com/package/@smithy/hash-stream-node/v/4.0.2 | Apache-2.0
+** @smithy/hash-stream-node@4.0.3 - https://www.npmjs.com/package/@smithy/hash-stream-node/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13790,7 +13790,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-content-length@4.0.2 - https://www.npmjs.com/package/@smithy/middleware-content-length/v/4.0.2 | Apache-2.0
+** @smithy/middleware-content-length@4.0.3 - https://www.npmjs.com/package/@smithy/middleware-content-length/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13995,7 +13995,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-endpoint@4.1.6 - https://www.npmjs.com/package/@smithy/middleware-endpoint/v/4.1.6 | Apache-2.0
+** @smithy/middleware-endpoint@4.1.7 - https://www.npmjs.com/package/@smithy/middleware-endpoint/v/4.1.7 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14200,7 +14200,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-retry@4.1.7 - https://www.npmjs.com/package/@smithy/middleware-retry/v/4.1.7 | Apache-2.0
+** @smithy/middleware-retry@4.1.8 - https://www.npmjs.com/package/@smithy/middleware-retry/v/4.1.8 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14406,7 +14406,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-serde@4.0.5 - https://www.npmjs.com/package/@smithy/middleware-serde/v/4.0.5 | Apache-2.0
+** @smithy/middleware-serde@4.0.6 - https://www.npmjs.com/package/@smithy/middleware-serde/v/4.0.6 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14612,7 +14612,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-stack@4.0.2 - https://www.npmjs.com/package/@smithy/middleware-stack/v/4.0.2 | Apache-2.0
+** @smithy/middleware-stack@4.0.3 - https://www.npmjs.com/package/@smithy/middleware-stack/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14817,7 +14817,7 @@ Apache License
 
 ----------------
 
-** @smithy/node-config-provider@4.1.1 - https://www.npmjs.com/package/@smithy/node-config-provider/v/4.1.1 | Apache-2.0
+** @smithy/node-config-provider@4.1.2 - https://www.npmjs.com/package/@smithy/node-config-provider/v/4.1.2 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15022,7 +15022,7 @@ Apache License
 
 ----------------
 
-** @smithy/node-http-handler@4.0.4 - https://www.npmjs.com/package/@smithy/node-http-handler/v/4.0.4 | Apache-2.0
+** @smithy/node-http-handler@4.0.5 - https://www.npmjs.com/package/@smithy/node-http-handler/v/4.0.5 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15227,7 +15227,7 @@ Apache License
 
 ----------------
 
-** @smithy/property-provider@4.0.2 - https://www.npmjs.com/package/@smithy/property-provider/v/4.0.2 | Apache-2.0
+** @smithy/property-provider@4.0.3 - https://www.npmjs.com/package/@smithy/property-provider/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15432,7 +15432,7 @@ Apache License
 
 ----------------
 
-** @smithy/protocol-http@5.1.0 - https://www.npmjs.com/package/@smithy/protocol-http/v/5.1.0 | Apache-2.0
+** @smithy/protocol-http@5.1.1 - https://www.npmjs.com/package/@smithy/protocol-http/v/5.1.1 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15638,7 +15638,7 @@ Apache License
 
 ----------------
 
-** @smithy/querystring-builder@4.0.2 - https://www.npmjs.com/package/@smithy/querystring-builder/v/4.0.2 | Apache-2.0
+** @smithy/querystring-builder@4.0.3 - https://www.npmjs.com/package/@smithy/querystring-builder/v/4.0.3 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15844,7 +15844,7 @@ Apache License
 
 ----------------
 
-** @smithy/querystring-parser@4.0.2 - https://www.npmjs.com/package/@smithy/querystring-parser/v/4.0.2 | Apache-2.0
+** @smithy/querystring-parser@4.0.3 - https://www.npmjs.com/package/@smithy/querystring-parser/v/4.0.3 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16050,7 +16050,7 @@ Apache License
 
 ----------------
 
-** @smithy/service-error-classification@4.0.3 - https://www.npmjs.com/package/@smithy/service-error-classification/v/4.0.3 | Apache-2.0
+** @smithy/service-error-classification@4.0.4 - https://www.npmjs.com/package/@smithy/service-error-classification/v/4.0.4 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16256,7 +16256,7 @@ Apache License
 
 ----------------
 
-** @smithy/shared-ini-file-loader@4.0.2 - https://www.npmjs.com/package/@smithy/shared-ini-file-loader/v/4.0.2 | Apache-2.0
+** @smithy/shared-ini-file-loader@4.0.3 - https://www.npmjs.com/package/@smithy/shared-ini-file-loader/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16461,7 +16461,7 @@ Apache License
 
 ----------------
 
-** @smithy/signature-v4@5.1.0 - https://www.npmjs.com/package/@smithy/signature-v4/v/5.1.0 | Apache-2.0
+** @smithy/signature-v4@5.1.1 - https://www.npmjs.com/package/@smithy/signature-v4/v/5.1.1 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16666,7 +16666,7 @@ Apache License
 
 ----------------
 
-** @smithy/smithy-client@4.2.6 - https://www.npmjs.com/package/@smithy/smithy-client/v/4.2.6 | Apache-2.0
+** @smithy/smithy-client@4.3.0 - https://www.npmjs.com/package/@smithy/smithy-client/v/4.3.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16872,7 +16872,7 @@ Apache License
 
 ----------------
 
-** @smithy/types@4.2.0 - https://www.npmjs.com/package/@smithy/types/v/4.2.0 | Apache-2.0
+** @smithy/types@4.3.0 - https://www.npmjs.com/package/@smithy/types/v/4.3.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -17078,7 +17078,7 @@ Apache License
 
 ----------------
 
-** @smithy/url-parser@4.0.2 - https://www.npmjs.com/package/@smithy/url-parser/v/4.0.2 | Apache-2.0
+** @smithy/url-parser@4.0.3 - https://www.npmjs.com/package/@smithy/url-parser/v/4.0.3 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -18309,7 +18309,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-defaults-mode-node@4.0.14 - https://www.npmjs.com/package/@smithy/util-defaults-mode-node/v/4.0.14 | Apache-2.0
+** @smithy/util-defaults-mode-node@4.0.15 - https://www.npmjs.com/package/@smithy/util-defaults-mode-node/v/4.0.15 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -18515,7 +18515,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-endpoints@3.0.4 - https://www.npmjs.com/package/@smithy/util-endpoints/v/3.0.4 | Apache-2.0
+** @smithy/util-endpoints@3.0.5 - https://www.npmjs.com/package/@smithy/util-endpoints/v/3.0.5 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -18925,7 +18925,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-middleware@4.0.2 - https://www.npmjs.com/package/@smithy/util-middleware/v/4.0.2 | Apache-2.0
+** @smithy/util-middleware@4.0.3 - https://www.npmjs.com/package/@smithy/util-middleware/v/4.0.3 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -19130,7 +19130,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-retry@4.0.3 - https://www.npmjs.com/package/@smithy/util-retry/v/4.0.3 | Apache-2.0
+** @smithy/util-retry@4.0.4 - https://www.npmjs.com/package/@smithy/util-retry/v/4.0.4 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -19335,7 +19335,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-stream@4.2.0 - https://www.npmjs.com/package/@smithy/util-stream/v/4.2.0 | Apache-2.0
+** @smithy/util-stream@4.2.1 - https://www.npmjs.com/package/@smithy/util-stream/v/4.2.1 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -20155,7 +20155,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-waiter@4.0.3 - https://www.npmjs.com/package/@smithy/util-waiter/v/4.0.3 | Apache-2.0
+** @smithy/util-waiter@4.0.4 - https://www.npmjs.com/package/@smithy/util-waiter/v/4.0.4 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -21466,40 +21466,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ----------------
 
 ** degenerator@5.0.1 - https://www.npmjs.com/package/degenerator/v/5.0.1 | MIT
-
-----------------
-
-** diff@7.0.0 - https://www.npmjs.com/package/diff/v/7.0.0 | BSD-3-Clause
-BSD 3-Clause License
-
-Copyright (c) 2009-2015, Kevin Decker <kpdecker@gmail.com>
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 
 ----------------
 

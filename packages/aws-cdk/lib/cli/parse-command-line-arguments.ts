@@ -751,6 +751,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
             desc: 'Whether or not the change set imports resources that already exist',
           }),
     )
+    .command('drift [STACKS..]', 'Detect drifts in the given CloudFormation stack(s)', (yargs: Argv) =>
+      yargs.option('fail', {
+        default: undefined,
+        type: 'boolean',
+        desc: 'Fail with exit code 1 if drift is detected',
+      }),
+    )
     .command('metadata [STACK]', 'Returns all metadata associated with this stack')
     .command(['acknowledge [ID]', 'ack [ID]'], 'Acknowledge a notice so that it does not show up anymore')
     .command('notices', 'Returns a list of relevant notices', (yargs: Argv) =>

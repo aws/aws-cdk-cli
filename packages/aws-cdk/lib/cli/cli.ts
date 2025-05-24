@@ -261,6 +261,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           importExistingResources: args.importExistingResources,
         });
 
+      case 'drift':
+        ioHost.currentAction = 'drift';
+        return cli.drift({
+          selector,
+          fail: args.fail,
+        });
+
       case 'refactor':
         if (!configuration.settings.get(['unstable']).includes('refactor')) {
           throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');

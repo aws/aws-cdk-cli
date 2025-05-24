@@ -8,6 +8,7 @@ export type ToolkitAction =
 | 'list'
 | 'diff'
 | 'deploy'
+| 'drift'
 | 'rollback'
 | 'watch'
 | 'destroy'
