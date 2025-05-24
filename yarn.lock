@@ -59,6 +59,13 @@
   resolved "https://registry.yarnpkg.com/@aws-cdk/integ-tests-alpha/-/integ-tests-alpha-2.184.1-alpha.0.tgz#0719db2d294eac42de58f320238b3cd9a0e5b8fc"
   integrity sha512-9ca8uxcP41USi2Y/ulGFR9iCLEAofq6h8VcSMpJHRvJb3mQtBJ+WYwXIn+uyMtDBIWX4pOyMk/6XZDuZVpwOsg==
 
+"@aws-cdk/service-spec-types@^0.0.139":
+  version "0.0.139"
+  resolved "https://registry.yarnpkg.com/@aws-cdk/service-spec-types/-/service-spec-types-0.0.139.tgz#6ba5173783f35036cc3cc8d961856be379a1b5b2"
+  integrity sha512-/x2q+oWI3/SxH4s8puIFYbgiydCuHri0GV0CAbNW3btkAvL9lXvZAsQ7Sp2o5YpxeC/lBoKhs7H6L7mhsocxww==
+  dependencies:
+    "@cdklabs/tskb" "^0.0.3"
+
 "@aws-cdk/service-spec-types@^0.0.140":
   version "0.0.140"
   resolved "https://registry.yarnpkg.com/@aws-cdk/service-spec-types/-/service-spec-types-0.0.140.tgz#db6cfa878c380aea7c5b81781ea30bdb510c1f29"

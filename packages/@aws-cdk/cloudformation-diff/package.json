@@ -42,7 +42,7 @@
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.5",
-    "eslint-import-resolver-typescript": "^4.3.5",
+    "eslint-import-resolver-typescript": "^3.10.1",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jest": "^28.11.0",
     "eslint-plugin-jsdoc": "^50.6.17",
@@ -60,7 +60,7 @@
   },
   "dependencies": {
     "@aws-cdk/aws-service-spec": "^0.1.73",
-    "@aws-cdk/service-spec-types": "^0.0.140",
+    "@aws-cdk/service-spec-types": "^0.0.139",
     "chalk": "^4",
     "diff": "^7.0.0",
     "fast-deep-equal": "^3.1.3",
