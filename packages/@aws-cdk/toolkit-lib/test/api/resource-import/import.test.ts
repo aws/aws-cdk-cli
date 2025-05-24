@@ -1,11 +1,3 @@
-jest.mock('promptly', () => {
-  return {
-    ...jest.requireActual('promptly'),
-    confirm: jest.fn(),
-    prompt: jest.fn(),
-  };
-});
-
 import {
   CreateChangeSetCommand,
   DescribeChangeSetCommand,
@@ -14,16 +6,12 @@ import {
   GetTemplateSummaryCommand,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
-import * as promptly from 'promptly';
 import { Deployments } from '../../../lib/api/deployments';
 import type { ImportMap, ResourceImporterProps } from '../../../lib/api/resource-import';
 import { ResourceImporter } from '../../../lib/api/resource-import';
 import { testStack } from '../../_helpers/assembly';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
-
-const promptlyConfirm = promptly.confirm as jest.Mock;
-const promptlyPrompt = promptly.prompt as jest.Mock;
 
 function stackWithQueue(props: Record<string, unknown>) {
   return testStack({
@@ -129,7 +117,7 @@ test('asks human for resource identifiers', async () => {
   const { additions } = await importer.discoverImportableResources();
 
   // WHEN
-  promptlyPrompt.mockResolvedValue('TheQueueName');
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', 'TheQueueName');
   const importable = await importer.askForResourceIdentifiers(additions);
 
   // THEN
@@ -145,14 +133,14 @@ test('asks human for resource identifiers', async () => {
   ]);
 });
 
-test('asks human to confirm automic import if identifier is in template', async () => {
+test('asks human to confirm automatic import if identifier is in template', async () => {
   // GIVEN
   givenCurrentStack(STACK_WITH_NAMED_QUEUE.stackName, { Resources: {} });
   const importer = new ResourceImporter(STACK_WITH_NAMED_QUEUE, props);
   const { additions } = await importer.discoverImportableResources();
 
   // WHEN
-  promptlyConfirm.mockResolvedValue(true);
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3100', 'yes');
   const importable = await importer.askForResourceIdentifiers(additions);
 
   // THEN
@@ -168,7 +156,7 @@ test('asks human to confirm automic import if identifier is in template', async 
   ]);
 });
 
-test('asks human to confirm automic import if identifier is in template', async () => {
+test('asks human to confirm automatic import if identifier is in template', async () => {
   // GIVEN
   givenCurrentStack(STACK_WITH_QUEUE.stackName, { Resources: {} });
   const importer = new ResourceImporter(STACK_WITH_QUEUE, props);
@@ -264,7 +252,7 @@ test('only use one identifier if multiple are in template', async () => {
   });
 
   // WHEN
-  promptlyConfirm.mockResolvedValue(true); // Confirm yes/no
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3100', 'yes');
   await importTemplateFromClean(stack);
 
   // THEN
@@ -288,11 +276,11 @@ test('only ask user for one identifier if multiple possible ones are possible', 
   const stack = stackWithGlobalTable({});
 
   // WHEN
-  promptlyPrompt.mockResolvedValue('Banana');
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', 'Banana');
   const importable = await importTemplateFromClean(stack);
 
   // THEN -- only asked once
-  expect(promptlyPrompt).toHaveBeenCalledTimes(1);
+  expect(ioHost.requestSpy).toHaveBeenCalledTimes(1);
   expect(importable.resourceMap).toEqual({
     MyTable: { TableName: 'Banana' },
   });
@@ -305,7 +293,7 @@ test('ask identifier if the value in the template is a CFN intrinsic', async () 
   });
 
   // WHEN
-  promptlyPrompt.mockResolvedValue('Banana');
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', 'Banana');
   const importable = await importTemplateFromClean(stack);
 
   // THEN
@@ -322,7 +310,7 @@ test('take compound identifiers from the template if found', async () => {
   });
 
   // WHEN
-  promptlyConfirm.mockResolvedValue(true);
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3100', 'yes');
   await importTemplateFromClean(stack);
 
   // THEN
@@ -346,7 +334,7 @@ test('ask user for compound identifiers if not found', async () => {
   const stack = stackWithKeySigningKey({});
 
   // WHEN
-  promptlyPrompt.mockReturnValue('Banana');
+  ioHost.mockResponse('CDK_TOOLKIT_I3110', 'Banana');
   await importTemplateFromClean(stack);
 
   // THEN
@@ -370,7 +358,7 @@ test('do not ask for second part of compound identifier if the user skips the fi
   const stack = stackWithKeySigningKey({});
 
   // WHEN
-  promptlyPrompt.mockReturnValue('');
+  ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', '');
   const importMap = await importTemplateFromClean(stack);
 
   // THEN

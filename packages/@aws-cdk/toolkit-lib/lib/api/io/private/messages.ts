@@ -8,6 +8,7 @@ import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployPr
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
 import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
+import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
@@ -61,6 +62,16 @@ export const IO = {
   }),
 
   // 3: Import & Migrate
+  CDK_TOOLKIT_I3100: make.confirm<ResourceImportRequest>({
+    code: 'CDK_TOOLKIT_I3100',
+    description: 'Confirm the import of a specific resource',
+    interface: 'ResourceImportRequest',
+  }),
+  CDK_TOOLKIT_I3110: make.question<ResourceIdentificationRequest>({
+    code: 'CDK_TOOLKIT_I3110',
+    description: 'Additional information is needed to identify a resource',
+    interface: 'ResourceIdentificationRequest',
+  }),
   CDK_TOOLKIT_E3900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E3900',
     description: 'Resource import failed',

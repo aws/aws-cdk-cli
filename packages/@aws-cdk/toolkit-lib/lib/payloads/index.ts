@@ -16,3 +16,4 @@ export * from './diff';
 export * from './logs-monitor';
 export * from './hotswap';
 export * from './gc';
+export * from './import';

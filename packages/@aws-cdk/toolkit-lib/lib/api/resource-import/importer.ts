@@ -5,7 +5,6 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import * as promptly from 'promptly';
 import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { Deployments } from '../deployments';
@@ -347,10 +346,14 @@ export class ResourceImporter {
       const candidateProps = Object.fromEntries(satisfiedPropSet.map(p => [p, resourceProps[p]]));
       const displayCandidateProps = fmtdict(candidateProps);
 
-      if (await promptly.confirm(
-        `${chalk.blue(resourceName)} (${resourceType}): import with ${chalk.yellow(displayCandidateProps)} (yes/no) [default: yes]? `,
-        { default: 'yes' },
-      )) {
+      const importTheResource = await this.ioHelper.requestResponse(IO.CDK_TOOLKIT_I3100.req(`${chalk.blue(resourceName)} (${resourceType}): import with ${chalk.yellow(displayCandidateProps)}`, {
+        resource: {
+          type: resourceType,
+          props: candidateProps,
+          stringifiedProps: displayCandidateProps,
+        },
+      }));
+      if (importTheResource) {
         return candidateProps;
       }
     }
@@ -364,19 +367,13 @@ export class ResourceImporter {
     // We cannot auto-import this, ask the user for one of the props
     // The only difference between these cases is what we print: for multiple properties, we print a preamble
     const prefix = `${chalk.blue(resourceName)} (${resourceType})`;
-    let preamble;
-    let promptPattern;
+    const promptPattern = `${prefix}: enter %s`;
     if (idPropSets.length > 1) {
-      preamble = `${prefix}: enter one of ${idPropSets.map(x => chalk.blue(x.join('+'))).join(', ')} to import (all empty to skip)`;
-      promptPattern = `${prefix}: enter %`;
-    } else {
-      promptPattern = `${prefix}: enter %`;
+      const preamble = `${prefix}: enter one of ${idPropSets.map(x => chalk.blue(x.join('+'))).join(', ')} to import (leave all empty to skip)`;
+      await this.ioHelper.defaults.info(preamble);
     }
 
     // Do the input loop here
-    if (preamble) {
-      await this.ioHelper.defaults.info(preamble);
-    }
     for (const idProps of idPropSets) {
       const input: Record<string, string> = {};
       for (const idProp of idProps) {
@@ -384,15 +381,18 @@ export class ResourceImporter {
         // identifier if present, otherwise we would have done the import already above.
         const defaultValue = resourceProps[idProp] ?? '';
 
-        const prompt = [
-          promptPattern.replace(/%/g, chalk.blue(idProp)),
-          defaultValue
-            ? `[${defaultValue}]`
-            : '(empty to skip)',
-        ].join(' ') + ':';
-        const response = await promptly.prompt(prompt,
-          { default: defaultValue, trim: true },
-        );
+        const response = await this.ioHelper.requestResponse(IO.CDK_TOOLKIT_I3110.req(
+          format(promptPattern, chalk.blue(idProp)),
+          {
+            resource: {
+              name: resourceName,
+              type: resourceType,
+              idProp,
+            },
+            responseDescription: defaultValue ? undefined : 'empty to skip',
+          },
+          defaultValue,
+        ));
 
         if (!response) {
           break;

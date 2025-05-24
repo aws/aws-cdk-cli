@@ -42,6 +42,10 @@
       "type": "build"
     },
     {
+      "name": "@types/jest-when",
+      "type": "build"
+    },
+    {
       "name": "@types/node",
       "version": "^16",
       "type": "build"
@@ -126,6 +130,10 @@
     {
       "name": "jest-junit",
       "version": "^16",
+      "type": "build"
+    },
+    {
+      "name": "jest-when",
       "type": "build"
     },
     {
@@ -343,10 +351,6 @@
     {
       "name": "p-limit",
       "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "promptly",
       "type": "runtime"
     },
     {

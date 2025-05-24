@@ -12,6 +12,8 @@ group: Documents
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
+| `CDK_TOOLKIT_I3100` | Confirm the import of a specific resource | `info` | {@link ResourceImportRequest} |
+| `CDK_TOOLKIT_I3110` | Additional information is needed to identify a resource | `info` | {@link ResourceIdentificationRequest} |
 | `CDK_TOOLKIT_E3900` | Resource import failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I4000` | Diff stacks is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I4001` | Output of the diff command | `info` | {@link DiffResult} |
