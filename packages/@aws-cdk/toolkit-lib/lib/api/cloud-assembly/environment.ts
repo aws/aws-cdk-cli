@@ -1,5 +1,4 @@
 import * as path from 'path';
-import { format } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
@@ -36,20 +35,14 @@ export async function prepareDefaultEnvironment(
 }
 
 /**
- * Settings related to synthesis are read from context.
- * The merging of various configuration sources like cli args or cdk.json has already happened.
- * We now need to set the final values to the context.
+ * Create context from settings.
+ *
+ * Mutates the `context` object and returns it.
  */
-export async function prepareContext(
+export function contextFromSettings(
   settings: Settings,
-  context: { [key: string]: any },
-  env: { [key: string]: string | undefined },
-  debugFn: (msg: string) => Promise<void>,
 ) {
-  const debugMode: boolean = settings.get(['debug']) ?? true;
-  if (debugMode) {
-    env.CDK_DEBUG = 'true';
-  }
+  const context: Record<string, unknown> = {};
 
   const pathMetadata: boolean = settings.get(['pathMetadata']) ?? true;
   if (pathMetadata) {
@@ -78,9 +71,21 @@ export async function prepareContext(
   const bundlingStacks = settings.get(['bundlingStacks']) ?? ['**'];
   context[cxapi.BUNDLING_STACKS] = bundlingStacks;
 
-  await debugFn(format('context:', context));
-
   return context;
+}
+
+/**
+ * Convert settings to context/environment variables
+ */
+export function synthParametersFromSettings(settings: Settings) {
+  return {
+    context: contextFromSettings(settings),
+    env: {
+      // An environment variable instead of a context variable, so it can also
+      // be accessed in framework code where we don't have access to a construct tree.
+      ...settings.get(['debug']) ? { CDK_DEBUG: 'true' } : {},
+    },
+  };
 }
 
 export function spaceAvailableForContext(env: { [key: string]: string }, limit: number) {

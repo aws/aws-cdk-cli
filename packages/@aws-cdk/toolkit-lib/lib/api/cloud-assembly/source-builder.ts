@@ -13,6 +13,19 @@ export interface AssemblyBuilderProps {
    * The context provided tp the builder app to synthesize the Cloud Assembly, including looked-up context.
    */
   readonly context?: { [key: string]: any };
+
+  /**
+   * Additional configuration that would normally be passed to a CDK app using environment variables
+   *
+   * This contains variables intended for the user portion of a CDK app (notably
+   * `CDK_DEFAULT_ACCOUNT` and `CDK_DEFAULT_REGION`), which you can freely read.
+   *
+   * It also contains variables intended for the CDK Toolkit to communicate with
+   * the internals of the construct library, like `CDK_DEBUG` and
+   * `CDK_CLI_ASM_VERSION`. Reading these latter variables is possible but not
+   * recommended, as their meaning may change without notice.
+   */
+  readonly env?: Record<string, string>;
 }
 
 /**
