@@ -1,6 +1,7 @@
 import * as crypto from 'node:crypto';
 import { loadResourceModel } from '@aws-cdk/cloudformation-diff/lib/diff/util';
 import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
+import { ResourceGraph } from './graph';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
@@ -43,86 +44,11 @@ export function computeResourceDigests(stacks: CloudFormationStack[]): Record<st
     ),
   );
 
-  const graph: Record<string, Set<string>> = {};
-  const reverseGraph: Record<string, Set<string>> = {};
-
-  // 1. Build adjacency lists
-  for (const id of Object.keys(resources)) {
-    graph[id] = new Set();
-    reverseGraph[id] = new Set();
-  }
-
-  // 2. Detect dependencies by searching for Ref/Fn::GetAtt
-  const findDependencies = (stackName: string, value: any): string[] => {
-    if (!value || typeof value !== 'object') return [];
-    if (Array.isArray(value)) {
-      return value.flatMap(res => findDependencies(stackName, res));
-    }
-    if ('Ref' in value) {
-      return [`${stackName}.${value.Ref}`];
-    }
-    if ('Fn::GetAtt' in value) {
-      const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
-      return [`${stackName}.${refTarget}`];
-    }
-    if ('Fn::ImportValue' in value) {
-      const exp = exports[value['Fn::ImportValue']];
-      const v = exp.value;
-      if ('Fn::GetAtt' in v) {
-        const id = Array.isArray(v['Fn::GetAtt']) ? v['Fn::GetAtt'][0] : v['Fn::GetAtt'].split('.')[0];
-        return [`${exp.stackName}.${id}`];
-      }
-      if ('Ref' in v) {
-        return [`${exp.stackName}.${v.Ref}`];
-      }
-      throw new ToolkitError(`Unrecognized export value: ${JSON.stringify(value)}`);
-    }
-    const result: string[] = [];
-    if ('DependsOn' in value) {
-      if (Array.isArray(value.DependsOn)) {
-        result.push(...value.DependsOn.map((r: string) => `${stackName}.${r}`));
-      } else {
-        result.push(`${stackName}.${value.DependsOn}`);
-      }
-    }
-    result.push(...Object.values(value).flatMap(res => findDependencies(stackName, res)));
-    return result;
-  };
-
-  for (const [id, res] of Object.entries(resources)) {
-    const stackName = id.split('.')[0];
-    const deps = findDependencies(stackName, res || {});
-    for (const dep of deps) {
-      if (dep in resources && dep !== id) {
-        graph[id].add(dep);
-        reverseGraph[dep].add(id);
-      }
-    }
-  }
-
-  // 3. Topological sort
-  const outDegree = Object.keys(graph).reduce((acc, k) => {
-    acc[k] = graph[k].size;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const queue = Object.keys(outDegree).filter((k) => outDegree[k] === 0);
-  const order: string[] = [];
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const nxt of reverseGraph[node]) {
-      outDegree[nxt]--;
-      if (outDegree[nxt] === 0) {
-        queue.push(nxt);
-      }
-    }
-  }
-
+  const graph = new ResourceGraph(stacks);
+  const nodes = graph.sortedNodes;
   // 4. Compute digests in sorted order
   const result: Record<string, string> = {};
-  for (const id of order) {
+  for (const id of nodes) {
     const resource = resources[id];
     const resourceProperties = resource.Properties ?? {};
     const model = loadResourceModel(resource.Type);
@@ -141,7 +67,7 @@ export function computeResourceDigests(stacks: CloudFormationStack[]): Record<st
     } else {
       // The resource does not have a physical ID defined, so we need to
       // compute the digest based on its properties and dependencies.
-      const depDigests = Array.from(graph[id]).map((d) => result[d]);
+      const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
       const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
       toHash = resource.Type + propertiesHash + depDigests.join('');
     }
