@@ -1,14 +1,17 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 
+export interface CloudFormationResource {
+  Type: string;
+  Properties?: any;
+  Metadata?: Record<string, any>;
+}
+
 export interface CloudFormationTemplate {
   Resources?: {
-    [logicalId: string]: {
-      Type: string;
-      Properties?: any;
-      Metadata?: Record<string, any>;
-    };
+    [logicalId: string]: CloudFormationResource;
   };
+  Outputs?: Record<string, any>;
 }
 
 export interface CloudFormationStack {
