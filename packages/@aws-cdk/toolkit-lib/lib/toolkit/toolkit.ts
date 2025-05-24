@@ -417,27 +417,27 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const driftOutput = formatter.formatStackDrift();
 
       if (driftOutput.sections?.stackHeader) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.sections?.stackHeader));
+        await ioHelper.defaults.result(driftOutput.sections?.stackHeader);
         output.push(driftOutput.sections?.stackHeader);
       }
       if (driftOutput.sections?.unchanged) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.sections?.unchanged));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.sections?.unchanged));
         output.push(driftOutput.sections?.unchanged);
       }
       if (driftOutput.sections?.unchecked) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.sections?.unchecked));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.sections?.unchecked));
         output.push(driftOutput.sections?.unchecked);
       }
       if (driftOutput.sections?.modified) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.sections?.modified, { stacks: selectStacks }));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.sections?.modified, { stacks: selectStacks }));
         output.push(driftOutput.sections?.modified);
       }
       if (driftOutput.sections?.deleted) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4504.msg(driftOutput.sections?.deleted, { stacks: selectStacks }));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.sections?.deleted, { stacks: selectStacks }));
         output.push(driftOutput.sections?.deleted);
       }
       if (driftOutput.sections?.finalResult) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.sections?.finalResult));
+        await ioHelper.defaults.result(driftOutput.sections?.finalResult);
         output.push(driftOutput.sections?.finalResult);
       }
       drifts += driftOutput.numResourcesWithDrift === -1 ? 0 : driftOutput.numResourcesWithDrift || 0;

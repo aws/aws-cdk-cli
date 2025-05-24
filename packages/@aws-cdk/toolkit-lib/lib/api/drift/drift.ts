@@ -3,7 +3,6 @@ import type { DescribeStackDriftDetectionStatusCommandOutput, DescribeStackResou
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
-import { IO } from '../io/private';
 
 /**
  * Detect drift for a CloudFormation stack and wait for the detection to complete
@@ -18,14 +17,14 @@ export async function detectStackDrift(
   ioHelper: IoHelper,
   stackName: string,
 ): Promise<DescribeStackResourceDriftsCommandOutput> {
-  await ioHelper.notify(IO.CDK_TOOLKIT_I4506.msg(format('Starting drift detection for stack %s...', stackName)));
-
   // Start drift detection
   const driftDetection = await cfn.detectStackDrift({
     StackName: stackName,
   });
 
-  await ioHelper.notify(IO.CDK_TOOLKIT_I4506.msg(format('Detecting drift for stack %s...', stackName)));
+  await ioHelper.defaults.trace(
+    format('Detecting drift with ID %s for stack %s...', driftDetection.StackDriftDetectionId, stackName),
+  );
 
   // Wait for drift detection to complete
   const driftStatus = await waitForDriftDetection(cfn, ioHelper, driftDetection.StackDriftDetectionId!);
@@ -54,8 +53,6 @@ async function waitForDriftDetection(
   ioHelper: IoHelper,
   driftDetectionId: string,
 ): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
-  await ioHelper.notify(IO.CDK_TOOLKIT_I4506.msg(format('Waiting for drift detection %s to complete...', driftDetectionId)));
-
   const timeout = 60_000; // if takes longer than 60s, fail
   const timeBetweenOutputs = 10_000; // how long to wait before telling user we're still checking
   const deadline = Date.now() + timeout;
@@ -79,7 +76,7 @@ async function waitForDriftDetection(
     }
 
     if (Date.now() > checkIn) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I4506.msg('Waiting for drift detection to complete...'));
+      await ioHelper.defaults.trace('Waiting for drift detection to complete...');
       checkIn = Date.now() + timeBetweenOutputs;
     }
     await new Promise(resolve => setTimeout(resolve, 500));

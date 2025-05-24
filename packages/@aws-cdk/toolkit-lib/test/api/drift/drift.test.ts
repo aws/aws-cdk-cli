@@ -7,22 +7,12 @@ import {
   DetectStackResourceDriftCommand,
 } from '@aws-sdk/client-cloudformation';
 import { detectStackDrift, DriftFormatter } from '../../../lib/api/drift';
-import { IoHelper } from '../../../lib/api/io/private';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { mockCloudFormationClient, MockSdk } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/test-io-host';
 
-jest.mock('../../../lib/api/io/private', () => {
-  const originalModule = jest.requireActual('../../../lib/api/io/private');
-  return {
-    ...originalModule,
-    IO: {
-      ...originalModule.IO,
-      DEFAULT_TOOLKIT_DEBUG: {
-        msg: jest.fn().mockReturnValue('mocked-message'),
-      },
-    },
-  };
-});
+let ioHost = new TestIoHost();
+let ioHelper = ioHost.asHelper('deploy');
 
 describe('CloudFormation drift commands', () => {
   let sdk: MockSdk;
@@ -133,17 +123,17 @@ describe('CloudFormation drift commands', () => {
 
 describe('detectStackDrift', () => {
   let mockCfn: any;
-  let mockIoHelper: any;
 
   beforeEach(() => {
+    jest.resetAllMocks();
+    ioHost = new TestIoHost();
+    // Set level to trace to capture all messages
+    ioHost.level = 'trace';
+    ioHelper = ioHost.asHelper('drift');
     mockCfn = {
       detectStackDrift: jest.fn(),
       describeStackDriftDetectionStatus: jest.fn(),
       describeStackResourceDrifts: jest.fn(),
-    };
-
-    mockIoHelper = {
-      notify: jest.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -156,11 +146,12 @@ describe('detectStackDrift', () => {
     mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
     mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
       DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'IN_SYNC',
     });
     mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
 
     // WHEN
-    const result = await detectStackDrift(mockCfn, mockIoHelper, stackName);
+    const result = await detectStackDrift(mockCfn, ioHelper, stackName);
 
     // THEN
     expect(mockCfn.detectStackDrift).toHaveBeenCalledWith({ StackName: stackName });
@@ -169,6 +160,10 @@ describe('detectStackDrift', () => {
     });
     expect(mockCfn.describeStackResourceDrifts).toHaveBeenCalledWith({ StackName: stackName });
     expect(result).toBe(expectedDriftResults);
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Detecting drift'),
+      level: 'trace',
+    }));
   });
 
   test('throws error when drift detection takes too long', async () => {
@@ -196,8 +191,13 @@ describe('detectStackDrift', () => {
     Date.now = mockDateNow;
 
     // WHEN & THEN
-    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
+    await expect(detectStackDrift(mockCfn, ioHelper, stackName))
       .rejects.toThrow(ToolkitError);
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Detecting drift'),
+      level: 'trace',
+    }));
 
     // Restore original Date.now
     Date.now = originalDateNow;
@@ -232,18 +232,18 @@ describe('detectStackDrift', () => {
       .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
       .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
       .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
-      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_COMPLETE' });
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_COMPLETE', StackDriftStatus: 'IN_SYNC' });
 
     mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
 
     // WHEN
-    await detectStackDrift(mockCfn, mockIoHelper, stackName);
+    await detectStackDrift(mockCfn, ioHelper, stackName);
 
     // THEN
-    expect(mockIoHelper.notify).toHaveBeenCalled();
-
-    // Verify that notify was called at least 3 times (initial, progress, and completion)
-    expect(mockIoHelper.notify.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Detecting drift'),
+      level: 'trace',
+    }));
 
     // Restore original Date.now
     Date.now = originalDateNow;
@@ -262,8 +262,13 @@ describe('detectStackDrift', () => {
     });
 
     // WHEN & THEN
-    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
+    await expect(detectStackDrift(mockCfn, ioHelper, stackName))
       .rejects.toThrow(`Drift detection failed: ${failureReason}`);
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Detecting drift'),
+      level: 'trace',
+    }));
   });
 
   test('throws error when detection fails', async () => {
@@ -282,27 +287,20 @@ describe('detectStackDrift', () => {
     });
 
     // WHEN & THEN
-    await expect(detectStackDrift(mockCfn, mockIoHelper, stackName))
+    await expect(detectStackDrift(mockCfn, ioHelper, stackName))
       .rejects.toThrow(`Drift detection failed: ${failureReason}`);
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Detecting drift'),
+      level: 'trace',
+    }));
   });
 });
 
 describe('formatStackDrift', () => {
-  let mockIoHelper: IoHelper;
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
 
   beforeEach(() => {
-    const mockNotify = jest.fn().mockResolvedValue(undefined);
-    const mockRequestResponse = jest.fn().mockResolvedValue(undefined);
-
-    mockIoHelper = IoHelper.fromIoHost(
-      { notify: mockNotify, requestResponse: mockRequestResponse },
-      'diff',
-    );
-
-    jest.spyOn(mockIoHelper, 'notify').mockImplementation(() => Promise.resolve());
-    jest.spyOn(mockIoHelper, 'requestResponse').mockImplementation(() => Promise.resolve());
-
     mockNewTemplate = {
       template: {
         Resources: {
@@ -348,7 +346,7 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockNewTemplate,
       driftResults: mockDriftedResources,
     });
@@ -400,7 +398,7 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockNewTemplate,
       driftResults: mockDriftedResources,
     });
@@ -433,7 +431,7 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockNewTemplate,
       driftResults: mockDriftResults,
     });
@@ -447,7 +445,7 @@ describe('formatStackDrift', () => {
   test('if detect drift is false, no output', () => {
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockNewTemplate,
     });
     const result = formatter.formatStackDrift();
@@ -490,7 +488,7 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockNewTemplate,
       driftResults: mockDriftedResources,
       allStackResources: allStackResources,
@@ -553,7 +551,7 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockNewTemplate,
       driftResults: mockDriftedResources,
     });
@@ -596,7 +594,7 @@ describe('formatStackDrift', () => {
     } as DescribeStackResourceDriftsCommandOutput;
 
     const formatter = new DriftFormatter({
-      ioHelper: mockIoHelper,
+      ioHelper,
       stack: mockStack,
       driftResults: mockDriftResults,
     });

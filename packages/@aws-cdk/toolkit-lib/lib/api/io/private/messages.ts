@@ -78,35 +78,23 @@ export const IO = {
     description: 'Output of the diff command',
     interface: 'DiffResult',
   }),
-  CDK_TOOLKIT_I4500: make.info({
+  CDK_TOOLKIT_I4500: make.debug({
     code: 'CDK_TOOLKIT_I4500',
-    description: 'Output of the drift command',
+    description: 'Unchanged resources in the drift command output',
   }),
   CDK_TOOLKIT_I4501: make.debug({
     code: 'CDK_TOOLKIT_I4501',
-    description: 'Unchanged resources in the drift command output',
-  }),
-  CDK_TOOLKIT_I4502: make.debug({
-    code: 'CDK_TOOLKIT_I4502',
     description: 'Unchecked resources in the drift command output',
   }),
-  CDK_TOOLKIT_I4503: make.result<StackSelectionDetails>({
-    code: 'CDK_TOOLKIT_I4503',
+  CDK_TOOLKIT_I4502: make.result<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4502',
     description: 'Modified resources in the drift command output',
     interface: 'StackSelectionDetails',
   }),
-  CDK_TOOLKIT_I4504: make.result<StackSelectionDetails>({
-    code: 'CDK_TOOLKIT_I4504',
+  CDK_TOOLKIT_I4503: make.result<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4503',
     description: 'Deleted resources in the drift command output',
     interface: 'StackSelectionDetails',
-  }),
-  CDK_TOOLKIT_I4505: make.error({
-    code: 'CDK_TOOLKIT_I4505',
-    description: 'Drift detection error',
-  }),
-  CDK_TOOLKIT_I4506: make.trace({
-    code: 'CDK_TOOLKIT_I4506',
-    description: 'Drift detection is starting',
   }),
 
   // 5: Deploy & Watch (5xxx)
