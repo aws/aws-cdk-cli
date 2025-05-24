@@ -66,7 +66,7 @@ export class ResourceGraph {
         if ('Ref' in v) {
           return [`${exp.stackName}.${v.Ref}`];
         }
-        throw new ToolkitError(`Unrecognized export value: ${JSON.stringify(value)}`);
+        return [`${exp.stackName}.${v}`];
       }
       const result: string[] = [];
       if ('DependsOn' in value) {
