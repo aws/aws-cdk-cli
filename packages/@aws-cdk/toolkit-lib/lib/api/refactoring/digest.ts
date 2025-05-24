@@ -130,8 +130,6 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
     } else if ('Fn::GetAtt' in v) {
       return { __cloud_ref__: 'Fn::GetAtt' };
     }
-    // Should not happen
-    throw new ToolkitError(`Unrecognized reference value: ${JSON.stringify(value)}`);
   }
   const result: any = {};
   for (const [k, v] of Object.entries(value)) {
