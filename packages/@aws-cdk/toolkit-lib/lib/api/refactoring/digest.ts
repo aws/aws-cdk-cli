@@ -2,7 +2,6 @@ import * as crypto from 'node:crypto';
 import { loadResourceModel } from '@aws-cdk/cloudformation-diff/lib/diff/util';
 import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
 import { ResourceGraph } from './graph';
-import { ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
  * Computes the digest for each resource in the template.

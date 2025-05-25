@@ -7,7 +7,6 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 export class ResourceGraph {
   private readonly edges: Record<string, Set<string>> = {};
   private readonly reverseEdges: Record<string, Set<string>> = {};
-  private readonly _sortedNodes: string[] = [];
 
   constructor(stacks: Omit<CloudFormationStack, 'environment'>[]) {
     const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
@@ -90,19 +89,23 @@ export class ResourceGraph {
         }
       }
     }
+  }
 
-    // 3. Topological sort
+  /**
+   * Returns the sorted nodes in topological order.
+   */
+  get sortedNodes(): string[] {
+    const result: string[] = [];
     const outDegree = Object.keys(this.edges).reduce((acc, k) => {
       acc[k] = this.edges[k].size;
       return acc;
     }, {} as Record<string, number>);
 
     const queue = Object.keys(outDegree).filter((k) => outDegree[k] === 0);
-    // const order: string[] = [];
 
     while (queue.length > 0) {
       const node = queue.shift()!;
-      this._sortedNodes.push(node);
+      result.push(node);
       for (const nxt of this.reverseEdges[node]) {
         outDegree[nxt]--;
         if (outDegree[nxt] === 0) {
@@ -110,13 +113,7 @@ export class ResourceGraph {
         }
       }
     }
-  }
-
-  /**
-   * Returns the sorted nodes in topological order.
-   */
-  get sortedNodes(): string[] {
-    return this._sortedNodes;
+    return result;
   }
 
   public inNeighbors(node: string): string[] {
