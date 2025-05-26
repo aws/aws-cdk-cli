@@ -78,7 +78,7 @@ export abstract class CloudAssemblySourceBuilder {
           });
 
           const cleanupContextTemp = writeContextToEnv(env, fullContext);
-          const cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : noop;
+          using _cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : undefined;
           let assembly;
           try {
             assembly = await builder({
@@ -94,7 +94,6 @@ export abstract class CloudAssemblySourceBuilder {
             // otherwise, wrap into an assembly error
             throw AssemblyError.withCause('Assembly builder failed', error);
           } finally {
-            cleanupEnv();
             await cleanupContextTemp();
           }
 
@@ -276,31 +275,34 @@ function parametersFromSynthOptions(synthOptions?: AppSynthOptions) {
  * We make the environment immutable in case there are accidental
  * concurrent accesses.
  */
-function temporarilyWriteEnv(env: Record<string, string>): () => void {
+function temporarilyWriteEnv(env: Record<string, string>) {
   const oldEnv = process.env;
 
-  process.env = immutableEnv({
+  process.env = detectSynthvarConflicts({
     ...process.env,
     ...env,
   });
 
-  return () => {
-    process.env = oldEnv;
+  return {
+    [Symbol.dispose]() {
+      process.env = oldEnv;
+    },
   };
 }
 
-function noop() {
-}
-
-function immutableEnv<A extends object>(obj: A) {
+/**
+ * Return an environment-like object that throws if certain keys are set
+ *
+ * We only throw on specific environment variables to catch the case of
+ * concurrent synths. We can't do all variables because there are some
+ * routines somewhere that modify things like `JSII_DEPRECATED` globally.
+ */
+function detectSynthvarConflicts<A extends object>(obj: A) {
   return new Proxy(obj, {
     get(target, prop) {
       return (target as any)[prop];
     },
     set(target, prop, value) {
-      // We only throw on specific environment variables to catch the case of
-      // concurrent synths. We can't do all variables because there are some
-      // routines somewhere that modify things like `JSII_DEPRECATED` globally.
       if (['CDK_CONTEXT', 'CDK_OUTDIR'].includes(String(prop))) {
         throw new ToolkitError('process.env is temporarily immutable. Set \'clobberEnv: false\' if you want to run multiple \'fromAssemblyBuilder\' synths concurrently');
       }
