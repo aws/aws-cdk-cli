@@ -6,9 +6,7 @@ import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import { makeCachingProvider } from './provider-caching';
-import { ProxyAgentProvider } from './proxy-agent';
 import type { ISdkLogger } from './sdk-logger';
-import type { SdkHttpOptions } from './types';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
 
@@ -278,9 +276,4 @@ export function sdkRequestHandler(agent?: Agent): NodeHttpHandlerOptions {
     httpsAgent: agent,
     httpAgent: agent,
   };
-}
-
-export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
-  const agent = await new ProxyAgentProvider(ioHelper).create(options);
-  return sdkRequestHandler(agent);
 }

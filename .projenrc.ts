@@ -751,7 +751,6 @@ const toolkitLib = configureProject(
       'glob',
       'minimatch',
       'p-limit@^3',
-      'proxy-agent',
       'semver',
       'split2',
       'uuid',

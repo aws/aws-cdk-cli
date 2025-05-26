@@ -1,3 +1,4 @@
+import type { Agent } from 'node:https';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { AwsCliCompatible } from './awscli-compatible';
 import type { SdkProviderServices } from './sdk-provider';
@@ -32,18 +33,13 @@ export interface SdkConfig {
  */
 export interface SdkHttpOptions {
   /**
-   * Proxy address to use
+   * The agent responsible for making the network requests.
    *
-   * @default No proxy
-   */
-  readonly proxyAddress?: string;
-
-  /**
-   * A path to a certificate bundle that contains a cert to be trusted.
+   * Use this so set up a proxy connection.
    *
-   * @default No certificate bundle
+   * @default - uses the shared global node agent
    */
-  readonly caBundlePath?: string;
+  readonly agent?: Agent;
 }
 
 export abstract class BaseCredentials {

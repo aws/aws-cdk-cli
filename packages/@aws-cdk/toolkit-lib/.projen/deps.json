@@ -354,10 +354,6 @@
       "type": "runtime"
     },
     {
-      "name": "proxy-agent",
-      "type": "runtime"
-    },
-    {
       "name": "semver",
       "type": "runtime"
     },

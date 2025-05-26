@@ -60,7 +60,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/fs-extra,@types/jest,@types/jest-when,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,ts-jest,typedoc,xml-js,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,glob,minimatch,proxy-agent,semver,split2,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/fs-extra,@types/jest,@types/jest-when,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,ts-jest,typedoc,xml-js,@smithy/middleware-endpoint,@smithy/node-http-handler,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,glob,minimatch,semver,split2,uuid"
         }
       ]
     },
