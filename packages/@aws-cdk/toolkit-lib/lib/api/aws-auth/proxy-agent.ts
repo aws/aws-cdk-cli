@@ -26,14 +26,14 @@ export class ProxyAgentProvider {
   private async tryGetCACert(bundlePath?: string) {
     const path = bundlePath || this.caBundlePathFromEnvironment();
     if (path) {
-      await this.ioHelper.sdkDefaults.debug(`Using CA bundle path: ${path}`);
+      await this.ioHelper.defaults.debug(`Using CA bundle path: ${path}`);
       try {
         if (!fs.pathExistsSync(path)) {
           return undefined;
         }
         return fs.readFileSync(path, { encoding: 'utf-8' });
       } catch (e: any) {
-        await this.ioHelper.sdkDefaults.debug(String(e));
+        await this.ioHelper.defaults.debug(String(e));
         return undefined;
       }
     }

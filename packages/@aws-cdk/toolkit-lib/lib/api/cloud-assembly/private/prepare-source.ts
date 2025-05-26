@@ -6,10 +6,11 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import type { SdkProvider, IoHelper } from '../../../api/shared-private';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { splitBySize, versionNumber } from '../../../util';
+import type { SdkProvider } from '../../aws-auth/private';
+import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import type { IReadLock, IWriteLock } from '../../rwlock';
 import { RWLock } from '../../rwlock';
@@ -60,7 +61,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
   ) {
     this.ioHelper = services.ioHelper;
     this.sdkProvider = services.sdkProvider;
-    this.debugFn = (msg: string) => this.ioHelper.assemblyDefaults.debug(msg);
+    this.debugFn = (msg: string) => this.ioHelper.defaults.debug(msg);
     this.lock = lock;
     this.shouldClean = outDirIsTemporary;
   }
@@ -228,7 +229,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
  * @param assembly the assembly to check
  */
 async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
-  const traceFn = (msg: string) => ioHelper.assemblyDefaults.trace(msg);
+  const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
   const tree = await loadTree(assembly, traceFn);
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;

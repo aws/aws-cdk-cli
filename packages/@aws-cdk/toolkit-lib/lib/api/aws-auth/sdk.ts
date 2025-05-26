@@ -609,7 +609,7 @@ export class SDK {
     ioHelper: IoHelper,
     logger?: ISdkLogger,
   ) {
-    const debugFn = async (msg: string) => ioHelper.sdkDefaults.debug(msg);
+    const debugFn = async (msg: string) => ioHelper.defaults.debug(msg);
     this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
     this.debug = debugFn;
     this.config = {

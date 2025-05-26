@@ -1,6 +1,7 @@
 import * as crypto from 'node:crypto';
 import { loadResourceModel } from '@aws-cdk/cloudformation-diff/lib/diff/util';
-import type { CloudFormationTemplate } from './cloudformation';
+import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
+import { ResourceGraph } from './graph';
 
 /**
  * Computes the digest for each resource in the template.
@@ -25,75 +26,28 @@ import type { CloudFormationTemplate } from './cloudformation';
  * CloudFormation template form a directed acyclic graph, this function is
  * well-defined.
  */
-export function computeResourceDigests(template: CloudFormationTemplate): Record<string, string> {
-  const resources = template.Resources || {};
-  const graph: Record<string, Set<string>> = {};
-  const reverseGraph: Record<string, Set<string>> = {};
+export function computeResourceDigests(stacks: CloudFormationStack[]): Record<string, string> {
+  const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
+    stacks.flatMap((s) =>
+      Object.values(s.template.Outputs ?? {})
+        .filter((o) => o.Export != null && typeof o.Export.Name === 'string')
+        .map((o) => [o.Export.Name, { stackName: s.stackName, value: o.Value }] as [string, { stackName: string; value: any }]),
+    ),
+  );
 
-  // 1. Build adjacency lists
-  for (const id of Object.keys(resources)) {
-    graph[id] = new Set();
-    reverseGraph[id] = new Set();
-  }
+  const resources = Object.fromEntries(
+    stacks.flatMap((s) =>
+      Object.entries(s.template.Resources ?? {}).map(
+        ([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource],
+      ),
+    ),
+  );
 
-  // 2. Detect dependencies by searching for Ref/Fn::GetAtt
-  const findDependencies = (value: any): string[] => {
-    if (!value || typeof value !== 'object') return [];
-    if (Array.isArray(value)) {
-      return value.flatMap(findDependencies);
-    }
-    if ('Ref' in value) {
-      return [value.Ref];
-    }
-    if ('Fn::GetAtt' in value) {
-      const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
-      return [refTarget];
-    }
-    const result = [];
-    if ('DependsOn' in value) {
-      if (Array.isArray(value.DependsOn)) {
-        result.push(...value.DependsOn);
-      } else {
-        result.push(value.DependsOn);
-      }
-    }
-    result.push(...Object.values(value).flatMap(findDependencies));
-    return result;
-  };
-
-  for (const [id, res] of Object.entries(resources)) {
-    const deps = findDependencies(res || {});
-    for (const dep of deps) {
-      if (dep in resources && dep !== id) {
-        graph[id].add(dep);
-        reverseGraph[dep].add(id);
-      }
-    }
-  }
-
-  // 3. Topological sort
-  const outDegree = Object.keys(graph).reduce((acc, k) => {
-    acc[k] = graph[k].size;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const queue = Object.keys(outDegree).filter((k) => outDegree[k] === 0);
-  const order: string[] = [];
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const nxt of reverseGraph[node]) {
-      outDegree[nxt]--;
-      if (outDegree[nxt] === 0) {
-        queue.push(nxt);
-      }
-    }
-  }
-
+  const graph = new ResourceGraph(stacks);
+  const nodes = graph.sortedNodes;
   // 4. Compute digests in sorted order
   const result: Record<string, string> = {};
-  for (const id of order) {
+  for (const id of nodes) {
     const resource = resources[id];
     const resourceProperties = resource.Properties ?? {};
     const model = loadResourceModel(resource.Type);
@@ -112,8 +66,8 @@ export function computeResourceDigests(template: CloudFormationTemplate): Record
     } else {
       // The resource does not have a physical ID defined, so we need to
       // compute the digest based on its properties and dependencies.
-      const depDigests = Array.from(graph[id]).map((d) => result[d]);
-      const propertiesHash = hashObject(stripReferences(stripConstructPath(resource)));
+      const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
+      const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
       toHash = resource.Type + propertiesHash + depDigests.join('');
     }
 
@@ -153,10 +107,10 @@ export function hashObject(obj: any): string {
  * Removes sub-properties containing Ref or Fn::GetAtt to avoid hashing
  * references themselves but keeps the property structure.
  */
-function stripReferences(value: any): any {
+function stripReferences(value: any, exports: { [p: string]: { stackName: string; value: any } }): any {
   if (!value || typeof value !== 'object') return value;
   if (Array.isArray(value)) {
-    return value.map(stripReferences);
+    return value.map(x => stripReferences(x, exports));
   }
   if ('Ref' in value) {
     return { __cloud_ref__: 'Ref' };
@@ -167,9 +121,18 @@ function stripReferences(value: any): any {
   if ('DependsOn' in value) {
     return { __cloud_ref__: 'DependsOn' };
   }
+  if ('Fn::ImportValue' in value) {
+    const v = exports[value['Fn::ImportValue']].value;
+    // Treat Fn::ImportValue as if it were a reference with the same stack
+    if ('Ref' in v) {
+      return { __cloud_ref__: 'Ref' };
+    } else if ('Fn::GetAtt' in v) {
+      return { __cloud_ref__: 'Fn::GetAtt' };
+    }
+  }
   const result: any = {};
   for (const [k, v] of Object.entries(value)) {
-    result[k] = stripReferences(v);
+    result[k] = stripReferences(v, exports);
   }
   return result;
 }

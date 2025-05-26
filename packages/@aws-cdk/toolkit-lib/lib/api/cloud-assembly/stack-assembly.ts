@@ -148,7 +148,7 @@ async function includeDownstreamStacks(
   } while (madeProgress);
 
   if (added.length > 0) {
-    await ioHelper.assemblyDefaults.info(`Including depending stacks: ${chalk.bold(added.join(', '))}`);
+    await ioHelper.defaults.info(`Including depending stacks: ${chalk.bold(added.join(', '))}`);
   }
 }
 
@@ -180,6 +180,6 @@ async function includeUpstreamStacks(
   }
 
   if (added.length > 0) {
-    await ioHelper.assemblyDefaults.info(`Including dependency stacks: ${chalk.bold(added.join(', '))}`);
+    await ioHelper.defaults.info(`Including dependency stacks: ${chalk.bold(added.join(', '))}`);
   }
 }

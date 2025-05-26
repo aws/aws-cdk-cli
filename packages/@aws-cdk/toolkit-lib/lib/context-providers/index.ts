@@ -120,7 +120,7 @@ export async function provideContextValues(
       value = { [cxapi.PROVIDER_ERROR_KEY]: formatErrorMessage(e), [TRANSIENT_CONTEXT_KEY]: true };
     }
     context.set(key, value);
-    await ioHelper.assemblyDefaults.debug(`Setting "${key}" context to ${JSON.stringify(value)}`);
+    await ioHelper.defaults.debug(`Setting "${key}" context to ${JSON.stringify(value)}`);
   }
 }
 

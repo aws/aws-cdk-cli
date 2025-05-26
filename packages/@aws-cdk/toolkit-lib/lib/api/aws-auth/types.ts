@@ -1,6 +1,6 @@
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
-import type { SdkProviderServices } from '../shared-private';
-import { AwsCliCompatible } from '../shared-private';
+import { AwsCliCompatible } from './awscli-compatible';
+import type { SdkProviderServices } from './sdk-provider';
 
 /**
  * Options for the default SDK provider

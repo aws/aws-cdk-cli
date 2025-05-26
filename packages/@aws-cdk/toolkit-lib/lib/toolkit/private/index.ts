@@ -1,8 +1,9 @@
 
+import type { SdkProvider } from '../../api/aws-auth/private';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { StackAssembly } from '../../api/cloud-assembly/private';
+import type { IoHelper } from '../../api/io/private';
 import type { PluginHost } from '../../api/plugin';
-import type { SdkProvider, IoHelper } from '../../api/shared-private';
 
 /**
  * Helper struct to pass internal services around.
