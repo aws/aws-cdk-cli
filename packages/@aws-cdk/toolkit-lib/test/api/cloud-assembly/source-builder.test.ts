@@ -1,5 +1,7 @@
 import * as path from 'path';
+import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
+import { MemoryContext } from '../../../lib';
 import { RWLock } from '../../../lib/api/rwlock';
 import * as contextproviders from '../../../lib/context-providers';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
@@ -38,6 +40,43 @@ describe('fromAssemblyBuilder', () => {
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
+  });
+
+  test('can pass context automatically', async () => {
+    return toolkit.fromAssemblyBuilder(async () => {
+      const app = new App();
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      return app.synth();
+    }, {
+      contextStore: new MemoryContext({
+        'external-context': 'yes',
+      }),
+    });
+  });
+
+  test('can avoid setting environment variables', async () => {
+    return toolkit.fromAssemblyBuilder(async (props) => {
+      const app = new App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      expect(process.env.CDK_CONTEXT).toBeUndefined();
+      expect(props.env.CDK_CONTEXT).toBeDefined();
+
+      return app.synth();
+    }, {
+      contextStore: new MemoryContext({
+        'external-context': 'yes',
+      }),
+      clobberEnv: false,
+    });
   });
 
   test.each(['sync', 'async'] as const)('errors are wrapped as AssemblyError for %s builder', async (sync) => {
@@ -86,13 +125,10 @@ describe('fromAssemblyBuilder', () => {
     // GIVEN
     const provideContextValues = jest.spyOn(contextproviders, 'provideContextValues').mockImplementation(async (
       missingValues,
-      context,
       _sdk,
       _ioHelper,
     ) => {
-      for (const missing of missingValues) {
-        context.set(missing.key, 'provided');
-      }
+      return Object.fromEntries(missingValues.map(missing => [missing.key, 'provided']));
     });
 
     const cx = await appFixture(toolkit, 'uses-context-provider');
@@ -186,9 +222,9 @@ describe('fromCdkApp', () => {
   test('can provide context', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'external-context', {
-      context: {
+      contextStore: new MemoryContext({
         'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
-      },
+      }),
     });
     await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;

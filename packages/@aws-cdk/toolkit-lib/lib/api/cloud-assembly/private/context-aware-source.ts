@@ -2,9 +2,9 @@ import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import * as contextproviders from '../../../context-providers';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
-import { PROJECT_CONTEXT, type Context } from '../../context';
 import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
+import type { IContextStore } from '../context-store';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 
 export interface ContextAwareCloudAssemblyProps {
@@ -15,16 +15,9 @@ export interface ContextAwareCloudAssemblyProps {
   readonly services: ToolkitServices;
 
   /**
-   * Application context
+   * Location to read and write context
    */
-  readonly context: Context;
-
-  /**
-   * The file used to store application context in (relative to cwd).
-   *
-   * @default "cdk.context.json"
-   */
-  readonly contextFile?: string;
+  readonly contextStore: IContextStore;
 
   /**
    * Enable context lookups.
@@ -55,14 +48,12 @@ export interface ContextAwareCloudAssemblyProps {
  */
 export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
   private canLookup: boolean;
-  private context: Context;
-  private contextFile: string;
+  private context: IContextStore;
   private ioHelper: IoHelper;
 
   constructor(private readonly source: ICloudAssemblySource, private readonly props: ContextAwareCloudAssemblyProps) {
     this.canLookup = props.lookups ?? true;
-    this.context = props.context;
-    this.contextFile = props.contextFile ?? PROJECT_CONTEXT; // @todo new feature not needed right now
+    this.context = props.contextStore;
     this.ioHelper = props.services.ioHelper;
   }
 
@@ -100,20 +91,17 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
 
         if (tryLookup) {
           await this.ioHelper.notify(IO.CDK_ASSEMBLY_I0241.msg('Some context information is missing. Fetching...', { missingKeys }));
-          await contextproviders.provideContextValues(
+          const contextUpdates = await contextproviders.provideContextValues(
             assembly.manifest.missing,
-            this.context,
             this.props.services.sdkProvider,
             this.props.services.pluginHost,
             this.ioHelper,
           );
 
-          // Cache the new context to disk
-          await this.ioHelper.notify(IO.CDK_ASSEMBLY_I0042.msg(`Writing updated context to ${this.contextFile}...`, {
-            contextFile: this.contextFile,
-            context: this.context.all,
+          await this.ioHelper.notify(IO.CDK_ASSEMBLY_I0042.msg('Writing context updates...', {
+            context: contextUpdates,
           }));
-          await this.context.save(this.contextFile);
+          await this.context.update(contextUpdates);
 
           // Execute again. Unlock the assembly here so that the producer can acquire
           // a read lock on the directory again.

@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
+import { CdkAppMultiContext, MemoryContext, type AssemblyDirectoryProps, type ICloudAssemblySource } from '../';
 import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { ContextAwareCloudAssemblySource } from './context-aware-source';
 import { execInChildProcess } from './exec';
@@ -10,10 +10,8 @@ import { ToolkitError, AssemblyError } from '../../../toolkit/toolkit-error';
 import type { AssemblyBuilder, FromCdkAppOptions } from '../source-builder';
 import { ReadableCloudAssembly } from './readable-assembly';
 import type { ToolkitServices } from '../../../toolkit/private';
-import { Context } from '../../context';
 import { IO } from '../../io/private';
 import { RWLock } from '../../rwlock';
-import { Settings } from '../../settings';
 
 export abstract class CloudAssemblySourceBuilder {
   /**
@@ -26,6 +24,8 @@ export abstract class CloudAssemblySourceBuilder {
   /**
    * Create a Cloud Assembly from a Cloud Assembly builder function.
    *
+   * ## Outdir
+   *
    * If no output directory is given, it will synthesize into a temporary system
    * directory. The temporary directory will be cleaned up, unless
    * `disposeOutdir: false`.
@@ -36,6 +36,12 @@ export abstract class CloudAssemblySourceBuilder {
    * directory. This means that while the CloudAssembly is being used, no CDK
    * app synthesis can take place into that directory.
    *
+   * ## Context
+   *
+   * If no `contextStore` is given, a `MemoryContext` will be used. This means
+   * no provider lookups will be persisted anywhere by default. Use a different
+   * type of context store if you want persistence between synth operations.
+   *
    * @param builder - the builder function
    * @param props - additional configuration properties
    * @returns the CloudAssembly source
@@ -45,10 +51,10 @@ export abstract class CloudAssemblySourceBuilder {
     props: AssemblySourceProps = {},
   ): Promise<ICloudAssemblySource> {
     const services = await this.sourceBuilderServices();
-    const context = new Context({ bag: new Settings(props.context ?? {}) });
+    const contextStore = props.contextStore ?? new MemoryContext();
     const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
       services,
-      context,
+      contextStore,
       lookups: props.lookups,
     };
 
@@ -59,24 +65,41 @@ export abstract class CloudAssemblySourceBuilder {
         produce: async () => {
           await using execution = await ExecutionEnvironment.create(services, { outdir });
 
-          const env = await execution.defaultEnvVars();
-          const assembly = await execution.withContext(context.all, env, props.synthOptions ?? {}, async (envWithContext, ctx) =>
-            execution.withEnv(envWithContext, async () => {
-              try {
-                return await builder({
-                  outdir: execution.outdir,
-                  context: ctx,
-                });
-              } catch (error: unknown) {
-                // re-throw toolkit errors unchanged
-                if (ToolkitError.isToolkitError(error)) {
-                  throw error;
-                }
-                // otherwise, wrap into an assembly error
-                throw AssemblyError.withCause('Assembly builder failed', error);
-              }
-            }),
-          );
+          const synthParams = parametersFromSynthOptions(props.synthOptions);
+
+          const fullContext = {
+            ...await contextStore.read(),
+            ...synthParams.context,
+          };
+
+          await services.ioHelper.defaults.debug(format('context:', fullContext));
+
+          const env = noUndefined({
+            // Versioning, outdir, default account and region
+            ...await execution.defaultEnvVars(),
+            // Environment variables derived from settings
+            ...synthParams.env,
+          });
+
+          const cleanupContextTemp = writeContextToEnv(env, fullContext);
+          using _cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : undefined;
+          let assembly;
+          try {
+            assembly = await builder({
+              outdir: execution.outdir,
+              context: fullContext,
+              env,
+            });
+          } catch (error: unknown) {
+            // re-throw toolkit errors unchanged
+            if (ToolkitError.isToolkitError(error)) {
+              throw error;
+            }
+            // otherwise, wrap into an assembly error
+            throw AssemblyError.withCause('Assembly builder failed', error);
+          } finally {
+            await cleanupContextTemp();
+          }
 
           // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
           const asm = cxapi.CloudAssembly.isCloudAssembly(assembly)
@@ -106,7 +129,7 @@ export abstract class CloudAssemblySourceBuilder {
     const services: ToolkitServices = await this.sourceBuilderServices();
     const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
       services,
-      context: new Context(), // @todo there is probably a difference between contextaware and contextlookup sources
+      contextStore: new MemoryContext(), // FIXME: We shouldn't be using a `ContextAwareCloudAssemblySource` at all.
       lookups: false,
     };
 
@@ -132,7 +155,10 @@ export abstract class CloudAssemblySourceBuilder {
   /**
    * Use a directory containing an AWS CDK app as source.
    *
-   * The subprocess will execute in `workingDirectory`.
+   * The subprocess will execute in `workingDirectory`, which defaults to
+   * the current process' working directory if not given.
+   *
+   * ## Outdir
    *
    * If an output directory is supplied, relative paths are evaluated with
    * respect to the current process' working directory. If an output directory
@@ -146,21 +172,28 @@ export abstract class CloudAssemblySourceBuilder {
    * directory.  This means that while the CloudAssembly is being used, no CDK
    * app synthesis can take place into that directory.
    *
+   * ## Context
+   *
+   * If no `contextStore` is given, a `CdkAppMultiContext` will be used, initialized
+   * to the app's `workingDirectory`. This means that context will be loaded from
+   * all the CDK's default context sources, and updates will be written to
+   * `cdk.context.json`.
+   *
    * @param props - additional configuration properties
    * @returns the CloudAssembly source
    */
   public async fromCdkApp(app: string, props: FromCdkAppOptions = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
     // @todo this definitely needs to read files from the CWD
-    const context = new Context({ bag: new Settings(props.context ?? {}) });
-    const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
-      services,
-      context,
-      lookups: props.lookups,
-    };
-
     const workingDirectory = props.workingDirectory ?? process.cwd();
     const outdir = props.outdir ? path.resolve(props.outdir) : path.resolve(workingDirectory, 'cdk.out');
+
+    const contextStore = props.contextStore ?? new CdkAppMultiContext(workingDirectory);
+    const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
+      services,
+      contextStore,
+      lookups: props.lookups,
+    };
 
     return new ContextAwareCloudAssemblySource(
       {
@@ -180,6 +213,16 @@ export abstract class CloudAssemblySourceBuilder {
           await using execution = await ExecutionEnvironment.create(services, { outdir });
 
           const commandLine = await execution.guessExecutable(app);
+
+          const synthParams = parametersFromSynthOptions(props.synthOptions);
+
+          const fullContext = {
+            ...await contextStore.read(),
+            ...synthParams.context,
+          };
+
+          await services.ioHelper.defaults.debug(format('context:', fullContext));
+
           const env = noUndefined({
             ...await execution.defaultEnvVars(),
             ...props.env,

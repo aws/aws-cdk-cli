@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { AssemblyBuilder, AssemblyDirectoryProps, FromCdkAppOptions, ICloudAssemblySource } from '../../lib';
+import { MemoryContext, type AssemblyBuilder, type AssemblyDirectoryProps, type FromCdkAppOptions, type ICloudAssemblySource } from '../../lib';
 import type { CloudAssemblySourceBuilder } from '../../lib/api/cloud-assembly/private';
 import { ToolkitError } from '../../lib/toolkit/toolkit-error';
 
@@ -33,6 +33,7 @@ export async function appFixture(toolkit: CloudAssemblySourceBuilder, name: stri
     workingDirectory: app.workingDirectory,
     outdir: tmpOutdir(),
     disposeOutdir: true,
+    contextStore: new MemoryContext(),
     ...options,
   });
 }
@@ -50,7 +51,7 @@ export function builderFixture(toolkit: CloudAssemblySourceBuilder, name: string
   return toolkit.fromAssemblyBuilder(builder, {
     outdir: tmpOutdir(),
     disposeOutdir: true,
-    context,
+    contextStore: new MemoryContext(context),
   });
 }
 

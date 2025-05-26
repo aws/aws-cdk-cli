@@ -106,13 +106,16 @@ export class CloudExecutable implements ICloudAssemblySource {
         if (tryLookup) {
           await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
 
-          await contextproviders.provideContextValues(
+          const updates = await contextproviders.provideContextValues(
             assembly.manifest.missing,
-            this.props.configuration.context,
             this.props.sdkProvider,
             GLOBAL_PLUGIN_HOST,
             this.props.ioHelper,
           );
+
+          for (const [key, value] of Object.entries(updates)) {
+            this.props.configuration.context.set(key, value);
+          }
 
           // Cache the new context to disk
           await this.props.configuration.saveContext();

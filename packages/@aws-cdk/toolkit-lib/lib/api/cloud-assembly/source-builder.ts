@@ -1,4 +1,5 @@
 import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
+import type { IContextStore } from './context-store';
 
 /**
  * Properties the builder function receives.
@@ -54,15 +55,14 @@ export interface AssemblySourceProps {
   readonly lookups?: boolean;
 
   /**
-   * Context values for the application.
+   * A context store for this operation
    *
-   * Context can be read in the app from any construct using `node.getContext(key)`.
+   * The context store will be used to source initial context values,
+   * and updated values will be stored here.
    *
-   * @default - no context
+   * @default - depend on the operation
    */
-  readonly context?: {
-    [key: string]: any;
-  };
+  readonly contextStore?: IContextStore;
 
   /**
    * Options that are passed through the context to a CDK app on synth

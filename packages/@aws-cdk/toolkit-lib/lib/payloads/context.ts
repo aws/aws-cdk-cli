@@ -3,6 +3,5 @@ export interface MissingContext {
 }
 
 export interface UpdatedContext {
-  contextFile: string;
   context: { [key: string]: any };
 }

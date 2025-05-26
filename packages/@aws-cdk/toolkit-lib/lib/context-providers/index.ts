@@ -11,7 +11,6 @@ import { SecurityGroupContextProviderPlugin } from './security-groups';
 import { SSMContextProviderPlugin } from './ssm-parameters';
 import { VpcNetworkContextProviderPlugin } from './vpcs';
 import type { SdkProvider } from '../api/aws-auth/private';
-import type { Context } from '../api/context';
 import { TRANSIENT_CONTEXT_KEY } from '../api/context';
 import { replaceEnvPlaceholders } from '../api/environment';
 import { IO } from '../api/io/private';
@@ -69,11 +68,12 @@ class ContextProviderMessages implements IContextProviderMessages {
  */
 export async function provideContextValues(
   missingValues: cxschema.MissingContext[],
-  context: Context,
   sdk: SdkProvider,
   pluginHost: PluginHost,
   ioHelper: IoHelper,
-) {
+): Promise<Record<string, unknown>> {
+  const updates: Record<string, unknown> = {};
+
   for (const missingContext of missingValues) {
     const key = missingContext.key;
 
@@ -119,9 +119,11 @@ export async function provideContextValues(
       // as a lookup failure in the toolkit.
       value = { [cxapi.PROVIDER_ERROR_KEY]: formatErrorMessage(e), [TRANSIENT_CONTEXT_KEY]: true };
     }
-    context.set(key, value);
+    updates[key] = value;
     await ioHelper.defaults.debug(`Setting "${key}" context to ${JSON.stringify(value)}`);
   }
+
+  return updates;
 }
 
 /**

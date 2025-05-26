@@ -411,7 +411,7 @@ export const IO = {
   }),
   CDK_ASSEMBLY_I0042: make.debug<UpdatedContext>({
     code: 'CDK_ASSEMBLY_I0042',
-    description: 'Writing updated context',
+    description: 'Writing context updates',
     interface: 'UpdatedContext',
   }),
   CDK_ASSEMBLY_I0240: make.debug<MissingContext>({
