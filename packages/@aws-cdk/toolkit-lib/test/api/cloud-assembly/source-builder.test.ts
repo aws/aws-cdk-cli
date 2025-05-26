@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { RWLock } from '../../../lib/api/rwlock';
-import { contextproviders } from '../../../lib/api/shared-private';
+import * as contextproviders from '../../../lib/context-providers';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';

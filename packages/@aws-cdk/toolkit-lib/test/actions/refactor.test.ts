@@ -1,6 +1,6 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { StackSelectionStrategy, Toolkit } from '../../lib';
-import { SdkProvider } from '../../lib/api/shared-private';
+import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
 
