@@ -7,7 +7,7 @@ type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', 
 
 interface ExecOptions {
   eventPublisher?: EventPublisher;
-  extraEnv?: { [key: string]: string | undefined };
+  env?: { [key: string]: string | undefined };
   cwd?: string;
 }
 
@@ -29,10 +29,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       detached: false,
       shell: true,
       cwd: options.cwd,
-      env: {
-        ...process.env,
-        ...(options.extraEnv ?? {}),
-      },
+      env: options.env,
     });
 
     const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
