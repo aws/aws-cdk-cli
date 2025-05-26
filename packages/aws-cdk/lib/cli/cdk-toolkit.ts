@@ -682,7 +682,6 @@ export class CdkToolkit {
       });
 
       const resultsArray = Array.isArray(driftResults) ? driftResults : [driftResults];
-      
       for (const driftResult of resultsArray) {
         drifts += driftResult.numResourcesWithDrift || 0;
         uncheckedDrifts += driftResult.numResourcesUnchecked || 0;
