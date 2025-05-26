@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
 const lambda = require("aws-cdk-lib/aws-lambda");
 const core = require("aws-cdk-lib/core");
-exports.default = async (props) => {
-    const app = new core.App(props);
+exports.default = async () => {
+    const app = new core.App();
     const stack = new core.Stack(app, 'Stack1');
     new lambda.Function(stack, 'Function1', {
         code: lambda.Code.fromAsset(path.join(__dirname, 'asset')),
