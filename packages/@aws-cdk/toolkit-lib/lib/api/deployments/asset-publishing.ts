@@ -16,8 +16,8 @@ import {
 } from 'cdk-assets';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK, SdkProvider } from '../aws-auth/private';
-import type { IoMessageMaker, IoHelper } from '../io/private';
-import { IO } from '../io/private';
+import type { IoMessageLevel } from '../io';
+import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 
 interface PublishAssetsOptions {
@@ -167,17 +167,17 @@ export class PublishingAws implements IAws {
   }
 }
 
-const EVENT_TO_MSG_MAKER: Record<EventType, IoMessageMaker<any> | false> = {
-  build: IO.DEFAULT_TOOLKIT_DEBUG,
-  cached: IO.DEFAULT_TOOLKIT_DEBUG,
-  check: IO.DEFAULT_TOOLKIT_DEBUG,
-  debug: IO.DEFAULT_TOOLKIT_DEBUG,
-  fail: IO.DEFAULT_TOOLKIT_ERROR,
-  found: IO.DEFAULT_TOOLKIT_DEBUG,
-  start: IO.DEFAULT_TOOLKIT_INFO,
-  success: IO.DEFAULT_TOOLKIT_INFO,
-  upload: IO.DEFAULT_TOOLKIT_DEBUG,
-  shell_open: IO.DEFAULT_TOOLKIT_DEBUG,
+const EVENT_TO_MSG_LEVEL: Record<EventType, IoMessageLevel | false> = {
+  build: 'debug',
+  cached: 'debug',
+  check: 'debug',
+  debug: 'debug',
+  fail: 'error',
+  found: 'debug',
+  start: 'info',
+  success: 'info',
+  upload: 'debug',
+  shell_open: 'debug',
   shell_stderr: false,
   shell_stdout: false,
   shell_close: false,
@@ -193,9 +193,9 @@ export abstract class BasePublishProgressListener implements IPublishProgressLis
   protected abstract getMessage(type: EventType, event: IPublishProgress): string;
 
   public onPublishEvent(type: EventType, event: IPublishProgress): void {
-    const maker = EVENT_TO_MSG_MAKER[type];
-    if (maker) {
-      void this.ioHelper.notify(maker.msg(this.getMessage(type, event)));
+    const level = EVENT_TO_MSG_LEVEL[type];
+    if (level) {
+      void this.ioHelper.defaults[level](this.getMessage(type, event));
     }
   }
 }

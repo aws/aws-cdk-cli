@@ -6,16 +6,17 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import type { SdkProvider, IoHelper } from '../../../api/shared-private';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { splitBySize, versionNumber } from '../../../util';
+import type { SdkProvider } from '../../aws-auth/private';
+import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import type { IReadLock, IWriteLock } from '../../rwlock';
 import { RWLock } from '../../rwlock';
 import { Settings } from '../../settings';
 import { loadTree, some } from '../../tree';
-import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, guessExecutable } from '../environment';
+import { prepareDefaultEnvironment as oldPrepare, spaceAvailableForContext, guessExecutable } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
 type Env = { [key: string]: string };
@@ -60,7 +61,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
   ) {
     this.ioHelper = services.ioHelper;
     this.sdkProvider = services.sdkProvider;
-    this.debugFn = (msg: string) => this.ioHelper.notify(IO.DEFAULT_ASSEMBLY_DEBUG.msg(msg));
+    this.debugFn = (msg: string) => this.ioHelper.defaults.debug(msg);
     this.lock = lock;
     this.shouldClean = outDirIsTemporary;
   }
@@ -167,59 +168,45 @@ export class ExecutionEnvironment implements AsyncDisposable {
       }
     }
   }
+}
 
-  /**
-   * Run code with additional environment variables
-   */
-  public async withEnv<T>(env: Env = {}, block: () => Promise<T>) {
-    const originalEnv = process.env;
-    try {
-      process.env = {
-        ...originalEnv,
-        ...env,
-      };
+/**
+ * Serializes the given context to a set if environment variables environment variables
+ *
+ * Needs to know the size of the rest of the env because that's necessary to do
+ * an overflow computation on Windows. This function will mutate the given
+ * environment in-place. It should be called as the very last operation on the
+ * environment, because afterwards is might be at the maximum size.
+ *
+ * This *would* have returned an `IAsyncDisposable` but that requires messing
+ * with TypeScript type definitions to use it in aws-cdk, so returning an
+ * explicit cleanup function is easier.
+ */
+export function writeContextToEnv(env: Env, context: Context) {
+  let contextOverflowLocation = null;
 
-      return await block();
-    } finally {
-      process.env = originalEnv;
-    }
+  // On Windows, all envvars together must fit in a 32k block (<https://devblogs.microsoft.com/oldnewthing/20100203-00>)
+  // On Linux, a single entry may not exceed 131k; but we're treating it as all together because that's safe
+  // and it's a single execution path for both platforms.
+  const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
+  const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(env, envVariableSizeLimit));
+
+  // Store the safe part in the environment variable
+  env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
+
+  // If there was any overflow, write it to a temporary file
+  if (Object.keys(overflow ?? {}).length > 0) {
+    const contextDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-context'));
+    contextOverflowLocation = path.join(contextDir, 'context-overflow.json');
+    fs.writeJSONSync(contextOverflowLocation, overflow);
+    env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
   }
 
-  /**
-   * Run code with context setup inside the environment
-   */
-  public async withContext<T>(
-    inputContext: Context,
-    env: Env,
-    synthOpts: AppSynthOptions = {},
-    block: (env: Env, context: Context) => Promise<T>,
-  ) {
-    const context = await prepareContext(synthOptsDefaults(synthOpts), inputContext, env, this.debugFn);
-    let contextOverflowLocation = null;
-
-    try {
-      const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
-      const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(env, envVariableSizeLimit));
-
-      // Store the safe part in the environment variable
-      env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
-
-      // If there was any overflow, write it to a temporary file
-      if (Object.keys(overflow ?? {}).length > 0) {
-        const contextDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-context'));
-        contextOverflowLocation = path.join(contextDir, 'context-overflow.json');
-        fs.writeJSONSync(contextOverflowLocation, overflow);
-        env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
-      }
-
-      // call the block code with new environment
-      return await block(env, context);
-    } finally {
-      if (contextOverflowLocation) {
-        fs.removeSync(path.dirname(contextOverflowLocation));
-      }
+  return async () => {
+    if (contextOverflowLocation) {
+      await fs.promises.rm(path.dirname(contextOverflowLocation), { recursive: true, force: true });
     }
-  }
+  };
 }
 
 /**
@@ -228,7 +215,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
  * @param assembly the assembly to check
  */
 async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
-  const traceFn = (msg: string) => ioHelper.notify(IO.DEFAULT_ASSEMBLY_TRACE.msg(msg));
+  const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
   const tree = await loadTree(assembly, traceFn);
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;
@@ -269,7 +256,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHel
   }
 }
 
-function synthOptsDefaults(synthOpts: AppSynthOptions = {}): Settings {
+export function settingsFromSynthOptions(synthOpts: AppSynthOptions = {}): Settings {
   return new Settings({
     debug: false,
     pathMetadata: true,

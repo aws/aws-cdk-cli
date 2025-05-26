@@ -1,3 +1,4 @@
+import type { Agent } from 'node:https';
 import { format } from 'node:util';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
@@ -156,9 +157,9 @@ export class AwsCliCompatible {
 
     if (!region) {
       const usedProfile = !profile ? '' : ` (profile: "${profile}")`;
-      await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(
+      await this.ioHelper.defaults.debug(
         `Unable to determine AWS region from environment or AWS configuration${usedProfile}, defaulting to '${defaultRegion}'`,
-      ));
+      );
       return defaultRegion;
     }
 
@@ -173,7 +174,7 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
-    await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).'));
+    await this.ioHelper.defaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
     try {
       const metadataService = new MetadataService({
         httpOptions: {
@@ -185,7 +186,7 @@ export class AwsCliCompatible {
       const document = await metadataService.request('/latest/dynamic/instance-identity/document', {});
       return JSON.parse(document).region;
     } catch (e) {
-      await this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(`Unable to retrieve AWS region from IMDS: ${e}`));
+      await this.ioHelper.defaults.debug(`Unable to retrieve AWS region from IMDS: ${e}`);
     }
   }
 
@@ -223,7 +224,7 @@ export class AwsCliCompatible {
    * Result is send to callback function for SDK to authorize the request
    */
   private async tokenCodeFn(deviceArn: string): Promise<string> {
-    const debugFn = (msg: string, ...args: any[]) => this.ioHelper.notify(IO.DEFAULT_SDK_DEBUG.msg(format(msg, ...args)));
+    const debugFn = (msg: string, ...args: any[]) => this.ioHelper.defaults.debug(format(msg, ...args));
     await debugFn('Require MFA token from MFA device with ARN', deviceArn);
     try {
       const token: string = await this.ioHelper.requestResponse(IO.CDK_SDK_I1100.req(`MFA token for ${deviceArn}`, {
@@ -270,13 +271,16 @@ export interface CredentialChainOptions {
   readonly logger?: ISdkLogger;
 }
 
-export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
-  const agent = await new ProxyAgentProvider(ioHelper).create(options);
-
+export function sdkRequestHandler(agent?: Agent): NodeHttpHandlerOptions {
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,
     httpsAgent: agent,
     httpAgent: agent,
   };
+}
+
+export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
+  const agent = await new ProxyAgentProvider(ioHelper).create(options);
+  return sdkRequestHandler(agent);
 }

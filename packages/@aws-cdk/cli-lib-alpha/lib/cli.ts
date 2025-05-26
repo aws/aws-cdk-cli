@@ -1,4 +1,5 @@
-import { exec as runCli, debug, createAssembly, prepareContext, prepareDefaultEnvironment } from './aws-cdk';
+import { format } from 'util';
+import { exec as runCli, debug, createAssembly, prepareDefaultEnvironment, synthParametersFromSettings, writeContextToEnv } from './aws-cdk';
 import type { SharedOptions, DeployOptions, DestroyOptions, BootstrapOptions, SynthOptions, ListOptions } from './commands';
 import { StackActivityProgress, HotswapMode } from './commands';
 
@@ -122,10 +123,26 @@ export class AwsCdkCli implements IAwsCdkCli {
   public static fromCloudAssemblyDirectoryProducer(producer: ICloudAssemblyDirectoryProducer) {
     return new AwsCdkCli(async (args) => changeDir(
       () => runCli(args, async (sdk, config) => {
-        const env = await prepareDefaultEnvironment(sdk, debugFn);
-        const context = await prepareContext(config.settings, config.context.all, env, debugFn);
+        const params = synthParametersFromSettings(config.settings);
 
-        return withEnv(async() => createAssembly(await producer.produce(context)), env);
+        const fullCtx = {
+          ...config.context.all,
+          ...params.context,
+        };
+        await debugFn(format('context:', fullCtx));
+
+        const env = {
+          ...process.env,
+          ...await prepareDefaultEnvironment(sdk, debugFn),
+          ...params.env,
+        };
+
+        const cleanupContext = await writeContextToEnv(env, fullCtx);
+        try {
+          return await withEnv(async() => createAssembly(await producer.produce(fullCtx)), env);
+        } finally {
+          await cleanupContext();
+        }
       }),
       producer.workingDirectory,
     ));

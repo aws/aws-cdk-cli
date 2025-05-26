@@ -1,26 +1,53 @@
-import type { ClientRequest } from 'http';
-import type { RequestOptions } from 'https';
+import type { ClientRequest } from 'node:http';
+import type { RequestOptions } from 'node:https';
 import * as https from 'node:https';
-import type { SdkHttpOptions } from '../aws-auth';
 import type { Notice, NoticeDataSource } from './types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
-import { ProxyAgentProvider } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
-import { IO } from '../io/private';
+
+/**
+ * A data source that fetches notices from the CDK notices data source
+ */
+export class WebsiteNoticeDataSourceProps {
+  /**
+   * The URL to load notices from.
+   *
+   * Note this must be a valid JSON document in the CDK notices data schema.
+   *
+   * @see https://github.com/cdklabs/aws-cdk-notices
+   *
+   * @default - official CDK notices
+   */
+  readonly url?: string | URL;
+  /**
+   * The agent responsible for making the network requests.
+   *
+   * Use this so set up a proxy connection.
+   *
+   * @default - uses the shared global node agent
+   */
+  readonly agent?: https.Agent;
+}
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {
-  private readonly options: SdkHttpOptions;
+  /**
+   * The URL notices are loaded from.
+   */
+  public readonly url: any;
 
-  constructor(private readonly ioHelper: IoHelper, options: SdkHttpOptions = {}) {
-    this.options = options;
+  private readonly agent?: https.Agent;
+
+  constructor(private readonly ioHelper: IoHelper, props: WebsiteNoticeDataSourceProps = {}) {
+    this.agent = props.agent;
+    this.url = props.url ?? 'https://cli.cdk.dev-tools.aws.dev/notices.json';
   }
 
   async fetch(): Promise<Notice[]> {
     const timeout = 3000;
 
     const options: RequestOptions = {
-      agent: await new ProxyAgentProvider(this.ioHelper).create(this.options),
+      agent: this.agent,
     };
 
     const notices = await new Promise<Notice[]>((resolve, reject) => {
@@ -35,7 +62,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       timer.unref();
 
       try {
-        req = https.get('https://cli.cdk.dev-tools.aws.dev/notices.json',
+        req = https.get(this.url,
           options,
           res => {
             if (res.statusCode === 200) {
@@ -70,7 +97,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       }
     });
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Notices refreshed'));
+    await this.ioHelper.defaults.debug('Notices refreshed');
     return notices;
   }
 }

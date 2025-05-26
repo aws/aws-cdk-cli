@@ -1,6 +1,8 @@
+import * as path from 'path';
+import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
 import { RWLock } from '../../../lib/api/rwlock';
-import { contextproviders } from '../../../lib/api/shared-private';
+import * as contextproviders from '../../../lib/context-providers';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
@@ -39,6 +41,43 @@ describe('fromAssemblyBuilder', () => {
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
   });
 
+  test('can pass context automatically', async () => {
+    return toolkit.fromAssemblyBuilder(async () => {
+      const app = new App();
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      return app.synth();
+    }, {
+      context: {
+        'external-context': 'yes',
+      },
+    });
+  });
+
+  test('can avoid setting environment variables', async () => {
+    return toolkit.fromAssemblyBuilder(async (props) => {
+      const app = new App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      expect(process.env.CDK_CONTEXT).toBeUndefined();
+      expect(props.env.CDK_CONTEXT).toBeDefined();
+
+      return app.synth();
+    }, {
+      context: {
+        'external-context': 'yes',
+      },
+      clobberEnv: false,
+    });
+  });
+
   test.each(['sync', 'async'] as const)('errors are wrapped as AssemblyError for %s builder', async (sync) => {
     // GIVEN
     const builder = sync === 'sync'
@@ -61,23 +100,6 @@ describe('fromAssemblyBuilder', () => {
     }
   });
 
-  test('outdir is relative to workingDirectory parameter', async () => {
-    // GIVEN
-    await using synthDir = autoCleanOutDir();
-    const builder = builderFunctionFromFixture('two-empty-stacks');
-
-    // WHEN
-    const cx = await toolkit.fromAssemblyBuilder(builder, {
-      workingDirectory: synthDir.dir,
-      outdir: 'relative.dir',
-    });
-
-    await using asm = await toolkit.synth(cx);
-
-    // THEN - asm directory is relative to the temp dir
-    expect(asm.cloudAssembly.directory.startsWith(synthDir.dir));
-  });
-
   test('disposeOutdir can be used to disappear explicit synth dir', async() => {
     // GIVEN
     await using synthDir = autoCleanOutDir();
@@ -85,8 +107,7 @@ describe('fromAssemblyBuilder', () => {
 
     // WHEN
     const cx = await toolkit.fromAssemblyBuilder(builder, {
-      workingDirectory: synthDir.dir,
-      outdir: 'relative.dir',
+      outdir: path.join(synthDir.dir, 'relative.dir'),
       disposeOutdir: true,
     });
 
@@ -154,31 +175,40 @@ describe('fromCdkApp', () => {
   });
 
   test('synth succeeds when working directory is given and outdir is relative', async () => {
-    // WHEN
-    const app = await appFixtureConfig('two-empty-stacks');
-    const cx = await toolkit.fromCdkApp(app.app, {
-      workingDirectory: app.workingDirectory,
-      outdir: 'relative.dir',
-      disposeOutdir: true,
-    });
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+    const oldWorking = process.cwd();
+    process.chdir(synthDir.dir);
+    try {
+      // WHEN
+      const app = await appFixtureConfig('two-empty-stacks');
+      const cx = await toolkit.fromCdkApp(app.app, {
+        workingDirectory: app.workingDirectory,
+        outdir: 'relative.dir',
+        disposeOutdir: true,
+      });
 
-    await using assembly = await cx.produce();
+      await using assembly = await cx.produce();
 
-    // THEN - synth succeeds
-    expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+      // THEN - synth succeeds
+      expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
 
-    // asm directory is relative to the dir containing the app
-    expect(assembly.cloudAssembly.directory.startsWith(app.workingDirectory));
+      // asm directory is relative to the dir containing the app
+      expect(assembly.cloudAssembly.directory.startsWith(app.workingDirectory));
+    } finally {
+      process.chdir(oldWorking);
+    }
   });
 
   test('disposeOutdir can be used to disappear explicit synth dir', async() => {
     // GIVEN
+    await using synthDir = autoCleanOutDir();
     const app = await appFixtureConfig('two-empty-stacks');
 
     // WHEN
     const cx = await toolkit.fromCdkApp(app.app, {
       workingDirectory: app.workingDirectory,
-      outdir: 'relative.dir',
+      outdir: path.join(synthDir.dir, 'relative.dir'),
       disposeOutdir: true,
     });
 

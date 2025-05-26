@@ -18,9 +18,7 @@ import {
   resourceMovements,
   usePrescribedMappings,
 } from '../../../lib/api/refactoring';
-import type {
-  CloudFormationStack,
-} from '../../../lib/api/refactoring/cloudformation';
+import type { CloudFormationStack, CloudFormationTemplate } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
@@ -28,10 +26,18 @@ import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-s
 
 const cloudFormationClient = mockCloudFormationClient;
 
-describe('computeResourceDigests', () => {
-  test('returns empty map for empty template', () => {
-    const template = {};
-    const result = computeResourceDigests(template);
+describe(computeResourceDigests, () => {
+  function makeStacks(templates: CloudFormationTemplate[]): CloudFormationStack[] {
+    return templates.map((template, index) => ({
+      environment: { account: '123456789012', region: 'us-east-1', name: '' },
+      stackName: `Stack${index + 1}`,
+      template,
+    }));
+  }
+
+  test('returns empty map for empty stacks', () => {
+    const stacks = makeStacks([{}]);
+    const result = computeResourceDigests(stacks);
     expect(Object.keys(result).length).toBe(0);
   });
 
@@ -43,9 +49,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(1);
-    expect(result.MyResource).toBeDefined();
+    expect(result['Stack1.MyResource']).toBeDefined();
   });
 
   test('computes digest for single resource without dependencies', () => {
@@ -57,9 +63,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(1);
-    expect(result.MyResource).toBeDefined();
+    expect(result['Stack1.MyResource']).toBeDefined();
   });
 
   test('order of properties does not matter', () => {
@@ -75,9 +81,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(2);
-    expect(result.MyResource1).toEqual(result.MyResource2);
+    expect(result['Stack1.MyResource1']).toEqual(result['Stack1.MyResource2']);
   });
 
   test('computes digests with multiple resources referencing each other', () => {
@@ -96,10 +102,10 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(2);
-    expect(result.Bucket).toBeDefined();
-    expect(result.Topic).toBeDefined();
+    expect(result['Stack1.Bucket']).toBeDefined();
+    expect(result['Stack1.Topic']).toBeDefined();
   });
 
   test('computes different digests if top-level properties are different', () => {
@@ -119,8 +125,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Q1).not.toBe(result.Q2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Q1']).not.toBe(result['Stack1.Q2']);
   });
 
   test('computes the same digest for identical resources', () => {
@@ -136,9 +142,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(2);
-    expect(result.Bucket1).toBe(result.Bucket2);
+    expect(result['Stack1.Bucket1']).toBe(result['Stack1.Bucket2']);
   });
 
   test('identical resources up to dependency names', () => {
@@ -164,8 +170,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Bucket1).toBe(result.Bucket2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Bucket1']).toBe(result['Stack1.Bucket2']);
   });
 
   test('identical resources up to dependency names - DependsOn', () => {
@@ -195,8 +201,44 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Topic1).toEqual(result.Topic2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).toEqual(result['Stack1.Topic2']);
+  });
+
+  test('different resources - DependsOn plus Ref in properties', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        Bucket3: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { AnotherProp: 'foobar' },
+        },
+        Topic1: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'my-topic',
+          },
+        },
+        Topic2: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket2',
+          Properties: {
+            DisplayName: 'my-topic',
+            SomeRef: { Ref: 'Bucket3' },
+          },
+        },
+      },
+    };
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
   });
 
   test('different resources - DependsOn', () => {
@@ -226,8 +268,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Topic1).not.toEqual(result.Topic2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
   });
 
   test('almost identical resources - dependency via different intrinsic functions', () => {
@@ -254,8 +296,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Bucket1).not.toBe(result.Bucket2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Bucket1']).not.toBe(result['Stack1.Bucket2']);
   });
 
   test('ignores references to unknown resources', () => {
@@ -272,9 +314,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(1);
-    expect(result.MyResource).toBeDefined();
+    expect(result['Stack1.MyResource']).toBeDefined();
   });
 
   test('ignores CDK construct path', () => {
@@ -300,8 +342,10 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Q1).toBe(result.Q2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Q1']).toBeDefined();
+    expect(result['Stack1.Q2']).toBeDefined();
+    expect(result['Stack1.Q1']).toBe(result['Stack1.Q2']);
   });
 
   test('uses physical ID if present', () => {
@@ -328,8 +372,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).toEqual(result['Stack1.Foo2']);
   });
 
   test('uses physical ID if present - with dependencies', () => {
@@ -364,8 +410,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Bucket1).toBe(result.Bucket2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Bucket1']).toBeDefined();
+    expect(result['Stack1.Bucket2']).toBeDefined();
+    expect(result['Stack1.Bucket1']).toEqual(result['Stack1.Bucket2']);
   });
 
   test('different physical IDs lead to different digests', () => {
@@ -392,8 +440,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toEqual(result['Stack1.Foo2']);
   });
 
   test('primaryIdentifier is a composite field - different values', () => {
@@ -422,8 +472,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toEqual(result['Stack1.Foo2']);
   });
 
   test('primaryIdentifier is a composite field - same value', () => {
@@ -452,8 +504,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).toEqual(result['Stack1.Foo2']);
   });
 
   test('primaryIdentifier is a composite field but not all of them are set in the resource', () => {
@@ -480,8 +534,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toEqual(result['Stack1.Foo2']);
   });
 
   test('resource properties does not contain primaryIdentifier - different values', () => {
@@ -506,8 +562,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toBe(result['Stack1.Foo2']);
   });
 
   test('resource properties does not contain primaryIdentifier - same value', () => {
@@ -532,8 +590,89 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).toEqual(result['Stack1.Foo2']);
+  });
+
+  test('identical resources from different stacks', () => {
+    const template1 = {
+      Resources: {
+        Bucket: {
+          Type: 'AWS::S3::Bucket',
+          // cross-stack reference
+          Properties: { SomeProp: { 'Fn::ImportValue': 'Stack2:Bar' } },
+        },
+      },
+    };
+
+    const template2 = {
+      Outputs: {
+        ExportForTheBarResource: {
+          Value: { Ref: 'Bar' },
+          Export: { Name: 'Stack2:Bar' },
+        },
+      },
+      Resources: {
+        Bar: {
+          Type: 'AWS::X::Y',
+          Properties: { Banana: true },
+        },
+        AnotherBucket: {
+          Type: 'AWS::S3::Bucket',
+          // same stack reference
+          Properties: { SomeProp: { Ref: 'Bar' } },
+        },
+      },
+    };
+
+    const stacks = makeStacks([template1, template2]);
+    const result = computeResourceDigests(stacks);
+    expect(Object.keys(result).length).toBe(3);
+    expect(result['Stack1.Bucket']).toBeDefined();
+    expect(result['Stack2.Bar']).toBeDefined();
+    expect(result['Stack2.AnotherBucket']).toBeDefined();
+    expect(result['Stack1.Bucket']).toEqual(result['Stack2.AnotherBucket']);
+  });
+
+  test('different resources from different stacks', () => {
+    const template1 = {
+      Resources: {
+        Bucket: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { SomeProp: { 'Fn::ImportValue': 'Stack2:Foo' } },
+        },
+      },
+    };
+
+    const template2 = {
+      Outputs: {
+        ExportForTheFooResource: {
+          Value: { Ref: 'Foo' },
+          Export: { Name: 'Stack2:Foo' },
+        },
+      },
+      Resources: {
+        Foo: {
+          Type: 'AWS::S3::Foo',
+        },
+        Bar: {
+          Type: 'AWS::S3::Bar',
+        },
+        AnotherBucket: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { SomeProp: { Ref: 'Bar' } },
+        },
+      },
+    };
+
+    const stacks = makeStacks([template1, template2]);
+    const result = computeResourceDigests(stacks);
+    expect(Object.keys(result).length).toBe(4);
+    expect(result['Stack1.Bucket']).toBeDefined();
+    expect(result['Stack2.AnotherBucket']).toBeDefined();
+    expect(result['Stack1.Bucket']).not.toEqual(result['Stack2.AnotherBucket']);
   });
 });
 

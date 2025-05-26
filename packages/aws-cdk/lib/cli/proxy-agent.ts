@@ -1,7 +1,25 @@
 import * as fs from 'fs-extra';
 import { ProxyAgent } from 'proxy-agent';
-import type { SdkHttpOptions } from './types';
-import type { IoHelper } from '../io/private';
+import type { IoHelper } from '../api-private';
+
+/**
+ * Options for proxy-agent SDKs
+ */
+interface ProxyAgentOptions {
+  /**
+   * Proxy address to use
+   *
+   * @default No proxy
+   */
+  readonly proxyAddress?: string;
+
+  /**
+   * A path to a certificate bundle that contains a cert to be trusted.
+   *
+   * @default No certificate bundle
+   */
+  readonly caBundlePath?: string;
+}
 
 export class ProxyAgentProvider {
   private readonly ioHelper: IoHelper;
@@ -10,7 +28,7 @@ export class ProxyAgentProvider {
     this.ioHelper = ioHelper;
   }
 
-  public async create(options: SdkHttpOptions) {
+  public async create(options: ProxyAgentOptions) {
     // Force it to use the proxy provided through the command line.
     // Otherwise, let the ProxyAgent auto-detect the proxy using environment variables.
     const getProxyForUrl = options.proxyAddress != null
@@ -53,4 +71,3 @@ export class ProxyAgentProvider {
     return undefined;
   }
 }
-

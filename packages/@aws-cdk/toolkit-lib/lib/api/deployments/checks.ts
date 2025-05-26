@@ -1,6 +1,6 @@
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/private';
-import { IO, type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 export async function determineAllowCrossAccountAssetPublishing(
   sdk: SDK,
@@ -33,8 +33,8 @@ export async function determineAllowCrossAccountAssetPublishing(
     // of creating bootstrap resources. If they do, there's nothing for us to validate,
     // but we can't use that as a reason to disallow cross-account publishing. We'll just
     // have to trust they did their due diligence. So we fail open.
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Error determining cross account asset publishing: ${e}`));
-    await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg('Defaulting to allowing cross account asset publishing'));
+    await ioHelper.defaults.debug(`Error determining cross account asset publishing: ${e}`);
+    await ioHelper.defaults.debug('Defaulting to allowing cross account asset publishing');
     return true;
   }
 }

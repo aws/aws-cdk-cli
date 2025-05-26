@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
@@ -12,13 +13,12 @@ import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { asIoHelper, IO } from '../../lib/api-private';
+import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
-import { SdkProvider, IoHostSdkLogger, setSdkTracing, makeRequestHandler } from '../api/aws-auth';
+import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import type { DeploymentMethod } from '../api/deployments';
 import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import type { Settings } from '../api/settings';
@@ -29,6 +29,7 @@ import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
+import { ProxyAgentProvider } from './proxy-agent';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -89,6 +90,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
+  // Always create and use ProxyAgent to support configuration via env vars
+  const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
+    proxyAddress: configuration.settings.get(['proxy']),
+    caBundlePath: configuration.settings.get(['caBundlePath']),
+  });
+
   const shouldDisplayNotices = configuration.settings.get(['notices']);
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
@@ -96,10 +103,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    httpOptions: {
-      proxyAddress: configuration.settings.get(['proxy']),
-      caBundlePath: configuration.settings.get(['caBundlePath']),
-    },
+    httpOptions: { agent: proxyAgent },
     cliVersion: version.versionNumber(),
   });
   const refreshNotices = (async () => {
@@ -108,7 +112,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       try {
         return await notices.refresh();
       } catch (e: any) {
-        await ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Could not refresh notices: ${e}`));
+        await ioHelper.defaults.debug(`Could not refresh notices: ${e}`);
       }
     }
   })();
@@ -116,10 +120,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
     profile: configuration.settings.get(['profile']),
-    requestHandler: await makeRequestHandler(ioHelper, {
-      proxyAddress: argv.proxy,
-      caBundlePath: argv['ca-bundle-path'],
-    }),
+    requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
   });
@@ -322,43 +323,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('Can not supply both --[no-]execute and --method at the same time');
         }
 
-        let deploymentMethod: DeploymentMethod | undefined;
-        switch (args.method) {
-          case 'direct':
-            if (args.changeSetName) {
-              throw new ToolkitError('--change-set-name cannot be used with method=direct');
-            }
-            if (args.importExistingResources) {
-              throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
-            }
-            deploymentMethod = { method: 'direct' };
-            break;
-          case 'change-set':
-            deploymentMethod = {
-              method: 'change-set',
-              execute: true,
-              changeSetName: args.changeSetName,
-              importExistingResources: args.importExistingResources,
-            };
-            break;
-          case 'prepare-change-set':
-            deploymentMethod = {
-              method: 'change-set',
-              execute: false,
-              changeSetName: args.changeSetName,
-              importExistingResources: args.importExistingResources,
-            };
-            break;
-          case undefined:
-            deploymentMethod = {
-              method: 'change-set',
-              execute: args.execute ?? true,
-              changeSetName: args.changeSetName,
-              importExistingResources: args.importExistingResources,
-            };
-            break;
-        }
-
         return cli.deploy({
           selector,
           exclusively: args.exclusively,
@@ -368,7 +332,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
-          deploymentMethod,
+          deploymentMethod: determineDeploymentMethod(args, configuration),
           force: args.force,
           parameters: parameterMap,
           usePreviousParameters: args['previous-parameters'],
@@ -376,7 +340,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           progress: configuration.settings.get(['progress']),
           ci: args.ci,
           rollback: configuration.settings.get(['rollback']),
-          hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback),
           watch: args.watch,
           traceLogs: args.logs,
           concurrency: args.concurrency,
@@ -424,14 +387,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           roleArn: args.roleArn,
           reuseAssets: args['build-exclude'],
-          deploymentMethod: {
-            method: 'change-set',
-            changeSetName: args.changeSetName,
-          },
+          deploymentMethod: determineDeploymentMethod(args, configuration, true),
           force: args.force,
           progress: configuration.settings.get(['progress']),
           rollback: configuration.settings.get(['rollback']),
-          hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback, true),
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });
@@ -563,6 +522,65 @@ function arrayFromYargs(xs: string[]): string[] | undefined {
     return undefined;
   }
   return xs.filter((x) => x !== '');
+}
+
+function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {
+  let deploymentMethod: ChangeSetDeployment | DirectDeployment | undefined;
+  switch (args.method) {
+    case 'direct':
+      if (args.changeSetName) {
+        throw new ToolkitError('--change-set-name cannot be used with method=direct');
+      }
+      if (args.importExistingResources) {
+        throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
+      }
+      deploymentMethod = { method: 'direct' };
+      break;
+    case 'change-set':
+      deploymentMethod = {
+        method: 'change-set',
+        execute: true,
+        changeSetName: args.changeSetName,
+        importExistingResources: args.importExistingResources,
+      };
+      break;
+    case 'prepare-change-set':
+      deploymentMethod = {
+        method: 'change-set',
+        execute: false,
+        changeSetName: args.changeSetName,
+        importExistingResources: args.importExistingResources,
+      };
+      break;
+    case undefined:
+    default:
+      deploymentMethod = {
+        method: 'change-set',
+        execute: watch ? true : args.execute ?? true,
+        changeSetName: args.changeSetName,
+        importExistingResources: args.importExistingResources,
+      };
+      break;
+  }
+
+  const hotswapMode = determineHotswapMode(args.hotswap, args.hotswapFallback, watch);
+  const hotswapProperties = configuration.settings.get(['hotswap']) || {};
+  switch (hotswapMode) {
+    case HotswapMode.FALL_BACK:
+      return {
+        method: 'hotswap',
+        properties: hotswapProperties,
+        fallback: deploymentMethod,
+      };
+    case HotswapMode.HOTSWAP_ONLY:
+      return {
+        method: 'hotswap',
+        properties: hotswapProperties,
+      };
+    default:
+    case HotswapMode.FULL_DEPLOYMENT:
+      return deploymentMethod;
+  }
 }
 
 function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watch?: boolean): HotswapMode {

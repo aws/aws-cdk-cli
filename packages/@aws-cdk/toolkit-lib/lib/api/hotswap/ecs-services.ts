@@ -128,7 +128,7 @@ export async function isHotswappableEcsServiceChange(
         const registerTaskDefResponse = await sdk.ecs().registerTaskDefinition(lowercasedTaskDef);
         const taskDefRevArn = registerTaskDefResponse.taskDefinition?.taskDefinitionArn;
 
-        let ecsHotswapProperties = hotswapPropertyOverrides.ecsHotswapProperties;
+        let ecsHotswapProperties = hotswapPropertyOverrides.ecs;
         let minimumHealthyPercent = ecsHotswapProperties?.minimumHealthyPercent;
         let maximumHealthyPercent = ecsHotswapProperties?.maximumHealthyPercent;
         let stabilizationTimeoutSeconds = ecsHotswapProperties?.stabilizationTimeoutSeconds;

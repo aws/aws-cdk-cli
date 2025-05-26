@@ -8,6 +8,7 @@ import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployPr
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
 import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
+import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
@@ -25,28 +26,6 @@ import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
  * - X900-X999 are reserved for results
  */
 export const IO = {
-  // Defaults (0000)
-  DEFAULT_TOOLKIT_INFO: make.info({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default info messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_DEBUG: make.debug({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default debug messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_WARN: make.warn({
-    code: 'CDK_TOOLKIT_W0000',
-    description: 'Default warning messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_ERROR: make.error({
-    code: 'CDK_TOOLKIT_E0000',
-    description: 'Default error messages emitted from the Toolkit',
-  }),
-  DEFAULT_TOOLKIT_TRACE: make.trace({
-    code: 'CDK_TOOLKIT_I0000',
-    description: 'Default trace messages emitted from the Toolkit',
-  }),
-
   // warnings & errors
   CDK_TOOLKIT_W0100: make.warn({
     code: 'CDK_TOOLKIT_W0100',
@@ -83,6 +62,16 @@ export const IO = {
   }),
 
   // 3: Import & Migrate
+  CDK_TOOLKIT_I3100: make.confirm<ResourceImportRequest>({
+    code: 'CDK_TOOLKIT_I3100',
+    description: 'Confirm the import of a specific resource',
+    interface: 'ResourceImportRequest',
+  }),
+  CDK_TOOLKIT_I3110: make.question<ResourceIdentificationRequest>({
+    code: 'CDK_TOOLKIT_I3110',
+    description: 'Additional information is needed to identify a resource',
+    interface: 'ResourceIdentificationRequest',
+  }),
   CDK_TOOLKIT_E3900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E3900',
     description: 'Resource import failed',
@@ -412,23 +401,6 @@ export const IO = {
   }),
 
   // Assembly codes
-  DEFAULT_ASSEMBLY_TRACE: make.trace({
-    code: 'CDK_ASSEMBLY_I0000',
-    description: 'Default trace messages emitted from Cloud Assembly operations',
-  }),
-  DEFAULT_ASSEMBLY_DEBUG: make.debug({
-    code: 'CDK_ASSEMBLY_I0000',
-    description: 'Default debug messages emitted from Cloud Assembly operations',
-  }),
-  DEFAULT_ASSEMBLY_INFO: make.info({
-    code: 'CDK_ASSEMBLY_I0000',
-    description: 'Default info messages emitted from Cloud Assembly operations',
-  }),
-  DEFAULT_ASSEMBLY_WARN: make.warn({
-    code: 'CDK_ASSEMBLY_W0000',
-    description: 'Default warning messages emitted from Cloud Assembly operations',
-  }),
-
   CDK_ASSEMBLY_I0010: make.debug({
     code: 'CDK_ASSEMBLY_I0010',
     description: 'Generic environment preparation debug messages',
@@ -508,18 +480,6 @@ export const IO = {
   }),
 
   // SDK codes
-  DEFAULT_SDK_TRACE: make.trace({
-    code: 'CDK_SDK_I0000',
-    description: 'An SDK trace message.',
-  }),
-  DEFAULT_SDK_DEBUG: make.debug({
-    code: 'CDK_SDK_I0000',
-    description: 'An SDK debug message.',
-  }),
-  DEFAULT_SDK_WARN: make.warn({
-    code: 'CDK_SDK_W0000',
-    description: 'An SDK warning message.',
-  }),
   CDK_SDK_I0100: make.trace<SdkTrace>({
     code: 'CDK_SDK_I0100',
     description: 'An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level.',

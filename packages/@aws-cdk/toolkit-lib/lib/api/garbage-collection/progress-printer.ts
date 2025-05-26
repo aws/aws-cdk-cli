@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import type { GcAsset as GCAsset } from './garbage-collector';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import { IO, type IoHelper } from '../io/private';
+import type { IoHelper } from '../io/private';
 
 export class ProgressPrinter {
   private ioHelper: IoHelper;
@@ -78,9 +78,9 @@ export class ProgressPrinter {
     const percentage = ((this.assetsScanned / this.totalAssets) * 100).toFixed(2);
     // print in MiB until we hit at least 1 GiB of data tagged/deleted
     if (Math.max(this.taggedAssetsSizeMb, this.deletedAssetsSizeMb) >= 1000) {
-      void this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${(this.taggedAssetsSizeMb / 1000).toFixed(2)} GiB) tagged, ${this.deletedAssets} assets (${(this.deletedAssetsSizeMb / 1000).toFixed(2)} GiB) deleted.`)));
+      void this.ioHelper.defaults.info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${(this.taggedAssetsSizeMb / 1000).toFixed(2)} GiB) tagged, ${this.deletedAssets} assets (${(this.deletedAssetsSizeMb / 1000).toFixed(2)} GiB) deleted.`));
     } else {
-      void this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${this.taggedAssetsSizeMb.toFixed(2)} MiB) tagged, ${this.deletedAssets} assets (${this.deletedAssetsSizeMb.toFixed(2)} MiB) deleted.`)));
+      void this.ioHelper.defaults.info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${this.taggedAssetsSizeMb.toFixed(2)} MiB) tagged, ${this.deletedAssets} assets (${this.deletedAssetsSizeMb.toFixed(2)} MiB) deleted.`));
     }
   }
 }

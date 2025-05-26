@@ -1,19 +1,19 @@
 import type { BaseDeployOptions } from './private/deploy-options';
 import type { Tag } from '../../api/tags';
 
-export type DeploymentMethod = DirectDeploymentMethod | ChangeSetDeploymentMethod;
+export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | HotswapDeployment;
 
-export interface DirectDeploymentMethod {
-  /**
-   * Use stack APIs to the deploy stack changes
-   */
+/**
+ * Use stack APIs to the deploy stack changes
+ */
+export interface DirectDeployment {
   readonly method: 'direct';
 }
 
-export interface ChangeSetDeploymentMethod {
-  /**
-   * Use change-set APIS to deploy a stack changes
-   */
+/**
+ * Use change-set APIs to deploy a stack changes
+ */
+export interface ChangeSetDeployment {
   readonly method: 'change-set';
 
   /**
@@ -28,6 +28,38 @@ export interface ChangeSetDeploymentMethod {
    * If not provided, a name will be generated automatically.
    */
   readonly changeSetName?: string;
+
+  /**
+   * Indicates if the change set imports resources that already exist.
+   *
+   * @default false
+   */
+  readonly importExistingResources?: boolean;
+}
+
+/**
+ * Perform a 'hotswap' deployment to deploy a stack changes
+ *
+ * A 'hotswap' deployment will attempt to short-circuit CloudFormation
+ * and update the affected resources like Lambda functions directly.
+ */
+export interface HotswapDeployment {
+  readonly method: 'hotswap';
+
+  /**
+   * Represents configuration property overrides for hotswap deployments.
+   * Currently only supported by ECS.
+   *
+   * @default - no overrides
+   */
+  readonly properties?: HotswapProperties;
+
+  /**
+   * Fall back to a CloudFormation deployment when a non-hotswappable change is detected
+   *
+   * @default - do not fall back to a CloudFormation deployment
+   */
+  readonly fallback?: DirectDeployment | ChangeSetDeployment;
 }
 
 /**
@@ -46,23 +78,6 @@ export enum AssetBuildTime {
    * Build assets just-in-time, before publishing
    */
   JUST_IN_TIME = 'just-in-time',
-}
-
-export enum HotswapMode {
-  /**
-   * Will fall back to CloudFormation when a non-hotswappable change is detected
-   */
-  FALL_BACK = 'fall-back',
-
-  /**
-   * Will not fall back to CloudFormation when a non-hotswappable change is detected
-   */
-  HOTSWAP_ONLY = 'hotswap-only',
-
-  /**
-   * Will not attempt to hotswap anything and instead go straight to CloudFormation
-   */
-  FULL_DEPLOYMENT = 'full-deployment',
 }
 
 export class StackParameters {
@@ -136,14 +151,6 @@ export interface DeployOptions extends BaseDeployOptions {
    * @default AssetBuildTime.ALL_BEFORE_DEPLOY
    */
   readonly assetBuildTime?: AssetBuildTime;
-
-  /**
-   * Represents configuration property overrides for hotswap deployments.
-   * Currently only supported by ECS.
-   *
-   * @default - no overrides
-   */
-  readonly hotswapProperties?: HotswapProperties;
 }
 
 /**
@@ -154,13 +161,18 @@ export interface EcsHotswapProperties {
    * The lower limit on the number of your service's tasks that must remain
    * in the RUNNING state during a deployment, as a percentage of the desiredCount.
    */
-  readonly minimumHealthyPercent: number;
+  readonly minimumHealthyPercent?: number;
 
   /**
    * The upper limit on the number of your service's tasks that are allowed
    * in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount.
    */
-  readonly maximumHealthyPercent: number;
+  readonly maximumHealthyPercent?: number;
+
+  /**
+   * The number of seconds to wait for a single service to reach stable state.
+   */
+  readonly stabilizationTimeoutSeconds?: number;
 }
 
 /**
@@ -170,5 +182,5 @@ export interface HotswapProperties {
   /**
    * ECS specific hotswap property overrides
    */
-  readonly ecs: EcsHotswapProperties;
+  readonly ecs?: EcsHotswapProperties;
 }

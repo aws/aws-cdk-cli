@@ -4,10 +4,13 @@ import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
-import { cfnApi } from '../../lib/api/shared-private';
+import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
+
+// tests using fixtures can sometimes take a bit longer
+jest.setTimeout(10_000);
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -141,7 +144,6 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'warn',
-      code: 'CDK_TOOLKIT_W0000',
       message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -235,7 +237,6 @@ describe('diff', () => {
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         action: 'diff',
         level: 'info',
-        code: 'CDK_TOOLKIT_I0000',
         message: expect.stringContaining('Could not create a change set, will base the diff on template differences'),
       }));
     });
@@ -351,7 +352,6 @@ describe('diff', () => {
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         action: 'diff',
         level: 'warn',
-        code: 'CDK_TOOLKIT_W0000',
         message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
       }));
       expect(result.Stack1).toMatchObject(expect.objectContaining({

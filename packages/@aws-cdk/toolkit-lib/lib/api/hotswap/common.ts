@@ -1,4 +1,5 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
+import type { HotswapProperties, EcsHotswapProperties as IEcsHotswapProperties } from '../../actions';
 import type { HotswappableChange, NonHotswappableChange, ResourceChange } from '../../payloads/hotswap';
 import { NonHotswappableReason } from '../../payloads/hotswap';
 import { ToolkitError } from '../../toolkit/toolkit-error';
@@ -69,19 +70,19 @@ export enum HotswapMode {
 /**
  * Represents configuration property overrides for hotswap deployments
  */
-export class HotswapPropertyOverrides {
+export class HotswapPropertyOverrides implements HotswapProperties {
   // Each supported resource type will have its own properties. Currently this is ECS
-  ecsHotswapProperties?: EcsHotswapProperties;
+  readonly ecs?: IEcsHotswapProperties;
 
-  public constructor (ecsHotswapProperties?: EcsHotswapProperties) {
-    this.ecsHotswapProperties = ecsHotswapProperties;
+  public constructor (ecs?: IEcsHotswapProperties) {
+    this.ecs = ecs;
   }
 }
 
 /**
  * Represents configuration properties for ECS hotswap deployments
  */
-export class EcsHotswapProperties {
+export class EcsHotswapProperties implements IEcsHotswapProperties {
   // The lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount
   readonly minimumHealthyPercent?: number;
   // The upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
@@ -116,6 +117,17 @@ export class EcsHotswapProperties {
   public isEmpty(): boolean {
     return this.minimumHealthyPercent === 0 && this.maximumHealthyPercent === undefined;
   }
+}
+
+/**
+ * Create the HotswapPropertyOverrides class out of the Interface exposed to users
+ */
+export function createHotswapPropertyOverrides(props: HotswapProperties): HotswapPropertyOverrides {
+  return new HotswapPropertyOverrides(new EcsHotswapProperties(
+    props.ecs?.minimumHealthyPercent,
+    props.ecs?.maximumHealthyPercent,
+    props.ecs?.stabilizationTimeoutSeconds,
+  ));
 }
 
 type PropDiffs = Record<string, PropertyDifference<any>>;

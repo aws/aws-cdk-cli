@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit } from '@aws-cdk/toolkit-lib';
-import type { ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -19,8 +19,7 @@ import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
-import type { DeploymentMethod, Deployments, SuccessfulDeployStackResult } from '../api/deployments';
-import { EcsHotswapProperties, HotswapMode, HotswapPropertyOverrides } from '../api/hotswap';
+import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { type Tag, tagsForStack } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
@@ -137,9 +136,15 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
+/**
+ * Custom implementation of the public Toolkit to integrate with the legacy CdkToolkit
+ *
+ * This overwrites how an sdkProvider is acquired
+ * in favor of the one provided directly to CdkToolkit.
+ */
 class InternalToolkit extends Toolkit {
   private readonly _sdkProvider: SdkProvider;
-  public constructor(sdkProvider: SdkProvider, options: ToolkitOptions) {
+  public constructor(sdkProvider: SdkProvider, options: Omit<ToolkitOptions, 'sdkConfig'>) {
     super(options);
     this._sdkProvider = sdkProvider;
   }
@@ -173,10 +178,8 @@ export class CdkToolkit {
       color: true,
       emojis: true,
       ioHost: this.ioHost,
-      sdkConfig: {},
       toolkitStackName: this.toolkitStackName,
     });
-    this.toolkit; // aritifical use of this.toolkit to satisfy TS, we want to prepare usage of the new toolkit without using it just yet
   }
 
   public async metadata(stackName: string, json: boolean) {
@@ -374,21 +377,12 @@ export class CdkToolkit {
 
     const parameterMap = buildParameterMap(options.parameters);
 
-    if (options.hotswap !== HotswapMode.FULL_DEPLOYMENT) {
+    if (options.deploymentMethod?.method === 'hotswap') {
       warning(
         '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
       );
       warning('⚠️ They should only be used for development - never use them for your production Stacks!\n');
     }
-
-    let hotswapPropertiesFromSettings = this.props.configuration.settings.get(['hotswap']) || {};
-
-    let hotswapPropertyOverrides = new HotswapPropertyOverrides();
-    hotswapPropertyOverrides.ecsHotswapProperties = new EcsHotswapProperties(
-      hotswapPropertiesFromSettings.ecs?.minimumHealthyPercent,
-      hotswapPropertiesFromSettings.ecs?.maximumHealthyPercent,
-      hotswapPropertiesFromSettings.ecs?.stabilizationTimeoutSeconds,
-    );
 
     const stacks = stackCollection.stackArtifacts;
 
@@ -517,8 +511,6 @@ export class CdkToolkit {
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
             rollback,
-            hotswap: options.hotswap,
-            hotswapPropertyOverrides: hotswapPropertyOverrides,
             extraUserAgent: options.extraUserAgent,
             assetParallelism: options.assetParallelism,
             ignoreNoStacks: options.ignoreNoStacks,
@@ -1402,8 +1394,7 @@ export class CdkToolkit {
       watch: false,
       cloudWatchLogMonitor,
       cacheCloudAssembly: false,
-      hotswap: options.hotswap,
-      extraUserAgent: `cdk-watch/hotswap-${options.hotswap !== HotswapMode.FALL_BACK ? 'on' : 'off'}`,
+      extraUserAgent: `cdk-watch/hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}`,
       concurrency: options.concurrency,
     };
 
@@ -1601,15 +1592,6 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
    * @default false
    */
   force?: boolean;
-
-  /**
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - `HotswapMode.FALL_BACK` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
-   */
-  readonly hotswap: HotswapMode;
 
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.

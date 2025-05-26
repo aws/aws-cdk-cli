@@ -3,6 +3,7 @@ import { yarn } from 'cdklabs-projen-project-types';
 import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
+import type { Job } from 'projen/lib/github/workflows-model';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
@@ -750,7 +751,6 @@ const toolkitLib = configureProject(
       'glob',
       'minimatch',
       'p-limit@^3',
-      'promptly',
       'proxy-agent',
       'semver',
       'split2',
@@ -772,6 +772,8 @@ const toolkitLib = configureProject(
       'aws-sdk-client-mock-jest',
       'fast-check',
       'jest-environment-node',
+      '@types/jest-when',
+      'jest-when',
       'nock@13',
       'typedoc',
       'xml-js',
@@ -1646,7 +1648,7 @@ const cliInteg = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
@@ -1744,5 +1746,7 @@ new PrLabeler(repo);
 new LargePrChecker(repo, {
   excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
 });
+
+((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}).DEBUG = 'true';
 
 repo.synth();

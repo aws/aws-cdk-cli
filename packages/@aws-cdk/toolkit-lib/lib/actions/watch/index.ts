@@ -1,3 +1,4 @@
+import type { DeploymentMethod } from '../deploy';
 import type { BaseDeployOptions } from '../deploy/private';
 
 export interface WatchOptions extends BaseDeployOptions {
@@ -21,4 +22,11 @@ export interface WatchOptions extends BaseDeployOptions {
    * @default process.cwd()
    */
   readonly watchDir?: string;
+
+  /**
+   * Deployment method
+   *
+   * @default HotswapDeployment
+   */
+  readonly deploymentMethod?: DeploymentMethod;
 }

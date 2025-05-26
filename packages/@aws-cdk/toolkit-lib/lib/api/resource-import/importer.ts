@@ -5,9 +5,9 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import * as promptly from 'promptly';
+import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { DeploymentMethod, Deployments } from '../deployments';
+import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
@@ -149,19 +149,19 @@ export class ResourceImporter {
       const descr = this.describeResource(resource.logicalId);
       const idProps = contents[resource.logicalId];
       if (idProps) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps)))));
+        await this.ioHelper.defaults.info(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps))));
 
         ret.importResources.push(resource);
         ret.resourceMap[resource.logicalId] = idProps;
         delete contents[resource.logicalId];
       } else {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(format('%s: skipping', chalk.blue(descr))));
+        await this.ioHelper.defaults.info(format('%s: skipping', chalk.blue(descr)));
       }
     }
 
     const unknown = Object.keys(contents);
     if (unknown.length > 0) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`));
+      await this.ioHelper.defaults.warn(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`);
     }
 
     return ret;
@@ -211,7 +211,7 @@ export class ResourceImporter {
         ? ' ✅  %s (no changes)'
         : ' ✅  %s';
 
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg('\n' + chalk.green(format(message, this.stack.displayName))));
+      await this.ioHelper.defaults.info('\n' + chalk.green(format(message, this.stack.displayName)));
     } catch (e) {
       await this.ioHelper.notify(IO.CDK_TOOLKIT_E3900.msg(format('\n ❌  %s failed: %s', chalk.bold(this.stack.displayName), e), { error: e as any }));
       throw e;
@@ -242,7 +242,7 @@ export class ResourceImporter {
       const offendingResources = nonAdditions.map(([logId, _]) => this.describeResource(logId));
 
       if (allowNonAdditions) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`));
+        await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
       } else {
         throw new ToolkitError('No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
           `to existing resources, before attempting an import. Updated/deleted resources: ${offendingResources.join(', ')} (--force to override)`);
@@ -330,7 +330,7 @@ export class ResourceImporter {
     // Skip resources that do not support importing
     const resourceType = chg.resourceDiff.newResourceType;
     if (resourceType === undefined || !(resourceType in resourceIdentifiers)) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_WARN.msg(`${resourceName}: unsupported resource type ${resourceType}, skipping import.`));
+      await this.ioHelper.defaults.warn(`${resourceName}: unsupported resource type ${resourceType}, skipping import.`);
       return undefined;
     }
 
@@ -346,36 +346,34 @@ export class ResourceImporter {
       const candidateProps = Object.fromEntries(satisfiedPropSet.map(p => [p, resourceProps[p]]));
       const displayCandidateProps = fmtdict(candidateProps);
 
-      if (await promptly.confirm(
-        `${chalk.blue(resourceName)} (${resourceType}): import with ${chalk.yellow(displayCandidateProps)} (yes/no) [default: yes]? `,
-        { default: 'yes' },
-      )) {
+      const importTheResource = await this.ioHelper.requestResponse(IO.CDK_TOOLKIT_I3100.req(`${chalk.blue(resourceName)} (${resourceType}): import with ${chalk.yellow(displayCandidateProps)}`, {
+        resource: {
+          type: resourceType,
+          props: candidateProps,
+          stringifiedProps: displayCandidateProps,
+        },
+      }));
+      if (importTheResource) {
         return candidateProps;
       }
     }
 
     // If we got here and the user rejected any available identifiers, then apparently they don't want the resource at all
     if (satisfiedPropSets.length > 0) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.grey(`Skipping import of ${resourceName}`)));
+      await this.ioHelper.defaults.info(chalk.grey(`Skipping import of ${resourceName}`));
       return undefined;
     }
 
     // We cannot auto-import this, ask the user for one of the props
     // The only difference between these cases is what we print: for multiple properties, we print a preamble
     const prefix = `${chalk.blue(resourceName)} (${resourceType})`;
-    let preamble;
-    let promptPattern;
+    const promptPattern = `${prefix}: enter %s`;
     if (idPropSets.length > 1) {
-      preamble = `${prefix}: enter one of ${idPropSets.map(x => chalk.blue(x.join('+'))).join(', ')} to import (all empty to skip)`;
-      promptPattern = `${prefix}: enter %`;
-    } else {
-      promptPattern = `${prefix}: enter %`;
+      const preamble = `${prefix}: enter one of ${idPropSets.map(x => chalk.blue(x.join('+'))).join(', ')} to import (leave all empty to skip)`;
+      await this.ioHelper.defaults.info(preamble);
     }
 
     // Do the input loop here
-    if (preamble) {
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(preamble));
-    }
     for (const idProps of idPropSets) {
       const input: Record<string, string> = {};
       for (const idProp of idProps) {
@@ -383,15 +381,18 @@ export class ResourceImporter {
         // identifier if present, otherwise we would have done the import already above.
         const defaultValue = resourceProps[idProp] ?? '';
 
-        const prompt = [
-          promptPattern.replace(/%/g, chalk.blue(idProp)),
-          defaultValue
-            ? `[${defaultValue}]`
-            : '(empty to skip)',
-        ].join(' ') + ':';
-        const response = await promptly.prompt(prompt,
-          { default: defaultValue, trim: true },
-        );
+        const response = await this.ioHelper.requestResponse(IO.CDK_TOOLKIT_I3110.req(
+          format(promptPattern, chalk.blue(idProp)),
+          {
+            resource: {
+              name: resourceName,
+              type: resourceType,
+              idProp,
+            },
+            responseDescription: defaultValue ? undefined : 'empty to skip',
+          },
+          defaultValue,
+        ));
 
         if (!response) {
           break;
@@ -409,7 +410,7 @@ export class ResourceImporter {
       }
     }
 
-    await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_INFO.msg(chalk.grey(`Skipping import of ${resourceName}`)));
+    await this.ioHelper.defaults.info(chalk.grey(`Skipping import of ${resourceName}`));
     return undefined;
   }
 

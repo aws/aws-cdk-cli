@@ -1,4 +1,3 @@
-import { HotswapMode } from '../../lib/api/hotswap';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 
@@ -33,42 +32,82 @@ beforeEach(() => {
 });
 
 describe('deploy with hotswap', () => {
-  test('does print hotswap warnings for FALL_BACK mode', async () => {
+  test('does print hotswap warnings for hotswap with fallback', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx, {
-      hotswap: HotswapMode.FALL_BACK,
+      deploymentMethod: {
+        method: 'hotswap',
+        fallback: { method: 'change-set' },
+      },
     });
 
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       level: 'warn',
-      message: expect.stringContaining('hotswap'),
+      message: expect.stringMatching(/hotswap deployments/i),
     }));
   });
 
-  test('does print hotswap warnings for HOTSWAP_ONLY mode', async () => {
+  test('does print hotswap warnings for hotswap only', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx, {
-      hotswap: HotswapMode.HOTSWAP_ONLY,
+      deploymentMethod: {
+        method: 'hotswap',
+      },
     });
 
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       level: 'warn',
-      message: expect.stringContaining('hotswap'),
+      message: expect.stringMatching(/hotswap deployments/i),
+    }));
+  });
+
+  test('hotswap property overrides', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.deploy(cx, {
+      deploymentMethod: {
+        method: 'hotswap',
+        properties: {
+          ecs: {
+            maximumHealthyPercent: 100,
+            minimumHealthyPercent: 0,
+          },
+        },
+      },
+    });
+
+    // THEN
+    // passed through correctly to Deployments
+    expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+      deploymentMethod: {
+        method: 'hotswap',
+        properties: {
+          ecs: {
+            maximumHealthyPercent: 100,
+            minimumHealthyPercent: 0,
+          },
+        },
+      },
+    }));
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'deploy',
+      level: 'info',
+      code: 'CDK_TOOLKIT_I5000',
+      message: expect.stringContaining('Deployment time:'),
     }));
   });
 });
 
 describe('deploy without hotswap', () => {
-  test('does not print hotswap warnings when mode is undefined', async () => {
+  test('does not print hotswap warnings for default method', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
-    await toolkit.deploy(cx, {
-      hotswap: undefined,
-    });
+    await toolkit.deploy(cx);
 
     // THEN
     expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -77,11 +116,11 @@ describe('deploy without hotswap', () => {
     }));
   });
 
-  test('does not print hotswap warning for FULL_DEPLOYMENT mode', async () => {
+  test('does not print hotswap warnings for change-set method', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx, {
-      hotswap: HotswapMode.FULL_DEPLOYMENT,
+      deploymentMethod: { method: 'change-set' },
     });
 
     // THEN

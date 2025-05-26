@@ -51,7 +51,7 @@ export class CredentialPlugins {
       }
 
       if (!available) {
-        await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Credentials source ${source.name} is not available, ignoring it.`));
+        await this.ioHelper.defaults.debug(`Credentials source ${source.name} is not available, ignoring it.`);
         continue;
       }
       triedSources.push(source);
@@ -66,7 +66,7 @@ export class CredentialPlugins {
       if (!canProvide) {
         continue;
       }
-      await this.ioHelper.notify(IO.DEFAULT_TOOLKIT_DEBUG.msg(`Using ${source.name} credentials for account ${awsAccountId}`));
+      await this.ioHelper.defaults.debug(`Using ${source.name} credentials for account ${awsAccountId}`);
 
       return {
         credentials: await v3ProviderFromPlugin(() => source.getProvider(awsAccountId, mode as ForReading | ForWriting, {
