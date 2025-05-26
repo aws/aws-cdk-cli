@@ -81,12 +81,6 @@ export abstract class CloudAssemblySourceBuilder {
           const cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : noop;
           let assembly;
           try {
-            if (props.clobberEnv ?? true) {
-              for (const [key, value] of Object.entries(env)) {
-                process.env[key] = value;
-              }
-            }
-
             assembly = await builder({
               outdir: execution.outdir,
               context: fullContext,
@@ -100,8 +94,8 @@ export abstract class CloudAssemblySourceBuilder {
             // otherwise, wrap into an assembly error
             throw AssemblyError.withCause('Assembly builder failed', error);
           } finally {
+            cleanupEnv();
             await cleanupContextTemp();
-            await cleanupEnv();
           }
 
           // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
@@ -276,13 +270,19 @@ function parametersFromSynthOptions(synthOptions?: AppSynthOptions) {
   return synthParametersFromSettings(settingsFromSynthOptions(synthOptions ?? {}));
 }
 
+/**
+ * Temporarily overwrite the `process.env` with a new `env`
+ *
+ * We make the environment immutable in case there are accidental
+ * concurrent accesses.
+ */
 function temporarilyWriteEnv(env: Record<string, string>): () => void {
   const oldEnv = process.env;
 
-  process.env = {
+  process.env = immutableEnv({
     ...process.env,
     ...env,
-  };
+  });
 
   return () => {
     process.env = oldEnv;
@@ -290,4 +290,22 @@ function temporarilyWriteEnv(env: Record<string, string>): () => void {
 }
 
 function noop() {
+}
+
+function immutableEnv<A extends object>(obj: A) {
+  return new Proxy(obj, {
+    get(target, prop) {
+      return (target as any)[prop];
+    },
+    set(target, prop, value) {
+      // We only throw on specific environment variables to catch the case of
+      // concurrent synths. We can't do all variables because there are some
+      // routines somewhere that modify things like `JSII_DEPRECATED` globally.
+      if (['CDK_CONTEXT', 'CDK_OUTDIR'].includes(String(prop))) {
+        throw new ToolkitError('process.env is temporarily immutable. Set \'clobberEnv: false\' if you want to run multiple \'fromAssemblyBuilder\' synths concurrently');
+      }
+      (target as any)[prop] = value;
+      return true;
+    },
+  });
 }
