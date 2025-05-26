@@ -1,3 +1,4 @@
+import type { Agent } from 'node:https';
 import { format } from 'node:util';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
@@ -270,13 +271,16 @@ export interface CredentialChainOptions {
   readonly logger?: ISdkLogger;
 }
 
-export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
-  const agent = await new ProxyAgentProvider(ioHelper).create(options);
-
+export function sdkRequestHandler(agent?: Agent): NodeHttpHandlerOptions {
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,
     httpsAgent: agent,
     httpAgent: agent,
   };
+}
+
+export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
+  const agent = await new ProxyAgentProvider(ioHelper).create(options);
+  return sdkRequestHandler(agent);
 }

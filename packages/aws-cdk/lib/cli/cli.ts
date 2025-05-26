@@ -16,7 +16,7 @@ import * as version from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
-import { SdkProvider, IoHostSdkLogger, setSdkTracing, makeRequestHandler } from '../api/aws-auth';
+import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { Deployments } from '../api/deployments';
@@ -29,6 +29,7 @@ import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
+import { ProxyAgentProvider } from './proxy-agent';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -89,6 +90,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
+  // Always create and use ProxyAgent to support configuration via env vars
+  const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
+    proxyAddress: configuration.settings.get(['proxy']),
+    caBundlePath: configuration.settings.get(['caBundlePath']),
+  });
+
   const shouldDisplayNotices = configuration.settings.get(['notices']);
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
@@ -96,10 +103,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    httpOptions: {
-      proxyAddress: configuration.settings.get(['proxy']),
-      caBundlePath: configuration.settings.get(['caBundlePath']),
-    },
+    httpsOptions: { agent: proxyAgent },
     cliVersion: version.versionNumber(),
   });
   const refreshNotices = (async () => {
@@ -116,10 +120,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
     profile: configuration.settings.get(['profile']),
-    requestHandler: await makeRequestHandler(ioHelper, {
-      proxyAddress: argv.proxy,
-      caBundlePath: argv['ca-bundle-path'],
-    }),
+    requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
   });

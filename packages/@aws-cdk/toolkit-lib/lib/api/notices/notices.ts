@@ -1,6 +1,6 @@
+import type { Agent } from 'https';
 import * as path from 'path';
 import { cdkCacheDir } from '../../util';
-import type { SdkHttpOptions } from '../aws-auth';
 import type { Context } from '../context';
 import type { IIoHost } from '../io';
 import { CachedDataSource } from './cached-data-source';
@@ -12,6 +12,20 @@ import type { IoHelper } from '../io/private';
 import { IO, asIoHelper } from '../io/private';
 
 const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
+
+/**
+ * Options for the HTTPS requests made by Notices
+ */
+export interface NoticesHttpsOptions {
+  /**
+   * The agent responsible for making the network requests.
+   *
+   * Use this so set up a proxy connection.
+   *
+   * @default - uses the shared global node agent
+   */
+  readonly agent?: Agent;
+}
 
 export interface NoticesProps {
   /**
@@ -27,9 +41,9 @@ export interface NoticesProps {
   readonly output?: string;
 
   /**
-   * Options for the HTTP request
+   * Options for the HTTPS requests made by Notices
    */
-  readonly httpOptions?: SdkHttpOptions;
+  readonly httpsOptions?: NoticesHttpsOptions;
 
   /**
    * Where messages are going to be sent
@@ -100,7 +114,7 @@ export class Notices {
   private readonly context: Context;
   private readonly output: string;
   private readonly acknowledgedIssueNumbers: Set<Number>;
-  private readonly httpOptions: SdkHttpOptions;
+  private readonly httpsOptions: NoticesHttpsOptions;
   private readonly ioHelper: IoHelper;
   private readonly cliVersion: string;
 
@@ -113,7 +127,7 @@ export class Notices {
     this.context = props.context;
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
     this.output = props.output ?? 'cdk.out';
-    this.httpOptions = props.httpOptions ?? {};
+    this.httpsOptions = props.httpsOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
     this.cliVersion = props.cliVersion;
   }
@@ -141,14 +155,14 @@ export class Notices {
    * @throws on failure to refresh the data source
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
+    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpsOptions);
     const dataSource = new CachedDataSource(this.ioHelper, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
     const notices = await dataSource.fetch();
     this.data = new Set(notices);
   }
 
   /**
-   * Filter the data sourece for relevant notices
+   * Filter the data source for relevant notices
    */
   public filter(options: NoticesDisplayOptions = {}): Promise<FilteredNotice[]> {
     return new NoticesFilter(this.ioHelper).filter({
