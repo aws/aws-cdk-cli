@@ -16,7 +16,7 @@ const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'notices.json');
 /**
  * Options for the HTTPS requests made by Notices
  */
-export interface NoticesHttpsOptions {
+export interface NoticesHttpOptions {
   /**
    * The agent responsible for making the network requests.
    *
@@ -43,7 +43,7 @@ export interface NoticesProps {
   /**
    * Options for the HTTPS requests made by Notices
    */
-  readonly httpsOptions?: NoticesHttpsOptions;
+  readonly httpOptions?: NoticesHttpOptions;
 
   /**
    * Where messages are going to be sent
@@ -114,7 +114,7 @@ export class Notices {
   private readonly context: Context;
   private readonly output: string;
   private readonly acknowledgedIssueNumbers: Set<Number>;
-  private readonly httpsOptions: NoticesHttpsOptions;
+  private readonly httpOptions: NoticesHttpOptions;
   private readonly ioHelper: IoHelper;
   private readonly cliVersion: string;
 
@@ -127,7 +127,7 @@ export class Notices {
     this.context = props.context;
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
     this.output = props.output ?? 'cdk.out';
-    this.httpsOptions = props.httpsOptions ?? {};
+    this.httpOptions = props.httpOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
     this.cliVersion = props.cliVersion;
   }
@@ -155,7 +155,7 @@ export class Notices {
    * @throws on failure to refresh the data source
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpsOptions);
+    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
     const dataSource = new CachedDataSource(this.ioHelper, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
     const notices = await dataSource.fetch();
     this.data = new Set(notices);

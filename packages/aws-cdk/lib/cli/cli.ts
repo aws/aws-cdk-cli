@@ -103,7 +103,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    httpsOptions: { agent: proxyAgent },
+    httpOptions: { agent: proxyAgent },
     cliVersion: version.versionNumber(),
   });
   const refreshNotices = (async () => {
