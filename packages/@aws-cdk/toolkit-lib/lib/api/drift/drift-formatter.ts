@@ -5,7 +5,7 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import { StackResourceDriftStatus, type DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import type { DriftResult } from '../../actions/drift';
-import type { IoHelper } from '../shared-private';
+import type { IoHelper } from '../io/private';
 
 /**
  * Props for the Drift Formatter
