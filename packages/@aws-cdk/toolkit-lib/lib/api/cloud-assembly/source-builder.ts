@@ -96,6 +96,52 @@ export interface AssemblySourceProps {
 }
 
 /**
+ * Options for the `fromAssemblyBuilder` Assembly Source constructor
+ */
+export interface FromAssemblyBuilderOptions extends AssemblySourceProps {
+  /**
+   * Mutate current process' environment variables to communicate with CDK app
+   *
+   * There are a number of environment variables the Toolkit uses to pass
+   * information to the CDK app.
+   *
+   * By default, these environment variables will be written to the current
+   * process' global shared environment variables before the builder is invoked,
+   * and you don't need to do anything else. However, because this mutates
+   * shared state it is not safe to run multiple builders concurrently.
+   *
+   * Set this to `false` to avoid mutating the shared environment. Instead,
+   * you will need to pass the `outdir` and `context` to the `App` constructor
+   * directly in your builder, and inspect the `env` map directly
+   * for information like the `CDK_DEFAULT_ACCOUNT` and `CDK_DEFAULT_REGION`.
+   *
+   * ```ts
+   * const cx = await toolkit.fromAssemblyBuilder(async (props) => {
+   *   // Important: pass on synthesis parameters
+   *   const app = new core.App({
+   *     outdir: props.outdir,
+   *     context: props.context,
+   *   });
+   *
+   *   new MyStack(app, 'MyStack', {
+   *     env: {
+   *       account: props.env.CDK_DEFAULT_ACCOUNT,
+   *       region: props.env.CDK_DEFAULT_REGION,
+   *     },
+   *   });
+   *
+   *   // ...
+   * }, {
+   *   clobberEnv: false,
+   * });
+   * ```
+   *
+   * @default true
+   */
+  readonly clobberEnv?: boolean;
+}
+
+/**
  * Options for the `fromCdkApp` Assembly Source constructor
  */
 export interface FromCdkAppOptions extends AssemblySourceProps {

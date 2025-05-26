@@ -2,13 +2,13 @@ import * as path from 'path';
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
-import type { AssemblyDirectoryProps, AssemblySourceProps, ICloudAssemblySource } from '../';
+import type { AssemblyDirectoryProps, ICloudAssemblySource } from '../';
 import type { ContextAwareCloudAssemblyProps } from './context-aware-source';
 import { ContextAwareCloudAssemblySource } from './context-aware-source';
 import { execInChildProcess } from './exec';
 import { ExecutionEnvironment, assemblyFromDirectory, settingsFromSynthOptions, writeContextToEnv } from './prepare-source';
 import { ToolkitError, AssemblyError } from '../../../toolkit/toolkit-error';
-import type { AppSynthOptions, AssemblyBuilder, FromCdkAppOptions } from '../source-builder';
+import type { AppSynthOptions, AssemblyBuilder, FromAssemblyBuilderOptions, FromCdkAppOptions } from '../source-builder';
 import { ReadableCloudAssembly } from './readable-assembly';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { Context } from '../../context';
@@ -44,7 +44,7 @@ export abstract class CloudAssemblySourceBuilder {
    */
   public async fromAssemblyBuilder(
     builder: AssemblyBuilder,
-    props: AssemblySourceProps = {},
+    props: FromAssemblyBuilderOptions = {},
   ): Promise<ICloudAssemblySource> {
     const services = await this.sourceBuilderServices();
     const context = new Context({ bag: new Settings(props.context ?? {}) });
@@ -68,6 +68,8 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.context,
           };
 
+          await services.ioHelper.assemblyDefaults.debug(format('context:', fullContext));
+
           const env = noUndefined({
             // Versioning, outdir, default account and region
             ...await execution.defaultEnvVars(),
@@ -75,7 +77,11 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.env,
           });
 
-          await services.ioHelper.assemblyDefaults.debug(format('context:', fullContext));
+          if (props.clobberEnv ?? true) {
+            for (const [key, value] of Object.entries(env)) {
+              process.env[key] = value;
+            }
+          }
 
           let assembly;
           try {
