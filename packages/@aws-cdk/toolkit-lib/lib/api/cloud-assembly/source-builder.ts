@@ -25,7 +25,7 @@ export interface AssemblyBuilderProps {
    * `CDK_CLI_ASM_VERSION`. Reading these latter variables is possible but not
    * recommended, as their meaning may change without notice.
    */
-  readonly env?: Record<string, string>;
+  readonly env: Record<string, string>;
 }
 
 /**

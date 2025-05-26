@@ -77,14 +77,15 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.env,
           });
 
-          if (props.clobberEnv ?? true) {
-            for (const [key, value] of Object.entries(env)) {
-              process.env[key] = value;
-            }
-          }
-
+          const cleanupTemp = writeContextToEnv(env, fullContext);
           let assembly;
           try {
+            if (props.clobberEnv ?? true) {
+              for (const [key, value] of Object.entries(env)) {
+                process.env[key] = value;
+              }
+            }
+
             assembly = await builder({
               outdir: execution.outdir,
               context: fullContext,
@@ -97,6 +98,8 @@ export abstract class CloudAssemblySourceBuilder {
             }
             // otherwise, wrap into an assembly error
             throw AssemblyError.withCause('Assembly builder failed', error);
+          } finally {
+            await cleanupTemp();
           }
 
           // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
