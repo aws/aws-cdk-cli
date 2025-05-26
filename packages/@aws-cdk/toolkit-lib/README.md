@@ -331,6 +331,11 @@ const cx = await cdk.fromAssemblyBuilder(async () => {
 });
 ```
 
+> Note that synthesis using the `AssemblyBuilder` is not safe to be performed
+> concurrently, since it mutates the globally shared `process.env`. You can set
+> `clobberEnv: false` to avoid this, but your builder function will need to do a
+> bit more work. See the documentation of `clobberEnv` for an example.
+
 Existing _Cloud Assembly_ directories can be used as source like this:
 
 ```ts
