@@ -59,8 +59,8 @@
     "@aws-sdk/client-cloudformation": "^3"
   },
   "dependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.73",
-    "@aws-cdk/service-spec-types": "^0.0.139",
+    "@aws-cdk/aws-service-spec": "^0.1.76",
+    "@aws-cdk/service-spec-types": "^0.0.142",
     "chalk": "^4",
     "diff": "^7.0.0",
     "fast-deep-equal": "^3.1.3",
