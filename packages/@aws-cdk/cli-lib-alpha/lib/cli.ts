@@ -354,7 +354,7 @@ async function changeDir(block: () => Promise<any>, workingDir?: string) {
 /**
  * Run code with additional environment variables
  */
-async function withEnv(block: () => Promise<any>, env: Record<string, string> = {}) {
+async function withEnv(block: () => Promise<any>, env: Record<string, string | undefined> = {}) {
   const originalEnv = process.env;
   try {
     process.env = {

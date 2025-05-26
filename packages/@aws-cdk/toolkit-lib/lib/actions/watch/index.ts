@@ -1,5 +1,4 @@
-import type { DeploymentMethod } from '../deploy';
-import type { BaseDeployOptions } from '../deploy/private';
+import type { DeploymentMethod, BaseDeployOptions } from '../deploy';
 
 export interface WatchOptions extends BaseDeployOptions {
   /**
