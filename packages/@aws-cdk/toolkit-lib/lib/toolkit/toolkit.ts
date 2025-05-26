@@ -381,7 +381,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Drift Action
    */
-  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<DriftResult> {
+  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<DriftResult[]> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     await using assembly = await assemblyFromSource(ioHelper, cx);
@@ -400,55 +400,69 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         stack.stackName,
       );
 
-      // Get all stack resources if we want to show all
-      const allStackResources = new Map<string, string>();
-      Object.keys(stack.template.Resources || {}).forEach(id => {
-        const resource = stack.template.Resources[id];
-        allStackResources.set(id, resource.Type);
-      });
-
       const formatter = new DriftFormatter({
         ioHelper,
         stack,
         driftResults,
-        allStackResources,
       });
 
       const driftOutput = formatter.formatStackDrift();
 
-      if (driftOutput.sections?.stackHeader) {
-        await ioHelper.defaults.result(driftOutput.sections?.stackHeader);
-        output.push(driftOutput.sections?.stackHeader);
+      if (driftOutput?.stackHeader) {
+        await ioHelper.defaults.result(driftOutput?.stackHeader);
       }
-      if (driftOutput.sections?.unchanged) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4500.msg(driftOutput.sections?.unchanged));
-        output.push(driftOutput.sections?.unchanged);
+      if (driftOutput?.unchanged) {
+        await ioHelper.defaults.debug(driftOutput?.unchanged);
       }
-      if (driftOutput.sections?.unchecked) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4501.msg(driftOutput.sections?.unchecked));
-        output.push(driftOutput.sections?.unchecked);
+      if (driftOutput?.unchecked) {
+        await ioHelper.defaults.debug(driftOutput?.unchecked);
       }
-      if (driftOutput.sections?.modified) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4502.msg(driftOutput.sections?.modified, { stacks: selectStacks }));
-        output.push(driftOutput.sections?.modified);
+      if (driftOutput?.modified) {
+        await ioHelper.defaults.result(driftOutput?.modified);
       }
-      if (driftOutput.sections?.deleted) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4503.msg(driftOutput.sections?.deleted, { stacks: selectStacks }));
-        output.push(driftOutput.sections?.deleted);
+      if (driftOutput?.deleted) {
+        await ioHelper.defaults.result(driftOutput?.deleted);
       }
-      if (driftOutput.sections?.finalResult) {
-        await ioHelper.defaults.result(driftOutput.sections?.finalResult);
-        output.push(driftOutput.sections?.finalResult);
-      }
-      drifts += driftOutput.numResourcesWithDrift === -1 ? 0 : driftOutput.numResourcesWithDrift || 0;
-      uncheckedResources += driftOutput.numResourcesUnchecked === -1 ? 0 : driftOutput.numResourcesUnchecked || 0;
+      await ioHelper.notify(IO.CDK_TOOLKIT_I4950.msg(driftOutput?.finalResult, {
+        stack,
+        drift: {
+          numResourcesWithDrift: driftOutput.numResourcesWithDrift,
+          numResourcesUnchecked: driftOutput.numResourcesUnchecked,
+          formattedDrift: {
+            unchanged: driftOutput.unchanged,
+            unchecked: driftOutput.unchecked,
+            modified: driftOutput.modified,
+            deleted: driftOutput.deleted,
+          },
+        },
+      }));
+      output.push({
+        drifts: driftOutput.numResourcesWithDrift,
+        uncheckedResources: driftOutput.numResourcesUnchecked,
+        unchanged: driftOutput.unchanged,
+        unchecked: driftOutput.unchecked,
+        modified: driftOutput.modified,
+        deleted: driftOutput.deleted,
+      });
+      drifts += driftOutput.numResourcesWithDrift === undefined ? 0 : driftOutput.numResourcesWithDrift || 0;
+      uncheckedResources += driftOutput.numResourcesUnchecked === undefined ? 0 : driftOutput.numResourcesUnchecked || 0;
     }
 
-    return {
-      numResourcesWithDrift: drifts,
-      numResourcesUnchecked: uncheckedResources,
-      formattedDrift: output.join('\n\n'),
-    };
+    const result = [];
+    for (const driftResult of output) {
+      result.push({
+        numResourcesWithDrift: driftResult.drifts,
+        numResourcesUnchecked: driftResult.uncheckedResources,
+        formattedDrift: {
+          unchecked: driftResult.unchecked,
+          unchanged: driftResult.unchanged,
+          modified: driftResult.modified,
+          deleted: driftResult.deleted,
+        },
+      });
+    }
+
+    return result;
   }
 
   /**

@@ -670,25 +670,40 @@ export class CdkToolkit {
   public async drift(options: DriftOptions): Promise<number> {
     let drifts = 0;
     let uncheckedDrifts = 0;
+    let driftsUnknown = false;
+    let uncheckedUnknown = false;
 
     try {
-      const driftResult = await this.toolkit.drift(this.props.cloudExecutable, {
+      const driftResults = await this.toolkit.drift(this.props.cloudExecutable, {
         stacks: {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
       });
-      drifts = driftResult.numResourcesWithDrift === undefined ? -1 : driftResult.numResourcesWithDrift;
-      uncheckedDrifts = driftResult.numResourcesUnchecked === undefined ? -1 : driftResult.numResourcesUnchecked;
+      
+      debug(`Drift results: ${JSON.stringify(driftResults)}`);
+
+      for (const driftResult of driftResults) {
+        const resourcesWithDrift = driftResult.numResourcesWithDrift === undefined ? 0 : driftResult.numResourcesWithDrift;
+        debug(`Processing drift result with ${resourcesWithDrift} drifted resources`);
+        drifts += driftResult.numResourcesWithDrift || 0;
+        uncheckedDrifts += driftResult.numResourcesUnchecked || 0;
+        if (driftResult.numResourcesWithDrift === undefined) {
+          driftsUnknown = true;
+        }
+        if (driftResult.numResourcesUnchecked === undefined) {
+          uncheckedUnknown = true;
+        }
+      }
     } catch (e) {
       error((e as Error).message);
       return 1;
     }
 
     info(format('\n✨  Number of resources with drift: %s',
-      drifts === -1 ? 'unknown' : drifts,
+      driftsUnknown ? 'unknown' : drifts,
     ));
-    debug(` (${uncheckedDrifts === -1 ? 'unknown' : uncheckedDrifts} unchecked)`);
+    debug(` (${uncheckedUnknown ? 'unknown' : uncheckedDrifts} unchecked)`);
 
     return drifts > 0 && options.fail ? 1 : 0;
   }

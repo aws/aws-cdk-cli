@@ -1,6 +1,7 @@
 export * from './bootstrap-environment-progress';
 export * from './deploy';
 export * from './destroy';
+export * from './drift';
 export * from './list';
 export * from './sdk';
 export * from './context';

@@ -53,9 +53,10 @@ async function waitForDriftDetection(
   ioHelper: IoHelper,
   driftDetectionId: string,
 ): Promise<DescribeStackDriftDetectionStatusCommandOutput | undefined> {
-  const timeout = 60_000; // if takes longer than 60s, fail
+  const maxWaitForDrift = 300_000; // if takes longer than 5min, fail
   const timeBetweenOutputs = 10_000; // how long to wait before telling user we're still checking
-  const deadline = Date.now() + timeout;
+  const timeBetweenApiCalls = 2_000; // wait 2s per API call
+  const deadline = Date.now() + maxWaitForDrift;
   let checkIn = Date.now() + timeBetweenOutputs;
 
   while (true) {
@@ -72,13 +73,15 @@ async function waitForDriftDetection(
     }
 
     if (Date.now() > deadline) {
-      throw new ToolkitError(`Drift detection failed: Timed out after ${timeout / 1000} seconds.`);
+      throw new ToolkitError(`Drift detection failed: Timed out after ${maxWaitForDrift / 1000} seconds.`);
     }
 
     if (Date.now() > checkIn) {
       await ioHelper.defaults.trace('Waiting for drift detection to complete...');
       checkIn = Date.now() + timeBetweenOutputs;
     }
-    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Wait a short while between API calls so we don't create a flood
+    await new Promise(resolve => setTimeout(resolve, timeBetweenApiCalls));
   }
 }

@@ -7,6 +7,9 @@ export interface DriftOptions {
   readonly stacks: StackSelector;
 }
 
+/**
+ * The sections of a formatted drift output
+ */
 export interface FormattedDrift {
   /**
    * Resources that have not changed
@@ -27,36 +30,26 @@ export interface FormattedDrift {
    * Resources that have been deleted (drift)
    */
   readonly deleted?: string;
-
-  /**
-   * The header, containing the stack name
-   */
-  readonly stackHeader?: string;
-
-  /**
-   * The final results (summary) of the drift results
-   */
-  readonly finalResult?: string;
 }
 
+/**
+ * Combined drift for selected stacks of the app
+ */
 export interface DriftResult {
   /**
-   * Number of resources with drift
+   * Number of resources with drift. If undefined, then an error occurred
+   * and resources were not properly checked for drift.
    */
   readonly numResourcesWithDrift?: number;
 
   /**
-   * How many resources were not checked for drift
+   * How many resources were not checked for drift. If undefined, then an
+   * error occurred and resources were not properly checked for drift.
    */
   readonly numResourcesUnchecked?: number;
 
   /**
-   * Formatted sections of the drift results
-   */
-  readonly sections?: FormattedDrift;
-
-  /**
    * Complete formatted drift
    */
-  readonly formattedDrift: string;
+  readonly formattedDrift: FormattedDrift;
 }

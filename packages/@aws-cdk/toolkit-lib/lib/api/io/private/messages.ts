@@ -6,6 +6,7 @@ import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-e
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
+import type { DriftResultPayload } from '../../../payloads/drift';
 import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
@@ -89,23 +90,10 @@ export const IO = {
     description: 'Output of the diff command',
     interface: 'DiffResult',
   }),
-  CDK_TOOLKIT_I4500: make.debug({
-    code: 'CDK_TOOLKIT_I4500',
-    description: 'Unchanged resources in the drift command output',
-  }),
-  CDK_TOOLKIT_I4501: make.debug({
-    code: 'CDK_TOOLKIT_I4501',
-    description: 'Unchecked resources in the drift command output',
-  }),
-  CDK_TOOLKIT_I4502: make.result<StackSelectionDetails>({
-    code: 'CDK_TOOLKIT_I4502',
-    description: 'Modified resources in the drift command output',
-    interface: 'StackSelectionDetails',
-  }),
-  CDK_TOOLKIT_I4503: make.result<StackSelectionDetails>({
-    code: 'CDK_TOOLKIT_I4503',
-    description: 'Deleted resources in the drift command output',
-    interface: 'StackSelectionDetails',
+  CDK_TOOLKIT_I4950: make.result<DriftResultPayload>({
+    code: 'CDK_TOOLKIT_I4950',
+    description: 'Results of the drift command',
+    interface: 'DriftResultPayload',
   }),
 
   // 5: Deploy & Watch (5xxx)
