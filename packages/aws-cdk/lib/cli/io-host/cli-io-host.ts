@@ -271,7 +271,7 @@ export class CliIoHost implements IIoHost {
    * Detect stack activity messages so they can be send to the printer.
    */
   private isStackActivity(msg: IoMessage<unknown>) {
-    return [
+    return msg.code && [
       'CDK_TOOLKIT_I5501',
       'CDK_TOOLKIT_I5502',
       'CDK_TOOLKIT_I5503',
@@ -284,7 +284,7 @@ export class CliIoHost implements IIoHost {
    */
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
     const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
-    if (!approvalToolkitCodes.includes(msg.code)) {
+    if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
       false;
     }
 
@@ -472,11 +472,14 @@ function isConfirmationPrompt(msg: IoRequest<any, any>): msg is IoRequest<any, b
  */
 function extractPromptInfo(msg: IoRequest<any, any>): {
   default: string;
+  defaultDesc: string;
   convertAnswer: (input: string) => string | number;
 } {
   const isNumber = (typeof msg.defaultResponse === 'number');
+  const defaultResponse = util.format(msg.defaultResponse);
   return {
-    default: util.format(msg.defaultResponse),
+    default: defaultResponse,
+    defaultDesc: 'defaultDescription' in msg && msg.defaultDescription ? util.format(msg.defaultDescription) : defaultResponse,
     convertAnswer: isNumber ? (v) => Number(v) : (v) => String(v),
   };
 }

@@ -18,7 +18,7 @@ export interface ExecProgramResult {
 
 /** Invokes the cloud executable and returns JSON output */
 export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: Configuration): Promise<ExecProgramResult> {
-  const debugFn = (msg: string) => ioHelper.assemblyDefaults.debug(msg);
+  const debugFn = (msg: string) => ioHelper.defaults.debug(msg);
 
   const params = synthParametersFromSettings(config.settings);
 

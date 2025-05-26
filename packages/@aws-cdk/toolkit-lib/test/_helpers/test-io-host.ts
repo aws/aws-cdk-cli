@@ -1,4 +1,5 @@
-import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/api/io';
+import { when } from 'jest-when';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest } from '../../lib/api/io';
 import type { IoHelper } from '../../lib/api/io/private';
 import { asIoHelper, isMessageRelevantForLevel } from '../../lib/api/io/private';
 
@@ -65,5 +66,27 @@ export class TestIoHost implements IIoHost {
       // Can be a partial string as well
       message: expect.stringContaining(m.containing),
     }));
+  }
+
+  /**
+   * Mocks the response for a given message code.
+   *
+   * Use `requestSpy.mockReset()` to remove mock.
+   */
+  public mockResponse(code: IoMessageCode, response: any) {
+    when(this.requestSpy)
+      .calledWith(expect.objectContaining({ code }))
+      .mockResolvedValue(response);
+  }
+
+  /**
+   * Mocks the response for a given message code, only once.
+   *
+   * Use `requestSpy.mockReset()` to remove mock.
+   */
+  public mockResponseOnce(code: IoMessageCode, response: any) {
+    when(this.requestSpy)
+      .calledWith(expect.objectContaining({ code }))
+      .mockResolvedValueOnce(response);
   }
 }

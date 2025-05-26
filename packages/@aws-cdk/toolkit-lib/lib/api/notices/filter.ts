@@ -193,7 +193,7 @@ export class NoticesFilter {
    * Load the construct tree from the given directory and return its components
    */
   private async constructTreeComponents(manifestDir: string): Promise<ActualComponent[]> {
-    const tree = await loadTreeFromDir(manifestDir, (msg: string) => this.ioHelper.assemblyDefaults.trace(msg));
+    const tree = await loadTreeFromDir(manifestDir, (msg: string) => this.ioHelper.defaults.trace(msg));
     if (!tree) {
       return [];
     }

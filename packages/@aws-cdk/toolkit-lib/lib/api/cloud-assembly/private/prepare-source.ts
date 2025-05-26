@@ -60,7 +60,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
   ) {
     this.ioHelper = services.ioHelper;
     this.sdkProvider = services.sdkProvider;
-    this.debugFn = (msg: string) => this.ioHelper.assemblyDefaults.debug(msg);
+    this.debugFn = (msg: string) => this.ioHelper.defaults.debug(msg);
     this.lock = lock;
     this.shouldClean = outDirIsTemporary;
   }
@@ -214,7 +214,7 @@ export function writeContextToEnv(env: Env, context: Context) {
  * @param assembly the assembly to check
  */
 async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
-  const traceFn = (msg: string) => ioHelper.assemblyDefaults.trace(msg);
+  const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
   const tree = await loadTree(assembly, traceFn);
   const frameworkDoesNotSupportContextOverflow = some(tree, node => {
     const fqn = node.constructInfo?.fqn;

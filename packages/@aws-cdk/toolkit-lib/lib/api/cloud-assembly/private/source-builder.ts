@@ -68,7 +68,7 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.context,
           };
 
-          await services.ioHelper.assemblyDefaults.debug(format('context:', fullContext));
+          await services.ioHelper.defaults.debug(format('context:', fullContext));
 
           const env = noUndefined({
             // Versioning, outdir, default account and region
@@ -207,7 +207,7 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.context,
           };
 
-          await services.ioHelper.assemblyDefaults.debug(format('context:', fullContext));
+          await services.ioHelper.defaults.debug(format('context:', fullContext));
 
           const env = noUndefined({
             // Need to start with full env of `writeContextToEnv` will not be able to do the size

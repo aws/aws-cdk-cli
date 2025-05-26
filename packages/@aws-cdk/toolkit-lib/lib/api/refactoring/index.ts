@@ -143,7 +143,7 @@ export async function usePrescribedMappings(
 export function resourceMovements(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMovement[] {
   return Object.values(
     removeUnmovedResources(
-      zip(groupByKey(before.flatMap(resourceDigests)), groupByKey(after.flatMap(resourceDigests))),
+      zip(groupByKey(resourceDigests(before)), groupByKey(resourceDigests(after))),
     ),
   );
 }
@@ -221,11 +221,18 @@ function zip(
 /**
  * Computes a list of pairs [digest, location] for each resource in the stack.
  */
-function resourceDigests(stack: CloudFormationStack): [string, ResourceLocation][] {
-  const digests = computeResourceDigests(stack.template);
+function resourceDigests(stacks: CloudFormationStack[]): [string, ResourceLocation][] {
+  // index stacks by name
+  const stacksByName = new Map<string, CloudFormationStack>();
+  for (const stack of stacks) {
+    stacksByName.set(stack.stackName, stack);
+  }
 
-  return Object.entries(digests).map(([logicalId, digest]) => {
-    const location: ResourceLocation = new ResourceLocation(stack, logicalId);
+  const digests = computeResourceDigests(stacks);
+
+  return Object.entries(digests).map(([loc, digest]) => {
+    const [stackName, logicalId] = loc.split('.');
+    const location: ResourceLocation = new ResourceLocation(stacksByName.get(stackName)!, logicalId);
     return [digest, location];
   });
 }
