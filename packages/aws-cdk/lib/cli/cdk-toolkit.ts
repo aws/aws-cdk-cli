@@ -680,12 +680,10 @@ export class CdkToolkit {
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
       });
-      
-      debug(`Drift results: ${JSON.stringify(driftResults)}`);
 
-      for (const driftResult of driftResults) {
-        const resourcesWithDrift = driftResult.numResourcesWithDrift === undefined ? 0 : driftResult.numResourcesWithDrift;
-        debug(`Processing drift result with ${resourcesWithDrift} drifted resources`);
+      const resultsArray = Array.isArray(driftResults) ? driftResults : [driftResults];
+      
+      for (const driftResult of resultsArray) {
         drifts += driftResult.numResourcesWithDrift || 0;
         uncheckedDrifts += driftResult.numResourcesUnchecked || 0;
         if (driftResult.numResourcesWithDrift === undefined) {
