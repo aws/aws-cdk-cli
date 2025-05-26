@@ -77,7 +77,8 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.env,
           });
 
-          const cleanupTemp = writeContextToEnv(env, fullContext);
+          const cleanupContextTemp = writeContextToEnv(env, fullContext);
+          const cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : noop;
           let assembly;
           try {
             if (props.clobberEnv ?? true) {
@@ -99,7 +100,8 @@ export abstract class CloudAssemblySourceBuilder {
             // otherwise, wrap into an assembly error
             throw AssemblyError.withCause('Assembly builder failed', error);
           } finally {
-            await cleanupTemp();
+            await cleanupContextTemp();
+            await cleanupEnv();
           }
 
           // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
@@ -272,4 +274,20 @@ function noUndefined<A>(xs: Record<string, A>): Record<string, NonNullable<A>> {
  */
 function parametersFromSynthOptions(synthOptions?: AppSynthOptions) {
   return synthParametersFromSettings(settingsFromSynthOptions(synthOptions ?? {}));
+}
+
+function temporarilyWriteEnv(env: Record<string, string>): () => void {
+  const oldEnv = process.env;
+
+  process.env = {
+    ...process.env,
+    ...env,
+  };
+
+  return () => {
+    process.env = oldEnv;
+  };
+}
+
+function noop() {
 }
