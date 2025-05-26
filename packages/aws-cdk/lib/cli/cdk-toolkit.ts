@@ -136,9 +136,15 @@ export enum AssetBuildTime {
   JUST_IN_TIME = 'just-in-time',
 }
 
+/**
+ * Custom implementation of the public Toolkit to integrate with the legacy CdkToolkit
+ *
+ * This overwrites how an sdkProvider is acquired
+ * in favor of the one provided directly to CdkToolkit.
+ */
 class InternalToolkit extends Toolkit {
   private readonly _sdkProvider: SdkProvider;
-  public constructor(sdkProvider: SdkProvider, options: ToolkitOptions) {
+  public constructor(sdkProvider: SdkProvider, options: Omit<ToolkitOptions, 'sdkConfig'>) {
     super(options);
     this._sdkProvider = sdkProvider;
   }
@@ -172,10 +178,8 @@ export class CdkToolkit {
       color: true,
       emojis: true,
       ioHost: this.ioHost,
-      sdkConfig: {},
       toolkitStackName: this.toolkitStackName,
     });
-    this.toolkit; // aritifical use of this.toolkit to satisfy TS, we want to prepare usage of the new toolkit without using it just yet
   }
 
   public async metadata(stackName: string, json: boolean) {

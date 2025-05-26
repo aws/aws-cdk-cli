@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
 import { RWLock } from '../../../lib/api/rwlock';
 import * as contextproviders from '../../../lib/context-providers';
@@ -38,6 +39,43 @@ describe('fromAssemblyBuilder', () => {
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
+  });
+
+  test('can pass context automatically', async () => {
+    return toolkit.fromAssemblyBuilder(async () => {
+      const app = new App();
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      return app.synth();
+    }, {
+      context: {
+        'external-context': 'yes',
+      },
+    });
+  });
+
+  test('can avoid setting environment variables', async () => {
+    return toolkit.fromAssemblyBuilder(async (props) => {
+      const app = new App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      expect(process.env.CDK_CONTEXT).toBeUndefined();
+      expect(props.env.CDK_CONTEXT).toBeDefined();
+
+      return app.synth();
+    }, {
+      context: {
+        'external-context': 'yes',
+      },
+      clobberEnv: false,
+    });
   });
 
   test.each(['sync', 'async'] as const)('errors are wrapped as AssemblyError for %s builder', async (sync) => {
