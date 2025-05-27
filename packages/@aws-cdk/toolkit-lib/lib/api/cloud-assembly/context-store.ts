@@ -11,7 +11,7 @@ import { Settings, TRANSIENT_CONTEXT_KEY } from '../settings';
  */
 export interface IContextStore {
   /**
-   * Read the context from the context store, plus all updates we have read so far.
+   * Read the context from the context store, plus all updates we have made so far.
    */
   read(): Promise<Record<string, unknown>>;
 
