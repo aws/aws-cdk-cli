@@ -35,7 +35,8 @@ export interface IContextStore {
  *
  * Will source context from the following locations:
  *
- * - Any context values passed to the constructor.
+ * - Any context values passed to the constructor (expected
+ *   to come from the command line, treated as ephemeral).
  * - The `context` key in `<appDirectory>/cdk.json`.
  * - `<appDirectory>/cdk.context.json`.
  * - The `context` key in `~/.cdk.json`.
@@ -48,7 +49,7 @@ export class CdkAppMultiContext implements IContextStore {
   private projectContextFile: string;
   private userConfigFile: string;
 
-  constructor(appDirectory: string, private readonly initialContext?: Record<string, unknown>) {
+  constructor(appDirectory: string, private readonly commandlineContext?: Record<string, unknown>) {
     this.configContextFile = path.join(appDirectory, 'cdk.json');
     this.projectContextFile = path.join(appDirectory, 'cdk.context.json');
     this.userConfigFile = path.join(os.homedir() ?? '/tmp', '.cdk.json');
@@ -83,7 +84,7 @@ export class CdkAppMultiContext implements IContextStore {
     }
 
     const contextSources: ContextBag[] = [
-      { bag: new Settings(this.initialContext, true) },
+      { bag: new Settings(this.commandlineContext, true) },
       {
         fileName: this.configContextFile,
         bag: (await settingsFromFile(this.configContextFile)).subSettings(['context']).makeReadOnly(),
