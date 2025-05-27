@@ -1,5 +1,5 @@
+import { BaseCredentials } from '../../lib/api/aws-auth';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
-import { BaseCredentials } from '../../lib/api/aws-auth/types';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { appFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../_helpers/mock-sdk';

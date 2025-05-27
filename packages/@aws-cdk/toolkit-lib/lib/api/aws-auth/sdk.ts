@@ -352,10 +352,10 @@ import {
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
-import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
 import type { WaiterResult } from '@smithy/util-waiter';
 import { AccountAccessKeyCache } from './account-cache';
+import type { RequestHandlerSettings } from './base-credentials';
 import { cachedAsync } from './cached';
 import type { ISdkLogger } from './sdk-logger';
 import type { Account } from './sdk-provider';
@@ -395,7 +395,7 @@ export interface SdkOptions {
 export interface ConfigurationOptions {
   region: string;
   credentials: SDKv3CompatibleCredentialProvider;
-  requestHandler: NodeHttpHandlerOptions;
+  requestHandler: RequestHandlerSettings;
   retryStrategy: ConfiguredRetryStrategy;
   customUserAgent: string;
   logger?: ISdkLogger;
@@ -605,7 +605,7 @@ export class SDK {
   constructor(
     private readonly credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
-    requestHandler: NodeHttpHandlerOptions,
+    requestHandler: RequestHandlerSettings,
     ioHelper: IoHelper,
     logger?: ISdkLogger,
   ) {

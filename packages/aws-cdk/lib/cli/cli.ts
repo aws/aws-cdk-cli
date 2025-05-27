@@ -119,11 +119,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
-    profile: configuration.settings.get(['profile']),
     requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
-  });
+  }, configuration.settings.get(['profile']));
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({

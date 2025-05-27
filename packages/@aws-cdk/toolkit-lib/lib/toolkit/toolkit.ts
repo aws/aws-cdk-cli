@@ -33,9 +33,8 @@ import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
-import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
+import { type SdkBaseClientConfig, type IBaseCredentialsProvider, type SdkConfig, BaseCredentials } from '../api/aws-auth';
 import { sdkRequestHandler } from '../api/aws-auth/awscli-compatible';
-import type { SdkProviderServices } from '../api/aws-auth/private';
 import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
@@ -153,7 +152,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   private sdkProviderCache?: SdkProvider;
 
-  private baseCredentials: BaseCredentials;
+  private baseCredentials: IBaseCredentialsProvider;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
@@ -172,10 +171,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
 
-    if (props.sdkConfig?.profile && props.sdkConfig?.baseCredentials) {
-      throw new ToolkitError('Specify at most one of \'sdkConfig.profile\' and \'sdkConfig.baseCredentials\'');
-    }
-    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible({ profile: props.sdkConfig?.profile });
+    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible();
   }
 
   /**
@@ -186,15 +182,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // @todo this needs to be different instance per action
     if (!this.sdkProviderCache) {
       const ioHelper = asIoHelper(this.ioHost, action);
-      const services: SdkProviderServices = {
-        ioHelper,
+      const clientConfig: SdkBaseClientConfig = {
         requestHandler: sdkRequestHandler(this.props.sdkConfig?.httpOptions?.agent),
-        logger: new IoHostSdkLogger(ioHelper),
-        pluginHost: this.pluginHost,
       };
 
-      const config = await this.baseCredentials.makeSdkConfig(services);
-      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, services);
+      const config = await this.baseCredentials.sdkBaseConfig(ioHelper, clientConfig);
+      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, {
+        ioHelper,
+        logger: new IoHostSdkLogger(ioHelper),
+        pluginHost: this.pluginHost,
+        requestHandler: clientConfig.requestHandler,
+      });
     }
 
     return this.sdkProviderCache;

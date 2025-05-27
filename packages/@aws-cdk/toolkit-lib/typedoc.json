@@ -6,7 +6,7 @@
     }
   ],
   "treatValidationWarningsAsErrors": true,
-  "intentionallyNotExported": ["SdkProviderServices"],
+  "intentionallyNotExported": [],
   "excludeExternals": true,
   "excludePrivate": true,
   "excludeProtected": true,

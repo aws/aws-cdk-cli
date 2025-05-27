@@ -738,7 +738,6 @@ const toolkitLib = configureProject(
       `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
       '@smithy/middleware-endpoint',
-      '@smithy/node-http-handler',
       '@smithy/property-provider',
       '@smithy/shared-ini-file-loader',
       '@smithy/util-retry',
@@ -872,7 +871,7 @@ new pj.JsonFile(toolkitLib, 'api-extractor.json', {
           logLevel: 'none',
         },
         'ae-forgotten-export': {
-          logLevel: 'warning', // @todo fix issues and change to error
+          logLevel: 'error',
         },
       },
       tsdocMessageReporting: {

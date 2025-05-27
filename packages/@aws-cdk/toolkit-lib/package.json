@@ -105,7 +105,6 @@
     "@aws-sdk/ec2-metadata-service": "^3",
     "@aws-sdk/lib-storage": "^3",
     "@smithy/middleware-endpoint": "^4.1.7",
-    "@smithy/node-http-handler": "^4.0.5",
     "@smithy/property-provider": "^4.0.3",
     "@smithy/shared-ini-file-loader": "^4.0.3",
     "@smithy/util-retry": "^4.0.4",

@@ -294,10 +294,6 @@
       "type": "runtime"
     },
     {
-      "name": "@smithy/node-http-handler",
-      "type": "runtime"
-    },
-    {
       "name": "@smithy/property-provider",
       "type": "runtime"
     },
