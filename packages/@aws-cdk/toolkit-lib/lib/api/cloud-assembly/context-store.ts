@@ -21,7 +21,7 @@ export interface IContextStore {
    * `undefined` is used as a value to indicate that the key needs to be removed.
    *
    * If a context value is an object that is a superset of `{ [TRANSIENT_CONTEXT_KEY]: true }`
-   * it *should* be returned subsequent `read()` operations on this object,
+   * it *should* be returned by subsequent `read()` operations on this object,
    * but it *should not* be persisted to permanent storage.
    *
    * You can use the `persistableContext()` function to filter a context dictionary
