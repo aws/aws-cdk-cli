@@ -1699,23 +1699,11 @@ new CdkCliIntegTestsWorkflow(repo, {
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
 
-  localPackages: [
-    cloudAssemblySchema.name,
-    cloudFormationDiff.name,
-    cdkAssets.name,
-    cli.name,
-    cliLibAlpha.name,
-    cdkAliasPackage.name,
-    cliInteg.name,
-    toolkitLib.name,
-    cliPluginContract.name,
-  ],
-
   allowUpstreamVersions: [
     // cloud-assembly-schema gets referenced under multiple versions
     // - Candidate version for cdk-assets
     // - Previously released version for aws-cdk-lib
-    cloudAssemblySchema.name,
+    cloudAssemblySchema,
 
     // toolkit-lib can get referenced under multiple versions,
     // and during the 0.x period most likely *will*.
@@ -1726,7 +1714,13 @@ new CdkCliIntegTestsWorkflow(repo, {
     //   unless we are releasing a breaking change, in which case they will depend
     //   on `^1` but we will be testing `2.0.999`, so the upstream still needs to
     //   be available to make this test succeed.
-    toolkitLib.name,
+    toolkitLib,
+
+    // The `tool-integrations` job installs the amplify-cli package,
+    // which depends on @aws-cdk/cloudformation-diff as a transitive dependency through toolkit-lib
+    // Since we are not enforcing the use of the local version of toolkit-lib in this test,
+    // it might attempt to install a version of @aws-cdk/cloudformation-diff that's not locally available.
+    cloudFormationDiff,
   ],
   enableAtmosphere: {
     oidcRoleArn: '${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}',

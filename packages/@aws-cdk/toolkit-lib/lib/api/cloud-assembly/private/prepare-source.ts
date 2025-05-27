@@ -16,11 +16,9 @@ import type { IReadLock, IWriteLock } from '../../rwlock';
 import { RWLock } from '../../rwlock';
 import { Settings } from '../../settings';
 import { loadTree, some } from '../../tree';
-import { prepareDefaultEnvironment as oldPrepare, spaceAvailableForContext, guessExecutable } from '../environment';
+import type { Context, Env } from '../environment';
+import { prepareDefaultEnvironment, spaceAvailableForContext, guessExecutable, synthParametersFromSettings } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
-
-type Env = { [key: string]: string };
-type Context = { [key: string]: any };
 
 export class ExecutionEnvironment implements AsyncDisposable {
   /**
@@ -138,7 +136,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
    */
   public async defaultEnvVars(): Promise<Env> {
     const debugFn = (msg: string) => this.ioHelper.notify(IO.CDK_ASSEMBLY_I0010.msg(msg));
-    const env = await oldPrepare(this.sdkProvider, debugFn);
+    const env = await prepareDefaultEnvironment(this.sdkProvider, debugFn);
 
     env[cxapi.OUTDIR_ENV] = this.outdir;
     await debugFn(format('outdir:', this.outdir));
@@ -265,4 +263,14 @@ export function settingsFromSynthOptions(synthOpts: AppSynthOptions = {}): Setti
     assetStaging: true,
     ...synthOpts,
   }, true);
+}
+
+/**
+ * Turn synthesis options into context/environment variables that will go to the CDK app
+ *
+ * These are parameters that control the synthesis operation, configurable by the user
+ * from the outside of the app.
+ */
+export function parametersFromSynthOptions(synthOptions?: AppSynthOptions) {
+  return synthParametersFromSettings(settingsFromSynthOptions(synthOptions ?? {}));
 }
