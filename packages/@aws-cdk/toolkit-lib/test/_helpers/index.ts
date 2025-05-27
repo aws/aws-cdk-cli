@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { MemoryContext, type AssemblyBuilder, type AssemblyDirectoryProps, type FromCdkAppOptions, type ICloudAssemblySource } from '../../lib';
-import type { CloudAssemblySourceBuilder } from '../../lib/api/cloud-assembly/private/source-builder';
+import type { CloudAssemblySourceBuilder } from '../../lib/api/cloud-assembly/source-builder';
 import { ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 export * from './test-cloud-assembly-source';
