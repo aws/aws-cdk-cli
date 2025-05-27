@@ -444,7 +444,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // print summary
     const totalDrifts = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     const totalUnchecked = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesUnchecked ?? 0), 0);
-    await ioHelper.defaults.result(`\n✨  Number of resources with drift: ${totalDrifts} (${totalUnchecked} unchecked)`);
+    await ioHelper.defaults.result(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
     if (unavailableDrifts.length) {
       await ioHelper.defaults.warn(`\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
     }

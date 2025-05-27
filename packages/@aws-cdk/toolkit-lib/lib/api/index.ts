@@ -21,3 +21,4 @@ export * from './toolkit-info';
 export * from './work-graph';
 export * from './tree';
 export * from './tags';
+export * from './drift';
