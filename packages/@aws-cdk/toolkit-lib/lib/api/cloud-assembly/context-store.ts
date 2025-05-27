@@ -115,7 +115,15 @@ export class FileContext implements IContextStore {
 
   public async read(): Promise<Record<string, unknown>> {
     if (!this._cache) {
-      this._cache = JSON.parse(await fs.readFile(this.fileName, 'utf-8'));
+      try {
+        this._cache = JSON.parse(await fs.readFile(this.fileName, 'utf-8'));
+      } catch (e: any) {
+        if (e.code === 'ENOENT') {
+          this._cache = {};
+        } else {
+          throw e;
+        }
+      }
     }
     if (!this._cache || typeof this._cache !== 'object') {
       throw new ToolkitError(`${this.fileName} must contain an object, got: ${JSON.stringify(this._cache)}`);
