@@ -7,12 +7,12 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'cdk drift',
   withDefaultFixture(async (fixture) => {
-    await fixture.cdkDeploy('driftable-lambda', {});
+    await fixture.cdkDeploy('driftable', {});
 
     // Assert that, right after deploying, there is no drift (because we just deployed it)
-    const drift = await fixture.cdk(['drift', fixture.fullStackName('driftable-lambda')], { verbose: false });
+    const drift = await fixture.cdk(['drift', fixture.fullStackName('driftable')], { verbose: false });
 
-    expect(drift).toMatch(/Stack.*driftable-lambda/); // can't just .toContain because of formatting
+    expect(drift).toMatch(/Stack.*driftable/); // can't just .toContain because of formatting
     expect(drift).toContain('No drift detected');
     expect(drift).toContain('✨  Number of resources with drift: 0');
     expect(drift).not.toContain('unchecked'); // should not see unchecked resources unless verbose
@@ -20,7 +20,7 @@ integTest(
     // Get the Lambda, we want to now make it drift
     const response = await fixture.aws.cloudFormation.send(
       new DescribeStackResourcesCommand({
-        StackName: fixture.fullStackName('driftable-lambda'),
+        StackName: fixture.fullStackName('driftable'),
       }),
     );
     const lambdaResource = response.StackResources?.find(
@@ -42,10 +42,10 @@ integTest(
     // Wait for the stack update to complete
     await waitForLambdaUpdateComplete(fixture, functionName);
 
-    const driftAfterModification = await fixture.cdk(['drift', fixture.fullStackName('driftable-lambda')], { verbose: false });
+    const driftAfterModification = await fixture.cdk(['drift', fixture.fullStackName('driftable')], { verbose: false });
 
     const expectedMatches = [
-      /Stack.*driftable-lambda/,
+      /Stack.*driftable/,
       /[-].*This is my function!/m,
       /[+].*I'm slowly drifting \(drifting away\)/m,
     ];

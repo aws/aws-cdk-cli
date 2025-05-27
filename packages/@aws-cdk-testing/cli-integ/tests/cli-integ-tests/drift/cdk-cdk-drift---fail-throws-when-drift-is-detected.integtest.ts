@@ -7,17 +7,17 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'cdk drift --fail throws when drift is detected',
   withDefaultFixture(async (fixture) => {
-    await fixture.cdkDeploy('driftable-lambda', {});
+    await fixture.cdkDeploy('driftable', {});
 
     // Assert that, right after deploying, there is no drift (because we just deployed it)
-    const drift = await fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable-lambda')], { verbose: false });
+    const drift = await fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable')], { verbose: false });
 
     expect(drift).toContain('No drift detected');
 
     // Get the Lambda, we want to now make it drift
     const response = await fixture.aws.cloudFormation.send(
       new DescribeStackResourcesCommand({
-        StackName: fixture.fullStackName('driftable-lambda'),
+        StackName: fixture.fullStackName('driftable'),
       }),
     );
     const lambdaResource = response.StackResources?.find(
@@ -40,7 +40,7 @@ integTest(
     await waitForLambdaUpdateComplete(fixture, functionName);
 
     await expect(
-      fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable-lambda')], { verbose: false }),
+      fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable')], { verbose: false }),
     ).rejects.toThrow('exited with error');
   }),
 );

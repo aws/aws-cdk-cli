@@ -475,7 +475,7 @@ class LambdaStack extends cdk.Stack {
   }
 }
 
-class DriftableLambdaStack extends cdk.Stack {
+class DriftableStack extends cdk.Stack {
   constructor(parent, id, props) {
     const synthesizer = parent.node.tryGetContext('legacySynth') === 'true' ?
       new LegacyStackSynthesizer({
@@ -970,7 +970,7 @@ switch (stackSet) {
 
     new MetadataStack(app, `${stackPrefix}-metadata`);
 
-    new DriftableLambdaStack(app, `${stackPrefix}-driftable-lambda`);
+    new DriftableStack(app, `${stackPrefix}-driftable`);
     break;
 
   case 'stage-using-context':
