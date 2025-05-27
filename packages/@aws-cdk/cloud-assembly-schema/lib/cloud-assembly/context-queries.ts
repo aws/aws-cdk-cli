@@ -356,6 +356,21 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
 
 /**
  * Query input for lookup up CloudFormation resources using CC API
+ *
+ * The example below is required to successfully compile CDK (otherwise,
+ * the CDK build will generate a synthetic example for the below, but it
+ * doesn't have enough type information about the literal string union
+ * to generate a validly compiling example).
+ *
+ * @example
+ * const x: CcApiContextQuery = {
+ *   typeName: 'AWS::Some::Type',
+ *   expectedMatchCount: 'exactly-one',
+ *   propertiesToReturn: ['SomeProp'],
+ *   account: '11111111111',
+ *   region: 'us-east-1',
+ * };
+ * console.log(x);
  */
 export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
