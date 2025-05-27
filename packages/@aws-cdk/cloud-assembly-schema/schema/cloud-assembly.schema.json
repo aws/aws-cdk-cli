@@ -1024,7 +1024,7 @@
             ]
         },
         "CcApiContextQuery": {
-            "description": "Query input for lookup up CloudFormation resources using CC API",
+            "description": "Query input for lookup up CloudFormation resources using CC API\n\nThe example below is required to successfully compile CDK (otherwise,\nthe CDK build will generate a synthetic example for the below, but it\ndoesn't have enough type information about the literal string union\nto generate a validly compiling example).",
             "type": "object",
             "properties": {
                 "typeName": {
