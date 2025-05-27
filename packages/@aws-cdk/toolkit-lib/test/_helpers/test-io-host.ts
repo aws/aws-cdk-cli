@@ -28,8 +28,10 @@ export class TestIoHost implements IIoHost {
   public messages: Array<IoMessage<unknown>> = [];
   public readonly notifySpy: MessageMock;
   public readonly requestSpy: RequestMock<any>;
+  private readonly stripSpecial: boolean;
 
-  constructor(public level: IoMessageLevel = 'info') {
+  constructor(public level: IoMessageLevel = 'info', stripSpecial = false) {
+    this.stripSpecial = stripSpecial;
     this.notifySpy = jest.fn();
     this.requestSpy = jest.fn();
     this.clear();
@@ -47,6 +49,12 @@ export class TestIoHost implements IIoHost {
 
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     if (isMessageRelevantForLevel(msg, this.level)) {
+      if (this.stripSpecial) {
+        msg = {
+          ...msg,
+          message: msg.message.replace(/\p{Emoji_Presentation}/gu, '').replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, ''),
+        };
+      }
       this.messages.push(msg);
       this.notifySpy(msg);
     }

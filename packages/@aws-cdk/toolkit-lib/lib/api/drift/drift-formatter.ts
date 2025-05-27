@@ -2,20 +2,15 @@ import { format } from 'node:util';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Difference } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
-import { StackResourceDriftStatus, type DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
+import type { StackResourceDrift } from '@aws-sdk/client-cloudformation';
+import { StackResourceDriftStatus } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import type { FormattedDrift } from '../../actions/drift';
-import type { IoHelper } from '../io/private';
 
 /**
  * Props for the Drift Formatter
  */
 export interface DriftFormatterProps {
-  /**
-   * Helper for IO operations
-   */
-  readonly ioHelper: IoHelper;
-
   /**
    * The CloudFormation stack artifact
    */
@@ -24,7 +19,7 @@ export interface DriftFormatterProps {
   /**
    * The results of stack drift detection
    */
-  readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
+  readonly resourceDrifts: StackResourceDrift[];
 }
 
 interface DriftFormatterOutput {
@@ -32,13 +27,13 @@ interface DriftFormatterOutput {
    * Number of resources with drift. If undefined, then an error occurred
    * and resources were not properly checked for drift.
    */
-  readonly numResourcesWithDrift?: number;
+  readonly numResourcesWithDrift: number;
 
   /**
    * How many resources were not checked for drift. If undefined, then an
    * error occurred and resources were not properly checked for drift.
    */
-  readonly numResourcesUnchecked?: number;
+  readonly numResourcesUnchecked: number;
 
   /**
    * Resources that have not changed
@@ -63,28 +58,36 @@ interface DriftFormatterOutput {
   /**
    * The header, containing the stack name
    */
-  readonly stackHeader?: string;
+  readonly stackHeader: string;
 
   /**
    * The final results (summary) of the drift results
    */
-  readonly finalResult: string;
+  readonly summary: string;
 }
 
 /**
  * Class for formatting drift detection output
  */
 export class DriftFormatter {
+  public readonly stackName: string;
+
   private readonly stack: cxapi.CloudFormationStackArtifact;
-  private readonly driftResults?: DescribeStackResourceDriftsCommandOutput;
+  private readonly resourceDriftResults: StackResourceDrift[];
   private readonly allStackResources: Map<string, string>;
 
   constructor(props: DriftFormatterProps) {
     this.stack = props.stack;
-    this.driftResults = props.driftResults;
+    this.stackName = props.stack.displayName ?? props.stack.stackName;
+    this.resourceDriftResults = props.resourceDrifts;
+
     this.allStackResources = new Map<string, string>();
     Object.keys(this.stack.template.Resources || {}).forEach(id => {
       const resource = this.stack.template.Resources[id];
+      // always ignore the metadata resource
+      if (resource.Type === 'AWS::CDK::Metadata') {
+        return;
+      }
       this.allStackResources.set(id, resource.Type);
     });
   }
@@ -93,51 +96,38 @@ export class DriftFormatter {
    * Format the stack drift detection results
    */
   public formatStackDrift(): DriftFormatterOutput {
-    if (!this.driftResults?.StackResourceDrifts) {
-      return {
-        finalResult: `${this.stack.stackName}: No drift results available`,
-      };
-    }
-
     const formatterOutput = this.formatStackDriftChanges(this.buildLogicalToPathMap());
 
-    const drifts = this.driftResults.StackResourceDrifts.filter(d =>
+    // we are only interested in actual drifts and always ignore the metadata resource
+    const actualDrifts = this.resourceDriftResults.filter(d =>
       d.StackResourceDriftStatus === 'MODIFIED' ||
-      d.StackResourceDriftStatus === 'DELETED',
+      d.StackResourceDriftStatus === 'DELETED' ||
+      d.ResourceType === 'AWS::CDK::Metadata',
     );
 
     // must output the stack name if there are drifts
-    let stackHeader;
-    if (this.stack.stackName) {
-      stackHeader = format(`Stack ${chalk.bold(this.stack.stackName)}\n`);
-    }
+    const stackHeader = format(`Stack ${chalk.bold(this.stackName)}\n`);
 
-    if (drifts.length === 0) {
+    if (actualDrifts.length === 0) {
       const finalResult = chalk.green('No drift detected\n');
       return {
         numResourcesWithDrift: 0,
-        numResourcesUnchecked: this.allStackResources.size - this.driftResults.StackResourceDrifts.length,
+        numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
         stackHeader,
-        finalResult,
+        summary: finalResult,
       };
     }
 
-    let finalResult;
-    if (drifts.length !== 0) {
-      finalResult = chalk.yellow(`\n${drifts.length} resource${drifts.length === 1 ? '' : 's'} ${drifts.length === 1 ? 'has' : 'have'} drifted from their expected configuration\n`);
-    } else {
-      finalResult = chalk.green('No drift detected\n');
-    }
-
+    const finalResult = chalk.yellow(`\n${actualDrifts.length} resource${actualDrifts.length === 1 ? '' : 's'} ${actualDrifts.length === 1 ? 'has' : 'have'} drifted from their expected configuration\n`);
     return {
-      numResourcesWithDrift: drifts.length,
-      numResourcesUnchecked: this.allStackResources.size - this.driftResults.StackResourceDrifts.length,
+      numResourcesWithDrift: actualDrifts.length,
+      numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
       stackHeader,
       unchanged: formatterOutput.unchanged,
       unchecked: formatterOutput.unchecked,
       modified: formatterOutput.modified,
       deleted: formatterOutput.deleted,
-      finalResult,
+      summary: finalResult,
     };
   }
 
@@ -159,10 +149,7 @@ export class DriftFormatter {
    */
   private formatStackDriftChanges(
     logicalToPathMap: { [logicalId: string]: string } = {}): FormattedDrift {
-    if (!this.driftResults?.StackResourceDrifts) {
-      return {};
-    }
-    if (this.driftResults?.StackResourceDrifts.length === 0) {
+    if (this.resourceDriftResults.length === 0) {
       return {};
     }
 
@@ -171,7 +158,7 @@ export class DriftFormatter {
     let modified;
     let deleted;
 
-    const drifts = this.driftResults.StackResourceDrifts;
+    const drifts = this.resourceDriftResults;
 
     // Process unchanged resources
     const unchangedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.IN_SYNC);

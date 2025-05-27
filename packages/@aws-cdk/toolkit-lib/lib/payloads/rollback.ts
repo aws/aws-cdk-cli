@@ -1,4 +1,4 @@
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 
 export interface StackRollbackProgress {
   /**
@@ -14,5 +14,5 @@ export interface StackRollbackProgress {
   /**
    * The stack that's currently being rolled back
    */
-  readonly stack: CloudFormationStackArtifact;
+  readonly stack: cxapi.CloudFormationStackArtifact;
 }

@@ -1,5 +1,5 @@
 import type * as cxapi from '@aws-cdk/cx-api';
-import type { DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
+import type { DescribeStackResourceDriftsCommandOutput, StackResourceDrift } from '@aws-sdk/client-cloudformation';
 import {
   DescribeStackDriftDetectionStatusCommand,
   DescribeStackResourceDriftsCommand,
@@ -346,9 +346,8 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper,
       stack: mockNewTemplate,
-      driftResults: mockDriftedResources,
+      resourceDrifts: mockDriftedResources.StackResourceDrifts!,
     });
     const result = formatter.formatStackDrift();
 
@@ -365,7 +364,7 @@ describe('formatStackDrift', () => {
     for (const expectedStringInOutput of expectedStringsInOutput) {
       expect(result.modified).toContain(expectedStringInOutput);
     }
-    expect(result.finalResult).toContain('1 resource has drifted');
+    expect(result.summary).toContain('1 resource has drifted');
   });
 
   test('detects multiple drifts', () => {
@@ -398,9 +397,8 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper,
       stack: mockNewTemplate,
-      driftResults: mockDriftedResources,
+      resourceDrifts: mockDriftedResources.StackResourceDrifts!,
     });
     const result = formatter.formatStackDrift();
 
@@ -419,40 +417,20 @@ describe('formatStackDrift', () => {
     }
     expect(result.deleted).toContain('AWS::EC2::Route');
     expect(result.deleted).toContain('SomeRoute');
-    expect(result.finalResult).toContain('2 resources have drifted');
+    expect(result.summary).toContain('2 resources have drifted');
   });
 
   test('no drift detected', () => {
-    // GIVEN
-    const mockDriftResults: DescribeStackResourceDriftsCommandOutput = {
-      StackResourceDrifts: [],
-      $metadata: {},
-    };
-
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper,
       stack: mockNewTemplate,
-      driftResults: mockDriftResults,
+      resourceDrifts: [],
     });
     const result = formatter.formatStackDrift();
 
     // THEN
     expect(result.numResourcesWithDrift).toBe(0);
-    expect(result.finalResult).toContain('No drift detected');
-  });
-
-  test('if detect drift is false, no output', () => {
-    // WHEN
-    const formatter = new DriftFormatter({
-      ioHelper,
-      stack: mockNewTemplate,
-    });
-    const result = formatter.formatStackDrift();
-
-    // THEN
-    expect(result.numResourcesWithDrift).toBeUndefined();
-    expect(result.finalResult).toContain('No drift results available');
+    expect(result.summary).toContain('No drift detected');
   });
 
   test('formatting with verbose should show unchecked resources', () => {
@@ -529,15 +507,14 @@ describe('formatStackDrift', () => {
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper,
       stack: mockNewTemplate,
-      driftResults: mockDriftedResources,
+      resourceDrifts: mockDriftedResources.StackResourceDrifts!,
     });
     const result = formatter.formatStackDrift();
 
     // THEN
     expect(result.numResourcesWithDrift).toBe(1);
-    expect(result.finalResult).toContain('1 resource has drifted');
+    expect(result.summary).toContain('1 resource has drifted');
 
     expect(result.unchanged).toContain('Resources In Sync');
     expect(result.unchecked).toContain('Unchecked Resources');
@@ -545,55 +522,51 @@ describe('formatStackDrift', () => {
 
   test('formatting with different drift statuses', () => {
     // GIVEN
-    const mockDriftedResources: DescribeStackResourceDriftsCommandOutput = {
-      StackResourceDrifts: [
-        {
-          StackId: 'some:stack:arn',
-          StackResourceDriftStatus: 'MODIFIED',
-          LogicalResourceId: 'Resource1',
-          PhysicalResourceId: 'physical-id-1',
-          ResourceType: 'AWS::S3::Bucket',
-          PropertyDifferences: [{
-            PropertyPath: '/BucketName',
-            ExpectedValue: 'expected-name',
-            ActualValue: 'actual-name',
-            DifferenceType: 'NOT_EQUAL',
-          }],
-          Timestamp: new Date(Date.now()),
-        },
-        {
-          StackId: 'some:stack:arn',
-          StackResourceDriftStatus: 'DELETED',
-          LogicalResourceId: 'Resource2',
-          PhysicalResourceId: 'physical-id-2',
-          ResourceType: 'AWS::IAM::Role',
-          Timestamp: new Date(Date.now()),
-        },
-        {
-          StackId: 'some:stack:arn',
-          StackResourceDriftStatus: 'IN_SYNC',
-          LogicalResourceId: 'Resource3',
-          PhysicalResourceId: 'physical-id-3',
-          ResourceType: 'AWS::Lambda::Function',
-          Timestamp: new Date(Date.now()),
-        },
-        {
-          StackId: 'some:stack:arn',
-          StackResourceDriftStatus: 'NOT_CHECKED',
-          LogicalResourceId: 'Resource4',
-          PhysicalResourceId: 'physical-id-4',
-          ResourceType: 'AWS::DynamoDB::Table',
-          Timestamp: new Date(Date.now()),
-        },
-      ],
-      $metadata: {},
-    };
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'Resource1',
+        PhysicalResourceId: 'physical-id-1',
+        ResourceType: 'AWS::S3::Bucket',
+        PropertyDifferences: [{
+          PropertyPath: '/BucketName',
+          ExpectedValue: 'expected-name',
+          ActualValue: 'actual-name',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'DELETED',
+        LogicalResourceId: 'Resource2',
+        PhysicalResourceId: 'physical-id-2',
+        ResourceType: 'AWS::IAM::Role',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'IN_SYNC',
+        LogicalResourceId: 'Resource3',
+        PhysicalResourceId: 'physical-id-3',
+        ResourceType: 'AWS::Lambda::Function',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'NOT_CHECKED',
+        LogicalResourceId: 'Resource4',
+        PhysicalResourceId: 'physical-id-4',
+        ResourceType: 'AWS::DynamoDB::Table',
+        Timestamp: new Date(Date.now()),
+      },
+    ];
 
     // WHEN
     const formatter = new DriftFormatter({
-      ioHelper,
       stack: mockNewTemplate,
-      driftResults: mockDriftedResources,
+      resourceDrifts: mockDriftedResources,
     });
     const result = formatter.formatStackDrift();
 
@@ -605,6 +578,6 @@ describe('formatStackDrift', () => {
     expect(result.deleted).toContain('Deleted Resources');
     expect(result.deleted).toContain('AWS::IAM::Role');
     expect(result.deleted).toContain('Resource2');
-    expect(result.finalResult).toContain('2 resources have drifted');
+    expect(result.summary).toContain('2 resources have drifted');
   });
 });

@@ -1,5 +1,5 @@
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import type { IManifestEntry } from 'cdk-assets';
 import type { PermissionChangeType } from './diff';
 import type { ConfirmationRequest } from './types';
@@ -21,7 +21,7 @@ export interface StackDeployProgress {
   /**
    * The stack that's currently being deployed
    */
-  readonly stack: CloudFormationStackArtifact;
+  readonly stack: cxapi.CloudFormationStackArtifact;
 }
 
 /**

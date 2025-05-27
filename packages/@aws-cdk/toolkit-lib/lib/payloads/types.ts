@@ -1,3 +1,5 @@
+import type * as cxapi from '@aws-cdk/cx-api';
+
 /**
  * Assembly data returned in the payload of an IO Message.
  */
@@ -56,6 +58,16 @@ export interface StackAndAssemblyData extends AssemblyData {
    * Stack Data
    */
   readonly stack: StackData;
+}
+
+/**
+ * A payload identifying a single stacks
+ */
+export interface SingleStack {
+  /**
+   * A single stack
+   */
+  readonly stack: cxapi.CloudFormationStackArtifact;
 }
 
 /**

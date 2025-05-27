@@ -668,41 +668,15 @@ export class CdkToolkit {
    * Detect infrastructure drift for the given stack(s)
    */
   public async drift(options: DriftOptions): Promise<number> {
-    let drifts = 0;
-    let uncheckedDrifts = 0;
-    let driftsUnknown = false;
-    let uncheckedUnknown = false;
+    const driftResults = await this.toolkit.drift(this.props.cloudExecutable, {
+      stacks: {
+        patterns: options.selector.patterns,
+        strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+      },
+    });
 
-    try {
-      const driftResults = await this.toolkit.drift(this.props.cloudExecutable, {
-        stacks: {
-          patterns: options.selector.patterns,
-          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-        },
-      });
-
-      const resultsArray = Array.isArray(driftResults) ? driftResults : [driftResults];
-      for (const driftResult of resultsArray) {
-        drifts += driftResult.numResourcesWithDrift || 0;
-        uncheckedDrifts += driftResult.numResourcesUnchecked || 0;
-        if (driftResult.numResourcesWithDrift === undefined) {
-          driftsUnknown = true;
-        }
-        if (driftResult.numResourcesUnchecked === undefined) {
-          uncheckedUnknown = true;
-        }
-      }
-    } catch (e) {
-      error((e as Error).message);
-      return 1;
-    }
-
-    info(format('\n✨  Number of resources with drift: %s',
-      driftsUnknown ? 'unknown' : drifts,
-    ));
-    debug(` (${uncheckedUnknown ? 'unknown' : uncheckedDrifts} unchecked)`);
-
-    return drifts > 0 && options.fail ? 1 : 0;
+    const totalDrifts = Object.values(driftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
+    return totalDrifts > 0 && options.fail ? 1 : 0;
   }
 
   /**
@@ -2038,7 +2012,7 @@ export interface DriftOptions {
   /**
    * Criteria for selecting stacks to detect drift on
    */
-  selector: StackSelector;
+  readonly selector: StackSelector;
 
   /**
    * Whether to fail with exit code 1 if drift is detected

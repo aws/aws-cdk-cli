@@ -17,7 +17,7 @@ import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
 import type { StackSelectionDetails } from '../../../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../../../payloads/types';
+import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, SingleStack, StackAndAssemblyData } from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
 
 /**
@@ -79,7 +79,7 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // 4: Diff & Drift (4xxx)
+  // 4: Diff (40xx - 44xx)
   CDK_TOOLKIT_I4000: make.trace<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I4000',
     description: 'Diff stacks is starting',
@@ -90,10 +90,17 @@ export const IO = {
     description: 'Output of the diff command',
     interface: 'DiffResult',
   }),
-  CDK_TOOLKIT_I4950: make.result<DriftResultPayload>({
-    code: 'CDK_TOOLKIT_I4950',
+
+  // 4: Drift (45xx - 49xx)
+  CDK_TOOLKIT_I4590: make.result<DriftResultPayload>({
+    code: 'CDK_TOOLKIT_I4590',
     description: 'Results of the drift command',
     interface: 'DriftResultPayload',
+  }),
+  CDK_TOOLKIT_I4591: make.warn<SingleStack>({
+    code: 'CDK_TOOLKIT_I4591',
+    description: 'Missing drift result fort a stack.',
+    interface: 'SingleStack',
   }),
 
   // 5: Deploy & Watch (5xxx)

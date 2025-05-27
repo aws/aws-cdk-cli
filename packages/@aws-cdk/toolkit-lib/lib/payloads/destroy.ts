@@ -1,10 +1,10 @@
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 
 export interface StackDestroy {
   /**
    * The stacks that will be destroyed
    */
-  readonly stacks: CloudFormationStackArtifact[];
+  readonly stacks: cxapi.CloudFormationStackArtifact[];
 }
 
 export interface StackDestroyProgress {
@@ -21,5 +21,5 @@ export interface StackDestroyProgress {
   /**
    * The stack that's currently being destroyed
    */
-  readonly stack: CloudFormationStackArtifact;
+  readonly stack: cxapi.CloudFormationStackArtifact;
 }
