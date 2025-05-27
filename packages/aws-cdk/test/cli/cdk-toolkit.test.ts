@@ -180,6 +180,22 @@ describe('bootstrap', () => {
   });
 });
 
+describe('list', () => {
+  test('smoke test for list', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN
+    const result = await toolkit.list([]);
+
+    // THEN
+    expect(result).toEqual(0); // Exit code
+    expect(mockResult).toHaveBeenCalledWith('Test-Stack-A-Display-Name');
+    expect(mockResult).toHaveBeenCalledWith('Test-Stack-B');
+    expect(mockResult).toHaveBeenCalledWith('Test-Stack-A/Test-Stack-C');
+  });
+});
+
 describe('deploy', () => {
   test('fails when no valid stack names are given', async () => {
     // GIVEN
