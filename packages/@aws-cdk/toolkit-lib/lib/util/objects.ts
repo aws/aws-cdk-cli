@@ -247,3 +247,10 @@ export function transformObjectKeys(val: any, transform: (str: string) => string
   }
   return ret;
 }
+
+/**
+ * Remove undefined values from a dictionary
+ */
+export function noUndefined<A>(xs: Record<string, A>): Record<string, NonNullable<A>> {
+  return Object.fromEntries(Object.entries(xs).filter(([_, v]) => v !== undefined)) as any;
+}

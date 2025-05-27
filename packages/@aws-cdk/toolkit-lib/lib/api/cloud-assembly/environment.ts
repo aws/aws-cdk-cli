@@ -4,6 +4,9 @@ import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
 
+export type Env = { [key: string]: string | undefined };
+export type Context = { [key: string]: unknown };
+
 /**
  * If we don't have region/account defined in context, we fall back to the default SDK behavior
  * where region is retrieved from ~/.aws/config and account is based on default credentials provider
@@ -19,8 +22,8 @@ import type { Settings } from '../settings';
 export async function prepareDefaultEnvironment(
   aws: SdkProvider,
   debugFn: (msg: string) => Promise<void>,
-): Promise<{ [key: string]: string }> {
-  const env: { [key: string]: string } = { };
+): Promise<Env> {
+  const env: Env = {};
 
   env[cxapi.DEFAULT_REGION_ENV] = aws.defaultRegion;
   await debugFn(`Setting "${cxapi.DEFAULT_REGION_ENV}" environment variable to ${env[cxapi.DEFAULT_REGION_ENV]}`);
@@ -77,7 +80,10 @@ export function contextFromSettings(
 /**
  * Convert settings to context/environment variables
  */
-export function synthParametersFromSettings(settings: Settings) {
+export function synthParametersFromSettings(settings: Settings): {
+  context: Context;
+  env: Env;
+} {
   return {
     context: contextFromSettings(settings),
     env: {
@@ -88,8 +94,8 @@ export function synthParametersFromSettings(settings: Settings) {
   };
 }
 
-export function spaceAvailableForContext(env: { [key: string]: string }, limit: number) {
-  const size = (value: string) => value != null ? Buffer.byteLength(value) : 0;
+export function spaceAvailableForContext(env: Env, limit: number) {
+  const size = (value?: string) => value != null ? Buffer.byteLength(value) : 0;
 
   const usedSpace = Object.entries(env)
     .map(([k, v]) => k === cxapi.CONTEXT_ENV ? size(k) : size(k) + size(v))

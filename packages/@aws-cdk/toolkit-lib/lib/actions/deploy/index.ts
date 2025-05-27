@@ -1,4 +1,4 @@
-import type { BaseDeployOptions } from './private/deploy-options';
+import type { StackSelector } from '../../api/cloud-assembly';
 import type { Tag } from '../../api/tags';
 
 export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | HotswapDeployment;
@@ -109,6 +109,77 @@ export class StackParameters {
     this.keepExistingParameters = usePreviousParameters;
     this.parameters = new Map(Object.entries(params));
   }
+}
+
+export interface BaseDeployOptions {
+  /**
+   * Criteria for selecting stacks to deploy
+   *
+   * @default - all stacks
+   */
+  readonly stacks?: StackSelector;
+
+  /**
+   * Role to pass to CloudFormation for deployment
+   */
+  readonly roleArn?: string;
+
+  /**
+   * Deploy even if the deployed template is identical to the one we are about to deploy.
+   *
+   * @default false
+   */
+  readonly forceDeployment?: boolean;
+
+  /**
+   * Deployment method
+   *
+   * @default ChangeSetDeployment
+   */
+  readonly deploymentMethod?: DeploymentMethod;
+
+  /**
+   * Rollback failed deployments
+   *
+   * @default true
+   */
+  readonly rollback?: boolean;
+
+  /**
+   * Automatically orphan resources that failed during rollback
+   *
+   * Has no effect if `rollback` is `false`.
+   *
+   * @default false
+   */
+  readonly orphanFailedResourcesDuringRollback?: boolean;
+
+  /**
+   * Force asset publishing even if the assets have not changed
+   * @default false
+   */
+  readonly forceAssetPublishing?: boolean;
+
+  /**
+   * Reuse the assets with the given asset IDs
+   */
+  readonly reuseAssets?: string[];
+
+  /**
+   * Maximum number of simultaneous deployments (dependency permitting) to execute.
+   * The default is '1', which executes all deployments serially.
+   *
+   * @default 1
+   */
+  readonly concurrency?: number;
+
+  /**
+   * Whether to send logs from all CloudWatch log groups in the template
+   * to the IoHost
+   *
+   * @default - false
+   */
+  readonly traceLogs?: boolean;
 }
 
 export interface DeployOptions extends BaseDeployOptions {

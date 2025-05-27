@@ -1,4 +1,5 @@
-import type { javascript } from 'projen';
+import { yarn } from 'cdklabs-projen-project-types';
+import type { javascript, Project } from 'projen';
 import { Component, github } from 'projen';
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
@@ -52,13 +53,6 @@ export interface CdkCliIntegTestsWorkflowProps {
   readonly testEnvironment: string;
 
   /**
-   * Packages that are locally transfered (we will never use the upstream versions)
-   *
-   * Takes package names; these are expected to live in `packages/<NAME>/dist/js`.
-   */
-  readonly localPackages: string[];
-
-  /**
    * The official repo this workflow is used for
    */
   readonly sourceRepo: string;
@@ -68,7 +62,7 @@ export interface CdkCliIntegTestsWorkflowProps {
    *
    * @default - No upstream versions
    */
-  readonly allowUpstreamVersions?: string[];
+  readonly allowUpstreamVersions?: Array<Project>;
 
   /**
    * Enable atmosphere service to retrieve AWS test environments.
@@ -122,9 +116,13 @@ export class CdkCliIntegTestsWorkflow extends Component {
     }
     ((buildWorkflow as any).workflow as github.GithubWorkflow);
 
-    props.allowUpstreamVersions?.forEach((pack) => {
-      if (!props.localPackages.includes(pack)) {
-        throw new Error(`Package in allowUpstreamVersions but not in localPackages: ${pack}`);
+    const localPackages = repo.subprojects
+      .filter(p => p instanceof yarn.TypeScriptWorkspace && !p.isPrivatePackage)
+      .map(p => p.name);
+    const upstreamVersions = (props.allowUpstreamVersions ?? [])?.map(p => p.name);
+    upstreamVersions.forEach((pack) => {
+      if (!localPackages.includes(pack)) {
+        throw new Error(`Package in allowUpstreamVersions is not a local monorepo package: ${pack}`);
       }
     });
 
@@ -236,8 +234,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
       packages: {} as Record<string, unknown>,
     };
 
-    for (const pack of props.localPackages) {
-      const allowUpstream = props.allowUpstreamVersions?.includes(pack);
+    for (const pack of localPackages) {
+      const allowUpstream = upstreamVersions.includes(pack);
 
       verdaccioConfig.packages[pack] = {
         access: '$all',
@@ -252,9 +250,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     // bash only expands {...} if there's a , in there, otherwise it will leave the
     // braces in literally. So we need to do case analysis here. Thanks, I hate it.
-    const tarballBashExpr = props.localPackages.length === 1
-      ? `packages/${props.localPackages[0]}/dist/js/*.tgz`
-      : `packages/{${props.localPackages.join(',')}}/dist/js/*.tgz`;
+    const tarballBashExpr = localPackages.length === 1
+      ? `packages/${localPackages[0]}/dist/js/*.tgz`
+      : `packages/{${localPackages.join(',')}}/dist/js/*.tgz`;
 
     // We create a matrix job for the test.
     // This job will run all the different test suites in parallel.

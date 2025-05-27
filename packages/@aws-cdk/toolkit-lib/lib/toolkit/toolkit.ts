@@ -20,7 +20,7 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
-  type ExtendedDeployOptions,
+  type PrivateDeployOptions,
   removePublishedAssetsFromWorkGraph,
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
@@ -34,14 +34,15 @@ import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
 import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
-import { makeRequestHandler } from '../api/aws-auth/awscli-compatible';
+import { sdkRequestHandler } from '../api/aws-auth/awscli-compatible';
 import type { SdkProviderServices } from '../api/aws-auth/private';
 import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
-import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
+import { ALL_STACKS } from '../api/cloud-assembly/private';
+import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { DiffFormatter } from '../api/diff';
@@ -187,7 +188,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const ioHelper = asIoHelper(this.ioHost, action);
       const services: SdkProviderServices = {
         ioHelper,
-        requestHandler: await makeRequestHandler(ioHelper, this.props.sdkConfig?.httpOptions),
+        requestHandler: sdkRequestHandler(this.props.sdkConfig?.httpOptions?.agent),
         logger: new IoHostSdkLogger(ioHelper),
         pluginHost: this.pluginHost,
       };
@@ -499,7 +500,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Helper to allow deploy being called as part of the watch action.
    */
-  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}): Promise<DeployResult> {
+  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: PrivateDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -1229,7 +1230,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   ): Promise<void> {
     // watch defaults to hotswap deployment
     const deploymentMethod = options.deploymentMethod ?? { method: 'hotswap' };
-    const deployOptions: ExtendedDeployOptions = {
+    const deployOptions: PrivateDeployOptions = {
       ...options,
       cloudWatchLogMonitor,
       deploymentMethod,
