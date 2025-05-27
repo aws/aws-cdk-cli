@@ -26,7 +26,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('watch', { type: 'boolean', default: false, desc: 'Perform integ tests in watch mode' })
     .option('list', { type: 'boolean', default: false, desc: 'List tests instead of running them' })
-    .option('clean', { type: 'boolean', default: true, desc: 'Skips stack clean up after test is completed (use --no-clean to negate)' })
+    .option('clean', { type: 'boolean', default: true, desc: 'Clean up and delete stack after test is completed (use --no-clean to negate)' })
     .option('verbose', { type: 'boolean', default: false, alias: 'v', count: true, desc: 'Verbose logs and metrics on integration tests durations (specify multiple times to increase verbosity)' })
     .option('dry-run', { type: 'boolean', default: false, desc: 'do not actually deploy the stack. just update the snapshot (not recommended!)' })
     .option('update-on-failed', { type: 'boolean', default: false, desc: 'rerun integration tests and update snapshots for failed tests.' })
