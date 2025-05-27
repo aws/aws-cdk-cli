@@ -186,7 +186,6 @@ export abstract class CloudAssemblySourceBuilder {
    */
   public async fromCdkApp(app: string, props: FromCdkAppOptions = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
-    // @todo this definitely needs to read files from the CWD
     const workingDirectory = props.workingDirectory ?? process.cwd();
     const outdir = props.outdir ? path.resolve(props.outdir) : path.resolve(workingDirectory, 'cdk.out');
 
