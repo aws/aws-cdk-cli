@@ -130,7 +130,7 @@ export interface TemplateInfo {
 export class DiffFormatter {
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
-  public readonly stackName: string;
+  private readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
