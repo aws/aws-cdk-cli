@@ -384,13 +384,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<{ [name: string]: DriftResult }> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
-    const sdkProvider = await this.sdkProvider('drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     await using assembly = await assemblyFromSource(ioHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
+    await synthSpan.end();
 
+    const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
     const allDriftResults: { [name: string]: DriftResult } = {};
     const unavailableDrifts = [];
+    const sdkProvider = await this.sdkProvider('drift');
 
     for (const stack of stacks.stackArtifacts) {
       const cfn = (await sdkProvider.forEnvironment(stack.environment, Mode.ForReading)).sdk.cloudFormation();
@@ -399,7 +402,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       if (!driftResults.StackResourceDrifts) {
         const stackName = stack.displayName ?? stack.stackName;
         unavailableDrifts.push(stackName);
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4591.msg(`${stackName}: No drift results available`, { stack }));
+        await driftSpan.notify(IO.CDK_TOOLKIT_W4591.msg(`${stackName}: No drift results available`, { stack }));
         continue;
       }
 
@@ -418,24 +421,24 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       allDriftResults[formatter.stackName] = stackDrift;
 
       // header
-      await ioHelper.defaults.info(driftOutput.stackHeader);
+      await driftSpan.notifyDefault('info', driftOutput.stackHeader);
 
       // print the different sections at different levels
       if (driftOutput.unchanged) {
-        await ioHelper.defaults.debug(driftOutput.unchanged);
+        await driftSpan.notifyDefault('debug', driftOutput.unchanged);
       }
       if (driftOutput.unchecked) {
-        await ioHelper.defaults.debug(driftOutput.unchecked);
+        await driftSpan.notifyDefault('debug', driftOutput.unchecked);
       }
       if (driftOutput.modified) {
-        await ioHelper.defaults.info(driftOutput.modified);
+        await driftSpan.notifyDefault('info', driftOutput.modified);
       }
       if (driftOutput.deleted) {
-        await ioHelper.defaults.info(driftOutput.deleted);
+        await driftSpan.notifyDefault('info', driftOutput.deleted);
       }
 
       // main stack result
-      await ioHelper.notify(IO.CDK_TOOLKIT_I4590.msg(driftOutput.summary, {
+      await driftSpan.notify(IO.CDK_TOOLKIT_I4590.msg(driftOutput.summary, {
         stack,
         drift: stackDrift,
       }));
@@ -444,9 +447,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // print summary
     const totalDrifts = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     const totalUnchecked = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesUnchecked ?? 0), 0);
-    await ioHelper.defaults.result(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
+    await driftSpan.end(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
     if (unavailableDrifts.length) {
-      await ioHelper.defaults.warn(`\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
+      await driftSpan.notifyDefault('warn', `\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
     }
 
     return allDriftResults;

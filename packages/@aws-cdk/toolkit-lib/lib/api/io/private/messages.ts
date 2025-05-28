@@ -97,13 +97,23 @@ export const IO = {
   }),
 
   // 4: Drift (45xx - 49xx)
+  CDK_TOOLKIT_I4500: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4500',
+    description: 'Drift detection is starting',
+    interface: 'StackSelectionDetails',
+  }),
+  CDK_TOOLKIT_I4509: make.result<Duration>({
+    code: 'CDK_TOOLKIT_I4592',
+    description: 'Results of the drift',
+    interface: 'Duration',
+  }),
   CDK_TOOLKIT_I4590: make.result<DriftResultPayload>({
     code: 'CDK_TOOLKIT_I4590',
-    description: 'Results of the drift command',
+    description: 'Results of a stack drift',
     interface: 'DriftResultPayload',
   }),
-  CDK_TOOLKIT_I4591: make.warn<SingleStack>({
-    code: 'CDK_TOOLKIT_I4591',
+  CDK_TOOLKIT_W4591: make.warn<SingleStack>({
+    code: 'CDK_TOOLKIT_W4591',
     description: 'Missing drift result fort a stack.',
     interface: 'SingleStack',
   }),
@@ -535,6 +545,11 @@ export const SPAN = {
     name: 'Diff',
     start: IO.CDK_TOOLKIT_I4000,
     end: IO.CDK_TOOLKIT_I4001,
+  },
+  DRIFT_APP: {
+    name: 'Drift',
+    start: IO.CDK_TOOLKIT_I4000,
+    end: IO.CDK_TOOLKIT_I4509,
   },
   DESTROY_STACK: {
     name: 'Destroy',
