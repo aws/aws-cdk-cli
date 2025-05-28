@@ -283,11 +283,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
 
     // NOTE: NOT 'await using' because we return ownership to the caller
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    const assembly = await assemblyFromSource(synthSpan.asHelper, cx);
 
     const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
-    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
+    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), synthSpan.asHelper);
     await synthSpan.end();
 
     // if we have a single stack, print it to STDOUT
@@ -328,7 +328,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -340,7 +340,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     let diffs = 0;
 
-    const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
+    const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({ templateInfo });
@@ -352,8 +352,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // We only warn about BROADENING changes
       if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
         const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
-        await diffSpan.notifyDefault('warn', warningMessage);
-        await diffSpan.notifyDefault('info', securityDiff.formattedDiff);
+        await diffSpan.defaults.warn(warningMessage);
+        await diffSpan.defaults.info(securityDiff.formattedDiff);
       }
 
       // Stack Diff
@@ -386,7 +386,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -397,7 +397,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     for (const stack of stacks.stackArtifacts) {
       const cfn = (await sdkProvider.forEnvironment(stack.environment, Mode.ForReading)).sdk.cloudFormation();
-      const driftResults = await detectStackDrift(cfn, ioHelper, stack.stackName);
+      const driftResults = await detectStackDrift(cfn, driftSpan.asHelper, stack.stackName);
 
       if (!driftResults.StackResourceDrifts) {
         const stackName = stack.displayName ?? stack.stackName;
@@ -421,20 +421,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       allDriftResults[formatter.stackName] = stackDrift;
 
       // header
-      await driftSpan.notifyDefault('info', driftOutput.stackHeader);
+      await driftSpan.defaults.info(driftOutput.stackHeader);
 
       // print the different sections at different levels
       if (driftOutput.unchanged) {
-        await driftSpan.notifyDefault('debug', driftOutput.unchanged);
+        await driftSpan.defaults.debug(driftOutput.unchanged);
       }
       if (driftOutput.unchecked) {
-        await driftSpan.notifyDefault('debug', driftOutput.unchecked);
+        await driftSpan.defaults.debug(driftOutput.unchecked);
       }
       if (driftOutput.modified) {
-        await driftSpan.notifyDefault('info', driftOutput.modified);
+        await driftSpan.defaults.info(driftOutput.modified);
       }
       if (driftOutput.deleted) {
-        await driftSpan.notifyDefault('info', driftOutput.deleted);
+        await driftSpan.defaults.info(driftOutput.deleted);
       }
 
       // main stack result
@@ -449,7 +449,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const totalUnchecked = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesUnchecked ?? 0), 0);
     await driftSpan.end(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
     if (unavailableDrifts.length) {
-      await driftSpan.notifyDefault('warn', `\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
+      await driftSpan.defaults.warn(`\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
     }
 
     return allDriftResults;

@@ -59,7 +59,7 @@ export class IoHelper implements IIoHost, IActionAwareIoHost {
    * Create a new marker from a given registry entry
    */
   public span<S extends object, E extends SpanEnd>(definition: SpanDefinition<S, E>) {
-    return new SpanMaker(this, definition);
+    return new SpanMaker(this, definition, (ioHost) => IoHelper.fromActionAwareIoHost(ioHost));
   }
 }
 
