@@ -1,7 +1,7 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
-import type { DiffResult } from '../../../payloads';
+import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
@@ -85,10 +85,15 @@ export const IO = {
     description: 'Diff stacks is starting',
     interface: 'StackSelectionDetails',
   }),
-  CDK_TOOLKIT_I4001: make.info<DiffResult>({
+  CDK_TOOLKIT_I4001: make.result<DiffResult>({
     code: 'CDK_TOOLKIT_I4001',
     description: 'Output of the diff command',
     interface: 'DiffResult',
+  }),
+  CDK_TOOLKIT_I4002: make.result<StackDiff>({
+    code: 'CDK_TOOLKIT_I4002',
+    description: 'The diff for a single stack',
+    interface: 'StackDiff',
   }),
 
   // 4: Drift (45xx - 49xx)

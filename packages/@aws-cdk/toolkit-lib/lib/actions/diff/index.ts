@@ -89,7 +89,7 @@ export class DiffMethod {
 }
 
 /**
- * Optins for the diff method
+ * Options for the diff method
  */
 export interface DiffOptions {
   /**
@@ -129,13 +129,4 @@ export interface DiffOptions {
    * @default 3
    */
   readonly contextLines?: number;
-
-  /**
-   * Only include broadened security changes in the diff
-   *
-   * @default false
-   *
-   * @deprecated implement in IoHost
-   */
-  readonly securityOnly?: boolean;
 }

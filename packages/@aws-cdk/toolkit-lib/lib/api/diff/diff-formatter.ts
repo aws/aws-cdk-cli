@@ -71,7 +71,7 @@ interface FormatStackDiffOptions {
    *
    * @default 3
    */
-  readonly context?: number;
+  readonly contextLines?: number;
 
   /**
    * silences \'There were no differences\' messages
@@ -130,7 +130,7 @@ export interface TemplateInfo {
 export class DiffFormatter {
   private readonly oldTemplate: any;
   private readonly newTemplate: cxapi.CloudFormationStackArtifact;
-  private readonly stackName: string;
+  public readonly stackName: string;
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
@@ -157,7 +157,7 @@ export class DiffFormatter {
   /**
    * Get or creates the diff of a stack.
    * If it creates the diff, it stores the result in a map for
-   * easier retreval later.
+   * easier retrieval later.
    */
   private diff(stackName?: string, oldTemplate?: any) {
     const realStackName = stackName ?? this.stackName;
@@ -178,8 +178,8 @@ export class DiffFormatter {
    *
    * If no stackName is given, then the root stack name is used.
    */
-  private permissionType(stackName?: string): PermissionChangeType {
-    const diff = this.diff(stackName);
+  private permissionType(): PermissionChangeType {
+    const diff = this.diff();
 
     if (diff.permissionsBroadened) {
       return PermissionChangeType.BROADENING;
@@ -211,7 +211,7 @@ export class DiffFormatter {
     let diff = this.diff(stackName, oldTemplate);
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
-    // and sends its output directly to that stream. To faciliate use of the
+    // and sends its output directly to that stream. To facilitate use of the
     // global CliIoHost, we create our own stream to capture the output of
     // `Formatter` and return the output as a string for the consumer of
     // `formatStackDiff` to decide what to do with it.
@@ -253,7 +253,7 @@ export class DiffFormatter {
         formatDifferences(stream, diff, {
           ...logicalIdMapFromTemplate(this.oldTemplate),
           ...buildLogicalToPathMap(this.newTemplate),
-        }, options.context);
+        }, options.contextLines);
       } else if (!options.quiet) {
         stream.write(chalk.green('There were no differences\n'));
       }

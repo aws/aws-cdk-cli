@@ -339,39 +339,41 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
-    let formattedSecurityDiff = '';
-    let formattedStackDiff = '';
 
     const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
-      const formatter = new DiffFormatter({
-        templateInfo,
-      });
+      const formatter = new DiffFormatter({ templateInfo });
+      const stackDiff = formatter.formatStackDiff({ strict, contextLines });
 
-      if (options.securityOnly) {
-        const securityDiff = formatter.formatSecurityDiff();
-        // In Diff, we only care about BROADENING security diffs
-        if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
-          const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
-          await ioHelper.defaults.warn(warningMessage);
-          formattedSecurityDiff = securityDiff.formattedDiff;
-          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
-        }
-      } else {
-        const diff = formatter.formatStackDiff({
-          strict,
-          context: contextLines,
-        });
-        formattedStackDiff = diff.formattedDiff;
-        diffs = diff.numStacksWithChanges;
+      // Security Diff
+      const securityDiff = formatter.formatSecurityDiff();
+      const formattedSecurityDiff = securityDiff.permissionChangeType !== PermissionChangeType.NONE ? stackDiff.formattedDiff : undefined;
+      // We only warn about BROADENING changes
+      if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
+        const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
+        await diffSpan.notifyDefault('warn', warningMessage);
+        await diffSpan.notifyDefault('info', securityDiff.formattedDiff);
       }
+
+      // Stack Diff
+      diffs += stackDiff.numStacksWithChanges;
       appendObject(templateDiffs, formatter.diffs);
+      await diffSpan.notify(IO.CDK_TOOLKIT_I4002.msg(stackDiff.formattedDiff, {
+        stack: templateInfo.newTemplate,
+        diffs: formatter.diffs,
+        numStacksWithChanges: stackDiff.numStacksWithChanges,
+        permissionChanges: securityDiff.permissionChangeType,
+        formattedDiff: {
+          diff: stackDiff.formattedDiff,
+          security: formattedSecurityDiff,
+        },
+      }));
     }
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
-      formattedSecurityDiff,
-      formattedStackDiff,
+      numStacksWithChanges: diffs,
+      diffs: templateDiffs,
     });
 
     return templateDiffs;
