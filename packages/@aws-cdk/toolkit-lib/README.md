@@ -1,20 +1,4 @@
 # AWS CDK Toolkit Library
-<!--BEGIN STABILITY BANNER-->
-
----
-
-![@aws-cdk/toolkit-lib: Developer Preview](./assets/toolkit--lib-developer_preview-important.svg)
-
-> The APIs in this module are experimental and under active development.
-> They are subject to non-backward compatible changes or removal in future versions.
-> The package follows the [Semantic Versioning](https://semver.org/) model for [major version zero](https://semver.org/#spec-item-4).
-> Accordingly, breaking changes will be introduced in minor versions and announced in the release notes.
-> This means that while you may use them, you may need to update
-> your source code when upgrading to a newer version of this package.
-
----
-
-<!--END STABILITY BANNER-->
 
 The AWS Cloud Development Kit (AWS CDK) Toolkit Library enables you to perform CDK actions requiring programmatic access on AWS. You can use the AWS CDK Toolkit Library to implement actions such as bootstrapping, synthesizing, and deploying through code rather than command-line interface (CLI) commands. With this library, you can create custom tools, build specialized CLI applications, and integrate CDK programmatic access capabilities into your development workflows.
 
@@ -54,7 +38,7 @@ The _Cloud Assembly Source_ is a fundamental CDK Toolkit component that defines 
 For example, CDK apps may need to be synthesized multiple times with additional context values before they are ready.
 Once created, you can use your _Cloud Assembly Source_ to perform actions  with the CDK Toolkit.
 
-The following is an example of creating a _Cloud Assembly Source_ using an inline _assembly builder function_:
+The following is an example of creating a _Cloud Assembly Source_ using the _assembly builder function_:
 
 ```ts
 import * as core from 'aws-cdk-lib/core';
@@ -112,24 +96,25 @@ because the _Cloud Assembly_ does not have to be produced multiple times.
 
 ```ts
 declare const cdk: Toolkit;
-declare const cx: ICloudAssemblySource;
+declare const source: ICloudAssemblySource;
 
 // Will run the CDK app defined in the Cloud Assembly Source
 // This is an expensive and slow operation
-const cxSnap = await cdk.synth(cx, {
+// But its result can be stored and re-used
+const cx = await cdk.synth(source, {
   validateStacks: true, // set to `false` to not throw an error if stacks in the assembly contain error annotations
 })
 
 // Will use the previously synthesized Cloud Assembly
 // This is now a cheap and fast operation
-const cxSnap = await cdk.list(cxSnap);
+const appDetails = await cdk.list(cx);
 ```
 
-You can also use the snapshot to query information about the synthesized _Cloud Assembly_:
+You can also query information about the synthesized _Cloud Assembly_:
 
 ```ts
-declare const cloudAssembly = await cxSnap.produce();
-declare const template = cloudAssembly.getStack("my-stack").template;
+const cloudAssembly = await cx.produce();
+const template = cloudAssembly.getStack("my-stack").template;
 ```
 
 ### list
@@ -142,6 +127,23 @@ declare const cx: ICloudAssemblySource;
 
 const details = await cdk.list(cx, {
   // optionally provide a stack selector to control which stacks are returned
+  stacks: {
+    strategy: StackSelectionStrategy.PATTERN_MUST_MATCH,
+    patterns: ["my-stack"],
+  }
+});
+```
+
+### diff
+
+You can create a diff of your app to gain detailed insights into what will be changing in the next deployment.
+
+```ts
+declare const cdk: Toolkit;
+declare const cx: ICloudAssemblySource;
+
+const stackDiffs = await cdk.diff(cx, {
+  // optionally provide a stack selector to control which stacks you want to create a diff for
   stacks: {
     strategy: StackSelectionStrategy.PATTERN_MUST_MATCH,
     patterns: ["my-stack"],
@@ -192,6 +194,28 @@ await cdk.watch(cx, {
   include: [], // optionally provide a list of file path patterns to watch
   exclude: [], // or exclude files by file path patterns
 })
+```
+
+### drift
+
+Drift detection is crucial for maintaining infrastructure reliability.
+It identifies when your deployed resources have been modified outside of your CDK code.
+This allows you to quickly address unauthorized changes.
+Such changes could lead to security vulnerabilities, compliance issues, or unexpected behavior in your cloud environment.
+
+Use the drift operation to detect such drift in your CDK applications:
+
+```ts
+declare const cdk: Toolkit;
+declare const cx: ICloudAssemblySource;
+
+const stackDrifts = await cdk.drift(cx, {
+  // optionally provide a stack selector to control which stacks are checked for drift
+  stacks: {
+    strategy: StackSelectionStrategy.PATTERN_MUST_MATCH,
+    patterns: ["my-stack"],
+  }
+});
 ```
 
 ### destroy
@@ -247,36 +271,40 @@ The CDK Toolkit awaits the completion of each call, allowing clients to perform 
 When you implement an `IoHost` interface, you can either process these communications (for example, logging to CloudWatch or prompting users for input) or return immediately without taking action.
 If your implementation doesn’t provide a response to a request, the CDK Toolkit proceeds with a default value.
 
-#### Default IoHost
+#### Default `NonInteractiveIoHost`
 
-By default the CDK Toolkit Library will use a `IoHost` implantation that mimics the behavior of the AWS CDK Toolkit CLI.
+By default the CDK Toolkit Library will use a `NonInteractiveIoHost ` implementation that mimics the behavior of the AWS CDK Toolkit CLI.
+This `NonInteractiveIoHost` is available for you as a base implementation to extend on.
 
 ### Configure your AWS profile
 
 The Toolkit internally uses AWS SDK Clients to make necessary API calls to AWS.
-Authentication configuration is loaded automatically from the environment, but you can explicitly specify the profile to be used:
+Authentication configuration is loaded automatically from the environment, but you can explicitly specify the base credentials to be used:
 
 ```ts
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
 
 const cdk = new Toolkit({
-  sdkConfig: { profile: "my-profile" },
+  sdkConfig: { 
+    baseCredentials: BaseCredentials.awsCliCompatible({ profile: "my-profile" })
+  },
 });
 ```
 
 ### Configure a proxy for SDK calls
 
 The Toolkit internally uses AWS SDK Clients to make necessary API calls to AWS.
-You can specify a proxy configuration for all SDK calls:
+You can specify a Node.js Agent to configure SDK calls.
+This allows you to configure third-party packages like [`proxy-agent`](https://www.npmjs.com/package/proxy-agent) to proxy all SDK calls:
 
 ```ts
+import { ProxyAgent } from 'proxy-agent';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
 
 const cdk = new Toolkit({
   sdkConfig: {
     httpOptions: {
-      proxyAddress: "https://example.com",
-      caBundlePath: "path/to/ca/bundle",
+      agent: new ProxyAgent(),
     },
   },
 });
@@ -316,7 +344,8 @@ await cdk.fromCdkApp("ts-node app.ts");
 await cdk.fromCdkApp("python app.py");
 ```
 
-Alternatively a inline `AssemblyBuilder` function can be used to build a CDK app on-the-fly.
+The `AssemblyBuilder` function provides basic Toolkit features like Lookups, but otherwise allows you to implement any custom source.
+For example you build an inline CDK app on-the-fly:
 
 ```ts
 declare const cdk: Toolkit;
@@ -412,26 +441,11 @@ try {
   });
 
 } catch (error) {
-
-  if (ToolkitError.isAuthenticationError(error)) {
-    // Handle credential issues
-    console.error('AWS credentials error:', error.message);
-
-  } else if (ToolkitError.isAssemblyError(error)) {
-    // Handle errors from your CDK app
-    console.error('CDK app error:', error.message);
-
-  } else if (ToolkitError.isContextProviderError(error)) {
-    // Handle errors from context providers
-    console.error('Context provider error:', error.message);
-
-  } else if (ToolkitError.isToolkitError(error)) {
-    // Handle all other Toolkit errors
-    console.error('Generic Toolkit error:', error.message);
-
+  // Handle user error
+  if (ToolkitError.isToolkitError(error) && error.source === 'user') {
+    console.error('Hey, something is wrong with your app!', error.message);
   } else {
-    // Handle unexpected errors
-    console.error('Unexpected error:', error);
+    throw error;
   }
 }
 ```

@@ -811,6 +811,7 @@ const toolkitLib = configureProject(
         isolatedModules: false, // we use the respective tsc setting
       },
     },
+    majorVersion: 1,
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
