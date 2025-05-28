@@ -155,10 +155,6 @@
       "type": "build"
     },
     {
-      "name": "typedoc",
-      "type": "build"
-    },
-    {
       "name": "typescript",
       "version": "5.6",
       "type": "build"

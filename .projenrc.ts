@@ -773,7 +773,6 @@ const toolkitLib = configureProject(
       '@types/jest-when',
       'jest-when',
       'nock@13',
-      'typedoc',
       'xml-js',
     ],
     // Watch 2 directories at once
@@ -817,15 +816,6 @@ const toolkitLib = configureProject(
 );
 
 new TypecheckTests(toolkitLib);
-
-// TypeDoc documentation publishing
-new S3DocsPublishing(toolkitLib, {
-  docsStream: 'toolkit-lib',
-  artifactPath: 'docs.zip',
-  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
-  roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
-  docType: DocType.TYPEDOC,
-});
 
 // API Extractor documentation publishing
 new S3DocsPublishing(toolkitLib, {
@@ -942,7 +932,6 @@ toolkitLib.npmignore?.addPatterns(
   'assets',
   'docs',
   'docs_html',
-  'typedoc.json',
   '*.d.ts.map',
   // Explicitly allow all required files
   '!build-info.json',
@@ -969,14 +958,8 @@ toolkitLib.gitignore.addPatterns(
   '!test/_fixtures/**/cdk.out',
 );
 
-// Add a command for the Typedoc docs
-const toolkitLibDocs = toolkitLib.addTask('docs', {
-  exec: 'typedoc lib/index.ts',
-  receiveArgs: true,
-});
-
 // Add commands for the API Extractor docs
-const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
+const apiExtractorDocsTask = toolkitLib.addTask('docs', {
   exec: [
     // Run api-extractor to generate the API model
     'api-extractor run || true',
@@ -994,17 +977,8 @@ const apiExtractorDocsTask = toolkitLib.addTask('api-extractor-docs', {
     'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
 });
-
 // Add the API Extractor docs task to the package task
 toolkitLib.packageTask.spawn(apiExtractorDocsTask);
-
-// When packaging, output the docs into a specific nested directory
-// This is required because the zip file needs to have this structure when created
-toolkitLib.packageTask.spawn(toolkitLibDocs, { args: ['--out dist/docs/cdk/api/toolkit-lib'] });
-// The docs build needs the version in a specific file at the nested root
-toolkitLib.packageTask.exec('(cat dist/version.txt || echo "latest") > dist/docs/cdk/api/toolkit-lib/VERSION');
-// Zip the whole thing up, again paths are important here to get the desired folder structure
-toolkitLib.packageTask.exec('zip -r -q ../docs.zip cdk', { cwd: 'dist/docs' });
 
 toolkitLib.addTask('publish-local', {
   exec: './build-tools/package.sh',

@@ -26,7 +26,6 @@ build-tools
 assets
 docs
 docs_html
-typedoc.json
 *.d.ts.map
 !build-info.json
 !db.json.gz
