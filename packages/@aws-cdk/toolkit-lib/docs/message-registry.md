@@ -73,8 +73,10 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I4000` | Diff stacks is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I4001` | Output of the diff command | `result` | {@link DiffResult} |
 | `CDK_TOOLKIT_I4002` | The diff for a single stack | `result` | {@link StackDiff} |
-| `CDK_TOOLKIT_I4590` | Results of the drift command | `result` | {@link DriftResultPayload} |
-| `CDK_TOOLKIT_I4591` | Missing drift result fort a stack. | `warn` | {@link SingleStack} |
+| `CDK_TOOLKIT_I4500` | Drift detection is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I4592` | Results of the drift | `result` | {@link Duration} |
+| `CDK_TOOLKIT_I4590` | Results of a stack drift | `result` | {@link DriftResultPayload} |
+| `CDK_TOOLKIT_W4591` | Missing drift result fort a stack. | `warn` | {@link SingleStack} |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5001` | Provides total time in deploy action, including synth and rollback | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |
