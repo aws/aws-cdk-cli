@@ -1,53 +1,98 @@
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
-import type { CloudFormationStack, ResourceMapping } from './cloudformation';
+import type {
+  CloudFormationResource,
+  CloudFormationStack,
+  CloudFormationTemplate,
+  ResourceMapping,
+} from './cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
  * Generates a list of stack definitions to be sent to the CloudFormation API
  * by applying each mapping to the corresponding stack template(s).
  */
-export function generateStackDefinitions(mappings: ResourceMapping[], deployedStacks: CloudFormationStack[]): StackDefinition[] {
-  const templates = Object.fromEntries(
-    deployedStacks
-      .filter((s) =>
-        mappings.some(
-          (m) =>
-            // We only care about stacks that are part of the mappings
-            m.source.stack.stackName === s.stackName || m.destination.stack.stackName === s.stackName,
-        ),
-      )
-      .map((s) => [s.stackName, JSON.parse(JSON.stringify(s.template))]),
+export function generateStackDefinitions(
+  mappings: ResourceMapping[],
+  deployedStacks: CloudFormationStack[],
+  localStacks: CloudFormationStack[],
+): StackDefinition[] {
+  const localTemplates = Object.fromEntries(
+    localStacks.map((s) => [s.stackName, JSON.parse(JSON.stringify(s.template)) as CloudFormationTemplate]),
+  );
+  const deployedTemplates = Object.fromEntries(
+    deployedStacks.map((s) => [s.stackName, JSON.parse(JSON.stringify(s.template)) as CloudFormationTemplate]),
   );
 
-  mappings.forEach((mapping) => {
-    const sourceStackName = mapping.source.stack.stackName;
-    const sourceLogicalId = mapping.source.logicalResourceId;
-    const sourceTemplate = templates[sourceStackName];
+  // First, remove from the local templates any resources that are not in the deployed templates
+  iterate(localTemplates, (stackName, logicalResourceId) => {
+    const location = searchLocation(stackName, logicalResourceId, 'destination', 'source');
 
-    const destinationStackName = mapping.destination.stack.stackName;
-    const destinationLogicalId = mapping.destination.logicalResourceId;
-    if (templates[destinationStackName] == null) {
-      // The API doesn't allow anything in the template other than the resources
-      // that are part of the mappings. So we need to create an empty template
-      // to start adding resources to.
-      templates[destinationStackName] = { Resources: {} };
+    const deployedResource = deployedStacks.find((s) => s.stackName === location.stackName)?.template
+      .Resources?.[location.logicalResourceId];
+
+    if (deployedResource == null) {
+      delete localTemplates[stackName].Resources?.[logicalResourceId];
     }
-    const destinationTemplate = templates[destinationStackName];
-
-    // Do the move
-    destinationTemplate.Resources[destinationLogicalId] = sourceTemplate.Resources[sourceLogicalId];
-    delete sourceTemplate.Resources[sourceLogicalId];
   });
 
-  // CloudFormation doesn't allow empty stacks
-  for (const [stackName, template] of Object.entries(templates)) {
+  // Now do the opposite: add to the local templates any resources that are in the deployed templates
+  iterate(deployedTemplates, (stackName, logicalResourceId, deployedResource) => {
+    const location = searchLocation(stackName, logicalResourceId, 'source', 'destination');
+
+    const resources = Object
+      .entries(localTemplates)
+      .find(([name, _]) => name === location.stackName)?.[1].Resources;
+    const localResource = resources?.[location.logicalResourceId];
+
+    if (localResource == null) {
+      if (localTemplates[stackName]?.Resources) {
+        localTemplates[stackName].Resources[logicalResourceId] = deployedResource;
+      }
+    } else {
+      // This is temporary, until CloudFormation supports CDK construct path updates in the refactor API
+      if (localResource.Metadata != null) {
+        localResource.Metadata['aws:cdk:path'] = deployedResource.Metadata?.['aws:cdk:path'];
+      }
+    }
+  });
+
+  function searchLocation(stackName: string, logicalResourceId: string, from: 'source' | 'destination', to: 'source' | 'destination') {
+    const mapping = mappings.find(
+      (m) => m[from].stack.stackName === stackName && m[from].logicalResourceId === logicalResourceId,
+    );
+    return mapping != null
+      ? { stackName: mapping[to].stack.stackName, logicalResourceId: mapping[to].logicalResourceId }
+      : { stackName, logicalResourceId };
+  }
+
+  function iterate(
+    templates: Record<string, CloudFormationTemplate>,
+    cb: (stackName: string, logicalResourceId: string, resource: CloudFormationResource) => void,
+  ) {
+    Object.entries(templates).forEach(([stackName, template]) => {
+      Object.entries(template.Resources ?? {}).forEach(([logicalResourceId, resource]) => {
+        cb(stackName, logicalResourceId, resource);
+      });
+    });
+  }
+
+  for (const [stackName, template] of Object.entries(localTemplates)) {
     if (Object.keys(template.Resources ?? {}).length === 0) {
-      throw new ToolkitError(`Stack ${stackName} has no resources after refactor. You must add a resource to this stack. This resource can be a simple one, like a waitCondition resource type.`);
+      throw new ToolkitError(
+        `Stack ${stackName} has no resources after refactor. You must add a resource to this stack. This resource can be a simple one, like a waitCondition resource type.`,
+      );
     }
   }
 
-  return Object.entries(templates).map(([stackName, template]) => ({
-    StackName: stackName,
-    TemplateBody: JSON.stringify(template),
-  }));
+  return Object.entries(localTemplates)
+    .filter(([stackName, _]) =>
+      mappings.some((m) => {
+        // Only send templates for stacks that are part of the mappings
+        return m.source.stack.stackName === stackName || m.destination.stack.stackName === stackName;
+      }),
+    )
+    .map(([stackName, template]) => ({
+      StackName: stackName,
+      TemplateBody: JSON.stringify(template),
+    }));
 }
