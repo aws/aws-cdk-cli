@@ -382,7 +382,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Drift Action
    */
-  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<{ [name: string]: DriftResult }> {
+  public async drift(cx: ICloudAssemblySource, options: DriftOptions = {}): Promise<{ [name: string]: DriftResult }> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });

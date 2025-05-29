@@ -73,4 +73,19 @@ describe('drift', () => {
     ioHost.expectMessage({ containing: 'Modified Resources', level: 'info' });
     ioHost.expectMessage({ containing: '[~] AWS::S3::Bucket MyBucket MyBucketF68F3FF0', level: 'info' });
   });
+
+  test('can invoke drift action without options', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DetectStackDriftCommand).resolves({ StackDriftDetectionId: '12345' });
+    mockCloudFormationClient.on(DescribeStackDriftDetectionStatusCommand).resolves({ DetectionStatus: 'DETECTION_COMPLETE' });
+    mockCloudFormationClient.on(DescribeStackResourceDriftsCommand).resolvesOnce({});
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.drift(cx);
+
+    // THEN
+    expect(Object.keys(result).length).toBe(0);
+    ioHost.expectMessage({ containing: 'No drift results available' });
+  });
 });
