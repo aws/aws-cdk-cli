@@ -124,6 +124,30 @@ $ publib-ca delete
 2. In the `"args"` value after `"-t"`, place the name of the test that you'd like to run.
 3. Press the VS code green arrow to launch the debugger.
 
+### Running during PRs
+
+Integration tests are executed automatically during PRs. Every workflow run generates a markdown summary
+of the suite, detailing which tests passed/failed, and some additional statistics.
+
+> For exmaple: https://github.com/aws/aws-cdk-cli/actions/runs/15305859516
+
+To debug a failing test, navigate to the execution logs and search for the name of the test. 
+You'll find a verbose log that displays all operations taken during the test.
+
+Unlike running locally, PRs make use of the *Atmosphere* service, an internal CDK service designed 
+to provide integration tests with clean AWS environments. It allows us to run many concurrent tests, 
+and significantly reduce suite durations. Most of the time, *Atmosphere* should be transparent to you, 
+but sometimes, tests that pass locally may fail during PRs because of additional restrictions 
+it imposes:
+
+- **Service Control Policy (SCP):** AWS environments (i.e accounts) are subject to an SCP that denies access 
+to specific services. For example, you might see a failure similar to:
+
+   ```
+   User: arn:aws:sts::111111111111:assumed-role/cdk-hnb659fds-cfn-exec-role-111111111111-eu-central-1/AWSCloudFormation is not authorized to perform: logs:CreateLogGroup on resource: arn:aws:logs:eu-central-1:111111111111:log-group:/aws/lambda/cdktest-00cyqupxno939-imp-cdkimportnodejslambdates-6X36hssZOiZk:log-stream: with an explicit deny in a service control policy
+   ```
+  This means that your PR introduces a need to invoke a new service, or deploy a new type of resource, that wasn't previously required. When this happens - reach out to a maintainer through the PR. They will evaluate if the new requirement is justified, and grant the necessary permissions.
+
 ## Tools
 
 There are a number of tools in the `bin/` directory. They are:
