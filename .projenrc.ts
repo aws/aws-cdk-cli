@@ -1344,6 +1344,7 @@ new JsiiBuild(cliLibAlpha, {
     packageName: 'awscdkclilibalpha',
   },
   rosettaStrict: true,
+  rosettaDependencies: ['aws-cdk-lib@^2'],
   stability: Stability.DEPRECATED,
   composite: true,
   excludeTypescript: CLI_LIB_EXCLUDE_PATTERNS,

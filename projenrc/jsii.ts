@@ -109,9 +109,18 @@ export interface JsiiBuildOptions {
   /**
    * Whether to turn on 'strict' mode for Rosetta
    *
-   * @default false
+   * @default true
    */
   readonly rosettaStrict?: boolean;
+
+  /**
+   * Additional example dependencies
+   *
+   * @see https://github.com/aws/jsii-rosetta?tab=readme-ov-file#dependencies
+   *
+   * @default []
+   */
+  readonly rosettaDependencies?: string[];
 
   /**
    * Whether to turn on composite mode for the TypeScript project
@@ -327,15 +336,18 @@ export class JsiiBuild extends pj.Component {
 
     tsProject.addDevDeps(
       `jsii${jsiiSuffix}`,
-      `jsii-rosetta${jsiiSuffix}`,
       'jsii-diff',
       'jsii-pacmak',
     );
 
     new Rosetta(project as any, {
-      strict: true,
+      strict: options.rosettaStrict ?? true,
       version: jsiiVersion,
     });
+    if (options.rosettaDependencies?.length) {
+      const deps = Object.fromEntries(options.rosettaDependencies.map(d => pj.Dependencies.parseDependency(d)).map(d => [d.name, d.version ?? '*']));
+      tsProject.package.file.addOverride('jsiiRosetta.exampleDependencies', deps);
+    }
 
     tsProject.gitignore.exclude('.jsii', 'tsconfig.json');
     tsProject.npmignore?.include('.jsii');
@@ -355,20 +367,9 @@ export class JsiiBuild extends pj.Component {
       tsProject.npmignore.readonly = false;
     }
 
-    const packageJson = tsProject.package.file;
-
     if ((options.pypiClassifiers ?? []).length > 0) {
-      packageJson.patch(
+      tsProject.package.file.patch(
         pj.JsonPatch.add('/jsii/targets/python/classifiers', options.pypiClassifiers),
-      );
-    }
-
-    if (options.rosettaStrict) {
-      packageJson.patch(
-        pj.JsonPatch.add('/jsii/metadata', {}),
-        pj.JsonPatch.add('/jsii/metadata/jsii', {}),
-        pj.JsonPatch.add('/jsii/metadata/jsii/rosetta', {}),
-        pj.JsonPatch.add('/jsii/metadata/jsii/rosetta/strict', true),
       );
     }
   }
