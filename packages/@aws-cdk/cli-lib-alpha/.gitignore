@@ -54,6 +54,8 @@ lib/**/*.yaml
 lib/**/*.yml
 lib/init-templates/**
 cdk.out
+.jsii.tabl.json
+!/rosetta/default.ts-fixture
 .jsii
 tsconfig.json
 !/API.md

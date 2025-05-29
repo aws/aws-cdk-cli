@@ -1,4 +1,4 @@
-import { yarn } from 'cdklabs-projen-project-types';
+import { Rosetta, yarn } from 'cdklabs-projen-project-types';
 import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import { WorkflowSteps } from 'projen/lib/github';
@@ -320,18 +320,22 @@ export class JsiiBuild extends pj.Component {
       this.addTargetToRelease('go', task, golang);
     }
 
-    const jsiiSuffix =
-      options.jsiiVersion === '*'
-        ? // If jsiiVersion is "*", don't specify anything so the user can manage.
-        ''
-        : // Otherwise, use `jsiiVersion` or fall back to `5.7`
-        `@${options.jsiiVersion ?? '5.7'}`;
+    // If jsiiVersion is "*", don't specify anything so the user can manage.
+    // Otherwise, use `jsiiVersion` or fall back to `5.7`
+    const jsiiVersion = (options.jsiiVersion === '*' ? undefined : options.jsiiVersion) ?? '5.7';
+    const jsiiSuffix = jsiiVersion ? `@${jsiiVersion}` : '';
+
     tsProject.addDevDeps(
       `jsii${jsiiSuffix}`,
       `jsii-rosetta${jsiiSuffix}`,
       'jsii-diff',
       'jsii-pacmak',
     );
+
+    new Rosetta(project as any, {
+      strict: true,
+      version: jsiiVersion,
+    });
 
     tsProject.gitignore.exclude('.jsii', 'tsconfig.json');
     tsProject.npmignore?.include('.jsii');
