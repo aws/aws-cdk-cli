@@ -3,8 +3,8 @@ import { format } from 'node:util';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
-import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
+import type { RequestHandlerSettings } from './base-credentials';
 import { makeCachingProvider } from './provider-caching';
 import type { ISdkLogger } from './sdk-logger';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
@@ -23,10 +23,10 @@ const DEFAULT_TIMEOUT = 300000;
  */
 export class AwsCliCompatible {
   private readonly ioHelper: IoHelper;
-  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly requestHandler: RequestHandlerSettings;
   private readonly logger?: ISdkLogger;
 
-  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: ISdkLogger) {
+  public constructor(ioHelper: IoHelper, requestHandler: RequestHandlerSettings, logger?: ISdkLogger) {
     this.ioHelper = ioHelper;
     this.requestHandler = requestHandler;
     this.logger = logger;
@@ -269,7 +269,7 @@ export interface CredentialChainOptions {
   readonly logger?: ISdkLogger;
 }
 
-export function sdkRequestHandler(agent?: Agent): NodeHttpHandlerOptions {
+export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,

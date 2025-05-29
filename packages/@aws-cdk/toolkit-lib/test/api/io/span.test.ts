@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import type { IoHelper, SpanDefinition } from '../../../lib/api/io/private';
-import { SpanMaker } from '../../../lib/api/io/private';
+import type { IActionAwareIoHost } from '../../../lib';
+import type { SpanDefinition } from '../../../lib/api/io/private';
+import { IoHelper, SpanMaker } from '../../../lib/api/io/private';
 import * as maker from '../../../lib/api/io/private/message-maker';
+
+const makeHelper = (span: IActionAwareIoHost) => IoHelper.fromActionAwareIoHost(span);
 
 describe('SpanMaker', () => {
   let ioHelper: jest.Mocked<IoHelper>;
@@ -27,7 +30,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     await spanMaker.begin('Test span', {});
@@ -54,7 +57,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     const messageSpan = await spanMaker.begin('Test span', {});
@@ -84,7 +87,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     const messageSpan = await spanMaker.begin('Test span', {});
@@ -119,7 +122,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     const messageSpan = await spanMaker.begin('Test span', {});
@@ -146,7 +149,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     await spanMaker.begin('Test span', { startField: 'test value' });
@@ -171,7 +174,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     const messageSpan =await spanMaker.begin('Test span', {});
@@ -197,7 +200,7 @@ describe('SpanMaker', () => {
         interface: 'stuff',
       }),
     };
-    const spanMaker = new SpanMaker(ioHelper, definition);
+    const spanMaker = new SpanMaker(ioHelper, definition, makeHelper);
 
     // WHEN
     const messageSpan = await spanMaker.begin('Test span', {});

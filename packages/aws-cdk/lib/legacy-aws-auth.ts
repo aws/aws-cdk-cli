@@ -98,7 +98,7 @@ export class SdkProvider {
       ...options,
       ioHelper: CliIoHost.instance().asIoHelper(),
       pluginHost: GLOBAL_PLUGIN_HOST,
-    });
+    }, options.profile);
   }
 
   public constructor(
@@ -110,7 +110,7 @@ export class SdkProvider {
     return new SdkProviderCurrentVersion(defaultCredentialProvider, defaultRegion, {
       pluginHost: GLOBAL_PLUGIN_HOST,
       ioHelper: CliIoHost.instance().asIoHelper(),
-      requestHandler,
+      requestHandler: requestHandler as any, // this is fine it's passed through to the SDK
       logger,
     });
   }

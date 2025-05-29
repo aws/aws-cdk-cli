@@ -5,8 +5,8 @@ import type { Environment } from '@aws-cdk/cx-api';
 import { EnvironmentUtils, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
 import type { AssumeRoleCommandInput } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
-import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { AwsCliCompatible } from './awscli-compatible';
+import type { RequestHandlerSettings } from './base-credentials';
 import { cached } from './cached';
 import { CredentialPlugins } from './credential-plugins';
 import { makeCachingProvider } from './provider-caching';
@@ -23,13 +23,26 @@ export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, '
 /**
  * Options for the default SDK provider
  */
-export interface SdkProviderOptions extends SdkProviderServices {
+export interface SdkProviderOptions {
   /**
-   * Profile to read from ~/.aws
-   *
-   * @default - No profile
+   * An IO helper for emitting messages
    */
-  readonly profile?: string;
+  readonly ioHelper: IoHelper;
+
+  /**
+   * The request handler settings
+   */
+  readonly requestHandler?: RequestHandlerSettings;
+
+  /**
+   * A plugin host
+   */
+  readonly pluginHost?: PluginHost;
+
+  /**
+   * An SDK logger
+   */
+  readonly logger?: ISdkLogger;
 }
 
 const CACHED_ACCOUNT = Symbol('cached_account');
@@ -91,31 +104,35 @@ export class SdkProvider {
    *
    * The AWS SDK for JS behaves slightly differently from the AWS CLI in a number of ways; see the
    * class `AwsCliCompatible` for the details.
+   *
+   * @param options - Options for the default SDK provider
+   * @param profile - Profile to read from ~/.aws
+   * @returns a configured SdkProvider
    */
-  public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions) {
+  public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions, profile?: string) {
     callTrace(SdkProvider.withAwsCliCompatibleDefaults.name, SdkProvider.constructor.name, options.logger);
-    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(options.profile);
+    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(profile);
     return new SdkProvider(config.credentialProvider, config.defaultRegion, options);
   }
 
   public readonly defaultRegion: string;
   private readonly defaultCredentialProvider: SDKv3CompatibleCredentialProvider;
   private readonly plugins;
-  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly requestHandler: RequestHandlerSettings;
   private readonly ioHelper: IoHelper;
   private readonly logger?: ISdkLogger;
 
   public constructor(
     defaultCredentialProvider: SDKv3CompatibleCredentialProvider,
     defaultRegion: string | undefined,
-    services: SdkProviderServices,
+    options: SdkProviderOptions,
   ) {
     this.defaultCredentialProvider = defaultCredentialProvider;
     this.defaultRegion = defaultRegion ?? 'us-east-1';
-    this.requestHandler = services.requestHandler ?? {};
-    this.ioHelper = services.ioHelper;
-    this.logger = services.logger;
-    this.plugins = new CredentialPlugins(services.pluginHost ?? new PluginHost(), this.ioHelper);
+    this.requestHandler = options.requestHandler ?? {};
+    this.ioHelper = options.ioHelper;
+    this.logger = options.logger;
+    this.plugins = new CredentialPlugins(options.pluginHost ?? new PluginHost(), this.ioHelper);
   }
 
   /**
@@ -527,26 +544,4 @@ export async function initContextProviderSdk(aws: SdkProvider, options: ContextL
   };
 
   return (await aws.forEnvironment(EnvironmentUtils.make(account, region), Mode.ForReading, creds)).sdk;
-}
-
-export interface SdkProviderServices {
-  /**
-   * An IO helper for emitting messages
-   */
-  readonly ioHelper: IoHelper;
-
-  /**
-   * The request handler settings
-   */
-  readonly requestHandler?: NodeHttpHandlerOptions;
-
-  /**
-   * A plugin host
-   */
-  readonly pluginHost?: PluginHost;
-
-  /**
-   * An SDK logger
-   */
-  readonly logger?: ISdkLogger;
 }

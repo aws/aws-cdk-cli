@@ -241,7 +241,7 @@ export class CdkToolkit {
       } else {
         const diff = formatter.formatStackDiff({
           strict,
-          context: contextLines,
+          contextLines,
           quiet,
         });
         diffs = diff.numStacksWithChanges;
@@ -325,7 +325,7 @@ export class CdkToolkit {
         } else {
           const diff = formatter.formatStackDiff({
             strict,
-            context: contextLines,
+            contextLines,
             quiet,
           });
           info(diff.formattedDiff);

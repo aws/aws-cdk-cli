@@ -499,7 +499,7 @@ async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>, ho
     return Promise.resolve([]);
   }
 
-  await ioSpan.notifyDefault('info', `\n${ICON} hotswapping resources:`);
+  await ioSpan.defaults.info(`\n${ICON} hotswapping resources:`);
   const limit = pLimit(10);
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(hotswappableChanges.map(hotswapOperation => limit(() => {
@@ -594,7 +594,7 @@ async function logRejectedChanges(
   }
   messages.push(''); // newline
 
-  await ioSpan.notifyDefault('info', messages.join('\n'));
+  await ioSpan.defaults.info(messages.join('\n'));
 }
 
 /**

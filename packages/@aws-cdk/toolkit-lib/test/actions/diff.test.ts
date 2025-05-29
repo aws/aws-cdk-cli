@@ -51,11 +51,14 @@ describe('diff', () => {
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
+      level: 'result',
       code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
       data: expect.objectContaining({
-        formattedStackDiff: expect.stringContaining((chalk.bold('Stack1'))),
+        numStacksWithChanges: 1,
+        diffs: expect.objectContaining({
+          Stack1: expect.anything(),
+        }),
       }),
     }));
   });
@@ -131,12 +134,11 @@ describe('diff', () => {
     }));
   });
 
-  test('only security diff', async () => {
+  test('security diff', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
-      securityOnly: true,
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
     });
 
@@ -148,11 +150,12 @@ describe('diff', () => {
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I4001',
-      message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
       data: expect.objectContaining({
-        formattedSecurityDiff: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
+        formattedDiff: expect.objectContaining({
+          security: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
+        }),
       }),
     }));
 
@@ -182,17 +185,17 @@ describe('diff', () => {
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-      securityOnly: true,
     });
 
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I4001',
-      message: expect.stringContaining('✨ Number of stacks with differences: 0'),
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
       data: expect.objectContaining({
-        formattedSecurityDiff: '',
+        formattedDiff: expect.objectContaining({
+          security: undefined,
+        }),
       }),
     }));
   });
@@ -207,19 +210,13 @@ describe('diff', () => {
 
     // THEN
     expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
-      action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I0000',
       message: expect.stringContaining('Could not create a change set'),
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
+      level: 'result',
       code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
-      data: expect.objectContaining({
-        formattedStackDiff: expect.stringContaining(chalk.bold('Stack1')),
-      }),
     }));
   });
 
@@ -344,7 +341,6 @@ describe('diff', () => {
       const cx = await builderFixture(toolkit, 'stack-with-role');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-        securityOnly: true,
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
       });
 

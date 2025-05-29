@@ -155,10 +155,6 @@
       "type": "build"
     },
     {
-      "name": "typedoc",
-      "type": "build"
-    },
-    {
       "name": "typescript",
       "version": "5.6",
       "type": "build"
@@ -291,10 +287,6 @@
     },
     {
       "name": "@smithy/middleware-endpoint",
-      "type": "runtime"
-    },
-    {
-      "name": "@smithy/node-http-handler",
       "type": "runtime"
     },
     {

@@ -33,9 +33,8 @@ import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
-import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
+import { type SdkBaseClientConfig, type IBaseCredentialsProvider, type SdkConfig, BaseCredentials } from '../api/aws-auth';
 import { sdkRequestHandler } from '../api/aws-auth/awscli-compatible';
-import type { SdkProviderServices } from '../api/aws-auth/private';
 import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
@@ -153,7 +152,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   private sdkProviderCache?: SdkProvider;
 
-  private baseCredentials: BaseCredentials;
+  private baseCredentials: IBaseCredentialsProvider;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
@@ -172,10 +171,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
 
-    if (props.sdkConfig?.profile && props.sdkConfig?.baseCredentials) {
-      throw new ToolkitError('Specify at most one of \'sdkConfig.profile\' and \'sdkConfig.baseCredentials\'');
-    }
-    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible({ profile: props.sdkConfig?.profile });
+    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible();
   }
 
   /**
@@ -186,15 +182,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // @todo this needs to be different instance per action
     if (!this.sdkProviderCache) {
       const ioHelper = asIoHelper(this.ioHost, action);
-      const services: SdkProviderServices = {
-        ioHelper,
+      const clientConfig: SdkBaseClientConfig = {
         requestHandler: sdkRequestHandler(this.props.sdkConfig?.httpOptions?.agent),
-        logger: new IoHostSdkLogger(ioHelper),
-        pluginHost: this.pluginHost,
       };
 
-      const config = await this.baseCredentials.makeSdkConfig(services);
-      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, services);
+      const config = await this.baseCredentials.sdkBaseConfig(ioHelper, clientConfig);
+      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, {
+        ioHelper,
+        logger: new IoHostSdkLogger(ioHelper),
+        pluginHost: this.pluginHost,
+        requestHandler: clientConfig.requestHandler,
+      });
     }
 
     return this.sdkProviderCache;
@@ -285,11 +283,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
 
     // NOTE: NOT 'await using' because we return ownership to the caller
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    const assembly = await assemblyFromSource(synthSpan.asHelper, cx);
 
     const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
-    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
+    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), synthSpan.asHelper);
     await synthSpan.end();
 
     // if we have a single stack, print it to STDOUT
@@ -330,7 +328,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -341,39 +339,41 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
-    let formattedSecurityDiff = '';
-    let formattedStackDiff = '';
 
-    const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
+    const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
-      const formatter = new DiffFormatter({
-        templateInfo,
-      });
+      const formatter = new DiffFormatter({ templateInfo });
+      const stackDiff = formatter.formatStackDiff({ strict, contextLines });
 
-      if (options.securityOnly) {
-        const securityDiff = formatter.formatSecurityDiff();
-        // In Diff, we only care about BROADENING security diffs
-        if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
-          const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
-          await ioHelper.defaults.warn(warningMessage);
-          formattedSecurityDiff = securityDiff.formattedDiff;
-          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
-        }
-      } else {
-        const diff = formatter.formatStackDiff({
-          strict,
-          context: contextLines,
-        });
-        formattedStackDiff = diff.formattedDiff;
-        diffs = diff.numStacksWithChanges;
+      // Security Diff
+      const securityDiff = formatter.formatSecurityDiff();
+      const formattedSecurityDiff = securityDiff.permissionChangeType !== PermissionChangeType.NONE ? stackDiff.formattedDiff : undefined;
+      // We only warn about BROADENING changes
+      if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
+        const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
+        await diffSpan.defaults.warn(warningMessage);
+        await diffSpan.defaults.info(securityDiff.formattedDiff);
       }
+
+      // Stack Diff
+      diffs += stackDiff.numStacksWithChanges;
       appendObject(templateDiffs, formatter.diffs);
+      await diffSpan.notify(IO.CDK_TOOLKIT_I4002.msg(stackDiff.formattedDiff, {
+        stack: templateInfo.newTemplate,
+        diffs: formatter.diffs,
+        numStacksWithChanges: stackDiff.numStacksWithChanges,
+        permissionChanges: securityDiff.permissionChangeType,
+        formattedDiff: {
+          diff: stackDiff.formattedDiff,
+          security: formattedSecurityDiff,
+        },
+      }));
     }
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
-      formattedSecurityDiff,
-      formattedStackDiff,
+      numStacksWithChanges: diffs,
+      diffs: templateDiffs,
     });
 
     return templateDiffs;
@@ -384,22 +384,25 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<{ [name: string]: DriftResult }> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
-    const sdkProvider = await this.sdkProvider('drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
-    await using assembly = await assemblyFromSource(ioHelper, cx);
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
+    await synthSpan.end();
 
+    const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
     const allDriftResults: { [name: string]: DriftResult } = {};
     const unavailableDrifts = [];
+    const sdkProvider = await this.sdkProvider('drift');
 
     for (const stack of stacks.stackArtifacts) {
       const cfn = (await sdkProvider.forEnvironment(stack.environment, Mode.ForReading)).sdk.cloudFormation();
-      const driftResults = await detectStackDrift(cfn, ioHelper, stack.stackName);
+      const driftResults = await detectStackDrift(cfn, driftSpan.asHelper, stack.stackName);
 
       if (!driftResults.StackResourceDrifts) {
         const stackName = stack.displayName ?? stack.stackName;
         unavailableDrifts.push(stackName);
-        await ioHelper.notify(IO.CDK_TOOLKIT_I4591.msg(`${stackName}: No drift results available`, { stack }));
+        await driftSpan.notify(IO.CDK_TOOLKIT_W4591.msg(`${stackName}: No drift results available`, { stack }));
         continue;
       }
 
@@ -418,24 +421,24 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       allDriftResults[formatter.stackName] = stackDrift;
 
       // header
-      await ioHelper.defaults.info(driftOutput.stackHeader);
+      await driftSpan.defaults.info(driftOutput.stackHeader);
 
       // print the different sections at different levels
       if (driftOutput.unchanged) {
-        await ioHelper.defaults.debug(driftOutput.unchanged);
+        await driftSpan.defaults.debug(driftOutput.unchanged);
       }
       if (driftOutput.unchecked) {
-        await ioHelper.defaults.debug(driftOutput.unchecked);
+        await driftSpan.defaults.debug(driftOutput.unchecked);
       }
       if (driftOutput.modified) {
-        await ioHelper.defaults.info(driftOutput.modified);
+        await driftSpan.defaults.info(driftOutput.modified);
       }
       if (driftOutput.deleted) {
-        await ioHelper.defaults.info(driftOutput.deleted);
+        await driftSpan.defaults.info(driftOutput.deleted);
       }
 
       // main stack result
-      await ioHelper.notify(IO.CDK_TOOLKIT_I4590.msg(driftOutput.summary, {
+      await driftSpan.notify(IO.CDK_TOOLKIT_I4590.msg(driftOutput.summary, {
         stack,
         drift: stackDrift,
       }));
@@ -444,9 +447,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // print summary
     const totalDrifts = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     const totalUnchecked = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesUnchecked ?? 0), 0);
-    await ioHelper.defaults.result(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
+    await driftSpan.end(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
     if (unavailableDrifts.length) {
-      await ioHelper.defaults.warn(`\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
+      await driftSpan.defaults.warn(`\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
     }
 
     return allDriftResults;

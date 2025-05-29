@@ -1,10 +1,11 @@
 import * as util from 'node:util';
 import * as uuid from 'uuid';
-import type { ActionLessMessage, IoHelper } from './io-helper';
+import type { ActionLessMessage, ActionLessRequest, IoHelper } from './io-helper';
 import type * as make from './message-maker';
 import type { Duration } from '../../../payloads/types';
 import { formatTime } from '../../../util';
-import type { IoMessageLevel } from '../io-message';
+import type { IActionAwareIoHost } from '../io-host';
+import type { IoDefaultMessages } from './io-default-messages';
 
 export interface SpanEnd {
   readonly duration: number;
@@ -57,7 +58,15 @@ interface ElapsedTime {
 /**
  * A message span that can be ended and read times from
  */
-export interface IMessageSpan<E extends SpanEnd> {
+export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
+  /**
+   * An IoHelper wrapped around the span.
+   */
+  readonly asHelper: IoHelper;
+  /**
+   * An IoDefaultMessages wrapped around the span.
+   */
+  readonly defaults: IoDefaultMessages;
   /**
    * Get the time elapsed since the start
    */
@@ -67,14 +76,6 @@ export interface IMessageSpan<E extends SpanEnd> {
    * For more complex intermediate messages, get the `elapsedTime` and use `notify`
    */
   timing(maker: make.IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime>;
-  /**
-   * Sends an arbitrary intermediate message as part of the span
-   */
-  notify(message: ActionLessMessage<unknown>): Promise<void>;
-  /**
-   * Sends an arbitrary intermediate default message as part of the span
-   */
-  notifyDefault(level: IoMessageLevel, message: string): Promise<void>;
   /**
    * End the span with a payload
    */
@@ -99,10 +100,12 @@ export interface IMessageSpan<E extends SpanEnd> {
 export class SpanMaker<S extends object, E extends SpanEnd> {
   private readonly definition: SpanDefinition<S, E>;
   private readonly ioHelper: IoHelper;
+  private makeHelper: (ioHost: IActionAwareIoHost) => IoHelper;
 
-  public constructor(ioHelper: IoHelper, definition: SpanDefinition<S, E>) {
+  public constructor(ioHelper: IoHelper, definition: SpanDefinition<S, E>, makeHelper: (ioHost: IActionAwareIoHost) => IoHelper) {
     this.definition = definition;
     this.ioHelper = ioHelper;
+    this.makeHelper = makeHelper;
   }
 
   /**
@@ -112,68 +115,77 @@ export class SpanMaker<S extends object, E extends SpanEnd> {
   public async begin(payload: VoidWhenEmpty<S>): Promise<IMessageSpan<E>>;
   public async begin(message: string, payload: S): Promise<IMessageSpan<E>>;
   public async begin(a: any, b?: S): Promise<IMessageSpan<E>> {
-    const spanId = uuid.v4();
-    const startTime = new Date().getTime();
-
-    const notify = (msg: ActionLessMessage<unknown>): Promise<void> => {
-      return this.ioHelper.notify(withSpanId(spanId, msg));
-    };
-
+    const span = new MessageSpan(this.ioHelper, this.definition, this.makeHelper);
     const startInput = parseArgs<S>(a, b);
     const startMsg = startInput.message ?? `Starting ${this.definition.name} ...`;
     const startPayload = startInput.payload;
+    await span.notify(this.definition.start.msg(startMsg, startPayload));
 
-    await notify(this.definition.start.msg(
-      startMsg,
-      startPayload,
-    ));
+    return span;
+  }
+}
 
-    const timingMsgTemplate = '\n✨  %s time: %ds\n';
-    const time = () => {
-      const elapsedTime = new Date().getTime() - startTime;
-      return {
-        asMs: elapsedTime,
-        asSec: formatTime(elapsedTime),
-      };
-    };
+class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E> {
+  public readonly asHelper: IoHelper;
 
+  private readonly definition: SpanDefinition<S, E>;
+  private readonly ioHelper: IoHelper;
+  private readonly spanId: string;
+  private readonly startTime: number;
+  private readonly timingMsgTemplate: string;
+
+  public constructor(ioHelper: IoHelper, definition: SpanDefinition<S, E>, makeHelper: (ioHost: IActionAwareIoHost) => IoHelper) {
+    this.definition = definition;
+    this.ioHelper = ioHelper;
+    this.spanId = uuid.v4();
+    this.startTime = new Date().getTime();
+    this.timingMsgTemplate = '\n✨  %s time: %ds\n';
+    this.asHelper = makeHelper(this);
+  }
+
+  public get defaults(): IoDefaultMessages {
+    return this.asHelper.defaults;
+  }
+
+  public async elapsedTime(): Promise<ElapsedTime> {
+    return this.time();
+  }
+  public async timing(maker: make.IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime> {
+    const duration = this.time();
+    const timingMsg = message ? message : util.format(this.timingMsgTemplate, this.definition.name, duration.asSec);
+    await this.notify(maker.msg(timingMsg, {
+      duration: duration.asMs,
+    }));
+    return duration;
+  }
+  public async notify(msg: ActionLessMessage<unknown>): Promise<void> {
+    return this.ioHelper.notify(withSpanId(this.spanId, msg));
+  }
+  public async end(x: any, y?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> {
+    const duration = this.time();
+
+    const endInput = parseArgs<ForceEmpty<Optional<E, keyof SpanEnd>>>(x, y);
+    const endMsg = endInput.message ?? util.format(this.timingMsgTemplate, this.definition.name, duration.asSec);
+    const endPayload = endInput.payload;
+
+    await this.notify(this.definition.end.msg(
+      endMsg, {
+        duration: duration.asMs,
+        ...endPayload,
+      } as E));
+
+    return duration;
+  }
+
+  public async requestResponse<T>(msg: ActionLessRequest<unknown, T>): Promise<T> {
+    return this.ioHelper.requestResponse(withSpanId(this.spanId, msg));
+  }
+
+  private time() {
+    const elapsedTime = new Date().getTime() - this.startTime;
     return {
-      elapsedTime: async (): Promise<ElapsedTime> => {
-        return time();
-      },
-
-      notify: async(msg: ActionLessMessage<unknown>): Promise<void> => {
-        await notify(msg);
-      },
-
-      notifyDefault: async(level: IoMessageLevel, msg: string): Promise<void> => {
-        await notify(this.ioHelper.defaults.msg(level, msg));
-      },
-
-      timing: async(maker: make.IoMessageMaker<Duration>, message?: string): Promise<ElapsedTime> => {
-        const duration = time();
-        const timingMsg = message ? message : util.format(timingMsgTemplate, this.definition.name, duration.asSec);
-        await notify(maker.msg(timingMsg, {
-          duration: duration.asMs,
-        }));
-        return duration;
-      },
-
-      end: async (x: any, y?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> => {
-        const duration = time();
-
-        const endInput = parseArgs<ForceEmpty<Optional<E, keyof SpanEnd>>>(x, y);
-        const endMsg = endInput.message ?? util.format(timingMsgTemplate, this.definition.name, duration.asSec);
-        const endPayload = endInput.payload;
-
-        await notify(this.definition.end.msg(
-          endMsg, {
-            duration: duration.asMs,
-            ...endPayload,
-          } as E));
-
-        return duration;
-      },
+      asMs: elapsedTime,
+      asSec: formatTime(elapsedTime),
     };
   }
 }
@@ -194,7 +206,7 @@ function parseArgs<S extends object>(first: any, second?: S): { message: string 
   };
 }
 
-function withSpanId(span: string, message: ActionLessMessage<unknown>): ActionLessMessage<unknown> {
+function withSpanId<T extends object>(span: string, message: T): T & { span: string } {
   return {
     ...message,
     span,
