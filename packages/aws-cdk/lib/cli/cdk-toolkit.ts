@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit } from '@aws-cdk/toolkit-lib';
-import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import { DeploymentMethod, MappingSource, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -1230,9 +1230,7 @@ export class CdkToolkit {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
-        exclude: await readExcludeFile(options.excludeFile),
-        mappings: await readMappingFile(options.mappingFile),
-        revert: options.revert,
+        mappingSource: await mappingSource(),
       });
     } catch (e) {
       error((e as Error).message);
@@ -1264,6 +1262,16 @@ export class CdkToolkit {
         return fs.readFileSync(filePath).toString('utf-8').split('\n');
       }
       return undefined;
+    }
+
+    async function mappingSource(): Promise<MappingSource> {
+      if (options.mappingFile != null) {
+        return MappingSource.explicit(await readMappingFile(options.mappingFile));
+      }
+      if (options.revert) {
+        return MappingSource.reverse(await readMappingFile(options.mappingFile));
+      }
+      return MappingSource.auto((await readExcludeFile(options.excludeFile)) ?? []);
     }
   }
 

@@ -1,4 +1,43 @@
+import type { ExcludeList } from '../../api';
+import { InMemoryExcludeList, NeverExclude } from '../../api';
 import type { StackSelector } from '../../api/cloud-assembly';
+import type { ResourceLocation } from '../../api/refactoring/cloudformation';
+
+export type MappingType = 'auto' | 'explicit';
+
+export class MappingSource {
+  public static auto(exclude: string[] = []): MappingSource {
+    const excludeList = new InMemoryExcludeList(exclude);
+    return new MappingSource('auto', [], excludeList);
+  }
+
+  public static explicit(groups: MappingGroup[]): MappingSource {
+    return new MappingSource('explicit', groups, new NeverExclude());
+  }
+
+  public static reverse(groups: MappingGroup[]): MappingSource {
+    const reverseGroups = groups.map((group) => ({
+      ...group,
+      resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => [dst, src])),
+    }));
+
+    return new MappingSource('explicit', reverseGroups, new NeverExclude());
+  }
+
+  public readonly source: MappingType;
+  public readonly groups: MappingGroup[];
+  public readonly exclude: ExcludeList;
+
+  constructor(source: MappingType, groups: MappingGroup[], exclude: ExcludeList) {
+    this.source = source;
+    this.groups = groups;
+    this.exclude = exclude;
+  }
+
+  public isAllowed(location: ResourceLocation): boolean {
+    return !this.exclude.isExcluded(location);
+  }
+}
 
 export interface RefactorOptions {
   /**
@@ -16,30 +55,9 @@ export interface RefactorOptions {
   stacks?: StackSelector;
 
   /**
-   * A list of resources that will not be part of the refactor.
-   * Elements of this list must be the _destination_ locations
-   * that should be excluded, i.e., the location to which a
-   * resource would be moved if the refactor were to happen.
-   *
-   * The format of the locations in the file can be either:
-   *
-   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
-   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
+   * How the toolkit should obtain the mappings
    */
-  exclude?: string[];
-
-  /**
-   * An explicit mapping to be used by the toolkit (as opposed to letting the
-   * toolkit itself compute the mapping).
-   */
-  mappings?: MappingGroup[];
-
-  /**
-   * Modifies the behavior of the 'mappings' option by swapping source and
-   * destination locations. This is useful when you want to undo a refactor
-   * that was previously applied.
-   */
-  revert?: boolean;
+  mappingSource?: MappingSource;
 }
 
 export interface MappingGroup {
