@@ -1,5 +1,6 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export interface CloudFormationResource {
   Type: string;
@@ -70,3 +71,92 @@ export class ResourceMapping {
   }
 }
 
+export abstract class ResourceReference {
+  protected constructor(public readonly stackName: string, public readonly logicalResourceId: string) {
+  }
+
+  abstract equals(other: ResourceReference): boolean;
+
+  abstract map(stackName: string, name: string): ResourceReference;
+
+  abstract toCfn(): any;
+}
+
+class Ref extends ResourceReference {
+  public static fromCfn(stackName: string, value: any): ResourceReference {
+    if (!('Ref' in value)) {
+      throw new ToolkitError(`Expected a Ref object, got ${JSON.stringify(value)}`);
+    }
+    return new Ref(stackName, value.Ref);
+  }
+
+  constructor(public readonly stackName: string, public readonly logicalResourceId: string) {
+    super(stackName, logicalResourceId);
+  }
+
+  public equals(other: ResourceReference): boolean {
+    return (
+      other instanceof Ref && this.stackName === other.stackName && this.logicalResourceId === other.logicalResourceId
+    );
+  }
+
+  public map(stackName: string, logicalId: string): ResourceReference {
+    return new Ref(stackName, logicalId);
+  }
+
+  toCfn(): any {
+    return { Ref: this.logicalResourceId };
+  }
+}
+
+class GetAtt extends ResourceReference {
+  public static fromCfn(stackName: string, value: any): ResourceReference {
+    if (!('Fn::GetAtt' in value)) {
+      throw new ToolkitError(`Expected a Fn::GetAtt object, got ${JSON.stringify(value)}`);
+    }
+    const att = value['Fn::GetAtt'];
+    if (typeof att === 'string') {
+      const [id, attributeName] = att.split('.');
+      return new GetAtt(stackName, id, attributeName);
+    } else if (Array.isArray(att) && att.length === 2) {
+      return new GetAtt(stackName, att[0], att[1]);
+    } else {
+      throw new ToolkitError(`Invalid Fn::GetAtt format: ${JSON.stringify(value)}`);
+    }
+  }
+
+  constructor(
+    public readonly stackName: string,
+    public readonly logicalResourceId: string,
+    public readonly attributeName: string,
+  ) {
+    super(stackName, logicalResourceId);
+  }
+
+  public equals(other: ResourceReference): boolean {
+    return (
+      other instanceof GetAtt &&
+      this.stackName === other.stackName &&
+      this.logicalResourceId === other.logicalResourceId &&
+      this.attributeName === other.attributeName
+    );
+  }
+
+  public map(stackName: string, logicalId: string): ResourceReference {
+    return new GetAtt(stackName, logicalId, this.attributeName);
+  }
+
+  toCfn(): any {
+    return { 'Fn::GetAtt': [this.logicalResourceId, this.attributeName] };
+  }
+}
+
+export function resourceReferenceFromCfn(stackName: string, value: any): ResourceReference {
+  if ('Ref' in value) {
+    return Ref.fromCfn(stackName, value);
+  } else if ('Fn::GetAtt' in value) {
+    return GetAtt.fromCfn(stackName, value);
+  } else {
+    throw new ToolkitError(`Unsupported resource reference type: ${JSON.stringify(value)}`);
+  }
+}
