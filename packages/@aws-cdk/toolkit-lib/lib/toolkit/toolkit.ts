@@ -33,9 +33,14 @@ import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
 import { patternsArrayForWatch } from '../actions/watch/private';
-import { type SdkBaseClientConfig, type IBaseCredentialsProvider, type SdkConfig, BaseCredentials } from '../api/aws-auth';
+import {
+  BaseCredentials,
+  type IBaseCredentialsProvider,
+  type SdkBaseClientConfig,
+  type SdkConfig,
+} from '../api/aws-auth';
 import { sdkRequestHandler } from '../api/aws-auth/awscli-compatible';
-import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
+import { IoHostSdkLogger, SdkProvider } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
@@ -53,16 +58,16 @@ import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespac
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
 import {
-  AmbiguityError,
-  ambiguousMovements,
-  findResourceMovements,
-  formatAmbiguousMappings,
+  formatAmbiguitySectionHeader,
+  formatAmbiguousMappings, formatMappingsHeader,
   formatTypedMappings,
   fromManifestAndExclusionList,
-  resourceMappings,
+  getDeployedStacks,
   usePrescribedMappings,
 } from '../api/refactoring';
-import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cloudformation';
+import { RefactoringContext } from '../api/refactoring/context';
+import { hashObject } from '../api/refactoring/digest';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -126,6 +131,12 @@ export interface ToolkitOptions {
    * @default - A fresh plugin host
    */
   readonly pluginHost?: PluginHost;
+}
+
+interface StackGroup {
+  environment: cxapi.Environment;
+  localStacks: CloudFormationStack[];
+  deployedStacks: CloudFormationStack[];
 }
 
 /**
@@ -513,7 +524,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const parameterMap = buildParameterMap(options.parameters?.parameters);
 
-    if (options.deploymentMethod?.method === 'hotswap' ) {
+    if (options.deploymentMethod?.method === 'hotswap') {
       await ioHelper.notify(IO.CDK_TOOLKIT_W5400.msg([
         '⚠️ Hotswap deployments deliberately introduce CloudFormation drift to speed up deployments',
         '⚠️ They should only be used for development - never use them for your production Stacks!',
@@ -1059,41 +1070,82 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const sdkProvider = await this.sdkProvider('refactor');
-    try {
-      const mappings = await getMappings();
-      const typedMappings = mappings.map(m => m.toTypedMapping());
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
-        typedMappings,
+    const stacks = await assembly.selectStacksV2(ALL_STACKS);
+    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+    const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+
+    const refactoringContexts: RefactoringContext[] = [];
+    for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
+      refactoringContexts.push(new RefactoringContext({
+        environment,
+        deployedStacks,
+        localStacks,
+        filteredStacks: filteredStacks.stackArtifacts,
+        mappings: await getUserProvidedMappings(),
       }));
-    } catch (e) {
-      if (e instanceof AmbiguityError) {
-        const paths = e.paths();
-        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
-          ambiguousPaths: paths,
-        }));
-      } else {
-        throw e;
-      }
     }
 
-    async function getMappings(): Promise<ResourceMapping[]> {
+    const nonAmbiguousContexts = refactoringContexts.filter(c => !c.isAmbiguous);
+    if (nonAmbiguousContexts.length > 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatMappingsHeader(), {}));
+    }
+    for (const context of nonAmbiguousContexts) {
+      const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+      const typedMappings = mappings.map(m => m.toTypedMapping());
+      const environment = context.environment;
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(environment, typedMappings), {
+        typedMappings,
+      }));
+    }
+
+    const ambiguousContexts = refactoringContexts.filter(c => c.isAmbiguous);
+    if (ambiguousContexts.length > 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguitySectionHeader(), {}));
+    }
+    for (const context of ambiguousContexts) {
+      const paths = context.ambiguousPaths;
+      const environment = context.environment;
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(environment, paths), {
+        ambiguousPaths: paths,
+      }));
+    }
+
+    async function groupStacksByEnvironment(): Promise<StackGroup[]> {
+      const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
+      const environments: Map<string, cxapi.Environment> = new Map();
+
+      for (const stack of stacks.stackArtifacts) {
+        const environment = stack.environment;
+        const key = hashObject(environment);
+        environments.set(key, environment);
+        if (stackGroups.has(key)) {
+          stackGroups.get(key)![1].push(stack);
+        } else {
+          // The first time we see an environment, we need to fetch all stacks deployed to it.
+          const before = await getDeployedStacks(sdkProvider, environment);
+          stackGroups.set(key, [before, [stack]]);
+        }
+      }
+
+      const result: StackGroup[] = [];
+      for (const [hash, [deployedStacks, localStacks]] of stackGroups) {
+        result.push({
+          environment: environments.get(hash)!,
+          localStacks,
+          deployedStacks,
+        });
+      }
+      return result;
+    }
+
+    async function getUserProvidedMappings(): Promise<ResourceMapping[] | undefined> {
       if (options.revert) {
         return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
       }
       if (options.mappings != null) {
         return usePrescribedMappings(options.mappings ?? [], sdkProvider);
-      } else {
-        const stacks = await assembly.selectStacksV2(ALL_STACKS);
-        const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
-        const ambiguous = ambiguousMovements(movements);
-        if (ambiguous.length === 0) {
-          const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-          return resourceMappings(movements, filteredStacks.stackArtifacts);
-        } else {
-          throw new AmbiguityError(ambiguous);
-        }
       }
+      return undefined;
     }
 
     function revert(mappings: MappingGroup[]): MappingGroup[] {

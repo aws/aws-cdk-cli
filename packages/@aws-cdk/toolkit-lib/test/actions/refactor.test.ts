@@ -465,3 +465,124 @@ test('revert can only be used with mappings', async () => {
     }),
   ).rejects.toThrow(/The 'revert' options can only be used with the 'mappings' option/);
 });
+
+test('computes one set of mappings per environment', async () => {
+  // GIVEN
+  mockCloudFormationClient
+    .on(ListStacksCommand)
+    // We are relying on the fact that these calls are made in the order that the
+    // stacks are passed. So the first call is for environment1 and the second is
+    // for environment2. This is not ideal, but as far as I know there is no other
+    // way to control the behavior of the mock SDK clients.
+    .resolvesOnce({
+      StackSummaries: [
+        {
+          StackName: 'Stack1',
+          StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    })
+    .resolvesOnce({
+      StackSummaries: [
+        {
+          StackName: 'Stack2',
+          StackId: 'arn:aws:cloudformation:us-east-2:123456789012:stack/Stack2',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldBucketName: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/OldBucketName/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack2',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldBucketName: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack2/OldBucketName/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  // WHEN
+  const cx = await builderFixture(toolkit, 'multiple-environments');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(3);
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    message: expect.stringMatching('aws://123456789012/us-east-1'),
+  }));
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(2,
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldBucketName\/Resource.*Stack1\/NewBucketNameInStack1\/Resource/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldBucketName/Resource',
+            destinationPath: 'Stack1/NewBucketNameInStack1/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    }),
+  );
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    message: expect.stringMatching('aws://123456789012/us-east-2'),
+  }));
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(3,
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack2\/OldBucketName\/Resource.*Stack2\/NewBucketNameInStack2\/Resource/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack2/OldBucketName/Resource',
+            destinationPath: 'Stack2/NewBucketNameInStack2/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    }),
+  );
+});
