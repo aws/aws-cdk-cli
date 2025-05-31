@@ -29,6 +29,7 @@ import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { MappingGroup, RefactorOptions } from '../actions/refactor';
+import { MappingSource } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { WatchOptions } from '../actions/watch';
@@ -59,10 +60,11 @@ import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-
 import { Mode, PluginHost } from '../api/plugin';
 import {
   formatAmbiguitySectionHeader,
-  formatAmbiguousMappings, formatMappingsHeader,
+  formatAmbiguousMappings,
+  formatMappingsHeader,
   formatTypedMappings,
-  fromManifestAndExclusionList,
   getDeployedStacks,
+  ManifestExcludeList,
   usePrescribedMappings,
 } from '../api/refactoring';
 import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cloudformation';
@@ -1057,21 +1059,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (options.mappings && options.exclude) {
-      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
-    }
-
-    if (options.revert && !options.mappings) {
-      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
-    }
-
     if (!options.dryRun) {
       throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
     }
 
     const sdkProvider = await this.sdkProvider('refactor');
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+    const mappingSource = options.mappingSource ?? MappingSource.auto();
+    const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
     const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
     const refactoringContexts: RefactoringContext[] = [];
@@ -1081,7 +1076,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         deployedStacks,
         localStacks,
         filteredStacks: filteredStacks.stackArtifacts,
-        mappings: await getUserProvidedMappings(),
+        mappings: await getUserProvidedMappings(environment),
       }));
     }
 
@@ -1115,7 +1110,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const environments: Map<string, cxapi.Environment> = new Map();
 
       for (const stack of stacks.stackArtifacts) {
-        const environment = stack.environment;
+        const environment = await sdkProvider.resolveEnvironment(stack.environment);
         const key = hashObject(environment);
         environments.set(key, environment);
         if (stackGroups.has(key)) {
@@ -1138,21 +1133,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return result;
     }
 
-    async function getUserProvidedMappings(): Promise<ResourceMapping[] | undefined> {
-      if (options.revert) {
-        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
-      }
-      if (options.mappings != null) {
-        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
-      }
-      return undefined;
-    }
+    async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {
+      return mappingSource.source == 'explicit'
+        ? usePrescribedMappings(mappingSource.groups.filter(matchesEnvironment), sdkProvider)
+        : undefined;
 
-    function revert(mappings: MappingGroup[]): MappingGroup[] {
-      return mappings.map(group => ({
-        ...group,
-        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
-      }));
+      function matchesEnvironment(g: MappingGroup): boolean {
+        return g.account === environment.account && g.region === environment.region;
+      }
     }
   }
 
