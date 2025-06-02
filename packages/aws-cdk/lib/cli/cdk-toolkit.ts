@@ -179,7 +179,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor', 'gc'],
+      unstableFeatures: ['refactor'],
     });
   }
 

@@ -150,7 +150,7 @@ interface StackGroup {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'gc';
+export type UnstableFeature = 'refactor';
 
 /**
  * The AWS CDK Programmatic Toolkit
