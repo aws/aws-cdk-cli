@@ -8,7 +8,7 @@ import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
 jest.setTimeout(10_000);
 
 const ioHost = new TestIoHost();
-const toolkit = new Toolkit({ ioHost, unstableFeatures: ['refactor'] });
+const toolkit = new Toolkit({ ioHost });
 
 jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
 
@@ -16,19 +16,6 @@ beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
   mockCloudFormationClient.reset();
-});
-
-test('requires acknowledgment that the feature is unstable', async () => {
-  // GIVEN
-  const tk = new Toolkit({ ioHost /* unstable not acknowledged */ });
-  const cx = await builderFixture(tk, 'stack-with-bucket');
-
-  // WHEN
-  await expect(
-    tk.refactor(cx, {
-      dryRun: true,
-    }),
-  ).rejects.toThrow("Unstable feature 'refactor' is not enabled. Please enable it under 'unstableFeatures'");
 });
 
 test('detects the same resource in different locations', async () => {
