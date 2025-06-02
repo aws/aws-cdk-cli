@@ -133,6 +133,13 @@ export interface ToolkitOptions {
    * @default - A fresh plugin host
    */
   readonly pluginHost?: PluginHost;
+
+  /**
+   * Set of unstable features to opt into. If you are using an unstable feature,
+   * you must explicitly acknowledge that you are aware of the risks of using it,
+   * by passing it in this set.
+   */
+  readonly unstableFeatures?: Array<UnstableFeature>;
 }
 
 interface StackGroup {
@@ -140,6 +147,12 @@ interface StackGroup {
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
 }
+
+/**
+ * Names of toolkit features that are still under development, and may change in
+ * the future.
+ */
+export type UnstableFeature = 'refactor' | 'gc';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -167,6 +180,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private baseCredentials: IBaseCredentialsProvider;
 
+  private readonly unstableFeatures: Array<UnstableFeature>;
+
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
@@ -185,6 +200,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.ioHost = withTrimmedWhitespace(ioHost);
 
     this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible();
+    this.unstableFeatures = props.unstableFeatures ?? [];
   }
 
   /**
@@ -1053,6 +1069,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Refactor Action. Moves resources from one location (stack + logical ID) to another.
    */
   public async refactor(cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
+    this.requireUnstableFeature('refactor');
+
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
     const assembly = await assemblyFromSource(ioHelper, cx);
     return this._refactor(assembly, ioHelper, options);
@@ -1270,6 +1288,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await this._deploy(assembly, 'watch', deployOptions);
     } catch {
       // just continue - deploy will show the error
+    }
+  }
+
+  private requireUnstableFeature(requestedFeature: UnstableFeature) {
+    if (!this.unstableFeatures.includes(requestedFeature)) {
+      throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
     }
   }
 }
