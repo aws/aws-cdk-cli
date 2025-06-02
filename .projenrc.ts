@@ -377,7 +377,7 @@ new JsiiBuild(cloudAssemblySchema, {
     javaPackage: 'software.amazon.awscdk.cloudassembly.schema',
     mavenArtifactId: 'cdk-cloud-assembly-schema',
     mavenGroupId: 'software.amazon.awscdk',
-    mavenEndpoint: 'https://aws.oss.sonatype.org',
+    mavenServerId: 'central-ossrh',
   },
   publishToNuget: {
     dotNetNamespace: 'Amazon.CDK.CloudAssembly.Schema',
@@ -1328,7 +1328,7 @@ new JsiiBuild(cliLibAlpha, {
     javaPackage: 'software.amazon.awscdk.cli.lib.alpha',
     mavenGroupId: 'software.amazon.awscdk',
     mavenArtifactId: 'cdk-cli-lib-alpha',
-    mavenEndpoint: 'https://aws.oss.sonatype.org',
+    mavenServerId: 'central-ossrh',
   },
   publishToPypi: {
     distName: 'aws-cdk.cli-lib-alpha',

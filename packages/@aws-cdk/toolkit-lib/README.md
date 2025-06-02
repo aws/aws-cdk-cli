@@ -114,7 +114,7 @@ You can also query information about the synthesized _Cloud Assembly_:
 
 ```ts
 const cloudAssembly = await cx.produce();
-const template = cloudAssembly.getStack("my-stack").template;
+const template = cloudAssembly.getStackByName("my-stack").template;
 ```
 
 ### list
