@@ -29,3 +29,25 @@ export interface WatchOptions extends BaseDeployOptions {
    */
   readonly deploymentMethod?: DeploymentMethod;
 }
+
+/**
+ * The result of a `cdk.watch()` operation.
+ */
+export interface IWatcher extends AsyncDisposable {
+  /**
+   * Stop the watcher and wait for the current watch iteration to complete.
+   *
+   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
+   * environments that don't support the Disposable APIs yet.
+   */
+  dispose(): Promise<void>;
+
+  /**
+   * Wait for the watcher to stop.
+   *
+   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
+   *
+   * If neither of those is called, awaiting this promise will wait forever.
+   */
+  waitForEnd(): Promise<void>;
+}

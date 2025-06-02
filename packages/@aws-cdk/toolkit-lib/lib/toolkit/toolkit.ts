@@ -31,8 +31,8 @@ import { type ListOptions } from '../actions/list';
 import type { MappingGroup, RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { WatchOptions } from '../actions/watch';
-import { patternsArrayForWatch } from '../actions/watch/private';
+import type { IWatcher, WatchOptions } from '../actions/watch';
+import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import {
   BaseCredentials,
   type IBaseCredentialsProvider,
@@ -854,42 +854,29 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
-    if (options.include === undefined && options.exclude === undefined) {
-      throw new ToolkitError(
-        "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-        'Make sure to add a "watch" key to your cdk.json',
-      );
+    // For the "include" setting, the behavior is:
+    // 1. "watch" setting without an "include" key? We default to observing "**".
+    // 2. "watch" setting with an empty "include" key? We default to observing "**".
+    // 3. Non-empty "include" key? Just use the "include" key.
+    const watchIncludes = options.include ?? [];
+    if (watchIncludes.length <= 0) {
+      watchIncludes.push('**');
     }
 
-    // For the "include" subkey under the "watch" key, the behavior is:
-    // 1. No "watch" setting? We error out.
-    // 2. "watch" setting without an "include" key? We default to observing "./**".
-    // 3. "watch" setting with an empty "include" key? We default to observing "./**".
-    // 4. Non-empty "include" key? Just use the "include" key.
-    const watchIncludes = patternsArrayForWatch(options.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
-    });
-
-    // For the "exclude" subkey under the "watch" key,
-    // the behavior is to add some default excludes in addition to the ones specified by the user:
-    // 1. The CDK output directory.
-    // 2. Any file whose name starts with a dot.
-    // 3. Any directory's content whose name starts with a dot.
-    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = assembly.directory;
-    const watchExcludes = patternsArrayForWatch(options.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
-    });
-
-    // only exclude the outdir if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, outdir);
+    // For the "exclude" setting, the behavior is to add some default excludes in addition to
+    // patterns specified by the user orr the default patterns:
+    const watchExcludes = options.exclude ?? WATCH_EXCLUDE_DEFAULTS;
+    // 1. The CDK output directory, if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, assembly.directory);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
-
-    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
+    // 2. Any file whose name starts with a dot.
+    watchExcludes.push('.*', '**/.*');
+    // 3. Any directory's content whose name starts with a dot.
+    watchExcludes.push('**/.*/**');
+    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
+    watchExcludes.push('**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([
@@ -1308,26 +1295,4 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
     }
   }
-}
-
-/**
- * The result of a `cdk.watch()` operation.
- */
-export interface IWatcher extends AsyncDisposable {
-  /**
-   * Stop the watcher and wait for the current watch iteration to complete.
-   *
-   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
-   * environments that don't support the Disposable APIs yet.
-   */
-  dispose(): Promise<void>;
-
-  /**
-   * Wait for the watcher to stop.
-   *
-   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
-   *
-   * If neither of those is called, awaiting this promise will wait forever.
-   */
-  waitForEnd(): Promise<void>;
 }
