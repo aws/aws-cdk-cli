@@ -30,7 +30,7 @@ const TYPESCRIPT_VERSION = '5.6';
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   // currently supported min node version
-  x.package.addEngine('node', '>= 14.15.0');
+  x.package.addEngine('node', '>= 18.0.0');
 
   x.addDevDeps(
     'jest-junit@^16',
