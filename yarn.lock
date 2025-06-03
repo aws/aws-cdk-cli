@@ -5874,11 +5874,6 @@ case@1.6.3, case@^1.6.3:
   resolved "https://registry.yarnpkg.com/case/-/case-1.6.3.tgz#0a4386e3e9825351ca2e6216c60467ff5f1ea1c9"
   integrity sha512-mzDSXIPaFwVDvZAHqZ9VlbyF4yyXRuX6IvB06WvPYkqJVO24kX1PPhv9bfpKNFZyxYFmmgo03HUiD8iklmJYRQ==
 
-cdk-from-cfn@0.162.1:
-  version "0.162.1"
-  resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.162.1.tgz#7217b2c7701d99e6683e7536c60405e4735d5765"
-  integrity sha512-aRAFl28ezc3DQKIAvKChtDh0Fb4eN1qbrgk6sJs0Sv8012riX1OGbL9MpcFUYg1Riy/6wXVXyjPGtvY5RJTt6A==
-
 cdk-from-cfn@^0.219.0:
   version "0.219.0"
   resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.219.0.tgz#dc26d1d6e457fd4a6f64eaaaf6c5b604a640a2de"
