@@ -134,6 +134,22 @@ function makeOptions(prefix: Expression, options: { [optionName: string]: CliOpt
       optionProps.requiresArg = true;
     }
 
+    // Defaults
+    // We don't use yargs defaults, but instead use our own system
+    // Because we still want to show the default value in the CLI help,
+    // we render all defaults as strings and set them as defaultDescription
+    // Special handling for if the default is an expression, or array.
+    delete optionProps.default;
+    if (theOption.default != null) {
+      if (theOption.default instanceof Expression) {
+        optionArgs.defaultDescription = code.expr.builtInFn('String', theOption.default);
+      } else if (Array.isArray(theOption.default)) {
+        optionArgs.defaultDescription = lit(JSON.stringify(theOption.default));
+      } else {
+        optionArgs.defaultDescription = lit(String(theOption.default));
+      }
+    }
+
     for (const optionProp of Object.keys(optionProps).filter(opt => !['negativeAlias'].includes(opt))) {
       const optionValue = (optionProps as any)[optionProp];
       if (optionValue instanceof Expression) {

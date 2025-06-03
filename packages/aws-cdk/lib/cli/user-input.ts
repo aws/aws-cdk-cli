@@ -244,21 +244,21 @@ export interface GlobalOptions {
   /**
    * Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
    *
-   * @default - undefined
+   * @default - true
    */
   readonly versionReporting?: boolean;
 
   /**
    * Include "aws:cdk:path" CloudFormation metadata for each resource (enabled by default)
    *
-   * @default - undefined
+   * @default - true
    */
   readonly pathMetadata?: boolean;
 
   /**
    * Include "aws:asset:*" CloudFormation metadata for resources that uses assets (enabled by default)
    *
-   * @default - undefined
+   * @default - true
    */
   readonly assetMetadata?: boolean;
 
@@ -279,7 +279,7 @@ export interface GlobalOptions {
   /**
    * Emits the synthesized cloud assembly into a directory (default: cdk.out)
    *
-   * @default - undefined
+   * @default - "cdk.out"
    */
   readonly output?: string;
 
