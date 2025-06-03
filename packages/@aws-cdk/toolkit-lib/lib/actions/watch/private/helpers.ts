@@ -15,7 +15,7 @@ export const WATCH_EXCLUDE_DEFAULTS = [
   'bun.lock',
   'deno.lock',
   // TS
-  'tsconfig.json',
+  'tsconfig*.json',
   '**/*.d.ts',
   'test',
   // Python

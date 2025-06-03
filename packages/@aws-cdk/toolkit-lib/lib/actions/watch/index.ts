@@ -4,21 +4,24 @@ export interface WatchOptions extends BaseDeployOptions {
   /**
    * Watch the files in this list
    *
-   * @default - []
+   * @default - all files in the watchDir
    */
   readonly include?: string[];
 
   /**
    * Ignore watching the files in this list
    *
-   * @default - []
+   * Hidden files (those whose names begin with a dot `.`) are always excluded,
+   * irrespectively of this option.
+   *
+   * @default - default patterns excluding likely irrelevant files for all CDK supported programming languages, this list will change over time
    */
   readonly exclude?: string[];
 
   /**
    * The root directory used for watch.
    *
-   * @default process.cwd()
+   * @default - the current working directory
    */
   readonly watchDir?: string;
 

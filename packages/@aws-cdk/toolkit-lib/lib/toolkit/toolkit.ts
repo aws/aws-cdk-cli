@@ -864,8 +864,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     // For the "exclude" setting, the behavior is to add some default excludes in addition to
-    // patterns specified by the user orr the default patterns:
-    const watchExcludes = options.exclude ?? WATCH_EXCLUDE_DEFAULTS;
+    // patterns specified by the user sensible default patterns:
+    const watchExcludes = options.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
     // 1. The CDK output directory, if it is under the rootDir
     const relativeOutDir = path.relative(rootDir, assembly.directory);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
