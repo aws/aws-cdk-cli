@@ -973,6 +973,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
+        // stop the logs monitor, if it exists
+        await cloudWatchLogMonitor?.deactivate();
+        // close the watcher itself
         await watcher.close();
         // Prevents Node from staying alive. There is no 'end' event that the watcher emits
         // that we can know it's definitely done, so best we can do is tell it to stop watching,

@@ -161,7 +161,7 @@ describe('watch', () => {
     // GIVEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     ioHost.level = 'debug';
-    await toolkit.watch(cx, {
+    const watcher = await toolkit.watch(cx, {
       include: [],
       traceLogs: true,
     });
@@ -174,8 +174,13 @@ describe('watch', () => {
       cloudWatchLogMonitor: expect.anything(), // Not undefined
     }));
 
-    // Deactivate the cloudWatchLogMonitor that we created, otherwise the tests won't exit
-    (deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor?.deactivate();
+    const logMonitorSpy = jest.spyOn((deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor, 'deactivate');
+
+    // Deactivate the watcher and cloudWatchLogMonitor that we created, otherwise the tests won't exit
+    await watcher.dispose();
+
+    // ensure the log monitor has been closed
+    expect(logMonitorSpy).toHaveBeenCalled();
   });
 
   test('watch returns an object that can be used to stop the watch', async () => {
