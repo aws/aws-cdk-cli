@@ -1059,8 +1059,7 @@ const cli = configureProject(
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
-      // A version that is guaranteed to still work on Node 16
-      'cdk-from-cfn@0.162.1',
+      'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
