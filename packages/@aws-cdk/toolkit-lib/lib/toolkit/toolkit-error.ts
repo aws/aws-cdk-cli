@@ -4,6 +4,7 @@ const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
 const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
+const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
 
 /**
  * Represents a general toolkit error in the AWS CDK Toolkit.
@@ -132,6 +133,13 @@ export class AssemblyError extends ToolkitError {
  */
 export class ContextProviderError extends ToolkitError {
   /**
+   * Determines if a given error is an instance of AssemblyError.
+   */
+  public static isNoResultsFoundError(x: any): x is NoResultsFoundError {
+    return this.isContextProviderError(x) && NO_RESULTS_FOUND_ERROR_SYMBOL in x;
+  }
+
+  /**
    * Denotes the source of the error as user.
    */
   public readonly source = 'user';
@@ -140,5 +148,16 @@ export class ContextProviderError extends ToolkitError {
     super(message, 'context-provider');
     Object.setPrototypeOf(this, ContextProviderError.prototype);
     Object.defineProperty(this, CONTEXT_PROVIDER_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * A specific context provider lookup failure indicating no results where found for a context query
+ */
+export class NoResultsFoundError extends ContextProviderError {
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, NoResultsFoundError.prototype);
+    Object.defineProperty(this, NO_RESULTS_FOUND_ERROR_SYMBOL, { value: true });
   }
 }

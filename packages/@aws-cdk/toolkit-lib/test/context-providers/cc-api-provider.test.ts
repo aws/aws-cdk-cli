@@ -386,7 +386,7 @@ describe('dummy value', () => {
           },
       ],
     }),
-  ).rejects.toThrow('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier: Other error');
+  ).rejects.toThrow('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier');
   });
 
   test('throws error when CC API listResources fails but the error is not ResourceNotFoundException', async () => {
@@ -409,7 +409,7 @@ describe('dummy value', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Encountered CC API error while listing AWS::RDS::DBInstance resources matching {\"StorageEncrypted\":\"true\"}: Other error');
+    ).rejects.toThrow('Encountered CC API error while listing AWS::RDS::DBInstance resources matching {\"StorageEncrypted\":\"true\"}');
   });
 
   test('throws error when CC API fails and ignoreErrorOnMissingContext is not provided', async () => {

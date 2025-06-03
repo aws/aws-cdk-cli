@@ -1,3 +1,5 @@
+import { ToolkitError } from '../toolkit/toolkit-error';
+
 /**
  * Takes in an error and returns a correctly formatted string of its error message.
  * If it is an AggregateError, it will return a string with all the inner errors
@@ -12,6 +14,10 @@ export function formatErrorMessage(error: any): string {
       .map((innerError: { message: any; toString: () => any }) => (innerError?.message || innerError?.toString()))
       .join('\n');
     return `AggregateError: ${innerMessages}`;
+  }
+
+  if (ToolkitError.isToolkitError(error) && error.cause) {
+    return `${error.message}\n${formatErrorMessage(error.cause)}`;
   }
 
   // Fallback for regular Error or other types

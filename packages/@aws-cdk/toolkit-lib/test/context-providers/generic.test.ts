@@ -4,6 +4,7 @@ import * as contextproviders from '../../lib/context-providers';
 import { TRANSIENT_CONTEXT_KEY } from '../../lib/api/context';
 import { MockSdkProvider, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 import { TestIoHost } from '../_helpers/test-io-host';
+import { ToolkitError } from '../../lib';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper();
@@ -82,6 +83,23 @@ test('errors are marked transient', async () => {
 
   // THEN - error is marked transient
   expect((result.asdf as any)[TRANSIENT_CONTEXT_KEY]).toBeTruthy();
+});
+
+test('toolkit errors with cause are displayed fully', async () => {
+  // GIVEN
+  contextproviders.registerContextProvider(TEST_PROVIDER, {
+    async getValue(_: { [key: string]: any }): Promise<any> {
+      throw ToolkitError.withCause('Something went wrong', new Error('And this is the reason'));
+    },
+  });
+
+  // WHEN
+  const result = await contextproviders.provideContextValues([
+    { key: 'asdf', props: { account: '1234', region: 'us-east-1' }, provider: TEST_PROVIDER },
+  ], mockSDK, new PluginHost(), ioHelper);
+
+  // THEN - error is marked transient
+  expect((result.asdf as any).$providerError).toBe('Something went wrong\nAnd this is the reason');
 });
 
 test('context provider can be registered using PluginHost', async () => {

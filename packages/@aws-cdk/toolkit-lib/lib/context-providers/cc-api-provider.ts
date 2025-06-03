@@ -4,7 +4,7 @@ import { ResourceNotFoundException } from '@aws-sdk/client-cloudcontrol';
 import type { ICloudControlClient, SdkProvider } from '../api/aws-auth/private';
 import { initContextProviderSdk } from '../api/aws-auth/private';
 import type { ContextProviderPlugin } from '../api/plugin';
-import { ContextProviderError } from '../toolkit/toolkit-error';
+import { ContextProviderError, NoResultsFoundError } from '../toolkit/toolkit-error';
 import { findJsonValue, getResultObj } from '../util';
 
 export class CcApiContextProviderPlugin implements ContextProviderPlugin {
@@ -35,7 +35,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     try {
       let resources: FoundResource[];
       if (args.exactIdentifier) {
-        // use getResource to get the exact indentifier
+        // use getResource to get the exact identifier
         resources = await this.getResource(cloudControl, args.typeName, args.exactIdentifier);
       } else if (args.propertyMatch) {
         // use listResource
@@ -46,7 +46,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
 
       return resources.map((r) => getResultObj(r.properties, r.identifier, args.propertiesToReturn));
     } catch (err) {
-      if (err instanceof ZeroResourcesFoundError && args.ignoreErrorOnMissingContext) {
+      if (ContextProviderError.isNoResultsFoundError(err) && args.ignoreErrorOnMissingContext) {
         // We've already type-checked dummyValue.
         return args.dummyValue;
       }
@@ -77,10 +77,10 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       return [foundResourceFromCcApi(result.ResourceDescription)];
     } catch (err: any) {
       if (err instanceof ResourceNotFoundException || (err as any).name === 'ResourceNotFoundException') {
-        throw new ZeroResourcesFoundError(`No resource of type ${typeName} with identifier: ${exactIdentifier}`);
+        throw new NoResultsFoundError(`No resource of type ${typeName} with identifier: ${exactIdentifier}`);
       }
-      if (!(err instanceof ContextProviderError)) {
-        throw new ContextProviderError(`Encountered CC API error while getting ${typeName} resource ${exactIdentifier}: ${err.message}`);
+      if (!ContextProviderError.isContextProviderError(err)) {
+        throw ContextProviderError.withCause(`Encountered CC API error while getting ${typeName} resource ${exactIdentifier}`, err);
       }
       throw err;
     }
@@ -103,7 +103,6 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     try {
       const result = await cc.listResources({
         TypeName: typeName,
-
       });
       const found = (result.ResourceDescriptions ?? [])
         .map(foundResourceFromCcApi)
@@ -115,16 +114,16 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         });
 
       if ((expectedMatchCount === 'at-least-one' || expectedMatchCount === 'exactly-one') && found.length === 0) {
-        throw new ZeroResourcesFoundError(`Could not find any resources matching ${JSON.stringify(propertyMatch)}`);
+        throw new NoResultsFoundError(`Could not find any resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}.`);
       }
       if ((expectedMatchCount === 'at-most-one' || expectedMatchCount === 'exactly-one') && found.length > 1) {
-        throw new ContextProviderError(`Found ${found.length} resources matching ${JSON.stringify(propertyMatch)}; please narrow the search criteria`);
+        throw new ContextProviderError(`Found ${found.length} resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}. Please narrow the search criteria`);
       }
 
       return found;
     } catch (err: any) {
-      if (!(err instanceof ContextProviderError) && !(err instanceof ZeroResourcesFoundError)) {
-        throw new ContextProviderError(`Encountered CC API error while listing ${typeName} resources matching ${JSON.stringify(propertyMatch)}: ${err.message}`);
+      if (!ContextProviderError.isContextProviderError(err)) {
+        throw ContextProviderError.withCause(`Encountered CC API error while listing ${typeName} resources matching ${JSON.stringify(propertyMatch)}`, err);
       }
       throw err;
     }
@@ -154,16 +153,25 @@ function isObject(x: unknown): x is { [key: string]: unknown } {
   return typeof x === 'object' && x !== null && !Array.isArray(x);
 }
 
+function expectedMatchCountText(expectation: NonNullable<CcApiContextQuery['expectedMatchCount']>): string {
+  switch (expectation) {
+    case 'at-least-one':
+      return 'at least one';
+    case 'at-most-one':
+      return 'at most one';
+    case 'exactly-one':
+      return 'exactly one';
+    case 'any':
+      return 'any number';
+    default:
+      return expectation;
+  }
+}
+
 /**
  * A parsed version of the return value from CCAPI
  */
 interface FoundResource {
   readonly identifier: string;
   readonly properties: Record<string, unknown>;
-}
-
-/**
- * A specific lookup failure indicating 0 resources found that can be recovered
- */
-class ZeroResourcesFoundError extends Error {
 }
