@@ -461,6 +461,11 @@ export async function makeConfig(): Promise<CliConfig> {
             default: false,
             desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
           },
+          'force': {
+            type: 'boolean',
+            default: false,
+            desc: 'If specified, the command will not prompt for confirmation before performing the refactor operation.',
+          },
         },
       },
     },

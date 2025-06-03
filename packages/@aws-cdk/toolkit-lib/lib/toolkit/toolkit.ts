@@ -59,9 +59,8 @@ import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespac
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
 import {
-  formatAmbiguitySectionHeader,
   formatAmbiguousMappings,
-  formatMappingsHeader,
+  formatEnvironmentSectionHeader,
   formatTypedMappings,
   getDeployedStacks,
   ManifestExcludeList,
@@ -1077,50 +1076,86 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
     const sdkProvider = await this.sdkProvider('refactor');
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
     const mappingSource = options.mappingSource ?? MappingSource.auto();
     const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
     const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
-    const refactoringContexts: RefactoringContext[] = [];
     for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
-      refactoringContexts.push(new RefactoringContext({
+      const context = new RefactoringContext({
         environment,
         deployedStacks,
         localStacks,
         filteredStacks: filteredStacks.stackArtifacts,
         mappings: await getUserProvidedMappings(environment),
-      }));
-    }
+      });
 
-    const nonAmbiguousContexts = refactoringContexts.filter(c => !c.isAmbiguous);
-    if (nonAmbiguousContexts.length > 0) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatMappingsHeader(), {}));
-    }
-    for (const context of nonAmbiguousContexts) {
+      await notifyInfo(formatEnvironmentSectionHeader(environment));
+
       const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+
+      if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
+        await notifyInfo('Nothing to refactor.');
+        continue;
+      }
+
       const typedMappings = mappings.map(m => m.toTypedMapping());
-      const environment = context.environment;
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(environment, typedMappings), {
-        typedMappings,
-      }));
+      await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
+
+      if (context.ambiguousPaths.length > 0) {
+        const paths = context.ambiguousPaths;
+        await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
+      }
+
+      if (options.dryRun || context.mappings.length === 0) {
+        // Nothing left to do.
+        continue;
+      }
+
+      // In interactive mode (TTY) we need confirmation before proceeding
+      if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+        await notifyInfo(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+        continue;
+      }
+
+      try {
+        await notifyInfo('Refactoring...');
+        await context.execute(sdkProvider, ioHelper);
+        await notifyInfo('✅  Stack refactor complete');
+      } catch (e: any) {
+        await notifyError(`❌  ${statusReason(e)}`, e);
+      }
     }
 
-    const ambiguousContexts = refactoringContexts.filter(c => c.isAmbiguous);
-    if (ambiguousContexts.length > 0) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguitySectionHeader(), {}));
+    function statusReason(error: any): string {
+      try {
+        const payload = JSON.parse(error.message);
+        return payload.reason?.StatusReason ?? formatErrorMessage(error);
+      } catch (e) {
+        return formatErrorMessage(error);
+      }
     }
-    for (const context of ambiguousContexts) {
-      const paths = context.ambiguousPaths;
-      const environment = context.environment;
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(environment, paths), {
-        ambiguousPaths: paths,
-      }));
+
+    async function confirm(force: boolean): Promise<boolean> {
+      // 'force' is set to true is the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
+      }
+
+      const question = 'Do you wish to refactor these resources?';
+      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        responseDescription: '[Y]es/[n]o',
+      }, 'y'));
+      return ['y', 'yes'].includes(response.toLowerCase());
+    }
+
+    async function notifyInfo(message: string, data: any = {}) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(message, data));
+    }
+
+    async function notifyError(message: string, error: Error) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error }));
     }
 
     async function groupStacksByEnvironment(): Promise<StackGroup[]> {

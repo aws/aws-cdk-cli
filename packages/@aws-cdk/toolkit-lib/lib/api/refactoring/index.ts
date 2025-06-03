@@ -1,9 +1,8 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import {
   formatAmbiguousMappings as fmtAmbiguousMappings,
-  formatMappingsHeader as fmtMappingsHeader,
+  formatEnvironmentSectionHeader as fmtEnvironmentSectionHeader,
   formatTypedMappings as fmtTypedMappings,
-  formatAmbiguitySectionHeader as fmtAmbiguitySectionHeader,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
@@ -135,26 +134,17 @@ export async function getDeployedStacks(
   return Promise.all(summaries.map(normalize));
 }
 
-export function formatMappingsHeader(): string {
-  return formatToStream(fmtMappingsHeader);
+export function formatEnvironmentSectionHeader(environment: cxapi.Environment) {
+  const env = `aws://${environment.account}/${environment.region}`;
+  return formatToStream(stream => fmtEnvironmentSectionHeader(stream, env));
 }
 
-export function formatTypedMappings(environment: cxapi.Environment, mappings: TypedMapping[]): string {
-  return formatToStream((stream) => {
-    const env = `aws://${environment.account}/${environment.region}`;
-    fmtTypedMappings(stream, mappings, env);
-  });
+export function formatTypedMappings(mappings: TypedMapping[]): string {
+  return formatToStream((stream) => fmtTypedMappings(stream, mappings));
 }
 
-export function formatAmbiguitySectionHeader(): string {
-  return formatToStream(fmtAmbiguitySectionHeader);
-}
-
-export function formatAmbiguousMappings(environment: cxapi.Environment, paths: [string[], string[]][]): string {
-  return formatToStream((stream) => {
-    const env = `aws://${environment.account}/${environment.region}`;
-    fmtAmbiguousMappings(stream, paths, env);
-  });
+export function formatAmbiguousMappings(paths: [string[], string[]][]): string {
+  return formatToStream((stream) => fmtAmbiguousMappings(stream, paths));
 }
 
 function formatToStream(cb: (stream: NodeJS.WritableStream) => void): string {

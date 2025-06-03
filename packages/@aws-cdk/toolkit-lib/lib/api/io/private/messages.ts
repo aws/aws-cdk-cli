@@ -17,7 +17,16 @@ import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
 import type { StackSelectionDetails } from '../../../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, SingleStack, StackAndAssemblyData } from '../../../payloads/types';
+import type {
+  AssemblyData,
+  ConfirmationRequest,
+  ContextProviderMessageSource,
+  DataRequest,
+  Duration,
+  ErrorPayload,
+  SingleStack,
+  StackAndAssemblyData,
+} from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
 
 /**
@@ -369,10 +378,22 @@ export const IO = {
   }),
 
   // 8. Refactor (8xxx)
+  CDK_TOOLKIT_E8900: make.error<ErrorPayload>({
+    code: 'CDK_TOOLKIT_E8900',
+    description: 'Stack refactor failed',
+    interface: 'ErrorPayload',
+  }),
+
   CDK_TOOLKIT_I8900: make.result<RefactorResult>({
     code: 'CDK_TOOLKIT_I8900',
     description: 'Refactor result',
     interface: 'RefactorResult',
+  }),
+
+  CDK_TOOLKIT_I8910: make.question<DataRequest>({
+    code: 'CDK_TOOLKIT_I8910',
+    description: 'Confirm refactor',
+    interface: 'ConfirmationRequest',
   }),
 
   CDK_TOOLKIT_W8010: make.warn({
