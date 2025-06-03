@@ -10,7 +10,10 @@ import { StackActivityProgress } from '../../commands/deploy';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
-type CliAction =
+/**
+ * The current action being performed by the CLI. 'none' represents the absence of an action.
+ */
+export type CliAction =
 | ToolkitAction
 | 'context'
 | 'docs'
@@ -24,7 +27,7 @@ export interface CliIoHostProps {
    *
    * @default 'none'
    */
-  readonly currentAction?: ToolkitAction;
+  readonly currentAction?: CliAction;
 
   /**
    * Determines the verbosity of the output.
