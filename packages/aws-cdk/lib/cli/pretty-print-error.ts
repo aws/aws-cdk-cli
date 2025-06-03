@@ -19,6 +19,7 @@ function printTrace(err: Error, debug = false) {
   // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
   // file and the printed code line and stack trace are huge and useless.
   if (err.stack && debug) {
+    console.log('[Stack trace only shown in developer build]');
     console.debug(chalk.gray(err.stack));
   }
 }

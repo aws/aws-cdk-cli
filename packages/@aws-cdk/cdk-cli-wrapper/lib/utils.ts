@@ -5,6 +5,9 @@ import { spawn, spawnSync } from 'child_process';
  * Our own execute function which doesn't use shells and strings.
  */
 export function exec(commandLine: string[], options: { cwd?: string; json?: boolean; verbose?: boolean; env?: any } = { }): any {
+  // eslint-disable-next-line no-console
+  console.log('Directory', options.cwd, 'env', options.env);
+
   const proc = spawnSync(commandLine[0], commandLine.slice(1), {
     stdio: ['ignore', 'pipe', options.verbose ? 'inherit' : 'pipe'], // inherit STDERR in verbose mode
     env: {
