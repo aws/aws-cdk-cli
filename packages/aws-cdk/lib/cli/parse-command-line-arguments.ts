@@ -60,7 +60,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
       desc: 'Use JSON output instead of YAML when templates are printed to STDOUT',
     })
     .option('verbose', {
-      defaultDescription: 'false',
       type: 'boolean',
       alias: 'v',
       desc: 'Show debug logs (specify multiple times to increase verbosity)',
@@ -700,10 +699,9 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .command(['acknowledge [ID]', 'ack [ID]'], 'Acknowledge a notice so that it does not show up anymore')
     .command('notices', 'Returns a list of relevant notices', (yargs: Argv) =>
       yargs.option('unacknowledged', {
-        defaultDescription: 'false',
         type: 'boolean',
         alias: 'u',
-        desc: 'Returns a list of unacknowledged notices',
+        desc: 'Return a list of only unacknowledged notices',
       }),
     )
     .command('init [TEMPLATE]', 'Create a new, empty CDK project from a template.', (yargs: Argv) =>

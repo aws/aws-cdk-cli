@@ -1,7 +1,7 @@
 import { code, FreeFunction, Module, SelectiveModuleImport, Type, TypeScriptRenderer } from '@cdklabs/typewriter';
 import { EsLintRules } from '@cdklabs/typewriter/lib/eslint-rules';
 import * as prettier from 'prettier';
-import { kebabToCamelCase, SOURCE_OF_TRUTH } from './util';
+import { kebabToCamelCase, preamble, SOURCE_OF_TRUTH } from './util';
 import type { CliAction, CliConfig } from './yargs-types';
 
 const CLI_ARG_NAME = 'args';
@@ -9,11 +9,7 @@ const CONFIG_ARG_NAME = 'config';
 
 export async function renderUserInputFuncs(config: CliConfig): Promise<string> {
   const scope = new Module('aws-cdk');
-
-  scope.documentation.push( '-------------------------------------------------------------------------------------------');
-  scope.documentation.push(`GENERATED FROM ${SOURCE_OF_TRUTH}.`);
-  scope.documentation.push('Do not edit by hand; all changes will be overwritten at build time from the config file.');
-  scope.documentation.push('-------------------------------------------------------------------------------------------');
+  scope.documentation.push(...preamble(SOURCE_OF_TRUTH));
 
   scope.addImport(new SelectiveModuleImport(scope, './user-configuration', ['Command']));
   scope.addImport(new SelectiveModuleImport(scope, './user-input', ['UserInput', 'GlobalOptions']));

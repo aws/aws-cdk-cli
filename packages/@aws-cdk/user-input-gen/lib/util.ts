@@ -31,3 +31,12 @@ export function kebabToPascal(str: string): string {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join('');
 }
+
+export function preamble(sourceOfTruth: string): string[] {
+  const docs: string[] = [];
+  docs.push('-------------------------------------------------------------------------------------------');
+  docs.push(`GENERATED FROM ${sourceOfTruth}.`);
+  docs.push('Do not edit by hand; all changes will be overwritten at build time from the config file.');
+  docs.push('-------------------------------------------------------------------------------------------');
+  return docs;
+}

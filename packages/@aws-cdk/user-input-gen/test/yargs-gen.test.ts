@@ -39,14 +39,12 @@ describe('render', () => {
           .env('CDK')
           .usage('Usage: cdk -a <cdk-app> COMMAND')
           .option('one', {
-            default: undefined,
             type: 'string',
             alias: 'o',
             desc: 'text for one',
             requiresArg: true,
           })
           .option('two', {
-            default: undefined,
             type: 'number',
             desc: 'text for two',
           })
@@ -108,7 +106,6 @@ describe('render', () => {
           .command(['test', 'spec'], 'the action under test', (yargs: Argv) =>
             yargs
               .option('one', {
-                default: undefined,
                 type: 'boolean',
                 alias: 'o',
                 desc: 'text for one',
@@ -131,7 +128,7 @@ describe('render', () => {
     `);
   });
 
-  test('can pass-through expression unchanged', async () => {
+  test('can pass-through expression', async () => {
     const config: CliConfig = {
       globalOptions: {},
       commands: {
@@ -149,7 +146,7 @@ describe('render', () => {
       },
     };
 
-    expect(await renderYargs(config, YARGS_HELPERS)).toContain('default: helpers.banana(1, 2, 3)');
+    expect(await renderYargs(config, YARGS_HELPERS)).toContain('defaultDescription: String(helpers.banana(1, 2, 3))');
   });
 
   test('special notification-arn option gets NO default value', async () => {

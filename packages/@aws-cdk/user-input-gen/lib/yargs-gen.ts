@@ -1,8 +1,9 @@
-import type { IScope, Statement } from '@cdklabs/typewriter';
-import { $E, Expression, ExternalModule, FreeFunction, Module, SelectiveModuleImport, ThingSymbol, Type, TypeScriptRenderer, code, expr } from '@cdklabs/typewriter';
+import type { Statement } from '@cdklabs/typewriter';
+import { Expression, FreeFunction, Module, SelectiveModuleImport, Type, TypeScriptRenderer, code } from '@cdklabs/typewriter';
 import { EsLintRules } from '@cdklabs/typewriter/lib/eslint-rules';
 import * as prettier from 'prettier';
-import { lit, SOURCE_OF_TRUTH } from './util';
+import type { CliHelpers } from './cli-helpers';
+import { lit, preamble, SOURCE_OF_TRUTH } from './util';
 import type { CliConfig, CliOption, YargsOption } from './yargs-types';
 
 // to import lodash.clonedeep properly, we would need to set esModuleInterop: true
@@ -10,25 +11,9 @@ import type { CliConfig, CliOption, YargsOption } from './yargs-types';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const cloneDeep = require('lodash.clonedeep');
 
-export class CliHelpers extends ExternalModule {
-  public readonly browserForPlatform = makeCallableExpr(this, 'browserForPlatform');
-  public readonly cliVersion = makeCallableExpr(this, 'cliVersion');
-  public readonly isCI = makeCallableExpr(this, 'isCI');
-  public readonly shouldDisplayNotices = makeCallableExpr(this, 'shouldDisplayNotices');
-  public readonly yargsNegativeAlias = makeCallableExpr(this, 'yargsNegativeAlias');
-}
-
-function makeCallableExpr(scope: IScope, name: string) {
-  return $E(expr.sym(new ThingSymbol(name, scope)));
-}
-
 export async function renderYargs(config: CliConfig, helpers: CliHelpers): Promise<string> {
   const scope = new Module('aws-cdk');
-
-  scope.documentation.push('-------------------------------------------------------------------------------------------');
-  scope.documentation.push(`GENERATED FROM ${SOURCE_OF_TRUTH}.`);
-  scope.documentation.push('Do not edit by hand; all changes will be overwritten at build time from the config file.');
-  scope.documentation.push('-------------------------------------------------------------------------------------------');
+  scope.documentation.push(...preamble(SOURCE_OF_TRUTH));
 
   scope.addImport(new SelectiveModuleImport(scope, 'yargs', ['Argv']));
   helpers.import(scope, 'helpers');

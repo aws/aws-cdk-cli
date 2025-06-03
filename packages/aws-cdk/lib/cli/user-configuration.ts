@@ -6,6 +6,7 @@ import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
 import { debug, warning } from '../logging';
+import { CLI_DEFAULTS } from './cli-defaults';
 
 export const PROJECT_CONFIG = 'cdk.json';
 export { PROJECT_CONTEXT } from '../api/context';
@@ -80,12 +81,7 @@ export class Configuration {
   public settings = new Settings();
   public context = new Context();
 
-  public readonly defaultConfig = new Settings({
-    versionReporting: true,
-    assetMetadata: true,
-    pathMetadata: true,
-    output: 'cdk.out',
-  });
+  public readonly defaultConfig = CLI_DEFAULTS;
 
   private readonly commandLineArguments: Settings;
   private readonly commandLineContext: Settings;

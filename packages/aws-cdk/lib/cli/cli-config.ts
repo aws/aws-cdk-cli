@@ -367,7 +367,7 @@ export async function makeConfig(): Promise<CliConfig> {
       notices: {
         description: 'Returns a list of relevant notices',
         options: {
-          unacknowledged: { type: 'boolean', alias: 'u', default: false, desc: 'Returns a list of unacknowledged notices' },
+          unacknowledged: { type: 'boolean', alias: 'u', desc: 'Return a list of only unacknowledged notices' },
         },
       },
       init: {

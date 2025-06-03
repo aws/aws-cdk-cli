@@ -202,7 +202,7 @@ export interface GlobalOptions {
   /**
    * Show debug logs (specify multiple times to increase verbosity)
    *
-   * @default - false
+   * @default - undefined
    */
   readonly verbose?: number;
 
@@ -1222,11 +1222,11 @@ export interface AcknowledgeOptions {
  */
 export interface NoticesOptions {
   /**
-   * Returns a list of unacknowledged notices
+   * Return a list of only unacknowledged notices
    *
    * aliases: u
    *
-   * @default - false
+   * @default - undefined
    */
   readonly unacknowledged?: boolean;
 }
