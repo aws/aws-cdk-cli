@@ -570,7 +570,6 @@ describe('refactor detection', () => {
   });
 });
 
-
 describe('refactor execution', () => {
   beforeEach(() => {
     process.stdout.isTTY = false;
