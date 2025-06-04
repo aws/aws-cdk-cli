@@ -1,5 +1,5 @@
 /**
- * The current action being performed by the Toolkit or CLI.
+ * The current action being performed by the Toolkit.
  */
 export type ToolkitAction =
 | 'assembly'
