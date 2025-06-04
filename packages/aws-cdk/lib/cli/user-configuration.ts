@@ -2,15 +2,17 @@ import * as os from 'os';
 import * as fs_path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import { Context, PROJECT_CONTEXT } from '../api/context';
+import { Context, PROJECT_CONTEXT as DEFAULT_PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
-import { debug, warning } from '../logging';
+import { info, debug, warning } from '../logging';
 
 export const PROJECT_CONFIG = 'cdk.json';
-export { PROJECT_CONTEXT } from '../api/context';
 export const USER_DEFAULTS = '~/.cdk.json';
 const CONTEXT_KEY = 'context';
+
+let PROJECT_CONTEXT = DEFAULT_PROJECT_CONTEXT;
+export { PROJECT_CONTEXT };
 
 export enum Command {
   LS = 'ls',
@@ -122,6 +124,20 @@ export class Configuration {
   public async load(): Promise<this> {
     const userConfig = await loadAndLog(USER_DEFAULTS);
     this._projectConfig = await loadAndLog(PROJECT_CONFIG);
+    var userProjectContextFile = this.commandLineArguments.subSettings(['contextFile']).get([]);
+    // Check if file exists
+    if (
+      userProjectContextFile &&
+      typeof userProjectContextFile === 'string' &&
+      fs.existsSync(expandHomeDir(userProjectContextFile))
+    ) {
+      info(`Using specified project context ${userProjectContextFile}`);
+      PROJECT_CONTEXT = userProjectContextFile;
+    } else {
+      warning(
+        `File ${userProjectContextFile} does not exist or is not a valid path. Using default: ${PROJECT_CONTEXT}`,
+      );
+    }
     this._projectContext = await loadAndLog(PROJECT_CONTEXT);
 
     // @todo cannot currently be disabled by cli users
@@ -278,6 +294,7 @@ export function commandLineArgumentsToSettings(argv: Arguments): Settings {
     build: argv.build,
     caBundlePath: argv.caBundlePath,
     context,
+    contextFile: argv.contextFile,
     debug: argv.debug,
     tags,
     language: argv.language,
