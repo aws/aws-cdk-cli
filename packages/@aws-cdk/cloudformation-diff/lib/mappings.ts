@@ -18,13 +18,13 @@ export function formatTypedMappings(stream: NodeJS.WritableStream, mappings: Typ
   const rows = mappings.map((m) => [m.type, m.sourcePath, m.destinationPath]);
 
   const formatter = new Formatter(stream, {});
+  formatter.print(`${env}:`);
   if (mappings.length > 0) {
-    formatter.print(`${env}:`);
     formatter.print(chalk.green(formatTable(header.concat(rows), undefined)));
-    formatter.print(' ');
   } else {
     formatter.print('Nothing to refactor.');
   }
+  formatter.print(' ');
 }
 
 export function formatAmbiguitySectionHeader(stream: NodeJS.WritableStream) {

@@ -1,5 +1,5 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { StackSelectionStrategy, Toolkit } from '../../lib';
+import { MappingSource, StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
@@ -8,7 +8,7 @@ import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
 jest.setTimeout(10_000);
 
 const ioHost = new TestIoHost();
-const toolkit = new Toolkit({ ioHost });
+const toolkit = new Toolkit({ ioHost, unstableFeatures: ['refactor'] });
 
 jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
 
@@ -16,6 +16,19 @@ beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
   mockCloudFormationClient.reset();
+});
+
+test('requires acknowledgment that the feature is unstable', async () => {
+  // GIVEN
+  const tk = new Toolkit({ ioHost /* unstable not acknowledged */ });
+  const cx = await builderFixture(tk, 'stack-with-bucket');
+
+  // WHEN
+  await expect(
+    tk.refactor(cx, {
+      dryRun: true,
+    }),
+  ).rejects.toThrow("Unstable feature 'refactor' is not enabled. Please enable it under 'unstableFeatures'");
 });
 
 test('detects the same resource in different locations', async () => {
@@ -337,7 +350,7 @@ test('uses the explicit mapping when provided, instead of computing it on-the-fl
   const cx = await builderFixture(toolkit, 'stack-with-bucket');
   await toolkit.refactor(cx, {
     dryRun: true,
-    mappings: [
+    mappingSource: MappingSource.explicit([
       {
         account: '123456789012',
         region: 'us-east-1',
@@ -345,7 +358,7 @@ test('uses the explicit mapping when provided, instead of computing it on-the-fl
           'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
         },
       },
-    ],
+    ]),
   });
 
   // THEN
@@ -405,16 +418,14 @@ test('uses the reverse of an explicit mapping when provided', async () => {
   const cx = await builderFixture(toolkit, 'stack-with-bucket');
   await toolkit.refactor(cx, {
     dryRun: true,
-    // ... this is the mapping we used...
-    mappings: [{
+    // ... this is the mapping we used, and now we want to revert it
+    mappingSource: MappingSource.reverse([{
       account: '123456789012',
       region: 'us-east-1',
       resources: {
         'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
       },
-    }],
-    // ...and now we want to revert it
-    revert: true,
+    }]),
   });
 
   // THEN
@@ -435,35 +446,6 @@ test('uses the reverse of an explicit mapping when provided', async () => {
       }),
     }),
   );
-});
-
-test('exclude and mappings are mutually exclusive', async () => {
-  // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await expect(
-    toolkit.refactor(cx, {
-      dryRun: true,
-      exclude: ['Stack1/OldLogicalID'],
-      mappings: [{
-        account: '123456789012',
-        region: 'us-east-1',
-        resources: {
-          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
-        },
-      }],
-    }),
-  ).rejects.toThrow(/Cannot use both 'exclude' and 'mappings'/);
-});
-
-test('revert can only be used with mappings', async () => {
-  // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await expect(
-    toolkit.refactor(cx, {
-      dryRun: true,
-      revert: true,
-    }),
-  ).rejects.toThrow(/The 'revert' options can only be used with the 'mappings' option/);
 });
 
 test('computes one set of mappings per environment', async () => {

@@ -29,10 +29,11 @@ import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { MappingGroup, RefactorOptions } from '../actions/refactor';
+import { MappingSource } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { WatchOptions } from '../actions/watch';
-import { patternsArrayForWatch } from '../actions/watch/private';
+import type { IWatcher, WatchOptions } from '../actions/watch';
+import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import {
   BaseCredentials,
   type IBaseCredentialsProvider,
@@ -59,10 +60,11 @@ import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-
 import { Mode, PluginHost } from '../api/plugin';
 import {
   formatAmbiguitySectionHeader,
-  formatAmbiguousMappings, formatMappingsHeader,
+  formatAmbiguousMappings,
+  formatMappingsHeader,
   formatTypedMappings,
-  fromManifestAndExclusionList,
   getDeployedStacks,
+  ManifestExcludeList,
   usePrescribedMappings,
 } from '../api/refactoring';
 import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cloudformation';
@@ -131,6 +133,13 @@ export interface ToolkitOptions {
    * @default - A fresh plugin host
    */
   readonly pluginHost?: PluginHost;
+
+  /**
+   * Set of unstable features to opt into. If you are using an unstable feature,
+   * you must explicitly acknowledge that you are aware of the risks of using it,
+   * by passing it in this set.
+   */
+  readonly unstableFeatures?: Array<UnstableFeature>;
 }
 
 interface StackGroup {
@@ -138,6 +147,12 @@ interface StackGroup {
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
 }
+
+/**
+ * Names of toolkit features that are still under development, and may change in
+ * the future.
+ */
+export type UnstableFeature = 'refactor';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -165,6 +180,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private baseCredentials: IBaseCredentialsProvider;
 
+  private readonly unstableFeatures: Array<UnstableFeature>;
+
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
@@ -183,6 +200,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.ioHost = withTrimmedWhitespace(ioHost);
 
     this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible();
+    this.unstableFeatures = props.unstableFeatures ?? [];
   }
 
   /**
@@ -838,42 +856,29 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
-    if (options.include === undefined && options.exclude === undefined) {
-      throw new ToolkitError(
-        "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-        'Make sure to add a "watch" key to your cdk.json',
-      );
+    // For the "include" setting, the behavior is:
+    // 1. "watch" setting without an "include" key? We default to observing "**".
+    // 2. "watch" setting with an empty "include" key? We default to observing "**".
+    // 3. Non-empty "include" key? Just use the "include" key.
+    const watchIncludes = options.include ?? [];
+    if (watchIncludes.length <= 0) {
+      watchIncludes.push('**');
     }
 
-    // For the "include" subkey under the "watch" key, the behavior is:
-    // 1. No "watch" setting? We error out.
-    // 2. "watch" setting without an "include" key? We default to observing "./**".
-    // 3. "watch" setting with an empty "include" key? We default to observing "./**".
-    // 4. Non-empty "include" key? Just use the "include" key.
-    const watchIncludes = patternsArrayForWatch(options.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
-    });
-
-    // For the "exclude" subkey under the "watch" key,
-    // the behavior is to add some default excludes in addition to the ones specified by the user:
-    // 1. The CDK output directory.
-    // 2. Any file whose name starts with a dot.
-    // 3. Any directory's content whose name starts with a dot.
-    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = assembly.directory;
-    const watchExcludes = patternsArrayForWatch(options.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
-    });
-
-    // only exclude the outdir if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, outdir);
+    // For the "exclude" setting, the behavior is to add some default excludes in addition to
+    // patterns specified by the user sensible default patterns:
+    const watchExcludes = options.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
+    // 1. The CDK output directory, if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, assembly.directory);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
-
-    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
+    // 2. Any file whose name starts with a dot.
+    watchExcludes.push('.*', '**/.*');
+    // 3. Any directory's content whose name starts with a dot.
+    watchExcludes.push('**/.*/**');
+    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
+    watchExcludes.push('**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([
@@ -955,6 +960,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
+        // stop the logs monitor, if it exists
+        await cloudWatchLogMonitor?.deactivate();
+        // close the watcher itself
         await watcher.close();
         // Prevents Node from staying alive. There is no 'end' event that the watcher emits
         // that we can know it's definitely done, so best we can do is tell it to stop watching,
@@ -1051,27 +1059,22 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Refactor Action. Moves resources from one location (stack + logical ID) to another.
    */
   public async refactor(cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
+    this.requireUnstableFeature('refactor');
+
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
     const assembly = await assemblyFromSource(ioHelper, cx);
     return this._refactor(assembly, ioHelper, options);
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (options.mappings && options.exclude) {
-      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
-    }
-
-    if (options.revert && !options.mappings) {
-      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
-    }
-
     if (!options.dryRun) {
       throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
     }
 
     const sdkProvider = await this.sdkProvider('refactor');
     const stacks = await assembly.selectStacksV2(ALL_STACKS);
-    const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
+    const mappingSource = options.mappingSource ?? MappingSource.auto();
+    const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
     const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
     const refactoringContexts: RefactoringContext[] = [];
@@ -1081,7 +1084,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         deployedStacks,
         localStacks,
         filteredStacks: filteredStacks.stackArtifacts,
-        mappings: await getUserProvidedMappings(),
+        mappings: await getUserProvidedMappings(environment),
       }));
     }
 
@@ -1115,7 +1118,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const environments: Map<string, cxapi.Environment> = new Map();
 
       for (const stack of stacks.stackArtifacts) {
-        const environment = stack.environment;
+        const environment = await sdkProvider.resolveEnvironment(stack.environment);
         const key = hashObject(environment);
         environments.set(key, environment);
         if (stackGroups.has(key)) {
@@ -1138,21 +1141,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return result;
     }
 
-    async function getUserProvidedMappings(): Promise<ResourceMapping[] | undefined> {
-      if (options.revert) {
-        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
-      }
-      if (options.mappings != null) {
-        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
-      }
-      return undefined;
-    }
+    async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {
+      return mappingSource.source == 'explicit'
+        ? usePrescribedMappings(mappingSource.groups.filter(matchesEnvironment), sdkProvider)
+        : undefined;
 
-    function revert(mappings: MappingGroup[]): MappingGroup[] {
-      return mappings.map(group => ({
-        ...group,
-        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
-      }));
+      function matchesEnvironment(g: MappingGroup): boolean {
+        return g.account === environment.account && g.region === environment.region;
+      }
     }
   }
 
@@ -1284,26 +1280,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // just continue - deploy will show the error
     }
   }
-}
 
-/**
- * The result of a `cdk.watch()` operation.
- */
-export interface IWatcher extends AsyncDisposable {
-  /**
-   * Stop the watcher and wait for the current watch iteration to complete.
-   *
-   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
-   * environments that don't support the Disposable APIs yet.
-   */
-  dispose(): Promise<void>;
-
-  /**
-   * Wait for the watcher to stop.
-   *
-   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
-   *
-   * If neither of those is called, awaiting this promise will wait forever.
-   */
-  waitForEnd(): Promise<void>;
+  private requireUnstableFeature(requestedFeature: UnstableFeature) {
+    if (!this.unstableFeatures.includes(requestedFeature)) {
+      throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+    }
+  }
 }

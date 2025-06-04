@@ -62,7 +62,7 @@ export interface CliIoHostProps {
    */
   readonly requireDeployApproval?: RequireApproval;
 
-  /*
+  /**
    * The initial Toolkit action the hosts starts with.
    *
    * @default StackActivityProgress.BAR

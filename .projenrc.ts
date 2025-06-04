@@ -30,7 +30,7 @@ const TYPESCRIPT_VERSION = '5.6';
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   // currently supported min node version
-  x.package.addEngine('node', '>= 14.15.0');
+  x.package.addEngine('node', '>= 18.0.0');
 
   x.addDevDeps(
     'jest-junit@^16',
@@ -377,7 +377,7 @@ new JsiiBuild(cloudAssemblySchema, {
     javaPackage: 'software.amazon.awscdk.cloudassembly.schema',
     mavenArtifactId: 'cdk-cloud-assembly-schema',
     mavenGroupId: 'software.amazon.awscdk',
-    mavenEndpoint: 'https://aws.oss.sonatype.org',
+    mavenServerId: 'central-ossrh',
   },
   publishToNuget: {
     dotNetNamespace: 'Amazon.CDK.CloudAssembly.Schema',
@@ -1061,8 +1061,7 @@ const cli = configureProject(
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
-      // A version that is guaranteed to still work on Node 16
-      'cdk-from-cfn@0.162.1',
+      'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
@@ -1330,7 +1329,7 @@ new JsiiBuild(cliLibAlpha, {
     javaPackage: 'software.amazon.awscdk.cli.lib.alpha',
     mavenGroupId: 'software.amazon.awscdk',
     mavenArtifactId: 'cdk-cli-lib-alpha',
-    mavenEndpoint: 'https://aws.oss.sonatype.org',
+    mavenServerId: 'central-ossrh',
   },
   publishToPypi: {
     distName: 'aws-cdk.cli-lib-alpha',
