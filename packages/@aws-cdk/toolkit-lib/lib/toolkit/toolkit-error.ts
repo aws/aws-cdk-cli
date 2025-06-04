@@ -21,25 +21,25 @@ export class ToolkitError extends Error {
    * Determines if a given error is an instance of AuthenticationError.
    */
   public static isAuthenticationError(x: any): x is AuthenticationError {
-    return this.isToolkitError(x) && AUTHENTICATION_ERROR_SYMBOL in x;
+    return ToolkitError.isToolkitError(x) && AUTHENTICATION_ERROR_SYMBOL in x;
   }
 
   /**
    * Determines if a given error is an instance of AssemblyError.
    */
   public static isAssemblyError(x: any): x is AssemblyError {
-    return this.isToolkitError(x) && ASSEMBLY_ERROR_SYMBOL in x;
+    return ToolkitError.isToolkitError(x) && ASSEMBLY_ERROR_SYMBOL in x;
   }
 
   /**
-   * Determines if a given error is an instance of AssemblyError.
+   * Determines if a given error is an instance of ContextProviderError.
    */
   public static isContextProviderError(x: any): x is ContextProviderError {
-    return this.isToolkitError(x) && CONTEXT_PROVIDER_ERROR_SYMBOL in x;
+    return ToolkitError.isToolkitError(x) && CONTEXT_PROVIDER_ERROR_SYMBOL in x;
   }
 
   /**
-   * An AssemblyError with an original error as cause
+   * A ToolkitError with an original error as cause
    */
   public static withCause(message: string, error: unknown): ToolkitError {
     return new ToolkitError(message, 'toolkit', error);
@@ -133,10 +133,17 @@ export class AssemblyError extends ToolkitError {
  */
 export class ContextProviderError extends ToolkitError {
   /**
-   * Determines if a given error is an instance of AssemblyError.
+   * Determines if a given error is an instance of NoResultsFoundError.
    */
   public static isNoResultsFoundError(x: any): x is NoResultsFoundError {
-    return this.isContextProviderError(x) && NO_RESULTS_FOUND_ERROR_SYMBOL in x;
+    return ToolkitError.isContextProviderError(x) && NO_RESULTS_FOUND_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * A ContextProviderError with an original error as cause
+   */
+  public static withCause(message: string, error: unknown): ContextProviderError {
+    return new ContextProviderError(message, error);
   }
 
   /**
@@ -144,8 +151,8 @@ export class ContextProviderError extends ToolkitError {
    */
   public readonly source = 'user';
 
-  constructor(message: string) {
-    super(message, 'context-provider');
+  constructor(message: string, cause?: unknown) {
+    super(message, 'context-provider', cause);
     Object.setPrototypeOf(this, ContextProviderError.prototype);
     Object.defineProperty(this, CONTEXT_PROVIDER_ERROR_SYMBOL, { value: true });
   }

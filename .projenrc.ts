@@ -794,7 +794,10 @@ const toolkitLib = configureProject(
           lines: 87,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
+        setupFilesAfterEnv: [
+          '<rootDir>/test/_helpers/jest-setup-after-env.ts',
+          '<rootDir>/test/_helpers/jest-custom-matchers.ts',
+        ],
       },
     }),
     tsconfig: {
