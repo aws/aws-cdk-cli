@@ -13,7 +13,7 @@ export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.
  */
-export type CliAction =
+type CliAction =
 | ToolkitAction
 | 'context'
 | 'docs'
