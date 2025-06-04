@@ -1035,9 +1035,9 @@ export class CdkToolkit {
   /**
    * Bootstrap the CDK Toolkit stack in the accounts used by the specified stack(s).
    *
-   * @param userEnvironmentSpecs environment names that need to have toolkit support
+   * @param userEnvironmentSpecs - environment names that need to have toolkit support
    *             provisioned, as a glob filter. If none is provided, all stacks are implicitly selected.
-   * @param options The name, role ARN, bootstrapping parameters, etc. to be used for the CDK Toolkit stack.
+   * @param options - The name, role ARN, bootstrapping parameters, etc. to be used for the CDK Toolkit stack.
    */
   public async bootstrap(
     userEnvironmentSpecs: string[],
@@ -1069,7 +1069,7 @@ export class CdkToolkit {
 
   /**
    * Garbage collects assets from a CDK app's environment
-   * @param options Options for Garbage Collection
+   * @param options - Options for Garbage Collection
    */
   public async garbageCollect(userEnvironmentSpecs: string[], options: GarbageCollectionOptions) {
     const environments = await this.defineEnvironments(userEnvironmentSpecs);
@@ -1125,7 +1125,7 @@ export class CdkToolkit {
 
   /**
    * Migrates a CloudFormation stack/template to a CDK app
-   * @param options Options for CDK app creation
+   * @param options - Options for CDK app creation
    */
   public async migrate(options: MigrateOptions): Promise<void> {
     warning('This command is an experimental feature.');

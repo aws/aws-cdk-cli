@@ -79,8 +79,8 @@ export class MockCdkProvider {
 
   /**
    * Run a test of the testSnapshot method
-   * @param integTestFile This name is used to determined the expected (committed) snapshot
-   * @param actualSnapshot The directory of the snapshot that is used for of the actual (current) app
+   * @param integTestFile - This name is used to determined the expected (committed) snapshot
+   * @param actualSnapshot - The directory of the snapshot that is used for of the actual (current) app
    * @returns Diagnostics as they would be returned by testSnapshot
    */
   public snapshotTest(integTestFile: string, actualSnapshot?: string): {
