@@ -5,6 +5,7 @@ import * as logging from '../../lib/logging';
 jest.mock('../../lib/logging', () => ({
   info: jest.fn(),
   debug: jest.fn(),
+  warning: jest.fn(),
   error: jest.fn(),
   print: jest.fn(),
   result: jest.fn(),
