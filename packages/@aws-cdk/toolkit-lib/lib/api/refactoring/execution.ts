@@ -232,7 +232,7 @@ function indexExports(stacks: CloudFormationStack[]): Record<string, ResourceRef
   return Object.fromEntries(
     stacks.flatMap((s) =>
       Object.values(s.template.Outputs ?? {})
-        .filter((o) => typeof o.Export?.Name === 'string')
+        .filter((o) => typeof o.Export?.Name === 'string' && (o.Value.Ref != null || o.Value['Fn::GetAtt'] != null))
         .map((o) => {
           const ref = resourceReferenceFromCfn(s.stackName, o.Value);
           return [o.Export.Name, ref];
