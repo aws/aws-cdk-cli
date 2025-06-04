@@ -1,11 +1,12 @@
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import {
-  resourceReferenceFromCfn,
   type CloudFormationResource,
   type CloudFormationStack,
   type CloudFormationTemplate,
+  DependsOn,
   type ResourceMapping,
   type ResourceReference,
+  resourceReferenceFromCfn,
 } from './cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
@@ -42,6 +43,10 @@ export function generateStackDefinitions(
         location.stackName,
         mapper(mappings),
       );
+
+      // After copying (an updated version of) the deployed resource,
+      // we may end up with dangling dependencies. Sanitize them.
+      sanitizeDependencies(localTemplates[stackName]);
     }
   });
 
@@ -94,6 +99,32 @@ export function generateStackDefinitions(
     stackName: string,
     mapReference: (r: ResourceReference) => ResourceReference,
   ): any {
+    /*
+    The key to understand this function is the following diagram:
+
+                               e_d
+                        A -------------> B
+                        |                |
+                        |                |
+                        |      e_l       |
+                        A' ------------> B'
+
+    where the horizontal arrows are edges in the resource graphs: the top one is
+    from the deployed graph, and the bottom one is the local graph. A, B, A' and B'
+    refer to the location of resources. Vertical lines represent the mapping we are
+    going to send to the refactor API.
+
+    The goal of this function is to replace every edge e_d with the corresponding
+    edge e_l, as in the diagram. In the simplest case, e_d is of the form {Ref: X}
+    and e_l is of the form {Ref: Y}. We can obtain Y by a simple lookup in the
+    mapping. In more complex cases, the edges can be cross stack references. In such
+    cases, the reference is of the form {Fn::ImportValue: X}, and therefore there is
+    an additional level of indirection we have to deal with. If the deployed edge is
+    a cross-stack reference, we start with X, find the exported value, and then do
+    the mapping. If the local edge is cross-stack, we do the reverse lookup:
+    from the value, find the export name.
+     */
+
     if (!value || typeof value !== 'object') return value;
     if (Array.isArray(value)) {
       return value.map((x) => updateReferences(x, stackName, mapReference));
@@ -108,6 +139,14 @@ export function generateStackDefinitions(
       const exportName = value['Fn::ImportValue'];
       const ref = deployedExports[exportName];
       return resolveLocalReference(ref);
+    }
+
+    if ('DependsOn' in value) {
+      const update = (id: string) => resolveLocalReference(DependsOn.fromString(stackName, id));
+
+      value.DependsOn = typeof value.DependsOn === 'string'
+        ? update(value.DependsOn)
+        : value.DependsOn.map(update);
     }
     const result: any = {};
     for (const [k, v] of Object.entries(value)) {
@@ -130,15 +169,30 @@ export function generateStackDefinitions(
   }
 
   /**
+   * Updates the DependsOn property of all resources, removing references
+   * to resources that do not exist in the template. If a resource's
+   * DependsOn property ends up empty or undefined, it is removed.
+   */
+  function sanitizeDependencies(template: CloudFormationTemplate) {
+    const resources = template.Resources ?? {};
+    for (const resource of Object.values(resources)) {
+      if (typeof resource.DependsOn === 'string' && resources[resource.DependsOn] == null) {
+        delete resource.DependsOn;
+      }
+
+      if (Array.isArray(resource.DependsOn)) {
+        resource.DependsOn = resource.DependsOn.filter((dep) => resources[dep] != null);
+        if (resource.DependsOn.length === 0) {
+          delete resource.DependsOn;
+        }
+      }
+    }
+  }
+
+  /**
    * The location of a resource in the opposite set of stacks (local vs. deployed).
    */
-  function correspondingLocation(
-    stackName: string,
-    logicalResourceId: string,
-    direction: 'forward' | 'backward',
-  ) {
-    // forward: source -> destination
-    // backward: destination -> source
+  function correspondingLocation(stackName: string, logicalResourceId: string, direction: 'forward' | 'backward') {
     const from = direction === 'forward' ? 'source' : 'destination';
     const to = direction === 'forward' ? 'destination' : 'source';
     const mapping = mappings.find(
@@ -178,7 +232,7 @@ function indexExports(stacks: CloudFormationStack[]): Record<string, ResourceRef
   return Object.fromEntries(
     stacks.flatMap((s) =>
       Object.values(s.template.Outputs ?? {})
-        .filter((o) => o.Export?.Name != null)
+        .filter((o) => typeof o.Export?.Name === 'string')
         .map((o) => {
           const ref = resourceReferenceFromCfn(s.stackName, o.Value);
           return [o.Export.Name, ref];

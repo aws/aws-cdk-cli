@@ -3279,6 +3279,7 @@ describe(generateStackDefinitions, () => {
                 Prop2: { 'Fn::GetAtt': ['C', 'Banana'] },
                 Foo: 123,
               },
+              DependsOn: ['D'],
             },
             B: {
               Type: 'AWS::B::B',
@@ -3290,6 +3291,12 @@ describe(generateStackDefinitions, () => {
               Type: 'AWS::C::C',
               Properties: {
                 Banana: 'BananaValue',
+              },
+            },
+            D: {
+              Type: 'AWS::D::D',
+              Properties: {
+                Foo: 123,
               },
             },
           },
@@ -3308,6 +3315,7 @@ describe(generateStackDefinitions, () => {
                 Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
                 Bar: 456, // Different property
               },
+              DependsOn: ['Dn'],
             },
             Bn: {
               Type: 'AWS::B::B',
@@ -3321,6 +3329,12 @@ describe(generateStackDefinitions, () => {
                 Banana: 'BananaValue',
               },
             },
+            Dn: {
+              Type: 'AWS::D::D',
+              Properties: {
+                Bar: 456,
+              },
+            },
           },
         },
       };
@@ -3328,6 +3342,7 @@ describe(generateStackDefinitions, () => {
       const mappings: ResourceMapping[] = [
         new ResourceMapping(new ResourceLocation(deployedStack, 'B'), new ResourceLocation(deployedStack, 'Bn')),
         new ResourceMapping(new ResourceLocation(deployedStack, 'C'), new ResourceLocation(deployedStack, 'Cn')),
+        new ResourceMapping(new ResourceLocation(deployedStack, 'D'), new ResourceLocation(deployedStack, 'Dn')),
       ];
 
       const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
@@ -3343,6 +3358,7 @@ describe(generateStackDefinitions, () => {
                   Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
                   Foo: 123,
                 },
+                DependsOn: ['Dn'],
               },
               Bn: {
                 Type: 'AWS::B::B',
@@ -3354,6 +3370,12 @@ describe(generateStackDefinitions, () => {
                 Type: 'AWS::C::C',
                 Properties: {
                   Banana: 'BananaValue',
+                },
+              },
+              Dn: {
+                Type: 'AWS::D::D',
+                Properties: {
+                  Foo: 123,
                 },
               },
             },
@@ -3374,6 +3396,7 @@ describe(generateStackDefinitions, () => {
                 Prop: { Ref: 'B' }, // Reference to a resource in the same stack
                 Foo: 123,
               },
+              DependsOn: 'B',
             },
             B: {
               Type: 'AWS::B::B',
@@ -3440,6 +3463,7 @@ describe(generateStackDefinitions, () => {
                   Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, // Reference to the moved resource
                   Foo: 123, // But we keep the original property from the deployed stack
                 },
+                // Note the absence of DependsOn
               },
             },
           }),
@@ -3468,7 +3492,7 @@ describe(generateStackDefinitions, () => {
       ]);
     });
 
-    test('cross -> witihin', () => {
+    test('cross -> within', () => {
       const deployedStack1: CloudFormationStack = {
         environment: environment,
         stackName: 'Foo',

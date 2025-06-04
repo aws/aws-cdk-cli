@@ -6,6 +6,7 @@ export interface CloudFormationResource {
   Type: string;
   Properties?: any;
   Metadata?: Record<string, any>;
+  DependsOn?: string | string[];
 }
 
 export interface CloudFormationTemplate {
@@ -82,7 +83,7 @@ export abstract class ResourceReference {
   abstract toCfn(): any;
 }
 
-class Ref extends ResourceReference {
+export class Ref extends ResourceReference {
   public static fromCfn(stackName: string, value: any): ResourceReference {
     if (!('Ref' in value)) {
       throw new ToolkitError(`Expected a Ref object, got ${JSON.stringify(value)}`);
@@ -109,7 +110,7 @@ class Ref extends ResourceReference {
   }
 }
 
-class GetAtt extends ResourceReference {
+export class GetAtt extends ResourceReference {
   public static fromCfn(stackName: string, value: any): ResourceReference {
     if (!('Fn::GetAtt' in value)) {
       throw new ToolkitError(`Expected a Fn::GetAtt object, got ${JSON.stringify(value)}`);
@@ -148,6 +149,30 @@ class GetAtt extends ResourceReference {
 
   toCfn(): any {
     return { 'Fn::GetAtt': [this.logicalResourceId, this.attributeName] };
+  }
+}
+
+export class DependsOn extends ResourceReference {
+  public static fromString(stackName: string, logicalId: string): ResourceReference {
+    return new DependsOn(stackName, logicalId);
+  }
+
+  constructor(public readonly stackName: string, public readonly logicalResourceId: string) {
+    super(stackName, logicalResourceId);
+  }
+
+  public equals(other: ResourceReference): boolean {
+    return (
+      other instanceof DependsOn && this.stackName === other.stackName && this.logicalResourceId === other.logicalResourceId
+    );
+  }
+
+  public map(stackName: string, logicalId: string): ResourceReference {
+    return new DependsOn(stackName, logicalId);
+  }
+
+  toCfn(): any {
+    return this.logicalResourceId;
   }
 }
 
