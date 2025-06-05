@@ -97,7 +97,7 @@ describe('yargs', () => {
 });
 
 describe('config', () => {
-  test('cdk.json arguments can be converted to cli argumets', async () => {
+  test('cdk.json arguments can be converted to cli arguments', async () => {
     const input = {
       output: 'blah.out',
       build: 'yarn build',
@@ -140,6 +140,7 @@ describe('config', () => {
       doctor: expect.anything(),
       docs: expect.anything(),
       refactor: expect.anything(),
+      telemetry: expect.anything(),
     });
   });
 });

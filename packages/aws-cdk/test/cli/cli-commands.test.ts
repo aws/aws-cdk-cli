@@ -44,3 +44,11 @@ describe('context', () => {
     expect(logging.info).toHaveBeenCalledWith(expect.stringContaining('This CDK application does not have any saved context values yet.'));
   });
 });
+
+describe('telemetry', () => {
+  test('requires either --enable or --disable flag', async () => {
+    await expect(exec(['telemetry']))
+      .rejects
+      .toThrow("Must specify either '--enable' or '--disable'");
+  });
+})
