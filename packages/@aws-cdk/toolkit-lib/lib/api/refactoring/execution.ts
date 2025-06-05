@@ -4,6 +4,7 @@ import {
   type CloudFormationStack,
   type CloudFormationTemplate,
   DependsOn,
+  FnSub,
   type ResourceMapping,
   type ResourceReference,
   resourceReferenceFromCfn,
@@ -141,12 +142,27 @@ export function generateStackDefinitions(
       return resolveLocalReference(ref);
     }
 
-    if ('DependsOn' in value) {
-      const update = (id: string) => resolveLocalReference(DependsOn.fromString(stackName, id));
+    if ('Fn::Sub' in value) {
+      let inputString: string;
+      let variables: Record<string, any> | undefined;
+      if (typeof value['Fn::Sub'] === 'string') {
+        inputString = value['Fn::Sub'];
+      } else {
+        [inputString, variables] = value['Fn::Sub'];
+      }
 
-      value.DependsOn = typeof value.DependsOn === 'string'
-        ? update(value.DependsOn)
-        : value.DependsOn.map(update);
+      const updatedVariables = updateReferences(variables, stackName, mapReference);
+      const updatedInputString = updateReferences(inputString, stackName, mapReference);
+      const fnSub = new FnSub(stackName, updatedInputString, updatedVariables);
+      return resolveLocalReference(fnSub);
+    }
+
+    if ('DependsOn' in value) {
+      const dependsOn = typeof value.DependsOn === 'string'
+        ? DependsOn.fromString(stackName, value.DependsOn)
+        : DependsOn.fromArray(stackName, value.DependsOn);
+
+      value.DependsOn = resolveLocalReference(dependsOn);
     }
     const result: any = {};
     for (const [k, v] of Object.entries(value)) {
@@ -216,16 +232,7 @@ export function generateStackDefinitions(
 }
 
 function mapper(mappings: ResourceMapping[]): (r: ResourceReference) => ResourceReference {
-  return (r: ResourceReference): ResourceReference => {
-    for (const mapping of mappings) {
-      if (mapping.source.logicalResourceId === r.logicalResourceId && mapping.source.stack.stackName === r.stackName) {
-        const logicalResourceId = mapping.destination.logicalResourceId;
-        const stackName = mapping.destination.stack.stackName;
-        return r.map(stackName, logicalResourceId);
-      }
-    }
-    return r;
-  };
+  return (r: ResourceReference) => r.replace(mappings);
 }
 
 function indexExports(stacks: CloudFormationStack[]): Record<string, ResourceReference> {

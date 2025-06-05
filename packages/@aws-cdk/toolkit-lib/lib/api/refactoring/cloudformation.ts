@@ -1,4 +1,5 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
+import { deepEqual } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
@@ -72,18 +73,15 @@ export class ResourceMapping {
   }
 }
 
-export abstract class ResourceReference {
-  protected constructor(public readonly stackName: string, public readonly logicalResourceId: string) {
-  }
+export interface ResourceReference {
+  equals(other: ResourceReference): boolean;
 
-  abstract equals(other: ResourceReference): boolean;
+  replace(mappings: ResourceMapping[]): ResourceReference;
 
-  abstract map(stackName: string, name: string): ResourceReference;
-
-  abstract toCfn(): any;
+  toCfn(): any;
 }
 
-export class Ref extends ResourceReference {
+export class Ref implements ResourceReference {
   public static fromCfn(stackName: string, value: any): ResourceReference {
     if (!('Ref' in value)) {
       throw new ToolkitError(`Expected a Ref object, got ${JSON.stringify(value)}`);
@@ -92,7 +90,6 @@ export class Ref extends ResourceReference {
   }
 
   constructor(public readonly stackName: string, public readonly logicalResourceId: string) {
-    super(stackName, logicalResourceId);
   }
 
   public equals(other: ResourceReference): boolean {
@@ -105,12 +102,26 @@ export class Ref extends ResourceReference {
     return new Ref(stackName, logicalId);
   }
 
+  public replace(mappings: ResourceMapping[]): ResourceReference {
+    for (const mapping of mappings) {
+      if (
+        mapping.source.logicalResourceId === this.logicalResourceId &&
+        mapping.source.stack.stackName === this.stackName
+      ) {
+        const logicalId = mapping.destination.logicalResourceId;
+        const stackName = mapping.destination.stack.stackName;
+        return new Ref(stackName, logicalId);
+      }
+    }
+    return this;
+  }
+
   toCfn(): any {
     return { Ref: this.logicalResourceId };
   }
 }
 
-export class GetAtt extends ResourceReference {
+export class GetAtt implements ResourceReference {
   public static fromCfn(stackName: string, value: any): ResourceReference {
     if (!('Fn::GetAtt' in value)) {
       throw new ToolkitError(`Expected a Fn::GetAtt object, got ${JSON.stringify(value)}`);
@@ -127,11 +138,10 @@ export class GetAtt extends ResourceReference {
   }
 
   constructor(
-    public readonly stackName: string,
-    public readonly logicalResourceId: string,
-    public readonly attributeName: string,
+    private readonly stackName: string,
+    private readonly logicalResourceId: string,
+    private readonly attributeName: string,
   ) {
-    super(stackName, logicalResourceId);
   }
 
   public equals(other: ResourceReference): boolean {
@@ -143,8 +153,18 @@ export class GetAtt extends ResourceReference {
     );
   }
 
-  public map(stackName: string, logicalId: string): ResourceReference {
-    return new GetAtt(stackName, logicalId, this.attributeName);
+  public replace(mappings: ResourceMapping[]): ResourceReference {
+    for (const mapping of mappings) {
+      if (
+        mapping.source.logicalResourceId === this.logicalResourceId &&
+        mapping.source.stack.stackName === this.stackName
+      ) {
+        const logicalId = mapping.destination.logicalResourceId;
+        const stackName = mapping.destination.stack.stackName;
+        return new GetAtt(stackName, logicalId, this.attributeName);
+      }
+    }
+    return this;
   }
 
   toCfn(): any {
@@ -152,27 +172,84 @@ export class GetAtt extends ResourceReference {
   }
 }
 
-export class DependsOn extends ResourceReference {
+export class DependsOn implements ResourceReference {
   public static fromString(stackName: string, logicalId: string): ResourceReference {
-    return new DependsOn(stackName, logicalId);
+    return DependsOn.fromArray(stackName, [logicalId]);
   }
 
-  constructor(public readonly stackName: string, public readonly logicalResourceId: string) {
-    super(stackName, logicalResourceId);
+  public static fromArray(stackName: string, logicalIds: string[]): ResourceReference {
+    return new DependsOn(stackName, logicalIds);
+  }
+
+  constructor(private readonly stackName: string, private readonly logicalIds: string[]) {
   }
 
   public equals(other: ResourceReference): boolean {
     return (
-      other instanceof DependsOn && this.stackName === other.stackName && this.logicalResourceId === other.logicalResourceId
+      other instanceof DependsOn &&
+      this.stackName === other.stackName &&
+      other.logicalIds.length === this.logicalIds.length &&
+      this.logicalIds.every((id) => other.logicalIds.includes(id))
     );
   }
 
-  public map(stackName: string, logicalId: string): ResourceReference {
-    return new DependsOn(stackName, logicalId);
+  replace(mappings: ResourceMapping[]): ResourceReference {
+    const newLogicalIds = this.logicalIds.map((logicalId) => {
+      for (const mapping of mappings) {
+        if (mapping.source.logicalResourceId === logicalId && mapping.source.stack.stackName === this.stackName) {
+          return mapping.destination.logicalResourceId;
+        }
+      }
+      return logicalId; // No mapping found, return original logical ID
+    });
+
+    return new DependsOn(this.stackName, newLogicalIds);
   }
 
   toCfn(): any {
-    return this.logicalResourceId;
+    return this.logicalIds;
+  }
+}
+
+export class FnSub implements ResourceReference {
+  constructor(
+    private readonly stackName: string,
+    private readonly inputString: any,
+    private readonly variableMap: Record<string, string> = {},
+  ) {
+  }
+
+  equals(other: ResourceReference): boolean {
+    return (
+      other instanceof FnSub &&
+      this.stackName === other.stackName &&
+      deepEqual(this.inputString, other.inputString) &&
+      deepEqual(this.variableMap, other.variableMap)
+    );
+  }
+
+  replace(mappings: ResourceMapping[]): ResourceReference {
+    if (typeof this.inputString !== 'string') {
+      return this;
+    }
+
+    const newInputString = this.inputString.replace(/\${([a-zA-Z0-9_.]+)}/g, (_: any, varName: string) => {
+      if (varName.includes('.')) {
+        const [logicalId, attr] = varName.split('.');
+        const mappedResource = replaceFirst(mappings, this.stackName, logicalId);
+        return `\${${mappedResource}.${attr}}`;
+      } else {
+        return `\${${replaceFirst(mappings, this.stackName, varName)}}`;
+      }
+    });
+    return new FnSub(this.stackName, newInputString, this.variableMap);
+  }
+
+  toCfn(): any {
+    const array = this.variableMap ? [this.inputString, this.variableMap] : [this.inputString];
+    return {
+      'Fn::Sub': array,
+    };
   }
 }
 
@@ -184,4 +261,13 @@ export function resourceReferenceFromCfn(stackName: string, value: any): Resourc
   } else {
     throw new ToolkitError(`Unsupported resource reference type: ${JSON.stringify(value)}`);
   }
+}
+
+function replaceFirst(mappings: ResourceMapping[], stackName: string, logicalId: string): string {
+  for (const mapping of mappings) {
+    if (mapping.source.logicalResourceId === logicalId && mapping.source.stack.stackName === stackName) {
+      return mapping.destination.logicalResourceId;
+    }
+  }
+  return logicalId;
 }

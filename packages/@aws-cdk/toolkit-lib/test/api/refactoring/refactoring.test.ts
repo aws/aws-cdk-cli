@@ -3277,6 +3277,7 @@ describe(generateStackDefinitions, () => {
               Properties: {
                 Prop: { Ref: 'B' },
                 Prop2: { 'Fn::GetAtt': ['C', 'Banana'] },
+                Prop3: { 'Fn::Sub': ['${C}'] },
                 Foo: 123,
               },
               DependsOn: ['D'],
@@ -3313,6 +3314,7 @@ describe(generateStackDefinitions, () => {
               Properties: {
                 Prop: { Ref: 'Bn' },
                 Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
+                Prop3: { 'Fn::Sub': ['${Cn}'] },
                 Bar: 456, // Different property
               },
               DependsOn: ['Dn'],
@@ -3356,6 +3358,7 @@ describe(generateStackDefinitions, () => {
                 Properties: {
                   Prop: { Ref: 'Bn' },
                   Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
+                  Prop3: { 'Fn::Sub': ['${Cn}', {}] },
                   Foo: 123,
                 },
                 DependsOn: ['Dn'],
