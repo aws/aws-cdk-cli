@@ -1232,6 +1232,7 @@ export class CdkToolkit {
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         mappingSource: await mappingSource(),
+        force: options.force,
       });
     } catch (e) {
       error((e as Error).message);
@@ -2012,6 +2013,11 @@ export interface RefactorOptions {
    * that was previously applied.
    */
   revert?: boolean;
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
 }
 
 /**

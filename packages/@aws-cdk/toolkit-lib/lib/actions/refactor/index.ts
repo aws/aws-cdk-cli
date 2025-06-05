@@ -81,6 +81,11 @@ export interface RefactorOptions {
    * How the toolkit should obtain the mappings
    */
   mappingSource?: MappingSource;
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
 }
 
 export interface MappingGroup {
