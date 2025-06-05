@@ -51,4 +51,4 @@ describe('telemetry', () => {
       .rejects
       .toThrow("Must specify either '--enable' or '--disable'");
   });
-})
+});
