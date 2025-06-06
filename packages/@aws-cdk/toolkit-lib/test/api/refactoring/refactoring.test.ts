@@ -1783,7 +1783,7 @@ describe(usePrescribedMappings, () => {
           region: 'us-east-1',
           resources: {
             'Foo.Bucket1': 'Bar.Bucket2',
-            'InvalidLocation': 'Bar.Bucket3',
+            InvalidLocation: 'Bar.Bucket3',
           },
         },
       ],
@@ -2966,7 +2966,17 @@ describe(generateStackDefinitionsReloaded, () => {
 
         const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
-          // StackX was not part of the mappings
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({
+              Resources: {
+                A: {
+                  Type: 'AWS::A::A',
+                  Properties: { Props: { 'Fn::ImportValue': 'BnFromOtherStack' } },
+                },
+              },
+            }),
+          },
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
