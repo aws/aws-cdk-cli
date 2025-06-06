@@ -1783,7 +1783,7 @@ describe(usePrescribedMappings, () => {
           region: 'us-east-1',
           resources: {
             'Foo.Bucket1': 'Bar.Bucket2',
-            InvalidLocation: 'Bar.Bucket3',
+            'InvalidLocation': 'Bar.Bucket3',
           },
         },
       ],
@@ -3278,7 +3278,7 @@ describe(generateStackDefinitionsReloaded, () => {
               Properties: {
                 Prop: { Ref: 'B' },
                 Prop2: { 'Fn::GetAtt': ['C', 'Banana'] },
-                Prop3: { 'Fn::Sub': ['${C}'] },
+                Prop3: { 'Fn::Sub': ['${C} ${SomeVar}', { SomeVar: { Ref: 'B' } }] },
                 Foo: 123,
               },
               DependsOn: ['D'],
@@ -3315,7 +3315,7 @@ describe(generateStackDefinitionsReloaded, () => {
               Properties: {
                 Prop: { Ref: 'Bn' },
                 Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
-                Prop3: { 'Fn::Sub': ['${Cn}'] },
+                Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar}', { SomeVar: { Ref: 'Bn' } }] },
                 Bar: 456, // Different property
               },
               DependsOn: ['Dn'],
@@ -3359,10 +3359,16 @@ describe(generateStackDefinitionsReloaded, () => {
                 Properties: {
                   Prop: { Ref: 'Bn' },
                   Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
-                  Prop3: { 'Fn::Sub': ['${Cn}', {}] },
+                  Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar}', { SomeVar: { Ref: 'Bn' } }] },
                   Foo: 123,
                 },
                 DependsOn: ['Dn'],
+              },
+              Dn: {
+                Type: 'AWS::D::D',
+                Properties: {
+                  Foo: 123,
+                },
               },
               Bn: {
                 Type: 'AWS::B::B',
@@ -3374,12 +3380,6 @@ describe(generateStackDefinitionsReloaded, () => {
                 Type: 'AWS::C::C',
                 Properties: {
                   Banana: 'BananaValue',
-                },
-              },
-              Dn: {
-                Type: 'AWS::D::D',
-                Properties: {
-                  Foo: 123,
                 },
               },
             },

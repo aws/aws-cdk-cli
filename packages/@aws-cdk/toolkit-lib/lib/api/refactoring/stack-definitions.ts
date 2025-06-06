@@ -115,12 +115,13 @@ class Sub implements CloudFormationReference {
     let inputString = this.inputString;
     targets.forEach((t) => {
       const variable = inputString.match(regex)![1];
+      // TODO Only replace if the variable is not in the variable map
       const [_, attr] = variable.split(/\.(.*)/s);
       const toReplace = attr ? `${t.location.logicalResourceId}.${attr}` : t.location.logicalResourceId;
-      inputString = inputString.replace(regex, toReplace);
+      inputString = inputString.replace(regex, `\${${toReplace}}`);
     });
 
-    return { 'Fn::Sub': inputString };
+    return inputString;
   }
 }
 
@@ -128,7 +129,7 @@ class DependsOn implements CloudFormationReference {
   isCrossStack = false;
 
   toCfn(targets: ResourceNode[]): any {
-    return { DependsOn: targets.map((t) => t.location.logicalResourceId) };
+    return targets.map((t) => t.location.logicalResourceId);
   }
 }
 
@@ -384,6 +385,7 @@ function buildEdges(
 
       const edges = Array.from(inputString.matchAll(/\${([a-zA-Z0-9_.]+)}/g))
         .map((x) => x[1])
+        .filter(varName => (value['Fn::Sub'][1] ?? {})[varName] == null)
         .map((varName) => {
           return varName.includes('.')
             ? makeGetAtt(source.location.stack.stackName, varName)
@@ -411,7 +413,7 @@ function buildEdges(
       if (typeof value.DependsOn === 'string') {
         edges.push({
           ...makeRef(source.location.stack.stackName, value.DependsOn),
-          annotation: new DependsOn(),
+          annotation: new DependsOn(), // TODO can be a singleton
         });
       } else if (Array.isArray(value.DependsOn)) {
         edges.push({
@@ -419,8 +421,8 @@ function buildEdges(
           targets: value.DependsOn.flatMap(
             (dependsOn: string) => makeRef(source.location.stack.stackName, dependsOn).targets,
           ),
-          path,
-          annotation: new DependsOn(),
+          path: path.concat('DependsOn'),
+          annotation: new DependsOn(), // TODO can be a singleton
         });
       }
     }
