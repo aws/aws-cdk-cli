@@ -71,7 +71,7 @@ import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cl
 import { RefactoringContext } from '../api/refactoring/context';
 import { hashObject } from '../api/refactoring/digest';
 import { ResourceMigrator } from '../api/resource-import';
-import { tagsForStack } from '../api/tags';
+import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
