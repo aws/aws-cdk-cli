@@ -19,7 +19,7 @@ export interface ChangeSetDeployment {
   /**
    * Whether to execute the changeset or leave it in review.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly execute?: boolean;
 
@@ -32,7 +32,7 @@ export interface ChangeSetDeployment {
   /**
    * Indicates if the change set imports resources that already exist.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly importExistingResources?: boolean;
 }
@@ -50,14 +50,14 @@ export interface HotswapDeployment {
    * Represents configuration property overrides for hotswap deployments.
    * Currently only supported by ECS.
    *
-   * @default - no overrides
+   * @defaultValue - no overrides
    */
   readonly properties?: HotswapProperties;
 
   /**
    * Fall back to a CloudFormation deployment when a non-hotswappable change is detected
    *
-   * @default - do not fall back to a CloudFormation deployment
+   * @defaultValue - do not fall back to a CloudFormation deployment
    */
   readonly fallback?: DirectDeployment | ChangeSetDeployment;
 }
@@ -115,7 +115,7 @@ export interface BaseDeployOptions {
   /**
    * Criteria for selecting stacks to deploy
    *
-   * @default - all stacks
+   * @defaultValue - all stacks
    */
   readonly stacks?: StackSelector;
 
@@ -127,21 +127,21 @@ export interface BaseDeployOptions {
   /**
    * Deploy even if the deployed template is identical to the one we are about to deploy.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly forceDeployment?: boolean;
 
   /**
    * Deployment method
    *
-   * @default ChangeSetDeployment
+   * @defaultValue ChangeSetDeployment
    */
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
    * Rollback failed deployments
    *
-   * @default true
+   * @defaultValue true
    */
   readonly rollback?: boolean;
 
@@ -150,13 +150,13 @@ export interface BaseDeployOptions {
    *
    * Has no effect if `rollback` is `false`.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly orphanFailedResourcesDuringRollback?: boolean;
 
   /**
    * Force asset publishing even if the assets have not changed
-   * @default false
+   * @defaultValue false
    */
   readonly forceAssetPublishing?: boolean;
 
@@ -169,7 +169,7 @@ export interface BaseDeployOptions {
    * Maximum number of simultaneous deployments (dependency permitting) to execute.
    * The default is '1', which executes all deployments serially.
    *
-   * @default 1
+   * @defaultValue 1
    */
   readonly concurrency?: number;
 
@@ -177,7 +177,7 @@ export interface BaseDeployOptions {
    * Whether to send logs from all CloudWatch log groups in the template
    * to the IoHost
    *
-   * @default - false
+   * @defaultValue - false
    */
   readonly traceLogs?: boolean;
 }
@@ -195,13 +195,13 @@ export interface DeployOptions extends BaseDeployOptions {
 
   /**
    * Stack parameters for CloudFormation used at deploy time
-   * @default StackParameters.onlyExisting()
+   * @defaultValue StackParameters.onlyExisting()
    */
   readonly parameters?: StackParameters;
 
   /**
    * Path to file where stack outputs will be written after a successful deploy as JSON
-   * @default - Outputs are not written to any file
+   * @defaultValue - Outputs are not written to any file
    */
   readonly outputsFile?: string;
 
@@ -210,7 +210,7 @@ export interface DeployOptions extends BaseDeployOptions {
    *
    * Independent of whether stacks are being done in parallel or no.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly assetParallelism?: boolean;
 
@@ -219,7 +219,7 @@ export interface DeployOptions extends BaseDeployOptions {
    *
    * The default is the Docker-friendly default.
    *
-   * @default AssetBuildTime.ALL_BEFORE_DEPLOY
+   * @defaultValue AssetBuildTime.ALL_BEFORE_DEPLOY
    */
   readonly assetBuildTime?: AssetBuildTime;
 }

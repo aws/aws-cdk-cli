@@ -90,7 +90,7 @@ export interface ToolkitOptions {
   /**
    * Allow emojis in messages sent to the IoHost.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly emojis?: boolean;
 
@@ -100,7 +100,7 @@ export interface ToolkitOptions {
    * in messages sent to the IoHost.
    * Setting this value to true is a no-op; it is equivalent to the default.
    *
-   * @default - detects color from the TTY status of the IoHost
+   * @defaultValue - detects color from the TTY status of the IoHost
    */
   readonly color?: boolean;
 
@@ -112,14 +112,14 @@ export interface ToolkitOptions {
   /**
    * Name of the toolkit stack to be used.
    *
-   * @default "CDKToolkit"
+   * @defaultValue "CDKToolkit"
    */
   readonly toolkitStackName?: string;
 
   /**
    * Fail Cloud Assemblies
    *
-   * @default "error"
+   * @defaultValue "error"
    */
   readonly assemblyFailureAt?: 'error' | 'warn' | 'none';
 
@@ -130,7 +130,7 @@ export interface ToolkitOptions {
    *
    * Use `toolkit.pluginHost.load()` to load plugins into the plugin host from disk.
    *
-   * @default - A fresh plugin host
+   * @defaultValue - A fresh plugin host
    */
   readonly pluginHost?: PluginHost;
 

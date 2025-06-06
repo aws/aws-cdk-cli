@@ -8,7 +8,7 @@ export interface SdkConfig {
   /**
    * The base credentials and region used to seed the Toolkit with
    *
-   * @default BaseCredentials.awsCliCompatible()
+   * @defaultValue BaseCredentials.awsCliCompatible()
    */
   readonly baseCredentials?: IBaseCredentialsProvider;
 
@@ -27,7 +27,7 @@ export interface SdkHttpOptions {
    *
    * Use this so set up a proxy connection.
    *
-   * @default - uses the shared global node agent
+   * @defaultValue - uses the shared global node agent
    */
   readonly agent?: https.Agent;
 }

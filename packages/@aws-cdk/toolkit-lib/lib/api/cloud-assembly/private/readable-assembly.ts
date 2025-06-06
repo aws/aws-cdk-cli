@@ -7,7 +7,7 @@ export interface ReadableCloudAssemblyOptions {
   /**
    * Delete the Cloud Assembly directory when the object is disposed
    *
-   * @default false
+   * @defaultValue false
    */
   readonly deleteOnDispose?: boolean;
 }

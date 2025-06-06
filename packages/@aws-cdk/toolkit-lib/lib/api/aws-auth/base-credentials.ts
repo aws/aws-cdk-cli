@@ -137,7 +137,7 @@ export interface AwsCliCompatibleOptions {
    *
    * If not supplied the environment variable AWS_PROFILE will be used.
    *
-   * @default - Use environment variable if set.
+   * @defaultValue - Use environment variable if set.
    */
   readonly profile?: string;
 }
@@ -159,7 +159,7 @@ export interface CustomBaseCredentialsOption {
    * affect any STS calls made by the given provider, if any. You need to configure
    * your credential provider separately.
    *
-   * @default 'us-east-1'
+   * @defaultValue 'us-east-1'
    */
   readonly region?: string;
 }

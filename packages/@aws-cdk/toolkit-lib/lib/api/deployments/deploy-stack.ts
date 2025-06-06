@@ -85,7 +85,7 @@ export interface DeployStackOptions {
    * To obtain a `StringWithoutPlaceholders`, run a regular
    * string though `TargetEnvironment.replacePlaceholders`.
    *
-   * @default - No execution role; CloudFormation either uses the role currently associated with
+   * @defaultValue - No execution role; CloudFormation either uses the role currently associated with
    * the stack, or otherwise uses current AWS credentials.
    */
   readonly roleArn?: StringWithoutPlaceholders;
@@ -93,35 +93,35 @@ export interface DeployStackOptions {
   /**
    * Notification ARNs to pass to CloudFormation to notify when the change set has completed
    *
-   * @default - No notifications
+   * @defaultValue - No notifications
    */
   readonly notificationArns?: string[];
 
   /**
    * Name to deploy the stack under
    *
-   * @default - Name from assembly
+   * @defaultValue - Name from assembly
    */
   readonly deployName?: string;
 
   /**
    * List of asset IDs which shouldn't be built
    *
-   * @default - Build all assets
+   * @defaultValue - Build all assets
    */
   readonly reuseAssets?: string[];
 
   /**
    * Tags to pass to CloudFormation to add to stack
    *
-   * @default - No tags
+   * @defaultValue - No tags
    */
   readonly tags?: Tag[];
 
   /**
    * What deployment method to use
    *
-   * @default - Change set with defaults
+   * @defaultValue - Change set with defaults
    */
   readonly deploymentMethod?: DeploymentMethod;
 
@@ -132,7 +132,7 @@ export interface DeployStackOptions {
    * Note that parameters with `undefined` or empty values will be ignored,
    * and not passed to the template.
    *
-   * @default - no additional parameters will be passed to the template
+   * @defaultValue - no additional parameters will be passed to the template
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -141,20 +141,20 @@ export interface DeployStackOptions {
    *
    * If not set, all parameters must be specified for every deployment.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly usePreviousParameters?: boolean;
 
   /**
    * Deploy even if the deployed template is identical to the one we are about to deploy.
-   * @default false
+   * @defaultValue false
    */
   readonly forceDeployment?: boolean;
 
   /**
    * Rollback failed deployments
    *
-   * @default true
+   * @defaultValue true
    */
   readonly rollback?: boolean;
 
@@ -163,7 +163,7 @@ export interface DeployStackOptions {
    * A 'hotswap' deployment will attempt to short-circuit CloudFormation
    * and update the affected resources like Lambda functions directly.
    *
-   * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
+   * @defaultValue - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
    *
    * @deprecated  Use 'deploymentMethod' instead
    */
@@ -179,7 +179,7 @@ export interface DeployStackOptions {
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @defaultValue - nothing extra is appended to the User-Agent header
    */
   readonly extraUserAgent?: string;
 
@@ -192,14 +192,14 @@ export interface DeployStackOptions {
   /**
    * If present, use this given template instead of the stored one
    *
-   * @default - Use the stored template
+   * @defaultValue - Use the stored template
    */
   readonly overrideTemplate?: any;
 
   /**
    * Whether to build/publish assets in parallel
    *
-   * @default true To remain backward compatible.
+   * @defaultValue true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
 }

@@ -62,21 +62,21 @@ interface FormatStackDiffOptions {
   /**
    * do not filter out AWS::CDK::Metadata or Rules
    *
-   * @default false
+   * @defaultValue false
    */
   readonly strict?: boolean;
 
   /**
    * lines of context to use in arbitrary JSON diff
    *
-   * @default 3
+   * @defaultValue 3
    */
   readonly contextLines?: number;
 
   /**
    * silences \'There were no differences\' messages
    *
-   * @default false
+   * @defaultValue false
    */
   readonly quiet?: boolean;
 }
@@ -103,21 +103,21 @@ export interface TemplateInfo {
    * A CloudFormation ChangeSet to help the diff operation.
    * Probably created via `createDiffChangeSet`.
    *
-   * @default undefined
+   * @defaultValue undefined
    */
   readonly changeSet?: any;
 
   /**
    * Whether or not there are any imported resources
    *
-   * @default false
+   * @defaultValue false
    */
   readonly isImport?: boolean;
 
   /**
    * Any nested stacks included in the template
    *
-   * @default {}
+   * @defaultValue {}
    */
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;

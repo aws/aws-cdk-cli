@@ -4,21 +4,21 @@ export interface RollbackOptions {
   /**
    * Criteria for selecting stacks to rollback
    *
-   * @default - all stacks
+   * @defaultValue - all stacks
    */
   readonly stacks?: StackSelector;
 
   /**
    * Role to pass to CloudFormation for deployment
    *
-   * @default - Default stack role
+   * @defaultValue - Default stack role
    */
   readonly roleArn?: string;
 
   /**
    * Whether to automatically orphan resources that failed the rollback or not
    *
-   * @default false
+   * @defaultValue false
    */
   readonly orphanFailedResources?: boolean;
 
@@ -33,14 +33,14 @@ export interface RollbackOptions {
    * you must update the stack or resources to be consistent with each other. If you don't
    * subsequent stack updates might fail, and the stack will become unrecoverable.
    *
-   * @default - No resources are orphaned
+   * @defaultValue - No resources are orphaned
    */
   readonly orphanLogicalIds?: string[];
 
   /**
    * Whether to validate the version of the bootstrap stack permissions
    *
-   * @default true
+   * @defaultValue true
    */
   readonly validateBootstrapStackVersion?: boolean;
 }

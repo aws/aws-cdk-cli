@@ -83,7 +83,7 @@ export interface StackSelector {
 
   /**
    * Expand the selection to upstream/downstream stacks.
-   * @default ExpandStackSelection.None only select the specified/matched stacks
+   * @defaultValue ExpandStackSelection.None only select the specified/matched stacks
    */
   expand?: ExpandStackSelection;
 
@@ -94,7 +94,7 @@ export interface StackSelector {
    * Note that actions can still throw if a stack selection result is empty,
    * but the assembly contains stacks in principle.
    *
-   * @default true
+   * @defaultValue true
    */
   failOnEmpty?: boolean;
 }

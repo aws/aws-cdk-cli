@@ -70,7 +70,7 @@ export interface AssemblySourceProps {
   /**
    * Emits the synthesized cloud assembly into the given directory
    *
-   * @default "cdk.out"
+   * @defaultValue "cdk.out"
    */
   readonly outdir?: string;
 
@@ -79,7 +79,7 @@ export interface AssemblySourceProps {
    *
    * Synthesis fails if this is disabled and context lookups need to be performed.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly lookups?: boolean;
 
@@ -89,7 +89,7 @@ export interface AssemblySourceProps {
    * The context store will be used to source initial context values,
    * and updated values will be stored here.
    *
-   * @default - depend on the operation
+   * @defaultValue - depend on the operation
    */
   readonly contextStore?: IContextStore;
 
@@ -106,7 +106,7 @@ export interface AssemblySourceProps {
   /**
    * Delete the `outdir` when the assembly is disposed
    *
-   * @default - `true` if `outdir` is not given, `false` otherwise
+   * @defaultValue - `true` if `outdir` is not given, `false` otherwise
    */
   readonly disposeOutdir?: boolean;
 }
@@ -152,7 +152,7 @@ export interface FromAssemblyBuilderOptions extends AssemblySourceProps {
    * });
    * ```
    *
-   * @default true
+   * @defaultValue true
    */
   readonly clobberEnv?: boolean;
 }
@@ -164,7 +164,7 @@ export interface FromCdkAppOptions extends AssemblySourceProps {
   /**
    * Execute the application in this working directory.
    *
-   * @default - current working directory
+   * @defaultValue - current working directory
    */
   readonly workingDirectory?: string;
 
@@ -187,21 +187,21 @@ export interface AppSynthOptions {
    * Logs additional information during synthesis, such as creation stack traces of tokens.
    * This also sets the `CDK_DEBUG` env variable and will slow down synthesis.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly debug?: boolean;
 
   /**
    * Enables the embedding of the "aws:cdk:path" in CloudFormation template metadata.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly pathMetadata?: boolean;
 
   /**
    * Enable the collection and reporting of version information.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly versionReporting?: boolean;
 
@@ -210,7 +210,7 @@ export interface AppSynthOptions {
    *
    * Disabling this can be useful in certain cases like integration tests.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly assetMetadata?: boolean;
 
@@ -229,14 +229,14 @@ export interface AppSynthOptions {
    * `aws:asset:path` metadata. In order to be predictable, we will always output
    * absolute paths.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly assetStaging?: boolean;
 
   /**
    * Select which stacks should have asset bundling enabled
    *
-   * @default ["**"] - all stacks
+   * @defaultValue ["**"] - all stacks
    */
   readonly bundlingForStacks?: string;
 }
@@ -251,7 +251,7 @@ export interface LoadAssemblyOptions {
    * When disabled, allows to Toolkit to read a newer cloud assembly than the CX API is designed
    * to support. Your application may not be aware of all features that in use in the Cloud Assembly.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly checkVersion?: boolean;
 
@@ -261,7 +261,7 @@ export interface LoadAssemblyOptions {
    * When disabled, the Toolkit may read enum values it doesn't know about yet.
    * You will have to make sure to always check the values of enums you encounter in the manifest.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly checkEnums?: boolean;
 }

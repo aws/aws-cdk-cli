@@ -168,14 +168,14 @@ interface GarbageCollectorProps {
   /**
    * The name of the bootstrap stack to look for.
    *
-   * @default DEFAULT_TOOLKIT_STACK_NAME
+   * @defaultValue DEFAULT_TOOLKIT_STACK_NAME
    */
   readonly bootstrapStackName?: string;
 
   /**
    * Confirm with the user before actual deletion happens
    *
-   * @default true
+   * @defaultValue true
    */
   readonly confirm?: boolean;
 }

@@ -147,7 +147,7 @@ export type PrepareChangeSetOptions = {
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
    *
-   * @default false
+   * @defaultValue false
    */
   failOnError?: boolean;
 };

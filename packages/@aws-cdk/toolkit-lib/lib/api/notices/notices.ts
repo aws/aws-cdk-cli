@@ -22,7 +22,7 @@ export interface NoticesHttpOptions {
    *
    * Use this so set up a proxy connection.
    *
-   * @default - uses the shared global node agent
+   * @defaultValue - uses the shared global node agent
    */
   readonly agent?: Agent;
 }
@@ -36,7 +36,7 @@ export interface NoticesProps {
   /**
    * Global CLI option for output directory for synthesized cloud assembly
    *
-   * @default 'cdk.out'
+   * @defaultValue 'cdk.out'
    */
   readonly output?: string;
 
@@ -60,7 +60,7 @@ export interface NoticesFilterOptions {
   /**
    * Include notices that have already been acknowledged.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly includeAcknowledged?: boolean;
 }
@@ -69,7 +69,7 @@ export interface NoticesDisplayOptions extends NoticesFilterOptions {
   /**
    * Whether to append the total number of unacknowledged notices to the display.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly showTotal?: boolean;
 }
@@ -78,14 +78,14 @@ export interface NoticesRefreshOptions {
   /**
    * Whether to force a cache refresh regardless of expiration time.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly force?: boolean;
 
   /**
    * Data source for fetch notices from.
    *
-   * @default - WebsiteNoticeDataSource
+   * @defaultValue - WebsiteNoticeDataSource
    */
   readonly dataSource?: NoticeDataSource;
 }

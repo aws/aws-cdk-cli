@@ -5,7 +5,7 @@ export interface CloudFormationDiffOptions {
    * Whether to run the diff against the template after the CloudFormation Transforms inside it have been executed
    * (as opposed to the original template, the default, which contains the unprocessed Transforms).
    *
-   * @default false
+   * @defaultValue false
    */
   readonly compareAgainstProcessedTemplate?: boolean;
 }
@@ -16,21 +16,21 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
    *
    * Should be used for stacks containing nested stacks or when change set permissions aren't available.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly fallbackToTemplate?: boolean;
 
   /**
    * Additional parameters for CloudFormation when creating a diff change set
    *
-   * @default - no parameters
+   * @defaultValue - no parameters
    */
   readonly parameters?: { [name: string]: string | undefined };
 
   /**
    * Whether or not the change set imports resources that already exist
    *
-   * @default false
+   * @defaultValue false
    */
   readonly importExistingResources?: boolean;
 }
@@ -95,7 +95,7 @@ export interface DiffOptions {
   /**
    * Select the stacks
    *
-   * @default - all stacks
+   * @defaultValue - all stacks
    */
   readonly stacks?: StackSelector;
 
@@ -111,7 +111,7 @@ export interface DiffOptions {
    * Use local-template diff for a fast, local-only diff that doesn't require
    * any permissions or internet access.
    *
-   * @default DiffMethod.ChangeSet
+   * @defaultValue DiffMethod.ChangeSet
    */
   readonly method?: DiffMethod;
 
@@ -119,14 +119,14 @@ export interface DiffOptions {
    * Strict diff mode
    * When enabled, this will not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly strict?: boolean;
 
   /**
    * How many lines of context to show in the diff
    *
-   * @default 3
+   * @defaultValue 3
    */
   readonly contextLines?: number;
 }

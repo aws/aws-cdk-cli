@@ -16,7 +16,7 @@ export interface StackEventPollerProps {
   /**
    * Timestamp for the oldest event we're interested in
    *
-   * @default - Read all events
+   * @defaultValue - Read all events
    */
   readonly startTime?: number;
 
@@ -26,7 +26,7 @@ export interface StackEventPollerProps {
    * Should be something like `CREATE_IN_PROGRESS`, `UPDATE_IN_PROGRESS`,
    * `DELETE_IN_PROGRESS, `ROLLBACK_IN_PROGRESS`.
    *
-   * @default - Read all events
+   * @defaultValue - Read all events
    */
   readonly stackStatuses?: string[];
 }
@@ -45,7 +45,7 @@ export interface ResourceEvent {
   /**
    * Whether this event regards the root stack
    *
-   * @default false
+   * @defaultValue false
    */
   readonly isStackEvent?: boolean;
 }

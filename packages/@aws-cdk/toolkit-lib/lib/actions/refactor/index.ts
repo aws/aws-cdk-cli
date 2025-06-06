@@ -66,14 +66,14 @@ export interface RefactorOptions {
   /**
    * Whether to only show the proposed refactor, without applying it
    *
-   * @default false
+   * @defaultValue false
    */
   readonly dryRun?: boolean;
 
   /**
    * Criteria for selecting stacks to deploy
    *
-   * @default - all stacks
+   * @defaultValue - all stacks
    */
   stacks?: StackSelector;
 

@@ -8,7 +8,7 @@ export interface SynthOptions {
 
   /**
    * After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)
-   * @default true
+   * @defaultValue true
    */
   readonly validateStacks?: boolean;
 }

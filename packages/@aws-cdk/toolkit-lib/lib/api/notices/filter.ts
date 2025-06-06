@@ -35,7 +35,7 @@ interface ActualComponent {
    * If there is more than one component with the same dynamic name, they are
    * joined by ','.
    *
-   * @default - Don't add to the set of dynamic values.
+   * @defaultValue - Don't add to the set of dynamic values.
    */
   readonly dynamicName?: string;
 
@@ -45,7 +45,7 @@ interface ActualComponent {
    * Only used if `dynamicName` is set; by default we will add the actual version
    * of the component.
    *
-   * @default - The version.
+   * @defaultValue - The version.
    */
   readonly dynamicValue?: string;
 }

@@ -48,35 +48,35 @@ export interface DeployStackOptions {
   /**
    * Execution role for the deployment (pass through to CloudFormation)
    *
-   * @default - Current role
+   * @defaultValue - Current role
    */
   readonly roleArn?: string;
 
   /**
    * Topic ARNs to send a message when deployment finishes (pass through to CloudFormation)
    *
-   * @default - No notifications
+   * @defaultValue - No notifications
    */
   readonly notificationArns?: string[];
 
   /**
    * Override name under which stack will be deployed
    *
-   * @default - Use artifact default
+   * @defaultValue - Use artifact default
    */
   readonly deployName?: string;
 
   /**
    * Name of the toolkit stack, if not the default name
    *
-   * @default 'CDKToolkit'
+   * @defaultValue 'CDKToolkit'
    */
   readonly toolkitStackName?: string;
 
   /**
    * List of asset IDs which should NOT be built or uploaded
    *
-   * @default - Build all assets
+   * @defaultValue - Build all assets
    */
   readonly reuseAssets?: string[];
 
@@ -88,7 +88,7 @@ export interface DeployStackOptions {
   /**
    * Stage the change set but don't execute it
    *
-   * @default - true
+   * @defaultValue - true
    * @deprecated Use 'deploymentMethod' instead
    */
   readonly execute?: boolean;
@@ -104,19 +104,19 @@ export interface DeployStackOptions {
   /**
    * Select the deployment method (direct or using a change set)
    *
-   * @default - Change set with default options
+   * @defaultValue - Change set with default options
    */
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
-   * @default false deployment will be skipped if the template is identical
+   * @defaultValue false deployment will be skipped if the template is identical
    */
   readonly forceDeployment?: boolean;
 
   /**
    * Extra parameters for CloudFormation
-   * @default - no additional parameters will be passed to the template
+   * @defaultValue - no additional parameters will be passed to the template
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -125,14 +125,14 @@ export interface DeployStackOptions {
    *
    * If not set, all parameters must be specified for every deployment.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly usePreviousParameters?: boolean;
 
   /**
    * Rollback failed deployments
    *
-   * @default true
+   * @defaultValue true
    */
   readonly rollback?: boolean;
 
@@ -141,7 +141,7 @@ export interface DeployStackOptions {
    * A 'hotswap' deployment will attempt to short-circuit CloudFormation
    * and update the affected resources like Lambda functions directly.
    *
-   * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
+   * @defaultValue - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
    *
    * @deprecated Use 'deploymentMethod' instead
    */
@@ -157,7 +157,7 @@ export interface DeployStackOptions {
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @defaultValue - nothing extra is appended to the User-Agent header
    */
   readonly extraUserAgent?: string;
 
@@ -169,14 +169,14 @@ export interface DeployStackOptions {
   /**
    * If present, use this given template instead of the stored one
    *
-   * @default - Use the stored template
+   * @defaultValue - Use the stored template
    */
   readonly overrideTemplate?: any;
 
   /**
    * Whether to build/publish assets in parallel
    *
-   * @default true To remain backward compatible.
+   * @defaultValue true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
 
@@ -184,7 +184,7 @@ export interface DeployStackOptions {
    * Whether to deploy if the app contains no stacks.
    *
    * @deprecated this option seems to be unsed inside deployments
-   * @default false
+   * @defaultValue false
    */
   readonly ignoreNoStacks?: boolean;
 }
@@ -198,14 +198,14 @@ export interface RollbackStackOptions {
   /**
    * Execution role for the deployment (pass through to CloudFormation)
    *
-   * @default - Current role
+   * @defaultValue - Current role
    */
   readonly roleArn?: string;
 
   /**
    * Name of the toolkit stack, if not the default name
    *
-   * @default 'CDKToolkit'
+   * @defaultValue 'CDKToolkit'
    */
   readonly toolkitStackName?: string;
 
@@ -214,21 +214,21 @@ export interface RollbackStackOptions {
    *
    * This will force a rollback that otherwise would have failed.
    *
-   * @default false
+   * @defaultValue false
    */
   readonly orphanFailedResources?: boolean;
 
   /**
    * Orphan the resources with the given logical IDs
    *
-   * @default - No orphaning
+   * @defaultValue - No orphaning
    */
   readonly orphanLogicalIds?: string[];
 
   /**
    * Whether to validate the version of the bootstrap stack permissions
    *
-   * @default true
+   * @defaultValue true
    */
   readonly validateBootstrapStackVersion?: boolean;
 }
@@ -247,7 +247,7 @@ interface AssetOptions {
   /**
    * Execution role for the building.
    *
-   * @default - Current role
+   * @defaultValue - Current role
    */
   readonly roleArn?: string;
 }
@@ -268,7 +268,7 @@ interface PublishStackAssetsOptions extends AssetOptions {
   /**
    * Always publish, even if it already exists
    *
-   * @default false
+   * @defaultValue false
    */
   readonly forcePublish?: boolean;
 }

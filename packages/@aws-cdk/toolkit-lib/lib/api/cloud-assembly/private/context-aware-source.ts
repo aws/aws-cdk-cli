@@ -24,7 +24,7 @@ export interface ContextAwareCloudAssemblyProps {
    *
    * Producing a `cxapi.CloudAssembly` will fail if this is disabled and context lookups need to be performed.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly lookups?: boolean;
 }

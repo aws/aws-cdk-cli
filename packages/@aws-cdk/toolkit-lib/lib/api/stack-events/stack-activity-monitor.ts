@@ -35,7 +35,7 @@ export interface StackActivityMonitorProps {
    *
    * Used to calculate a progress bar.
    *
-   * @default - No progress reporting.
+   * @defaultValue - No progress reporting.
    */
   readonly resourcesTotal?: number;
 
@@ -48,7 +48,7 @@ export interface StackActivityMonitorProps {
    * It is recommended to use this, otherwise the filtering will be subject
    * to clock drift between local and cloud machines.
    *
-   * @default - local machine's current time
+   * @defaultValue - local machine's current time
    */
   readonly changeSetCreationTime?: Date;
 
@@ -57,7 +57,7 @@ export interface StackActivityMonitorProps {
    *
    * Must wait a reasonable amount of time between polls, since we need to consider CloudFormation API limits
    *
-   * @default 2_000
+   * @defaultValue 2_000
    */
   readonly pollingInterval?: number;
 }

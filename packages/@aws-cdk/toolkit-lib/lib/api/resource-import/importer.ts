@@ -24,21 +24,21 @@ export interface ImportDeploymentOptions {
   /**
    * Role to pass to CloudFormation for deployment
    *
-   * @default - Default stack role
+   * @defaultValue - Default stack role
    */
   readonly roleArn?: string;
 
   /**
    * Deployment method
    *
-   * @default - Change set with default options
+   * @defaultValue - Change set with default options
    */
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
    * Stack tags (pass through to CloudFormation)
    *
-   * @default - No tags
+   * @defaultValue - No tags
    */
   readonly tags?: Tag[];
 
@@ -47,14 +47,14 @@ export interface ImportDeploymentOptions {
    *
    * If not set, all parameters must be specified for every deployment.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly usePreviousParameters?: boolean;
 
   /**
    * Rollback failed deployments
    *
-   * @default true
+   * @defaultValue true
    */
   readonly rollback?: boolean;
 }

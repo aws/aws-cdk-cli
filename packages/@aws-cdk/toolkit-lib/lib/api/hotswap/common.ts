@@ -43,7 +43,7 @@ export interface RejectedChange {
    * Whether or not to show this change when listing non-hotswappable changes in HOTSWAP_ONLY mode. Does not affect
    * listing in FALL_BACK mode.
    *
-   * @default true
+   * @defaultValue true
    */
   readonly hotswapOnlyVisible?: boolean;
 }

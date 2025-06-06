@@ -17,7 +17,7 @@ export class WebsiteNoticeDataSourceProps {
    *
    * @see https://github.com/cdklabs/aws-cdk-notices
    *
-   * @default - official CDK notices
+   * @defaultValue - official CDK notices
    */
   readonly url?: string | URL;
   /**
@@ -25,7 +25,7 @@ export class WebsiteNoticeDataSourceProps {
    *
    * Use this so set up a proxy connection.
    *
-   * @default - uses the shared global node agent
+   * @defaultValue - uses the shared global node agent
    */
   readonly agent?: https.Agent;
 }

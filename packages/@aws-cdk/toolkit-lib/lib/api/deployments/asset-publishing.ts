@@ -24,7 +24,7 @@ interface PublishAssetsOptions {
   /**
    * Whether to build/publish assets in parallel
    *
-   * @default true To remain backward compatible.
+   * @defaultValue true To remain backward compatible.
    */
   readonly parallel?: boolean;
 
