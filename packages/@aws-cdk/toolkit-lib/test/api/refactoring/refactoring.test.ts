@@ -21,9 +21,8 @@ import {
 import type { CloudFormationStack, CloudFormationTemplate } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
-import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
-import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { generateStackDefinitionsReloaded } from '../../../lib/api/refactoring/stack-definitions';
+import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
 
@@ -1970,7 +1969,11 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(
+      mappings,
+      [deployedStack1, deployedStack2],
+      [localStack1, localStack2],
+    );
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2147,7 +2150,11 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(
+      mappings,
+      [deployedStack1, deployedStack2],
+      [localStack1, localStack2],
+    );
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2231,7 +2238,11 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(
+      mappings,
+      [deployedStack1, deployedStack2],
+      [localStack1, localStack2],
+    );
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2959,9 +2970,6 @@ describe(generateStackDefinitionsReloaded, () => {
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
-              Resources: {
-                Bn: { Type: 'AWS::B::B' },
-              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'Bn' },
@@ -2969,6 +2977,9 @@ describe(generateStackDefinitionsReloaded, () => {
                     Name: 'BnFromOtherStack',
                   },
                 },
+              },
+              Resources: {
+                Bn: { Type: 'AWS::B::B' },
               },
             }),
           },
@@ -3049,6 +3060,10 @@ describe(generateStackDefinitionsReloaded, () => {
               },
             }),
           },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({ Resources: {} }),
+          },
         ]);
       });
 
@@ -3124,6 +3139,18 @@ describe(generateStackDefinitionsReloaded, () => {
                 },
                 B: { Type: 'AWS::B::B' },
               },
+            }),
+          },
+          {
+            StackName: 'StackY',
+            TemplateBody: JSON.stringify({
+              Outputs: {
+                Bout: {
+                  Value: { Ref: 'B' },
+                  Export: { Name: 'BFromOtherStack' },
+                },
+              },
+              Resources: {},
             }),
           },
         ]);
@@ -3202,6 +3229,22 @@ describe(generateStackDefinitionsReloaded, () => {
                 },
                 B: { Type: 'AWS::B::B' },
               },
+            }),
+          },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({ Resources: {} }),
+          },
+          {
+            StackName: 'StackY',
+            TemplateBody: JSON.stringify({
+              Outputs: {
+                Bout: {
+                  Value: { Ref: 'B' },
+                  Export: { Name: 'BFromOtherStack' },
+                },
+              },
+              Resources: {},
             }),
           },
         ]);
@@ -3531,6 +3574,18 @@ describe(generateStackDefinitionsReloaded, () => {
             },
           }),
         },
+        {
+          StackName: 'Bar',
+          TemplateBody: JSON.stringify({
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn' },
+                Export: { Name: 'BFromOtherStack' },
+              },
+            },
+            Resources: {},
+          }),
+        },
       ]);
     });
 
@@ -3617,8 +3672,23 @@ describe(generateStackDefinitionsReloaded, () => {
         new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack2, 'Bn2')),
       ];
 
-      const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+      const result = generateStackDefinitionsReloaded(
+        mappings,
+        [deployedStack1, deployedStack2],
+        [localStack1, localStack2],
+      );
       expect(result).toEqual([
+        {
+          StackName: 'Foo',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              A: {
+                Type: 'AWS::A::A',
+                Properties: { Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, Foo: 123 },
+              },
+            },
+          }),
+        },
         {
           StackName: 'Zee',
           TemplateBody: JSON.stringify({
@@ -3638,6 +3708,18 @@ describe(generateStackDefinitionsReloaded, () => {
                 },
               },
             },
+          }),
+        },
+        {
+          StackName: 'Bar',
+          TemplateBody: JSON.stringify({
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn' },
+                Export: { Name: 'BFromOtherStack' },
+              },
+            },
+            Resources: {},
           }),
         },
       ]);
