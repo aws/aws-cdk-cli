@@ -152,7 +152,7 @@ export interface BootstrapParameters {
    * Identifier to distinguish multiple bootstrapped environments
    * The default qualifier is an arbitrary but unique string
    *
-   * @default - 'hnb659fds'
+   * @default 'hnb659fds'
    */
   readonly qualifier?: string;
 

@@ -89,7 +89,7 @@ export interface AssemblySourceProps {
    * The context store will be used to source initial context values,
    * and updated values will be stored here.
    *
-   * @default - depend on the operation
+   * @default - Depends on the operation
    */
   readonly contextStore?: IContextStore;
 
@@ -164,7 +164,7 @@ export interface FromCdkAppOptions extends AssemblySourceProps {
   /**
    * Execute the application in this working directory.
    *
-   * @default - current working directory
+   * @default - Current working directory
    */
   readonly workingDirectory?: string;
 

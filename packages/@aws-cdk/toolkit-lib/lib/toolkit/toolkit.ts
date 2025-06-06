@@ -100,7 +100,7 @@ export interface ToolkitOptions {
    * in messages sent to the IoHost.
    * Setting this value to true is a no-op; it is equivalent to the default.
    *
-   * @default - detects color from the TTY status of the IoHost
+   * @default - Detects color from the TTY status of the IoHost
    */
   readonly color?: boolean;
 
