@@ -236,10 +236,10 @@ export class FnSub implements ResourceReference {
     const newInputString = this.inputString.replace(/\${([a-zA-Z0-9_.]+)}/g, (_: any, varName: string) => {
       if (varName.includes('.')) {
         const [logicalId, attr] = varName.split('.');
-        const mappedResource = replaceFirst(mappings, this.stackName, logicalId);
+        const mappedResource = replaceIfFound(mappings, this.stackName, logicalId);
         return `\${${mappedResource}.${attr}}`;
       } else {
-        return `\${${replaceFirst(mappings, this.stackName, varName)}}`;
+        return `\${${replaceIfFound(mappings, this.stackName, varName)}}`;
       }
     });
     return new FnSub(this.stackName, newInputString, this.variableMap);
@@ -263,7 +263,7 @@ export function resourceReferenceFromCfn(stackName: string, value: any): Resourc
   }
 }
 
-function replaceFirst(mappings: ResourceMapping[], stackName: string, logicalId: string): string {
+function replaceIfFound(mappings: ResourceMapping[], stackName: string, logicalId: string): string {
   for (const mapping of mappings) {
     if (mapping.source.logicalResourceId === logicalId && mapping.source.stack.stackName === stackName) {
       return mapping.destination.logicalResourceId;

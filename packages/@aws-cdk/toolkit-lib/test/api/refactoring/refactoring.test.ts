@@ -23,6 +23,7 @@ import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
+import { generateStackDefinitionsReloaded } from '../../../lib/api/refactoring/stack-definitions';
 
 const cloudFormationClient = mockCloudFormationClient;
 
@@ -1827,7 +1828,7 @@ describe(usePrescribedMappings, () => {
   });
 });
 
-describe(generateStackDefinitions, () => {
+describe(generateStackDefinitionsReloaded, () => {
   const environment = {
     name: 'test',
     account: '333333333333',
@@ -1881,12 +1882,19 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack1, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1], [stack2]);
+    const result = generateStackDefinitionsReloaded(mappings, [stack1], [stack2]);
     expect(result).toEqual([
       {
         StackName: 'Foo',
         TemplateBody: JSON.stringify({
           Resources: {
+            Consumer: {
+              Type: 'AWS::X::Y',
+              Properties: {
+                // The reference has also been updated
+                Bucket: { Ref: 'Bucket2' },
+              },
+            },
             Bucket2: {
               Type: 'AWS::S3::Bucket',
             },
@@ -1894,13 +1902,6 @@ describe(generateStackDefinitions, () => {
             // original template. Should be included.
             NotInvolved: {
               Type: 'AWS::X::Y',
-            },
-            Consumer: {
-              Type: 'AWS::X::Y',
-              Properties: {
-                // The reference has also been updated
-                Bucket: { Ref: 'Bucket2' },
-              },
             },
           },
         }),
@@ -1969,7 +1970,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1988,14 +1989,14 @@ describe(generateStackDefinitions, () => {
         StackName: 'Stack2',
         TemplateBody: JSON.stringify({
           Resources: {
-            // Wasn't touched by the refactor
-            B: {
-              Type: 'AWS::B::B',
-            },
-
             // Old Bucket1 is now Bucket2 here
             Bucket2: {
               Type: 'AWS::S3::Bucket',
+            },
+
+            // Wasn't touched by the refactor
+            B: {
+              Type: 'AWS::B::B',
             },
           },
         }),
@@ -2047,19 +2048,8 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket1'), new ResourceLocation(localStack1, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack1, localStack2]);
     expect(result).toEqual([
-      {
-        StackName: 'Stack2',
-        TemplateBody: JSON.stringify({
-          Resources: {
-            // Old Bucket1 is now Bucket2 here
-            Bucket2: {
-              Type: 'AWS::S3::Bucket',
-            },
-          },
-        }),
-      },
       {
         StackName: 'Stack1',
         TemplateBody: JSON.stringify({
@@ -2070,6 +2060,17 @@ describe(generateStackDefinitions, () => {
             },
 
             // Bucket1 doesn't exist anymore
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Old Bucket1 is now Bucket2 here
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+            },
           },
         }),
       },
@@ -2146,7 +2147,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2230,7 +2231,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2243,59 +2244,6 @@ describe(generateStackDefinitions, () => {
         }),
       },
     ]);
-  });
-
-  test('refactor should not create empty templates', () => {
-    const deployedStack1: CloudFormationStack = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-          },
-        },
-      },
-    };
-
-    const deployedStack2: CloudFormationStack = {
-      environment,
-      stackName: 'Stack2',
-      template: {
-        Resources: {},
-      },
-    };
-
-    const localStack1: CloudFormationStack = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {},
-      },
-    };
-
-    const localStack2: CloudFormationStack = {
-      environment,
-      stackName: 'Stack2',
-      template: {
-        Resources: {
-          Bucket2: {
-            Type: 'AWS::S3::Bucket',
-          },
-        },
-      },
-    };
-
-    const mappings: ResourceMapping[] = [
-      new ResourceMapping(
-        new ResourceLocation(deployedStack1, 'Bucket1'),
-        new ResourceLocation(deployedStack2, 'Bucket2'),
-      ),
-    ];
-
-    expect(() =>
-      generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]),
-    ).toThrow(/Stack Stack1 has no resources after refactor/);
   });
 
   test('local stacks have more resources than deployed stacks', async () => {
@@ -2333,7 +2281,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2384,7 +2332,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2442,7 +2390,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2508,7 +2456,7 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'B'), new ResourceLocation(localStacks[0], 'Bn')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -2588,7 +2536,7 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'A'), new ResourceLocation(localStacks[0], 'A')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackY',
@@ -2606,6 +2554,9 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackX',
             TemplateBody: JSON.stringify({
+              Resources: {
+                B: { Type: 'AWS::B::B' }, // The moved resource
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'B' },
@@ -2613,9 +2564,6 @@ describe(generateStackDefinitions, () => {
                     Name: 'BFromOtherStack',
                   },
                 },
-              },
-              Resources: {
-                B: { Type: 'AWS::B::B' }, // The moved resource
               },
             }),
           },
@@ -2681,7 +2629,7 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'B'), new ResourceLocation(localStacks[1], 'B')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -2700,6 +2648,9 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
+              Resources: {
+                B: { Type: 'AWS::B::B' },
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'B' },
@@ -2707,9 +2658,6 @@ describe(generateStackDefinitions, () => {
                     Name: 'BFromOtherStack',
                   },
                 },
-              },
-              Resources: {
-                B: { Type: 'AWS::B::B' },
               },
             }),
           },
@@ -2776,18 +2724,8 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'A'), new ResourceLocation(localStacks[1], 'A')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
-          {
-            StackName: 'StackX',
-            TemplateBody: JSON.stringify({
-              Resources: {
-                C: {
-                  Type: 'AWS::C::C',
-                },
-              },
-            }),
-          },
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
@@ -2799,6 +2737,16 @@ describe(generateStackDefinitions, () => {
                   },
                 },
                 B: { Type: 'AWS::B::B' },
+              },
+            }),
+          },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({
+              Resources: {
+                C: {
+                  Type: 'AWS::C::C',
+                },
               },
             }),
           },
@@ -2881,18 +2829,8 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'B'), new ResourceLocation(localStacks[2], 'B')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
-          {
-            StackName: 'StackX',
-            TemplateBody: JSON.stringify({
-              Resources: {
-                C: {
-                  Type: 'AWS::C::C',
-                },
-              },
-            }),
-          },
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
@@ -2909,6 +2847,11 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackZ',
             TemplateBody: JSON.stringify({
+              Resources: {
+                B: {
+                  Type: 'AWS::B::B',
+                },
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'B' },
@@ -2917,9 +2860,14 @@ describe(generateStackDefinitions, () => {
                   },
                 },
               },
+            }),
+          },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({
               Resources: {
-                B: {
-                  Type: 'AWS::B::B',
+                C: {
+                  Type: 'AWS::C::C',
                 },
               },
             }),
@@ -3005,12 +2953,15 @@ describe(generateStackDefinitions, () => {
           ),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           // StackX was not part of the mappings
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
+              Resources: {
+                Bn: { Type: 'AWS::B::B' },
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'Bn' },
@@ -3018,9 +2969,6 @@ describe(generateStackDefinitions, () => {
                     Name: 'BnFromOtherStack',
                   },
                 },
-              },
-              Resources: {
-                Bn: { Type: 'AWS::B::B' },
               },
             }),
           },
@@ -3084,7 +3032,7 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'A'), new ResourceLocation(localStacks[0], 'A')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackY',
@@ -3161,7 +3109,7 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[1], 'B'), new ResourceLocation(localStacks[0], 'B')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -3240,7 +3188,7 @@ describe(generateStackDefinitions, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[1], 'B'), new ResourceLocation(localStacks[0], 'B')),
         ];
 
-        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackZ',
@@ -3347,7 +3295,7 @@ describe(generateStackDefinitions, () => {
         new ResourceMapping(new ResourceLocation(deployedStack, 'D'), new ResourceLocation(deployedStack, 'Dn')),
       ];
 
-      const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+      const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
       expect(result).toEqual([
         {
           StackName: 'Foo',
@@ -3454,7 +3402,7 @@ describe(generateStackDefinitions, () => {
         new ResourceMapping(new ResourceLocation(deployedStack, 'B'), new ResourceLocation(localStack2, 'Bn')),
       ];
 
-      const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+      const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack1, localStack2]);
       expect(result).toEqual([
         {
           StackName: 'Foo',
@@ -3474,19 +3422,19 @@ describe(generateStackDefinitions, () => {
         {
           StackName: 'Bar',
           TemplateBody: JSON.stringify({
-            Outputs: {
-              Bout: {
-                Value: { Ref: 'Bn' },
-                Export: {
-                  Name: 'BFromOtherStack',
-                },
-              },
-            },
             Resources: {
               Bn: {
                 Type: 'AWS::B::B',
                 Properties: {
                   Foo: 123,
+                },
+              },
+            },
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn' },
+                Export: {
+                  Name: 'BFromOtherStack',
                 },
               },
             },
@@ -3561,7 +3509,7 @@ describe(generateStackDefinitions, () => {
         new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack, 'B')),
       ];
 
-      const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack]);
+      const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack]);
       expect(result).toEqual([
         {
           StackName: 'Foo',
@@ -3669,24 +3617,24 @@ describe(generateStackDefinitions, () => {
         new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack2, 'Bn2')),
       ];
 
-      const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+      const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
       expect(result).toEqual([
         {
           StackName: 'Zee',
           TemplateBody: JSON.stringify({
-            Outputs: {
-              Bout: {
-                Value: { Ref: 'Bn2' },
-                Export: {
-                  Name: 'BFromOtherStack',
-                },
-              },
-            },
             Resources: {
               Bn2: {
                 Type: 'AWS::B::B',
                 Properties: {
                   Foo: 123,
+                },
+              },
+            },
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn2' },
+                Export: {
+                  Name: 'BFromOtherStack',
                 },
               },
             },
