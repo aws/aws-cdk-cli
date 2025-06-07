@@ -21,7 +21,7 @@ import {
 import type { CloudFormationStack, CloudFormationTemplate } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
-import { generateStackDefinitionsReloaded } from '../../../lib/api/refactoring/stack-definitions';
+import { generateStackDefinitions } from '../../../lib/api/refactoring/stack-definitions';
 import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
 
 const cloudFormationClient = mockCloudFormationClient;
@@ -1827,7 +1827,7 @@ describe(usePrescribedMappings, () => {
   });
 });
 
-describe(generateStackDefinitionsReloaded, () => {
+describe(generateStackDefinitions, () => {
   const environment = {
     name: 'test',
     account: '333333333333',
@@ -1881,7 +1881,7 @@ describe(generateStackDefinitionsReloaded, () => {
       new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack1, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [stack1], [stack2]);
+    const result = generateStackDefinitions(mappings, [stack1], [stack2]);
     expect(result).toEqual([
       {
         StackName: 'Foo',
@@ -1969,7 +1969,7 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(
+    const result = generateStackDefinitions(
       mappings,
       [deployedStack1, deployedStack2],
       [localStack1, localStack2],
@@ -2051,7 +2051,7 @@ describe(generateStackDefinitionsReloaded, () => {
       new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket1'), new ResourceLocation(localStack1, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack1, localStack2]);
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2150,7 +2150,7 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(
+    const result = generateStackDefinitions(
       mappings,
       [deployedStack1, deployedStack2],
       [localStack1, localStack2],
@@ -2238,7 +2238,7 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(
+    const result = generateStackDefinitions(
       mappings,
       [deployedStack1, deployedStack2],
       [localStack1, localStack2],
@@ -2292,7 +2292,7 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2343,7 +2343,7 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2401,7 +2401,7 @@ describe(generateStackDefinitionsReloaded, () => {
       ),
     ];
 
-    const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -2467,7 +2467,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'B'), new ResourceLocation(localStacks[0], 'Bn')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -2547,7 +2547,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'A'), new ResourceLocation(localStacks[0], 'A')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackY',
@@ -2640,7 +2640,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'B'), new ResourceLocation(localStacks[1], 'B')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -2735,7 +2735,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'A'), new ResourceLocation(localStacks[1], 'A')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackY',
@@ -2840,7 +2840,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'B'), new ResourceLocation(localStacks[2], 'B')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackY',
@@ -2964,7 +2964,7 @@ describe(generateStackDefinitionsReloaded, () => {
           ),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -3053,19 +3053,16 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[0], 'A'), new ResourceLocation(localStacks[0], 'A')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
+              Outputs: {
+                Bout: { Value: { Ref: 'B' }, Export: { Name: 'BFromOtherStack' } },
+              },
               Resources: {
-                A: {
-                  Type: 'AWS::A::A',
-                  Properties: {
-                    // The reference has been updated as the resource was moved
-                    Props: { Ref: 'B' },
-                  },
-                },
+                A: { Type: 'AWS::A::A', Properties: { Props: { Ref: 'B' } } },
                 B: { Type: 'AWS::B::B' },
               },
             }),
@@ -3134,7 +3131,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[1], 'B'), new ResourceLocation(localStacks[0], 'B')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackX',
@@ -3225,7 +3222,7 @@ describe(generateStackDefinitionsReloaded, () => {
           new ResourceMapping(new ResourceLocation(deployedStacks[1], 'B'), new ResourceLocation(localStacks[0], 'B')),
         ];
 
-        const result = generateStackDefinitionsReloaded(mappings, deployedStacks, localStacks);
+        const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
             StackName: 'StackZ',
@@ -3278,7 +3275,7 @@ describe(generateStackDefinitionsReloaded, () => {
               Properties: {
                 Prop: { Ref: 'B' },
                 Prop2: { 'Fn::GetAtt': ['C', 'Banana'] },
-                Prop3: { 'Fn::Sub': ['${C} ${SomeVar}', { SomeVar: { Ref: 'B' } }] },
+                Prop3: { 'Fn::Sub': ['${C} ${SomeVar} ${B.foo}', { SomeVar: { Ref: 'B' } }] },
                 Foo: 123,
               },
               DependsOn: ['D'],
@@ -3315,7 +3312,7 @@ describe(generateStackDefinitionsReloaded, () => {
               Properties: {
                 Prop: { Ref: 'Bn' },
                 Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
-                Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar}', { SomeVar: { Ref: 'Bn' } }] },
+                Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar} ${Bn.foo}', { SomeVar: { Ref: 'Bn' } }] },
                 Bar: 456, // Different property
               },
               DependsOn: ['Dn'],
@@ -3348,7 +3345,7 @@ describe(generateStackDefinitionsReloaded, () => {
         new ResourceMapping(new ResourceLocation(deployedStack, 'D'), new ResourceLocation(deployedStack, 'Dn')),
       ];
 
-      const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack]);
+      const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
       expect(result).toEqual([
         {
           StackName: 'Foo',
@@ -3359,7 +3356,7 @@ describe(generateStackDefinitionsReloaded, () => {
                 Properties: {
                   Prop: { Ref: 'Bn' },
                   Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
-                  Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar}', { SomeVar: { Ref: 'Bn' } }] },
+                  Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar} ${Bn.foo}', { SomeVar: { Ref: 'Bn' } }] },
                   Foo: 123,
                 },
                 DependsOn: ['Dn'],
@@ -3455,7 +3452,7 @@ describe(generateStackDefinitionsReloaded, () => {
         new ResourceMapping(new ResourceLocation(deployedStack, 'B'), new ResourceLocation(localStack2, 'Bn')),
       ];
 
-      const result = generateStackDefinitionsReloaded(mappings, [deployedStack], [localStack1, localStack2]);
+      const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
       expect(result).toEqual([
         {
           StackName: 'Foo',
@@ -3562,7 +3559,7 @@ describe(generateStackDefinitionsReloaded, () => {
         new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack, 'B')),
       ];
 
-      const result = generateStackDefinitionsReloaded(mappings, [deployedStack1, deployedStack2], [localStack]);
+      const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack]);
       expect(result).toEqual([
         {
           StackName: 'Foo',
@@ -3682,7 +3679,7 @@ describe(generateStackDefinitionsReloaded, () => {
         new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack2, 'Bn2')),
       ];
 
-      const result = generateStackDefinitionsReloaded(
+      const result = generateStackDefinitions(
         mappings,
         [deployedStack1, deployedStack2],
         [localStack1, localStack2],
