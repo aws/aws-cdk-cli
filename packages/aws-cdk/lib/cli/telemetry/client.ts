@@ -1,6 +1,7 @@
 import { request } from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
+import { UrlWithStringQuery } from 'url';
 
 /**
  * Properties for the Telemetry Client
@@ -9,7 +10,7 @@ export interface TelemetryClientProps {
   /**
    * The external endpoint to hit
    */
-  readonly endpoint: URL;
+  readonly endpoint: UrlWithStringQuery;
 
   /**
    * The local file to log telemetry data to
@@ -21,7 +22,7 @@ export interface TelemetryClientProps {
  * The telemetry client. 
  */
 export class TelemetryClient {
-  private endpoint: URL;
+  private endpoint: UrlWithStringQuery;
   private logFilePath: string;
 
   public constructor(props: TelemetryClientProps) {
@@ -48,7 +49,7 @@ export class TelemetryClient {
   }
 
   private async https(
-    url: URL,
+    url: UrlWithStringQuery,
     body: any, // to be schema
   ): Promise<void> {
     // TODO: Handle retries and stuff
@@ -87,7 +88,7 @@ export class TelemetryClient {
  * A Promisified version of `https.request()`
  */
 function requestPromise(
-  url: URL,
+  url: UrlWithStringQuery,
   data: any // to be schema
 ) {
   return new Promise<void>((resolve) => {
@@ -95,7 +96,7 @@ function requestPromise(
     const req = request({
       hostname: url.hostname,
       port: url.port,
-      path: url.pathname,
+      path: url.path,
       method: 'POST',
       headers: {
         'content-type': 'application/json',
