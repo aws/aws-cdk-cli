@@ -363,6 +363,8 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
  * to generate a validly compiling example).
  *
  * @example
+ * import { CcApiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+ *
  * const x: CcApiContextQuery = {
  *   typeName: 'AWS::Some::Type',
  *   expectedMatchCount: 'exactly-one',
@@ -370,7 +372,6 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
  *   account: '11111111111',
  *   region: 'us-east-1',
  * };
- * console.log(x);
  */
 export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**

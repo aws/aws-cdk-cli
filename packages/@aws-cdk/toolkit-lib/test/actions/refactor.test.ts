@@ -1,5 +1,5 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { StackSelectionStrategy, Toolkit } from '../../lib';
+import { MappingSource, StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
@@ -8,7 +8,7 @@ import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
 jest.setTimeout(10_000);
 
 const ioHost = new TestIoHost();
-const toolkit = new Toolkit({ ioHost });
+const toolkit = new Toolkit({ ioHost, unstableFeatures: ['refactor'] });
 
 jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
 
@@ -16,6 +16,19 @@ beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
   mockCloudFormationClient.reset();
+});
+
+test('requires acknowledgment that the feature is unstable', async () => {
+  // GIVEN
+  const tk = new Toolkit({ ioHost /* unstable not acknowledged */ });
+  const cx = await builderFixture(tk, 'stack-with-bucket');
+
+  // WHEN
+  await expect(
+    tk.refactor(cx, {
+      dryRun: true,
+    }),
+  ).rejects.toThrow("Unstable feature 'refactor' is not enabled. Please enable it under 'unstableFeatures'");
 });
 
 test('detects the same resource in different locations', async () => {
@@ -337,7 +350,7 @@ test('uses the explicit mapping when provided, instead of computing it on-the-fl
   const cx = await builderFixture(toolkit, 'stack-with-bucket');
   await toolkit.refactor(cx, {
     dryRun: true,
-    mappings: [
+    mappingSource: MappingSource.explicit([
       {
         account: '123456789012',
         region: 'us-east-1',
@@ -345,7 +358,7 @@ test('uses the explicit mapping when provided, instead of computing it on-the-fl
           'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
         },
       },
-    ],
+    ]),
   });
 
   // THEN
@@ -405,16 +418,14 @@ test('uses the reverse of an explicit mapping when provided', async () => {
   const cx = await builderFixture(toolkit, 'stack-with-bucket');
   await toolkit.refactor(cx, {
     dryRun: true,
-    // ... this is the mapping we used...
-    mappings: [{
+    // ... this is the mapping we used, and now we want to revert it
+    mappingSource: MappingSource.reverse([{
       account: '123456789012',
       region: 'us-east-1',
       resources: {
         'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
       },
-    }],
-    // ...and now we want to revert it
-    revert: true,
+    }]),
   });
 
   // THEN
@@ -437,31 +448,123 @@ test('uses the reverse of an explicit mapping when provided', async () => {
   );
 });
 
-test('exclude and mappings are mutually exclusive', async () => {
-  // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await expect(
-    toolkit.refactor(cx, {
-      dryRun: true,
-      exclude: ['Stack1/OldLogicalID'],
-      mappings: [{
-        account: '123456789012',
-        region: 'us-east-1',
-        resources: {
-          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
+test('computes one set of mappings per environment', async () => {
+  // GIVEN
+  mockCloudFormationClient
+    .on(ListStacksCommand)
+    // We are relying on the fact that these calls are made in the order that the
+    // stacks are passed. So the first call is for environment1 and the second is
+    // for environment2. This is not ideal, but as far as I know there is no other
+    // way to control the behavior of the mock SDK clients.
+    .resolvesOnce({
+      StackSummaries: [
+        {
+          StackName: 'Stack1',
+          StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
         },
-      }],
-    }),
-  ).rejects.toThrow(/Cannot use both 'exclude' and 'mappings'/);
-});
+      ],
+    })
+    .resolvesOnce({
+      StackSummaries: [
+        {
+          StackName: 'Stack2',
+          StackId: 'arn:aws:cloudformation:us-east-2:123456789012:stack/Stack2',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
 
-test('revert can only be used with mappings', async () => {
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldBucketName: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/OldBucketName/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack2',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldBucketName: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack2/OldBucketName/Resource',
+            },
+          },
+        },
+      }),
+    });
+
   // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await expect(
-    toolkit.refactor(cx, {
-      dryRun: true,
-      revert: true,
+  const cx = await builderFixture(toolkit, 'multiple-environments');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(3);
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    message: expect.stringMatching('aws://123456789012/us-east-1'),
+  }));
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(2,
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldBucketName\/Resource.*Stack1\/NewBucketNameInStack1\/Resource/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldBucketName/Resource',
+            destinationPath: 'Stack1/NewBucketNameInStack1/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
     }),
-  ).rejects.toThrow(/The 'revert' options can only be used with the 'mappings' option/);
+  );
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    message: expect.stringMatching('aws://123456789012/us-east-2'),
+  }));
+
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(3,
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack2\/OldBucketName\/Resource.*Stack2\/NewBucketNameInStack2\/Resource/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack2/OldBucketName/Resource',
+            destinationPath: 'Stack2/NewBucketNameInStack2/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    }),
+  );
 });

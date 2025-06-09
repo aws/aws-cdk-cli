@@ -97,8 +97,8 @@ export interface ICloudAssemblyDirectoryProducer {
 export class AwsCdkCli implements IAwsCdkCli {
   /**
    * Create the CLI from a directory containing an AWS CDK app
-   * @param directory the directory of the AWS CDK app. Defaults to the current working directory.
-   * @param props additional configuration properties
+   * @param directory - the directory of the AWS CDK app. Defaults to the current working directory.
+   * @param props - additional configuration properties
    * @returns an instance of `AwsCdkCli`
    */
   public static fromCdkAppDirectory(directory?: string, props: CdkAppDirectoryProps = {}) {

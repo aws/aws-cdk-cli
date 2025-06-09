@@ -158,8 +158,8 @@ async function changeSetDiff(
  * Appends all properties from obj2 to obj1.
  * obj2 values take priority in the case of collisions.
  *
- * @param obj1 The object to modify
- * @param obj2 The object to consume
+ * @param obj1 - The object to modify
+ * @param obj2 - The object to consume
  *
  * @returns obj1 with all properties from obj2
  */

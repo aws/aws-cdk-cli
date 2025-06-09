@@ -17,8 +17,8 @@ export interface ListStacksOptions {
 /**
  * List Stacks
  *
- * @param toolkit cdk toolkit
- * @param options list stacks options
+ * @param toolkit - cdk toolkit
+ * @param options - list stacks options
  * @returns StackDetails[]
  */
 export async function listStacks(toolkit: CdkToolkit, options: ListStacksOptions): Promise<StackDetails[]> {

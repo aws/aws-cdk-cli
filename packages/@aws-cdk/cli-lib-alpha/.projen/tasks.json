@@ -232,6 +232,9 @@
       "description": "Runs after successful compilation",
       "steps": [
         {
+          "spawn": "rosetta:extract"
+        },
+        {
           "spawn": "docgen"
         },
         {
@@ -263,6 +266,15 @@
       "steps": [
         {
           "spawn": "check-licenses"
+        }
+      ]
+    },
+    "rosetta:extract": {
+      "name": "rosetta:extract",
+      "description": "Test rosetta extract",
+      "steps": [
+        {
+          "exec": "yarn --silent jsii-rosetta extract --strict"
         }
       ]
     },

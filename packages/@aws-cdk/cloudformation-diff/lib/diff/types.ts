@@ -10,10 +10,10 @@ export type PropertyMap = { [key: string]: any };
 export type ChangeSetResources = { [logicalId: string]: ChangeSetResource };
 
 /**
- * @param beforeContext is the BeforeContext field from the ChangeSet.ResourceChange.BeforeContext. This is the part of the CloudFormation template
+ * @param beforeContext - is the BeforeContext field from the ChangeSet.ResourceChange.BeforeContext. This is the part of the CloudFormation template
  * that defines what the resource is before the change is applied; that is, BeforeContext is CloudFormationTemplate.Resources[LogicalId] before the ChangeSet is executed.
  *
- * @param afterContext same as beforeContext but for after the change is made; that is, AfterContext is CloudFormationTemplate.Resources[LogicalId] after the ChangeSet is executed.
+ * @param afterContext - same as beforeContext but for after the change is made; that is, AfterContext is CloudFormationTemplate.Resources[LogicalId] after the ChangeSet is executed.
  *
  *  * Here is an example of what a beforeContext/afterContext looks like:
  *  '{"Properties":{"Value":"sdflkja","Type":"String","Name":"mySsmParameterFromStack"},"Metadata":{"aws:cdk:path":"cdk/mySsmParameter/Resource"}}'
@@ -336,8 +336,8 @@ export class Difference<ValueType> implements IDifference<ValueType> {
   public isDifferent: boolean;
 
   /**
-   * @param oldValue the old value, cannot be equal (to the sense of +deepEqual+) to +newValue+.
-   * @param newValue the new value, cannot be equal (to the sense of +deepEqual+) to +oldValue+.
+   * @param oldValue - the old value, cannot be equal (to the sense of +deepEqual+) to +newValue+.
+   * @param newValue - the new value, cannot be equal (to the sense of +deepEqual+) to +oldValue+.
    */
   constructor(public readonly oldValue: ValueType | undefined, public readonly newValue: ValueType | undefined) {
     if (oldValue === undefined && newValue === undefined) {
@@ -519,8 +519,8 @@ export enum ResourceImpact {
 /**
  * This function can be used as a reducer to obtain the resource-level impact of a list
  * of property-level impacts.
- * @param one the current worst impact so far.
- * @param two the new impact being considered (can be undefined, as we may not always be
+ * @param one - the current worst impact so far.
+ * @param two - the new impact being considered (can be undefined, as we may not always be
  *      able to determine some properties impact).
  */
 function worstImpact(one: ResourceImpact, two?: ResourceImpact): ResourceImpact {

@@ -29,13 +29,19 @@ import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { MappingGroup, RefactorOptions } from '../actions/refactor';
+import { MappingSource } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { WatchOptions } from '../actions/watch';
-import { patternsArrayForWatch } from '../actions/watch/private';
-import { type SdkBaseClientConfig, type IBaseCredentialsProvider, type SdkConfig, BaseCredentials } from '../api/aws-auth';
+import type { IWatcher, WatchOptions } from '../actions/watch';
+import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
+import {
+  BaseCredentials,
+  type IBaseCredentialsProvider,
+  type SdkBaseClientConfig,
+  type SdkConfig,
+} from '../api/aws-auth';
 import { sdkRequestHandler } from '../api/aws-auth/awscli-compatible';
-import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
+import { IoHostSdkLogger, SdkProvider } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
@@ -53,18 +59,19 @@ import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespac
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
 import {
-  AmbiguityError,
-  ambiguousMovements,
-  findResourceMovements,
+  formatAmbiguitySectionHeader,
   formatAmbiguousMappings,
+  formatMappingsHeader,
   formatTypedMappings,
-  fromManifestAndExclusionList,
-  resourceMappings,
+  getDeployedStacks,
+  ManifestExcludeList,
   usePrescribedMappings,
 } from '../api/refactoring';
-import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cloudformation';
+import { RefactoringContext } from '../api/refactoring/context';
+import { hashObject } from '../api/refactoring/digest';
 import { ResourceMigrator } from '../api/resource-import';
-import { tagsForStack } from '../api/tags';
+import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
@@ -93,7 +100,7 @@ export interface ToolkitOptions {
    * in messages sent to the IoHost.
    * Setting this value to true is a no-op; it is equivalent to the default.
    *
-   * @default - detects color from the TTY status of the IoHost
+   * @default - Detects color from the TTY status of the IoHost
    */
   readonly color?: boolean;
 
@@ -126,7 +133,26 @@ export interface ToolkitOptions {
    * @default - A fresh plugin host
    */
   readonly pluginHost?: PluginHost;
+
+  /**
+   * Set of unstable features to opt into. If you are using an unstable feature,
+   * you must explicitly acknowledge that you are aware of the risks of using it,
+   * by passing it in this set.
+   */
+  readonly unstableFeatures?: Array<UnstableFeature>;
 }
+
+interface StackGroup {
+  environment: cxapi.Environment;
+  localStacks: CloudFormationStack[];
+  deployedStacks: CloudFormationStack[];
+}
+
+/**
+ * Names of toolkit features that are still under development, and may change in
+ * the future.
+ */
+export type UnstableFeature = 'refactor';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -154,6 +180,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private baseCredentials: IBaseCredentialsProvider;
 
+  private readonly unstableFeatures: Array<UnstableFeature>;
+
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
@@ -172,6 +200,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.ioHost = withTrimmedWhitespace(ioHost);
 
     this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible();
+    this.unstableFeatures = props.unstableFeatures ?? [];
   }
 
   /**
@@ -382,7 +411,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Drift Action
    */
-  public async drift(cx: ICloudAssemblySource, options: DriftOptions): Promise<{ [name: string]: DriftResult }> {
+  public async drift(cx: ICloudAssemblySource, options: DriftOptions = {}): Promise<{ [name: string]: DriftResult }> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -513,7 +542,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const parameterMap = buildParameterMap(options.parameters?.parameters);
 
-    if (options.deploymentMethod?.method === 'hotswap' ) {
+    if (options.deploymentMethod?.method === 'hotswap') {
       await ioHelper.notify(IO.CDK_TOOLKIT_W5400.msg([
         '⚠️ Hotswap deployments deliberately introduce CloudFormation drift to speed up deployments',
         '⚠️ They should only be used for development - never use them for your production Stacks!',
@@ -827,42 +856,29 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
-    if (options.include === undefined && options.exclude === undefined) {
-      throw new ToolkitError(
-        "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-        'Make sure to add a "watch" key to your cdk.json',
-      );
+    // For the "include" setting, the behavior is:
+    // 1. "watch" setting without an "include" key? We default to observing "**".
+    // 2. "watch" setting with an empty "include" key? We default to observing "**".
+    // 3. Non-empty "include" key? Just use the "include" key.
+    const watchIncludes = options.include ?? [];
+    if (watchIncludes.length <= 0) {
+      watchIncludes.push('**');
     }
 
-    // For the "include" subkey under the "watch" key, the behavior is:
-    // 1. No "watch" setting? We error out.
-    // 2. "watch" setting without an "include" key? We default to observing "./**".
-    // 3. "watch" setting with an empty "include" key? We default to observing "./**".
-    // 4. Non-empty "include" key? Just use the "include" key.
-    const watchIncludes = patternsArrayForWatch(options.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
-    });
-
-    // For the "exclude" subkey under the "watch" key,
-    // the behavior is to add some default excludes in addition to the ones specified by the user:
-    // 1. The CDK output directory.
-    // 2. Any file whose name starts with a dot.
-    // 3. Any directory's content whose name starts with a dot.
-    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = assembly.directory;
-    const watchExcludes = patternsArrayForWatch(options.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
-    });
-
-    // only exclude the outdir if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, outdir);
+    // For the "exclude" setting, the behavior is to add some default excludes in addition to
+    // patterns specified by the user sensible default patterns:
+    const watchExcludes = options.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
+    // 1. The CDK output directory, if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, assembly.directory);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
-
-    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
+    // 2. Any file whose name starts with a dot.
+    watchExcludes.push('.*', '**/.*');
+    // 3. Any directory's content whose name starts with a dot.
+    watchExcludes.push('**/.*/**');
+    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
+    watchExcludes.push('**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([
@@ -944,6 +960,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
+        // stop the logs monitor, if it exists
+        await cloudWatchLogMonitor?.deactivate();
+        // close the watcher itself
         await watcher.close();
         // Prevents Node from staying alive. There is no 'end' event that the watcher emits
         // that we can know it's definitely done, so best we can do is tell it to stop watching,
@@ -1040,67 +1059,96 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Refactor Action. Moves resources from one location (stack + logical ID) to another.
    */
   public async refactor(cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
+    this.requireUnstableFeature('refactor');
+
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
     const assembly = await assemblyFromSource(ioHelper, cx);
     return this._refactor(assembly, ioHelper, options);
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (options.mappings && options.exclude) {
-      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
-    }
-
-    if (options.revert && !options.mappings) {
-      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
-    }
-
     if (!options.dryRun) {
       throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
     }
 
     const sdkProvider = await this.sdkProvider('refactor');
-    try {
-      const mappings = await getMappings();
+    const stacks = await assembly.selectStacksV2(ALL_STACKS);
+    const mappingSource = options.mappingSource ?? MappingSource.auto();
+    const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
+    const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+
+    const refactoringContexts: RefactoringContext[] = [];
+    for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
+      refactoringContexts.push(new RefactoringContext({
+        environment,
+        deployedStacks,
+        localStacks,
+        filteredStacks: filteredStacks.stackArtifacts,
+        mappings: await getUserProvidedMappings(environment),
+      }));
+    }
+
+    const nonAmbiguousContexts = refactoringContexts.filter(c => !c.isAmbiguous);
+    if (nonAmbiguousContexts.length > 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatMappingsHeader(), {}));
+    }
+    for (const context of nonAmbiguousContexts) {
+      const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
       const typedMappings = mappings.map(m => m.toTypedMapping());
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
+      const environment = context.environment;
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(environment, typedMappings), {
         typedMappings,
       }));
-    } catch (e) {
-      if (e instanceof AmbiguityError) {
-        const paths = e.paths();
-        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
-          ambiguousPaths: paths,
-        }));
-      } else {
-        throw e;
-      }
     }
 
-    async function getMappings(): Promise<ResourceMapping[]> {
-      if (options.revert) {
-        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
-      }
-      if (options.mappings != null) {
-        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
-      } else {
-        const stacks = await assembly.selectStacksV2(ALL_STACKS);
-        const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
-        const ambiguous = ambiguousMovements(movements);
-        if (ambiguous.length === 0) {
-          const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-          return resourceMappings(movements, filteredStacks.stackArtifacts);
+    const ambiguousContexts = refactoringContexts.filter(c => c.isAmbiguous);
+    if (ambiguousContexts.length > 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguitySectionHeader(), {}));
+    }
+    for (const context of ambiguousContexts) {
+      const paths = context.ambiguousPaths;
+      const environment = context.environment;
+      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(environment, paths), {
+        ambiguousPaths: paths,
+      }));
+    }
+
+    async function groupStacksByEnvironment(): Promise<StackGroup[]> {
+      const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
+      const environments: Map<string, cxapi.Environment> = new Map();
+
+      for (const stack of stacks.stackArtifacts) {
+        const environment = await sdkProvider.resolveEnvironment(stack.environment);
+        const key = hashObject(environment);
+        environments.set(key, environment);
+        if (stackGroups.has(key)) {
+          stackGroups.get(key)![1].push(stack);
         } else {
-          throw new AmbiguityError(ambiguous);
+          // The first time we see an environment, we need to fetch all stacks deployed to it.
+          const before = await getDeployedStacks(sdkProvider, environment);
+          stackGroups.set(key, [before, [stack]]);
         }
       }
+
+      const result: StackGroup[] = [];
+      for (const [hash, [deployedStacks, localStacks]] of stackGroups) {
+        result.push({
+          environment: environments.get(hash)!,
+          localStacks,
+          deployedStacks,
+        });
+      }
+      return result;
     }
 
-    function revert(mappings: MappingGroup[]): MappingGroup[] {
-      return mappings.map(group => ({
-        ...group,
-        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
-      }));
+    async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {
+      return mappingSource.source == 'explicit'
+        ? usePrescribedMappings(mappingSource.groups.filter(matchesEnvironment), sdkProvider)
+        : undefined;
+
+      function matchesEnvironment(g: MappingGroup): boolean {
+        return g.account === environment.account && g.region === environment.region;
+      }
     }
   }
 
@@ -1232,26 +1280,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // just continue - deploy will show the error
     }
   }
-}
 
-/**
- * The result of a `cdk.watch()` operation.
- */
-export interface IWatcher extends AsyncDisposable {
-  /**
-   * Stop the watcher and wait for the current watch iteration to complete.
-   *
-   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
-   * environments that don't support the Disposable APIs yet.
-   */
-  dispose(): Promise<void>;
-
-  /**
-   * Wait for the watcher to stop.
-   *
-   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
-   *
-   * If neither of those is called, awaiting this promise will wait forever.
-   */
-  waitForEnd(): Promise<void>;
+  private requireUnstableFeature(requestedFeature: UnstableFeature) {
+    if (!this.unstableFeatures.includes(requestedFeature)) {
+      throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+    }
+  }
 }

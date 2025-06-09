@@ -8,27 +8,39 @@ export interface TypedMapping {
   readonly destinationPath: string;
 }
 
-export function formatTypedMappings(stream: NodeJS.WritableStream, mappings: TypedMapping[]) {
+export function formatMappingsHeader(stream: NodeJS.WritableStream) {
+  const formatter = new Formatter(stream, {});
+  formatter.printSectionHeader('The following resources were moved or renamed:\n');
+}
+
+export function formatTypedMappings(stream: NodeJS.WritableStream, mappings: TypedMapping[], env: string) {
   const header = [['Resource Type', 'Old Construct Path', 'New Construct Path']];
   const rows = mappings.map((m) => [m.type, m.sourcePath, m.destinationPath]);
 
   const formatter = new Formatter(stream, {});
+  formatter.print(`${env}:`);
   if (mappings.length > 0) {
-    formatter.printSectionHeader('The following resources were moved or renamed:');
     formatter.print(chalk.green(formatTable(header.concat(rows), undefined)));
   } else {
     formatter.print('Nothing to refactor.');
   }
+  formatter.print(' ');
+}
+
+export function formatAmbiguitySectionHeader(stream: NodeJS.WritableStream) {
+  const formatter = new Formatter(stream, {});
+  formatter.printSectionHeader('Ambiguous Resource Name Changes:\n');
 }
 
 export function formatAmbiguousMappings(
   stream: NodeJS.WritableStream,
   pairs: [string[], string[]][],
+  env: string,
 ) {
   const tables = pairs.map(renderTable);
   const formatter = new Formatter(stream, {});
 
-  formatter.printSectionHeader('Ambiguous Resource Name Changes');
+  formatter.print(`${env}:`);
   formatter.print(tables.join('\n\n'));
   formatter.printSectionFooter();
 

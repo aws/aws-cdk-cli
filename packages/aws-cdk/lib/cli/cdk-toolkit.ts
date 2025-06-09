@@ -2,8 +2,8 @@ import * as path from 'path';
 import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit, MappingSource } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -12,7 +12,7 @@ import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import { asIoHelper, cfnApi } from '../../lib/api-private';
+import { asIoHelper, cfnApi, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import { DEFAULT_TOOLKIT_STACK_NAME, DiffFormatter, WorkGraphBuilder, removeNonImportResources, ResourceImporter, ResourceMigrator, GarbageCollector, CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api';
 import type { SdkProvider } from '../api/aws-auth';
@@ -20,7 +20,7 @@ import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
-import { type Tag, tagsForStack } from '../api/tags';
+import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
@@ -179,6 +179,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
+      unstableFeatures: ['refactor'],
     });
   }
 
@@ -1034,9 +1035,9 @@ export class CdkToolkit {
   /**
    * Bootstrap the CDK Toolkit stack in the accounts used by the specified stack(s).
    *
-   * @param userEnvironmentSpecs environment names that need to have toolkit support
+   * @param userEnvironmentSpecs - environment names that need to have toolkit support
    *             provisioned, as a glob filter. If none is provided, all stacks are implicitly selected.
-   * @param options The name, role ARN, bootstrapping parameters, etc. to be used for the CDK Toolkit stack.
+   * @param options - The name, role ARN, bootstrapping parameters, etc. to be used for the CDK Toolkit stack.
    */
   public async bootstrap(
     userEnvironmentSpecs: string[],
@@ -1068,7 +1069,7 @@ export class CdkToolkit {
 
   /**
    * Garbage collects assets from a CDK app's environment
-   * @param options Options for Garbage Collection
+   * @param options - Options for Garbage Collection
    */
   public async garbageCollect(userEnvironmentSpecs: string[], options: GarbageCollectionOptions) {
     const environments = await this.defineEnvironments(userEnvironmentSpecs);
@@ -1124,7 +1125,7 @@ export class CdkToolkit {
 
   /**
    * Migrates a CloudFormation stack/template to a CDK app
-   * @param options Options for CDK app creation
+   * @param options - Options for CDK app creation
    */
   public async migrate(options: MigrateOptions): Promise<void> {
     warning('This command is an experimental feature.');
@@ -1230,9 +1231,7 @@ export class CdkToolkit {
           patterns: options.selector.patterns,
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
-        exclude: await readExcludeFile(options.excludeFile),
-        mappings: await readMappingFile(options.mappingFile),
-        revert: options.revert,
+        mappingSource: await mappingSource(),
       });
     } catch (e) {
       error((e as Error).message);
@@ -1264,6 +1263,16 @@ export class CdkToolkit {
         return fs.readFileSync(filePath).toString('utf-8').split('\n');
       }
       return undefined;
+    }
+
+    async function mappingSource(): Promise<MappingSource> {
+      if (options.mappingFile != null) {
+        return MappingSource.explicit(await readMappingFile(options.mappingFile));
+      }
+      if (options.revert) {
+        return MappingSource.reverse(await readMappingFile(options.mappingFile));
+      }
+      return MappingSource.auto((await readExcludeFile(options.excludeFile)) ?? []);
     }
   }
 

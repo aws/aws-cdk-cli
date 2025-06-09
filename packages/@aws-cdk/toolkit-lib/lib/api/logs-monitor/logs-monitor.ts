@@ -36,7 +36,7 @@ export interface CloudWatchLogEventMonitorProps {
   /**
    * The time from which we start reading log messages
    *
-   * @default - now
+   * @default - Now
    */
   readonly startTime?: Date;
 }
@@ -62,7 +62,9 @@ export class CloudWatchLogEventMonitor {
   private readonly pollingInterval: number = 2_000;
 
   public monitorId?: string;
+
   private readonly ioHelper: IoHelper;
+  private currentTick?: NodeJS.Timeout;
 
   constructor(props: CloudWatchLogEventMonitorProps) {
     this.startTime = props.startTime?.getTime() ?? Date.now();
@@ -80,8 +82,8 @@ export class CloudWatchLogEventMonitor {
       logGroupNames: this.logGroupNames(),
     }));
 
+    // tick schedules the next tick as well
     await this.tick();
-    this.scheduleNextTick();
   }
 
   /**
@@ -97,6 +99,7 @@ export class CloudWatchLogEventMonitor {
     const oldMonitorId = this.monitorId!;
     this.monitorId = undefined;
     this.startTime = Date.now();
+    clearTimeout(this.currentTick);
 
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5034.msg('Stopped monitoring log groups', {
       monitor: oldMonitorId,
@@ -140,7 +143,7 @@ export class CloudWatchLogEventMonitor {
       return;
     }
 
-    setTimeout(() => void this.tick(), this.pollingInterval);
+    this.currentTick = setTimeout(() => void this.tick(), this.pollingInterval);
   }
 
   private async tick(): Promise<void> {

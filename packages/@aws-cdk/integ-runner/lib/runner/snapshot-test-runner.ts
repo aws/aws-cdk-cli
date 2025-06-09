@@ -118,8 +118,8 @@ export class IntegSnapshotRunner extends IntegRunner {
    * For a given cloud assembly return a collection of all templates
    * that should be part of the snapshot and any required meta data.
    *
-   * @param cloudAssemblyDir The directory of the cloud assembly to look for snapshots
-   * @param pickStacks Pick only these stacks from the cloud assembly
+   * @param cloudAssemblyDir - The directory of the cloud assembly to look for snapshots
+   * @param pickStacks - Pick only these stacks from the cloud assembly
    * @returns A SnapshotAssembly, the collection of all templates in this snapshot and required meta data
    */
   private getSnapshotAssembly(cloudAssemblyDir: string, pickStacks: string[] = []): SnapshotAssembly {
@@ -148,7 +148,7 @@ export class IntegSnapshotRunner extends IntegRunner {
    * For a given stack return all resource types that are allowed to be destroyed
    * as part of a stack update
    *
-   * @param stackId the stack id
+   * @param stackId - the stack id
    * @returns a list of resource types or undefined if none are found
    */
   private getAllowedDestroyTypesForStack(stackId: string): string[] | undefined {

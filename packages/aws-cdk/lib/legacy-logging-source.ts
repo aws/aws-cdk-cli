@@ -112,8 +112,8 @@ export type LoggerFunction = (fmt: string, ...args: unknown[]) => void;
 /**
  * Create a logger output that features a constant prefix string.
  *
- * @param prefixString the prefix string to be appended before any log entry.
- * @param fn   the logger function to be used (typically one of the other functions in this module)
+ * @param prefixString - the prefix string to be appended before any log entry.
+ * @param fn   - the logger function to be used (typically one of the other functions in this module)
  *
  * @returns a new LoggerFunction.
  */

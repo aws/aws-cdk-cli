@@ -2,9 +2,11 @@ import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface DriftOptions {
   /**
-   * Criteria for selecting stacks to check for drift
+   * Select stacks to check for drift
+   *
+   * @default - All stacks
    */
-  readonly stacks: StackSelector;
+  readonly stacks?: StackSelector;
 }
 
 /**

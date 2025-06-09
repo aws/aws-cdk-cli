@@ -12,7 +12,7 @@ export interface PrivateDeployOptions extends DeployOptions {
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - Nothing extra is appended to the User-Agent header
    */
   readonly extraUserAgent?: string;
 
@@ -20,7 +20,7 @@ export interface PrivateDeployOptions extends DeployOptions {
    * Allows adding CloudWatch log groups to the log monitor via
    * cloudWatchLogMonitor.setLogGroups();
    *
-   * @default - not monitoring CloudWatch logs
+   * @default - Not monitoring CloudWatch logs
    */
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
 }

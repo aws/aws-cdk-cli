@@ -30,7 +30,7 @@ const TYPESCRIPT_VERSION = '5.6';
  */
 function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   // currently supported min node version
-  x.package.addEngine('node', '>= 14.15.0');
+  x.package.addEngine('node', '>= 18.0.0');
 
   x.addDevDeps(
     'jest-junit@^16',
@@ -377,7 +377,7 @@ new JsiiBuild(cloudAssemblySchema, {
     javaPackage: 'software.amazon.awscdk.cloudassembly.schema',
     mavenArtifactId: 'cdk-cloud-assembly-schema',
     mavenGroupId: 'software.amazon.awscdk',
-    mavenEndpoint: 'https://aws.oss.sonatype.org',
+    mavenServerId: 'central-ossrh',
   },
   publishToNuget: {
     dotNetNamespace: 'Amazon.CDK.CloudAssembly.Schema',
@@ -794,7 +794,10 @@ const toolkitLib = configureProject(
           lines: 87,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
+        setupFilesAfterEnv: [
+          '<rootDir>/test/_helpers/jest-setup-after-env.ts',
+          '<rootDir>/test/_helpers/jest-custom-matchers.ts',
+        ],
       },
     }),
     tsconfig: {
@@ -974,6 +977,8 @@ const apiExtractorDocsTask = toolkitLib.addTask('docs', {
     'if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi',
     // Copy all files from docs directory if it exists
     'if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi',
+    // Copy all files from assets directory if it exists
+    'if [ -d assets ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/assets && cp -r assets/* dist/api-extractor-docs/cdk/api/toolkit-lib/assets/; fi',
     // Zip the API model and docs files
     'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
@@ -1059,8 +1064,7 @@ const cli = configureProject(
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
-      // A version that is guaranteed to still work on Node 16
-      'cdk-from-cfn@0.162.1',
+      'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
@@ -1328,7 +1332,7 @@ new JsiiBuild(cliLibAlpha, {
     javaPackage: 'software.amazon.awscdk.cli.lib.alpha',
     mavenGroupId: 'software.amazon.awscdk',
     mavenArtifactId: 'cdk-cli-lib-alpha',
-    mavenEndpoint: 'https://aws.oss.sonatype.org',
+    mavenServerId: 'central-ossrh',
   },
   publishToPypi: {
     distName: 'aws-cdk.cli-lib-alpha',
@@ -1344,6 +1348,7 @@ new JsiiBuild(cliLibAlpha, {
     packageName: 'awscdkclilibalpha',
   },
   rosettaStrict: true,
+  rosettaDependencies: ['aws-cdk-lib@^2'],
   stability: Stability.DEPRECATED,
   composite: true,
   excludeTypescript: CLI_LIB_EXCLUDE_PATTERNS,

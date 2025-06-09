@@ -65,7 +65,7 @@ export class CloudExecutable implements ICloudAssemblySource {
   /**
    * Synthesize a set of stacks.
    *
-   * @param cacheCloudAssembly whether to cache the Cloud Assembly after it has been first synthesized.
+   * @param cacheCloudAssembly - whether to cache the Cloud Assembly after it has been first synthesized.
    *   This is 'true' by default, and only set to 'false' for 'cdk watch',
    *   which needs to re-synthesize the Assembly each time it detects a change to the project files
    */

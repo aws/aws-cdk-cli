@@ -106,7 +106,7 @@ export interface ConfirmationRequest {
    * If more than one operations is on-going, a client might decide that asking the user
    * for input is too complex, as the confirmation might not easily be attributed to a specific request.
    *
-   * @default - no concurrency
+   * @default - No concurrency
    */
   readonly concurrency?: number;
 }
