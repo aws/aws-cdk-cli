@@ -7,6 +7,9 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
+import { TelemetryClient } from '../telemetry/client';
+import { getUrl } from '../telemetry/url';
+import * as path from 'path';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -141,6 +144,12 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  // Telemetry
+  private telemetryClient = new TelemetryClient({
+    endpoint: getUrl(),
+    logFilePath: path.join('telemetry.json'), // TODO: need a decision on a well-defined path
+  });
+
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
     this.isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
@@ -245,6 +254,10 @@ export class CliIoHost implements IIoHost {
       return this._internalIoHost.notify(msg);
     }
 
+    if (this.isTelemetryData(msg)) {
+      this.sendTelemetryData(msg);
+    }
+
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
         this.activityPrinter = this.makeActivityPrinter();
@@ -265,6 +278,16 @@ export class CliIoHost implements IIoHost {
     const output = this.formatMessage(msg);
     const stream = this.selectStream(msg);
     stream?.write(output);
+  }
+
+  private isTelemetryData(msg: IoMessage<unknown>) {
+    return msg.code && [
+      'CDK_TOOLKIT_I9999',
+    ].includes(msg.code);
+  }
+
+  private sendTelemetryData(msg: IoMessage<unknown>) {
+    this.telemetryClient.sendData(msg.data);
   }
 
   /**
