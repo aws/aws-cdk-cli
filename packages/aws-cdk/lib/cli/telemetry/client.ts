@@ -2,26 +2,44 @@ import { request } from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Properties for the Telemetry Client
+ */
 export interface TelemetryClientProps {
+  /**
+   * The external endpoint to hit
+   */
   readonly endpoint: URL;
-  readonly localFilePath: string;
+
+  /**
+   * The local file to log telemetry data to
+   */
+  readonly logFilePath: string;
 }
 
+/**
+ * The telemetry client. 
+ */
 export class TelemetryClient {
   private endpoint: URL;
-  private filePath: string;
+  private logFilePath: string;
 
   public constructor(props: TelemetryClientProps) {
     this.endpoint = props.endpoint;
-    this.filePath = props.localFilePath;
+    this.logFilePath = props.logFilePath;
 
     // Ensure the directory exists
-    const directory = path.dirname(this.filePath);
+    const directory = path.dirname(this.logFilePath);
     if (!fs.existsSync(directory)) {
       fs.mkdirSync(directory, { recursive: true });
     }
   }
 
+  // TODO: data needs to be strongly typed as our schema
+  /**
+   * Send the data to the endpoint in a fire-and-forget action.
+   * Stores the data locally as a log for future reference.
+   */
   public async sendData(data: any) {
     // Save data locally first
     await this.saveData(data);
@@ -41,9 +59,9 @@ export class TelemetryClient {
     try {
       // Read existing data if file exists
       let existingData: any[] = [];
-      if (fs.existsSync(this.filePath)) {
+      if (fs.existsSync(this.logFilePath)) {
         try {
-          const fileContent = fs.readFileSync(this.filePath, 'utf8');
+          const fileContent = fs.readFileSync(this.logFilePath, 'utf8');
           existingData = JSON.parse(fileContent);
           if (!Array.isArray(existingData)) {
             existingData = [existingData];
@@ -58,7 +76,7 @@ export class TelemetryClient {
       existingData.push(data);
       
       // Write combined data back to file
-      fs.writeFileSync(this.filePath, JSON.stringify(existingData, null, 2), 'utf8');
+      fs.writeFileSync(this.logFilePath, JSON.stringify(existingData, null, 2), 'utf8');
     } catch (err) {
       /* noop */
     }
