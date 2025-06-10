@@ -152,3 +152,4 @@ If you are bundling a CLI application that also has top level exports, we sugges
 the CLI functionality into a function, and add this function as an export to `index.js`.
 
 > See [aws-cdk](https://github.com/aws/aws-cdk-cli/blob/main/packages/aws-cdk/bin/cdk) as an example.
+// Updated dependency handling
