@@ -192,7 +192,7 @@
     },
     {
       "name": "@octokit/rest",
-      "version": "^18.12.0",
+      "version": "^20",
       "type": "runtime"
     },
     {
