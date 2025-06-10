@@ -6,7 +6,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { Mode } from '../plugin';
-import { generateStackDefinitions } from './execution';
+import { generateStackDefinitions } from './stack-definitions';
 import { EnvironmentResourcesRegistry } from '../environment';
 import type { IoHelper } from '../io/private';
 
