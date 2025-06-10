@@ -4,7 +4,7 @@ export interface DestroyOptions {
   /**
    * Criteria for selecting stacks to deploy
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   readonly stacks?: StackSelector;
 

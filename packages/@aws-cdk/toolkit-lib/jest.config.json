@@ -48,7 +48,8 @@
   ],
   "randomize": true,
   "setupFilesAfterEnv": [
-    "<rootDir>/test/_helpers/jest-setup-after-env.ts"
+    "<rootDir>/test/_helpers/jest-setup-after-env.ts",
+    "<rootDir>/test/_helpers/jest-custom-matchers.ts"
   ],
   "clearMocks": true,
   "coverageDirectory": "coverage",

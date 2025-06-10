@@ -210,7 +210,7 @@ export function writeContextToEnv(env: Env, context: Context) {
 /**
  * Checks if a given assembly supports context overflow, warn otherwise.
  *
- * @param assembly the assembly to check
+ * @param assembly - the assembly to check
  */
 async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
   const traceFn = (msg: string) => ioHelper.defaults.trace(msg);

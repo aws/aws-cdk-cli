@@ -794,7 +794,10 @@ const toolkitLib = configureProject(
           lines: 87,
         },
         testEnvironment: './test/_helpers/jest-bufferedconsole.ts',
-        setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
+        setupFilesAfterEnv: [
+          '<rootDir>/test/_helpers/jest-setup-after-env.ts',
+          '<rootDir>/test/_helpers/jest-custom-matchers.ts',
+        ],
       },
     }),
     tsconfig: {
@@ -974,6 +977,8 @@ const apiExtractorDocsTask = toolkitLib.addTask('docs', {
     'if [ -f README.md ]; then cp README.md dist/api-extractor-docs/cdk/api/toolkit-lib/; fi',
     // Copy all files from docs directory if it exists
     'if [ -d docs ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/docs && cp -r docs/* dist/api-extractor-docs/cdk/api/toolkit-lib/docs/; fi',
+    // Copy all files from assets directory if it exists
+    'if [ -d assets ]; then mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib/assets && cp -r assets/* dist/api-extractor-docs/cdk/api/toolkit-lib/assets/; fi',
     // Zip the API model and docs files
     'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
@@ -1059,8 +1064,7 @@ const cli = configureProject(
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
       cdkAssets,
-      // A version that is guaranteed to still work on Node 16
-      'cdk-from-cfn@0.162.1',
+      'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM

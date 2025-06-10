@@ -82,7 +82,7 @@ export function diffUnknown(oldValue: any, newValue: any): types.Difference<any>
 /**
  * Coerces a given value to +string | undefined+.
  *
- * @param value the value to be coerced.
+ * @param value - the value to be coerced.
  *
  * @returns +undefined+ if +value+ is +null+ or +undefined+,
  *      +value+ if it is a +string+,

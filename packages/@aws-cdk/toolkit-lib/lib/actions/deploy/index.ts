@@ -50,14 +50,14 @@ export interface HotswapDeployment {
    * Represents configuration property overrides for hotswap deployments.
    * Currently only supported by ECS.
    *
-   * @default - no overrides
+   * @default - No overrides
    */
   readonly properties?: HotswapProperties;
 
   /**
    * Fall back to a CloudFormation deployment when a non-hotswappable change is detected
    *
-   * @default - do not fall back to a CloudFormation deployment
+   * @default - Do not fall back to a CloudFormation deployment
    */
   readonly fallback?: DirectDeployment | ChangeSetDeployment;
 }
@@ -115,7 +115,7 @@ export interface BaseDeployOptions {
   /**
    * Criteria for selecting stacks to deploy
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   readonly stacks?: StackSelector;
 
@@ -177,7 +177,7 @@ export interface BaseDeployOptions {
    * Whether to send logs from all CloudWatch log groups in the template
    * to the IoHost
    *
-   * @default - false
+   * @default false
    */
   readonly traceLogs?: boolean;
 }

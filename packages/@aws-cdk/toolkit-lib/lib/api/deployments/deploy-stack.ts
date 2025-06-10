@@ -86,7 +86,7 @@ export interface DeployStackOptions {
    * string though `TargetEnvironment.replacePlaceholders`.
    *
    * @default - No execution role; CloudFormation either uses the role currently associated with
-   * the stack, or otherwise uses current AWS credentials.
+   * the stack, or otherwise uses current AWS credentials
    */
   readonly roleArn?: StringWithoutPlaceholders;
 
@@ -132,7 +132,7 @@ export interface DeployStackOptions {
    * Note that parameters with `undefined` or empty values will be ignored,
    * and not passed to the template.
    *
-   * @default - no additional parameters will be passed to the template
+   * @default - No additional parameters will be passed to the template
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -179,7 +179,7 @@ export interface DeployStackOptions {
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - Nothing extra is appended to the User-Agent header
    */
   readonly extraUserAgent?: string;
 

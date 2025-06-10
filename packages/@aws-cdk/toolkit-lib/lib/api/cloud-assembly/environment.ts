@@ -17,7 +17,7 @@ export type Context = { [key: string]: unknown };
  * some cases, synthesis does not require region/account information at all, so that might be perfectly
  * fine in certain scenarios.
  *
- * @param context The context key/value bash.
+ * @param context - The context key/value bash.
  */
 export async function prepareDefaultEnvironment(
   aws: SdkProvider,

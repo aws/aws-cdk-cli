@@ -12,7 +12,7 @@ export class MappingSource {
    * The mapping will be automatically generated based on a comparison of
    * the deployed stacks and the local stacks.
    *
-   * @param exclude A list of resource locations to exclude from the mapping.
+   * @param exclude - A list of resource locations to exclude from the mapping.
    */
   public static auto(exclude: string[] = []): MappingSource {
     const excludeList = new InMemoryExcludeList(exclude);
@@ -73,7 +73,7 @@ export interface RefactorOptions {
   /**
    * Criteria for selecting stacks to deploy
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   stacks?: StackSelector;
 

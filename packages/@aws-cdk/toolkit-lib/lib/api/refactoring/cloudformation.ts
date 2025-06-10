@@ -6,6 +6,7 @@ export interface CloudFormationResource {
   Type: string;
   Properties?: any;
   Metadata?: Record<string, any>;
+  DependsOn?: string | string[];
 }
 
 export interface CloudFormationTemplate {
@@ -83,4 +84,3 @@ export class ResourceMapping {
     };
   }
 }
-

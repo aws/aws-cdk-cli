@@ -24,10 +24,10 @@ import type { ResourcesToImport } from '../resource-import';
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
  *
- * @param cfn           a CloudFormation client
- * @param stackName     the name of the Stack the ChangeSet belongs to
- * @param changeSetName the name of the ChangeSet
- * @param fetchAll      if true, fetches all pages of the change set description.
+ * @param cfn           - a CloudFormation client
+ * @param stackName     - the name of the Stack the ChangeSet belongs to
+ * @param changeSetName - the name of the ChangeSet
+ * @param fetchAll      - if true, fetches all pages of the change set description.
  *
  * @returns       CloudFormation information about the ChangeSet
  */
@@ -65,8 +65,8 @@ async function describeChangeSet(
 /**
  * Waits for a function to return non-+undefined+ before returning.
  *
- * @param valueProvider a function that will return a value that is not +undefined+ once the wait should be over
- * @param timeout     the time to wait between two calls to +valueProvider+
+ * @param valueProvider - a function that will return a value that is not +undefined+ once the wait should be over
+ * @param timeout     - the time to wait between two calls to +valueProvider+
  *
  * @returns       the value that was returned by +valueProvider+
  */
@@ -91,10 +91,10 @@ async function waitFor<T>(
  * Will return a changeset that is either ready to be executed or has no changes.
  * Will throw in other cases.
  *
- * @param cfn           a CloudFormation client
- * @param stackName     the name of the Stack that the ChangeSet belongs to
- * @param changeSetName the name of the ChangeSet
- * @param fetchAll      if true, fetches all pages of the ChangeSet before returning.
+ * @param cfn           - a CloudFormation client
+ * @param stackName     - the name of the Stack that the ChangeSet belongs to
+ * @param changeSetName - the name of the ChangeSet
+ * @param fetchAll      - if true, fetches all pages of the ChangeSet before returning.
  *
  * @returns       the CloudFormation description of the ChangeSet
  */
@@ -377,8 +377,8 @@ export function changeSetHasNoChanges(description: DescribeChangeSetCommandOutpu
  * Fails if the stack is in a FAILED state. Will not fail if the stack was
  * already deleted.
  *
- * @param cfn        a CloudFormation client
- * @param stackName      the name of the stack to wait for after a delete
+ * @param cfn        - a CloudFormation client
+ * @param stackName      - the name of the stack to wait for after a delete
  *
  * @returns     the CloudFormation description of the stabilized stack after the delete attempt
  */
@@ -409,8 +409,8 @@ export async function waitForStackDelete(
  *
  * Fails if the stack is in a FAILED state, ROLLBACK state, or DELETED state.
  *
- * @param cfn        a CloudFormation client
- * @param stackName      the name of the stack to wait for after an update
+ * @param cfn        - a CloudFormation client
+ * @param stackName      - the name of the stack to wait for after an update
  *
  * @returns     the CloudFormation description of the stabilized stack after the update attempt
  */

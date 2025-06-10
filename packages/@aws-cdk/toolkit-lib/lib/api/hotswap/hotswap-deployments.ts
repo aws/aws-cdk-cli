@@ -296,7 +296,7 @@ async function classifyResourceChanges(
 /**
  * Returns all changes to resources in the given Stack.
  *
- * @param stackChanges the collection of all changes to a given Stack
+ * @param stackChanges - the collection of all changes to a given Stack
  */
 function getStackResourceDifferences(stackChanges: cfn_diff.TemplateDiff): {
   [logicalId: string]: cfn_diff.ResourceDifference;

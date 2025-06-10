@@ -171,8 +171,8 @@ export class ResourceImporter {
    * Based on the provided resource mapping, prepare CFN structures for import (template,
    * ResourcesToImport structure) and perform the import operation (CloudFormation deployment)
    *
-   * @param importMap Mapping from CDK construct tree path to physical resource import identifiers
-   * @param options Options to pass to CloudFormation deploy operation
+   * @param importMap - Mapping from CDK construct tree path to physical resource import identifiers
+   * @param options - Options to pass to CloudFormation deploy operation
    */
   public async importResourcesFromMap(importMap: ImportMap, options: ImportDeploymentOptions = {}) {
     const resourcesToImport: ResourcesToImport = await this.makeResourcesToImport(importMap);
@@ -186,8 +186,8 @@ export class ResourceImporter {
    * cannot be included in an import change-set for new stacks and performs the import operation,
    * creating the new stack.
    *
-   * @param resourcesToImport The mapping created by cdk migrate
-   * @param options Options to pass to CloudFormation deploy operation
+   * @param resourcesToImport - The mapping created by cdk migrate
+   * @param options - Options to pass to CloudFormation deploy operation
    */
   public async importResourcesFromMigrate(resourcesToImport: ResourcesToImport, options: ImportDeploymentOptions = {}) {
     const updatedTemplate = this.removeNonImportResources();
@@ -428,7 +428,7 @@ export class ResourceImporter {
   /**
    * Convert CloudFormation logical resource ID to CDK construct tree path
    *
-   * @param logicalId CloudFormation logical ID of the resource (the key in the template's Resources section)
+   * @param logicalId - CloudFormation logical ID of the resource (the key in the template's Resources section)
    * @returns Forward-slash separated path of the resource in CDK construct tree, e.g. MyStack/MyBucket/Resource
    */
   private describeResource(logicalId: string): string {

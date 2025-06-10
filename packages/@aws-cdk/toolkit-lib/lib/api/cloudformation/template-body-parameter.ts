@@ -28,8 +28,8 @@ const LARGE_TEMPLATE_SIZE_KB = 50;
  * bucket and return its coordinates. If there is no staging bucket, an error
  * is thrown.
  *
- * @param stack     the synthesized stack that provides the CloudFormation template
- * @param toolkitInfo information about the toolkit stack
+ * @param stack     - the synthesized stack that provides the CloudFormation template
+ * @param toolkitInfo - information about the toolkit stack
  */
 export async function makeBodyParameter(
   ioHelper: IoHelper,

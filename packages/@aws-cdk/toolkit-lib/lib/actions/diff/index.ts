@@ -23,7 +23,7 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
   /**
    * Additional parameters for CloudFormation when creating a diff change set
    *
-   * @default - no parameters
+   * @default - No parameters
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -95,7 +95,7 @@ export interface DiffOptions {
   /**
    * Select the stacks
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   readonly stacks?: StackSelector;
 

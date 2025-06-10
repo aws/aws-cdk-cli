@@ -4,7 +4,7 @@ export interface DriftOptions {
   /**
    * Select stacks to check for drift
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   readonly stacks?: StackSelector;
 }
