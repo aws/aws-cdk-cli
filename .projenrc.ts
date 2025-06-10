@@ -1004,7 +1004,6 @@ const cli = configureProject(
       nodeBundle,
       yargsGen,
       cliPluginContract,
-      '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
       '@types/mockery',
@@ -1552,7 +1551,7 @@ const cliInteg = configureProject(
     srcdir: '.',
     libdir: '.',
     deps: [
-      '@octokit/rest@^18.12.0',
+      '@octokit/rest@^20', // newer versions are ESM only
       `@aws-sdk/client-codeartifact@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
