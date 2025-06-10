@@ -224,10 +224,61 @@ export interface NestedCloudAssemblyProperties {
 }
 
 /**
+ * Artifact properties for a feature flag report
+ *
+ * A feature flag report is small enough that all the properties can be inlined
+ * here, and doesn't need an additional file.
+ */
+export interface FeatureFlagReportProperties {
+  /**
+   * The library that this feature flag report applies to.
+   */
+  readonly libraryName: string;
+
+  /**
+   * Information about every feature flag supported by this library.
+   */
+  readonly flags: Record<string, FeatureFlag>;
+}
+
+/**
+ * A single feature flag
+ */
+export interface FeatureFlag {
+  /**
+   * The library-recommended value for this flag, if any
+   *
+   * It is possible that there is no recommended value.
+   *
+   * @default - No recommended value.
+   */
+  readonly recommendedValue?: any;
+
+  /**
+   * The value configured by the user
+   *
+   * This is the value configured at the root of the tree. Users may also have
+   * configured values at specific locations in the tree; we don't report on
+   * those.
+   *
+   * @default - Not configured by the user
+   */
+  readonly userValue?: any;
+
+  /**
+   * Explanation about the purpose of this flag that can be shown to the user.
+   *
+   * @default - No description
+   */
+  readonly explanation?: string;
+}
+
+/**
  * Properties for manifest artifacts
  */
 export type ArtifactProperties =
   | AwsCloudFormationStackProperties
   | AssetManifestProperties
   | TreeArtifactProperties
-  | NestedCloudAssemblyProperties;
+  | NestedCloudAssemblyProperties
+  | FeatureFlagReportProperties;

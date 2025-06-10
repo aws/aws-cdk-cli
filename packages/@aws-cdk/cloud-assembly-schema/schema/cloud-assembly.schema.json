@@ -79,6 +79,9 @@
                         },
                         {
                             "$ref": "#/definitions/NestedCloudAssemblyProperties"
+                        },
+                        {
+                            "$ref": "#/definitions/FeatureFlagReportProperties"
                         }
                     ]
                 },
@@ -99,7 +102,8 @@
                 "aws:cloudformation:stack",
                 "cdk:tree",
                 "cdk:asset-manifest",
-                "cdk:cloud-assembly"
+                "cdk:cloud-assembly",
+                "cdk:feature-flag-report"
             ]
         },
         "MetadataEntry": {
@@ -491,6 +495,27 @@
             "required": [
                 "directoryName"
             ]
+        },
+        "FeatureFlagReportProperties": {
+            "description": "Artifact properties for a feature flag report\n\nA feature flag report is small enough that all the properties can be inlined\nhere, and doesn't need an additional file.",
+            "type": "object",
+            "properties": {
+                "libraryName": {
+                    "description": "The library that this feature flag report applies to.",
+                    "type": "string"
+                },
+                "flags": {
+                    "$ref": "#/definitions/Record<string,FeatureFlag>",
+                    "description": "Information about every feature flag supported by this library."
+                }
+            },
+            "required": [
+                "flags",
+                "libraryName"
+            ]
+        },
+        "Record<string,FeatureFlag>": {
+            "type": "object"
         },
         "MissingContext": {
             "description": "Represents a missing piece of context.",
