@@ -114,7 +114,7 @@
     "chokidar": "^3",
     "fs-extra": "^9",
     "glob": "^11.0.2",
-    "minimatch": "^10.0.1",
+    "minimatch": "10.0.1",
     "p-limit": "^3",
     "semver": "^7.7.2",
     "split2": "^4.2.0",
