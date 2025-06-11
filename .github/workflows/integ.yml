@@ -70,7 +70,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v4
