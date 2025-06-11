@@ -1004,7 +1004,6 @@ const cli = configureProject(
       nodeBundle,
       yargsGen,
       cliPluginContract,
-      '@octokit/rest',
       '@types/archiver',
       '@types/fs-extra@^9',
       '@types/mockery',
@@ -1552,7 +1551,7 @@ const cliInteg = configureProject(
     srcdir: '.',
     libdir: '.',
     deps: [
-      '@octokit/rest@^18.12.0',
+      '@octokit/rest@^20', // newer versions are ESM only
       `@aws-sdk/client-codeartifact@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
       `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
@@ -1705,6 +1704,11 @@ new CdkCliIntegTestsWorkflow(repo, {
     endpoint: '${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}',
     pool: '${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}',
   },
+  additionalNodeVersionsToTest: [
+    // 18.18 introduces `Symbol.dispose`, and we need to make sure that we work on older versions as well
+    '18.17.0',
+    '20', '22',
+  ],
 });
 
 new CodeCovWorkflow(repo, {
