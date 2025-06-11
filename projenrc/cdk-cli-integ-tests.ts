@@ -77,6 +77,15 @@ export interface CdkCliIntegTestsWorkflowProps {
    * @default - the cli integ test package determines a sensible default
    */
   readonly maxWorkers?: string;
+
+  /**
+   * Additional Node versions to some particular suites against.
+   *
+   * Use the version syntax of `setup-node`. `'lts/*'` is always included automatically.
+   *
+   * @see https://github.com/actions/setup-node?tab=readme-ov-file#supported-version-syntax
+   */
+  readonly additionalNodeVersionsToTest?: string[];
 }
 
 /**
@@ -296,7 +305,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
               'init-typescript-lib',
               'tool-integrations',
             ],
+            node: ['lts/*'],
           },
+          include: ['init-typescript-app', 'toolkit-lib-integ-tests'].flatMap(suite => (props.additionalNodeVersionsToTest ?? []).map(node => ({ suite, node }))),
         },
       },
       steps: [
@@ -306,6 +317,14 @@ export class CdkCliIntegTestsWorkflow extends Component {
           with: {
             name: 'build-artifact',
             path: 'packages',
+          },
+        },
+        {
+          name: 'Setup Node.js',
+          uses: 'actions/setup-node@v4',
+          with: {
+            'node-version': '${{ matrix.node }}',
+            'cache': 'npm',
           },
         },
         {
