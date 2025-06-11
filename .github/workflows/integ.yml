@@ -66,6 +66,11 @@ jobs:
         with:
           name: build-artifact
           path: packages
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v4
@@ -151,6 +156,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        include:
+          - suite: init-typescript-app
+            node: 18.17.0
+          - suite: init-typescript-app
+            node: "20"
+          - suite: init-typescript-app
+            node: "22"
+          - suite: toolkit-lib-integ-tests
+            node: 18.17.0
+          - suite: toolkit-lib-integ-tests
+            node: "20"
+          - suite: toolkit-lib-integ-tests
+            node: "22"
         suite:
           - cli-integ-tests
           - toolkit-lib-integ-tests
@@ -163,6 +181,8 @@ jobs:
           - init-typescript-app
           - init-typescript-lib
           - tool-integrations
+        node:
+          - lts/*
   integ:
     needs:
       - prepare

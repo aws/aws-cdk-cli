@@ -1705,6 +1705,11 @@ new CdkCliIntegTestsWorkflow(repo, {
     endpoint: '${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}',
     pool: '${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}',
   },
+  additionalNodeVersionsToTest: [
+    // 18.18 introduces `Symbol.dispose`, and we need to make sure that we work on older versions as well
+    '18.17.0',
+    '20', '22',
+  ],
 });
 
 new CodeCovWorkflow(repo, {
