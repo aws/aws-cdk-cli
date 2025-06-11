@@ -807,6 +807,7 @@ const toolkitLib = configureProject(
         lib: ['es2022', 'esnext.disposable'],
         module: 'NodeNext',
         isolatedModules: true,
+        declarationMap: true,
       },
     },
     tsJestOptions: {
