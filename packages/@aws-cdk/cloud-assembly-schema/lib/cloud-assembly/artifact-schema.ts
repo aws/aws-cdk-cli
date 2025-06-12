@@ -233,7 +233,7 @@ export interface FeatureFlagReportProperties {
   /**
    * The library that this feature flag report applies to.
    */
-  readonly libraryName: string;
+  readonly module: string;
 
   /**
    * Information about every feature flag supported by this library.
