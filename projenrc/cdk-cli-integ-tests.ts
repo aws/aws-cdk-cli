@@ -265,6 +265,17 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     // We create a matrix job for the test.
     // This job will run all the different test suites in parallel.
+    const matrixInclude: github.workflows.JobMatrix['include'] = [];
+    const matrixExclude: github.workflows.JobMatrix['exclude'] = [];
+
+    // In addition to the default runs, run these suites under different Node versions
+    matrixInclude.push(...['init-typescript-app', 'toolkit-lib-integ-tests'].flatMap(
+      suite => (props.additionalNodeVersionsToTest ?? []).map(node => ({ suite, node }))));
+
+    // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
+    matrixExclude.push({ suite: 'tool-integrations', node: 'lts/*' });
+    matrixInclude.push({ suite: 'tool-integrations', node: 20 });
+
     const JOB_INTEG_MATRIX = 'integ_matrix';
     runTestsWorkflow.addJob(JOB_INTEG_MATRIX, {
       environment: props.testEnvironment,
@@ -307,7 +318,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
             ],
             node: ['lts/*'],
           },
-          include: ['init-typescript-app', 'toolkit-lib-integ-tests'].flatMap(suite => (props.additionalNodeVersionsToTest ?? []).map(node => ({ suite, node }))),
+          include: matrixInclude,
+          exclude: matrixExclude,
         },
       },
       steps: [

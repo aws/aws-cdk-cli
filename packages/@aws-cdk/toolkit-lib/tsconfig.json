@@ -30,6 +30,7 @@
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "declarationMap": true,
     "composite": true
   },
   "include": [
