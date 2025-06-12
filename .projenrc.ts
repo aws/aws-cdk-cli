@@ -616,6 +616,7 @@ const cdkAssets = configureProject(
       `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
       '@smithy/config-resolver',
       '@smithy/node-config-provider',
+      'minimatch@10.0.1',
     ],
     devDeps: [
       '@types/archiver',

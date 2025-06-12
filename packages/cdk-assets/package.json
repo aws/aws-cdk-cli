@@ -82,6 +82,7 @@
     "archiver": "^7.0.1",
     "glob": "^11.0.2",
     "mime": "^2",
+    "minimatch": "10.0.1",
     "yargs": "^17.7.2"
   },
   "keywords": [
