@@ -64,7 +64,7 @@ export class IntegSnapshotRunner extends IntegRunner {
       await this.cdk.synthFast({
         execCmd: this.cdkApp.split(' '),
         context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
-        env: DEFAULT_SYNTH_OPTIONS.env,
+        env,
         output: path.relative(this.directory, this.cdkOutDir),
       });
 

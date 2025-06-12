@@ -1,8 +1,9 @@
 import * as path from 'node:path';
 import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions, WatchEvents } from '@aws-cdk/cdk-cli-wrapper';
 import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeploymentMethod, ICloudAssemblySource, IoMessage, IoRequest, StackSelector } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, MemoryContext, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import * as chalk from 'chalk';
 
 export interface ToolkitLibEngineOptions {
   /**
@@ -33,24 +34,20 @@ export interface ToolkitLibEngineOptions {
 export class ToolkitLibRunnerEngine implements ICdk {
   private readonly toolkit: Toolkit;
   private readonly options: ToolkitLibEngineOptions;
+  private readonly showOutput: boolean;
 
   public constructor(options: ToolkitLibEngineOptions) {
     this.options = options;
+    this.showOutput = options.showOutput ?? false;
+
     this.toolkit = new Toolkit({
-      ioHost: {
-        notify: async function (_msg: IoMessage<unknown>): Promise<void> {
-        },
-        requestResponse: async function <T>(msg: IoRequest<unknown, T>): Promise<T> {
-          return msg.defaultResponse;
-        },
-      },
+      ioHost: this.showOutput? new IntegRunnerIoHost() : new NoopIoHost(),
       // options.color
       // assemblyFailureAt: options.strict ?? options.ignoreErrors
       // options.profile
       // options.proxy
       // options.caBundlePath
     });
-    this.toolkit;
 
     // IoHost
     // options.quiet // options.trace // options.verbose
@@ -71,13 +68,33 @@ export class ToolkitLibRunnerEngine implements ICdk {
       workingDirectory: this.options.workingDirectory,
       outdir: options.output ? path.join(this.options.workingDirectory, options.output) : undefined,
       contextStore: new MemoryContext(options.context),
+      lookups: false,
       env: {
         ...this.options.env,
         ...options.env,
       },
+      synthOptions: {
+        versionReporting: false,
+        pathMetadata: false,
+        assetMetadata: false,
+      },
     });
-    const lock = await this.toolkit.synth(cx);
-    await lock.dispose();
+
+    try {
+      const lock = await this.toolkit.synth(cx, {
+        validateStacks: false,
+      });
+      await lock.dispose();
+    } catch (e: any) {
+      if (e.message.includes('Missing context keys')) {
+        // @TODO - silently ignore missing context
+        // This is actually an undefined case in the old implementation, which doesn't use the toolkit code
+        // and won't fail for missing context. To persevere existing behavior, we do the same here.
+        // However in future we need to find a way for integ tests to provide context through snapshots.
+        return;
+      }
+      throw e;
+    }
   }
 
   public async list(options: ListOptions): Promise<string[]> {
@@ -159,9 +176,9 @@ export class ToolkitLibRunnerEngine implements ICdk {
       env: this.options.env,
       synthOptions: {
         debug: options.debug,
-        versionReporting: options.versionReporting,
-        pathMetadata: options.pathMetadata,
-        assetMetadata: options.assetMetadata,
+        versionReporting: options.versionReporting ?? false,
+        pathMetadata: options.pathMetadata ?? false,
+        assetMetadata: options.assetMetadata ?? false,
         assetStaging: options.staging,
       },
     });
@@ -186,5 +203,30 @@ export class ToolkitLibRunnerEngine implements ICdk {
     return {
       method: options.deploymentMethod ?? 'change-set',
     };
+  }
+}
+
+class IntegRunnerIoHost extends NonInteractiveIoHost {
+  public constructor(props: NonInteractiveIoHostProps = {}) {
+    super({
+      ...props,
+      isTTY: false,
+    });
+  }
+  public async notify(msg: IoMessage<unknown>): Promise<void> {
+    return super.notify({
+      ...msg,
+      message: chalk.gray(msg.message),
+    });
+  }
+}
+
+class NoopIoHost implements IIoHost {
+  public constructor() {
+  }
+  public async notify(): Promise<void> {
+  }
+  public async requestResponse<T>(msg: IoRequest<unknown, T>): Promise<T> {
+    return msg.defaultResponse;
   }
 }

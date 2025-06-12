@@ -314,7 +314,7 @@ export abstract class IntegRunner {
   /**
    * Create the new snapshot.
    *
-   * If lookups are enabled, then we need create the snapshot by synthing again
+   * If lookups are enabled, then we need create the snapshot by synth'ing again
    * with the dummy context so that each time the test is run on different machines
    * (and with different context/env) the diff will not change.
    *
