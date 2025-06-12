@@ -656,7 +656,7 @@ describe('IntegTest watchIntegTest', () => {
       traceLogs: false,
       deploymentMethod: 'direct',
       verbose: undefined,
-    }));
+    }), expect.anything());
   });
 
   test('verbose watch', async () => {
@@ -684,20 +684,23 @@ describe('IntegTest watchIntegTest', () => {
       traceLogs: true,
       deploymentMethod: 'direct',
       verbose: undefined,
-    }));
+    }), expect.anything());
   });
 
-  test('with error', () => {
-    expect(() => {
-      // WHEN
-      new IntegTestRunner({
+  test('with error', async () => {
+    await expect(async () => {
+      // GIVEN
+      const runner = new IntegTestRunner({
         cdk: cdkMock.cdk,
         test: new IntegTest({
           fileName: 'test/test-data/xxxxx.test-with-error.js',
           discoveryRoot: 'test/test-data',
         }),
       });
+      // WHEN
+      await runner.actualTests();
+
     // THEN
-    }).toThrow('xxxxx.test-with-error is a new test. Please use the IntegTest construct to configure the test\nhttps://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha');
+    }).rejects.toThrow('xxxxx.test-with-error is a new test. Please use the IntegTest construct to configure the test\nhttps://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha');
   });
 });

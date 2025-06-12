@@ -35,26 +35,10 @@ export class MockCdkProvider {
     this.cdk.deploy = this.mocks.deploy;
   }
   public mockWatch(mock?: MockCdkMocks['watch']) {
-    this.mocks.watch = mock ?? jest.fn().mockImplementation(jest.fn(() => {
-      return {
-        on: (_event: 'close', listener: (..._args: any[]) => void) => {
-          listener(0);
-        },
-        stdout: new Readable({
-          read: jest.fn(() => {
-          }),
-        }),
-        stderr: new Readable({
-          read: jest.fn(() => {
-          }),
-        }),
-        stdin: new Writable({
-          write: jest.fn(() => {
-          }),
-          final: jest.fn(() => {
-          }),
-        }),
-      } as unknown as ChildProcess;
+    this.mocks.watch = mock ?? jest.fn().mockImplementation(jest.fn((_args, events) => {
+      if (events.onClose) {
+        events.onClose(0);
+      }
     }));
     this.cdk.watch = this.mocks.watch;
   }

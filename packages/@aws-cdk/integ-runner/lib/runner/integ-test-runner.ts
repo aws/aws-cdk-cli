@@ -1,7 +1,7 @@
 import * as path from 'path';
 import type { DeployOptions } from '@aws-cdk/cdk-cli-wrapper';
 import { HotswapMode, StackActivityProgress } from '@aws-cdk/cdk-cli-wrapper';
-import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema';
+import type { DestroyOptions, TestCase } from '@aws-cdk/cloud-assembly-schema';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -77,16 +77,21 @@ export class IntegTestRunner extends IntegRunner {
   constructor(options: IntegRunnerOptions, destructiveChanges?: DestructiveChange[]) {
     super(options);
     this._destructiveChanges = destructiveChanges;
+  }
 
+  public async actualTests(): Promise<{ [testName: string]: TestCase } | undefined> {
+    const actualTestSuite = await this.actualTestSuite();
     // We don't want new tests written in the legacy mode.
     // If there is no existing snapshot _and_ this is a legacy
     // test then point the user to the new `IntegTest` construct
-    if (!this.hasSnapshot() && this.isLegacyTest) {
+    if (!this.hasSnapshot() && actualTestSuite.type === 'legacy-test-suite') {
       throw new Error(`${this.testName} is a new test. Please use the IntegTest construct ` +
         'to configure the test\n' +
         'https://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha',
       );
     }
+
+    return actualTestSuite.testSuite;
   }
 
   public createCdkContextJson(): void {
@@ -162,9 +167,10 @@ export class IntegTestRunner extends IntegRunner {
    * This is meant to be run on a single test and will not create a snapshot
    */
   public async watchIntegTest(options: WatchOptions): Promise<void> {
-    const actualTestCase = (await this.actualTestSuite()).testSuite[options.testCaseName];
+    const actualTestSuite = await this.actualTestSuite();
+    const actualTestCase = actualTestSuite.testSuite[options.testCaseName];
     if (!actualTestCase) {
-      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys((await this.actualTestSuite()).testSuite)}'`);
+      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(actualTestSuite.testSuite)}'`);
     }
     const enableForVerbosityLevel = (needed = 1) => {
       const verbosity = options.verbosity ?? 0;
@@ -268,7 +274,7 @@ export class IntegTestRunner extends IntegRunner {
           });
         }
       }
-      await this.cleanup();
+      this.cleanup();
     }
     return assertionResults;
   }
@@ -306,7 +312,8 @@ export class IntegTestRunner extends IntegRunner {
   }
 
   private async watch(watchArgs: DeployOptions, testCaseName: string, verbosity: number): Promise<void> {
-    const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
+    const actualTestSuite = await this.actualTestSuite();
+    const actualTestCase = actualTestSuite.testSuite[testCaseName];
     if (actualTestCase.hooks?.preDeploy) {
       actualTestCase.hooks.preDeploy.forEach(cmd => {
         exec(chunks(cmd), {
@@ -316,7 +323,7 @@ export class IntegTestRunner extends IntegRunner {
     }
     const deployArgs = {
       ...watchArgs,
-      lookups: (await this.actualTestSuite()).enableLookups,
+      lookups: actualTestSuite.enableLookups,
       stacks: [
         ...actualTestCase.stacks,
         ...actualTestCase.assertionStack ? [actualTestCase.assertionStack] : [],

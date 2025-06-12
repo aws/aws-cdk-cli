@@ -128,7 +128,6 @@ export abstract class IntegRunner {
    */
   protected readonly profile?: string;
 
-  protected isLegacyTest?: boolean;
   protected _destructiveChanges?: DestructiveChange[];
   private legacyContext?: Record<string, any>;
   private _expectedTestSuite?: IntegTestSuite | LegacyIntegTestSuite;
@@ -186,7 +185,7 @@ export abstract class IntegRunner {
       },
       output: path.relative(this.directory, this.cdkOutDir),
     });
-    const manifest = this.loadManifest(this.cdkOutDir);
+    const manifest = await this.loadManifest(this.cdkOutDir);
     // after we load the manifest remove the tmp snapshot
     // so that it doesn't mess up the real snapshot created later
     this.cleanup();
@@ -245,7 +244,6 @@ export abstract class IntegRunner {
         },
       });
       this.legacyContext = LegacyIntegTestSuite.getPragmaContext(this.test.fileName);
-      this.isLegacyTest = true;
       return testCases;
     }
   }

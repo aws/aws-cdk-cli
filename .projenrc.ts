@@ -1477,6 +1477,12 @@ const integRunner = configureProject(
       compilerOptions: {
         ...defaultTsOptions,
         lib: ['es2020', 'dom'],
+        isolatedModules: true,
+      },
+    },
+    tsJestOptions: {
+      transformOptions: {
+        isolatedModules: false, // we use the respective tsc setting
       },
     },
     jestOptions: jestOptionsForProject({
