@@ -143,7 +143,7 @@ export class LegacyIntegTestSuite extends IntegTestSuite {
       };
       const stacks = await config.cdk.list(options);
       if (stacks.length !== 1) {
-        throw new Error('"cdk-integ" can only operate on apps with a single stack.\n\n' +
+        throw new Error('"integ-runner" can only operate on apps with a single stack.\n\n' +
           '  If your app has multiple stacks, specify which stack to select by adding this to your test source:\n\n' +
           `      ${CDK_INTEG_STACK_PRAGMA} STACK ...\n\n` +
           `  Available stacks: ${stacks.join(' ')} (wildcards are also supported)\n`);

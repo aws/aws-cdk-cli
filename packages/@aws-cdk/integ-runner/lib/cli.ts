@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as workerpool from 'workerpool';
 import * as logger from './logger';
+import type { EngineOptions } from './runner/engine';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
@@ -49,6 +50,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
+    .option('unstable', { type: 'array', desc: 'Opt-in to using unstable features. By using this flags acknowledges that the scope and API of the feature may change without notice. Specify multiple times for each unstable feature you want to opt-in to.', nargs: 1, choices: ['toolkit-lib-engine'], default: [] })
     .strict()
     .parse(args);
 
@@ -95,11 +97,13 @@ export function parseCliArgs(args: string[] = []) {
     disableUpdateWorkflow: argv['disable-update-workflow'] as boolean,
     language: arrayFromYargs(argv.language),
     watch: argv.watch as boolean,
+    unstable: arrayFromYargs(argv.unstable) ?? [],
   };
 }
 
 export async function main(args: string[]) {
   const options = parseCliArgs(args);
+  const engine = engineFromOptions(options).engine;
 
   const testsFromArgs = await new IntegrationTests(path.resolve(options.directory)).fromCliOptions(options);
 
@@ -131,6 +135,7 @@ export async function main(args: string[]) {
       failedSnapshots = await runSnapshotTests(pool, testsFromArgs, {
         retain: options.inspectFailures,
         verbose: options.verbose,
+        engine,
       });
       for (const failure of failedSnapshots) {
         logger.warning(`Failed: ${failure.fileName}`);
@@ -154,6 +159,7 @@ export async function main(args: string[]) {
     if (options.runUpdateOnFailed || options.force) {
       const { success, metrics } = await runIntegrationTests({
         pool,
+        engine,
         tests: testsToRun,
         regions: options.testRegions,
         profiles: options.profiles,
@@ -179,6 +185,7 @@ export async function main(args: string[]) {
     } else if (options.watch) {
       await watchIntegrationTest(pool, {
         watch: true,
+        engine,
         verbosity: options.verbosity,
         ...testsToRun[0],
         profile: options.profiles ? options.profiles[0] : undefined,
@@ -299,4 +306,11 @@ function configFromFile(fileName?: string): Record<string, any> {
   } catch {
     return {};
   }
+}
+
+function engineFromOptions(options: { unstable?: string[] }): EngineOptions {
+  if (options.unstable?.includes('toolkit-lib-engine')) {
+    return { engine: 'toolkit-lib' };
+  }
+  return { engine: 'cli-wrapper' };
 }
