@@ -168,6 +168,11 @@ jobs:
             node: "20"
           - suite: toolkit-lib-integ-tests
             node: "22"
+          - suite: tool-integrations
+            node: 20
+        exclude:
+          - suite: tool-integrations
+            node: lts/*
         suite:
           - cli-integ-tests
           - toolkit-lib-integ-tests
