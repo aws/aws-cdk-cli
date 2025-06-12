@@ -37,14 +37,14 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
         showOutput: verbosity >= 2,
       }, testInfo.destructiveChanges);
 
-      const tests = runner.actualTests();
+      const tests = await runner.actualTests();
 
       if (!tests || Object.keys(tests).length === 0) {
         throw new Error(`No tests defined for ${runner.testName}`);
       }
       for (const testCaseName of Object.keys(tests)) {
         try {
-          const results = runner.runIntegTestCase({
+          const results = await runner.runIntegTestCase({
             testCaseName,
             clean: request.clean,
             dryRun: request.dryRun,
@@ -104,7 +104,7 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
     showOutput: verbosity >= 2,
   });
   runner.createCdkContextJson();
-  const tests = runner.actualTests();
+  const tests = await runner.actualTests();
 
   if (!tests || Object.keys(tests).length === 0) {
     throw new Error(`No tests defined for ${runner.testName}`);
@@ -148,7 +148,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
       });
       failedTests.push(test.info);
     } else {
-      const { diagnostics, destructiveChanges } = runner.testSnapshot(options);
+      const { diagnostics, destructiveChanges } = await runner.testSnapshot(options);
       if (diagnostics.length > 0) {
         diagnostics.forEach(diagnostic => workerpool.workerEmit({
           ...diagnostic,

@@ -36,5 +36,9 @@
   "exclude": [
     "node_modules"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../cloud-assembly-schema"
+    }
+  ]
 }

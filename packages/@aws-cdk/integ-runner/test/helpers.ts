@@ -1,16 +1,17 @@
 import type { ChildProcess } from 'child_process';
 import { Readable, Writable } from 'stream';
-import type { CdkCliWrapperOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '@aws-cdk/cdk-cli-wrapper';
+import type { CdkCliWrapperOptions, DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '@aws-cdk/cdk-cli-wrapper';
+import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
 import type { DestructiveChange, Diagnostic } from '../lib/workers';
 
 export interface MockCdkMocks {
-  deploy?: jest.MockedFn<(options: DeployOptions) => void>;
-  watch?: jest.MockedFn<(options: DeployOptions) => ChildProcess>;
-  synth?: jest.MockedFn<(options: SynthOptions) => void>;
-  synthFast?: jest.MockedFn<(options: SynthFastOptions) => void>;
-  destroy?: jest.MockedFn<(options: DestroyOptions) => void>;
-  list?: jest.MockedFn<(options: ListOptions) => string>;
+  deploy?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
+  watch?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
+  synth?: jest.MockedFn<(options: SynthOptions) => Promise<void>>;
+  synthFast?: jest.MockedFn<(options: SynthFastOptions) => Promise<void>>;
+  destroy?: jest.MockedFn<(options: DestroyOptions) => Promise<void>>;
+  list?: jest.MockedFn<(options: ListOptions) => Promise<string[]>>;
 }
 
 export class MockCdkProvider {
@@ -24,7 +25,7 @@ export class MockCdkProvider {
       synth: jest.fn().mockImplementation(),
       synthFast: jest.fn().mockImplementation(),
       destroy: jest.fn().mockImplementation(),
-      list: jest.fn().mockImplementation(),
+      list: jest.fn().mockResolvedValue([]),
     };
     this.mockAll();
   }
@@ -70,7 +71,7 @@ export class MockCdkProvider {
     this.cdk.destroy = this.mocks.destroy;
   }
   public mockList(mock?: MockCdkMocks['list']) {
-    this.mocks.list = mock ?? jest.fn().mockImplementation();
+    this.mocks.list = mock ?? jest.fn().mockResolvedValue([]);
     this.cdk.list = this.mocks.list;
   }
   public mockAll(mocks: MockCdkMocks = {}): Required<MockCdkMocks> {
@@ -90,10 +91,10 @@ export class MockCdkProvider {
    * @param actualSnapshot - The directory of the snapshot that is used for of the actual (current) app
    * @returns Diagnostics as they would be returned by testSnapshot
    */
-  public snapshotTest(integTestFile: string, actualSnapshot?: string): {
+  public async snapshotTest(integTestFile: string, actualSnapshot?: string): Promise<{
     diagnostics: Diagnostic[];
     destructiveChanges: DestructiveChange[];
-  } {
+  }> {
     // WHEN
     const integTest = new IntegSnapshotRunner({
       cdk: this.cdk,
@@ -103,8 +104,8 @@ export class MockCdkProvider {
       }),
       integOutDir: actualSnapshot ? 'test/test-data/' + actualSnapshot : undefined,
     });
-    integTest.actualTests();
-    const results = integTest.testSnapshot();
+    // await integTest.actualTests();
+    const results = await integTest.testSnapshot();
 
     // THEN
     expect(this.mocks.synthFast).toHaveBeenCalledTimes(2);

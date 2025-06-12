@@ -18,7 +18,7 @@ afterAll(() => {
 
 beforeEach(() => {
   cdkMock = new MockCdkProvider({ directory: 'test/test-data' });
-  cdkMock.mockList(jest.fn().mockImplementation(() => 'stackabc'));
+  cdkMock.mockList(jest.fn().mockImplementation(() => ['stackabc']));
 
   jest.spyOn(child_process, 'spawnSync').mockImplementation();
   jest.spyOn(process.stderr, 'write').mockImplementation(() => {
@@ -50,17 +50,17 @@ afterEach(() => {
 });
 
 describe('IntegTest runSnapshotTests', () => {
-  test('with defaults no diff', () => {
+  test('with defaults no diff', async () => {
     // WHEN
-    const results = cdkMock.snapshotTest('xxxxx.test-with-snapshot.js', 'xxxxx.test-with-snapshot.js.snapshot');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot.js', 'xxxxx.test-with-snapshot.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual([]);
   });
 
-  test('new stack in actual', () => {
+  test('new stack in actual', async () => {
     // WHEN
-    const results = cdkMock.snapshotTest('xxxxx.test-with-snapshot.js');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot.js');
 
     // THEN
     expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -70,9 +70,9 @@ describe('IntegTest runSnapshotTests', () => {
     })]));
   });
 
-  test('with defaults and diff', () => {
+  test('with defaults and diff', async () => {
     // WHEN
-    const results = cdkMock.snapshotTest('xxxxx.test-with-snapshot.js', 'xxxxx.test-with-snapshot-diff.js.snapshot');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot.js', 'xxxxx.test-with-snapshot-diff.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual(expect.arrayContaining([
@@ -95,17 +95,17 @@ describe('IntegTest runSnapshotTests', () => {
     }]);
   });
 
-  test('dont diff new asset hashes', () => {
+  test('dont diff new asset hashes', async () => {
     // WHEN
-    const results = cdkMock.snapshotTest('xxxxx.test-with-new-assets-diff.js', 'cdk-integ.out.xxxxx.test-with-new-assets.js.snapshot');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-new-assets-diff.js', 'cdk-integ.out.xxxxx.test-with-new-assets.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual([]);
   });
 
-  test('diff new asset hashes', () => {
+  test('diff new asset hashes', async () => {
     // WHEN
-    const results = cdkMock.snapshotTest('xxxxx.test-with-new-assets.js', 'cdk-integ.out.xxxxx.test-with-new-assets-diff.js.snapshot');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-new-assets.js', 'cdk-integ.out.xxxxx.test-with-new-assets-diff.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -123,9 +123,9 @@ describe('IntegTest runSnapshotTests', () => {
   });
 
   describe('Nested Stacks', () => {
-    test('it will compare snapshots for nested stacks', () => {
+    test('it will compare snapshots for nested stacks', async () => {
       // WHEN
-      const results = cdkMock.snapshotTest('xxxxx.test-with-nested-stack.js', 'xxxxx.test-with-nested-stack-changed.js.snapshot');
+      const results = await cdkMock.snapshotTest('xxxxx.test-with-nested-stack.js', 'xxxxx.test-with-nested-stack-changed.js.snapshot');
 
       // THEN
       expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -137,9 +137,9 @@ describe('IntegTest runSnapshotTests', () => {
       })]));
     });
 
-    test('it will diff assets for nested stacks', () => {
+    test('it will diff assets for nested stacks', async () => {
       // WHEN
-      const results = cdkMock.snapshotTest('xxxxx.test-with-nested-stack.js', 'xxxxx.test-with-asset-in-nested-stack.js.snapshot');
+      const results = await cdkMock.snapshotTest('xxxxx.test-with-nested-stack.js', 'xxxxx.test-with-asset-in-nested-stack.js.snapshot');
 
       // THEN
       expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -153,9 +153,9 @@ describe('IntegTest runSnapshotTests', () => {
   });
 
   describe('Legacy parameter based assets ', () => {
-    test('diff asset hashes', () => {
+    test('diff asset hashes', async () => {
       // WHEN
-      const results = cdkMock.snapshotTest('xxxxx.test-with-snapshot-assets.js', 'xxxxx.test-with-snapshot-assets-diff.js.snapshot');
+      const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot-assets.js', 'xxxxx.test-with-snapshot-assets-diff.js.snapshot');
 
       // THEN
       expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -166,9 +166,9 @@ describe('IntegTest runSnapshotTests', () => {
       })]));
     });
 
-    test('dont diff asset hashes', () => {
+    test('dont diff asset hashes', async () => {
       // WHEN
-      const results = cdkMock.snapshotTest('xxxxx.test-with-snapshot-assets-diff.js', 'xxxxx.test-with-snapshot-assets.js.snapshot');
+      const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot-assets-diff.js', 'xxxxx.test-with-snapshot-assets.js.snapshot');
 
       // THEN
       expect(results.diagnostics).toEqual([]);
@@ -176,7 +176,7 @@ describe('IntegTest runSnapshotTests', () => {
   });
 
   describe('Legacy Integ Tests', () => {
-    test('determine test stack via pragma', () => {
+    test('determine test stack via pragma', async () => {
       // WHEN
       const integTest = new IntegSnapshotRunner({
         cdk: cdkMock.cdk,
@@ -188,7 +188,7 @@ describe('IntegTest runSnapshotTests', () => {
       });
 
       // THEN
-      expect(integTest.actualTests()).toEqual(expect.objectContaining({
+      expect(await integTest.actualTests()).toEqual(expect.objectContaining({
         'xxxxx.integ-test1': {
           diffAssets: false,
           stackUpdateWorkflow: true,
@@ -210,7 +210,7 @@ describe('IntegTest runSnapshotTests', () => {
       });
 
       // THEN
-      expect(integTest.actualTests()).toEqual(expect.objectContaining({
+      expect(await integTest.actualTests()).toEqual(expect.objectContaining({
         'xxxxx.integ-test2': {
           diffAssets: false,
           stackUpdateWorkflow: true,

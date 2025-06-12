@@ -1384,7 +1384,9 @@ const cdkCliWrapper = configureProject(
     name: '@aws-cdk/cdk-cli-wrapper',
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
-    devDeps: [],
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+    ],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
 
@@ -1451,13 +1453,14 @@ const integRunner = configureProject(
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssets.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
       'workerpool@^6',
       'chokidar@^3',
       'chalk@^4',
       'fs-extra@^9',
       'yargs@^16',
       '@aws-cdk/aws-service-spec',
-      '@aws-sdk/client-cloudformation@^3',
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
     ],
     devDeps: [
       'aws-cdk-lib',

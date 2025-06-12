@@ -52,6 +52,9 @@
     },
     {
       "path": "../cloudformation-diff"
+    },
+    {
+      "path": "../toolkit-lib"
     }
   ]
 }
