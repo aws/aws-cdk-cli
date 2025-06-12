@@ -15,7 +15,7 @@ import type { IntegWatchOptions } from '../integ-watch-worker';
  *
  * If the tests succeed it will then save the snapshot
  */
-export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorkerConfig[] {
+export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerConfig[]> {
   const failures: IntegTestInfo[] = [];
   const verbosity = request.verbosity ?? 0;
 
@@ -91,7 +91,7 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
   return failures;
 }
 
-export async function watchTestWorker(options: IntegWatchOptions) {
+export async function watchTestWorker(options: IntegWatchOptions): Promise<void> {
   const verbosity = options.verbosity ?? 0;
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
@@ -123,7 +123,7 @@ export async function watchTestWorker(options: IntegWatchOptions) {
  * if there is an existing snapshot, and if there is will
  * check if there are any changes
  */
-export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVerificationOptions = {}): IntegTestWorkerConfig[] {
+export async function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVerificationOptions = {}): Promise<IntegTestWorkerConfig[]> {
   const failedTests = new Array<IntegTestWorkerConfig>();
   const start = Date.now();
   const test = new IntegTest(testInfo); // Hydrate the data record again

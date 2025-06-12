@@ -12,7 +12,7 @@ let spawnSyncMock: jest.SpyInstance;
 let removeSyncMock: jest.SpyInstance;
 beforeEach(() => {
   cdkMock = new MockCdkProvider({ directory: 'test/test-data' });
-  cdkMock.mockAll().list.mockImplementation(() => 'stackabc');
+  cdkMock.mockList(jest.fn().mockImplementation(() => 'stackabc'));
   jest.spyOn(Manifest, 'saveIntegManifest').mockImplementation();
 
   spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValue({

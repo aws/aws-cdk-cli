@@ -1,7 +1,6 @@
 import type { ChildProcess } from 'child_process';
 import { Readable, Writable } from 'stream';
 import type { CdkCliWrapperOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '@aws-cdk/cdk-cli-wrapper';
-import { CdkCliWrapper } from '@aws-cdk/cdk-cli-wrapper';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
 import type { DestructiveChange, Diagnostic } from '../lib/workers';
 
@@ -18,8 +17,16 @@ export class MockCdkProvider {
   public readonly cdk: ICdk;
   public readonly mocks: MockCdkMocks = {};
 
-  constructor(options: CdkCliWrapperOptions) {
-    this.cdk = new CdkCliWrapper(options);
+  constructor(_options: CdkCliWrapperOptions) {
+    this.cdk = {
+      deploy: jest.fn().mockImplementation(),
+      watch: jest.fn().mockImplementation(),
+      synth: jest.fn().mockImplementation(),
+      synthFast: jest.fn().mockImplementation(),
+      destroy: jest.fn().mockImplementation(),
+      list: jest.fn().mockImplementation(),
+    };
+    this.mockAll();
   }
 
   public mockDeploy(mock?: MockCdkMocks['deploy']) {

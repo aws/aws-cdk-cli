@@ -18,7 +18,7 @@ afterAll(() => {
 
 beforeEach(() => {
   cdkMock = new MockCdkProvider({ directory: 'test/test-data' });
-  cdkMock.mockAll().list.mockImplementation(() => 'stackabc');
+  cdkMock.mockList(jest.fn().mockImplementation(() => 'stackabc'));
 
   jest.spyOn(child_process, 'spawnSync').mockImplementation();
   jest.spyOn(process.stderr, 'write').mockImplementation(() => {

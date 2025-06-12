@@ -2,7 +2,7 @@ import * as workerpool from 'workerpool';
 import type { IntegTestInfo } from '../../lib/runner';
 import type { IntegTestBatchRequest } from '../../lib/workers/integ-test-worker';
 
-function integTestWorker(request: IntegTestBatchRequest): IntegTestInfo[] {
+async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestInfo[]> {
   return request.tests;
 }
 
