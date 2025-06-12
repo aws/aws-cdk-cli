@@ -1,6 +1,7 @@
 import * as child_process from 'child_process';
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
 import { CdkCliWrapper } from '../lib/cdk-wrapper';
-import { RequireApproval, StackActivityProgress } from '../lib/commands';
+import { StackActivityProgress } from '../lib/commands';
 let spawnSyncMock: jest.SpyInstance;
 let spawnMock: jest.SpyInstance;
 
@@ -30,12 +31,12 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-test('default deploy', () => {
+test('default deploy', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
   });
@@ -51,12 +52,12 @@ test('default deploy', () => {
   );
 });
 
-test('deploy with all arguments', () => {
+test('deploy with all arguments', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
     ci: false,
@@ -144,12 +145,12 @@ test('deploy with all arguments', () => {
   );
 });
 
-test('can parse boolean arguments', () => {
+test('can parse boolean arguments', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
     json: true,
@@ -176,12 +177,12 @@ test('can parse boolean arguments', () => {
   );
 });
 
-test('can parse parameters', () => {
+test('can parse parameters', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
     parameters: {
@@ -209,12 +210,12 @@ test('can parse parameters', () => {
   );
 });
 
-test('can parse context', () => {
+test('can parse context', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
     context: {
@@ -242,12 +243,12 @@ test('can parse context', () => {
   );
 });
 
-test('can parse array arguments', () => {
+test('can parse array arguments', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
     notificationArns: [
@@ -275,7 +276,7 @@ test('can parse array arguments', () => {
   );
 });
 
-test('can provide additional environment', () => {
+test('can provide additional environment', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -283,7 +284,7 @@ test('can provide additional environment', () => {
       KEY: 'value',
     },
   });
-  cdk.deploy({
+  await cdk.deploy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
   });
@@ -301,7 +302,7 @@ test('can provide additional environment', () => {
   );
 });
 
-test('default synth', () => {
+test('default synth', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -309,7 +310,7 @@ test('default synth', () => {
       KEY: 'value',
     },
   });
-  cdk.synth({
+  await cdk.synth({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
   });
@@ -327,7 +328,7 @@ test('default synth', () => {
   );
 });
 
-test('watch arguments', () => {
+test('watch arguments', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -335,7 +336,7 @@ test('watch arguments', () => {
       KEY: 'value',
     },
   });
-  cdk.watch({
+  await cdk.watch({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
   });
@@ -353,7 +354,7 @@ test('watch arguments', () => {
   );
 });
 
-test('destroy arguments', () => {
+test('destroy arguments', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -361,7 +362,7 @@ test('destroy arguments', () => {
       KEY: 'value',
     },
   });
-  cdk.destroy({
+  await cdk.destroy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
   });
@@ -379,7 +380,7 @@ test('destroy arguments', () => {
   );
 });
 
-test('destroy arguments', () => {
+test('destroy arguments', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -387,7 +388,7 @@ test('destroy arguments', () => {
       KEY: 'value',
     },
   });
-  cdk.destroy({
+  await cdk.destroy({
     app: 'node bin/my-app.js',
     stacks: ['test-stack1'],
     force: true,
@@ -407,7 +408,7 @@ test('destroy arguments', () => {
   );
 });
 
-test('default ls', () => {
+test('default ls', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -415,7 +416,7 @@ test('default ls', () => {
       KEY: 'value',
     },
   });
-  cdk.list({
+  await cdk.list({
     app: 'node bin/my-app.js',
     stacks: ['*'],
   });
@@ -433,7 +434,7 @@ test('default ls', () => {
   );
 });
 
-test('ls arguments', () => {
+test('ls arguments', async () => {
   // WHEN
   spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValue({
     status: 0,
@@ -449,7 +450,7 @@ test('ls arguments', () => {
       KEY: 'value',
     },
   });
-  const list = cdk.list({
+  const list = await cdk.list({
     app: 'node bin/my-app.js',
     stacks: ['*'],
     long: true,
@@ -467,10 +468,10 @@ test('ls arguments', () => {
     }),
   );
 
-  expect(list).toEqual('test-stack1\ntest-stack2');
+  expect(list).toEqual(['test-stack1', 'test-stack2']);
 });
 
-test('can synth fast', () => {
+test('can synth fast', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
@@ -478,7 +479,7 @@ test('can synth fast', () => {
       KEY: 'value',
     },
   });
-  cdk.synthFast({
+  await cdk.synthFast({
     execCmd: ['node', 'bin/my-app.js'],
     output: 'cdk.output',
     env: {
@@ -505,13 +506,13 @@ test('can synth fast', () => {
   );
 });
 
-test('can show output', () => {
+test('can show output', async () => {
   // WHEN
   const cdk = new CdkCliWrapper({
     directory: '/project',
     showOutput: true,
   });
-  cdk.synthFast({
+  await cdk.synthFast({
     execCmd: ['node', 'bin/my-app.js'],
   });
 

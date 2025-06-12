@@ -12,7 +12,7 @@ let spawnSyncMock: jest.SpyInstance;
 let removeSyncMock: jest.SpyInstance;
 beforeEach(() => {
   cdkMock = new MockCdkProvider({ directory: 'test/test-data' });
-  cdkMock.mockAll().list.mockImplementation(() => 'stackabc');
+  cdkMock.mockList(jest.fn().mockImplementation(() => ['stackabc']));
   jest.spyOn(Manifest, 'saveIntegManifest').mockImplementation();
 
   spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValue({
@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe('IntegTest runIntegTests', () => {
-  test('with defaults', () => {
+  test('with defaults', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -52,7 +52,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
@@ -108,7 +108,7 @@ describe('IntegTest runIntegTests', () => {
     });
   });
 
-  test('no snapshot', () => {
+  test('no snapshot', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -117,7 +117,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
     });
 
@@ -151,7 +151,7 @@ describe('IntegTest runIntegTests', () => {
     });
   });
 
-  test('with lookups', () => {
+  test('with lookups', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -160,7 +160,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
     });
 
@@ -209,7 +209,7 @@ describe('IntegTest runIntegTests', () => {
     });
   });
 
-  test('with an assertion stack', () => {
+  test('with an assertion stack', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -218,7 +218,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
@@ -255,7 +255,7 @@ describe('IntegTest runIntegTests', () => {
     });
   });
 
-  test('no clean', () => {
+  test('no clean', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -264,7 +264,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
       clean: false,
     });
@@ -275,7 +275,7 @@ describe('IntegTest runIntegTests', () => {
     expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
   });
 
-  test('dryrun', () => {
+  test('dryrun', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -284,7 +284,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
       dryRun: true,
     });
@@ -295,15 +295,16 @@ describe('IntegTest runIntegTests', () => {
     expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
   });
 
-  test('generate snapshot', () => {
+  test('generate snapshot', async () => {
     // WHEN
-    new IntegTestRunner({
+    const runner = new IntegTestRunner({
       cdk: cdkMock.cdk,
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
       }),
     });
+    await runner.actualTests();
 
     // THEN
     expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
@@ -317,7 +318,7 @@ describe('IntegTest runIntegTests', () => {
     });
   });
 
-  test('with profile', () => {
+  test('with profile', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -327,7 +328,7 @@ describe('IntegTest runIntegTests', () => {
       }),
       profile: 'test-profile',
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
     });
 
@@ -368,7 +369,7 @@ describe('IntegTest runIntegTests', () => {
     });
   });
 
-  test('with hooks', () => {
+  test('with hooks', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
       test: new IntegTest({
@@ -376,7 +377,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets',
     });
 
@@ -403,7 +404,7 @@ describe('IntegTest runIntegTests', () => {
     ]));
   });
 
-  test('git is used to checkout latest snapshot', () => {
+  test('git is used to checkout latest snapshot', async () => {
     // GIVEN
     spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValueOnce({
       status: 0,
@@ -429,7 +430,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
@@ -447,7 +448,7 @@ describe('IntegTest runIntegTests', () => {
     ]));
   });
 
-  test('git is used and cannot determine origin', () => {
+  test('git is used and cannot determine origin', async () => {
     // GIVEN
     spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValueOnce({
       status: 1,
@@ -469,7 +470,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
@@ -481,7 +482,7 @@ describe('IntegTest runIntegTests', () => {
     ]));
   });
 
-  test('git is used and cannot checkout snapshot', () => {
+  test('git is used and cannot checkout snapshot', async () => {
     // GIVEN
     spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValueOnce({
       status: 0,
@@ -510,7 +511,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
@@ -522,7 +523,7 @@ describe('IntegTest runIntegTests', () => {
     ]));
   });
 
-  test('with assets manifest, assets are removed if stackUpdateWorkflow is disabled', () => {
+  test('with assets manifest, assets are removed if stackUpdateWorkflow is disabled', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
       test: new IntegTest({
@@ -530,7 +531,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets',
     });
 
@@ -544,7 +545,7 @@ describe('IntegTest runIntegTests', () => {
     ]);
   });
 
-  test('with assembly manifest, assets are removed if stackUpdateWorkflow is disabled', () => {
+  test('with assembly manifest, assets are removed if stackUpdateWorkflow is disabled', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
       test: new IntegTest({
@@ -552,7 +553,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
     });
 
@@ -571,7 +572,7 @@ describe('IntegTest runIntegTests', () => {
     ${2}      | ${undefined} | ${undefined}
     ${3}      | ${true}      | ${undefined}
     ${4}      | ${true}      | ${true}
-`('with verbosity set to $verbosity', ({ verbosity, verbose, debug }) => {
+`('with verbosity set to $verbosity', async ({ verbosity, verbose, debug }) => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -580,7 +581,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
       verbosity: verbosity,
     });
@@ -600,7 +601,7 @@ describe('IntegTest runIntegTests', () => {
     }));
   });
 
-  test('with custom app run command', () => {
+  test('with custom app run command', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -610,7 +611,7 @@ describe('IntegTest runIntegTests', () => {
         appCommand: 'node --no-warnings {filePath}',
       }),
     });
-    integTest.runIntegTestCase({
+    await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
@@ -655,7 +656,7 @@ describe('IntegTest watchIntegTest', () => {
       traceLogs: false,
       deploymentMethod: 'direct',
       verbose: undefined,
-    }));
+    }), expect.anything());
   });
 
   test('verbose watch', async () => {
@@ -683,20 +684,23 @@ describe('IntegTest watchIntegTest', () => {
       traceLogs: true,
       deploymentMethod: 'direct',
       verbose: undefined,
-    }));
+    }), expect.anything());
   });
 
-  test('with error', () => {
-    expect(() => {
-      // WHEN
-      new IntegTestRunner({
+  test('with error', async () => {
+    await expect(async () => {
+      // GIVEN
+      const runner = new IntegTestRunner({
         cdk: cdkMock.cdk,
         test: new IntegTest({
           fileName: 'test/test-data/xxxxx.test-with-error.js',
           discoveryRoot: 'test/test-data',
         }),
       });
+      // WHEN
+      await runner.actualTests();
+
     // THEN
-    }).toThrow('xxxxx.test-with-error is a new test. Please use the IntegTest construct to configure the test\nhttps://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha');
+    }).rejects.toThrow('xxxxx.test-with-error is a new test. Please use the IntegTest construct to configure the test\nhttps://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha');
   });
 });
