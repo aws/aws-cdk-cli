@@ -315,9 +315,6 @@
     "jest/no-focused-tests": "error",
     "prettier/prettier": [
       "off"
-    ],
-    "jest/no-export": [
-      "off"
     ]
   },
   "overrides": []
