@@ -1,4 +1,6 @@
 import { format } from 'util';
+import type { FileManifestEntry } from '@aws-cdk/cdk-assets-lib';
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cx-api';
 import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
 import type {
@@ -10,8 +12,6 @@ import type {
 import {
   ChangeSetStatus,
 } from '@aws-sdk/client-cloudformation';
-import type { FileManifestEntry } from 'cdk-assets';
-import { AssetManifest } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import { ToolkitError } from '../../toolkit/toolkit-error';

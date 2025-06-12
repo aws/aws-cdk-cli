@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
+import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cx-api';
-import * as cdk_assets from 'cdk-assets';
 import * as chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {

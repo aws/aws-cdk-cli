@@ -1,13 +1,16 @@
-import { log, LogLevel } from './logging';
+import type {
+  EventType,
+  IPublishProgress,
+  IPublishProgressListener,
+} from '@aws-cdk/cdk-assets-lib';
 import {
   AssetManifest,
   AssetPublishing,
   DefaultAwsClient,
   DestinationPattern,
-  EventType,
-  IPublishProgress,
-  IPublishProgressListener,
-} from '../lib';
+} from '@aws-cdk/cdk-assets-lib';
+import type { LogLevel } from './logging';
+import { log } from './logging';
 
 export async function publish(args: { path: string; assets?: string[]; profile?: string }) {
   let manifest = AssetManifest.fromPath(args.path);

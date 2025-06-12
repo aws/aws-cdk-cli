@@ -21,6 +21,16 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 // https://github.com/microsoft/TypeScript/issues/60159
 const TYPESCRIPT_VERSION = '5.6';
 
+const BUNDLED_LICENSES = [
+  'Apache-2.0',
+  'MIT',
+  'BSD-3-Clause',
+  'ISC',
+  'BSD-2-Clause',
+  '0BSD',
+  'MIT OR Apache-2.0',
+];
+
 /**
  * Configures a Eslint, which is a complex setup.
  *
@@ -72,8 +82,6 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   '.recommended-feature-flags.json',
   'synth.lock',
 ];
-
-const CLI_SDK_V3_RANGE = '^3';
 
 const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['compilerOptions'] = {
   target: 'ES2020',
@@ -178,9 +186,9 @@ const repoProject = new yarn.Monorepo({
     'cdklabs-projen-project-types',
     'glob',
     'semver',
-    `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-    `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-    `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+    '@aws-sdk/client-s3',
+    '@aws-sdk/credential-providers',
+    '@aws-sdk/lib-storage',
   ],
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {
@@ -594,12 +602,13 @@ const cliPluginContract = configureProject(
 
 //////////////////////////////////////////////////////////////////////
 
-const cdkAssets = configureProject(
+const cdkAssetsLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
     parent: repo,
-    name: 'cdk-assets',
-    description: 'CDK Asset Publishing Tool',
+    name: '@aws-cdk/cdk-assets-lib',
+    majorVersion: 1,
+    description: 'CDK Asset Publishing Library',
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -607,20 +616,18 @@ const cdkAssets = configureProject(
       'archiver',
       'glob',
       'mime@^2',
-      'yargs',
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@aws-sdk/client-ecr',
+      '@aws-sdk/client-s3',
+      '@aws-sdk/client-secrets-manager',
+      '@aws-sdk/client-sts',
+      '@aws-sdk/credential-providers',
+      '@aws-sdk/lib-storage',
       '@smithy/config-resolver',
       '@smithy/node-config-provider',
       'minimatch@10.0.1',
     ],
     devDeps: [
       '@types/archiver',
-      '@types/yargs',
       '@types/mime@^2',
       'fs-extra',
       'graceful-fs',
@@ -650,7 +657,6 @@ const cdkAssets = configureProject(
         run: 'npx projen shrinkwrap',
       },
     ],
-    majorVersion: 3,
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -660,36 +666,91 @@ const cdkAssets = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
   }),
 );
 
-new TypecheckTests(cdkAssets);
+new TypecheckTests(cdkAssetsLib);
 
-cdkAssets.addTask('shrinkwrap', {
-  steps: [
-    {
-      spawn: 'bump',
-    },
-    {
-      exec: 'npm shrinkwrap',
-    },
-    {
-      spawn: 'unbump',
-    },
-    {
-      exec: 'git checkout HEAD -- yarn.lock',
-    },
-  ],
-});
-
-cdkAssets.gitignore.addPatterns(
+cdkAssetsLib.gitignore.addPatterns(
   '*.js',
   '*.d.ts',
 );
 
 // This package happens do something only slightly naughty
-cdkAssets.eslint?.addRules({ 'jest/no-export': ['off'] });
+cdkAssetsLib.eslint?.addRules({ 'jest/no-export': ['off'] });
+
+//////////////////////////////////////////////////////////////////////
+
+const cdkAssetsCli = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps(),
+    parent: repo,
+    name: 'cdk-assets',
+    description: 'CDK Asset Publishing Tool',
+    srcdir: 'lib',
+    deps: [
+      cdkAssetsLib,
+      'yargs',
+    ],
+    devDeps: [
+      '@types/yargs',
+      // These are for tests
+      cloudAssemblySchema,
+      '@aws-sdk/client-s3',
+      'aws-sdk-client-mock',
+    ],
+    tsconfigDev: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+      include: ['bin/**/*.ts'],
+    },
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        rootDir: undefined,
+        outDir: undefined,
+      },
+      include: ['bin/**/*.ts'],
+    },
+    releaseWorkflowSetupSteps: [
+      {
+        name: 'Shrinkwrap',
+        run: 'npx projen shrinkwrap',
+      },
+    ],
+    majorVersion: 4,
+
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        // We have many tests here that commonly time out
+        testTimeout: 10_000,
+        coverageThreshold: {
+          branches: 74,
+        },
+      },
+    }),
+
+    // Append a specific version string for testing
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+  }),
+);
+
+cdkAssetsCli.gitignore.addPatterns(
+  '*.js',
+  '*.d.ts',
+);
+
+new BundleCli(cdkAssetsCli, {
+  allowedLicenses: BUNDLED_LICENSES,
+  dontAttribute: '^@aws-cdk/|^@cdklabs/$',
+  test: 'bin/cdk-assets --version',
+  entryPoints: [
+    'bin/cdk-assets.js',
+  ],
+  minifyWhitespace: true,
+});
 
 //////////////////////////////////////////////////////////////////////
 
@@ -715,29 +776,29 @@ const toolkitLib = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }), // needs to be newer than what this was build with
       cloudFormationDiff.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
-      cdkAssets.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
+      cdkAssetsLib.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
       `${cxApi}@^2`, // stay within the same MV, otherwise any should work
-      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@aws-sdk/client-appsync',
+      '@aws-sdk/client-cloudformation',
+      '@aws-sdk/client-cloudwatch-logs',
+      '@aws-sdk/client-cloudcontrol',
+      '@aws-sdk/client-codebuild',
+      '@aws-sdk/client-ec2',
+      '@aws-sdk/client-ecr',
+      '@aws-sdk/client-ecs',
+      '@aws-sdk/client-elastic-load-balancing-v2',
+      '@aws-sdk/client-iam',
+      '@aws-sdk/client-kms',
+      '@aws-sdk/client-lambda',
+      '@aws-sdk/client-route-53',
+      '@aws-sdk/client-s3',
+      '@aws-sdk/client-secrets-manager',
+      '@aws-sdk/client-sfn',
+      '@aws-sdk/client-ssm',
+      '@aws-sdk/client-sts',
+      '@aws-sdk/credential-providers',
+      '@aws-sdk/ec2-metadata-service',
+      '@aws-sdk/lib-storage',
       '@smithy/middleware-endpoint',
       '@smithy/property-provider',
       '@smithy/shared-ini-file-loader',
@@ -1033,27 +1094,27 @@ const cli = configureProject(
       cxApi,
       toolkitLib,
       'archiver',
-      `@aws-sdk/client-appsync@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudwatch-logs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudcontrol@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-codebuild@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ec2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-elastic-load-balancing-v2@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-kms@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-route-53@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-secrets-manager@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sfn@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ssm@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/ec2-metadata-service@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
+      '@aws-sdk/client-appsync',
+      '@aws-sdk/client-cloudformation',
+      '@aws-sdk/client-cloudwatch-logs',
+      '@aws-sdk/client-cloudcontrol',
+      '@aws-sdk/client-codebuild',
+      '@aws-sdk/client-ec2',
+      '@aws-sdk/client-ecr',
+      '@aws-sdk/client-ecs',
+      '@aws-sdk/client-elastic-load-balancing-v2',
+      '@aws-sdk/client-iam',
+      '@aws-sdk/client-kms',
+      '@aws-sdk/client-lambda',
+      '@aws-sdk/client-route-53',
+      '@aws-sdk/client-s3',
+      '@aws-sdk/client-secrets-manager',
+      '@aws-sdk/client-sfn',
+      '@aws-sdk/client-ssm',
+      '@aws-sdk/client-sts',
+      '@aws-sdk/credential-providers',
+      '@aws-sdk/ec2-metadata-service',
+      '@aws-sdk/lib-storage',
       '@aws-sdk/middleware-endpoint',
       '@aws-sdk/util-retry',
       '@aws-sdk/util-waiter',
@@ -1064,7 +1125,7 @@ const cli = configureProject(
       '@smithy/util-retry',
       '@smithy/util-waiter',
       'camelcase@^6', // Non-ESM
-      cdkAssets,
+      cdkAssetsLib,
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
@@ -1243,15 +1304,7 @@ new BundleCli(cli, {
       'fsevents',
     ],
   },
-  allowedLicenses: [
-    'Apache-2.0',
-    'MIT',
-    'BSD-3-Clause',
-    'ISC',
-    'BSD-2-Clause',
-    '0BSD',
-    'MIT OR Apache-2.0',
-  ],
+  allowedLicenses: BUNDLED_LICENSES,
   dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
   test: 'bin/cdk --version',
   entryPoints: [
@@ -1453,7 +1506,7 @@ const integRunner = configureProject(
       cxApi,
       cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
-      cdkAssets.customizeReference({ versionType: 'exact' }),
+      cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
       'workerpool@^6',
@@ -1462,7 +1515,7 @@ const integRunner = configureProject(
       'fs-extra@^9',
       'yargs@^16',
       '@aws-cdk/aws-service-spec',
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
+      '@aws-sdk/client-cloudformation',
     ],
     devDeps: [
       'aws-cdk-lib',
@@ -1527,15 +1580,7 @@ new BundleCli(integRunner, {
       'aws-cdk',
     ],
   },
-  allowedLicenses: [
-    'Apache-2.0',
-    'MIT',
-    'BSD-3-Clause',
-    'ISC',
-    'BSD-2-Clause',
-    '0BSD',
-    'MIT OR Apache-2.0',
-  ],
+  allowedLicenses: BUNDLED_LICENSES,
   dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
   test: 'bin/integ-runner --version',
   entryPoints: [
@@ -1563,18 +1608,18 @@ const cliInteg = configureProject(
     libdir: '.',
     deps: [
       '@octokit/rest@^20', // newer versions are ESM only
-      `@aws-sdk/client-codeartifact@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecr-public@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-ecs@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-iam@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-lambda@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-s3@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sns@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sso@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/client-sts@${CLI_SDK_V3_RANGE}`,
-      `@aws-sdk/credential-providers@${CLI_SDK_V3_RANGE}`,
+      '@aws-sdk/client-codeartifact',
+      '@aws-sdk/client-cloudformation',
+      '@aws-sdk/client-ecr',
+      '@aws-sdk/client-ecr-public',
+      '@aws-sdk/client-ecs',
+      '@aws-sdk/client-iam',
+      '@aws-sdk/client-lambda',
+      '@aws-sdk/client-s3',
+      '@aws-sdk/client-sns',
+      '@aws-sdk/client-sso',
+      '@aws-sdk/client-sts',
+      '@aws-sdk/credential-providers',
       '@cdklabs/cdk-atmosphere-client',
       '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
       '@smithy/types', // smithy packages don't have the same major version as SDK packages
