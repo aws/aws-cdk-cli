@@ -1,7 +1,13 @@
-import type { ChildProcess } from 'child_process';
-import type { DefaultCdkOptions, DeployOptions, DestroyOptions, SynthOptions, ListOptions } from './commands';
+import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
+import type { SynthOptions, ListOptions, DeployOptions } from './commands';
 import { StackActivityProgress, HotswapMode } from './commands';
 import { exec, watch } from './utils';
+
+export type WatchEvents = {
+  onStdout?: (chunk: any) => void;
+  onStderr?: (chunk: any) => void;
+  onClose?: (code: number | null) => void;
+};
 
 /**
  * AWS CDK CLI operations
@@ -11,32 +17,32 @@ export interface ICdk {
   /**
    * cdk deploy
    */
-  deploy(options: DeployOptions): void;
+  deploy(options: DeployOptions): Promise<void>;
 
   /**
    * cdk synth
    */
-  synth(options: SynthOptions): void;
+  synth(options: SynthOptions): Promise<void>;
 
   /**
    * cdk destroy
    */
-  destroy(options: DestroyOptions): void;
+  destroy(options: DestroyOptions): Promise<void>;
 
   /**
    * cdk list
    */
-  list(options: ListOptions): string;
+  list(options: ListOptions): Promise<string[]>;
 
   /**
    * cdk synth fast
    */
-  synthFast(options: SynthFastOptions): void;
+  synthFast(options: SynthFastOptions): Promise<void>;
 
   /**
    * cdk watch
    */
-  watch(options: DeployOptions): ChildProcess;
+  watch(options: DeployOptions, events?: WatchEvents): Promise<void>;
 }
 
 /**
@@ -151,7 +157,7 @@ export class CdkCliWrapper implements ICdk {
     }
   }
 
-  public list(options: ListOptions): string {
+  public async list(options: ListOptions): Promise<string[]> {
     const listCommandArgs: string[] = [
       ...renderBooleanArg('long', options.long),
       ...this.createDefaultArguments(options),
@@ -161,12 +167,12 @@ export class CdkCliWrapper implements ICdk {
       cwd: this.directory,
       verbose: this.showOutput,
       env: this.env,
-    });
+    }).split('\n');
   }
   /**
    * cdk deploy
    */
-  public deploy(options: DeployOptions): void {
+  public async deploy(options: DeployOptions): Promise<void> {
     const deployCommandArgs: string[] = [
       ...renderBooleanArg('ci', options.ci),
       ...renderBooleanArg('execute', options.execute),
@@ -195,7 +201,7 @@ export class CdkCliWrapper implements ICdk {
     });
   }
 
-  public watch(options: DeployOptions): ChildProcess {
+  public async watch(options: DeployOptions, events: WatchEvents = {}): Promise<void> {
     let hotswap: string;
     switch (options.hotswap) {
       case HotswapMode.FALL_BACK:
@@ -231,17 +237,31 @@ export class CdkCliWrapper implements ICdk {
       ...this.createDefaultArguments(options),
     ];
 
-    return watch([this.cdk, 'deploy', ...deployCommandArgs], {
+    const child = watch([this.cdk, 'deploy', ...deployCommandArgs], {
       cwd: this.directory,
       verbose: this.showOutput,
       env: this.env,
+    });
+
+    if (events.onStdout) {
+      child.stdout?.on('data', events.onStdout);
+    }
+    if (events.onStderr) {
+      child.stderr?.on('data', events.onStderr);
+    }
+
+    child.on('close', (code) => {
+      child.stdin?.end();
+      if (events.onClose) {
+        events.onClose(code);
+      }
     });
   }
 
   /**
    * cdk destroy
    */
-  public destroy(options: DestroyOptions): void {
+  public async destroy(options: DestroyOptions): Promise<void> {
     const destroyCommandArgs: string[] = [
       ...renderBooleanArg('force', options.force),
       ...renderBooleanArg('exclusively', options.exclusively),
@@ -258,7 +278,7 @@ export class CdkCliWrapper implements ICdk {
   /**
    * cdk synth
    */
-  public synth(options: SynthOptions): void {
+  public async synth(options: SynthOptions): Promise<void> {
     const synthCommandArgs: string[] = [
       ...renderBooleanArg('validation', options.validation),
       ...renderBooleanArg('quiet', options.quiet),
@@ -279,7 +299,7 @@ export class CdkCliWrapper implements ICdk {
    * The CLI has a pretty slow startup time because of all the modules it needs to load,
    * Bypass it to be quicker!
    */
-  public synthFast(options: SynthFastOptions): void {
+  public async synthFast(options: SynthFastOptions): Promise<void> {
     exec(options.execCmd, {
       cwd: this.directory,
       verbose: this.showOutput,

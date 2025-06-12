@@ -616,6 +616,7 @@ const cdkAssets = configureProject(
       `@aws-sdk/lib-storage@${CLI_SDK_V3_RANGE}`,
       '@smithy/config-resolver',
       '@smithy/node-config-provider',
+      'minimatch@10.0.1',
     ],
     devDeps: [
       '@types/archiver',
@@ -807,6 +808,7 @@ const toolkitLib = configureProject(
         lib: ['es2022', 'esnext.disposable'],
         module: 'NodeNext',
         isolatedModules: true,
+        declarationMap: true,
       },
     },
     tsJestOptions: {
@@ -1384,7 +1386,9 @@ const cdkCliWrapper = configureProject(
     name: '@aws-cdk/cdk-cli-wrapper',
     description: 'CDK CLI Wrapper Library',
     srcdir: 'lib',
-    devDeps: [],
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+    ],
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
 
@@ -1451,13 +1455,14 @@ const integRunner = configureProject(
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssets.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
       'workerpool@^6',
       'chokidar@^3',
       'chalk@^4',
       'fs-extra@^9',
       'yargs@^16',
       '@aws-cdk/aws-service-spec',
-      '@aws-sdk/client-cloudformation@^3',
+      `@aws-sdk/client-cloudformation@${CLI_SDK_V3_RANGE}`,
     ],
     devDeps: [
       'aws-cdk-lib',
@@ -1474,6 +1479,12 @@ const integRunner = configureProject(
       compilerOptions: {
         ...defaultTsOptions,
         lib: ['es2020', 'dom'],
+        isolatedModules: true,
+      },
+    },
+    tsJestOptions: {
+      transformOptions: {
+        isolatedModules: false, // we use the respective tsc setting
       },
     },
     jestOptions: jestOptionsForProject({
