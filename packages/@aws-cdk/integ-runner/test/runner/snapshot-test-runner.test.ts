@@ -60,7 +60,7 @@ describe('IntegTest runSnapshotTests', () => {
 
   test('new stack in actual', async () => {
     // WHEN
-    const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot.js');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot.js', 'actual-mock.out.xxxxx.test-with-snapshot.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -90,14 +90,14 @@ describe('IntegTest runSnapshotTests', () => {
     }]);
     expect(results.destructiveChanges).toEqual([{
       impact: 'WILL_DESTROY',
-      logicalId: 'MyLambdaFuncServiceRoleDefaultPolicyBEB0E748',
+      logicalId: 'MyFunction1LogGroup9D1F6BC2',
       stackName: 'test-stack',
     }]);
   });
 
   test('dont diff new asset hashes', async () => {
     // WHEN
-    const results = await cdkMock.snapshotTest('xxxxx.test-with-new-assets-diff.js', 'cdk-integ.out.xxxxx.test-with-new-assets.js.snapshot');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-new-assets-diff.js', 'actual-mock.out.xxxxx.test-with-new-assets.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual([]);
@@ -105,7 +105,7 @@ describe('IntegTest runSnapshotTests', () => {
 
   test('diff new asset hashes', async () => {
     // WHEN
-    const results = await cdkMock.snapshotTest('xxxxx.test-with-new-assets.js', 'cdk-integ.out.xxxxx.test-with-new-assets-diff.js.snapshot');
+    const results = await cdkMock.snapshotTest('xxxxx.test-with-new-assets.js', 'actual-mock.out.xxxxx.test-with-new-assets-diff.js.snapshot');
 
     // THEN
     expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -224,6 +224,7 @@ describe('IntegTest runSnapshotTests', () => {
           CDK_INTEG_ACCOUNT: '12345678',
           CDK_INTEG_REGION: 'test-region',
         }),
+        context: expect.any(Object),
         output: '../../does/not/exist',
       });
     });

@@ -1,7 +1,6 @@
 /* eslint-disable @cdklabs/no-literal-partition */
 import * as path from 'path';
 import type { ICdk } from '@aws-cdk/cdk-cli-wrapper';
-import { CdkCliWrapper } from '@aws-cdk/cdk-cli-wrapper';
 import type { TestCase, DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY, TARGET_PARTITIONS } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
@@ -9,6 +8,7 @@ import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
+import { makeEngine, type EngineOptions } from './engine';
 import type { ManifestTrace } from './private/cloud-assembly';
 import { AssemblyManifestReader } from './private/cloud-assembly';
 import type { DestructiveChange } from '../workers/common';
@@ -18,7 +18,7 @@ const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 /**
  * Options for creating an integration test runner
  */
-export interface IntegRunnerOptions {
+export interface IntegRunnerOptions extends EngineOptions {
   /**
    * Information about the test to run
    */
@@ -47,9 +47,9 @@ export interface IntegRunnerOptions {
   readonly integOutDir?: string;
 
   /**
-   * Instance of the CDK CLI to use
+   * Instance of the CDK Toolkit Engine to use
    *
-   * @default - CdkCliWrapper
+   * @default - based on `engine` option
    */
   readonly cdk?: ICdk;
 
@@ -140,13 +140,7 @@ export abstract class IntegRunner {
     this.snapshotDir = this.test.snapshotDir;
     this.cdkContextPath = path.join(this.directory, 'cdk.context.json');
 
-    this.cdk = options.cdk ?? new CdkCliWrapper({
-      directory: this.directory,
-      showOutput: options.showOutput,
-      env: {
-        ...options.env,
-      },
-    });
+    this.cdk = options.cdk ?? makeEngine(options);
     this.cdkOutDir = options.integOutDir ?? this.test.temporaryOutputDir;
 
     const testRunCommand = this.test.appCommand;
@@ -177,12 +171,10 @@ export abstract class IntegRunner {
   public async generateActualSnapshot(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
     await this.cdk.synthFast({
       execCmd: this.cdkApp.split(' '),
-      env: {
-        ...DEFAULT_SYNTH_OPTIONS.env,
-        // we don't know the "actual" context yet (this method is what generates it) so just
-        // use the "expected" context. This is only run in order to read the manifest
-        CDK_CONTEXT_JSON: JSON.stringify(this.getContext((await this.expectedTestSuite())?.synthContext)),
-      },
+      // we don't know the "actual" context yet (this method is what generates it) so just
+      // use the "expected" context. This is only run in order to read the manifest
+      context: this.getContext((await this.expectedTestSuite())?.synthContext),
+      env: DEFAULT_SYNTH_OPTIONS.env,
       output: path.relative(this.directory, this.cdkOutDir),
     });
     const manifest = await this.loadManifest(this.cdkOutDir);
@@ -322,7 +314,7 @@ export abstract class IntegRunner {
   /**
    * Create the new snapshot.
    *
-   * If lookups are enabled, then we need create the snapshot by synthing again
+   * If lookups are enabled, then we need create the snapshot by synth'ing again
    * with the dummy context so that each time the test is run on different machines
    * (and with different context/env) the diff will not change.
    *
@@ -339,10 +331,8 @@ export abstract class IntegRunner {
     if ((await this.actualTestSuite()).enableLookups) {
       await this.cdk.synthFast({
         execCmd: this.cdkApp.split(' '),
-        env: {
-          ...DEFAULT_SYNTH_OPTIONS.env,
-          CDK_CONTEXT_JSON: JSON.stringify(this.getContext(DEFAULT_SYNTH_OPTIONS.context)),
-        },
+        context: this.getContext(DEFAULT_SYNTH_OPTIONS.context),
+        env: DEFAULT_SYNTH_OPTIONS.env,
         output: path.relative(this.directory, this.snapshotDir),
       });
     } else {

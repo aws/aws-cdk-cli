@@ -1,14 +1,12 @@
 {
   "version": "v1.0.0",
   "testCases": {
-    "xxxxx.test-with-snapshot": {
+    "xxxxx.test-with-snapshot-and-error": {
       "stacks": ["test-stack"],
       "assertionStack": "Bundling/DefaultTest/DeployAssert",
       "assertionStackName": "BundlingDefaultTestDeployAssertAACA0CAF",
       "diffAssets": true,
-      "allowDestroy": [
-        "AWS::IAM::Role"
-      ]
+      "allowDestroy": ["AWS::IAM::Role"]
     }
   }
 }

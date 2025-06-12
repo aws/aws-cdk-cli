@@ -79,7 +79,7 @@ export interface SynthFastOptions {
    *
    * @default - no additional env
    */
-  readonly env?: { [name: string]: string };
+  readonly env?: { readonly [name: string]: string };
 }
 
 /**

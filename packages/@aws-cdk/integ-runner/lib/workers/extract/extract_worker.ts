@@ -28,6 +28,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
 
     try {
       const runner = new IntegTestRunner({
+        engine: request.engine,
         test,
         profile: request.profile,
         env: {
@@ -95,6 +96,7 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
   const verbosity = options.verbosity ?? 0;
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
+    engine: options.engine,
     test,
     profile: options.profile,
     env: {
@@ -138,7 +140,10 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
   }, 60_000);
 
   try {
-    const runner = new IntegSnapshotRunner({ test });
+    const runner = new IntegSnapshotRunner({
+      engine: options.engine,
+      test,
+    });
     if (!runner.hasSnapshot()) {
       workerpool.workerEmit({
         reason: DiagnosticReason.NO_SNAPSHOT,
