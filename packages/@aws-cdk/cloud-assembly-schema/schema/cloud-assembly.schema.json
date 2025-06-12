@@ -500,7 +500,7 @@
             "description": "Artifact properties for a feature flag report\n\nA feature flag report is small enough that all the properties can be inlined\nhere, and doesn't need an additional file.",
             "type": "object",
             "properties": {
-                "libraryName": {
+                "module": {
                     "description": "The library that this feature flag report applies to.",
                     "type": "string"
                 },
@@ -511,7 +511,7 @@
             },
             "required": [
                 "flags",
-                "libraryName"
+                "module"
             ]
         },
         "Record<string,FeatureFlag>": {
