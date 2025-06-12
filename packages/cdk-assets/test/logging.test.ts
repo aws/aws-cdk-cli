@@ -1,10 +1,11 @@
+/* eslint-disable import/no-relative-packages */
 /* eslint-disable no-console */
 import { spawn } from 'child_process';
 import * as path from 'path';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
-import mockfs from './mock-fs';
+import mockfs from '../../@aws-cdk/cdk-assets-lib/test/mock-fs';
 import type { LogLevel } from '../bin/logging';
 import { setLogThreshold, log } from '../bin/logging';
 

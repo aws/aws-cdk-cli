@@ -53,7 +53,7 @@
       "path": "../@aws-cdk/toolkit-lib"
     },
     {
-      "path": "../cdk-assets"
+      "path": "../@aws-cdk/cdk-assets-lib"
     },
     {
       "path": "../@aws-cdk/user-input-gen"

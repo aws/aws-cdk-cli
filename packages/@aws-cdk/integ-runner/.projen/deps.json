@@ -135,6 +135,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cdk-assets-lib",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/cdk-cli-wrapper",
       "type": "runtime"
     },
@@ -156,15 +160,10 @@
     },
     {
       "name": "@aws-sdk/client-cloudformation",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "aws-cdk",
-      "type": "runtime"
-    },
-    {
-      "name": "cdk-assets",
       "type": "runtime"
     },
     {
