@@ -1,10 +1,11 @@
-import { mockSpawn } from './mock-child_process';
-import mockfs from './mock-fs';
-import { MockProgressListener } from './mock-progress-listener';
+/* eslint-disable import/no-relative-packages */
+import { EventType, shellEventToEventType } from '@aws-cdk/cdk-assets-lib';
+import type { ShellEventPublisher } from '../../@aws-cdk/cdk-assets-lib/lib/private/shell';
+import { shell } from '../../@aws-cdk/cdk-assets-lib/lib/private/shell';
+import { mockSpawn } from '../../@aws-cdk/cdk-assets-lib/test/mock-child_process';
+import mockfs from '../../@aws-cdk/cdk-assets-lib/test/mock-fs';
+import { MockProgressListener } from '../../@aws-cdk/cdk-assets-lib/test/mock-progress-listener';
 import { setLogThreshold } from '../bin/logging';
-import { EventType, shellEventToEventType } from '../lib';
-import type { ShellEventPublisher } from '../lib/private/shell';
-import { shell } from '../lib/private/shell';
 
 jest.mock('child_process');
 

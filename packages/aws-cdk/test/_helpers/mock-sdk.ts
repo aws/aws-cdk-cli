@@ -1,4 +1,5 @@
 import 'aws-sdk-client-mock-jest';
+import { type Account } from '@aws-cdk/cdk-assets-lib';
 import type { SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import type { Environment } from '@aws-cdk/cx-api';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
@@ -22,7 +23,6 @@ import { SSMClient } from '@aws-sdk/client-ssm';
 import { AssumeRoleCommand, GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { createCredentialChain } from '@aws-sdk/credential-providers';
 import { mockClient } from 'aws-sdk-client-mock';
-import { type Account } from 'cdk-assets';
 import { TestIoHost } from './io-host';
 import { SDK, SdkProvider } from '../../lib/api/aws-auth';
 import { CloudFormationStack } from '../../lib/api/cloudformation';
