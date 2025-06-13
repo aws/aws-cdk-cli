@@ -5,6 +5,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { CdkAppMultiContext, MemoryContext, type IContextStore } from './context-store';
 import { RWLock } from '../rwlock';
+import { CachedCloudAssembly } from './cached-source';
 import type { ContextAwareCloudAssemblyProps } from './private/context-aware-source';
 import { ContextAwareCloudAssemblySource } from './private/context-aware-source';
 import { execInChildProcess } from './private/exec';
@@ -379,30 +380,21 @@ export abstract class CloudAssemblySourceBuilder {
    */
   public async fromAssemblyDirectory(directory: string, props: AssemblyDirectoryProps = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
-    const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
-      services,
-      contextStore: new MemoryContext(), // @todo We shouldn't be using a `ContextAwareCloudAssemblySource` at all.
-      lookups: false,
-    };
 
-    return new ContextAwareCloudAssemblySource(
-      {
-        produce: async () => {
-          // @todo build
-          await services.ioHelper.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
-
-          const readLock = await new RWLock(directory).acquireRead();
-          try {
-            const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
-            return new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
-          } catch (e) {
-            await readLock.release();
-            throw e;
-          }
-        },
+    return {
+      async produce() {
+        await services.ioHelper.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
+        const readLock = await new RWLock(directory).acquireRead();
+        try {
+          const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
+          const assembly = new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
+          return new CachedCloudAssembly(assembly);
+        } catch (e) {
+          await readLock.release();
+          throw e;
+        }
       },
-      contextAssemblyProps,
-    );
+    };
   }
   /**
    * Use a directory containing an AWS CDK app as source.
