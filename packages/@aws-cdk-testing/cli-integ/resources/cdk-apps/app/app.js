@@ -453,7 +453,8 @@ class LambdaStack extends cdk.Stack {
   constructor(parent, id, props) {
     // sometimes we need to specify the custom bootstrap bucket to use
     // see the 'upgrade legacy bootstrap stack' test
-    const synthesizer = parent.node.tryGetContext('legacySynth') === 'true' ?
+    const useLegacy = [true, 'true'].includes(parent.node.tryGetContext('legacySynth'));
+    const synthesizer = useLegacy ?
       new LegacyStackSynthesizer({
         fileAssetsBucketName: parent.node.tryGetContext('bootstrapBucket'),
       })
@@ -477,7 +478,8 @@ class LambdaStack extends cdk.Stack {
 
 class DriftableStack extends cdk.Stack {
   constructor(parent, id, props) {
-    const synthesizer = parent.node.tryGetContext('legacySynth') === 'true' ?
+    const useLegacy = [true, 'true'].includes(parent.node.tryGetContext('legacySynth'));
+    const synthesizer = useLegacy ?
       new LegacyStackSynthesizer({
         fileAssetsBucketName: parent.node.tryGetContext('bootstrapBucket'),
       })
