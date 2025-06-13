@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { TelemetryClient } from '../../../lib/cli/telemetry/client';
+import { CliIoHost } from '../../../lib/cli/io-host';
 
 // Mock the https module
 jest.mock('https', () => ({
@@ -11,7 +12,8 @@ jest.mock('https', () => ({
 
 describe('TelemetryClient', () => {
   let tempDir: string;
-  let localFilePath: string;
+  let logFilePath: string;
+  let ioHost: CliIoHost;
     
   beforeEach(() => {
     jest.resetAllMocks();
@@ -19,7 +21,9 @@ describe('TelemetryClient', () => {
     // Create a fresh temp directory for each test
     tempDir = path.join(os.tmpdir(), `telemetry-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
     fs.mkdirSync(tempDir, { recursive: true });
-    localFilePath = path.join(tempDir, 'telemetry.json');
+    logFilePath = path.join(tempDir, 'telemetry.json');
+
+    ioHost = CliIoHost.instance();
   });
     
   afterEach(() => {
@@ -49,7 +53,7 @@ describe('TelemetryClient', () => {
       const mockRequest = setupMockRequest();
       const endpoint = new URL('https://example.com/telemetry');
       const testData = { event: 'test', properties: { foo: 'bar' } };
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost});
       
       // WHEN
       await client.sendData(testData);
@@ -76,7 +80,7 @@ describe('TelemetryClient', () => {
       const mockRequest = setupMockRequest();
       const endpoint = new URL('https://example.com/telemetry');
       const testData = { event: 'test' };
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost });
       
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'error') {
@@ -94,7 +98,7 @@ describe('TelemetryClient', () => {
       const mockRequest = setupMockRequest();
       const endpoint = new URL('https://example.com/telemetry');
       const testData = { event: 'test' };
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost });
       
       // WHEN
       await client.sendData(testData);
@@ -109,15 +113,15 @@ describe('TelemetryClient', () => {
       // GIVEN
       const endpoint = new URL('https://example.com/telemetry');
       const testData = { event: 'test', properties: { foo: 'bar' } };
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost });
       setupMockRequest();
       
       // WHEN
       await client.sendData(testData);
       
       // THEN
-      expect(fs.existsSync(localFilePath)).toBe(true);
-      const fileContent = fs.readFileSync(localFilePath, 'utf8');
+      expect(fs.existsSync(logFilePath)).toBe(true);
+      const fileContent = fs.readFileSync(logFilePath, 'utf8');
       const parsedContent = JSON.parse(fileContent);
       expect(parsedContent).toEqual([testData]);
     });
@@ -129,14 +133,14 @@ describe('TelemetryClient', () => {
       const testData = { event: 'new_event', properties: { foo: 'bar' } };
       setupMockRequest();
       
-      fs.writeFileSync(localFilePath, JSON.stringify(existingData), 'utf8');
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      fs.writeFileSync(logFilePath, JSON.stringify(existingData), 'utf8');
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost });
       
       // WHEN
       await client.sendData(testData);
       
       // THEN
-      const fileContent = fs.readFileSync(localFilePath, 'utf8');
+      const fileContent = fs.readFileSync(logFilePath, 'utf8');
       const parsedContent = JSON.parse(fileContent);
       expect(parsedContent).toEqual([...existingData, testData]);
     });
@@ -148,14 +152,14 @@ describe('TelemetryClient', () => {
       const testData = { event: 'test' };
       setupMockRequest();
       
-      fs.writeFileSync(localFilePath, JSON.stringify(existingData), 'utf8');
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      fs.writeFileSync(logFilePath, JSON.stringify(existingData), 'utf8');
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost });
       
       // WHEN
       await client.sendData(testData);
       
       // THEN
-      const fileContent = fs.readFileSync(localFilePath, 'utf8');
+      const fileContent = fs.readFileSync(logFilePath, 'utf8');
       const parsedContent = JSON.parse(fileContent);
       expect(parsedContent).toEqual([existingData, testData]);
     });
@@ -166,14 +170,14 @@ describe('TelemetryClient', () => {
       const testData = { event: 'test' };
       setupMockRequest();
       
-      fs.writeFileSync(localFilePath, 'invalid json', 'utf8');
-      const client = new TelemetryClient({ endpoint, localFilePath });
+      fs.writeFileSync(logFilePath, 'invalid json', 'utf8');
+      const client = new TelemetryClient({ endpoint, logFilePath, ioHost });
       
       // WHEN
       await client.sendData(testData);
       
       // THEN
-      const fileContent = fs.readFileSync(localFilePath, 'utf8');
+      const fileContent = fs.readFileSync(logFilePath, 'utf8');
       const parsedContent = JSON.parse(fileContent);
       expect(parsedContent).toEqual([testData]);
     });

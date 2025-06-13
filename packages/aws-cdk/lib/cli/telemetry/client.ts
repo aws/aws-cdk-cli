@@ -1,6 +1,8 @@
 import { request } from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
+import { IIoHost } from '../io-host';
+import { IoHelper } from '../../api-private';
 
 /**
  * Properties for the Telemetry Client
@@ -12,9 +14,15 @@ export interface TelemetryClientProps {
   readonly endpoint: URL;
 
   /**
-   * The local file to log telemetry data to
+   * The local file to log telemetry data to.
+   * If not specified, then local logging does not take place.
    */
-  readonly logFilePath: string;
+  readonly logFilePath?: string;
+
+  /**
+   * Where messages are going to be sent
+   */
+  readonly ioHost: IIoHost;
 }
 
 /**
@@ -22,16 +30,22 @@ export interface TelemetryClientProps {
  */
 export class TelemetryClient {
   private endpoint: URL;
-  private logFilePath: string;
+  private logFilePath?: string;
+  private ioHost: IoHelper;
 
   public constructor(props: TelemetryClientProps) {
     this.endpoint = props.endpoint;
     this.logFilePath = props.logFilePath;
+    this.ioHost = IoHelper.fromActionAwareIoHost(props.ioHost);
 
-    // Ensure the directory exists
-    const directory = path.dirname(this.logFilePath);
-    if (!fs.existsSync(directory)) {
-      fs.mkdirSync(directory, { recursive: true });
+    // Create the file if necessary
+    if (this.logFilePath) {
+      const directory = path.dirname(this.logFilePath);
+      if (!fs.existsSync(directory)) {
+        fs.mkdirSync(directory, { recursive: true });
+      }
+      // Clear the log file
++     fs.writeFileSync(this.logFilePath, '');
     }
   }
 
@@ -56,29 +70,12 @@ export class TelemetryClient {
   }
 
   private async saveData(data: any): Promise<void> {
-    try {
-      // Read existing data if file exists
-      let existingData: any[] = [];
-      if (fs.existsSync(this.logFilePath)) {
-        try {
-          const fileContent = fs.readFileSync(this.logFilePath, 'utf8');
-          existingData = JSON.parse(fileContent);
-          if (!Array.isArray(existingData)) {
-            existingData = [existingData];
-          }
-        } catch (err) {
-          // If file exists but can't be parsed, start with empty array
-          existingData = [];
+    if (this.logFilePath) {
+      fs.appendFile(this.logFilePath, JSON.stringify(data, null, 2), async (err) => {
+        if (err) {
+          await this.ioHost.defaults.warn(`Telemetry Logging Failed: ${err.message}`);
         }
-      }
-      
-      // Add new data to existing data
-      existingData.push(data);
-      
-      // Write combined data back to file
-      fs.writeFileSync(this.logFilePath, JSON.stringify(existingData, null, 2), 'utf8');
-    } catch (err) {
-      /* noop */
+      });
     }
   }
 }
