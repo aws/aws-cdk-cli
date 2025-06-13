@@ -49,7 +49,7 @@
       "path": "../../aws-cdk"
     },
     {
-      "path": "../../cdk-assets"
+      "path": "../cdk-assets-lib"
     },
     {
       "path": "../cloudformation-diff"

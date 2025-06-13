@@ -49,6 +49,9 @@
       "path": "packages/@aws-cdk/cli-plugin-contract"
     },
     {
+      "path": "packages/@aws-cdk/cdk-assets-lib"
+    },
+    {
       "path": "packages/cdk-assets"
     },
     {
