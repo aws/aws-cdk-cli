@@ -232,20 +232,7 @@ const repoProject = new yarn.Monorepo({
       },
       semanticTitleOptions: {
         types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
-        scopes: [
-          'cdk-assets',
-          'cli',
-          'cli-lib-alpha',
-          'cli-plugin-contract',
-          'cloud-assembly-schema',
-          'cloudformation-diff',
-          'deps',
-          'dev-deps',
-          'docs',
-          'integ-runner',
-          'integ-testing',
-          'toolkit-lib',
-        ],
+        scopes: [], // actually set at the bottom of the file to be based on monorepo packages
       },
     },
   },
@@ -1735,5 +1722,25 @@ new LargePrChecker(repo, {
 });
 
 ((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}).DEBUG = 'true';
+
+// Set allowed scopes based on monorepo packages
+const disallowed = new Set([
+  'cdk', // use aws-cdk or cli
+  'user-input-gen', // use cli
+]);
+repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
+  pj.JsonPatch.replace('/jobs/validate/steps/0/with/scopes', [
+    'cli',
+    'deps',
+    'dev-deps',
+    'docs',
+    'integ-testing',
+    'toolkit-lib',
+    ...repoProject.subprojects
+      .filter(p => p instanceof yarn.TypeScriptWorkspace)
+      .map(p => p.name)
+      .map(n => n.split('/').pop()),
+  ].filter(s => s && !disallowed.has(s)).sort().join('\n')),
+);
 
 repo.synth();
