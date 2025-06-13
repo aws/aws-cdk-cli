@@ -1,14 +1,14 @@
 import type { Environment } from '@aws-cdk/cx-api';
+import type { StackDefinition } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
-import { Mode } from '../plugin';
-import { generateStackDefinitions } from './stack-definitions';
 import { EnvironmentResourcesRegistry } from '../environment';
 import type { IoHelper } from '../io/private';
+import { Mode } from '../plugin';
 
 /**
  * Represents a set of possible moves of a resource from one location
@@ -17,7 +17,7 @@ import type { IoHelper } from '../io/private';
  */
 type ResourceMove = [ResourceLocation[], ResourceLocation[]];
 
-export interface RefactorManagerOptions {
+export interface RefactoringContextOptions {
   environment: Environment;
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
@@ -32,21 +32,17 @@ export class RefactoringContext {
   public readonly environment: Environment;
   private readonly _mappings: ResourceMapping[] = [];
   private readonly ambiguousMoves: ResourceMove[] = [];
-  private readonly localStacks: CloudFormationStack[];
-  private readonly deployedStacks: CloudFormationStack[];
 
-  constructor(props: RefactorManagerOptions) {
-    this.environment = props.environment;
-    this.localStacks = props.localStacks;
-    this.deployedStacks = props.deployedStacks;
+  constructor(options: RefactoringContextOptions) {
+    this.environment = options.environment;
 
-    if (props.mappings != null) {
-      this._mappings = props.mappings;
+    if (options.mappings != null) {
+      this._mappings = options.mappings;
     } else {
-      const moves = resourceMoves(props.deployedStacks, props.localStacks);
+      const moves = resourceMoves(options.deployedStacks, options.localStacks);
       this.ambiguousMoves = moves.filter(isAmbiguousMove);
       const nonAmbiguousMoves = moves.filter((move) => !isAmbiguousMove(move));
-      this._mappings = resourceMappings(nonAmbiguousMoves, props.filteredStacks);
+      this._mappings = resourceMappings(nonAmbiguousMoves, options.filteredStacks);
     }
   }
 
@@ -62,7 +58,7 @@ export class RefactoringContext {
     return this._mappings;
   }
 
-  public async execute(sdkProvider: SdkProvider, ioHelper: IoHelper): Promise<void> {
+  public async execute(stackDefinitions: StackDefinition[], sdkProvider: SdkProvider, ioHelper: IoHelper): Promise<void> {
     if (this.mappings.length === 0) {
       return;
     }
@@ -77,7 +73,7 @@ export class RefactoringContext {
     const input = {
       EnableStackCreation: true,
       ResourceMappings: mappings.map((m) => m.toCloudFormation()),
-      StackDefinitions: generateStackDefinitions(mappings, this.deployedStacks, this.localStacks),
+      StackDefinitions: stackDefinitions,
     };
     const refactor = await cfn.createStackRefactor(input);
 

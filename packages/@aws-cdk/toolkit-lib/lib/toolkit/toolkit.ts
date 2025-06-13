@@ -69,6 +69,7 @@ import {
 import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
 import { hashObject } from '../api/refactoring/digest';
+import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -1073,45 +1074,49 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
     for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
-      const context = new RefactoringContext({
-        environment,
-        deployedStacks,
-        localStacks,
-        filteredStacks: filteredStacks.stackArtifacts,
-        mappings: await getUserProvidedMappings(environment),
-      });
-
-      await notifyInfo(formatEnvironmentSectionHeader(environment));
-
-      const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
-
-      if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
-        await notifyInfo('Nothing to refactor.');
-        continue;
-      }
-
-      const typedMappings = mappings.map(m => m.toTypedMapping());
-      await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
-
-      if (context.ambiguousPaths.length > 0) {
-        const paths = context.ambiguousPaths;
-        await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
-      }
-
-      if (options.dryRun || context.mappings.length === 0) {
-        // Nothing left to do.
-        continue;
-      }
-
-      // In interactive mode (TTY) we need confirmation before proceeding
-      if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
-        await notifyInfo(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
-        continue;
-      }
-
       try {
+        const context = new RefactoringContext({
+          environment,
+          deployedStacks,
+          localStacks,
+          filteredStacks: filteredStacks.stackArtifacts,
+          mappings: await getUserProvidedMappings(environment),
+        });
+
+        await notifyInfo(formatEnvironmentSectionHeader(environment));
+
+        const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+
+        if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
+          await notifyInfo('Nothing to refactor.');
+          continue;
+        }
+
+        const typedMappings = mappings
+          .map(m => m.toTypedMapping())
+          .filter(m => m.type !== 'AWS::CDK::Metadata');
+        await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
+
+        if (context.ambiguousPaths.length > 0) {
+          const paths = context.ambiguousPaths;
+          await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
+        }
+
+        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+
+        if (options.dryRun || context.mappings.length === 0) {
+          // Nothing left to do.
+          continue;
+        }
+
+        // In interactive mode (TTY) we need confirmation before proceeding
+        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+          await notifyInfo(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+          continue;
+        }
+
         await notifyInfo('Refactoring...');
-        await context.execute(sdkProvider, ioHelper);
+        await context.execute(stackDefinitions, sdkProvider, ioHelper);
         await notifyInfo('✅  Stack refactor complete');
       } catch (e: any) {
         await notifyError(`❌  ${statusReason(e)}`, e);
