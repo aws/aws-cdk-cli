@@ -113,6 +113,13 @@ export interface BundleProps {
    * @default false
    */
   readonly minifySyntax?: boolean;
+
+  /**
+   * Write the metafile into this location.
+   *
+   * @default - no metafile is written
+   */
+  readonly metafile?: string;
 }
 
 /**
@@ -192,6 +199,7 @@ export class Bundle {
   private readonly minifyWhitespace?: boolean;
   private readonly minifyIdentifiers?: boolean;
   private readonly minifySyntax?: boolean;
+  private readonly metafile?: string;
 
   private _bundle?: esbuild.BuildResult;
   private _dependencies?: Package[];
@@ -214,6 +222,7 @@ export class Bundle {
     this.minifyWhitespace = props.minifyWhitespace;
     this.minifyIdentifiers = props.minifyIdentifiers;
     this.minifySyntax = props.minifySyntax;
+    this.metafile = props.metafile;
 
     const entryPoints = props.entryPoints ?? (this.manifest.main ? [this.manifest.main] : []);
 
@@ -437,7 +446,7 @@ export class Bundle {
       target: 'node14',
       platform: 'node',
       sourcemap: this.sourcemap,
-      metafile: true,
+      metafile: true, // this is always required for some of our validation rules
       minify: this.minify,
       minifyWhitespace: this.minifyWhitespace,
       minifyIdentifiers: this.minifyIdentifiers,
@@ -449,6 +458,11 @@ export class Bundle {
       outdir: this.packageDir,
       allowOverwrite: true,
     });
+
+    // Write metafile only when requested
+    if (this.metafile) {
+      fs.writeFileSync(this.metafile, JSON.stringify(bundle.metafile, null, 2));
+    }
 
     if (bundle.warnings.length > 0) {
       // esbuild warnings are usually important, lets try to be strict here.
