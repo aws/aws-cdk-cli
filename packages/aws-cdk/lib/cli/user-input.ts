@@ -1448,6 +1448,13 @@ export interface RefactorOptions {
   readonly revert?: boolean;
 
   /**
+   * If specified, the command will not prompt for confirmation before performing the refactor operation.
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;
