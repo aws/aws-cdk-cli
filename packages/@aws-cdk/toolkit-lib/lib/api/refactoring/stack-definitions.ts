@@ -80,19 +80,22 @@ function graph(deployedStacks: CloudFormationStack[]): { edges: ResourceEdge[]; 
 
 function buildNodes(stacks: CloudFormationStack[]): Map<string, ResourceNode> {
   const result = new Map<string, ResourceNode>();
-
   for (const stack of stacks) {
     const template = stack.template;
-    for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
-      const location = new ResourceLocation(stack, logicalId);
+    buildForSection(stack, 'Resource', template.Resources);
+    buildForSection(stack, 'Output', template.Outputs);
+  }
+  return result;
+
+  function buildForSection(stack: CloudFormationStack, nodeType: NodeType, section?: Record<string, any>) {
+    for (const [logicalId, resource] of Object.entries(section ?? {})) {
       result.set(`${stack.stackName}.${logicalId}`, {
-        location,
+        type: nodeType,
+        location: new ResourceLocation(stack, logicalId),
         rawValue: resource,
       });
     }
   }
-
-  return result;
 }
 
 function buildEdges(
@@ -253,6 +256,7 @@ function mapNodes(nodes: ResourceNode[], mappings: ResourceMapping[]): ResourceN
   return nodes.map((node) => {
     const newLocation = mapLocation(node.location, mappings);
     return {
+      type: node.type,
       location: newLocation,
       rawValue: node.rawValue,
     } as ResourceNode;
@@ -275,6 +279,10 @@ function generateTemplates(
   allNodes.forEach((node) => {
     const stackName = node.location.stack.stackName;
     const logicalId = node.location.logicalResourceId;
+
+    if (node.type !== 'Resource') {
+      return;
+    }
 
     if (templates[stackName] === undefined) {
       templates[stackName] = {
@@ -316,11 +324,24 @@ function generateTemplates(
  * path is updated to the CloudFormation value represented by the edge's annotation.
  */
 function updateReferences(edges: ResourceEdge[], exports: Record<string, ScopedExport>) {
-  edges.forEach((edge) => {
-    const cfnValue = edge.reference.toCfn(edge.targets, exports);
-    const obj = edge.path.slice(0, edge.path.length - 1).reduce(getPropValue, edge.source.rawValue);
-    setPropValue(obj, edge.path[edge.path.length - 1], cfnValue);
-  });
+  for (const edge of edges) {
+    try {
+      const cfnValue = edge.reference.toCfn(edge.targets, exports);
+      const obj = edge.path.slice(0, edge.path.length - 1).reduce(getPropValue, edge.source.rawValue);
+      setPropValue(obj, edge.path[edge.path.length - 1], cfnValue);
+    } catch (e: any) {
+      if (e.name === 'ExportNotFoundError') {
+        const src = edge.source.location.toPath();
+        const target = edge.targets[0].location.toPath();
+        const message = `This refactor operation would introduce a cross-stack reference from resource ${src} to ${target}. ` +
+          'But there is no export in your local CDK app that can be used to implement this reference. ' +
+          'If you think these resources should be in the same stack, re-run the command passing a mapping file.';
+        throw new ToolkitError(message);
+      } else {
+        throw e;
+      }
+    }
+  }
 
   function getPropValue(obj: any, prop: string): any {
     const index = parseInt(prop);
@@ -403,6 +424,7 @@ class EdgeMapper {
     const key = `${newLocation.stack.stackName}.${newLocation.logicalResourceId}`;
     if (!this.nodeMap.has(key)) {
       this.nodeMap.set(key, {
+        type: node.type,
         location: newLocation,
         rawValue: node.rawValue,
       });
@@ -472,7 +494,10 @@ interface ScopedExport {
   value: any;
 }
 
+type NodeType = 'Resource' | 'Output';
+
 interface ResourceNode {
+  type: NodeType;
   location: ResourceLocation;
   rawValue: any;
 }
@@ -538,7 +563,8 @@ class ImportValue implements CloudFormationReference {
   }
 
   toCfn(targets: ResourceNode[], exports: Record<string, ScopedExport>): any {
-    const exp = this.findExport(targets, exports);
+    const target = targets[0];
+    const exp = this.findExport(target, exports);
     if (exp) {
       this.outputName = exp[1].outputName;
       this.outputContent = {
@@ -549,12 +575,15 @@ class ImportValue implements CloudFormationReference {
       };
       return { 'Fn::ImportValue': exp[0] };
     }
-    // TODO better message
-    throw new ToolkitError('Unknown export for ImportValue: ' + JSON.stringify(this.reference));
+
+    throw new ExportNotFoundError();
   }
 
-  private findExport(targets: ResourceNode[], exports: Record<string, ScopedExport>) {
-    const target = targets[0];
+  toString(): string {
+    return `ImportValue${this.reference.toString()}`;
+  }
+
+  private findExport(target: ResourceNode, exports: Record<string, ScopedExport>) {
     if (this.reference instanceof Ref) {
       return Object.entries(exports).find(([_, exportValue]) => {
         return (
@@ -570,7 +599,7 @@ class ImportValue implements CloudFormationReference {
           exportValue.stackName === target.location.stack.stackName &&
           exportValue.value['Fn::GetAtt'] &&
           ((exportValue.value['Fn::GetAtt'][0] === target.location.logicalResourceId &&
-            exportValue.value['Fn::GetAtt'][1] === getAtt.attributeName) ||
+              exportValue.value['Fn::GetAtt'][1] === getAtt.attributeName) ||
             exportValue.value['Fn::GetAtt'] === `${target.location.logicalResourceId}.${getAtt.attributeName}`)
         );
       });
@@ -613,5 +642,12 @@ class DependsOn implements CloudFormationReference {
 
   toCfn(targets: ResourceNode[]): any {
     return targets.map((t) => t.location.logicalResourceId);
+  }
+}
+
+export class ExportNotFoundError extends ToolkitError {
+  // TODO better message and parameters.
+  constructor() {
+    super('Export not found');
   }
 }
