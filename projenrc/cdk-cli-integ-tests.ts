@@ -461,7 +461,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
           with: {
-            name: 'logs-${{ matrix.suite }}',
+            name: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
             path: 'logs/',
             overwrite: 'true',
           },

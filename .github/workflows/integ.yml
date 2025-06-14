@@ -144,7 +144,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4.4.0
         with:
-          name: logs-${{ matrix.suite }}
+          name: logs-${{ matrix.suite }}-${{ matrix.node }}
           path: logs/
           overwrite: "true"
       - name: Append artifact URL
