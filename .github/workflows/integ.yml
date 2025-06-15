@@ -139,12 +139,17 @@ jobs:
           if compgen -G "logs/md/*.md" > /dev/null; then
             cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
           fi
+      - name: Prepare artifact id
+        id: artifactid
+        uses: Clovis-team/slugify-string@v1.0.0
+        with:
+          value: logs-${{ matrix.suite }}-${{ matrix.node }}
       - name: Upload logs
         id: logupload
         if: always()
         uses: actions/upload-artifact@v4.4.0
         with:
-          name: logs-${{ matrix.suite }}-${{ matrix.node }}
+          name: ${{ steps.artifactid.outputs.result }}
           path: logs/
           overwrite: "true"
       - name: Append artifact URL

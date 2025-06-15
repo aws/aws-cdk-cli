@@ -455,13 +455,22 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'fi',
           ].join('\n'),
         },
+        // Slugify artifact ID, because matrix.node will contain invalid chars
+        {
+          name: 'Prepare artifact id',
+          uses: 'Clovis-team/slugify-string@v1.0.0',
+          id: 'artifactid',
+          with: {
+            value: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+          },
+        },
         {
           name: 'Upload logs',
           if: 'always()',
           uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
           with: {
-            name: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+            name: '${{ steps.artifactid.outputs.result }}',
             path: 'logs/',
             overwrite: 'true',
           },
