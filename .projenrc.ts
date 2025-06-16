@@ -774,8 +774,9 @@ const toolkitLib = configureProject(
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
+        // Tests that synth an assembly usually need a bit longer
+        testTimeout: 10_000,
         coverageThreshold: {
-          // this is very sad but we will get better
           statements: 87,
           branches: 83,
           functions: 82,
