@@ -477,6 +477,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // Slugify artifact ID, because matrix.node will contain invalid chars
         {
           name: 'Slugify artifact id',
+          if: 'always()',
           id: 'artifactid',
           run: [
             'slug=$(node -p \'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")\')',
