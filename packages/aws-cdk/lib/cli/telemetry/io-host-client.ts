@@ -1,5 +1,6 @@
-import { ITelemetryClient } from './client-interface';
-import { IIoHost } from '@aws-cdk/toolkit-lib';
+import type { IIoHost } from '@aws-cdk/toolkit-lib';
+import type { ITelemetryClient } from './client-interface';
+import type { TelemetrySchema } from './schema';
 import { IoHelper } from '../../api-private';
 
 /**
@@ -15,8 +16,7 @@ export interface IoHostTelemetryClientProps {
 /**
  * A telemetry client that collects events and flushes them to stdout.
  */
-export class IoHostTelemetryClient<T> implements ITelemetryClient<T> {
-  private events: T[] = [];
+export class IoHostTelemetryClient implements ITelemetryClient {
   private ioHost: IoHelper;
 
   /**
@@ -27,39 +27,21 @@ export class IoHostTelemetryClient<T> implements ITelemetryClient<T> {
   }
 
   /**
-   * Add an event to the collection.
+   * Emit an event
    */
-  public async addEvent(event: T): Promise<boolean> {
+  public async emit(event: TelemetrySchema): Promise<boolean> {
     try {
-      this.events.push(event);
+      // Format the events as a JSON string with pretty printing
+      const output = JSON.stringify(event, null, 2);
+
+      // Write to IoHost
+      await this.ioHost.defaults.info(`--- TELEMETRY EVENT ---\n${output}\n-----------------------\n`);
+
       return true;
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
       await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
       return false;
-    }
-  }
-
-  /**
-   * Flush all collected events to stdout.
-   */
-  public async flush(): Promise<void> {
-    if (this.events.length === 0) {
-      return;
-    }
-
-    try {
-      // Format the events as a JSON string with pretty printing
-      const output = JSON.stringify(this.events, null, 2);
-      
-      // Write to IoHost
-      this.ioHost.defaults.info(`--- TELEMETRY EVENTS ---\n${output}\n-----------------------\n`);
-      
-      // Clear the events array after successful output
-      this.events = [];
-    } catch (e: any) {
-      // Never throw errors, just log them via ioHost
-      await this.ioHost.defaults.warn(`Failed to flush telemetry events: ${e.message}`);
     }
   }
 }

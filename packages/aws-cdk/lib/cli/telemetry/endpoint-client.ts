@@ -1,7 +1,8 @@
 import { request } from 'https';
-import { IIoHost } from '../io-host';
 import { IoHelper } from '../../api-private';
-import { ITelemetryClient } from './client-interface';
+import type { IIoHost } from '../io-host';
+import type { ITelemetryClient } from './client-interface';
+import type { TelemetrySchema } from './schema';
 
 /**
  * Properties for the Endpoint Telemetry Client
@@ -19,22 +20,25 @@ export interface EndpointTelemetryClientProps {
 }
 
 /**
- * The telemetry client that hits an external endpoint. 
+ * The telemetry client that hits an external endpoint.
  */
-export class EndpointTelemetryClient<T> implements ITelemetryClient<T> {
-  private events: T[] = [];
+export class EndpointTelemetryClient implements ITelemetryClient {
+  private events: TelemetrySchema[] = [];
   private endpoint: URL;
   private ioHost: IoHelper;
 
   public constructor(props: EndpointTelemetryClientProps) {
     this.endpoint = props.endpoint;
     this.ioHost = IoHelper.fromActionAwareIoHost(props.ioHost);
+
+    // Batch events every 30 seconds
+    setInterval(() => this.flush(), 30000).unref();
   }
 
   /**
    * Add an event to the collection.
    */
-  public async addEvent(event: T): Promise<boolean> {
+  public async emit(event: TelemetrySchema): Promise<boolean> {
     try {
       this.events.push(event);
       return true;
@@ -51,7 +55,7 @@ export class EndpointTelemetryClient<T> implements ITelemetryClient<T> {
     }
 
     try {
-      this.https(this.endpoint, this.events);
+      await this.https(this.endpoint, this.events, this.ioHost);
 
       // Clear the events array after successful output
       this.events = [];
@@ -64,9 +68,11 @@ export class EndpointTelemetryClient<T> implements ITelemetryClient<T> {
   private async https(
     url: URL,
     body: any, // to be schema
+    ioHost: IoHelper,
   ): Promise<void> {
+    // TODO: sigv4 authentication
     // TODO: Handle retries and stuff
-    return requestPromise(url, body);
+    return requestPromise(url, body, ioHost);
   }
 }
 
@@ -75,7 +81,8 @@ export class EndpointTelemetryClient<T> implements ITelemetryClient<T> {
  */
 function requestPromise(
   url: URL,
-  data: any // to be schema
+  data: any, // to be schema
+  ioHost: IoHelper,
 ) {
   return new Promise<void>((resolve) => {
     const payload: string = JSON.stringify(data);
@@ -89,8 +96,9 @@ function requestPromise(
         'content-length': payload.length,
       },
     });
-    req.on('error', () => {
-      /* noop */
+    // TODO: retryable errors
+    req.on('error', async (e: any) => {
+      await ioHost.defaults.warn(`Telemetry endpoint request failed: ${e.message}`);
     });
     req.setTimeout(2000, () => {
       // 2 seconds

@@ -1,8 +1,9 @@
-import { ITelemetryClient } from './client-interface';
-import { IIoHost } from '@aws-cdk/toolkit-lib';
-import { IoHelper } from '../../api-private';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
+import { ToolkitError, type IIoHost } from '@aws-cdk/toolkit-lib';
+import type { ITelemetryClient } from './client-interface';
+import type { TelemetrySchema } from './schema';
+import { IoHelper } from '../../api-private';
 
 /**
  * Properties for the FileTelemetryClient
@@ -22,8 +23,7 @@ export interface FileTelemetryClientProps {
 /**
  * A telemetry client that collects events writes them to a file
  */
-export class FileTelemetryClient<T> implements ITelemetryClient<T> {
-  private events: T[] = [];
+export class FileTelemetryClient implements ITelemetryClient {
   private ioHost: IoHelper;
   private logFilePath: string;
 
@@ -39,44 +39,27 @@ export class FileTelemetryClient<T> implements ITelemetryClient<T> {
     if (!fs.existsSync(directory)) {
       fs.mkdirSync(directory, { recursive: true });
     }
-    // Clear the log file
-+   fs.writeFileSync(this.logFilePath, '');
+
+    if (fs.existsSync(this.logFilePath)) {
+      throw new ToolkitError(`Telemetry file already exists at ${this.logFilePath}`);
+    }
   }
 
   /**
-   * Add an event to the collection.
+   * Emit an event.
    */
-  public async addEvent(event: T): Promise<boolean> {
+  public async emit(event: TelemetrySchema): Promise<boolean> {
     try {
-      this.events.push(event);
+      // Format the events as a JSON string with pretty printing
+      const output = JSON.stringify(event, null, 2);
+
+      // Write to file
+      fs.appendFileSync(this.logFilePath, output);
       return true;
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
       await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
       return false;
-    }
-  }
-
-  /**
-   * Flush all collected events to a local file.
-   */
-  public async flush(): Promise<void> {
-    if (this.events.length === 0) {
-      return;
-    }
-
-    try {
-      // Format the events as a JSON string with pretty printing
-      const output = JSON.stringify(this.events, null, 2);
-      
-      // Write to file
-      fs.appendFileSync(this.logFilePath, output);
-      
-      // Clear the events array after successful output
-      this.events = [];
-    } catch (e: any) {
-      // Never throw errors, just log them via ioHost
-      await this.ioHost.defaults.warn(`Failed to flush telemetry events: ${e.message}`);
     }
   }
 }
