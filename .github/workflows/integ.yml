@@ -133,12 +133,19 @@ jobs:
           if compgen -G "logs/md/*.md" > /dev/null; then
             cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
           fi
+      - name: Slugify artifact id
+        id: artifactid
+        env:
+          INPUT: logs-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
       - name: Upload logs
         id: logupload
         if: always()
         uses: actions/upload-artifact@v4.4.0
         with:
-          name: logs-${{ matrix.suite }}-${{ matrix.node }}
+          name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
           overwrite: "true"
       - name: Append artifact URL

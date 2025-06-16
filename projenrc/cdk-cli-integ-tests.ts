@@ -474,13 +474,25 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'fi',
           ].join('\n'),
         },
+        // Slugify artifact ID, because matrix.node will contain invalid chars
+        {
+          name: 'Slugify artifact id',
+          id: 'artifactid',
+          run: [
+            'slug=$(node -p \'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")\')',
+            'echo "slug=$slug" >> "$GITHUB_OUTPUT"',
+          ].join('\n'),
+          env: {
+            INPUT: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+          },
+        },
         {
           name: 'Upload logs',
           if: 'always()',
           uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
           with: {
-            name: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+            name: '${{ steps.artifactid.outputs.slug }}',
             path: 'logs/',
             overwrite: 'true',
           },
