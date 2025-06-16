@@ -141,6 +141,7 @@ jobs:
           fi
       - name: Slugify artifact id
         id: artifactid
+        if: always()
         env:
           INPUT: logs-${{ matrix.suite }}-${{ matrix.node }}
         run: |-
