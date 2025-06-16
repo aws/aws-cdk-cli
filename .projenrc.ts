@@ -82,6 +82,7 @@ const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['com
   incremental: true,
   esModuleInterop: false,
   skipLibCheck: true,
+  isolatedModules: true,
 };
 
 /**
@@ -302,11 +303,6 @@ function genericCdkProps(props: GenericProps = {}) {
     authorUrl: 'https://aws.amazon.com',
     authorOrganization: true,
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
-    tsJestOptions: {
-      transformOptions: {
-        isolatedModules: true,
-      },
-    },
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,
@@ -320,6 +316,11 @@ function genericCdkProps(props: GenericProps = {}) {
         printWidth: 120,
         singleQuote: true,
         trailingComma: pj.javascript.TrailingComma.ALL,
+      },
+    },
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
       },
     },
     typescriptVersion: TYPESCRIPT_VERSION,
@@ -684,6 +685,14 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
   'lib/init-templates/*/typescript/*/*.template.ts',
 ];
 
+const toolkitLibTsCompilerOptions = {
+  ...defaultTsOptions,
+  target: 'es2022',
+  lib: ['es2022', 'esnext.disposable'],
+  module: 'NodeNext',
+  declarationMap: true,
+};
+
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -691,11 +700,6 @@ const toolkitLib = configureProject(
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
     srcdir: 'lib',
-    tsconfigDev: {
-      compilerOptions: {
-        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
-      },
-    },
     peerDeps: [
       cliPluginContract.customizeReference({ versionType: 'any-minor' }), // allow consumers to easily de-depulicate this
     ],
@@ -791,17 +795,13 @@ const toolkitLib = configureProject(
     }),
     tsconfig: {
       compilerOptions: {
-        ...defaultTsOptions,
-        target: 'es2022',
-        lib: ['es2022', 'esnext.disposable'],
-        module: 'NodeNext',
-        isolatedModules: true,
-        declarationMap: true,
+        ...toolkitLibTsCompilerOptions,
       },
     },
-    tsJestOptions: {
-      transformOptions: {
-        isolatedModules: false, // we use the respective tsc setting
+    tsconfigDev: {
+      compilerOptions: {
+        ...toolkitLibTsCompilerOptions,
+        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
     majorVersion: 1,
@@ -1070,12 +1070,6 @@ const cli = configureProject(
       'yaml@^1',
       'yargs@^15',
     ],
-    tsJestOptions: {
-      transformOptions: {
-        // Skips type checking, otherwise tests take too long
-        isolatedModules: true,
-      },
-    },
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1096,7 +1090,6 @@ const cli = configureProject(
         esModuleInterop: false,
         skipLibCheck: true,
       },
-
     },
     eslintOptions: {
       dirs: ['lib'],
@@ -1466,13 +1459,6 @@ const integRunner = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2020', 'dom'],
-        isolatedModules: true,
-      },
-    },
-    tsJestOptions: {
-      transformOptions: {
-        isolatedModules: false, // we use the respective tsc setting
       },
     },
     jestOptions: jestOptionsForProject({
