@@ -179,15 +179,21 @@ export class ExecutionEnvironment implements AsyncDisposable {
  * This *would* have returned an `IAsyncDisposable` but that requires messing
  * with TypeScript type definitions to use it in aws-cdk, so returning an
  * explicit cleanup function is easier.
+ *
+ * `completeness` indicates whether this `env` block represents the full `env`
+ * that will be passed to a subprocess, or whether it will be mixed into
+ * `process.env` later.
  */
-export function writeContextToEnv(env: Env, context: Context) {
+export function writeContextToEnv(env: Env, context: Context, completeness: 'add-process-env-later' | 'env-is-complete') {
   let contextOverflowLocation = null;
 
   // On Windows, all envvars together must fit in a 32k block (<https://devblogs.microsoft.com/oldnewthing/20100203-00>)
   // On Linux, a single entry may not exceed 131k; but we're treating it as all together because that's safe
   // and it's a single execution path for both platforms.
   const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
-  const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(env, envVariableSizeLimit));
+
+  const completeEnv = { ...completeness === 'add-process-env-later' ? process.env : {}, ...env };
+  const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(completeEnv, envVariableSizeLimit));
 
   // Store the safe part in the environment variable
   env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
