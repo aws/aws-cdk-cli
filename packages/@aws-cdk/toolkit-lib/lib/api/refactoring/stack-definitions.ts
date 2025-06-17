@@ -335,7 +335,7 @@ function updateReferences(edges: ResourceEdge[], exports: Record<string, ScopedE
         const target = edge.targets[0].location.toPath();
         const message = `This refactor operation would introduce a cross-stack reference from resource ${src} to ${target}. ` +
           'But there is no export in your local CDK app that can be used to implement this reference. ' +
-          'If you think these resources should be in the same stack, re-run the command passing a mapping file.';
+          'If you think these resources should be in the same stack, re-run the command with mapping overrides.';
         throw new ToolkitError(message);
       } else {
         throw e;

@@ -22,6 +22,10 @@ export interface CloudFormationStack {
   readonly template: CloudFormationTemplate;
 }
 
+export function hasResource(stack: CloudFormationStack, logicalId: string): boolean {
+  return stack.template.Resources?.[logicalId] != null;
+}
+
 /**
  * This class mirrors the `ResourceLocation` interface from CloudFormation,
  * but is richer, since it has a reference to the stack object, rather than

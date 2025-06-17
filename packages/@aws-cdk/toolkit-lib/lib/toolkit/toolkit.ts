@@ -1074,6 +1074,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
     for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
+      const overrides = options.mappingSource?.overrides
+        .find(group => group.account === environment.account && group.region === environment.region)
+        ?.resources;
+
       try {
         const context = new RefactoringContext({
           environment,
@@ -1081,6 +1085,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           localStacks,
           filteredStacks: filteredStacks.stackArtifacts,
           mappings: await getUserProvidedMappings(environment),
+          mappingOverrides: overrides,
         });
 
         await notifyInfo(formatEnvironmentSectionHeader(environment));

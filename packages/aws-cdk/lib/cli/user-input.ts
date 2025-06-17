@@ -1455,6 +1455,13 @@ export interface RefactorOptions {
   readonly force?: boolean;
 
   /**
+   * A file containing mappings to be applied in addition to the computed ones. In case a source location appears on both, the override has precedence
+   *
+   * @default - undefined
+   */
+  readonly overrideFile?: string;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;

@@ -13,17 +13,18 @@ export class MappingSource {
    * the deployed stacks and the local stacks.
    *
    * @param exclude - A list of resource locations to exclude from the mapping.
+   * @param overrides - A list of resource mappings to override the computed mappings.
    */
-  public static auto(exclude: string[] = []): MappingSource {
+  public static auto(exclude: string[] = [], overrides: MappingGroup[] = []): MappingSource {
     const excludeList = new InMemoryExcludeList(exclude);
-    return new MappingSource('auto', [], excludeList);
+    return new MappingSource('auto', [], excludeList, overrides);
   }
 
   /**
    * An explicitly provided list of mappings, which will be used for refactoring.
    */
   public static explicit(groups: MappingGroup[]): MappingSource {
-    return new MappingSource('explicit', groups, new NeverExclude());
+    return new MappingSource('explicit', groups, new NeverExclude(), []);
   }
 
   /**
@@ -55,10 +56,16 @@ export class MappingSource {
    */
   public readonly exclude: ExcludeList;
 
-  private constructor(source: MappingType, groups: MappingGroup[], exclude: ExcludeList) {
+  /**
+   * @internal
+   */
+  public readonly overrides: MappingGroup[];
+
+  private constructor(source: MappingType, groups: MappingGroup[], exclude: ExcludeList, overrides: MappingGroup[] = []) {
     this.source = source;
     this.groups = groups;
     this.exclude = exclude;
+    this.overrides = overrides;
   }
 }
 

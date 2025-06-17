@@ -466,6 +466,11 @@ export async function makeConfig(): Promise<CliConfig> {
             default: false,
             desc: 'If specified, the command will not prompt for confirmation before performing the refactor operation.',
           },
+          'override-file': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'A file containing mappings to be applied in addition to the computed ones. In case a source location appears on both, the override has precedence',
+          },
         },
       },
     },

@@ -1,7 +1,7 @@
 import type { Environment } from '@aws-cdk/cx-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type { CloudFormationStack } from './cloudformation';
-import { ResourceLocation, ResourceMapping } from './cloudformation';
+import { hasResource, ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/sdk';
@@ -23,6 +23,7 @@ export interface RefactoringContextOptions {
   deployedStacks: CloudFormationStack[];
   mappings?: ResourceMapping[];
   filteredStacks?: CloudFormationStack[];
+  mappingOverrides?: Record<string, string>;
 }
 
 /**
@@ -39,7 +40,8 @@ export class RefactoringContext {
     if (options.mappings != null) {
       this._mappings = options.mappings;
     } else {
-      const moves = resourceMoves(options.deployedStacks, options.localStacks);
+      const overrides = this.mappingsFromOverrides(options.deployedStacks, options.localStacks, options.mappingOverrides ?? {});
+      const moves = this.overrideMoves(resourceMoves(options.deployedStacks, options.localStacks), overrides);
       this.ambiguousMoves = moves.filter(isAmbiguousMove);
       const nonAmbiguousMoves = moves.filter((move) => !isAmbiguousMove(move));
       this._mappings = resourceMappings(nonAmbiguousMoves, options.filteredStacks);
@@ -88,6 +90,52 @@ export class RefactoringContext {
     await cfn.waitUntilStackRefactorExecuteComplete({
       StackRefactorId: refactor.StackRefactorId,
     });
+  }
+
+  private overrideMoves(moves: ResourceMove[], overrides: ResourceMapping[]): ResourceMove[] {
+    const result: ResourceMove[] = moves.map(move => {
+      const match = overrides.find((m) => matches(move, m));
+      return match ? [[match.source], [match.destination]] : move;
+    });
+
+    for (let override of overrides) {
+      const foo = result.find((m) => matches(m, override));
+      if (!foo) {
+        result.push([[override.source], [override.destination]]);
+      }
+    }
+
+    return result;
+
+    function matches(move: ResourceMove, override: ResourceMapping): boolean {
+      return move[0].some((s) => s.equalTo(override.source));
+    }
+  }
+
+  // TODO rename this function
+  private mappingsFromOverrides(
+    deployedStacks: CloudFormationStack[],
+    localStacks: CloudFormationStack[],
+    overrides: Record<string, string>): ResourceMapping[] {
+    const result: ResourceMapping[] = [];
+    for (let [from, to] of Object.entries(overrides)) {
+      const [fromStackName, fromLogicalId] = from.split('.');
+      const [toStackName, toLogicalId] = to.split('.');
+      const fromStack = deployedStacks.find((s) => s.stackName === fromStackName);
+      const toStack = localStacks.find((s) => s.stackName === toStackName);
+
+      if (fromStack == null || toStack == null || !hasResource(fromStack, fromLogicalId) || !hasResource(toStack, toLogicalId)) {
+        // Only consider valid mappings
+        // TODO Maybe print a warning
+        continue;
+      }
+
+      result.push(new ResourceMapping(
+        new ResourceLocation(fromStack, fromLogicalId),
+        new ResourceLocation(toStack, toLogicalId)),
+      );
+    }
+    return result;
   }
 
   private async checkBootstrapVersion(sdk: SDK, ioHelper: IoHelper) {
