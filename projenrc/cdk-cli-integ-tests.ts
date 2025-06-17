@@ -420,7 +420,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           name: 'Prepare Verdaccio',
-          run: '.projen/prepare-verdaccio.sh',
+          run: 'chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh',
         },
         {
           name: 'Download and install the test artifact',
