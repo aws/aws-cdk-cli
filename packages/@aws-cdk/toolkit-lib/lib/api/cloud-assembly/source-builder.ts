@@ -16,7 +16,7 @@ import type { ToolkitServices } from '../../toolkit/private';
 import { ToolkitError, AssemblyError } from '../../toolkit/toolkit-error';
 import { noUndefined } from '../../util';
 import { IO } from '../io/private';
-import { temporarilyWriteEnv } from './private/helpers';
+import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
 
 /**
  * Properties the builder function receives.
@@ -62,6 +62,14 @@ export interface AssemblyDirectoryProps {
    * Options to configure loading of the assembly after it has been synthesized
    */
   readonly loadAssemblyOptions?: LoadAssemblyOptions;
+
+  /**
+   * Whether or not to fail if the synthesized assembly contains
+   * missing context
+   *
+   * @default true
+   */
+  readonly failOnMissingContext?: boolean;
 }
 
 /**
@@ -388,6 +396,17 @@ export abstract class CloudAssemblySourceBuilder {
         try {
           const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
           const assembly = new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
+          if (assembly.cloudAssembly.manifest.missing && assembly.cloudAssembly.manifest.missing.length > 0) {
+            if (props.failOnMissingContext ?? true) {
+              const missingKeysSet = missingContextKeys(assembly.cloudAssembly.manifest.missing);
+              const missingKeys = Array.from(missingKeysSet);
+              throw new ToolkitError(
+                'Assembly contains missing context. ' +
+                  "Make sure all necessary context is already in 'cdk.context.json' by running 'cdk synth' on a machine with sufficient AWS credentials and committing the result. " +
+                  `Missing context keys: '${missingKeys.join(', ')}'`,
+              );
+            }
+          }
           return new CachedCloudAssembly(assembly);
         } catch (e) {
           await readLock.release();

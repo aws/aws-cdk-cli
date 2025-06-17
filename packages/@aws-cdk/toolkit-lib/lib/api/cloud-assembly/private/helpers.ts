@@ -1,3 +1,4 @@
+import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 /**
@@ -41,4 +42,11 @@ function detectSynthvarConflicts<A extends object>(obj: A) {
       return true;
     },
   });
+}
+
+/**
+ * Return all keys of missing context items
+ */
+export function missingContextKeys(missing?: MissingContext[]): Set<string> {
+  return new Set((missing || []).map((m) => m.key));
 }

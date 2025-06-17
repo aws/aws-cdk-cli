@@ -313,6 +313,23 @@ describe('fromAssemblyDirectory', () => {
     await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
   });
 
+  test('fails on missing context', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'assembly-missing-context');
+
+    // THEN
+    await expect(() => cx.produce()).rejects.toThrow(/Assembly contains missing context./);
+  });
+
+  test('no fail on missing context', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'assembly-missing-context', { failOnMissingContext: false });
+
+    // THEN
+    await using assembly = await cx.produce();
+    expect(assembly.cloudAssembly.manifest.missing?.length).toEqual(1);
+  });
+
   test('can disable manifest version validation', async () => {
     // WHEN
     const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future', {
