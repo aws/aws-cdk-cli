@@ -296,9 +296,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Upload scripts',
           uses: 'actions/upload-artifact@v4.4.0',
           with: {
-            name: 'script-artifact',
-            path: '.projen/*.sh',
-            overwrite: 'true',
+            'name': 'script-artifact',
+            'path': '.projen/*.sh',
+            'overwrite': 'true',
+            'include-hidden-files': true,
           },
         },
       ],

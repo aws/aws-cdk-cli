@@ -53,6 +53,7 @@ jobs:
           name: script-artifact
           path: .projen/*.sh
           overwrite: "true"
+          include-hidden-files: true
   integ_matrix:
     needs: prepare
     runs-on: aws-cdk_ubuntu-latest_16-core
