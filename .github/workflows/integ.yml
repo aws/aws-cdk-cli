@@ -102,7 +102,7 @@ jobs:
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
       - name: Prepare Verdaccio
-        run: .projen/prepare-verdaccio.sh
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
