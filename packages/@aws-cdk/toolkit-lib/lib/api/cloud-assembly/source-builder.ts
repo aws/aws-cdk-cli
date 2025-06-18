@@ -400,10 +400,11 @@ export abstract class CloudAssemblySourceBuilder {
             if (props.failOnMissingContext ?? true) {
               const missingKeysSet = missingContextKeys(assembly.cloudAssembly.manifest.missing);
               const missingKeys = Array.from(missingKeysSet);
-              throw new AssemblyError(
+              throw AssemblyError.withCause(
                 'Assembly contains missing context. ' +
                   "Make sure all necessary context is already in 'cdk.context.json' by running 'cdk synth' on a machine with sufficient AWS credentials and committing the result. " +
                   `Missing context keys: '${missingKeys.join(', ')}'`,
+                'Error producing assembly',
               );
             }
           }
