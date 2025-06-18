@@ -1073,6 +1073,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
     const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
+    const successfulMappingGroups: MappingGroup[] = [];
     for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
       const overrides = options.mappingSource?.overrides
         .find(group => group.account === environment.account && group.region === environment.region)
@@ -1123,15 +1124,51 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await notifyInfo('Refactoring...');
         await context.execute(stackDefinitions, sdkProvider, ioHelper);
         await notifyInfo('✅  Stack refactor complete');
+
+        successfulMappingGroups.push({
+          region: environment.region,
+          account: environment.account,
+          resources: Object.fromEntries(mappings.map(m => [m.source.toString(), m.destination.toString()])),
+        });
       } catch (e: any) {
-        await notifyError(`❌  ${statusReason(e)}`, e);
+        await notifyError(`❌  Refactor failed: ${statusReason(e)}`, e);
+      }
+    }
+
+    // End of refactor. Dump mappings to a file, so users can have an audit trail
+    // and/or use the file for reverting some mapping done incorrectly.
+    await dumpMappings(successfulMappingGroups);
+
+    async function dumpMappings(groups: MappingGroup[]) {
+      if (groups.length === 0) {
+        return;
+      }
+      const refactoringDir = path.join(process.cwd(), '.refactoring');
+      await fs.ensureDir(refactoringDir);
+
+      const fileName = path.join(refactoringDir, `mappings-${generateTimestamp()}.json`);
+      await fs.writeJson(fileName, {
+        environments: groups,
+      });
+
+      function generateTimestamp() {
+        const now = new Date();
+
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+
+        return `${year}${month}${day}T${hours}${minutes}${seconds}`;
       }
     }
 
     function statusReason(error: any): string {
       try {
         const payload = JSON.parse(error.message);
-        return payload.reason?.StatusReason ?? formatErrorMessage(error);
+        return `[${payload.reason?.ExecutionStatus ?? payload.reason?.Status}] ${payload.reason?.StatusReason ?? ''}`;
       } catch (e) {
         return formatErrorMessage(error);
       }

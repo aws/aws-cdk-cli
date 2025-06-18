@@ -112,7 +112,6 @@ export class RefactoringContext {
     }
   }
 
-  // TODO rename this function
   private mappingsFromOverrides(
     deployedStacks: CloudFormationStack[],
     localStacks: CloudFormationStack[],

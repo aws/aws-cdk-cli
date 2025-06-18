@@ -56,6 +56,10 @@ export class ResourceLocation {
   public equalTo(other: ResourceLocation): boolean {
     return this.logicalResourceId === other.logicalResourceId && this.stack.stackName === other.stack.stackName;
   }
+
+  public toString(): string {
+    return `${this.stack.stackName}.${this.logicalResourceId}`;
+  }
 }
 
 /**

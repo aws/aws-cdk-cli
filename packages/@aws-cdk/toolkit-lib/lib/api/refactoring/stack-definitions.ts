@@ -293,16 +293,19 @@ function generateTemplates(
   });
 
   // Add outputs to the templates
-  edges.forEach((edge) => {
+  for (const edge of edges) {
     if (edge.reference instanceof ImportValue) {
-      const stackName = edge.targets[0].location.stack.stackName;
-      const template = templates[stackName];
-      template.Outputs = {
-        ...(template.Outputs ?? {}),
-        ...edge.reference.output,
-      };
+      const targetStackName = edge.targets[0].location.stack.stackName;
+      const targetTemplate = templates[targetStackName];
+
+      if (edge.reference.output != null) {
+        targetTemplate.Outputs = {
+          ...(targetTemplate.Outputs ?? {}),
+          ...edge.reference.output,
+        };
+      }
     }
-  });
+  }
 
   // The freshly generated templates contain only resources and outputs.
   // Combine them with the existing templates to preserve metadata and other properties.
@@ -606,9 +609,9 @@ class ImportValue implements CloudFormationReference {
     }
   }
 
-  get output(): Record<string, any> {
+  get output(): Record<string, any> | undefined {
     if (this.outputName == null) {
-      throw new ToolkitError('Cannot access output before calling toCfn');
+      return undefined;
     }
     return { [this.outputName]: this.outputContent };
   }

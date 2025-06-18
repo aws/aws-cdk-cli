@@ -1288,10 +1288,9 @@ export class CdkToolkit {
 
     async function mappingSource(): Promise<MappingSource> {
       if (options.mappingFile != null) {
-        return MappingSource.explicit(await readMappingFile(options.mappingFile));
-      }
-      if (options.revert) {
-        return MappingSource.reverse(await readMappingFile(options.mappingFile));
+        return options.revert
+          ? MappingSource.reverse(await readMappingFile(options.mappingFile))
+          : MappingSource.explicit(await readMappingFile(options.mappingFile));
       }
 
       // const overrides = options.map ? parseMappingOverrides(options.map): [];
