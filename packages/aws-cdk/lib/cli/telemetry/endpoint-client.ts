@@ -1,4 +1,5 @@
 import { request } from 'https';
+import type { UrlWithStringQuery } from 'url';
 import { IoHelper } from '../../api-private';
 import type { IIoHost } from '../io-host';
 import type { ITelemetryClient } from './client-interface';
@@ -11,7 +12,7 @@ export interface EndpointTelemetryClientProps {
   /**
    * The external endpoint to hit
    */
-  readonly endpoint: URL;
+  readonly endpoint: UrlWithStringQuery;
 
   /**
    * Where messages are going to be sent
@@ -24,7 +25,7 @@ export interface EndpointTelemetryClientProps {
  */
 export class EndpointTelemetryClient implements ITelemetryClient {
   private events: TelemetrySchema[] = [];
-  private endpoint: URL;
+  private endpoint: UrlWithStringQuery;
   private ioHost: IoHelper;
 
   public constructor(props: EndpointTelemetryClientProps) {
@@ -66,7 +67,7 @@ export class EndpointTelemetryClient implements ITelemetryClient {
   }
 
   private async https(
-    url: URL,
+    url: UrlWithStringQuery,
     body: any, // to be schema
     ioHost: IoHelper,
   ): Promise<void> {
@@ -80,7 +81,7 @@ export class EndpointTelemetryClient implements ITelemetryClient {
  * A Promisified version of `https.request()`
  */
 function requestPromise(
-  url: URL,
+  url: UrlWithStringQuery,
   data: any, // to be schema
   ioHost: IoHelper,
 ) {
