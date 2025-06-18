@@ -221,9 +221,9 @@ type Exclude = { [key: string]: Exclude | true };
 /**
  * This function transforms all keys (recursively) in the provided `val` object.
  *
- * @param val The object whose keys need to be transformed.
- * @param transform The function that will be applied to each key.
- * @param exclude The keys that will not be transformed and copied to output directly
+ * @param val - The object whose keys need to be transformed.
+ * @param transform - The function that will be applied to each key.
+ * @param exclude - The keys that will not be transformed and copied to output directly
  * @returns A new object with the same values as `val`, but with all keys transformed according to `transform`.
  */
 export function transformObjectKeys(val: any, transform: (str: string) => string, exclude: Exclude = {}): any {

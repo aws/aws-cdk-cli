@@ -254,7 +254,7 @@ function expandHomeDir(x: string) {
  * `$HOME/.cdk.json`. Arguments not listed below and accessed via this object
  * can only be specified on the command line.
  *
- * @param argv the received CLI arguments.
+ * @param argv - the received CLI arguments.
  * @returns a new Settings object.
  */
 export function commandLineArgumentsToSettings(argv: Arguments): Settings {

@@ -11,8 +11,8 @@ import type { Resource, SpecDatabase } from '@aws-cdk/service-spec-types';
  * This makes diff consistent with CloudFormation, where a numeric 10 and a literal "10"
  * are considered equivalent.
  *
- * @param lvalue the left operand of the equality comparison.
- * @param rvalue the right operand of the equality comparison.
+ * @param lvalue - the left operand of the equality comparison.
+ * @param rvalue - the right operand of the equality comparison.
  *
  * @returns +true+ if both +lvalue+ and +rvalue+ are equivalent to each other.
  */
@@ -83,8 +83,8 @@ export function deepEqual(lvalue: any, rvalue: any): boolean {
 /**
  * Compares two arguments to DependsOn for equality.
  *
- * @param lvalue the left operand of the equality comparison.
- * @param rvalue the right operand of the equality comparison.
+ * @param lvalue - the left operand of the equality comparison.
+ * @param rvalue - the right operand of the equality comparison.
  *
  * @returns +true+ if both +lvalue+ and +rvalue+ are equivalent to each other.
  */
@@ -122,9 +122,9 @@ function dependsOnEqual(lvalue: any, rvalue: any): boolean {
 /**
  * Produce the differences between two maps, as a map, using a specified diff function.
  *
- * @param oldValue  the old map.
- * @param newValue  the new map.
- * @param elementDiff the diff function.
+ * @param oldValue  - the old map.
+ * @param newValue  - the new map.
+ * @param elementDiff - the diff function.
  *
  * @returns a map representing the differences between +oldValue+ and +newValue+.
  */
@@ -150,8 +150,8 @@ export function diffKeyedEntities<T>(
 /**
  * Computes the union of two sets of strings.
  *
- * @param lv the left set of strings.
- * @param rv the right set of strings.
+ * @param lv - the left set of strings.
+ * @param rv - the right set of strings.
  *
  * @returns a new array containing all elemebts from +lv+ and +rv+, with no duplicates.
  */

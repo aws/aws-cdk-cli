@@ -93,7 +93,7 @@ export enum EventType {
 
 /**
  * A helper function to convert shell events to asset progress events
- * @param event a shell event
+ * @param event - a shell event
  * @returns an {@link EventType}
  */
 export function shellEventToEventType(event: ShellEventType): EventType {

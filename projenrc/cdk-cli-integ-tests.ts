@@ -1,6 +1,6 @@
 import { yarn } from 'cdklabs-projen-project-types';
 import type { javascript, Project } from 'projen';
-import { Component, github } from 'projen';
+import { Component, github, TextFile } from 'projen';
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
@@ -77,6 +77,15 @@ export interface CdkCliIntegTestsWorkflowProps {
    * @default - the cli integ test package determines a sensible default
    */
   readonly maxWorkers?: string;
+
+  /**
+   * Additional Node versions to some particular suites against.
+   *
+   * Use the version syntax of `setup-node`. `'lts/*'` is always included automatically.
+   *
+   * @see https://github.com/actions/setup-node?tab=readme-ov-file#supported-version-syntax
+   */
+  readonly additionalNodeVersionsToTest?: string[];
 }
 
 /**
@@ -130,6 +139,65 @@ export class CdkCliIntegTestsWorkflow extends Component {
     if (props.maxWorkers) {
       maxWorkersArg = ` --maxWorkers=${props.maxWorkers}`;
     }
+
+    const verdaccioConfig = {
+      storage: './storage',
+      auth: { htpasswd: { file: './htpasswd' } },
+      uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
+      packages: {} as Record<string, unknown>,
+    };
+
+    for (const pack of localPackages) {
+      const allowUpstream = upstreamVersions.includes(pack);
+
+      verdaccioConfig.packages[pack] = {
+        access: '$all',
+        publish: '$all',
+        proxy: allowUpstream ? 'npmjs' : 'none',
+      };
+    }
+    verdaccioConfig.packages['**'] = {
+      access: '$all',
+      proxy: 'npmjs',
+    };
+
+    // bash only expands {...} if there's a , in there, otherwise it will leave the
+    // braces in literally. So we need to do case analysis here. Thanks, I hate it.
+    const tarballBashExpr = localPackages.length === 1
+      ? `packages/${localPackages[0]}/dist/js/*.tgz`
+      : `packages/{${localPackages.join(',')}}/dist/js/*.tgz`;
+
+    // Add a script that will upload all packages to Verdaccio.
+    //
+    // This is a script because we want to be able to update it on a per-branch basis
+    // (so this information cannot live in the workflow, because that only takes effect after
+    // a PR changing it has been merged to `main`).
+    //
+    // It also cannot be a simple projen task, because we run the tests disconnected
+    // from a source checkout and we need to transfer artifacts from the 'prepare' job to
+    // the 'run' job.
+    //
+    // So we create a script file that we send as an artifact, and run in the
+    // 'run' job.
+
+    new TextFile(repo, '.projen/prepare-verdaccio.sh', {
+      executable: true,
+      lines: [
+        '#!/bin/bash',
+        'npm install -g verdaccio pm2',
+        'mkdir -p $HOME/.config/verdaccio',
+        `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
+        'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
+        'sleep 5', // Wait for Verdaccio to start
+        // Configure NPM to use local registry
+        'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
+        'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
+        // Find and locally publish all tarballs
+        `for pkg in ${tarballBashExpr}; do`,
+        '  npm publish --loglevel=warn $pkg',
+        'done',
+      ],
+    });
 
     runTestsWorkflow.on({
       pullRequestTarget: {
@@ -224,38 +292,32 @@ export class CdkCliIntegTestsWorkflow extends Component {
             overwrite: 'true',
           },
         },
+        {
+          name: 'Upload scripts',
+          uses: 'actions/upload-artifact@v4.4.0',
+          with: {
+            'name': 'script-artifact',
+            'path': '.projen/*.sh',
+            'overwrite': 'true',
+            'include-hidden-files': true,
+          },
+        },
       ],
     });
 
-    const verdaccioConfig = {
-      storage: './storage',
-      auth: { htpasswd: { file: './htpasswd' } },
-      uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
-      packages: {} as Record<string, unknown>,
-    };
-
-    for (const pack of localPackages) {
-      const allowUpstream = upstreamVersions.includes(pack);
-
-      verdaccioConfig.packages[pack] = {
-        access: '$all',
-        publish: '$all',
-        proxy: allowUpstream ? 'npmjs' : 'none',
-      };
-    }
-    verdaccioConfig.packages['**'] = {
-      access: '$all',
-      proxy: 'npmjs',
-    };
-
-    // bash only expands {...} if there's a , in there, otherwise it will leave the
-    // braces in literally. So we need to do case analysis here. Thanks, I hate it.
-    const tarballBashExpr = localPackages.length === 1
-      ? `packages/${localPackages[0]}/dist/js/*.tgz`
-      : `packages/{${localPackages.join(',')}}/dist/js/*.tgz`;
-
     // We create a matrix job for the test.
     // This job will run all the different test suites in parallel.
+    const matrixInclude: github.workflows.JobMatrix['include'] = [];
+    const matrixExclude: github.workflows.JobMatrix['exclude'] = [];
+
+    // In addition to the default runs, run these suites under different Node versions
+    matrixInclude.push(...['init-typescript-app', 'toolkit-lib-integ-tests'].flatMap(
+      suite => (props.additionalNodeVersionsToTest ?? []).map(node => ({ suite, node }))));
+
+    // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
+    matrixExclude.push({ suite: 'tool-integrations', node: 'lts/*' });
+    matrixInclude.push({ suite: 'tool-integrations', node: 20 });
+
     const JOB_INTEG_MATRIX = 'integ_matrix';
     runTestsWorkflow.addJob(JOB_INTEG_MATRIX, {
       environment: props.testEnvironment,
@@ -296,7 +358,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
               'init-typescript-lib',
               'tool-integrations',
             ],
+            node: ['lts/*'],
           },
+          include: matrixInclude,
+          exclude: matrixExclude,
         },
       },
       steps: [
@@ -306,6 +371,21 @@ export class CdkCliIntegTestsWorkflow extends Component {
           with: {
             name: 'build-artifact',
             path: 'packages',
+          },
+        },
+        {
+          name: 'Download scripts',
+          uses: 'actions/download-artifact@v4',
+          with: {
+            name: 'script-artifact',
+            path: '.projen',
+          },
+        },
+        {
+          name: 'Setup Node.js',
+          uses: 'actions/setup-node@v4',
+          with: {
+            'node-version': '${{ matrix.node }}',
           },
         },
         {
@@ -339,38 +419,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
           ].join('\n'),
         },
         {
-          name: 'Install Verdaccio',
-          run: 'npm install -g verdaccio pm2',
-        },
-        {
-          name: 'Create Verdaccio config',
-          run: [
-            'mkdir -p $HOME/.config/verdaccio',
-            `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-          ].join('\n'),
-        },
-        {
-          name: 'Start Verdaccio',
-          run: [
-            'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
-            'sleep 5 # Wait for Verdaccio to start',
-          ].join('\n'),
-        },
-        {
-          name: 'Configure npm to use local registry',
-          run: [
-            // This token is a bogus token. It doesn't represent any actual secret, it just needs to exist.
-            'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
-            'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
-          ].join('\n'),
-        },
-        {
-          name: 'Find an locally publish all tarballs',
-          run: [
-            `for pkg in ${tarballBashExpr}; do`,
-            '  npm publish $pkg',
-            'done',
-          ].join('\n'),
+          name: 'Prepare Verdaccio',
+          run: 'chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh',
         },
         {
           name: 'Download and install the test artifact',
@@ -425,13 +475,26 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'fi',
           ].join('\n'),
         },
+        // Slugify artifact ID, because matrix.node will contain invalid chars
+        {
+          name: 'Slugify artifact id',
+          if: 'always()',
+          id: 'artifactid',
+          run: [
+            'slug=$(node -p \'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")\')',
+            'echo "slug=$slug" >> "$GITHUB_OUTPUT"',
+          ].join('\n'),
+          env: {
+            INPUT: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+          },
+        },
         {
           name: 'Upload logs',
           if: 'always()',
           uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
           with: {
-            name: 'logs-${{ matrix.suite }}',
+            name: '${{ steps.artifactid.outputs.slug }}',
             path: 'logs/',
             overwrite: 'true',
           },

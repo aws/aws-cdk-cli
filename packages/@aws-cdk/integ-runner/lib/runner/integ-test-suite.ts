@@ -126,7 +126,7 @@ export class LegacyIntegTestSuite extends IntegTestSuite {
    *    /// !cdk-integ <stack-name>
    *
    */
-  public static fromLegacy(config: LegacyTestCaseConfig): LegacyIntegTestSuite {
+  public static async fromLegacy(config: LegacyTestCaseConfig): Promise<LegacyIntegTestSuite> {
     const pragmas = this.pragmas(config.integSourceFilePath);
     const tests: TestCase = {
       stacks: [],
@@ -141,7 +141,7 @@ export class LegacyIntegTestSuite extends IntegTestSuite {
         ...config.listOptions,
         notices: false,
       };
-      const stacks = (config.cdk.list(options)).split('\n');
+      const stacks = await config.cdk.list(options);
       if (stacks.length !== 1) {
         throw new Error('"cdk-integ" can only operate on apps with a single stack.\n\n' +
           '  If your app has multiple stacks, specify which stack to select by adding this to your test source:\n\n' +

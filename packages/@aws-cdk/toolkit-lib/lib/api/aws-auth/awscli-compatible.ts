@@ -191,7 +191,7 @@ export class AwsCliCompatible {
   /**
    * Looks up the region of the provided profile. If no region is present,
    * it will attempt to lookup the default region.
-   * @param profile The profile to use to lookup the region
+   * @param profile - The profile to use to lookup the region
    * @returns The region for the profile or default profile, if present. Otherwise returns undefined.
    */
   private async getRegionFromIni(profile: string): Promise<string | undefined> {

@@ -1,4 +1,4 @@
-import type { DefaultCdkOptions } from './common';
+import type { DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
 
 /**
  * Options to use with cdk synth

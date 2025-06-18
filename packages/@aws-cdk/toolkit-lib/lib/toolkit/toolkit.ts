@@ -71,7 +71,7 @@ import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cl
 import { RefactoringContext } from '../api/refactoring/context';
 import { hashObject } from '../api/refactoring/digest';
 import { ResourceMigrator } from '../api/resource-import';
-import { tagsForStack } from '../api/tags';
+import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
@@ -100,7 +100,7 @@ export interface ToolkitOptions {
    * in messages sent to the IoHost.
    * Setting this value to true is a no-op; it is equivalent to the default.
    *
-   * @default - detects color from the TTY status of the IoHost
+   * @default - Detects color from the TTY status of the IoHost
    */
   readonly color?: boolean;
 

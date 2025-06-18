@@ -312,8 +312,8 @@ export class IntegrationTests {
    * Takes an optional list of tests to look for, otherwise
    * it will look for all tests from the directory
    *
-   * @param tests Tests to include or exclude, undefined means include all tests.
-   * @param exclude Whether the 'tests' list is inclusive or exclusive (inclusive by default).
+   * @param tests - Tests to include or exclude, undefined means include all tests.
+   * @param exclude - Whether the 'tests' list is inclusive or exclusive (inclusive by default).
    */
   private async discover(options: IntegrationTestsDiscoveryOptions, ignoreUncompiledTypeScript: boolean = false): Promise<IntegTest[]> {
     const files = await this.readTree();

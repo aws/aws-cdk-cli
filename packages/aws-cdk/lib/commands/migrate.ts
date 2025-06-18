@@ -33,10 +33,10 @@ const MIGRATE_SUPPORTED_LANGUAGES: readonly string[] = cdk_from_cfn.supported_la
 /**
  * Generates a CDK app from a yaml or json template.
  *
- * @param stackName The name to assign to the stack in the generated app
- * @param stack The yaml or json template for the stack
- * @param language The language to generate the CDK app in
- * @param outputPath The path at which to generate the CDK app
+ * @param stackName - The name to assign to the stack in the generated app
+ * @param stack - The yaml or json template for the stack
+ * @param language - The language to generate the CDK app in
+ * @param outputPath - The path at which to generate the CDK app
  */
 export async function generateCdkApp(
   stackName: string,
@@ -97,9 +97,9 @@ export async function generateCdkApp(
 
 /**
  * Generates a CDK stack file.
- * @param template The template to translate into a CDK stack
- * @param stackName The name to assign to the stack
- * @param language The language to generate the stack in
+ * @param template - The template to translate into a CDK stack
+ * @param stackName - The name to assign to the stack
+ * @param language - The language to generate the stack in
  * @returns A string representation of a CDK stack file
  */
 export function generateStack(template: string, stackName: string, language: string) {
@@ -114,7 +114,7 @@ export function generateStack(template: string, stackName: string, language: str
 /**
  * Reads and returns a stack template from a local path.
  *
- * @param inputPath The location of the template
+ * @param inputPath - The location of the template
  * @returns A string representation of the template if present, otherwise undefined
  */
 export function readFromPath(inputPath: string): string {
@@ -133,9 +133,9 @@ export function readFromPath(inputPath: string): string {
 /**
  * Reads and returns a stack template from a deployed CloudFormation stack.
  *
- * @param stackName The name of the stack
- * @param sdkProvider The sdk provider for making CloudFormation calls
- * @param environment The account and region where the stack is deployed
+ * @param stackName - The name of the stack
+ * @param sdkProvider - The sdk provider for making CloudFormation calls
+ * @param environment - The account and region where the stack is deployed
  * @returns A string representation of the template if present, otherwise undefined
  */
 export async function readFromStack(
@@ -159,7 +159,7 @@ export async function readFromStack(
  * Takes in a stack name and account and region and returns a generated cloudformation template using the cloudformation
  * template generator.
  *
- * @param GenerateTemplateOptions An object containing the stack name, filters, sdkProvider, environment, and newScan flag
+ * @param GenerateTemplateOptions - An object containing the stack name, filters, sdkProvider, environment, and newScan flag
  * @returns a generated cloudformation template
  */
 export async function generateTemplate(options: GenerateTemplateOptions): Promise<GenerateTemplateOutput> {
@@ -241,7 +241,7 @@ async function findLastSuccessfulScan(
 /**
  * Takes a string of filters in the format of key1=value1,key2=value2 and returns a map of the filters.
  *
- * @param filters a string of filters in the format of key1=value1,key2=value2
+ * @param filters - a string of filters in the format of key1=value1,key2=value2
  * @returns a map of the filters
  */
 function parseFilters(filters: string): {
@@ -292,8 +292,8 @@ function parseFilters(filters: string): {
 /**
  * Takes a list of any type and breaks it up into chunks of a specified size.
  *
- * @param list The list to break up
- * @param chunkSize The size of each chunk
+ * @param list - The list to break up
+ * @param chunkSize - The size of each chunk
  * @returns A list of lists of the specified size
  */
 export function chunks(list: any[], chunkSize: number): any[][] {
@@ -306,8 +306,8 @@ export function chunks(list: any[], chunkSize: number): any[][] {
 
 /**
  * Sets the account and region for making CloudFormation calls.
- * @param account The account to use
- * @param region The region to use
+ * @param account - The account to use
+ * @param region - The region to use
  * @returns The environment object
  */
 export function setEnvironment(account?: string, region?: string): Environment {
@@ -353,8 +353,8 @@ export enum FilterType {
 
 /**
  * Validates that exactly one source option has been provided.
- * @param fromPath The content of the flag `--from-path`
- * @param fromStack the content of the flag `--from-stack`
+ * @param fromPath - The content of the flag `--from-path`
+ * @param fromStack - the content of the flag `--from-stack`
  */
 export function parseSourceOptions(fromPath?: string, fromStack?: boolean, stackName?: string): TemplateSource {
   if (fromPath && fromStack) {
@@ -375,7 +375,7 @@ export function parseSourceOptions(fromPath?: string, fromStack?: boolean, stack
 /**
  * Takes a set of resources and removes any with the managedbystack flag set to true.
  *
- * @param resourceList the list of resources provided by the list scanned resources calls
+ * @param resourceList - the list of resources provided by the list scanned resources calls
  * @returns a list of resources not managed by cfn stacks
  */
 function excludeManaged(resourceList: ScannedResource[]): ScannedResourceIdentifier[] {
@@ -391,7 +391,7 @@ function excludeManaged(resourceList: ScannedResource[]): ScannedResourceIdentif
  * Transforms a list of resources into a list of resource identifiers by removing the ManagedByStack flag.
  * Setting the value of the field to undefined effectively removes it from the object.
  *
- * @param resourceList the list of resources provided by the list scanned resources calls
+ * @param resourceList - the list of resources provided by the list scanned resources calls
  * @returns a list of ScannedResourceIdentifier[]
  */
 function resourceIdentifiers(resourceList: ScannedResource[]): ScannedResourceIdentifier[] {
@@ -409,8 +409,8 @@ function resourceIdentifiers(resourceList: ScannedResource[]): ScannedResourceId
 /**
  * Takes a scan id and maintains a progress bar to display the progress of a scan to the user.
  *
- * @param scanId A string representing the scan id
- * @param cloudFormation The CloudFormation sdk client to use
+ * @param scanId - A string representing the scan id
+ * @param cloudFormation - The CloudFormation sdk client to use
  */
 export async function scanProgressBar(scanId: string, cfn: CfnTemplateGeneratorProvider) {
   let curProgress = 0.5;
@@ -433,8 +433,8 @@ export async function scanProgressBar(scanId: string, cfn: CfnTemplateGeneratorP
  * Prints a progress bar to the console. To be used in a while loop to show progress of a long running task.
  * The progress bar deletes the current line on the console and rewrites it with the progress amount.
  *
- * @param width The width of the progress bar
- * @param progress The current progress to display as a percentage of 100
+ * @param width - The width of the progress bar
+ * @param progress - The current progress to display as a percentage of 100
  */
 export function printBar(width: number, progress: number) {
   if (!process.env.MIGRATE_INTEG_TEST) {
@@ -459,8 +459,8 @@ export function printBar(width: number, progress: number) {
  * Prints a message to the console with a series periods appended to it. To be used in a while loop to show progress of a long running task.
  * The message deletes the current line and rewrites it several times to display 1-3 periods to show the user that the task is still running.
  *
- * @param message The message to display
- * @param timeoutx4 The amount of time to wait before printing the next period
+ * @param message - The message to display
+ * @param timeoutx4 - The amount of time to wait before printing the next period
  */
 export async function printDots(message: string, timeoutx4: number) {
   if (!process.env.MIGRATE_INTEG_TEST) {
@@ -482,7 +482,7 @@ export async function printDots(message: string, timeoutx4: number) {
  * Rewrites the current line on the console and writes a new message to it.
  * This is a helper funciton for printDots and printBar.
  *
- * @param message The message to display
+ * @param message - The message to display
  */
 export function rewriteLine(message: string) {
   process.stdout.clearLine(0);
@@ -493,8 +493,8 @@ export function rewriteLine(message: string) {
 /**
  * Prints the time difference between two dates in days, hours, and minutes.
  *
- * @param time1 The first date to compare
- * @param time2 The second date to compare
+ * @param time1 - The first date to compare
+ * @param time2 - The second date to compare
  */
 export function displayTimeDiff(time1: Date, time2: Date): void {
   const diff = Math.abs(time1.getTime() - time2.getTime());
@@ -509,9 +509,9 @@ export function displayTimeDiff(time1: Date, time2: Date): void {
 /**
  * Writes a migrate.json file to the output directory.
  *
- * @param outputPath The path to write the migrate.json file to
- * @param stackName The name of the stack
- * @param generatedOutput The output of the template generator
+ * @param outputPath - The path to write the migrate.json file to
+ * @param stackName - The name of the stack
+ * @param generatedOutput - The output of the template generator
  */
 export function writeMigrateJsonFile(
   outputPath: string | undefined,
@@ -532,7 +532,7 @@ export function writeMigrateJsonFile(
 /**
  * Takes a string representing the from-scan flag and returns a FromScan enum value.
  *
- * @param scanType A string representing the from-scan flag
+ * @param scanType - A string representing the from-scan flag
  * @returns A FromScan enum value
  */
 export function getMigrateScanType(scanType: string) {
@@ -553,7 +553,7 @@ export function getMigrateScanType(scanType: string) {
 /**
  * Takes a generatedTemplateOutput objct and returns a boolean representing whether there are any warnings on any rescources.
  *
- * @param generatedTemplateOutput A GenerateTemplateOutput object
+ * @param generatedTemplateOutput - A GenerateTemplateOutput object
  * @returns A boolean representing whether there are any warnings on any rescources
  */
 export function isThereAWarning(generatedTemplateOutput: GenerateTemplateOutput) {
@@ -570,8 +570,8 @@ export function isThereAWarning(generatedTemplateOutput: GenerateTemplateOutput)
 /**
  * Builds the GenerateTemplateOutput object from the DescribeGeneratedTemplateOutput and the template body.
  *
- * @param generatedTemplateSummary The output of the describe generated template call
- * @param templateBody The body of the generated template
+ * @param generatedTemplateSummary - The output of the describe generated template call
+ * @param templateBody - The body of the generated template
  * @returns A GenerateTemplateOutput object
  */
 export function buildGenertedTemplateOutput(
@@ -600,8 +600,8 @@ export function buildGenertedTemplateOutput(
 /**
  * Builds a CloudFormation sdk client for making requests with the CFN template generator.
  *
- * @param sdkProvider The sdk provider for making CloudFormation calls
- * @param environment The account and region where the stack is deployed
+ * @param sdkProvider - The sdk provider for making CloudFormation calls
+ * @param environment - The account and region where the stack is deployed
  * @returns A CloudFormation sdk client
  */
 export async function buildCfnClient(sdkProvider: SdkProvider, environment: Environment) {
@@ -613,8 +613,8 @@ export async function buildCfnClient(sdkProvider: SdkProvider, environment: Envi
 /**
  * Appends a list of warnings to a readme file.
  *
- * @param filepath The path to the readme file
- * @param resources A list of resources to append warnings for
+ * @param filepath - The path to the readme file
+ * @param resources - A list of resources to append warnings for
  */
 export function appendWarningsToReadme(filepath: string, resources: ResourceDetail[]) {
   const readme = fs.readFileSync(filepath, 'utf8');
@@ -647,7 +647,7 @@ export function appendWarningsToReadme(filepath: string, resources: ResourceDeta
 /**
  * takes a list of resources and returns a list of unique resources based on the resource type and logical resource id.
  *
- * @param resources A list of resources to deduplicate
+ * @param resources - A list of resources to deduplicate
  * @returns A list of unique resources
  */
 function deduplicateResources(resources: ResourceDetail[]) {
@@ -695,8 +695,8 @@ export class CfnTemplateGeneratorProvider {
    * Retrieves a tokenized list of resources and their associated scan. If a token is present the function
    * will loop through all pages and combine them into a single list of ScannedRelatedResources
    *
-   * @param scanId scan id for the to list resources for
-   * @param resources A list of resources to find related resources for
+   * @param scanId - scan id for the to list resources for
+   * @param resources - A list of resources to find related resources for
    */
   async getResourceScanRelatedResources(
     scanId: string,
@@ -765,8 +765,8 @@ export class CfnTemplateGeneratorProvider {
    * will loop through all pages and combine them into a single list of ScannedResource[].
    * Additionally will apply any filters provided by the customer.
    *
-   * @param scanId scan id for the to list resources for
-   * @param filters a string of filters in the format of key1=value1,key2=value2
+   * @param scanId - scan id for the to list resources for
+   * @param filters - a string of filters in the format of key1=value1,key2=value2
    * @returns a combined list of all resources from the scan
    */
   async listResourceScanResources(scanId: string, filters: string[] = []): Promise<ScannedResourceIdentifier[]> {
@@ -826,7 +826,7 @@ export class CfnTemplateGeneratorProvider {
   /**
    * Retrieves information about a resource scan.
    *
-   * @param scanId scan id for the to list resources for
+   * @param scanId - scan id for the to list resources for
    * @returns information about the scan
    */
   async describeResourceScan(scanId: string): Promise<DescribeResourceScanCommandOutput> {
@@ -838,7 +838,7 @@ export class CfnTemplateGeneratorProvider {
   /**
    * Describes the current status of the template being generated.
    *
-   * @param templateId A string representing the template id
+   * @param templateId - A string representing the template id
    * @returns DescribeGeneratedTemplateOutput an object containing the template status and results
    */
   async describeGeneratedTemplate(templateId: string): Promise<DescribeGeneratedTemplateCommandOutput> {
@@ -856,8 +856,8 @@ export class CfnTemplateGeneratorProvider {
   /**
    * Retrieves a completed generated cloudformation template from the template generator.
    *
-   * @param templateId A string representing the template id
-   * @param cloudFormation The CloudFormation sdk client to use
+   * @param templateId - A string representing the template id
+   * @param cloudFormation - The CloudFormation sdk client to use
    * @returns DescribeGeneratedTemplateOutput an object containing the template status and body
    */
   async getGeneratedTemplate(templateId: string): Promise<GetGeneratedTemplateCommandOutput> {
@@ -869,8 +869,8 @@ export class CfnTemplateGeneratorProvider {
   /**
    * Kicks off a template generation for a set of resources.
    *
-   * @param stackName The name of the stack
-   * @param resources A list of resources to generate the template from
+   * @param stackName - The name of the stack
+   * @param resources - A list of resources to generate the template from
    * @returns CreateGeneratedTemplateOutput an object containing the template arn to query on later
    */
   async createGeneratedTemplate(stackName: string, resources: ResourceDefinition[]) {
@@ -888,7 +888,7 @@ export class CfnTemplateGeneratorProvider {
   /**
    * Deletes a generated template from the template generator.
    *
-   * @param templateArn The arn of the template to delete
+   * @param templateArn - The arn of the template to delete
    * @returns A promise that resolves when the template has been deleted
    */
   async deleteGeneratedTemplate(templateArn: string): Promise<void> {
@@ -921,11 +921,11 @@ export enum FromScan {
 /**
  * Interface for the options object passed to the generateTemplate function
  *
- * @param stackName The name of the stack
- * @param filters A list of filters to apply to the scan
- * @param fromScan An enum value specifying whether a new scan should be started or the most recent successful scan should be used
- * @param sdkProvider The sdk provider for making CloudFormation calls
- * @param environment The account and region where the stack is deployed
+ * @param stackName - The name of the stack
+ * @param filters - A list of filters to apply to the scan
+ * @param fromScan - An enum value specifying whether a new scan should be started or the most recent successful scan should be used
+ * @param sdkProvider - The sdk provider for making CloudFormation calls
+ * @param environment - The account and region where the stack is deployed
  */
 export interface GenerateTemplateOptions {
   stackName: string;
@@ -938,8 +938,8 @@ export interface GenerateTemplateOptions {
 /**
  * Interface for the output of the generateTemplate function
  *
- * @param migrateJson The generated Migrate.json file
- * @param resources The generated template
+ * @param migrateJson - The generated Migrate.json file
+ * @param resources - The generated template
  */
 export interface GenerateTemplateOutput {
   migrateJson: MigrateJsonFormat;
@@ -950,9 +950,9 @@ export interface GenerateTemplateOutput {
 /**
  * Interface defining the format of the generated Migrate.json file
  *
- * @param TemplateBody The generated template
- * @param Source The source of the template
- * @param Resources A list of resources that were used to generate the template
+ * @param TemplateBody - The generated template
+ * @param Source - The source of the template
+ * @param Resources - A list of resources that were used to generate the template
  */
 export interface MigrateJsonFormat {
   templateBody: string;
@@ -963,9 +963,9 @@ export interface MigrateJsonFormat {
 /**
  * Interface representing the format of a resource identifier required for resource import
  *
- * @param ResourceType The type of resource
- * @param LogicalResourceId The logical id of the resource
- * @param ResourceIdentifier The resource identifier of the resource
+ * @param ResourceType - The type of resource
+ * @param LogicalResourceId - The logical id of the resource
+ * @param ResourceIdentifier - The resource identifier of the resource
  */
 export interface GeneratedResourceImportIdentifier {
   // cdk deploy expects the migrate.json resource identifiers to be PascalCase, not camelCase.

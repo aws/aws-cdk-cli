@@ -28,6 +28,7 @@
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "declarationMap": true,
     "rootDir": ".",
     "composite": true,
     "outDir": "lib"

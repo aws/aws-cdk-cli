@@ -22,7 +22,7 @@ export interface NoticesHttpOptions {
    *
    * Use this so set up a proxy connection.
    *
-   * @default - uses the shared global node agent
+   * @default - Uses the shared global node agent
    */
   readonly agent?: Agent;
 }
@@ -214,7 +214,7 @@ export class Notices {
   /**
    * List all notices available in the data source.
    *
-   * @param includeAcknowlegded Whether to include acknowledged notices.
+   * @param includeAcknowlegded - Whether to include acknowledged notices.
    */
   private noticesFromData(includeAcknowlegded = false): Notice[] {
     const data = Array.from(this.data);

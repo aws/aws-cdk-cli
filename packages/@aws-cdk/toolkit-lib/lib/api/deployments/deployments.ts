@@ -88,7 +88,7 @@ export interface DeployStackOptions {
   /**
    * Stage the change set but don't execute it
    *
-   * @default - true
+   * @default true
    * @deprecated Use 'deploymentMethod' instead
    */
   readonly execute?: boolean;
@@ -116,7 +116,7 @@ export interface DeployStackOptions {
 
   /**
    * Extra parameters for CloudFormation
-   * @default - no additional parameters will be passed to the template
+   * @default - No additional parameters will be passed to the template
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -157,7 +157,7 @@ export interface DeployStackOptions {
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - Nothing extra is appended to the User-Agent header
    */
   readonly extraUserAgent?: string;
 

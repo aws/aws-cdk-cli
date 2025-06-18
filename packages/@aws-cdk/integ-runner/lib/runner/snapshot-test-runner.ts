@@ -44,10 +44,16 @@ export class IntegSnapshotRunner extends IntegRunner {
    *
    * @returns any diagnostics and any destructive changes
    */
-  public testSnapshot(options: SnapshotVerificationOptions = {}): { diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] } {
+  public async testSnapshot(options: SnapshotVerificationOptions = {}): Promise<{
+    diagnostics: Diagnostic[];
+    destructiveChanges: DestructiveChange[];
+  }> {
+    const actualTestSuite = await this.actualTestSuite();
+    const expectedTestSuite = await this.expectedTestSuite();
+
     let doClean = true;
     try {
-      const expectedSnapshotAssembly = this.getSnapshotAssembly(this.snapshotDir, this.expectedTestSuite?.stacks);
+      const expectedSnapshotAssembly = this.getSnapshotAssembly(this.snapshotDir, expectedTestSuite?.stacks);
 
       // synth the integration test
       // FIXME: ideally we should not need to run this again if
@@ -57,20 +63,20 @@ export class IntegSnapshotRunner extends IntegRunner {
       const env = {
         ...DEFAULT_SYNTH_OPTIONS.env,
         CDK_CONTEXT_JSON: JSON.stringify(this.getContext({
-          ...this.actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {},
+          ...actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {},
         })),
       };
-      this.cdk.synthFast({
+      await this.cdk.synthFast({
         execCmd: this.cdkApp.split(' '),
         env,
         output: path.relative(this.directory, this.cdkOutDir),
       });
 
       // read the "actual" snapshot
-      const actualSnapshotAssembly = this.getSnapshotAssembly(this.cdkOutDir, this.actualTestSuite.stacks);
+      const actualSnapshotAssembly = this.getSnapshotAssembly(this.cdkOutDir, actualTestSuite.stacks);
 
       // diff the existing snapshot (expected) with the integration test (actual)
-      const diagnostics = this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly);
+      const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly);
 
       if (diagnostics.diagnostics.length) {
         // Attach additional messages to the first diagnostic
@@ -118,8 +124,8 @@ export class IntegSnapshotRunner extends IntegRunner {
    * For a given cloud assembly return a collection of all templates
    * that should be part of the snapshot and any required meta data.
    *
-   * @param cloudAssemblyDir The directory of the cloud assembly to look for snapshots
-   * @param pickStacks Pick only these stacks from the cloud assembly
+   * @param cloudAssemblyDir - The directory of the cloud assembly to look for snapshots
+   * @param pickStacks - Pick only these stacks from the cloud assembly
    * @returns A SnapshotAssembly, the collection of all templates in this snapshot and required meta data
    */
   private getSnapshotAssembly(cloudAssemblyDir: string, pickStacks: string[] = []): SnapshotAssembly {
@@ -148,11 +154,11 @@ export class IntegSnapshotRunner extends IntegRunner {
    * For a given stack return all resource types that are allowed to be destroyed
    * as part of a stack update
    *
-   * @param stackId the stack id
+   * @param stackId - the stack id
    * @returns a list of resource types or undefined if none are found
    */
-  private getAllowedDestroyTypesForStack(stackId: string): string[] | undefined {
-    for (const testCase of Object.values(this.actualTests() ?? {})) {
+  private async getAllowedDestroyTypesForStack(stackId: string): Promise<string[] | undefined> {
+    for (const testCase of Object.values((await this.actualTests()) ?? {})) {
       if (testCase.stacks.includes(stackId)) {
         return testCase.allowDestroy;
       }
@@ -167,10 +173,10 @@ export class IntegSnapshotRunner extends IntegRunner {
    * @param actual - the new (actual) snapshot
    * @returns any diagnostics and any destructive changes
    */
-  private diffAssembly(
+  private async diffAssembly(
     expected: SnapshotAssembly,
     actual: SnapshotAssembly,
-  ): { diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] } {
+  ): Promise<{ diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] }> {
     const failures: Diagnostic[] = [];
     const destructiveChanges: DestructiveChange[] = [];
 
@@ -203,7 +209,7 @@ export class IntegSnapshotRunner extends IntegRunner {
           continue;
         } else {
           const config = {
-            diffAssets: this.actualTestSuite.getOptionsForStack(stackId)?.diffAssets,
+            diffAssets: (await this.actualTestSuite()).getOptionsForStack(stackId)?.diffAssets,
           };
           let actualTemplate = actual[stackId].templates[templateId];
           let expectedTemplate = expected[stackId].templates[templateId];
@@ -217,7 +223,7 @@ export class IntegSnapshotRunner extends IntegRunner {
           }
           const templateDiff = fullDiff(expectedTemplate, actualTemplate);
           if (!templateDiff.isEmpty) {
-            const allowedDestroyTypes = this.getAllowedDestroyTypesForStack(stackId) ?? [];
+            const allowedDestroyTypes = (await this.getAllowedDestroyTypesForStack(stackId)) ?? [];
 
             // go through all the resource differences and check for any
             // "destructive" changes
