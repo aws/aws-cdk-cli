@@ -27,39 +27,39 @@ afterEach(() => {
 
 const directory = path.join(__dirname, '..', 'test-data');
 describe('Snapshot tests', () => {
-  test('no snapshot', () => {
+  test('no snapshot', async () => {
     // WHEN
     const test = {
       fileName: path.join(directory, 'xxxxx.integ-test1.js'),
       discoveryRoot: directory,
     };
-    const result = snapshotTestWorker(test);
+    const result = await snapshotTestWorker(test);
 
     // THEN
     expect(result.length).toEqual(1);
     expect(result[0]).toEqual(test);
   });
 
-  test('has snapshot', () => {
+  test('has snapshot', async () => {
     // WHEN
     const test = {
       fileName: path.join(directory, 'xxxxx.test-with-snapshot.js'),
       discoveryRoot: directory,
     };
-    const result = snapshotTestWorker(test);
+    const result = await snapshotTestWorker(test);
 
     // THEN
     expect(result.length).toEqual(1);
   });
 
-  test('failed snapshot', () => {
+  test('failed snapshot', async () => {
     // WHEN
     const test = {
       fileName: path.join(directory, 'xxxxx.test-with-snapshot-assets-diff.js'),
       discoveryRoot: directory,
       destructiveChanges: [],
     };
-    const result = snapshotTestWorker(test);
+    const result = await snapshotTestWorker(test);
 
     // THEN
     expect(result.length).toEqual(1);

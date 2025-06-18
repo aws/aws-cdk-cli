@@ -108,7 +108,7 @@ export class InitTemplate {
   }
 
   /**
-   * @param name the name that is being checked
+   * @param name - the name that is being checked
    * @returns ``true`` if ``name`` is the name of this template or an alias of it.
    */
   public hasName(name: string): boolean {
@@ -118,8 +118,8 @@ export class InitTemplate {
   /**
    * Creates a new instance of this ``InitTemplate`` for a given language to a specified folder.
    *
-   * @param language    the language to instantiate this template with
-   * @param targetDirectory the directory where the template is to be instantiated into
+   * @param language    - the language to instantiate this template with
+   * @param targetDirectory - the directory where the template is to be instantiated into
    */
   public async install(language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
     if (this.languages.indexOf(language) === -1) {
@@ -294,7 +294,7 @@ export async function availableInitLanguages(): Promise<string[]> {
 }
 
 /**
- * @param dirPath is the directory to be listed.
+ * @param dirPath - is the directory to be listed.
  * @returns the list of file or directory names contained in ``dirPath``, excluding any dot-file, and sorted.
  */
 async function listDirectory(dirPath: string) {
@@ -436,7 +436,7 @@ async function postInstallPython(cwd: string) {
 }
 
 /**
- * @param dir a directory to be checked
+ * @param dir - a directory to be checked
  * @returns true if ``dir`` is within a git repository.
  */
 async function isInGitRepository(dir: string) {
@@ -452,7 +452,7 @@ async function isInGitRepository(dir: string) {
 }
 
 /**
- * @param dir a directory to be checked.
+ * @param dir - a directory to be checked.
  * @returns true if ``dir`` is the root of a filesystem.
  */
 function isRoot(dir: string) {

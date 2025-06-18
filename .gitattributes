@@ -22,6 +22,7 @@
 /.projen/** linguist-generated
 /.projen/deps.json linguist-generated
 /.projen/files.json linguist-generated
+/.projen/prepare-verdaccio.sh linguist-generated
 /.projen/tasks.json linguist-generated
 /aws-cdk-cli.code-workspace linguist-generated
 /LICENSE linguist-generated

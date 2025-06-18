@@ -147,6 +147,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/toolkit-lib",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-cloudformation",
       "version": "^3",
       "type": "runtime"

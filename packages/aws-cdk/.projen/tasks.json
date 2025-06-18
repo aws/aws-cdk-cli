@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@octokit/rest,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@aws-sdk/middleware-endpoint,@aws-sdk/util-retry,@aws-sdk/util-waiter,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,glob,minimatch,promptly,proxy-agent,semver,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@aws-sdk/middleware-endpoint,@aws-sdk/util-retry,@aws-sdk/util-waiter,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,glob,minimatch,promptly,proxy-agent,semver,uuid"
         }
       ]
     },
@@ -145,7 +145,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-bundle pack --destination dist/js --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/cdk --version' --entrypoint 'lib/index.js'"
+          "exec": "node-bundle pack --destination dist/js --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --metafile dist/metafile.json"
         }
       ]
     },

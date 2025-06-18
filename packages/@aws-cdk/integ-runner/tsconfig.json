@@ -10,8 +10,7 @@
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2020",
-      "dom"
+      "es2020"
     ],
     "module": "commonjs",
     "noEmitOnError": false,
@@ -29,6 +28,7 @@
     "target": "ES2020",
     "incremental": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
     "composite": true
   },
   "include": [
@@ -55,6 +55,9 @@
     },
     {
       "path": "../cloudformation-diff"
+    },
+    {
+      "path": "../toolkit-lib"
     }
   ]
 }

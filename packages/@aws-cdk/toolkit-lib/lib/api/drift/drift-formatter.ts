@@ -142,10 +142,10 @@ export class DriftFormatter {
   /**
    * Renders stack drift information to the given stream
    *
-   * @param driftResults The stack resource drifts from CloudFormation
-   * @param allStackResources A map of all stack resources
-   * @param verbose Whether to output more verbose text (include undrifted resources)
-   * @param logicalToPathMap A map from logical ID to construct path
+   * @param driftResults - The stack resource drifts from CloudFormation
+   * @param allStackResources - A map of all stack resources
+   * @param verbose - Whether to output more verbose text (include undrifted resources)
+   * @param logicalToPathMap - A map from logical ID to construct path
    */
   private formatStackDriftChanges(
     logicalToPathMap: { [logicalId: string]: string } = {}): FormattedDrift {

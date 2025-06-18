@@ -17,10 +17,6 @@
       "type": "build"
     },
     {
-      "name": "@octokit/rest",
-      "type": "build"
-    },
-    {
       "name": "@stylistic/eslint-plugin",
       "version": "^3",
       "type": "build"
@@ -361,7 +357,6 @@
     },
     {
       "name": "cdk-from-cfn",
-      "version": "0.162.1",
       "type": "runtime"
     },
     {

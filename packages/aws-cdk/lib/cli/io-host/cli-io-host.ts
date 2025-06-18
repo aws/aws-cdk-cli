@@ -20,6 +20,9 @@ import { RegionFetcher } from '../telemetry/region-fetcher';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
+/**
+ * The current action being performed by the CLI. 'none' represents the absence of an action.
+ */
 type CliAction =
 | ToolkitAction
 | 'context'
@@ -34,7 +37,7 @@ export interface CliIoHostProps {
    *
    * @default 'none'
    */
-  readonly currentAction?: ToolkitAction;
+  readonly currentAction?: CliAction;
 
   /**
    * Determines the verbosity of the output.

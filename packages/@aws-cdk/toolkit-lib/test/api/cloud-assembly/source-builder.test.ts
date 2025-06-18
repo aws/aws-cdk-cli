@@ -8,9 +8,6 @@ import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
 
-// these tests often run a bit longer than the default
-jest.setTimeout(10_000);
-
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
 

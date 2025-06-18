@@ -221,7 +221,7 @@ export class AssetPublishing implements IPublishProgress {
 
   /**
    * publish an asset (used by 'publish()')
-   * @param asset The asset to publish
+   * @param asset - The asset to publish
    * @returns false when publishing should stop
    */
   private async publishAsset(asset: IManifestEntry, options: PublishOptions = {}) {
