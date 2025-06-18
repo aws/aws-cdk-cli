@@ -341,13 +341,7 @@ function parseStringContextListToObject(argv: Arguments): any {
           `User-provided context cannot use keys prefixed with 'aws:', but ${parts[0]} was provided.`,
         );
       }
-      let parsedValue: any = parts[1];
-      try {
-        parsedValue = JSON.parse(parts[1]);
-      } catch {
-        debug('Non-JSON context value for %s, leaving as string: %s', parts[0], parts[1]);
-      }
-      context[parts[0]] = parsedValue;
+      context[parts[0]] = parts[1];
     } else {
       warning(
         'Context argument is not an assignment (key=value): %s',
