@@ -88,6 +88,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await configuration.load();
 
+  if (process.env.TELEMETRY_TEST_ENV) {
+    ioHost.attachSession({
+      settings: configuration.settings.all,
+      argv,
+    });
+  }
+
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Always create and use ProxyAgent to support configuration via env vars

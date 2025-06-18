@@ -13,7 +13,7 @@ function createTestEvent(eventType: string, properties: Record<string, any> = {}
   return {
     identifiers: {
       cdkCliVersion: '1.0.0',
-      telemetryVrsion: '1.0.0',
+      telemetryVersion: '1.0.0',
       sessionId: 'test-session',
       eventId: `test-event-${eventType}`,
       installationId: 'test-installation',

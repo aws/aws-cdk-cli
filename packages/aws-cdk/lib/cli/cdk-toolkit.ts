@@ -2,7 +2,7 @@ import * as path from 'path';
 import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { DeploymentMethod, StackDetails, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit, MappingSource } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -22,7 +22,7 @@ import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { type Tag, tagsForStack } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
-import { listStacks } from '../commands/list-stacks';
+import { ListStacksOptions } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
   appendWarningsToReadme,
@@ -952,13 +952,29 @@ export class CdkToolkit {
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
-    const stacks = await listStacks(this, {
+    const zero = async () => {
+      await this.ioHost.defaults.notify({
+        level: 'info',
+        message: `Exiting`,
+        time: new Date(),
+        data: {
+          telemetry: {
+            eventType: 'exit',
+            state: 'SUCCEEDED',
+            duration: 0,
+          },
+        },
+      });
+      return 0;
+    }
+
+    const stacks = await this.listStacks({
       selectors: selectors,
     });
 
     if (options.long && options.showDeps) {
       printSerializedObject(stacks, options.json ?? false);
-      return 0;
+      return zero();
     }
 
     if (options.showDeps) {
@@ -972,7 +988,7 @@ export class CdkToolkit {
       }
 
       printSerializedObject(stackDeps, options.json ?? false);
-      return 0;
+      return zero();
     }
 
     if (options.long) {
@@ -986,7 +1002,7 @@ export class CdkToolkit {
         });
       }
       printSerializedObject(long, options.json ?? false);
-      return 0;
+      return zero();
     }
 
     // just print stack IDs
@@ -994,7 +1010,7 @@ export class CdkToolkit {
       logResult(stack.id);
     }
 
-    return 0; // exit-code
+    return zero();
   }
 
   /**
@@ -1340,6 +1356,61 @@ export class CdkToolkit {
     // No validation
 
     return stacks;
+  }
+  
+  /**
+   * List Stacks
+   *
+   * @param options list stacks options
+   * @returns StackDetails[]
+   */
+  private async listStacks(options: ListStacksOptions): Promise<StackDetails[]> {
+    const startSynthTime = new Date().getTime();
+    try {
+      const assembly = await this.assembly();
+
+      const stacks = await assembly.selectStacks({
+        patterns: options.selectors,
+      }, {
+        extend: ExtendedStackSelection.Upstream,
+        defaultBehavior: DefaultSelection.AllStacks,
+      });
+
+      const elapsedSynthTime = new Date().getTime() - startSynthTime;
+      await this.ioHost.defaults.notify({
+        level: 'info',
+        message: `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
+        time: new Date(),
+        data: {
+          telemetry: {
+            eventType: 'synth',
+            state: 'SUCCEEDED',
+            duration: elapsedSynthTime,
+          },
+        },
+      });
+
+      return stacks.withDependencies();
+    } catch (e: any) {
+      const currentTime = new Date();
+      await this.ioHost.defaults.notify({
+        level: 'info',
+        message: 'Telemetry Event: synth',
+        time: currentTime,
+        data: {
+          telemetry: {
+            eventType: 'synth',
+            state: 'FAILED',
+            duration: currentTime.getTime() - startSynthTime,
+            error: {
+              name: e.name,
+              // message: e.message, // TODO: sanitize
+            },
+          },
+        },
+      });
+      throw e;
+    }
   }
 
   /**

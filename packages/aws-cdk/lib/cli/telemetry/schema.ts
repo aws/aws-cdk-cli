@@ -1,7 +1,7 @@
-interface Identifiers {
+export interface Identifiers {
   readonly cdkCliVersion: string;
   readonly cdkLibraryVersion?: string;
-  readonly telemetryVrsion: string;
+  readonly telemetryVersion: string;
   readonly sessionId: string;
   readonly eventId: string;
   readonly installationId: string;
@@ -10,17 +10,19 @@ interface Identifiers {
   readonly region?: string;
 }
 
+export interface Command {
+  readonly path: string[];
+  readonly parameters: string[];
+  readonly config: { [key: string]: any };
+}
+
 interface Event {
   readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
   readonly eventType: string;
-  readonly command: {
-    readonly path: string[];
-    readonly parameters: string[];
-    readonly config: { [key: string]: any };
-  };
+  readonly command: Command;
 }
 
-interface Environment {
+export interface Environment {
   readonly os: {
     readonly platform: string;
     readonly release: string;
