@@ -1,4 +1,5 @@
 import * as https from 'https';
+import { parse } from 'url';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { EndpointTelemetryClient } from '../../../lib/cli/telemetry/endpoint-client';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
@@ -13,7 +14,7 @@ function createTestEvent(eventType: string, properties: Record<string, any> = {}
   return {
     identifiers: {
       cdkCliVersion: '1.0.0',
-      telemetryVrsion: '1.0.0',
+      telemetryVersion: '1.0.0',
       sessionId: 'test-session',
       eventId: `test-event-${eventType}`,
       installationId: 'test-installation',
@@ -69,7 +70,7 @@ describe('EndpointTelemetryClient', () => {
   test('makes a POST request to the specified endpoint', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const endpoint = new URL('https://example.com/telemetry');
+    const endpoint = parse('https://example.com/telemetry');
     const testEvent = createTestEvent('test', { foo: 'bar' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
@@ -81,7 +82,7 @@ describe('EndpointTelemetryClient', () => {
     const expectedPayload = JSON.stringify([testEvent]);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
-      port: '',
+      port: null,
       path: '/telemetry',
       method: 'POST',
       headers: {
@@ -97,7 +98,7 @@ describe('EndpointTelemetryClient', () => {
   test('silently catches request errors', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const endpoint = new URL('https://example.com/telemetry');
+    const endpoint = parse('https://example.com/telemetry');
     const testEvent = createTestEvent('test');
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
@@ -117,7 +118,7 @@ describe('EndpointTelemetryClient', () => {
   test('multiple events sent as one', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const endpoint = new URL('https://example.com/telemetry');
+    const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('test1', { foo: 'bar' });
     const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
@@ -132,7 +133,7 @@ describe('EndpointTelemetryClient', () => {
     expect(https.request).toHaveBeenCalledTimes(1);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
-      port: '',
+      port: null,
       path: '/telemetry',
       method: 'POST',
       headers: {
@@ -148,7 +149,7 @@ describe('EndpointTelemetryClient', () => {
   test('flush clears events cache', async () => {
     // GIVEN
     setupMockRequest();
-    const endpoint = new URL('https://example.com/telemetry');
+    const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('test1', { foo: 'bar' });
     const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
@@ -164,7 +165,7 @@ describe('EndpointTelemetryClient', () => {
     expect(https.request).toHaveBeenCalledTimes(2);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
-      port: '',
+      port: null,
       path: '/telemetry',
       method: 'POST',
       headers: {
@@ -176,7 +177,7 @@ describe('EndpointTelemetryClient', () => {
     const expectedPayload2 = JSON.stringify([testEvent2]);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
-      port: '',
+      port: null,
       path: '/telemetry',
       method: 'POST',
       headers: {
@@ -190,34 +191,34 @@ describe('EndpointTelemetryClient', () => {
     // GIVEN
     jest.useFakeTimers();
     setupMockRequest(); // Setup the mock request but we don't need the return value
-    const endpoint = new URL('https://example.com/telemetry');
-    
+    const endpoint = parse('https://example.com/telemetry');
+
     // Create a spy on setInterval
     const setIntervalSpy = jest.spyOn(global, 'setInterval');
-    
+
     // Create the client
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
-    
+
     // Create a spy on the flush method
     const flushSpy = jest.spyOn(client, 'flush');
-    
+
     // WHEN
     // Advance the timer by 30 seconds
     jest.advanceTimersByTime(30000);
-    
+
     // THEN
     // Verify setInterval was called with the correct interval
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 30000);
-    
+
     // Verify flush was called
     expect(flushSpy).toHaveBeenCalledTimes(1);
-    
+
     // Advance the timer by another 30 seconds
     jest.advanceTimersByTime(30000);
-    
+
     // Verify flush was called again
     expect(flushSpy).toHaveBeenCalledTimes(2);
-    
+
     // Clean up
     jest.useRealTimers();
     setIntervalSpy.mockRestore();

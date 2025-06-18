@@ -1,7 +1,7 @@
 interface Identifiers {
   readonly cdkCliVersion: string;
   readonly cdkLibraryVersion?: string;
-  readonly telemetryVrsion: string;
+  readonly telemetryVersion: string;
   readonly sessionId: string;
   readonly eventId: string;
   readonly installationId: string;
