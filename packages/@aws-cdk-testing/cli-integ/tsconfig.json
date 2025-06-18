@@ -30,6 +30,7 @@
     "target": "es2022",
     "incremental": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
     "composite": true
   },
   "include": [

@@ -18,6 +18,7 @@ export async function cliMain(cliArgs: string[]) {
     .option('dont-attribute', { type: 'string', desc: 'Dependencies matching this regular expressions wont be added to the notice file' })
     .option('test', { type: 'string', desc: 'Validation command to sanity test the bundle after its created' })
     .option('minify-whitespace', { type: 'boolean', default: false, desc: 'Minify whitespace' })
+    .option('metafile', { type: 'string', desc: 'Produce a metafile about the build that can be analyzed' })
     .command('validate', 'Validate the package is ready for bundling', args => args
       .option('fix', { type: 'boolean', default: false, alias: 'f', desc: 'Fix any fixable violations' }),
     )
@@ -83,6 +84,7 @@ export async function cliMain(cliArgs: string[]) {
     dontAttribute: argv['dont-attribute'],
     test: argv.test,
     minifyWhitespace: argv['minify-whitespace'],
+    metafile: argv.metafile,
   };
 
   const bundle = new Bundle(props);

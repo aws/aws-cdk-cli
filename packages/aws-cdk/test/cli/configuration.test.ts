@@ -116,3 +116,23 @@ test('providing a build arg', () => {
   // THEN
   expect(settings.get(['build'])).toEqual('mvn package');
 });
+
+test('can parse boolean context from command line arguments', () => {
+  // GIVEN
+  const settings1 = commandLineArgumentsToSettings({ context: ['foo=true'], _: [Command.DEPLOY] });
+  const settings2 = commandLineArgumentsToSettings({ context: ['foo=false'], _: [Command.DEPLOY] });
+
+  // THEN
+  expect(settings1.get(['context']).foo).toEqual( true );
+  expect(settings2.get(['context']).foo).toEqual( false );
+});
+
+test('can parse number context from command line arguments', () => {
+  // GIVEN
+  const settings1 = commandLineArgumentsToSettings({ context: ['foo=5'], _: [Command.DEPLOY] });
+  const settings2 = commandLineArgumentsToSettings({ context: ['foo=3.14'], _: [Command.DEPLOY] });
+
+  // THEN
+  expect(settings1.get(['context']).foo).toEqual( 5 );
+  expect(settings2.get(['context']).foo).toEqual( 3.14 );
+});

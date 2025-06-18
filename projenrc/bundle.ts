@@ -90,6 +90,13 @@ export interface BundleProps {
    * @default false
    */
   readonly minifySyntax?: boolean;
+
+  /**
+   * Write a meatafile to the dist directory.
+   *
+   * @default false
+   */
+  readonly metafile?: boolean;
 }
 
 /**
@@ -138,9 +145,13 @@ export class BundleCli extends pj.Component {
     project.postCompileTask.exec(['node-bundle', 'validate', '--fix', ...args].join(' '));
 
     // `node-bundle` replaces `npm pack`
+    const packArgs = [
+      ...args,
+      ...(options.metafile ?? true) ? ['--metafile dist/metafile.json'] : [],
+    ];
     project.packageTask.reset();
     project.packageTask.exec('mkdir -p dist/js');
-    project.packageTask.exec(['node-bundle', 'pack', '--destination', 'dist/js', ...args].join(' '));
+    project.packageTask.exec(['node-bundle', 'pack', '--destination', 'dist/js', ...packArgs].join(' '));
   }
 }
 

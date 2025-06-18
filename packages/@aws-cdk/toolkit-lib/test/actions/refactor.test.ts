@@ -4,9 +4,6 @@ import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
 
-// these tests often run a bit longer than the default
-jest.setTimeout(10_000);
-
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost, unstableFeatures: ['refactor'] });
 

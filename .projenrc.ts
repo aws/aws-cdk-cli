@@ -82,6 +82,7 @@ const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['com
   incremental: true,
   esModuleInterop: false,
   skipLibCheck: true,
+  isolatedModules: true,
 };
 
 /**
@@ -232,20 +233,7 @@ const repoProject = new yarn.Monorepo({
       },
       semanticTitleOptions: {
         types: ['feat', 'fix', 'chore', 'refactor', 'test', 'docs', 'revert'],
-        scopes: [
-          'cdk-assets',
-          'cli',
-          'cli-lib-alpha',
-          'cli-plugin-contract',
-          'cloud-assembly-schema',
-          'cloudformation-diff',
-          'deps',
-          'dev-deps',
-          'docs',
-          'integ-runner',
-          'integ-testing',
-          'toolkit-lib',
-        ],
+        scopes: [], // actually set at the bottom of the file to be based on monorepo packages
       },
     },
   },
@@ -315,11 +303,6 @@ function genericCdkProps(props: GenericProps = {}) {
     authorUrl: 'https://aws.amazon.com',
     authorOrganization: true,
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
-    tsJestOptions: {
-      transformOptions: {
-        isolatedModules: true,
-      },
-    },
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,
@@ -333,6 +316,11 @@ function genericCdkProps(props: GenericProps = {}) {
         printWidth: 120,
         singleQuote: true,
         trailingComma: pj.javascript.TrailingComma.ALL,
+      },
+    },
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
       },
     },
     typescriptVersion: TYPESCRIPT_VERSION,
@@ -697,6 +685,14 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
   'lib/init-templates/*/typescript/*/*.template.ts',
 ];
 
+const toolkitLibTsCompilerOptions = {
+  ...defaultTsOptions,
+  target: 'es2022',
+  lib: ['es2022', 'esnext.disposable'],
+  module: 'NodeNext',
+  declarationMap: true,
+};
+
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
@@ -704,11 +700,6 @@ const toolkitLib = configureProject(
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
     srcdir: 'lib',
-    tsconfigDev: {
-      compilerOptions: {
-        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
-      },
-    },
     peerDeps: [
       cliPluginContract.customizeReference({ versionType: 'any-minor' }), // allow consumers to easily de-depulicate this
     ],
@@ -787,8 +778,9 @@ const toolkitLib = configureProject(
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
+        // Tests that synth an assembly usually need a bit longer
+        testTimeout: 10_000,
         coverageThreshold: {
-          // this is very sad but we will get better
           statements: 87,
           branches: 83,
           functions: 82,
@@ -803,17 +795,13 @@ const toolkitLib = configureProject(
     }),
     tsconfig: {
       compilerOptions: {
-        ...defaultTsOptions,
-        target: 'es2022',
-        lib: ['es2022', 'esnext.disposable'],
-        module: 'NodeNext',
-        isolatedModules: true,
-        declarationMap: true,
+        ...toolkitLibTsCompilerOptions,
       },
     },
-    tsJestOptions: {
-      transformOptions: {
-        isolatedModules: false, // we use the respective tsc setting
+    tsconfigDev: {
+      compilerOptions: {
+        ...toolkitLibTsCompilerOptions,
+        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
     majorVersion: 1,
@@ -1082,12 +1070,6 @@ const cli = configureProject(
       'yaml@^1',
       'yargs@^15',
     ],
-    tsJestOptions: {
-      transformOptions: {
-        // Skips type checking, otherwise tests take too long
-        isolatedModules: true,
-      },
-    },
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1108,7 +1090,6 @@ const cli = configureProject(
         esModuleInterop: false,
         skipLibCheck: true,
       },
-
     },
     eslintOptions: {
       dirs: ['lib'],
@@ -1478,13 +1459,6 @@ const integRunner = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2020', 'dom'],
-        isolatedModules: true,
-      },
-    },
-    tsJestOptions: {
-      transformOptions: {
-        isolatedModules: false, // we use the respective tsc setting
       },
     },
     jestOptions: jestOptionsForProject({
@@ -1735,5 +1709,25 @@ new LargePrChecker(repo, {
 });
 
 ((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}).DEBUG = 'true';
+
+// Set allowed scopes based on monorepo packages
+const disallowed = new Set([
+  'cdk', // use aws-cdk or cli
+  'user-input-gen', // use cli
+]);
+repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
+  pj.JsonPatch.replace('/jobs/validate/steps/0/with/scopes', [
+    'cli',
+    'deps',
+    'dev-deps',
+    'docs',
+    'integ-testing',
+    'toolkit-lib',
+    ...repoProject.subprojects
+      .filter(p => p instanceof yarn.TypeScriptWorkspace)
+      .map(p => p.name)
+      .map(n => n.split('/').pop()),
+  ].filter(s => s && !disallowed.has(s)).sort().join('\n')),
+);
 
 repo.synth();

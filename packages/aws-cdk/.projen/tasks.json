@@ -145,7 +145,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-bundle pack --destination dist/js --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/cdk --version' --entrypoint 'lib/index.js'"
+          "exec": "node-bundle pack --destination dist/js --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --metafile dist/metafile.json"
         }
       ]
     },
