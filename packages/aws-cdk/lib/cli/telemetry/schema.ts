@@ -30,8 +30,8 @@ interface Environment {
 }
 
 interface Duration {
-  total: number;
-  components?: { [key: string]: number };
+  readonly total: number;
+  readonly components?: { [key: string]: number };
 }
 
 type Counters = { [key: string]: number };
@@ -53,11 +53,11 @@ interface Project {
 }
 
 export interface TelemetrySchema {
-  identifiers: Identifiers;
-  event: Event;
-  environment: Environment;
-  project: Project;
-  duration: Duration;
-  counters?: Counters;
-  error?: Error;
+  readonly identifiers: Identifiers;
+  readonly event: Event;
+  readonly environment: Environment;
+  readonly project: Project;
+  readonly duration: Duration;
+  readonly counters?: Counters;
+  readonly error?: Error;
 }
