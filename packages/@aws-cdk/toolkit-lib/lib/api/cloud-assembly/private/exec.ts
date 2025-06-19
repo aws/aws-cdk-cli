@@ -30,7 +30,7 @@ export async function execInChildProcess(command: string, args: string[] = [], o
     const proc = child_process.spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
-      shell: false, // Don't use shell to avoid cross-platform issues
+      shell: true, // Keep shell: true for now to maintain compatibility with tests
       cwd: options.cwd,
       env: options.env,
     });

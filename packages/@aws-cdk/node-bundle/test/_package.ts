@@ -87,14 +87,14 @@ export class Package {
    * Create an npm tarballs of this package.
    */
   public pack() {
-    shell('npm pack', { cwd: this.dir, quiet: true });
+    shell('npm', ['pack'], { cwd: this.dir, quiet: true });
   }
 
   /**
    * Install package dependencies.
    */
   public install() {
-    shell('npm install', { cwd: this.dir, quiet: true });
+    shell('npm', ['install'], { cwd: this.dir, quiet: true });
   }
 
   /**
