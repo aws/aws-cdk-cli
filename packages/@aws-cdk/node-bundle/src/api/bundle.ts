@@ -333,12 +333,12 @@ export class Bundle {
       if (this.test) {
         const command = `${path.join(bundleDir, this.test)}`;
         console.log(`Running sanity test: ${command}`);
-        shell(command, { cwd: bundleDir });
+        shell(command, [], { cwd: bundleDir });
       }
 
       // create the tarball
       console.log('Packing');
-      const tarball = shell('npm pack', { quiet: true, cwd: bundleDir }).trim();
+      const tarball = shell('npm', ['pack'], { quiet: true, cwd: bundleDir }).trim();
       const dest = path.join(realTarget, tarball);
       fs.copySync(path.join(bundleDir, tarball), dest, { recursive: true });
       return dest;
@@ -481,8 +481,9 @@ export class Bundle {
       // we don't use the programmatic API since it only offers an async API.
       // prefer to stay sync for now since its easier to integrate with other tooling.
       // will offer an async API further down the road.
-      const command = `${require.resolve('madge/bin/cli.js')} --json --warning --no-color --no-spinner --circular --extensions js ${packages.join(' ')}`;
-      shell(command, { quiet: true });
+      const madgePath = require.resolve('madge/bin/cli.js');
+      const args = ['--json', '--warning', '--no-color', '--no-spinner', '--circular', '--extensions', 'js', ...packages];
+      shell(madgePath, args, { quiet: true });
     } catch (e: any) {
       const imports: string[][] = JSON.parse(e.stdout.toString().trim());
       for (const imp of imports) {
