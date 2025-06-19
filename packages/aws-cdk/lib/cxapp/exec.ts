@@ -114,7 +114,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
         const proc = childProcess.spawn(command, args, {
           stdio: ['ignore', 'inherit', 'inherit'],
           detached: false,
-          shell: true,
+          shell: false,
           env: {
             ...process.env,
             ...env,
