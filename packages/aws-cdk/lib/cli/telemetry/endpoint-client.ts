@@ -68,7 +68,7 @@ export class EndpointTelemetryClient implements ITelemetryClient {
 
   private async https(
     url: UrlWithStringQuery,
-    body: any, // to be schema
+    body: TelemetrySchema[],
     ioHost: IoHelper,
   ): Promise<void> {
     // TODO: sigv4 authentication
