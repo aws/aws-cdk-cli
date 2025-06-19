@@ -79,6 +79,7 @@
     "xml-js": "^1.6.11"
   },
   "dependencies": {
+    "@aws-cdk/cdk-assets-lib": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
     "@aws-cdk/cx-api": "^2.201.0",
@@ -115,7 +116,6 @@
     "@smithy/util-waiter": "^4.0.5",
     "archiver": "^7.0.1",
     "camelcase": "^6",
-    "cdk-assets": "^0.0.0",
     "cdk-from-cfn": "^0.222.0",
     "chalk": "^4",
     "chokidar": "^3",
