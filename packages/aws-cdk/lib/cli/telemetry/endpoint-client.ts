@@ -4,6 +4,11 @@ import { IoHelper } from '../../api-private';
 import type { IIoHost } from '../io-host';
 import type { ITelemetryClient } from './client-interface';
 import type { TelemetrySchema } from './schema';
+import { IncomingMessage } from 'http';
+
+const REQUEST_DEADLINE_MS = 5_000;
+
+const REQUEST_ATTEMPT_TIMEOUT_MS = 2_000;
 
 /**
  * Properties for the Endpoint Telemetry Client
@@ -56,7 +61,7 @@ export class EndpointTelemetryClient implements ITelemetryClient {
     }
 
     try {
-      await this.https(this.endpoint, this.events, this.ioHost);
+      await this.https(this.endpoint, this.events);
 
       // Clear the events array after successful output
       this.events = [];
@@ -68,12 +73,43 @@ export class EndpointTelemetryClient implements ITelemetryClient {
 
   private async https(
     url: UrlWithStringQuery,
-    body: any, // to be schema
-    ioHost: IoHelper,
+    body: TelemetrySchema[],
   ): Promise<void> {
-    // TODO: sigv4 authentication
-    // TODO: Handle retries and stuff
-    return requestPromise(url, body, ioHost);
+    const deadline = Date.now() + REQUEST_DEADLINE_MS;
+    let maxDelay = 100;
+    while (true) {
+      try {
+        this.ioHost.defaults.info(`asdf`);
+        const res = await requestPromise(url, body);
+
+        this.ioHost.defaults.info(`Here ${res}`);
+
+        if (res.statusCode == null) {
+          throw new RetryableError('No status code available');
+        }
+
+        // Server errors. We can't know whether these are really retryable but we usually pretend that they are.
+        if (res.statusCode >= 500 && res.statusCode < 600) {
+          throw new RetryableError(`HTTP ${res.statusCode} ${res.statusMessage}`);
+        }
+
+        // Permanent (client) errors:
+        if (res.statusCode >= 400 && res.statusCode < 500) {
+          throw new Error(`HTTP ${res.statusCode} ${res.statusMessage}`);
+        }
+
+        return;
+      } catch (e: any) {
+        if (Date.now() > deadline || !isRetryableError(e)) {
+          this.ioHost.defaults.info(`Fatal Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
+          return;
+        }
+        this.ioHost.defaults.info(`Retryable Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
+
+        await sleep(Math.floor(Math.random() * maxDelay));
+        maxDelay *= 2;
+      }
+    }
   }
 }
 
@@ -82,10 +118,9 @@ export class EndpointTelemetryClient implements ITelemetryClient {
  */
 function requestPromise(
   url: UrlWithStringQuery,
-  data: any, // to be schema
-  ioHost: IoHelper,
+  data: TelemetrySchema[],
 ) {
-  return new Promise<void>((resolve) => {
+  return new Promise<IncomingMessage>((ok, ko) => {
     const payload: string = JSON.stringify(data);
     const req = request({
       hostname: url.hostname,
@@ -96,19 +131,25 @@ function requestPromise(
         'content-type': 'application/json',
         'content-length': payload.length,
       },
-    });
-    // TODO: retryable errors
-    req.on('error', async (e: any) => {
-      await ioHost.defaults.warn(`Telemetry endpoint request failed: ${e.message}`);
-    });
-    req.setTimeout(2000, () => {
-      // 2 seconds
-      resolve();
+      timeout: REQUEST_ATTEMPT_TIMEOUT_MS,
+    }, ok);
+
+    req.on('error', ko);
+    req.on('timeout', () => {
+      const error = new RetryableError(`Timeout after ${REQUEST_ATTEMPT_TIMEOUT_MS}ms, aborting request`);
+      req.destroy(error);
     });
 
-    req.write(payload);
-    req.end(() => {
-      resolve();
-    });
+    req.end(payload);
   });
+}
+
+class RetryableError extends Error {}
+
+function isRetryableError(e: Error): boolean {
+  return e instanceof RetryableError || (e as any).code === 'ECONNRESET';
+}
+
+async function sleep(ms: number) {
+  return new Promise((ok) => setTimeout(ok, ms));
 }

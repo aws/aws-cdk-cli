@@ -2,6 +2,7 @@ import { format } from 'util';
 import type { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as logger from '../logger';
+import type { EngineOptions } from '../runner/engine';
 import type { IntegTestInfo } from '../runner/integration-tests';
 
 /**
@@ -88,7 +89,7 @@ export interface IntegRunnerMetrics {
   readonly profile?: string;
 }
 
-export interface SnapshotVerificationOptions {
+export interface SnapshotVerificationOptions extends EngineOptions {
   /**
    * Retain failed snapshot comparisons
    *
@@ -123,7 +124,7 @@ export interface IntegBatchResponse {
 /**
  * Common options for running integration tests
  */
-export interface IntegTestOptions {
+export interface IntegTestOptions extends EngineOptions {
   /**
    * A list of integration tests to run
    * in this batch
