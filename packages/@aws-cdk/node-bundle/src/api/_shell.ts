@@ -30,16 +30,3 @@ export function shell(command: string, args: string[] = [], options: ShellOption
   
   return result.stdout ? result.stdout.trim() : '';
 }
-
-/**
- * Legacy function for backward compatibility
- * @deprecated Use the version that takes command and args separately
- */
-export function shell(command: string, options?: ShellOptions): string {
-  // Simple splitting - in a real implementation you'd want to handle quoted arguments properly
-  const parts = command.split(' ');
-  const cmd = parts[0];
-  const args = parts.slice(1);
-  
-  return shell(cmd, args, options);
-}

@@ -331,9 +331,9 @@ export class Bundle {
     const bundleDir = this.write();
     try {
       if (this.test) {
-        const command = `${path.join(bundleDir, this.test)}`;
-        console.log(`Running sanity test: ${command}`);
-        shell(command, [], { cwd: bundleDir });
+        const testPath = path.join(bundleDir, this.test);
+        console.log(`Running sanity test: ${testPath}`);
+        shell(testPath, [], { cwd: bundleDir });
       }
 
       // create the tarball
