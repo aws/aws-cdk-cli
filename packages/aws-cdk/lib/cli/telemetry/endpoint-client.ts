@@ -79,9 +79,10 @@ export class EndpointTelemetryClient implements ITelemetryClient {
     let maxDelay = 100;
     while (true) {
       try {
+        this.ioHost.defaults.info(`asdf`);
         const res = await requestPromise(url, body);
-        // eslint-disable-next-line
-        console.log(res);
+
+        this.ioHost.defaults.info(`Here ${res}`);
 
         if (res.statusCode == null) {
           throw new RetryableError('No status code available');
@@ -100,10 +101,10 @@ export class EndpointTelemetryClient implements ITelemetryClient {
         return;
       } catch (e: any) {
         if (Date.now() > deadline || !isRetryableError(e)) {
-          this.ioHost.defaults.debug(`Fatal Telemetry Error: POST ${url}: ${e}`);
+          this.ioHost.defaults.info(`Fatal Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
           return;
         }
-        this.ioHost.defaults.debug(`Retryable Telemetry Error: POST ${url}: ${e}`);
+        this.ioHost.defaults.info(`Retryable Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
 
         await sleep(Math.floor(Math.random() * maxDelay));
         maxDelay *= 2;
