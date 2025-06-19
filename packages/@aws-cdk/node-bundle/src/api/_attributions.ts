@@ -167,9 +167,8 @@ export class Attributions {
       // we don't use the programmatic API since it only offers an async API.
       // prefer to stay sync for now since its easier to integrate with other tooling.
       // will offer an async API further down the road.
-      const licenseCheckerPath = require.resolve('license-checker/bin/license-checker');
-      const args = ['--json', '--packages', `${_packages.join(';')}`];
-      const output = shell(licenseCheckerPath, args, { cwd: _cwd, quiet: true });
+      const argv = [require.resolve('license-checker/bin/license-checker'), '--json', '--packages', `${_packages.join(';')}`];
+      const output = shell(argv, { cwd: _cwd, quiet: true });
       return JSON.parse(output);
     }
 
