@@ -48,11 +48,10 @@ export class IntegSnapshotRunner extends IntegRunner {
     diagnostics: Diagnostic[];
     destructiveChanges: DestructiveChange[];
   }> {
-    const actualTestSuite = await this.actualTestSuite();
-    const expectedTestSuite = await this.expectedTestSuite();
-
     let doClean = true;
     try {
+      const expectedTestSuite = await this.expectedTestSuite();
+      const actualTestSuite = await this.actualTestSuite();
       const expectedSnapshotAssembly = this.getSnapshotAssembly(this.snapshotDir, expectedTestSuite?.stacks);
 
       // synth the integration test
@@ -60,14 +59,10 @@ export class IntegSnapshotRunner extends IntegRunner {
       // the cdkOutDir exists already, but for some reason generateActualSnapshot
       // generates an incorrect snapshot and I have no idea why so synth again here
       // to produce the "correct" snapshot
-      const env = {
-        ...DEFAULT_SYNTH_OPTIONS.env,
-        CDK_CONTEXT_JSON: JSON.stringify(this.getContext({
-          ...actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {},
-        })),
-      };
+      const env = DEFAULT_SYNTH_OPTIONS.env;
       await this.cdk.synthFast({
         execCmd: this.cdkApp.split(' '),
+        context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
         env,
         output: path.relative(this.directory, this.cdkOutDir),
       });
@@ -92,9 +87,7 @@ export class IntegSnapshotRunner extends IntegRunner {
 
         if (options.verbose) {
           // Show the command necessary to repro this
-          const envSet = Object.entries(env)
-            .filter(([k, _]) => k !== 'CDK_CONTEXT_JSON')
-            .map(([k, v]) => `${k}='${v}'`);
+          const envSet = Object.entries(env).map(([k, v]) => `${k}='${v}'`);
           const envCmd = envSet.length > 0 ? ['env', ...envSet] : [];
 
           additionalMessages.push(

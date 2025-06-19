@@ -1,4 +1,3 @@
-import type { MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import * as contextproviders from '../../../context-providers';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
@@ -6,6 +5,7 @@ import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import type { IContextStore } from '../context-store';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
+import { missingContextKeys } from './helpers';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -113,13 +113,6 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
       return readableAsm;
     }
   }
-}
-
-/**
- * Return all keys of missing context items
- */
-function missingContextKeys(missing?: MissingContext[]): Set<string> {
-  return new Set((missing || []).map(m => m.key));
 }
 
 /**

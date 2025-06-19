@@ -22,7 +22,10 @@ afterAll(() => {
   stderrMock.mockRestore();
 });
 
-describe('Test discovery', () => {
+describe.each([
+  ['cli-wrapper', []],
+  ['toolkit-lib', ['--unstable', 'toolkit-lib-engine']],
+])('Test discovery with engine %s', (_engine: string, engineArgs: string[]) => {
   const currentCwd = process.cwd();
   beforeAll(() => {
     process.chdir(path.join(__dirname, '..'));
@@ -31,15 +34,17 @@ describe('Test discovery', () => {
     process.chdir(currentCwd);
   });
 
+  const cli = (args: string[]) => main([...engineArgs, ...args]);
+
   test('find by default pattern', async () => {
-    await main(['--list', '--directory=test/test-data']);
+    await cli(['--list', '--directory=test/test-data']);
 
     // Expect nothing to be found since this directory doesn't contain files with the default pattern
     expect(stdoutMock.mock.calls).toEqual([['\n']]);
   });
 
   test('find by custom pattern', async () => {
-    await main(['--list', '--directory=test/test-data', '--language=javascript', '--test-regex="^xxxxx\.integ-test[12]\.js$"']);
+    await cli(['--list', '--directory=test/test-data', '--language=javascript', '--test-regex="^xxxxx\.integ-test[12]\.js$"']);
 
     expect(stdoutMock.mock.calls).toEqual([[
       [
@@ -51,7 +56,7 @@ describe('Test discovery', () => {
   });
 
   test('list only shows explicitly provided tests', async () => {
-    await main([
+    await cli([
       'xxxxx.integ-test1.js',
       'xxxxx.integ-test2.js',
       '--list',
@@ -70,7 +75,7 @@ describe('Test discovery', () => {
   });
 
   test('find only TypeScript files', async () => {
-    await main(['--list', '--language', 'typescript', '--directory=test']);
+    await cli(['--list', '--language', 'typescript', '--directory=test']);
 
     expect(stdoutMock.mock.calls).toEqual([[
       'language-tests/integ.typescript-test.ts\n',
@@ -78,13 +83,13 @@ describe('Test discovery', () => {
   });
 
   test('can run with no tests detected', async () => {
-    await main(['whatever.js', '--directory=test/test-data']);
+    await cli(['whatever.js', '--directory=test/test-data']);
 
     expect(stdoutMock.mock.calls).toEqual([]);
   });
 
   test('app and test-regex override default presets', async () => {
-    await main([
+    await cli([
       '--list',
       '--directory=test/test-data',
       '--app="node {filePath}"',
@@ -101,7 +106,7 @@ describe('Test discovery', () => {
   });
 
   test('cannot use --test-regex by itself with more than one language preset', async () => {
-    await expect(() => main([
+    await expect(() => cli([
       '--list',
       '--directory=test/test-data',
       '--language=javascript',
@@ -111,7 +116,7 @@ describe('Test discovery', () => {
   });
 
   test('cannot use --app by itself with more than one language preset', async () => {
-    await expect(() => main([
+    await expect(() => cli([
       '--list',
       '--directory=test/test-data',
       '--language=javascript',
