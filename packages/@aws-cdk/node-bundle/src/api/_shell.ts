@@ -7,14 +7,14 @@ export interface ShellOptions {
 
 /**
  * Execute a shell command with proper cross-platform support
- * @param command The command to execute
- * @param args The arguments to pass to the command
- * @param options Additional options
+ * @param command - The command to execute
+ * @param args - The arguments to pass to the command
+ * @param options - Additional options
  * @returns The command output
  */
-export function shell(command: string, args: string[] = [], options: ShellOptions = {}): string {
+export function shell(argv: string[], options: ShellOptions = {}): string {
   const stdio: child_process.StdioOptions = options.quiet ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'];
-  const buffer = child_process.execFileSync(command, args, {
+  const buffer = child_process.execFileSync(argv[0], argv.slice(1), {
     cwd: options.cwd,
     stdio: stdio,
   });

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as esbuild from 'esbuild';
 import * as fs from 'fs-extra';
 import { Attributions } from './_attributions';
+import { formatCommandLine, parseCommandLine } from './_command-line';
 import { shell } from './_shell';
 import type { Violation } from './violation';
 import { ViolationType, ViolationsReport } from './violation';
@@ -331,14 +332,14 @@ export class Bundle {
     const bundleDir = this.write();
     try {
       if (this.test) {
-        const testPath = path.join(bundleDir, this.test);
-        console.log(`Running sanity test: ${testPath}`);
-        shell(testPath, [], { cwd: bundleDir });
+        const testCommand = parseCommandLine(this.test);
+        console.log(`Running sanity test: ${formatCommandLine(testCommand)}`);
+        shell(testCommand, { cwd: bundleDir });
       }
 
       // create the tarball
       console.log('Packing');
-      const tarball = shell('npm', ['pack'], { quiet: true, cwd: bundleDir }).trim();
+      const tarball = shell(['npm', 'pack'], { quiet: true, cwd: bundleDir }).trim();
       const dest = path.join(realTarget, tarball);
       fs.copySync(path.join(bundleDir, tarball), dest, { recursive: true });
       return dest;
@@ -481,9 +482,8 @@ export class Bundle {
       // we don't use the programmatic API since it only offers an async API.
       // prefer to stay sync for now since its easier to integrate with other tooling.
       // will offer an async API further down the road.
-      const madgePath = require.resolve('madge/bin/cli.js');
-      const args = ['--json', '--warning', '--no-color', '--no-spinner', '--circular', '--extensions', 'js', ...packages];
-      shell(madgePath, args, { quiet: true });
+      const cmd = [require.resolve('madge/bin/cli.js'), '--json', '--warning', '--no-color', '--no-spinner', '--circular', '--extensions', 'js', ...packages];
+      shell(cmd, { quiet: true });
     } catch (e: any) {
       const imports: string[][] = JSON.parse(e.stdout.toString().trim());
       for (const imp of imports) {

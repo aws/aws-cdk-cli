@@ -1,6 +1,7 @@
 import * as child_process from 'node:child_process';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
+import { formatCommandLine } from './_command-line';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
@@ -13,11 +14,12 @@ interface ExecOptions {
 
 /**
  * Execute a command and args in a child process
- * @param command The command to execute
- * @param args Optional arguments for the command
- * @param options Additional options for execution
+ *
+ * @param command - The command to execute
+ * @param args - Optional arguments for the command
+ * @param options - Additional options for execution
  */
-export async function execInChildProcess(command: string, args: string[] = [], options: ExecOptions = {}) {
+export async function execInChildProcess(argv: string[], options: ExecOptions = {}) {
   return new Promise<void>((ok, fail) => {
     // We use a slightly lower-level interface to:
     //
@@ -27,15 +29,13 @@ export async function execInChildProcess(command: string, args: string[] = [], o
     //
     // - We have to capture any output to stdout and stderr sp we can pass it on to the IoHost
     //   To ensure messages get to the user fast, we will emit every full line we receive.
-    const proc = child_process.spawn(command, args, {
+    const proc = child_process.spawn(argv[0], argv.slice(1), {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
-      shell: true, // Keep shell: true for now to maintain compatibility with tests
       cwd: options.cwd,
       env: options.env,
     });
 
-    const commandDisplay = `${command} ${args.join(' ')}`;
     const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
       switch (type) {
         case 'data_stdout':
@@ -58,7 +58,7 @@ export async function execInChildProcess(command: string, args: string[] = [], o
       if (code === 0) {
         return ok();
       } else {
-        return fail(new ToolkitError(`${commandDisplay}: Subprocess exited with error ${code}`));
+        return fail(new ToolkitError(`${formatCommandLine(argv)}: Subprocess exited with error ${code}`));
       }
     });
   });
