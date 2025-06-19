@@ -89,10 +89,10 @@ describe('EndpointTelemetryClient', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload.length,
       },
-    });
+      timeout: 2000,
+    }, expect.anything());
 
-    expect(mockRequest.write).toHaveBeenCalledWith(expectedPayload);
-    expect(mockRequest.end).toHaveBeenCalled();
+    expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
   });
 
   test('silently catches request errors', async () => {
@@ -140,10 +140,10 @@ describe('EndpointTelemetryClient', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload.length,
       },
-    });
+      timeout: 2000,
+    }, expect.anything());
 
-    expect(mockRequest.write).toHaveBeenCalledWith(expectedPayload);
-    expect(mockRequest.end).toHaveBeenCalled();
+    expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
   });
 
   test('flush clears events cache', async () => {
@@ -171,8 +171,10 @@ describe('EndpointTelemetryClient', () => {
       headers: {
         'content-type': 'application/json',
         'content-length': expectedPayload1.length,
+      
       },
-    });
+      timeout: 2000,
+    }, expect.anything());
 
     const expectedPayload2 = JSON.stringify([testEvent2]);
     expect(https.request).toHaveBeenCalledWith({
@@ -184,7 +186,8 @@ describe('EndpointTelemetryClient', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload2.length,
       },
-    });
+      timeout: 2000,
+    }, expect.anything());
   });
 
   test('flush is called every 30 seconds', async () => {
