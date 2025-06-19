@@ -14,19 +14,9 @@ export interface ShellOptions {
  */
 export function shell(command: string, args: string[] = [], options: ShellOptions = {}): string {
   const stdio: child_process.StdioOptions = options.quiet ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'];
-  const result = child_process.spawnSync(command, args, {
+  const buffer = child_process.execFileSync(command, args, {
     cwd: options.cwd,
     stdio: stdio,
-    encoding: 'utf-8',
   });
-  
-  if (result.error) {
-    throw result.error;
-  }
-  
-  if (result.status !== 0) {
-    throw new Error(`Command failed with exit code ${result.status}: ${command} ${args.join(' ')}`);
-  }
-  
-  return result.stdout ? result.stdout.trim() : '';
+  return buffer ? buffer.toString('utf-8').trim() : '';
 }
