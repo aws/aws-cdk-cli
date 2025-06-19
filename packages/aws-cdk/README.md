@@ -9,14 +9,14 @@
 
 <!--END STABILITY BANNER-->
 
-The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications.
+The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
 | Command                               | Description                                                                       |
-|---------------------------------------|-----------------------------------------------------------------------------------|
+| ------------------------------------- | --------------------------------------------------------------------------------- |
 | [`cdk docs`](#cdk-docs)               | Access the online documentation                                                   |
 | [`cdk init`](#cdk-init)               | Start a new CDK project (app or library)                                          |
 | [`cdk list`](#cdk-list)               | List stacks and their dependencies in an application                              |
-| [`cdk synth`](#cdk-synthesize)        | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk synth`](#cdk-synth)             | Synthesize a CDK app to CloudFormation template(s)                                |
 | [`cdk diff`](#cdk-diff)               | Diff stacks against current state                                                 |
 | [`cdk deploy`](#cdk-deploy)           | Deploy a stack into an AWS account                                                |
 | [`cdk rollback`](#cdk-rollback)       | Roll back a failed deployment                                                     |
@@ -32,29 +32,22 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk refactor`](#cdk-refactor)       | Moves resources between stacks or within the same stack                           |
 | [`cdk drift`](#cdk-drift)             | Detect drifts in the given CloudFormation stack(s)                                |
 
-- [Bundling](#bundling)
-- [MFA Support](#mfa-support)
-- [SSO Support](#sso-support)
+## Common topics
+
+- Usage
+  - [Asset bundling](#bundling)
+  - [Preview features](#unstable)
+- Authentication
+  - [MFA Support](#mfa-support)
+  - [SSO Support](#sso-support)
 - [Configuration](#configuration)
   - [Running in CI](#running-in-ci)
 
+## Requirements
 
-This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
-
-## Global Options
-
-### `unstable`
-
-The `--unstable` flag indicates that the scope and API of a feature might still change.
-Otherwise the feature is generally production ready and fully supported. For example,
-`cdk gc` is gated behind an `--unstable` flag:
-
-```bash
-cdk gc --unstable=gc
-```
-
-The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
-is aware of the caveats in place for the feature.
+You need [Node.js](https://nodejs.org/en/download) or another JavaScript runtime to use the AWS CDK Toolkit CLI. We recommend using the [Node.js version in Active LTS](https://nodejs.org/en/about/previous-releases).
+The minimal supported version is **Node.js v18**.
+See our [Support Policy](https://docs.aws.amazon.com/cdk/v2/guide/node-versions.html) for full details.
 
 ## Commands
 
@@ -124,7 +117,7 @@ $ cdk list --app='node bin/main.js' --long
         region: bermuda-triangle-3
 ```
 
-### `cdk synthesize`
+### `cdk synth`
 
 Synthesizes the CDK app and produces a cloud assembly to a designated output (defaults to `cdk.out`)
 
@@ -525,11 +518,11 @@ Hotswapping is currently supported for the following changes
 
 You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 
-| Property                       | Description                          | Default     |
-|--------------------------------|--------------------------------------|-------------|
-| minimumHealthyPercent          | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount  | **REPLICA:** 100, **DAEMON:** 0 |
-| maximumHealthyPercent          | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount    | **REPLICA:** 200, **DAEMON:**: N/A |
-| stabilizationTimeoutSeconds    | Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount    | 600 |
+| Property                    | Description                                                                                                                                                 | Default                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| minimumHealthyPercent       | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount            | **REPLICA:** 100, **DAEMON:** 0    |
+| maximumHealthyPercent       | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount | **REPLICA:** 200, **DAEMON:**: N/A |
+| stabilizationTimeoutSeconds | Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount                                   | 600                                |
 
 ##### cdk.json
 
@@ -860,13 +853,13 @@ before deploying the generated application.
 
 In practice this is how CDK Migrate generated applications will operate in the following scenarios:
 
-| Situation                                                                                         | Result                                                                        |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a changeset to the existing stack          |
-| Provided template has no overlap with resources already in the account/region                     | The CDK application will deploy a new stack successfully                      |
-| Provided template has overlap with Cloudformation managed resources already in the account/region | The CDK application will not be deployable unless those resources are removed |
-| Provided template has overlap with un-managed resources already in the account/region              | The CDK application will not be deployable until those resources are adopted with [`cdk import`](#cdk-import) |
-| No template has been provided and resources exist in the region the scan is done | The CDK application will be immediatly deployable and will import those resources into a new cloudformation stack upon deploy |
+| Situation                                                                                         | Result                                                                                                                        |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a changeset to the existing stack                                                          |
+| Provided template has no overlap with resources already in the account/region                     | The CDK application will deploy a new stack successfully                                                                      |
+| Provided template has overlap with Cloudformation managed resources already in the account/region | The CDK application will not be deployable unless those resources are removed                                                 |
+| Provided template has overlap with un-managed resources already in the account/region             | The CDK application will not be deployable until those resources are adopted with [`cdk import`](#cdk-import)                 |
+| No template has been provided and resources exist in the region the scan is done                  | The CDK application will be immediatly deployable and will import those resources into a new cloudformation stack upon deploy |
 
 ##### **The provided template is already deployed to CloudFormation in the account/region**
 
@@ -1214,6 +1207,21 @@ option.
 $ # Detect drift against the currently-deployed stack with the verbose flag enabled
 $ cdk drift --verbose 
 ```
+
+## Global Options
+
+### `unstable`
+
+The `--unstable` flag indicates that the scope and API of a feature might still change.
+Otherwise the feature is generally production ready and fully supported. For example,
+`cdk gc` is gated behind an `--unstable` flag:
+
+```bash
+cdk gc --unstable=gc
+```
+
+The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
+is aware of the caveats in place for the feature.
 
 ## Notices
 

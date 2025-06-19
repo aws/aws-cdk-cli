@@ -47,6 +47,13 @@ jobs:
           name: build-artifact
           path: packages/**/dist/js/*.tgz
           overwrite: "true"
+      - name: Upload scripts
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: script-artifact
+          path: .projen/*.sh
+          overwrite: "true"
+          include-hidden-files: true
   integ_matrix:
     needs: prepare
     runs-on: aws-cdk_ubuntu-latest_16-core
@@ -66,6 +73,11 @@ jobs:
         with:
           name: build-artifact
           path: packages
+      - name: Download scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: script-artifact
+          path: .projen
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -89,25 +101,8 @@ jobs:
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
-      - name: Install Verdaccio
-        run: npm install -g verdaccio pm2
-      - name: Create Verdaccio config
-        run: |-
-          mkdir -p $HOME/.config/verdaccio
-          echo '{"storage":"./storage","auth":{"htpasswd":{"file":"./htpasswd"}},"uplinks":{"npmjs":{"url":"https://registry.npmjs.org/"}},"packages":{"@aws-cdk/cloud-assembly-schema":{"access":"$all","publish":"$all","proxy":"npmjs"},"@aws-cdk/cloudformation-diff":{"access":"$all","publish":"$all","proxy":"npmjs"},"@aws-cdk/cli-plugin-contract":{"access":"$all","publish":"$all","proxy":"none"},"cdk-assets":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/toolkit-lib":{"access":"$all","publish":"$all","proxy":"npmjs"},"aws-cdk":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/cli-lib-alpha":{"access":"$all","publish":"$all","proxy":"none"},"cdk":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk/integ-runner":{"access":"$all","publish":"$all","proxy":"none"},"@aws-cdk-testing/cli-integ":{"access":"$all","publish":"$all","proxy":"none"},"**":{"access":"$all","proxy":"npmjs"}}}' > $HOME/.config/verdaccio/config.yaml
-      - name: Start Verdaccio
-        run: |-
-          pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml
-          sleep 5 # Wait for Verdaccio to start
-      - name: Configure npm to use local registry
-        run: |-
-          echo '//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="' > ~/.npmrc
-          echo 'registry=http://localhost:4873/' >> ~/.npmrc
-      - name: Find an locally publish all tarballs
-        run: |-
-          for pkg in packages/{@aws-cdk/cloud-assembly-schema,@aws-cdk/cloudformation-diff,@aws-cdk/cli-plugin-contract,cdk-assets,@aws-cdk/toolkit-lib,aws-cdk,@aws-cdk/cli-lib-alpha,cdk,@aws-cdk/integ-runner,@aws-cdk-testing/cli-integ}/dist/js/*.tgz; do
-            npm publish $pkg
-          done
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
@@ -139,12 +134,20 @@ jobs:
           if compgen -G "logs/md/*.md" > /dev/null; then
             cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
           fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
       - name: Upload logs
         id: logupload
         if: always()
         uses: actions/upload-artifact@v4.4.0
         with:
-          name: logs-${{ matrix.suite }}
+          name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
           overwrite: "true"
       - name: Append artifact URL

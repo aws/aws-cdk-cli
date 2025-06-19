@@ -443,7 +443,7 @@ export class Bundle {
     const bundle = esbuild.buildSync({
       entryPoints: this.entryPoints,
       bundle: true,
-      target: 'node14',
+      target: 'node18',
       platform: 'node',
       sourcemap: this.sourcemap,
       metafile: true, // this is always required for some of our validation rules

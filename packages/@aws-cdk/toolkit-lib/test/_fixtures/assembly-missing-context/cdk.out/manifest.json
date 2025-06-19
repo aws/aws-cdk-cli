@@ -1,0 +1,33 @@
+{
+  "version": "40.0.0",
+  "artifacts": {
+    "assembly-Stage": {
+      "type": "cdk:cloud-assembly",
+      "properties": {
+        "directoryName": "assembly-Stage",
+        "displayName": "Stage"
+      }
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  },
+  "missing": [
+    {
+      "key": "vpc-provider:account=123456789012:filter.isDefault=true:region=us-east-2:returnAsymmetricSubnets=true",
+      "provider": "vpc-provider",
+      "props": {
+        "account": "123456789012",
+        "region": "us-east-2",
+        "filter": {
+          "isDefault": "true"
+        },
+        "returnAsymmetricSubnets": true,
+        "lookupRoleArn": "arn:${AWS::Partition}:iam::123456789012:role/cdk-hnb659fds-lookup-role-123456789012-us-east-2"
+      }
+    }
+  ]
+}
