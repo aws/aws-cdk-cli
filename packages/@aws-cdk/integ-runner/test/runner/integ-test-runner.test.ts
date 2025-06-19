@@ -189,7 +189,11 @@ describe('IntegTest runIntegTests', () => {
       env: expect.objectContaining({
         CDK_INTEG_ACCOUNT: '12345678',
         CDK_INTEG_REGION: 'test-region',
-        CDK_CONTEXT_JSON: expect.stringContaining('"vpcId":"vpc-60900905"'),
+      }),
+      context: expect.objectContaining({
+        'vpc-provider:account=12345678:filter.isDefault=true:region=test-region:returnAsymmetricSubnets=true': expect.objectContaining({
+          vpcId: 'vpc-60900905',
+        }),
       }),
       output: 'xxxxx.test-with-snapshot-assets-diff.js.snapshot',
     });
@@ -315,6 +319,7 @@ describe('IntegTest runIntegTests', () => {
         CDK_INTEG_ACCOUNT: '12345678',
         CDK_INTEG_REGION: 'test-region',
       }),
+      context: expect.any(Object),
     });
   });
 

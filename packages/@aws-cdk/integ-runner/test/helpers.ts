@@ -88,7 +88,7 @@ export class MockCdkProvider {
       }),
       integOutDir: actualSnapshot ? 'test/test-data/' + actualSnapshot : undefined,
     });
-    // await integTest.actualTests();
+
     const results = await integTest.testSnapshot();
 
     // THEN
@@ -98,6 +98,7 @@ export class MockCdkProvider {
         CDK_INTEG_ACCOUNT: '12345678',
         CDK_INTEG_REGION: 'test-region',
       }),
+      context: expect.any(Object),
       execCmd: ['node', integTestFile],
       output: actualSnapshot ?? `cdk-integ.out.${integTestFile}.snapshot`,
     });

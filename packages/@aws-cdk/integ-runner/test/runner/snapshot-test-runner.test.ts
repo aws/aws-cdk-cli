@@ -224,6 +224,7 @@ describe('IntegTest runSnapshotTests', () => {
           CDK_INTEG_ACCOUNT: '12345678',
           CDK_INTEG_REGION: 'test-region',
         }),
+        context: expect.any(Object),
         output: '../../does/not/exist',
       });
     });
