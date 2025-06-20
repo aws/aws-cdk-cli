@@ -7,6 +7,16 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
+import type { ITelemetryClient } from '../telemetry/client-interface';
+import type { SessionSchema } from '../telemetry/schema';
+import { randomUUID } from 'node:crypto';
+import * as version from './../version';
+import { IoHostTelemetryClient } from '../telemetry/io-host-client';
+import { getInstallationId } from '../telemetry/installation-id';
+import { makeConfig } from '../cli-config';
+import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
+import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
+import { RegionFetcher } from '../telemetry/region-fetcher';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -144,6 +154,10 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  private telemetryClient?: ITelemetryClient;
+  private telemetryInfo?: SessionSchema;
+  private telemetryCount = 0;
+
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
     this.isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
@@ -152,6 +166,45 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+  }
+
+  /**
+   * Required for telemetry
+   */
+  public async bindTelemetryClient(argv: any, context: {[key: string]: any}) {
+    // TODO: change this to EndpointTelemetryClient
+    this.telemetryClient = new IoHostTelemetryClient({
+      ioHost: this,
+    });
+
+    // sanitize the raw cli input
+    const command = sanitizeCommandLineArguments(argv, await makeConfig());
+    this.telemetryInfo = {
+      identifiers: {
+        installationId: getInstallationId(this.asIoHelper()),
+        sessionId: randomUUID(),
+        telemetryVersion: '1.0',
+        cdkCliVersion: version.versionNumber(),
+        accountId: await new AccountIdFetcher().fetch(),
+        region: await new RegionFetcher().fetch(),
+      },
+      event: {
+        command: {
+          path: command.path,
+          parameters: command.parameters,
+          config: sanitizeContext(context),
+        },
+      },
+      environment: {
+        ci: Boolean(process.env.CI),
+        os: {
+          platform: process.platform,
+          release: process.release.name,
+        },
+        nodeVersion: process.version,
+      },
+      project: {},
+    };
   }
 
   /**
@@ -248,6 +301,16 @@ export class CliIoHost implements IIoHost {
       return this._internalIoHost.notify(msg);
     }
 
+    if (process.env.TELEMETRY_TEST_ENV) {
+      try {
+        if (this.isTelemetryMessage(msg)) {
+          await this.emitTelemetry(msg);
+        }
+      } catch (e: any) {
+        this.defaults.debug(`Emit Telemetry Failed ${e.message}`);
+      }
+    }
+
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
         this.activityPrinter = this.makeActivityPrinter();
@@ -268,6 +331,42 @@ export class CliIoHost implements IIoHost {
     const output = this.formatMessage(msg);
     const stream = this.selectStream(msg);
     stream?.write(output);
+  }
+
+  private isTelemetryMessage(msg: IoMessage<any>) {
+    return msg.data && msg.data.telemetry;
+  }
+
+  private async emitTelemetry(msg: IoMessage<any>) {
+    // Session has not been attached
+    if (!this.telemetryInfo) { 
+      throw new ToolkitError('Session must be attached before telemetry is emitted');
+    }
+
+    const event = msg.data.telemetry;
+    await this.telemetryClient?.emit({
+      event: {
+        command: this.telemetryInfo.event.command,
+        state: event.state,
+        eventType: event.eventType,
+      },
+      identifiers: {
+        ...this.telemetryInfo.identifiers,
+        eventId: `${this.telemetryInfo.identifiers.sessionId}:${this.telemetryCount}`,
+        timestamp: new Date().toISOString(),
+      },
+      environment: this.telemetryInfo.environment,
+      project: this.telemetryInfo.project,
+      duration: {
+        total: event.duration,
+      },
+      ...(event.error ? {
+        error: {
+          name: event.error.name,
+        },
+      } : {}),
+    });
+    this.telemetryCount+=1;
   }
 
   /**

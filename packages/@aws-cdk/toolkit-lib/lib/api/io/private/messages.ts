@@ -17,7 +17,7 @@ import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
 import type { StackSelectionDetails } from '../../../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, SingleStack, StackAndAssemblyData } from '../../../payloads/types';
+import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, SingleStack, StackAndAssemblyData, Telemetry } from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
 
 /**
@@ -31,6 +31,12 @@ export const IO = {
   CDK_TOOLKIT_W0100: make.warn({
     code: 'CDK_TOOLKIT_W0100',
     description: 'Credential plugin warnings',
+  }),
+
+  CDK_TOOLKIT_I0050: make.debug<Telemetry>({
+    code: 'CDK_TOOLKIT_I0050',
+    description: 'Generic Telemetric Event',
+    interface: 'Telemetry',
   }),
 
   // 1: Synth (1xxx)
