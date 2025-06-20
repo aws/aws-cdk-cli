@@ -626,17 +626,21 @@ export function cli(args: string[] = process.argv.slice(2)) {
       if (typeof value === 'number') {
         process.exitCode = value;
       }
-      if (value === 1) {
-        await failedTelemetryExitEvent(args, startTime);
-      } else {
-        await successfulTelemetryExitEvent(args, startTime);
+      if (process.env.TELEMETRY_TEST_ENV) {
+        if (value === 1) {
+          await failedTelemetryExitEvent(args, startTime);
+        } else {
+          await successfulTelemetryExitEvent(args, startTime);
+        }
       }
     })
     .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, version.isDeveloperBuild());
-      await failedTelemetryExitEvent(args, startTime, err);
+      if (process.env.TELEMETRY_TEST_ENV) {
+        await failedTelemetryExitEvent(args, startTime, err);
+      }
       process.exitCode = 1;
     });
 }

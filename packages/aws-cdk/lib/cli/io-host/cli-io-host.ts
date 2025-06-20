@@ -305,7 +305,6 @@ export class CliIoHost implements IIoHost {
       try {
         if (this.isTelemetryMessage(msg)) {
           await this.emitTelemetry(msg);
-          return; // This eats the message for now
         }
       } catch (e: any) {
         this.defaults.debug(`Emit Telemetry Failed ${e.message}`);
