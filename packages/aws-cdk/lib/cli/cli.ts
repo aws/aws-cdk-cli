@@ -13,7 +13,7 @@ import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { asIoHelper } from '../../lib/api-private';
+import { asIoHelper, IO } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
@@ -620,57 +620,54 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 
 /* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
+  const startTime = new Date().getTime();
   exec(args)
     .then(async (value) => {
       if (typeof value === 'number') {
         process.exitCode = value;
       }
       if (value === 1) {
-        await failedTelemetryExitEvent();
+        await failedTelemetryExitEvent(args, startTime);
       } else {
-        await successfulTelemetryExitEvent();
+        await successfulTelemetryExitEvent(args, startTime);
       }
     })
     .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, version.isDeveloperBuild());
-      await failedTelemetryExitEvent(err);
+      await failedTelemetryExitEvent(args, startTime, err);
       process.exitCode = 1;
     });
 }
 /* c8 ignore stop */
 
-async function successfulTelemetryExitEvent() {
-  await CliIoHost.instance().defaults.notify({
-    level: 'debug',
-    message: `Exiting`,
-    time: new Date(),
-    data: {
+async function successfulTelemetryExitEvent(args: string[], startTime: number) {
+  await CliIoHost.instance().asIoHelper().notify(IO.CDK_TOOLKIT_I0050.msg(
+    `Exiting ${args[1]}`,
+    {
       telemetry: {
-        eventType: 'exit',
-        state: 'SUCCESS',
-        duration: 0,
+        duration: new Date().getTime() - startTime,
+        eventType: 'Exit',
+        state: 'SUCCEEDED',
       },
     },
-  });
+  ));
 }
 
-async function failedTelemetryExitEvent(err?: any) {
-  await CliIoHost.instance().defaults.notify({
-    level: 'debug',
-    message: `Exiting`,
-    time: new Date(),
-    data: {
+async function failedTelemetryExitEvent(args: string[], startTime: number, err?: any) {
+  await CliIoHost.instance().asIoHelper().notify(IO.CDK_TOOLKIT_I0050.msg(
+    `Exiting ${args[1]}`,
+    {
       telemetry: {
-        eventType: 'exit',
+        duration: new Date().getTime() - startTime,
+        eventType: 'Exit',
         state: 'FAILED',
-        duration: 0,
-      },
-      error: {
-        name: err.name ?? 'ExitCode1Error',
-        // message: err.message, // TODO: sanitize
+        error: {
+          name: err?.name ?? 'ExitCode1Error', // TODO: sanitize
+          // message: err.message, // TODO: sanitize
+        },
       },
     },
-  });
+  ));
 }

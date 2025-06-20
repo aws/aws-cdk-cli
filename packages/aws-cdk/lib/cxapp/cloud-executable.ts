@@ -3,7 +3,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
 import type { IoHelper } from '../../lib/api-private';
-import { BorrowedAssembly } from '../../lib/api-private';
+import { BorrowedAssembly, IO } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';
@@ -128,18 +128,16 @@ export class CloudExecutable implements ICloudAssemblySource {
       }
 
       const elapsedSynthTime = new Date().getTime() - startSynthTime;
-      await this.props.ioHelper.defaults.notify({
-        level: 'debug',
-        message: `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
-        time: new Date(),
-        data: {
+      await this.props.ioHelper.notify(IO.CDK_TOOLKIT_I0050.msg(
+        `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
+        {
           telemetry: {
-            eventType: 'synth',
+            eventType: 'Synth',
             state: 'SUCCEEDED',
             duration: elapsedSynthTime,
           },
         },
-      });
+      ));
       return new CloudAssembly(assembly, this.props.ioHelper);
     }
   }
