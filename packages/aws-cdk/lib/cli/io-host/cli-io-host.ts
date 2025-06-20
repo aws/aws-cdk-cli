@@ -8,13 +8,13 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import type { ITelemetryClient } from '../telemetry/client-interface';
-import type { Command, Environment, TelemetrySchema } from '../telemetry/schema';
+import type { SessionSchema } from '../telemetry/schema';
 import { randomUUID } from 'node:crypto';
 import * as version from './../version';
 import { IoHostTelemetryClient } from '../telemetry/io-host-client';
 import { getInstallationId } from '../telemetry/installation-id';
 import { makeConfig } from '../cli-config';
-import { redactCommmandLineArguments } from '../telemetry/redact-command-line-arguments';
+import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
 import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { RegionFetcher } from '../telemetry/region-fetcher';
 
@@ -154,8 +154,8 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  private client?: ITelemetryClient;
-  private sessionInfo: DeepPartial<TelemetrySchema> = {}
+  private telemetryClient?: ITelemetryClient;
+  private telemetryInfo?: SessionSchema;
   private telemetryCount = 0;
 
   private constructor(props: CliIoHostProps = {}) {
@@ -171,41 +171,40 @@ export class CliIoHost implements IIoHost {
   /**
    * Required for telemetry
    */
-  public async attachSession(props: any) {
+  public async bindTelemetryClient(argv: any, context: {[key: string]: any}) {
     // TODO: change this to EndpointTelemetryClient
-    this.client = new IoHostTelemetryClient({
+    this.telemetryClient = new IoHostTelemetryClient({
       ioHost: this,
     });
 
     // sanitize the raw cli input
-    const command = redactCommmandLineArguments(props.argv, await makeConfig());
-
-    this.sessionInfo.event = {
-      command: {
-        path: command.path,
-        parameters: command.parameters,
-        // config: props.settings, // TODO: sanitize
+    const command = sanitizeCommandLineArguments(argv, await makeConfig());
+    this.telemetryInfo = {
+      identifiers: {
+        installationId: getInstallationId(this.asIoHelper()),
+        sessionId: randomUUID(),
+        telemetryVersion: '1.0',
+        cdkCliVersion: version.versionNumber(),
+        accountId: await new AccountIdFetcher().fetch(),
+        region: await new RegionFetcher().fetch(),
       },
-    };
-
-    const installationId = getInstallationId(this.asIoHelper());
-    this.sessionInfo.identifiers = {
-      cdkCliVersion: version.versionNumber(),
-      installationId,
-      sessionId: randomUUID(),
-      telemetryVersion: '1.0',
-      accountId: await new AccountIdFetcher().fetch(),
-      region: await new RegionFetcher().fetch(),
-    };
-
-    this.sessionInfo.environment = {
-      ci: Boolean(process.env.CI),
-      os: {
-        platform: process.platform,
-        release: process.release.name,
+      event: {
+        command: {
+          path: command.path,
+          parameters: command.parameters,
+          config: sanitizeContext(context),
+        },
       },
-      nodeVersion: process.version,
-    }
+      environment: {
+        ci: Boolean(process.env.CI),
+        os: {
+          platform: process.platform,
+          release: process.release.name,
+        },
+        nodeVersion: process.version,
+      },
+      project: {},
+    };
   }
 
   /**
@@ -341,29 +340,24 @@ export class CliIoHost implements IIoHost {
 
   private async emitTelemetry(msg: IoMessage<any>) {
     // Session has not been attached
-    if (!this.sessionInfo) { 
+    if (!this.telemetryInfo) { 
       throw new ToolkitError('Session must be attached before telemetry is emitted');
     }
 
     const event = msg.data.telemetry;
-    await this.client?.emit({
+    await this.telemetryClient?.emit({
       event: {
-        command: this.sessionInfo.event!.command as Command,
+        command: this.telemetryInfo.event.command,
         state: event.state,
         eventType: event.eventType,
       },
       identifiers: {
-        cdkCliVersion: this.sessionInfo.identifiers?.cdkCliVersion as string,
-        accountId: this.sessionInfo.identifiers?.accountId,
-        region: this.sessionInfo.identifiers?.region,
-        eventId: `${this.sessionInfo.identifiers?.sessionId}:${this.telemetryCount}`,
-        installationId: this.sessionInfo.identifiers!.installationId as string,
-        sessionId: this.sessionInfo.identifiers?.sessionId as string,
-        telemetryVersion: '1.0',
+        ...this.telemetryInfo.identifiers,
+        eventId: `${this.telemetryInfo.identifiers.sessionId}:${this.telemetryCount}`,
         timestamp: new Date().toISOString(),
       },
-      environment: this.sessionInfo.environment as Environment,
-      project: {},
+      environment: this.telemetryInfo.environment,
+      project: this.telemetryInfo.project,
       duration: {
         total: event.duration,
       },
@@ -624,7 +618,3 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
 function isNoticesMessage(msg: IoMessage<unknown>) {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
-
-type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};

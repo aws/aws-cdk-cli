@@ -89,10 +89,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await configuration.load();
 
   if (process.env.TELEMETRY_TEST_ENV) {
-    ioHost.attachSession({
-      settings: configuration.settings.all,
+    ioHost.bindTelemetryClient(
       argv,
-    });
+      configuration.context.all,
+    );
   }
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
@@ -625,12 +625,52 @@ export function cli(args: string[] = process.argv.slice(2)) {
       if (typeof value === 'number') {
         process.exitCode = value;
       }
+      if (value === 1) {
+        await failedTelemetryExitEvent();
+      } else {
+        await successfulTelemetryExitEvent();
+      }
     })
-    .catch((err) => {
+    .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, version.isDeveloperBuild());
+      await failedTelemetryExitEvent(err);
       process.exitCode = 1;
     });
 }
 /* c8 ignore stop */
+
+async function successfulTelemetryExitEvent() {
+  await CliIoHost.instance().defaults.notify({
+    level: 'debug',
+    message: `Exiting`,
+    time: new Date(),
+    data: {
+      telemetry: {
+        eventType: 'exit',
+        state: 'SUCCESS',
+        duration: 0,
+      },
+    },
+  });
+}
+
+async function failedTelemetryExitEvent(err?: any) {
+  await CliIoHost.instance().defaults.notify({
+    level: 'debug',
+    message: `Exiting`,
+    time: new Date(),
+    data: {
+      telemetry: {
+        eventType: 'exit',
+        state: 'FAILED',
+        duration: 0,
+      },
+      error: {
+        name: err.name ?? 'ExitCode1Error',
+        // message: err.message, // TODO: sanitize
+      },
+    },
+  });
+}

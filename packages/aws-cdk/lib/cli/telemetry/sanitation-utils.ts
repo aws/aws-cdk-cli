@@ -4,7 +4,7 @@ import { Command } from "./schema";
 /**
  * argv is the output of yargs
  */
-export function redactCommmandLineArguments(argv: any, config: CliConfig): Command {
+export function sanitizeCommandLineArguments(argv: any, config: CliConfig): Command {
   const command = argv._[0];
   const path: string[] = [];
   const parameters: string[] = [command];
@@ -46,4 +46,19 @@ export function redactCommmandLineArguments(argv: any, config: CliConfig): Comma
     parameters,
     config: {},
   };
+}
+
+export function sanitizeContext(context: {[key: string]: any}) {
+  const sanitizedContext: {[key: string]: boolean } = {};
+  for (const [flag, value] of Object.entries(context)) {
+    // Falsy options include boolean false, string 'false'
+    // All other inputs evaluate to true
+    const sanitizedValue: boolean = isBoolean(value) ? value : (value !== 'false');
+    sanitizedContext[flag] = sanitizedValue;
+  }
+  return sanitizedContext;
+}
+
+function isBoolean(value: any): value is boolean {
+  return typeof value === 'boolean';
 }

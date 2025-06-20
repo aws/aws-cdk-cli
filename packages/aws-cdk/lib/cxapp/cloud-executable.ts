@@ -8,6 +8,7 @@ import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
+import { formatTime } from '../util';
 
 /**
  * @returns output directory
@@ -82,6 +83,7 @@ export class CloudExecutable implements ICloudAssemblySource {
     // but it missing. We'll then look up the context and run the executable again, and
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
+    const startSynthTime = new Date().getTime();
     while (true) {
       const assembly = await this.props.synthesizer(this.props.sdkProvider, this.props.configuration);
 
@@ -125,6 +127,19 @@ export class CloudExecutable implements ICloudAssemblySource {
         }
       }
 
+      const elapsedSynthTime = new Date().getTime() - startSynthTime;
+      await this.props.ioHelper.defaults.notify({
+        level: 'debug',
+        message: `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
+        time: new Date(),
+        data: {
+          telemetry: {
+            eventType: 'synth',
+            state: 'SUCCEEDED',
+            duration: elapsedSynthTime,
+          },
+        },
+      });
       return new CloudAssembly(assembly, this.props.ioHelper);
     }
   }

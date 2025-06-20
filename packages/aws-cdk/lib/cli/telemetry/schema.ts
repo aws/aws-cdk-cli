@@ -1,13 +1,16 @@
-export interface Identifiers {
+interface SessionIdentifiers {
   readonly cdkCliVersion: string;
   readonly cdkLibraryVersion?: string;
   readonly telemetryVersion: string;
   readonly sessionId: string;
-  readonly eventId: string;
   readonly installationId: string;
-  readonly timestamp: string;
   readonly accountId?: string;
   readonly region?: string;
+}
+
+export interface Identifiers extends SessionIdentifiers {
+  readonly eventId: string;
+  readonly timestamp: string;
 }
 
 export interface Command {
@@ -16,13 +19,16 @@ export interface Command {
   readonly config: { [key: string]: any };
 }
 
-interface Event {
-  readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
-  readonly eventType: string;
+interface SessionEvent {
   readonly command: Command;
 }
 
-export interface Environment {
+interface Event extends SessionEvent {
+  readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
+  readonly eventType: string;
+}
+
+export interface SessionEnvironment {
   readonly os: {
     readonly platform: string;
     readonly release: string;
@@ -30,6 +36,8 @@ export interface Environment {
   readonly ci: boolean;
   readonly nodeVersion: string;
 }
+
+interface Environment extends SessionEnvironment {}
 
 interface Duration {
   readonly total: number;
@@ -50,9 +58,11 @@ interface Dependency {
   readonly version: string;
 }
 
-interface Project {
+interface SessionProject {
   readonly dependencies?: Dependency[];
 }
+
+interface Project extends SessionProject {}
 
 export interface TelemetrySchema {
   readonly identifiers: Identifiers;
@@ -62,4 +72,11 @@ export interface TelemetrySchema {
   readonly duration: Duration;
   readonly counters?: Counters;
   readonly error?: Error;
+}
+
+export interface SessionSchema {
+  readonly identifiers: SessionIdentifiers;
+  readonly event: SessionEvent;
+  readonly environment: SessionEnvironment;
+  readonly project: SessionProject;
 }
