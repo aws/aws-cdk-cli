@@ -994,7 +994,7 @@ export class CdkToolkit {
       logResult(stack.id);
     }
 
-    return 0;
+    return 0; // exit-code
   }
 
   /**
