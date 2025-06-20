@@ -463,6 +463,21 @@ export async function makeConfig(): Promise<CliConfig> {
           },
         },
       },
+      telemetry: {
+        description: 'Enable or disable anonymous telemetry',
+        options: {
+          enable: {
+            type: 'boolean',
+            desc: 'Enable anonymous telemetry',
+            conflicts: 'disable',
+          },
+          disable: {
+            type: 'boolean',
+            desc: 'Disable anonymous telemetry',
+            conflicts: 'enable',
+          },
+        },
+      },
     },
   };
 }
