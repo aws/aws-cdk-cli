@@ -1,8 +1,14 @@
 import type { Environment } from '@aws-cdk/cx-api';
+import type { StackDefinition } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type { CloudFormationStack } from './cloudformation';
-import { ResourceLocation, ResourceMapping } from './cloudformation';
+import { hasResource, ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import type { SDK } from '../aws-auth/sdk';
+import type { SdkProvider } from '../aws-auth/sdk-provider';
+import { EnvironmentResourcesRegistry } from '../environment';
+import type { IoHelper } from '../io/private';
+import { Mode } from '../plugin';
 
 /**
  * Represents a set of possible moves of a resource from one location
@@ -11,38 +17,35 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
  */
 type ResourceMove = [ResourceLocation[], ResourceLocation[]];
 
-export interface RefactorManagerOptions {
+export interface RefactoringContextOptions {
   environment: Environment;
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
   mappings?: ResourceMapping[];
   filteredStacks?: CloudFormationStack[];
+  mappingOverrides?: Record<string, string>;
 }
 
 /**
  * Encapsulates the information for refactoring resources in a single environment.
  */
 export class RefactoringContext {
+  public readonly environment: Environment;
   private readonly _mappings: ResourceMapping[] = [];
   private readonly ambiguousMoves: ResourceMove[] = [];
-  public readonly environment: Environment;
 
-  constructor(props: RefactorManagerOptions) {
-    this.environment = props.environment;
-    if (props.mappings != null) {
-      this._mappings = props.mappings;
+  constructor(options: RefactoringContextOptions) {
+    this.environment = options.environment;
+
+    if (options.mappings != null) {
+      this._mappings = options.mappings;
     } else {
-      const moves = resourceMoves(props.deployedStacks, props.localStacks);
-      this.ambiguousMoves = ambiguousMoves(moves);
-
-      if (!this.isAmbiguous) {
-        this._mappings = resourceMappings(resourceMoves(props.deployedStacks, props.localStacks), props.filteredStacks);
-      }
+      const overrides = this.mappingsFromOverrides(options.deployedStacks, options.localStacks, options.mappingOverrides ?? {});
+      const moves = this.overrideMoves(resourceMoves(options.deployedStacks, options.localStacks), overrides);
+      this.ambiguousMoves = moves.filter(isAmbiguousMove);
+      const nonAmbiguousMoves = moves.filter((move) => !isAmbiguousMove(move));
+      this._mappings = resourceMappings(nonAmbiguousMoves, options.filteredStacks);
     }
-  }
-
-  public get isAmbiguous(): boolean {
-    return this.ambiguousMoves.length > 0;
   }
 
   public get ambiguousPaths(): [string[], string[]][] {
@@ -54,12 +57,101 @@ export class RefactoringContext {
   }
 
   public get mappings(): ResourceMapping[] {
-    if (this.isAmbiguous) {
-      throw new ToolkitError(
-        'Cannot access mappings when there are ambiguous resource moves. Please resolve the ambiguity first.',
+    return this._mappings;
+  }
+
+  public async execute(stackDefinitions: StackDefinition[], sdkProvider: SdkProvider, ioHelper: IoHelper): Promise<void> {
+    if (this.mappings.length === 0) {
+      return;
+    }
+
+    const sdk = (await sdkProvider.forEnvironment(this.environment, Mode.ForWriting)).sdk;
+
+    await this.checkBootstrapVersion(sdk, ioHelper);
+
+    const cfn = sdk.cloudFormation();
+    const mappings = this.mappings;
+
+    const input = {
+      EnableStackCreation: true,
+      ResourceMappings: mappings.map((m) => m.toCloudFormation()),
+      StackDefinitions: stackDefinitions,
+    };
+    const refactor = await cfn.createStackRefactor(input);
+
+    await cfn.waitUntilStackRefactorCreateComplete({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+
+    await cfn.executeStackRefactor({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+
+    await cfn.waitUntilStackRefactorExecuteComplete({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+  }
+
+  private overrideMoves(moves: ResourceMove[], overrides: ResourceMapping[]): ResourceMove[] {
+    const result: ResourceMove[] = moves.map(move => {
+      const match = overrides.find((m) => matches(move, m));
+      return match ? [[match.source], [match.destination]] : move;
+    });
+
+    for (let override of overrides) {
+      const foo = result.find((m) => matches(m, override));
+      if (!foo) {
+        result.push([[override.source], [override.destination]]);
+      }
+    }
+
+    return result;
+
+    function matches(move: ResourceMove, override: ResourceMapping): boolean {
+      return move[0].some((s) => s.equalTo(override.source));
+    }
+  }
+
+  private mappingsFromOverrides(
+    deployedStacks: CloudFormationStack[],
+    localStacks: CloudFormationStack[],
+    overrides: Record<string, string>): ResourceMapping[] {
+    const result: ResourceMapping[] = [];
+    for (let [from, to] of Object.entries(overrides)) {
+      const [fromStackName, fromLogicalId] = from.split('.');
+      const [toStackName, toLogicalId] = to.split('.');
+      const fromStack = deployedStacks.find((s) => s.stackName === fromStackName);
+      const toStack = localStacks.find((s) => s.stackName === toStackName);
+
+      if (fromStack == null || toStack == null || !hasResource(fromStack, fromLogicalId) || !hasResource(toStack, toLogicalId)) {
+        // Only consider valid mappings
+        // TODO Maybe print a warning
+        continue;
+      }
+
+      result.push(new ResourceMapping(
+        new ResourceLocation(fromStack, fromLogicalId),
+        new ResourceLocation(toStack, toLogicalId)),
       );
     }
-    return this._mappings;
+    return result;
+  }
+
+  private async checkBootstrapVersion(sdk: SDK, ioHelper: IoHelper) {
+    const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
+    const envResources = environmentResourcesRegistry.for(this.environment, sdk, ioHelper);
+    let bootstrapVersion: number | undefined = undefined;
+    try {
+      // Try to get the bootstrap version
+      bootstrapVersion = (await envResources.lookupToolkit()).version;
+    } catch (e) {
+      // But if we can't, keep going. Maybe we can still succeed.
+    }
+    if (bootstrapVersion != null && bootstrapVersion < 28) {
+      throw new ToolkitError(
+        `The CDK toolkit stack in environment aws://${this.environment.account}/${this.environment.region} doesn't support refactoring. Please run 'cdk bootstrap' to update it.`,
+      );
+    }
   }
 }
 
@@ -142,13 +234,13 @@ function resourceDigests(stacks: CloudFormationStack[]): [string, ResourceLocati
   });
 }
 
-function ambiguousMoves(movements: ResourceMove[]) {
+function isAmbiguousMove(move: ResourceMove): boolean {
+  const [pre, post] = move;
+
   // A move is considered ambiguous if two conditions are met:
   //  1. Both sides have at least one element (otherwise, it's just addition or deletion)
   //  2. At least one side has more than one element
-  return movements
-    .filter(([pre, post]) => pre.length > 0 && post.length > 0)
-    .filter(([pre, post]) => pre.length > 1 || post.length > 1);
+  return pre.length > 0 && post.length > 0 && (pre.length > 1 || post.length > 1);
 }
 
 function resourceMappings(movements: ResourceMove[], stacks?: CloudFormationStack[]): ResourceMapping[] {

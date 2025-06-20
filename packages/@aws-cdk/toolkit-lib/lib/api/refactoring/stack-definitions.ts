@@ -38,12 +38,10 @@ export function generateStackDefinitions(
   deployedStacks: CloudFormationStack[],
   localStacks: CloudFormationStack[],
 ): StackDefinition[] {
-  const localExports: Record<string, ScopedExport> = indexExports(localStacks);
-  const deployedExports: Record<string, ScopedExport> = indexExports(deployedStacks);
   const edgeMapper = new EdgeMapper(mappings);
 
   // Build a graph of the deployed stacks
-  const deployedGraph = graph(deployedStacks, deployedExports);
+  const deployedGraph = graph(deployedStacks);
 
   // Map all the edges, including their endpoints, to their new locations.
   const edges = edgeMapper.mapEdges(deployedGraph.edges);
@@ -52,7 +50,7 @@ export function generateStackDefinitions(
   const nodes = mapNodes(deployedGraph.isolatedNodes, mappings);
 
   // Now we can generate the templates for each stack
-  const templates = generateTemplates(edges, nodes, edgeMapper.affectedStackNames, localExports, deployedStacks);
+  const templates = generateTemplates(edges, nodes, edgeMapper.affectedStackNames, localStacks, deployedStacks);
 
   // Finally, generate the stack definitions, to be included in the refactor request.
   return Object.entries(templates).map(([stackName, template]) => ({
@@ -61,12 +59,13 @@ export function generateStackDefinitions(
   }));
 }
 
-function graph(deployedStacks: CloudFormationStack[], deployedExports: Record<string, ScopedExport>):
-{ edges: ResourceEdge[]; isolatedNodes: ResourceNode[] } {
+function graph(deployedStacks: CloudFormationStack[]): { edges: ResourceEdge[]; isolatedNodes: ResourceNode[] } {
+  const deployedExports: Record<string, ScopedExport> = indexExports(deployedStacks);
   const deployedNodeMap: Map<string, ResourceNode> = buildNodes(deployedStacks);
+  const resourceNamesByStack = indexResourceNames(deployedStacks);
   const deployedNodes = Array.from(deployedNodeMap.values());
 
-  const edges = buildEdges(deployedNodeMap, deployedExports);
+  const edges = buildEdges(deployedNodeMap, deployedExports, resourceNamesByStack);
 
   const isolatedNodes = deployedNodes.filter((node) => {
     return !edges.some(
@@ -81,45 +80,54 @@ function graph(deployedStacks: CloudFormationStack[], deployedExports: Record<st
 
 function buildNodes(stacks: CloudFormationStack[]): Map<string, ResourceNode> {
   const result = new Map<string, ResourceNode>();
-
   for (const stack of stacks) {
     const template = stack.template;
-    for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
-      const location = new ResourceLocation(stack, logicalId);
+    buildForSection(stack, 'Resource', template.Resources);
+    buildForSection(stack, 'Output', template.Outputs);
+  }
+  return result;
+
+  function buildForSection(stack: CloudFormationStack, nodeType: NodeType, section?: Record<string, any>) {
+    for (const [logicalId, resource] of Object.entries(section ?? {})) {
       result.set(`${stack.stackName}.${logicalId}`, {
-        location,
+        type: nodeType,
+        location: new ResourceLocation(stack, logicalId),
         rawValue: resource,
       });
     }
   }
-
-  return result;
 }
 
 function buildEdges(
   nodeMap: Map<string, ResourceNode>,
-  exports: Record<
-    string,
-    {
-      stackName: string;
-      value: any;
-    }
-  >,
+  exports: Record<string, ScopedExport>,
+  resourceNamesByStack: Record<string, string[]>,
 ): ResourceEdge[] {
   const nodes = Array.from(nodeMap.values());
   return nodes.flatMap((node) => buildEdgesForResource(node, node.rawValue));
 
   function buildEdgesForResource(source: ResourceNode, value: any, path: string[] = []): ResourceEdge[] {
+    const resourceNames = resourceNamesByStack[source.location.stack.stackName] ?? [];
+
     if (!value || typeof value !== 'object') return [];
     if (Array.isArray(value)) {
       return value.flatMap((x, index) => buildEdgesForResource(source, x, path.concat(String(index))));
     }
 
     if ('Ref' in value) {
+      if (!resourceNames.includes(value.Ref)) {
+        return [];
+      }
+
       return [makeRef(source.location.stack.stackName, value.Ref)];
     }
 
     if ('Fn::GetAtt' in value) {
+      const logicalId = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'];
+      if (!resourceNames.includes(logicalId)) {
+        return [];
+      }
+
       return [makeGetAtt(source.location.stack.stackName, value['Fn::GetAtt'])];
     }
 
@@ -151,7 +159,7 @@ function buildEdges(
 
     if ('Fn::Sub' in value) {
       let inputString: string;
-      let variables: Record<string, any> | undefined;
+      let variables: Record<string, any> = {};
       const sub = value['Fn::Sub'];
       if (typeof sub === 'string') {
         inputString = sub;
@@ -161,22 +169,24 @@ function buildEdges(
 
       let varNames = Array.from(inputString.matchAll(/\${([a-zA-Z0-9_.]+)}/g))
         .map((x) => x[1])
-        .filter((varName) => (value['Fn::Sub'][1] ?? {})[varName] == null);
+        .filter((varName) => {
+          const [logicalId] = varName.split(/\.(.*)/s);
+          return resourceNames.includes(logicalId);
+        });
 
-      const edges = varNames.map((varName) => {
+      const targets = varNames.map((varName) => {
         return varName.includes('.')
           ? makeGetAtt(source.location.stack.stackName, varName)
           : makeRef(source.location.stack.stackName, varName);
-      });
+      }).flatMap((e) => e.targets);
 
-      const edgesFromInputString = [
-        {
+      const edgesFromInputString = targets.length > 0
+        ? [{
           source,
-          targets: edges.flatMap((edge) => edge.targets),
+          targets,
           reference: new Sub(inputString, varNames),
-          path: path.concat('Fn::Sub', '0'),
-        },
-      ];
+          path: typeof sub === 'string' ? path.concat('Fn::Sub') : path.concat('Fn::Sub', '0'),
+        }] : [];
 
       const edgesFromVariables = buildEdgesForResource(source, variables, path.concat('Fn::Sub', '1'));
 
@@ -246,6 +256,7 @@ function mapNodes(nodes: ResourceNode[], mappings: ResourceMapping[]): ResourceN
   return nodes.map((node) => {
     const newLocation = mapLocation(node.location, mappings);
     return {
+      type: node.type,
       location: newLocation,
       rawValue: node.rawValue,
     } as ResourceNode;
@@ -256,9 +267,11 @@ function generateTemplates(
   edges: ResourceEdge[],
   nodes: ResourceNode[],
   stackNames: string[],
-  exports: Record<string, ScopedExport>,
-  deployedStacks: CloudFormationStack[]): Record<string, CloudFormationTemplate> {
-  updateReferences(edges, exports);
+  localStacks: CloudFormationStack[],
+  deployedStacks: CloudFormationStack[],
+): Record<string, CloudFormationTemplate> {
+  updateReferences(edges, indexExports(localStacks));
+
   const templates: Record<string, CloudFormationTemplate> = {};
 
   // Take the CloudFormation raw value of each the node and put it into the appropriate template.
@@ -266,6 +279,10 @@ function generateTemplates(
   allNodes.forEach((node) => {
     const stackName = node.location.stack.stackName;
     const logicalId = node.location.logicalResourceId;
+
+    if (node.type !== 'Resource') {
+      return;
+    }
 
     if (templates[stackName] === undefined) {
       templates[stackName] = {
@@ -276,16 +293,19 @@ function generateTemplates(
   });
 
   // Add outputs to the templates
-  edges.forEach((edge) => {
+  for (const edge of edges) {
     if (edge.reference instanceof ImportValue) {
-      const stackName = edge.targets[0].location.stack.stackName;
-      const template = templates[stackName];
-      template.Outputs = {
-        ...(template.Outputs ?? {}),
-        ...edge.reference.output,
-      };
+      const targetStackName = edge.targets[0].location.stack.stackName;
+      const targetTemplate = templates[targetStackName];
+
+      if (edge.reference.output != null) {
+        targetTemplate.Outputs = {
+          ...(targetTemplate.Outputs ?? {}),
+          ...edge.reference.output,
+        };
+      }
     }
-  });
+  }
 
   // The freshly generated templates contain only resources and outputs.
   // Combine them with the existing templates to preserve metadata and other properties.
@@ -307,11 +327,24 @@ function generateTemplates(
  * path is updated to the CloudFormation value represented by the edge's annotation.
  */
 function updateReferences(edges: ResourceEdge[], exports: Record<string, ScopedExport>) {
-  edges.forEach((edge) => {
-    const cfnValue = edge.reference.toCfn(edge.targets, exports);
-    const obj = edge.path.slice(0, edge.path.length - 1).reduce(getPropValue, edge.source.rawValue);
-    setPropValue(obj, edge.path[edge.path.length - 1], cfnValue);
-  });
+  for (const edge of edges) {
+    try {
+      const cfnValue = edge.reference.toCfn(edge.targets, exports);
+      const obj = edge.path.slice(0, edge.path.length - 1).reduce(getPropValue, edge.source.rawValue);
+      setPropValue(obj, edge.path[edge.path.length - 1], cfnValue);
+    } catch (e: any) {
+      if (e.name === 'ExportNotFoundError') {
+        const src = edge.source.location.toPath();
+        const target = edge.targets[0].location.toPath();
+        const message = `This refactor operation would introduce a cross-stack reference from resource ${src} to ${target}. ` +
+          'But there is no export in your local CDK app that can be used to implement this reference. ' +
+          'If you think these resources should be in the same stack, re-run the command with mapping overrides.';
+        throw new ToolkitError(message);
+      } else {
+        throw e;
+      }
+    }
+  }
 
   function getPropValue(obj: any, prop: string): any {
     const index = parseInt(prop);
@@ -329,6 +362,9 @@ class EdgeMapper {
   private readonly nodeMap: Map<string, ResourceNode> = new Map();
 
   constructor(private readonly mappings: ResourceMapping[]) {
+    mappings
+      .flatMap((m) => [m.source.stack.stackName, m.destination.stack.stackName])
+      .forEach(stackName => this.affectedStacks.add(stackName));
   }
 
   /**
@@ -350,10 +386,12 @@ class EdgeMapper {
         const newSourceStackName = newSource.location.stack.stackName;
         const newTargetStackName = newTargets[0].location.stack.stackName;
 
-        this.affectedStacks.add(newSourceStackName);
-        this.affectedStacks.add(newTargetStackName);
-        this.affectedStacks.add(oldSourceStackName);
-        this.affectedStacks.add(oldTargetStackName);
+        const targetWasMoved = !newTargets[0].location.equalTo(oldTargets[0].location);
+        if (targetWasMoved) {
+          // Moving the target also affects the stacks that contain the source
+          this.affectedStacks.add(newSourceStackName);
+          this.affectedStacks.add(oldSourceStackName);
+        }
 
         let reference: CloudFormationReference = edge.reference;
         if (oldSourceStackName === oldTargetStackName && newSourceStackName !== newTargetStackName) {
@@ -381,8 +419,7 @@ class EdgeMapper {
   }
 
   get affectedStackNames(): string[] {
-    const fromMappings = this.mappings.flatMap((m) => [m.source.stack.stackName, m.destination.stack.stackName]);
-    return unique([...this.affectedStacks, ...fromMappings]);
+    return Array.from(this.affectedStacks);
   }
 
   private mapNode(node: ResourceNode): ResourceNode {
@@ -390,6 +427,7 @@ class EdgeMapper {
     const key = `${newLocation.stack.stackName}.${newLocation.logicalResourceId}`;
     if (!this.nodeMap.has(key)) {
       this.nodeMap.set(key, {
+        type: node.type,
         location: newLocation,
         rawValue: node.rawValue,
       });
@@ -415,6 +453,15 @@ function indexExports(stacks: CloudFormationStack[]): Record<string, ScopedExpor
         )
         .map(([name, o]) => [o.Export.Name, { stackName: s.stackName, outputName: name, value: o.Value }]),
     ),
+  );
+}
+
+/**
+ * Returns a map from stack name to the logical IDs of all resources in that stack.
+ */
+function indexResourceNames(stacks: CloudFormationStack[]): Record<string, string[]> {
+  return Object.fromEntries(
+    stacks.map((s) => [s.stackName, Object.keys(s.template.Resources ?? {})]),
   );
 }
 
@@ -450,7 +497,10 @@ interface ScopedExport {
   value: any;
 }
 
+type NodeType = 'Resource' | 'Output';
+
 interface ResourceNode {
+  type: NodeType;
   location: ResourceLocation;
   rawValue: any;
 }
@@ -516,7 +566,8 @@ class ImportValue implements CloudFormationReference {
   }
 
   toCfn(targets: ResourceNode[], exports: Record<string, ScopedExport>): any {
-    const exp = this.findExport(targets, exports);
+    const target = targets[0];
+    const exp = this.findExport(target, exports);
     if (exp) {
       this.outputName = exp[1].outputName;
       this.outputContent = {
@@ -527,12 +578,15 @@ class ImportValue implements CloudFormationReference {
       };
       return { 'Fn::ImportValue': exp[0] };
     }
-    // TODO better message
-    throw new ToolkitError('Unknown export for ImportValue: ' + JSON.stringify(this.reference));
+
+    throw new ExportNotFoundError();
   }
 
-  private findExport(targets: ResourceNode[], exports: Record<string, ScopedExport>) {
-    const target = targets[0];
+  toString(): string {
+    return `ImportValue${this.reference.toString()}`;
+  }
+
+  private findExport(target: ResourceNode, exports: Record<string, ScopedExport>) {
     if (this.reference instanceof Ref) {
       return Object.entries(exports).find(([_, exportValue]) => {
         return (
@@ -555,9 +609,9 @@ class ImportValue implements CloudFormationReference {
     }
   }
 
-  get output(): Record<string, any> {
+  get output(): Record<string, any> | undefined {
     if (this.outputName == null) {
-      throw new ToolkitError('Cannot access output before calling toCfn');
+      return undefined;
     }
     return { [this.outputName]: this.outputContent };
   }
@@ -573,7 +627,9 @@ class Sub implements CloudFormationReference {
     this.varNames.forEach((varName, index) => {
       const [_, attr] = varName.split(/\.(.*)/s);
       const target = targets[index];
-      inputString = inputString.replace(`\${${varName}`, `\${${target.location.logicalResourceId}${attr ? `.${attr}` : ''}`,
+      inputString = inputString.replace(
+        `\${${varName}`,
+        `\${${target.location.logicalResourceId}${attr ? `.${attr}` : ''}`,
       );
     });
 
@@ -589,5 +645,12 @@ class DependsOn implements CloudFormationReference {
 
   toCfn(targets: ResourceNode[]): any {
     return targets.map((t) => t.location.logicalResourceId);
+  }
+}
+
+export class ExportNotFoundError extends ToolkitError {
+  // TODO better message and parameters.
+  constructor() {
+    super('Export not found');
   }
 }
