@@ -3,6 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
+import { parseCommandLine } from './private/_command-line';
 
 export type Env = { [key: string]: string | undefined };
 export type Context = { [key: string]: unknown };
@@ -115,7 +116,7 @@ export function spaceAvailableForContext(env: Env, limit: number) {
  * file type, so we'll assume the worst and take control.
  */
 export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>) {
-  const commandLine = appToArray(app);
+  const commandLine = parseCommandLine(app);
   if (commandLine.length === 1) {
     let fstat;
 
@@ -152,13 +153,4 @@ type CommandGenerator = (file: string) => string[];
  */
 function executeNode(scriptFile: string): string[] {
   return [process.execPath, scriptFile];
-}
-
-/**
- * Make sure the 'app' is an array
- *
- * If it's a string, split on spaces as a trivial way of tokenizing the command line.
- */
-function appToArray(app: any) {
-  return typeof app === 'string' ? app.split(' ') : app;
 }

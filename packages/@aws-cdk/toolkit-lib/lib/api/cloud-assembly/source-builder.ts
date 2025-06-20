@@ -500,7 +500,7 @@ export abstract class CloudAssemblySourceBuilder {
           });
           const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
-            await execInChildProcess(commandLine.join(' '), {
+            await execInChildProcess(commandLine, {
               eventPublisher: async (type, line) => {
                 switch (type) {
                   case 'data_stdout':

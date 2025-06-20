@@ -85,7 +85,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const cleanupTemp = writeContextToEnv(env, context, 'add-process-env-later');
   try {
-    await exec(commandLine.join(' '));
+    await exec(commandLine[0], commandLine.slice(1));
 
     const assembly = createAssembly(outdir);
 
@@ -97,7 +97,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     await cleanupTemp();
   }
 
-  async function exec(commandAndArgs: string) {
+  async function exec(command: string, args: string[] = []) {
     try {
       await new Promise<void>((ok, fail) => {
         // We use a slightly lower-level interface to:
@@ -110,10 +110,10 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
         //   anyway, and if the subprocess is printing to it for debugging purposes the
         //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
         //   processes like Maven.
-        const proc = childProcess.spawn(commandAndArgs, {
+        const proc = childProcess.spawn(command, args, {
           stdio: ['ignore', 'inherit', 'inherit'],
           detached: false,
-          shell: true,
+          shell: false,
           env: {
             ...process.env,
             ...env,
@@ -126,12 +126,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           if (code === 0) {
             return ok();
           } else {
-            return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
+            return fail(new ToolkitError(`${command} ${args.join(' ')}: Subprocess exited with error ${code}`));
           }
         });
       });
     } catch (e: any) {
-      await debugFn(`failed command: ${commandAndArgs}`);
+      await debugFn(`failed command: ${command} ${args.join(' ')}`);
       throw e;
     }
   }
