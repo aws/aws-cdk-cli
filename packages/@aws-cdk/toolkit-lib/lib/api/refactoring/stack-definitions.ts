@@ -313,12 +313,45 @@ function generateTemplates(
     stackNames.map((stackName) => {
       const oldTemplate = deployedStacks.find((s) => s.stackName === stackName)?.template ?? {};
       const newTemplate = templates[stackName] ?? { Resources: {} };
+
+      // Remove outputs
+      // TODO rename this variable
+      const interestingEdges = edges.filter(e => e.deleteOutputs && e.targets[0].location.stack.stackName === stackName);
+      for (const edge of interestingEdges) {
+        Object
+          .entries(oldTemplate.Outputs ?? {})
+          .filter(([_, output]) => outputMatchesEdge(output, edge))
+          .forEach(([name, _]) => {
+            delete oldTemplate.Outputs?.[name];
+          });
+      }
+
       const combinedTemplate = { ...oldTemplate, ...newTemplate };
 
       sanitizeDependencies(combinedTemplate);
       return [stackName, combinedTemplate];
     }),
   );
+}
+
+function outputMatchesEdge(output: any, edge: ResourceEdge): boolean {
+  if (edge.reference instanceof Ref) {
+    const candidates = edge.targets.map(t => t.location.logicalResourceId);
+    const logicalId = output.Value.Ref;
+    return candidates.includes(logicalId);
+  }
+
+  if (edge.reference instanceof GetAtt) {
+    const candidates = edge.targets.map(t => t.location.logicalResourceId);
+    const getAtt = output.Value['Fn::GetAtt'];
+    if (!getAtt == null) {
+      return false;
+    }
+    const [logicalId, attr] = Array.isArray(getAtt) ? getAtt : getAtt.split(/\.(.*)/s);
+    return candidates.includes(logicalId) && edge.reference.attributeName === attr;
+  }
+
+  return false;
 }
 
 /**
@@ -393,6 +426,7 @@ class EdgeMapper {
           this.affectedStacks.add(oldSourceStackName);
         }
 
+        let deleteOutputs = false;
         let reference: CloudFormationReference = edge.reference;
         if (oldSourceStackName === oldTargetStackName && newSourceStackName !== newTargetStackName) {
           if (edge.reference instanceof DependsOn) {
@@ -405,6 +439,7 @@ class EdgeMapper {
           // cross-stack reference to in-stack reference: unwrap the old annotation
           if (edge.reference instanceof ImportValue) {
             reference = edge.reference.reference;
+            deleteOutputs = true;
           }
         }
 
@@ -413,7 +448,8 @@ class EdgeMapper {
           source: newSource,
           targets: newTargets,
           reference,
-        };
+          deleteOutputs,
+        } as ResourceEdge;
       })
       .filter((edge) => edge !== undefined);
   }
@@ -530,6 +566,9 @@ interface ResourceEdge {
    * The CloudFormation reference that this edge represents.
    */
   reference: CloudFormationReference;
+
+  // TODO rename this
+  deleteOutputs?: boolean;
 }
 
 interface CloudFormationReference {
