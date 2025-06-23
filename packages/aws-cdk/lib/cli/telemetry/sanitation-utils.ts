@@ -6,38 +6,31 @@ import { Command } from "./schema";
  */
 export function sanitizeCommandLineArguments(argv: any, config: CliConfig): Command {
   const command = argv._[0];
-  const path: string[] = [];
-  const parameters: string[] = [command];
+  const path: string[] = [command];
+  const parameters: {[key: string]: string } = {};
 
   const globalOptions = Object.keys(config.globalOptions);
   const commandOptions = Object.keys(config.commands[command].options ?? {});
   const commandArg = config.commands[command].arg;
+
   for (const argName of Object.keys(argv)) {
-    if (argv[argName] === undefined) { continue; }
     if (argName === commandArg?.name) {
+      const arg = dropDuplicate(argName);
       if (commandArg.variadic) {
-        for (const _ of argv[argName]) {
-          parameters.push(`<redacted-${argName}>`);
+        for (let i = 0; i < argv[argName].length; i++) {
+          path.push(`$${arg}${i+1}`);
         }
       } else {
-        parameters.push(`<redacted-${argName}>`);
+        path.push(`$${arg}1`);
       }
     }
-    if (globalOptions.includes(argName)) {
-      const type = config.globalOptions[argName].type;
-      if (['number', 'boolean', 'count'].includes(type)) {
-        path.push(`--${argName}=${argv[argName]}`);
-      } else {
-        path.push(`--${argName}=<redacted>`);
-      }
-    }
-    if (commandOptions.includes(argName)) {
-      const type = config.commands[command].options![argName].type;
-      if (['number', 'boolean', 'count'].includes(type)) {
-        path.push(`--${argName}=${argv[argName]}`);
-      } else {
-        path.push(`--${argName}=<redacted>`);
-      }
+
+    // Continue if the arg name is not a global option or command option
+    if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) { continue; }
+    if (isNumberOrBoolean(argv[argName])) {
+      parameters[argName] = argv[argName];
+    } else {
+      parameters[argName] = '<redacted>';
     }
   }
 
@@ -61,4 +54,12 @@ export function sanitizeContext(context: {[key: string]: any}) {
 
 function isBoolean(value: any): value is boolean {
   return typeof value === 'boolean';
+}
+
+function isNumberOrBoolean(value: any): boolean {
+  return typeof value === 'number' || typeof value === 'boolean';
+}
+
+function dropDuplicate(param: string): string {
+  return param.endsWith('S') ? param.slice(0, param.length-1) : param;
 }

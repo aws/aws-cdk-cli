@@ -15,8 +15,8 @@ export interface Identifiers extends SessionIdentifiers {
 
 export interface Command {
   readonly path: string[];
-  readonly parameters: string[];
-  readonly config: { [key: string]: any };
+  readonly parameters: { [key: string]: string };
+  readonly config: { [key: string]: boolean };
 }
 
 interface SessionEvent {
