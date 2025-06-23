@@ -5,10 +5,6 @@
       "type": "build"
     },
     {
-      "name": "@aws-cdk/node-bundle",
-      "type": "build"
-    },
-    {
       "name": "@aws-cdk/user-input-gen",
       "type": "build"
     },
@@ -157,6 +153,10 @@
     {
       "name": "nock",
       "version": "13",
+      "type": "build"
+    },
+    {
+      "name": "node-backpack",
       "type": "build"
     },
     {

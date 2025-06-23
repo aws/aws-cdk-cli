@@ -27,9 +27,6 @@
       "path": "packages/@aws-cdk/integ-runner"
     },
     {
-      "path": "packages/@aws-cdk/node-bundle"
-    },
-    {
       "path": "packages/@aws-cdk/toolkit-lib"
     },
     {

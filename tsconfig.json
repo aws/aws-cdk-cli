@@ -43,9 +43,6 @@
       "path": "packages/@aws-cdk/user-input-gen"
     },
     {
-      "path": "packages/@aws-cdk/node-bundle"
-    },
-    {
       "path": "packages/@aws-cdk/cli-plugin-contract"
     },
     {

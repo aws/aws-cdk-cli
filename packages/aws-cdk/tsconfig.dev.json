@@ -56,9 +56,6 @@
       "path": "../cdk-assets"
     },
     {
-      "path": "../@aws-cdk/node-bundle"
-    },
-    {
       "path": "../@aws-cdk/user-input-gen"
     },
     {

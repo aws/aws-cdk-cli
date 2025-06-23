@@ -46,7 +46,6 @@ jobs:
             docs
             integ-runner
             integ-testing
-            node-bundle
             toolkit-lib
             toolkit-lib
             yarn-cling

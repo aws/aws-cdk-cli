@@ -35,7 +35,6 @@
   },
   "devDependencies": {
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
-    "@aws-cdk/node-bundle": "^0.0.0",
     "@aws-cdk/user-input-gen": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.3.2",
     "@stylistic/eslint-plugin": "^3",
@@ -71,6 +70,7 @@
     "license-checker": "^25.0.1",
     "madge": "^8.0.0",
     "nock": "13",
+    "node-backpack": "^1.0.0",
     "prettier": "^2.8",
     "sinon": "^19.0.5",
     "ts-jest": "^29.4.0",

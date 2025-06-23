@@ -59,6 +59,7 @@
     "jest-junit": "^16",
     "license-checker": "^25.0.1",
     "mock-fs": "^5",
+    "node-backpack": "^1.0.0",
     "prettier": "^2.8",
     "ts-jest": "^29.4.0",
     "typescript": "5.6"
