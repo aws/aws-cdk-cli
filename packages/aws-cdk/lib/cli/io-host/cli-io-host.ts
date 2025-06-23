@@ -17,6 +17,7 @@ import { makeConfig } from '../cli-config';
 import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
 import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { RegionFetcher } from '../telemetry/region-fetcher';
+import { detectCiSystem } from '../ci-systems';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -196,7 +197,7 @@ export class CliIoHost implements IIoHost {
         },
       },
       environment: {
-        ci: Boolean(process.env.CI),
+        ci: isCI() || Boolean(detectCiSystem()),
         os: {
           platform: process.platform,
           release: process.release.name,

@@ -128,6 +128,7 @@ export class CloudExecutable implements ICloudAssemblySource {
           }
         }
 
+        const cloudAssembly = new CloudAssembly(assembly, this.props.ioHelper);
         const elapsedSynthTime = new Date().getTime() - startSynthTime;
         await this.props.ioHelper.notify(IO.CDK_TOOLKIT_I0050.msg(
           `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
@@ -139,7 +140,7 @@ export class CloudExecutable implements ICloudAssemblySource {
             },
           },
         ));
-        return new CloudAssembly(assembly, this.props.ioHelper);
+        return cloudAssembly;
       }
     } catch (e: any) {
       const elapsedSynthTime = new Date().getTime() - startSynthTime;

@@ -33,7 +33,7 @@ export const IO = {
     description: 'Credential plugin warnings',
   }),
 
-  CDK_TOOLKIT_I0050: make.debug<Telemetry>({
+  CDK_TOOLKIT_I0050: make.trace<Telemetry>({
     code: 'CDK_TOOLKIT_I0050',
     description: 'Generic Telemetric Event',
     interface: 'Telemetry',

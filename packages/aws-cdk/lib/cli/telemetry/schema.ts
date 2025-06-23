@@ -25,7 +25,7 @@ interface SessionEvent {
 
 interface Event extends SessionEvent {
   readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
-  readonly eventType: string;
+  readonly eventType: 'SYNTH' | 'EXIT';
 }
 
 export interface SessionEnvironment {
@@ -49,7 +49,7 @@ type Counters = { [key: string]: number };
 interface Error {
   readonly name: string;
   readonly message?: string; // sanitized stack message
-  readonly trace?: string; // sanitized stack trace
+  readonly stackTrace?: string; // sanitized stack trace
   readonly logs?: string; // sanitized stack logs
 }
 
