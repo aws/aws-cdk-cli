@@ -531,35 +531,6 @@ const yargsGen = configureProject(
 
 //////////////////////////////////////////////////////////////////////
 
-const nodeBundle = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/node-bundle',
-    description: 'Tool for generating npm-shrinkwrap from yarn.lock',
-    deps: ['esbuild', 'fs-extra@^9', 'license-checker', 'madge', 'shlex', 'yargs'],
-    devDeps: ['@types/license-checker', '@types/madge', '@types/fs-extra@^9', 'jest-junit', 'standard-version'],
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          branches: 75,
-        },
-      },
-    }),
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-  }),
-);
-// Too many console statements
-nodeBundle.eslint?.addRules({ 'no-console': ['off'] });
-
-//////////////////////////////////////////////////////////////////////
-
 // This should be deprecated, but only after the move
 const cliPluginContract = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -991,7 +962,6 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     srcdir: 'lib',
     devDeps: [
-      nodeBundle,
       yargsGen,
       cliPluginContract,
       '@types/archiver',
@@ -1340,7 +1310,7 @@ new JsiiBuild(cliLibAlpha, {
 cliLibAlpha.package.addField('deprecated', 'Deprecated in favor of @aws-cdk/toolkit-lib, a newer approach providing similar functionality to this package. Please migrate.');
 
 // clilib needs to bundle some resources, same as the CLI
-cliLibAlpha.postCompileTask.exec('node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
+cliLibAlpha.postCompileTask.exec('node-backpack validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
 cliLibAlpha.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
 for (const resourceCommand of includeCliResourcesCommands) {
   cliLibAlpha.postCompileTask.exec(resourceCommand);
