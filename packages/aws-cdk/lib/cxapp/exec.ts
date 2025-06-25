@@ -7,6 +7,7 @@ import * as fs from 'fs-extra';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock } from '../api';
 import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
+import { formatCommandLine } from './_command-line';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -57,7 +58,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     return { assembly: createAssembly(app), lock };
   }
 
-  const commandLine = await guessExecutable(app, debugFn);
+  const commandArgv = await guessExecutable(app, debugFn);
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
@@ -86,7 +87,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const cleanupTemp = writeContextToEnv(env, context);
   try {
-    await exec(commandLine[0], commandLine.slice(1));
+    await exec(formatCommandLine(commandArgv));
 
     const assembly = createAssembly(outdir);
 
@@ -98,7 +99,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     await cleanupTemp();
   }
 
-  async function exec(command: string, args: string[] = []) {
+  async function exec(commandLine: string) {
     try {
       await new Promise<void>((ok, fail) => {
         // We use a slightly lower-level interface to:
@@ -111,10 +112,14 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
         //   anyway, and if the subprocess is printing to it for debugging purposes the
         //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
         //   processes like Maven.
-        const proc = childProcess.spawn(command, args, {
+        const proc = childProcess.spawn(commandLine, {
           stdio: ['ignore', 'inherit', 'inherit'],
           detached: false,
-          shell: false,
+
+          // We are using 'shell: true' on purprose. Traditionally we have allowed shell features in
+          // this string, so we have to continue to do so into the future.
+          shell: true,
+
           env: {
             ...process.env,
             ...env,
@@ -127,12 +132,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           if (code === 0) {
             return ok();
           } else {
-            return fail(new ToolkitError(`${command} ${args.join(' ')}: Subprocess exited with error ${code}`));
+            return fail(new ToolkitError(`${commandLine}: Subprocess exited with error ${code}`));
           }
         });
       });
     } catch (e: any) {
-      await debugFn(`failed command: ${command} ${args.join(' ')}`);
+      await debugFn(`failed command: ${commandLine}`);
       throw e;
     }
   }

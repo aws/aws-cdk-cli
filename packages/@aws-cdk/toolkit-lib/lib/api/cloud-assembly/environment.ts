@@ -3,7 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
-import { parseCommandLine } from './private/_command-line';
+import { CommandLine } from './private/_command-line';
 
 export type Env = { [key: string]: string | undefined };
 export type Context = { [key: string]: unknown };
@@ -116,14 +116,14 @@ export function spaceAvailableForContext(env: Env, limit: number) {
  * file type, so we'll assume the worst and take control.
  */
 export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>) {
-  const commandLine = parseCommandLine(app);
-  if (commandLine.length === 1) {
+  const commandLine = CommandLine.parse(app);
+  if (commandLine.argv.length === 1) {
     let fstat;
 
     try {
-      fstat = await fs.stat(commandLine[0]);
+      fstat = await fs.stat(commandLine.argv[0]);
     } catch {
-      await debugFn(`Not a file: '${commandLine[0]}'. Using '${commandLine}' as command-line`);
+      await debugFn(`Not a file: '${commandLine.argv[0]}'. Using '${commandLine}' as command-line`);
       return commandLine;
     }
 
@@ -131,9 +131,9 @@ export async function guessExecutable(app: string, debugFn: (msg: string) => Pro
     const isExecutable = (fstat.mode & fs.constants.X_OK) !== 0;
     const isWindows = process.platform === 'win32';
 
-    const handler = EXTENSION_MAP.get(path.extname(commandLine[0]));
+    const handler = EXTENSION_MAP.get(path.extname(commandLine.argv[0]));
     if (handler && (!isExecutable || isWindows)) {
-      return handler(commandLine[0]);
+      return handler(commandLine.argv[0]);
     }
   }
   return commandLine;

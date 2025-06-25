@@ -1,14 +1,58 @@
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 
+type ShellSyntax = 'posix' | 'windows';
+
 /**
- * Parse a command line into components.
+ * Class to help with parsing and formatting command-lines
  *
- * On Windows, emulates the behavior of `CommandLineToArgvW`. On Linux, emulates the behavior of a POSIX shell.
- *
- * (See: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw)
+ * What syntax we recognizing is an attribute of the `parse` and `toString()` operations,
+ * NOT of the command line itself. Defaults to the current platform.
  */
-export function parseCommandLine(cmdLine: string, isWindows: boolean = process.platform === 'win32'): string[] {
-  return isWindows ? parseCommandLineWindows(cmdLine) : parseCommandLinePosix(cmdLine);
+export class CommandLine {
+  /**
+   * Parse a command line into components.
+   *
+   * On Windows, emulates the behavior of `CommandLineToArgvW`. On Linux, emulates the behavior of a POSIX shell.
+   *
+   * (See: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw)
+   */
+  public static parse(cmdLine: string, syntax?: ShellSyntax) {
+    const argv = isWindows(syntax) ? parseCommandLineWindows(cmdLine) : parseCommandLinePosix(cmdLine);
+    return new CommandLine(argv);
+  }
+
+  constructor(public readonly argv: string[]) {
+  }
+
+  /**
+   * Render the command line as a string, taking care only to quote whitespace and quotes
+   *
+   * Any other special characters are left in exactly as-is.
+   */
+  public toStringGrouped(syntax?: ShellSyntax) {
+    if (isWindows(syntax)) {
+      return formatCommandLineWindows(this.argv, /^\\S+$/);
+    } else {
+      return formatCommandLinePosix(this.argv, /^\\S+$/);
+    }
+  }
+
+  /**
+   * Render the command line as a string, escaping characters that would be interpreted by the shell
+   *
+   * The command will be a command invocation with literal parameters, nothing else.
+   */
+  public toStringInert(syntax?: ShellSyntax) {
+    if (isWindows(syntax)) {
+      return formatCommandLineWindows(this.argv, /^[a-zA-Z0-9._\-+=/:]+$/);
+    } else {
+      return formatCommandLinePosix(this.argv, /^[a-zA-Z0-9._\-+=/:]+$/);
+    }
+  }
+
+  public toString() {
+    return this.toStringGrouped();
+  }
 }
 
 /**
@@ -82,6 +126,10 @@ function isWhitespace(char: string): boolean {
   return char === ' ' || char === '\t';
 }
 
+function isWindows(x?: ShellSyntax) {
+  return x ? x === 'windows' : process.platform === 'win32';
+}
+
 function parseCommandLinePosix(commandLine: string): string[] {
   const result: string[] = [];
   let current = '';
@@ -151,10 +199,28 @@ function parseCommandLinePosix(commandLine: string): string[] {
 
 /**
  * Format a command line in a sensible way
- *
- * The produced string is correct both for Windows and POSIX.
  */
-export function formatCommandLine(argv: string[]): string {
+function formatCommandLinePosix(argv: string[], componentIsSafe: RegExp): string {
+  return argv.map(arg => {
+    // Empty string needs quotes
+    if (arg === '') {
+      return '\'\'';
+    }
+
+    // If argument contains no problematic characters, return it as-is
+    if (componentIsSafe.test(arg)) {
+      return arg;
+    }
+
+    const escaped = Array.from(arg).map(char => char === '\'' || char === '\\' ? `\\${char}` : char);
+    return `'${escaped}'`;
+  }).join(' ');
+}
+
+/**
+ * Format a command line in a sensible way
+ */
+function formatCommandLineWindows(argv: string[], componentIsSafe: RegExp): string {
   return argv.map(arg => {
     // Empty string needs quotes
     if (arg === '') {
@@ -162,11 +228,10 @@ export function formatCommandLine(argv: string[]): string {
     }
 
     // If argument contains no problematic characters, return it as-is
-    if (/^[a-zA-Z0-9._\-+=/:]+$/.test(arg)) {
+    if (componentIsSafe.test(arg)) {
       return arg;
     }
 
-    // Windows-style escaping with double quotes
     let escaped = '"';
     let backslashCount = 0;
 
