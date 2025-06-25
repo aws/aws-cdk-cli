@@ -15,7 +15,7 @@ test.each([
   ['a\\\\\\\\"b c" d e', ['a\\\\b c', 'd', 'e']],
   ['a"b"" c d', ['ab" c d']],
 ])('windows parses %s to %p', (input, expected) => {
-  const output = CommandLine.parse(input, 'windows');
+  const output = CommandLine.parse(input, 'cmd.exe');
 
   expect(output.argv).toEqual(expected);
 });
@@ -23,9 +23,9 @@ test.each([
 test.each([
   [['program.exe', 'with spaces'], 'program.exe "with spaces"'],
   [['C:\\Program Files\\node.exe', 'hello.js'], '"C:\\Program Files\\node.exe" hello.js'],
-])('windows formats %p to %p', (input, expected) => {
+])('windows formats grouped %p to %p', (input, expected) => {
   const cmd = new CommandLine(input);
-  expect(cmd.toStringGrouped('windows')).toEqual(expected);
+  expect(cmd.toStringGrouped('cmd.exe')).toEqual(expected);
 });
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +49,7 @@ test.each([
 test.each([
   [['program', 'with spaces'], 'program \'with spaces\''],
   [['/path with spaces', 'hello.js'], '\'/path with spaces\' hello.js'],
-])('windows formats %p to %p', (input, expected) => {
+])('posix formats grouped %p to %p', (input, expected) => {
   const cmd = new CommandLine(input);
   expect(cmd.toStringGrouped('posix')).toEqual(expected);
 });

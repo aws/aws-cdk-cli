@@ -1,20 +1,34 @@
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
-type ShellSyntax = 'posix' | 'windows';
+type ShellSyntax = 'posix' | 'cmd.exe';
 
 /**
  * Class to help with parsing and formatting command-lines
  *
  * What syntax we recognizing is an attribute of the `parse` and `toString()` operations,
  * NOT of the command line itself. Defaults to the current platform.
+ *
+ * Because we start with arbitrary shell strings, we may end up stuffing special
+ * shell syntax inside an `argv: string[]` array, which doesn't necessarily make
+ * a lot of sense. There could be a lot more modeling here to for example tag
+ * `argv` elements as literals or bits of shell syntax so we can render them out
+ * inert or active.
+ *
+ * Making this class do all of that correctly is weeks worth of work. Instead,
+ * it's going to be mostly concerned with correctly parsing and preserving spaces,
+ * so that we can correctly handle command lines with spaces in them on Windows.
  */
 export class CommandLine {
   /**
    * Parse a command line into components.
    *
-   * On Windows, emulates the behavior of `CommandLineToArgvW`. On Linux, emulates the behavior of a POSIX shell.
+   * - Windows: emulates the behavior of `cmd.exe`.
+   * - POSIX: emulates the behavior of a standard POSIX shell.
    *
-   * (See: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw)
+   * For some insight of the hell this is on Windows, see these links:
+   *
+   * - <https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw>
+   * - <https://daviddeley.com/autohotkey/parameters/parameters.htm#WIN>
    */
   public static parse(cmdLine: string, syntax?: ShellSyntax) {
     const argv = isWindows(syntax) ? parseCommandLineWindows(cmdLine) : parseCommandLinePosix(cmdLine);
@@ -25,15 +39,15 @@ export class CommandLine {
   }
 
   /**
-   * Render the command line as a string, taking care only to quote whitespace and quotes
+   * Render the command line as a string, quoting only whitespace (and quotes)
    *
    * Any other special characters are left in exactly as-is.
    */
   public toStringGrouped(syntax?: ShellSyntax) {
     if (isWindows(syntax)) {
-      return formatCommandLineWindows(this.argv, /^\\S+$/);
+      return formatCommandLineWindows(this.argv, /^\S+$/);
     } else {
-      return formatCommandLinePosix(this.argv, /^\\S+$/);
+      return formatCommandLinePosix(this.argv, /^\S+$/);
     }
   }
 
@@ -46,7 +60,7 @@ export class CommandLine {
     if (isWindows(syntax)) {
       return formatCommandLineWindows(this.argv, /^[a-zA-Z0-9._\-+=/:]+$/);
     } else {
-      return formatCommandLinePosix(this.argv, /^[a-zA-Z0-9._\-+=/:]+$/);
+      return formatCommandLinePosix(this.argv, /^[a-zA-Z0-9._\-+=/:^]+$/);
     }
   }
 
@@ -127,7 +141,7 @@ function isWhitespace(char: string): boolean {
 }
 
 function isWindows(x?: ShellSyntax) {
-  return x ? x === 'windows' : process.platform === 'win32';
+  return x ? x === 'cmd.exe' : process.platform === 'win32';
 }
 
 function parseCommandLinePosix(commandLine: string): string[] {
@@ -212,7 +226,7 @@ function formatCommandLinePosix(argv: string[], componentIsSafe: RegExp): string
       return arg;
     }
 
-    const escaped = Array.from(arg).map(char => char === '\'' || char === '\\' ? `\\${char}` : char);
+    const escaped = Array.from(arg).map(char => char === '\'' || char === '\\' ? `\\${char}` : char).join('');
     return `'${escaped}'`;
   }).join(' ');
 }
