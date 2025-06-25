@@ -256,7 +256,6 @@ describe('EndpointTelemetryClient', () => {
       headers: {
         'content-type': 'application/json',
         'content-length': expectedPayload1.length,
-
       },
       timeout: 2000,
     }, expect.anything());
