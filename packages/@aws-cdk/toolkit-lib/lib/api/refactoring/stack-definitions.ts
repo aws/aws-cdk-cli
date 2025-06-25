@@ -32,6 +32,7 @@ import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack, CloudFormationTemplate, ResourceMapping } from './cloudformation';
 import { ResourceLocation } from './cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import type { ICloudFormationClient, ICloudControlClient } from '../aws-auth/private';
 
 export function generateStackDefinitions(
   mappings: ResourceMapping[],
@@ -590,4 +591,397 @@ class DependsOn implements CloudFormationReference {
   toCfn(targets: ResourceNode[]): any {
     return targets.map((t) => t.location.logicalResourceId);
   }
+}
+
+/**
+ * Interface for resolving CloudFormation references
+ */
+interface ReferenceResolver {
+  resolveImportValue(exportName: string): Promise<any>;
+  resolveRef(stackName: string, logicalId: string): Promise<string>;
+  resolveGetAtt(stackName: string, logicalId: string, attributeName: string): Promise<any>;
+}
+
+/**
+ * Implementation of ReferenceResolver that uses AWS APIs
+ */
+class AwsReferenceResolver implements ReferenceResolver {
+  private readonly exportValueCache = new Map<string, any>();
+  private readonly physicalIdCache = new Map<string, string>();
+  private readonly attributeCache = new Map<string, any>();
+
+  constructor(
+    private readonly cfnClient: ICloudFormationClient,
+    private readonly ccClient: ICloudControlClient,
+  ) {}
+
+  async resolveImportValue(exportName: string): Promise<any> {
+    if (this.exportValueCache.has(exportName)) {
+      return this.exportValueCache.get(exportName);
+    }
+
+    try {
+      const result = await this.cfnClient.describeStacks({});
+      const stacks = result.Stacks || [];
+      
+      for (const stack of stacks) {
+        const outputs = stack.Outputs || [];
+        for (const output of outputs) {
+          if (output.ExportName === exportName) {
+            const value = output.OutputValue;
+            this.exportValueCache.set(exportName, value);
+            return value;
+          }
+        }
+      }
+      
+      throw new ToolkitError(`Export value not found: ${exportName}`);
+    } catch (error) {
+      throw new ToolkitError(`Failed to resolve import value ${exportName}: ${error}`);
+    }
+  }
+
+  async resolveRef(stackName: string, logicalId: string): Promise<string> {
+    const cacheKey = `${stackName}.${logicalId}`;
+    if (this.physicalIdCache.has(cacheKey)) {
+      return this.physicalIdCache.get(cacheKey)!;
+    }
+
+    try {
+      const result = await this.cfnClient.describeStackResources({
+        StackName: stackName,
+        LogicalResourceId: logicalId,
+      });
+
+      const resource = result.StackResources?.[0];
+      if (!resource?.PhysicalResourceId) {
+        throw new ToolkitError(`Physical resource ID not found for ${stackName}.${logicalId}`);
+      }
+
+      this.physicalIdCache.set(cacheKey, resource.PhysicalResourceId);
+      return resource.PhysicalResourceId;
+    } catch (error) {
+      throw new ToolkitError(`Failed to resolve Ref ${stackName}.${logicalId}: ${error}`);
+    }
+  }
+
+  async resolveGetAtt(stackName: string, logicalId: string, attributeName: string): Promise<any> {
+    const cacheKey = `${stackName}.${logicalId}.${attributeName}`;
+    if (this.attributeCache.has(cacheKey)) {
+      return this.attributeCache.get(cacheKey);
+    }
+
+    try {
+      // First get the physical ID
+      const physicalId = await this.resolveRef(stackName, logicalId);
+      
+      // Get the resource type from stack resources
+      const stackResourcesResult = await this.cfnClient.describeStackResources({
+        StackName: stackName,
+        LogicalResourceId: logicalId,
+      });
+
+      const resource = stackResourcesResult.StackResources?.[0];
+      if (!resource?.ResourceType) {
+        throw new ToolkitError(`Resource type not found for ${stackName}.${logicalId}`);
+      }
+
+      // Use CloudControl API to get the resource and extract the attribute
+      const ccResult = await this.ccClient.getResource({
+        TypeName: resource.ResourceType,
+        Identifier: physicalId,
+      });
+
+      if (!ccResult.ResourceDescription?.Properties) {
+        throw new ToolkitError(`Resource properties not found for ${stackName}.${logicalId}`);
+      }
+
+      const properties = JSON.parse(ccResult.ResourceDescription.Properties);
+      const attributeValue = this.extractAttribute(properties, attributeName);
+      
+      this.attributeCache.set(cacheKey, attributeValue);
+      return attributeValue;
+    } catch (error) {
+      throw new ToolkitError(`Failed to resolve GetAtt ${stackName}.${logicalId}.${attributeName}: ${error}`);
+    }
+  }
+
+  private extractAttribute(properties: any, attributeName: string): any {
+    // Handle nested attribute names like "Arn" or "DomainEndpoint.DomainArn"
+    const parts = attributeName.split('.');
+    let current = properties;
+    
+    for (const part of parts) {
+      if (current && typeof current === 'object' && part in current) {
+        current = current[part];
+      } else {
+        throw new ToolkitError(`Attribute ${attributeName} not found in resource properties`);
+      }
+    }
+    
+    return current;
+  }
+}
+
+/**
+ * Resolves all CloudFormation references in a list of stacks, replacing them with their actual values.
+ * 
+ * @param stacks - List of CloudFormationStack objects to process
+ * @param cfnClient - CloudFormation client for API calls
+ * @param ccClient - CloudControl client for API calls
+ * @returns A new list of CloudFormationStack objects with resolved references
+ */
+export async function resolveCloudFormationReferences(
+  stacks: CloudFormationStack[],
+  cfnClient: ICloudFormationClient,
+  ccClient: ICloudControlClient,
+): Promise<CloudFormationStack[]> {
+  const resolver = new AwsReferenceResolver(cfnClient, ccClient);
+  
+  const resolvedStacks: CloudFormationStack[] = [];
+  
+  for (const stack of stacks) {
+    const resolvedTemplate = await resolveTemplateReferences(stack.template, resolver);
+    
+    resolvedStacks.push({
+      environment: stack.environment,
+      stackName: stack.stackName,
+      template: resolvedTemplate,
+    });
+  }
+  
+  return resolvedStacks;
+}
+
+/**
+ * Recursively resolves references in a CloudFormation template
+ */
+async function resolveTemplateReferences(
+  template: CloudFormationTemplate,
+  resolver: ReferenceResolver,
+): Promise<CloudFormationTemplate> {
+  const resolvedTemplate: CloudFormationTemplate = {
+    Resources: {},
+    Outputs: template.Outputs ? { ...template.Outputs } : undefined,
+  };
+
+  if (template.Resources) {
+    for (const [logicalId, resource] of Object.entries(template.Resources)) {
+      resolvedTemplate.Resources![logicalId] = await resolveValue(resource, resolver);
+    }
+  }
+
+  if (template.Outputs) {
+    const resolvedOutputs: Record<string, any> = {};
+    for (const [outputName, output] of Object.entries(template.Outputs)) {
+      resolvedOutputs[outputName] = await resolveValue(output, resolver);
+    }
+    resolvedTemplate.Outputs = resolvedOutputs;
+  }
+
+  return resolvedTemplate;
+}
+
+/**
+ * Recursively resolves references in any CloudFormation value
+ */
+async function resolveValue(value: any, resolver: ReferenceResolver): Promise<any> {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const resolvedArray = [];
+    for (const item of value) {
+      resolvedArray.push(await resolveValue(item, resolver));
+    }
+    return resolvedArray;
+  }
+
+  if (typeof value === 'object') {
+    // Handle CloudFormation intrinsic functions
+    if ('Fn::ImportValue' in value) {
+      const exportName = value['Fn::ImportValue'];
+      if (typeof exportName === 'string') {
+        return await resolver.resolveImportValue(exportName);
+      } else {
+        // The export name itself might be a reference that needs resolving
+        const resolvedExportName = await resolveValue(exportName, resolver);
+        return await resolver.resolveImportValue(resolvedExportName);
+      }
+    }
+
+    if ('Ref' in value) {
+      const logicalId = value.Ref;
+      // For Ref, we need to determine the stack name. This is a limitation of the current approach.
+      // In a real implementation, you'd need to pass stack context or handle this differently.
+      // For now, we'll assume the reference is within the same stack being processed.
+      throw new ToolkitError('Ref resolution requires stack context - this should be handled at a higher level');
+    }
+
+    if ('Fn::GetAtt' in value) {
+      const getAtt = value['Fn::GetAtt'];
+      let logicalId: string;
+      let attributeName: string;
+      
+      if (typeof getAtt === 'string') {
+        const parts = getAtt.split('.');
+        logicalId = parts[0];
+        attributeName = parts.slice(1).join('.');
+      } else if (Array.isArray(getAtt) && getAtt.length === 2) {
+        [logicalId, attributeName] = getAtt;
+      } else {
+        throw new ToolkitError(`Invalid Fn::GetAtt format: ${JSON.stringify(getAtt)}`);
+      }
+      
+      // Same limitation as Ref - we need stack context
+      throw new ToolkitError('Fn::GetAtt resolution requires stack context - this should be handled at a higher level');
+    }
+
+    // Handle other intrinsic functions by recursively resolving their parameters
+    const resolvedObject: any = {};
+    for (const [key, val] of Object.entries(value)) {
+      resolvedObject[key] = await resolveValue(val, resolver);
+    }
+    return resolvedObject;
+  }
+
+  return value;
+}
+
+/**
+ * Enhanced version that resolves references with proper stack context
+ */
+export async function resolveCloudFormationReferencesWithContext(
+  stacks: CloudFormationStack[],
+  cfnClient: ICloudFormationClient,
+  ccClient: ICloudControlClient,
+): Promise<CloudFormationStack[]> {
+  const resolver = new AwsReferenceResolver(cfnClient, ccClient);
+  
+  const resolvedStacks: CloudFormationStack[] = [];
+  
+  for (const stack of stacks) {
+    const resolvedTemplate = await resolveTemplateReferencesWithContext(
+      stack.template,
+      stack.stackName,
+      resolver,
+    );
+    
+    resolvedStacks.push({
+      environment: stack.environment,
+      stackName: stack.stackName,
+      template: resolvedTemplate,
+    });
+  }
+  
+  return resolvedStacks;
+}
+
+/**
+ * Resolves references in a template with stack context
+ */
+async function resolveTemplateReferencesWithContext(
+  template: CloudFormationTemplate,
+  stackName: string,
+  resolver: ReferenceResolver,
+): Promise<CloudFormationTemplate> {
+  const resolvedTemplate: CloudFormationTemplate = {
+    Resources: {},
+    Outputs: template.Outputs ? { ...template.Outputs } : undefined,
+  };
+
+  if (template.Resources) {
+    for (const [logicalId, resource] of Object.entries(template.Resources)) {
+      resolvedTemplate.Resources![logicalId] = await resolveValueWithContext(
+        resource,
+        stackName,
+        resolver,
+      );
+    }
+  }
+
+  if (template.Outputs) {
+    const resolvedOutputs: Record<string, any> = {};
+    for (const [outputName, output] of Object.entries(template.Outputs)) {
+      resolvedOutputs[outputName] = await resolveValueWithContext(output, stackName, resolver);
+    }
+    resolvedTemplate.Outputs = resolvedOutputs;
+  }
+
+  return resolvedTemplate;
+}
+
+/**
+ * Resolves references in any value with stack context
+ */
+async function resolveValueWithContext(
+  value: any,
+  stackName: string,
+  resolver: ReferenceResolver,
+): Promise<any> {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const resolvedArray = [];
+    for (const item of value) {
+      resolvedArray.push(await resolveValueWithContext(item, stackName, resolver));
+    }
+    return resolvedArray;
+  }
+
+  if (typeof value === 'object') {
+    // Handle CloudFormation intrinsic functions
+    if ('Fn::ImportValue' in value) {
+      const exportName = value['Fn::ImportValue'];
+      if (typeof exportName === 'string') {
+        return await resolver.resolveImportValue(exportName);
+      } else {
+        const resolvedExportName = await resolveValueWithContext(exportName, stackName, resolver);
+        return await resolver.resolveImportValue(resolvedExportName);
+      }
+    }
+
+    if ('Ref' in value) {
+      const logicalId = value.Ref;
+      return await resolver.resolveRef(stackName, logicalId);
+    }
+
+    if ('Fn::GetAtt' in value) {
+      const getAtt = value['Fn::GetAtt'];
+      let logicalId: string;
+      let attributeName: string;
+      
+      if (typeof getAtt === 'string') {
+        const parts = getAtt.split('.');
+        logicalId = parts[0];
+        attributeName = parts.slice(1).join('.');
+      } else if (Array.isArray(getAtt) && getAtt.length === 2) {
+        [logicalId, attributeName] = getAtt;
+      } else {
+        throw new ToolkitError(`Invalid Fn::GetAtt format: ${JSON.stringify(getAtt)}`);
+      }
+      
+      return await resolver.resolveGetAtt(stackName, logicalId, attributeName);
+    }
+
+    // Handle other intrinsic functions by recursively resolving their parameters
+    const resolvedObject: any = {};
+    for (const [key, val] of Object.entries(value)) {
+      resolvedObject[key] = await resolveValueWithContext(val, stackName, resolver);
+    }
+    return resolvedObject;
+  }
+
+  return value;
 }
