@@ -164,6 +164,34 @@ test('the application set in --app is executed', async () => {
   await lock.release();
 });
 
+test('execProgram will not log existing environment variables', async () => {
+  const varName = 'SOME_BOGUS_VAR';
+
+  // GIVEN
+  ioHost.level = 'debug';
+  config.settings.set(['app'], 'cloud-executable');
+  mockSpawn({
+    commandLine: 'cloud-executable',
+    sideEffect: () => writeOutputAssembly(),
+  });
+
+  // WHEN
+  process.env[varName] = 'hello';
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
+  await lock.release();
+  delete process.env[varName];
+
+  // THEN
+  const envMessage = (ioHost.notifySpy.mock.calls as Array<{ message: string }[]>)
+    .map(([arg0]) => arg0)
+    .find((arg0) => arg0.message.includes('env:'));
+
+  expect(envMessage).toBeDefined();
+  expect(envMessage!.message).not.toContain(varName);
+
+  ioHost.level = 'info';
+});
+
 test('the application set in --app is executed as-is if it contains a filename that does not exist', async () => {
   // GIVEN
   config.settings.set(['app'], 'does-not-exist');

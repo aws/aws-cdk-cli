@@ -238,15 +238,10 @@ export class IntegTestRunner extends IntegRunner {
           options.testCaseName,
         );
       } else {
-        const env: Record<string, any> = {
-          ...DEFAULT_SYNTH_OPTIONS.env,
-          CDK_CONTEXT_JSON: JSON.stringify(this.getContext({
-            ...actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {},
-          })),
-        };
         await this.cdk.synthFast({
           execCmd: this.cdkApp.split(' '),
-          env,
+          context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
+          env: DEFAULT_SYNTH_OPTIONS.env,
           output: path.relative(this.directory, this.cdkOutDir),
         });
       }

@@ -30,14 +30,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   await debugFn(format('context:', context));
 
   const env: Record<string, string> = noUndefined({
-    // Need to start with full env of `writeContextToEnv` will not be able to do the size
-    // calculation correctly.
-    ...process.env,
     // Versioning, outdir, default account and region
     ...await prepareDefaultEnvironment(aws, debugFn),
     // Environment variables derived from settings
     ...params.env,
   });
+
   const build = config.settings.get(['build']);
   if (build) {
     await exec(build);
@@ -74,6 +72,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   }
 
   await debugFn(`outdir: ${outdir}`);
+
   env[cxapi.OUTDIR_ENV] = outdir;
 
   // Acquire a lock on the output directory
@@ -85,7 +84,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   await debugFn(format('env:', env));
 
-  const cleanupTemp = writeContextToEnv(env, context);
+  const cleanupTemp = writeContextToEnv(env, context, 'add-process-env-later');
   try {
     await exec(formatCommandLine(commandArgv));
 

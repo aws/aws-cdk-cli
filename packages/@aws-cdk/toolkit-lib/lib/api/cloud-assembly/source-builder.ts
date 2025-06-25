@@ -342,7 +342,7 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.env,
           });
 
-          const cleanupContextTemp = writeContextToEnv(env, fullContext);
+          const cleanupContextTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           using _cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : undefined;
           let assembly;
           try {
@@ -498,7 +498,7 @@ export abstract class CloudAssemblySourceBuilder {
             // Environment variables derived from settings
             ...synthParams.env,
           });
-          const cleanupTemp = writeContextToEnv(env, fullContext);
+          const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
             await execInChildProcess(commandLine, {
               eventPublisher: async (type, line) => {

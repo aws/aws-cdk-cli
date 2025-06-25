@@ -137,7 +137,7 @@ export class AwsCdkCli implements IAwsCdkCli {
           ...params.env,
         };
 
-        const cleanupContext = await writeContextToEnv(env, fullCtx);
+        const cleanupContext = await writeContextToEnv(env, fullCtx, 'env-is-complete');
         try {
           return await withEnv(async() => createAssembly(await producer.produce(fullCtx)), env);
         } finally {
