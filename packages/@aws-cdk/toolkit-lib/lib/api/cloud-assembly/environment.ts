@@ -3,7 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
-import { CommandLine } from './private/_command-line';
+import { CommandLine } from './command-line';
 
 export type Env = { [key: string]: string | undefined };
 export type Context = { [key: string]: unknown };
@@ -106,36 +106,40 @@ export function spaceAvailableForContext(env: Env, limit: number) {
 }
 
 /**
- * Guess the executable from the command-line argument
+ * Guess the interpreter from the command-line argument, if the argument is a single file name (no arguments)
  *
- * Only do this if the file is NOT marked as executable. If it is,
- * we'll defer to the shebang inside the file itself.
+ * - On Windows: it's hard to verify if registry associations have or have not
+ *   been set up for this file type (i.e., ShellExec'ing the file will work or not),
+ *   so we'll assume the worst and take control.
  *
- * If we're on Windows, we ALWAYS take the handler, since it's hard to
- * verify if registry associations have or have not been set up for this
- * file type, so we'll assume the worst and take control.
+ * - On POSIX: if the file is NOT marked as executable, guess the interpreter. If it is executable,
+ *   executing the file will work and the correct interpreter should be in the file's shebang.
  */
-export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>) {
+export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>): Promise<CommandLine> {
   const commandLine = CommandLine.parse(app);
-  if (commandLine.argv.length === 1) {
-    let fstat;
 
-    try {
-      fstat = await fs.stat(commandLine.argv[0]);
-    } catch {
-      await debugFn(`Not a file: '${commandLine.argv[0]}'. Using '${commandLine}' as command-line`);
-      return commandLine;
-    }
-
-    // eslint-disable-next-line no-bitwise
-    const isExecutable = (fstat.mode & fs.constants.X_OK) !== 0;
-    const isWindows = process.platform === 'win32';
-
-    const handler = EXTENSION_MAP.get(path.extname(commandLine.argv[0]));
-    if (handler && (!isExecutable || isWindows)) {
-      return handler(commandLine.argv[0]);
-    }
+  if (commandLine.argv.length !== 1) {
+    return commandLine;
   }
+
+  let fstat;
+
+  try {
+    fstat = await fs.stat(commandLine.argv[0]);
+  } catch {
+    await debugFn(`Not a file: '${commandLine.argv[0]}'. Using '${commandLine}' as command-line`);
+    return commandLine;
+  }
+
+  // eslint-disable-next-line no-bitwise
+  const isExecutable = (fstat.mode & fs.constants.X_OK) !== 0;
+  const isWindows = process.platform === 'win32';
+
+  const handler = EXTENSION_MAP.get(path.extname(commandLine.argv[0]));
+  if (handler && (!isExecutable || isWindows)) {
+    return new CommandLine(handler(commandLine.argv[0]));
+  }
+
   return commandLine;
 }
 
@@ -143,7 +147,7 @@ export async function guessExecutable(app: string, debugFn: (msg: string) => Pro
  * Mapping of extensions to command-line generators
  */
 const EXTENSION_MAP = new Map<string, CommandGenerator>([
-  ['.js', executeNode],
+  ['.js', executeCurrentNode],
 ]);
 
 type CommandGenerator = (file: string) => string[];
@@ -151,6 +155,6 @@ type CommandGenerator = (file: string) => string[];
 /**
  * Execute the given file with the same 'node' process as is running the current process
  */
-function executeNode(scriptFile: string): string[] {
+function executeCurrentNode(scriptFile: string): string[] {
   return [process.execPath, scriptFile];
 }

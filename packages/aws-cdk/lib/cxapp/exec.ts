@@ -7,7 +7,6 @@ import * as fs from 'fs-extra';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock } from '../api';
 import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
-import { formatCommandLine } from './_command-line';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -56,7 +55,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     return { assembly: createAssembly(app), lock };
   }
 
-  const commandArgv = await guessExecutable(app, debugFn);
+  const command = await guessExecutable(app, debugFn);
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
@@ -86,7 +85,8 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const cleanupTemp = writeContextToEnv(env, context, 'add-process-env-later');
   try {
-    await exec(formatCommandLine(commandArgv));
+    // Render a whitespace-aware string of the command
+    await exec(command.toStringGrouped());
 
     const assembly = createAssembly(outdir);
 

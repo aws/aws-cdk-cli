@@ -1,4 +1,4 @@
-import { ToolkitError } from '../../../toolkit/toolkit-error';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 type ShellSyntax = 'posix' | 'windows';
 
