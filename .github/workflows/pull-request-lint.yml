@@ -34,6 +34,7 @@ jobs:
           scopes: |-
             aws-cdk
             cdk-assets
+            cdk-assets-lib
             cdk-cli-wrapper
             cli
             cli-integ
@@ -46,7 +47,6 @@ jobs:
             docs
             integ-runner
             integ-testing
-            node-bundle
             toolkit-lib
             toolkit-lib
             yarn-cling

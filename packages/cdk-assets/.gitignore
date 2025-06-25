@@ -45,6 +45,5 @@ jspm_packages/
 /dist/changelog.md
 /dist/version.txt
 !/.eslintrc.js
-!/test/tsconfig.json
 *.js
 *.d.ts

@@ -1,4 +1,5 @@
 import { promises as fs, exists } from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as lockfile from '@yarnpkg/lockfile';
 import * as semver from 'semver';
@@ -63,7 +64,13 @@ async function generateLockFile(pkgJson: PackageJson, yarnLock: YarnLock, rootDi
     dependencies: builder.makeDependencyTree(rootKeys),
   };
 
-  checkRequiredVersions(lockFile);
+  try {
+    checkRequiredVersions(lockFile);
+  } catch (e: any) {
+    const tempFile = path.join(os.tmpdir(), 'npm-shrinkwrap.json');
+    await fs.writeFile(tempFile, JSON.stringify(lockFile, undefined, 2), 'utf-8');
+    throw new Error(`${e.message}. Shinkwrap file left in ${tempFile}.`);
+  }
 
   return lockFile;
 }
@@ -382,9 +389,9 @@ export function checkRequiredVersions(root: PackageLockFile) {
         const depPath = [name, ...rootPath.map(x => x[0])];
         if (!semver.satisfies(resolvedPackage.version, range)) {
           // Ruh-roh.
-          throw new Error(`Looks like we're trying to force '${renderRootPath(depPath)}' to version '${resolvedPackage.version}' (found at ${resolvedPath}), but the dependency `
-            + `is specified as '${range}'. This can never properly work via shrinkwrapping. Try vendoring a patched `
-            + 'version of the intermediary dependencies instead.');
+          throw new Error(`Looks like we're trying to force '${renderRootPath(depPath)}' to version '${resolvedPackage.version}' (found at ${resolvedPath} => ${name}), but `
+            + `${depPath[depPath.length - 1]} specifies the dependency as '${range}'. NPM will not respect this shrinkwrap file. Try vendoring a patched `
+            + 'version of the intermediary dependencies instead');
         }
       }
     }

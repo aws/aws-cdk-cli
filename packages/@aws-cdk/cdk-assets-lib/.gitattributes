@@ -15,6 +15,7 @@
 /jest.config.json linguist-generated
 /LICENSE linguist-generated
 /package.json linguist-generated
+/test/tsconfig.json linguist-generated
 /tsconfig.dev.json linguist-generated
 /tsconfig.json linguist-generated
 /yarn.lock linguist-generated

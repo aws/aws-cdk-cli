@@ -238,7 +238,7 @@
           "spawn": "docgen"
         },
         {
-          "exec": "node-bundle validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute \"^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$\""
+          "exec": "node-backpack validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute \"^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$\""
         },
         {
           "exec": "mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/"

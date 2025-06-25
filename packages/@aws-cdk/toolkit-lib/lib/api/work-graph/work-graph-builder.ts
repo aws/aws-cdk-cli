@@ -1,5 +1,5 @@
+import { AssetManifest, type IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cx-api';
-import { AssetManifest, type IManifestEntry } from 'cdk-assets';
 import { WorkGraph } from './work-graph';
 import type { AssetBuildNode, WorkNode } from './work-graph-types';
 import { DeploymentState } from './work-graph-types';

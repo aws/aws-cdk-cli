@@ -1,4 +1,4 @@
-import { AssetManifest } from '../lib';
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 
 export async function list(args: { path: string }) {
   const manifest = AssetManifest.fromPath(args.path);

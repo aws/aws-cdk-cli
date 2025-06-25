@@ -27,15 +27,16 @@
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "composite": true,
-    "outDir": "lib"
+    "composite": true
   },
   "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
+    "lib/**/*.ts",
+    "bin/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ],
-  "references": []
+  "exclude": [],
+  "references": [
+    {
+      "path": "../cloud-assembly-schema"
+    }
+  ]
 }

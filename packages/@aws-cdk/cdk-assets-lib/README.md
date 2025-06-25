@@ -1,10 +1,14 @@
 # cdk-assets
 
-A tool for publishing CDK assets to AWS environments.
+A library for publishing CDK assets to AWS environments.
+
+This is a library, for integrating into applications like the [CDK Toolkit
+CLI](https://npmjs.com/package/aws-cdk). If you just want to upload assets as a
+user, use the [cdk-assets CLI](https://npmjs.com/package/cdk-assets)
 
 ## Overview
 
-`cdk-assets` requires an asset manifest file called `assets.json`, in a CDK
+`@aws-cdk/cdk-assets-lib` requires an asset manifest file called `assets.json`, in a CDK
 CloudAssembly (`cdk.out/assets.json`). It will take the assets listed in the
 manifest, prepare them as required and upload them to the locations indicated in
 the manifest.
@@ -37,22 +41,26 @@ asset, or the name of the local Docker image.
 
 ## Usage
 
-The `cdk-asset` tool is a CLI. Use [library
-access](https://www.npmjs.com/package/@aws-cdk/cdk-assets-lib) if you need more
-control over authentication than the default [AWS SDK for JavaScript
-v3](https://github.com/aws/aws-sdk-js-v3) implementation allows.
+Usage looks like this:
 
-Command-line use looks like this:
+```ts
+const manifest = AssetManifest.fromPath(args.path);
+const someAssets = manifest.select([DestinationPattern.parse('...')]);
 
-```console
-$ cdk-assets /path/to/cdk.out [ASSET:DEST] [ASSET] [:DEST] [...]
+// Or implement your own AWS host
+const aws: IAws = new DefaultAwsClient('PROFILENAME');
+
+// Or implement your own progress listener
+const progressListener: IProgressListener = new ConsoleProgress();
+
+
+const pub = new AssetPublishing(manifest, {
+  aws,
+  progressListener,
+});
+
+await pub.publish();
 ```
-
-Credentials will be taken from the `AWS_ACCESS_KEY...` environment variables
-or the `default` profile (or another profile if `AWS_PROFILE` is set).
-
-A subset of the assets and destinations can be uploaded by specifying their
-asset IDs or destination IDs.
 
 ## Manifest Example
 
