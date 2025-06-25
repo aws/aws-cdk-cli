@@ -1,7 +1,7 @@
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, Telemetry, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
@@ -186,6 +186,7 @@ export class CliIoHost implements IIoHost {
         sessionId: randomUUID(),
         telemetryVersion: '1.0',
         cdkCliVersion: version.versionNumber(),
+        // TODO: cdkLibraryVersion
         accountId: await new AccountIdFetcher().fetch(),
         region: await new RegionFetcher().fetch(),
       },
@@ -304,6 +305,18 @@ export class CliIoHost implements IIoHost {
 
     if (process.env.TELEMETRY_TEST_ENV) {
       try {
+        // Telemetry object is built inside CliIoHost, not sent through data of the msg
+        // Implicitly send telemetry not explicit. Connected messsages make you forced to implement it here and not forget about each other
+        if (['CDK_TOOLKIT_I5000'].includes(msg.code!)) {
+          const data: Telemetry = {
+            telemetry: {
+              duration: msg.data!.duration,
+              eventType: 'DEPLOY',
+              state: 'SUCCEEDED',
+            }
+          }
+          await this.emitTelemetry(msg);
+        }
         if (this.isTelemetryMessage(msg)) {
           await this.emitTelemetry(msg);
         }
