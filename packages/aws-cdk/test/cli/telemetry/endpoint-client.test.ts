@@ -55,13 +55,27 @@ describe('EndpointTelemetryClient', () => {
 
   // Helper to create a mock request object with the necessary event handlers
   function setupMockRequest() {
-    const mockRequest = {
-      on: jest.fn().mockReturnThis(),
-      end: jest.fn().mockImplementation((callback) => callback && callback()),
-      setTimeout: jest.fn().mockImplementation((_, callback) => callback && callback()),
+    // Create a mock response object with a successful status code
+    const mockResponse = {
+      statusCode: 200,
+      statusMessage: 'OK',
     };
 
-    (https.request as jest.Mock).mockReturnValue(mockRequest);
+    // Create the mock request object
+    const mockRequest = {
+      on: jest.fn(),
+      end: jest.fn(),
+      setTimeout: jest.fn(),
+    };
+
+    // Mock the https.request to return our mockRequest
+    (https.request as jest.Mock).mockImplementation((_, callback) => {
+      // If a callback was provided, call it with our mock response
+      if (callback) {
+        setTimeout(() => callback(mockResponse), 0);
+      }
+      return mockRequest;
+    });
 
     return mockRequest;
   }
@@ -145,7 +159,7 @@ describe('EndpointTelemetryClient', () => {
     expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
   });
 
-  test('flush clears events cache', async () => {
+  test('successful flush clears events cache', async () => {
     // GIVEN
     setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
@@ -170,7 +184,6 @@ describe('EndpointTelemetryClient', () => {
       headers: {
         'content-type': 'application/json',
         'content-length': expectedPayload1.length,
-      
       },
       timeout: 2000,
     }, expect.anything());
@@ -184,6 +197,78 @@ describe('EndpointTelemetryClient', () => {
       headers: {
         'content-type': 'application/json',
         'content-length': expectedPayload2.length,
+      },
+      timeout: 2000,
+    }, expect.anything());
+  });
+
+  test('failed flush does not clear events cache', async () => {
+    // GIVEN
+    const mockRequest = {
+      on: jest.fn(),
+      end: jest.fn(),
+      setTimeout: jest.fn(),
+    };
+    // Mock the https.request to return the first response as 503
+    (https.request as jest.Mock).mockImplementationOnce((_, callback) => {
+      // If a callback was provided, call it with our mock response
+      if (callback) {
+        setTimeout(() => callback({
+          statusCode: 503,
+          statusMessage: 'Service Unavailable',
+        }), 0);
+      }
+      return mockRequest;
+    }).mockImplementation((_, callback) => {
+      if (callback) {
+        setTimeout(() => callback({
+          statusCode: 200,
+          statusMessage: 'Success',
+        }), 0);
+      }
+      return mockRequest;
+    });
+
+    const endpoint = parse('https://example.com/telemetry');
+    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
+    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+
+    // WHEN
+    await client.emit(testEvent1);
+
+    // mocked to fail
+    await client.flush();
+
+    await client.emit(testEvent2);
+
+    // mocked to succeed
+    await client.flush();
+
+    // THEN
+    const expectedPayload1 = JSON.stringify([testEvent1]);
+    expect(https.request).toHaveBeenCalledTimes(2);
+    expect(https.request).toHaveBeenCalledWith({
+      hostname: 'example.com',
+      port: null,
+      path: '/telemetry',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': expectedPayload1.length,
+      },
+      timeout: 2000,
+    }, expect.anything());
+
+    const expectedPayload2 = JSON.stringify([testEvent2]);
+    expect(https.request).toHaveBeenCalledWith({
+      hostname: 'example.com',
+      port: null,
+      path: '/telemetry',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': expectedPayload1.length + expectedPayload2.length - 1,
       },
       timeout: 2000,
     }, expect.anything());
@@ -225,39 +310,4 @@ describe('EndpointTelemetryClient', () => {
     jest.useRealTimers();
     setIntervalSpy.mockRestore();
   });
-
-  // TODO: This test is causing the runner to hang
-  // test('retries on server errors with exponential backoff', async () => {
-  //   // GIVEN
-  //   // Setup mock request that fails with a 503 status code on first attempt
-  //   const mockRequest = {
-  //     on: jest.fn().mockReturnThis(),
-  //     end: jest.fn().mockImplementationOnce(() => {
-  //       return {
-  //         statusCode: 503,
-  //         statusMessage: 'Service Unavailable',
-  //       };
-  //     }).mockImplementationOnce(() => {
-  //       return {
-  //         statusCode: 200,
-  //         statusMessage: 'OK',
-  //       };
-  //     }),
-  //     setTimeout: jest.fn().mockImplementation((_, callback) => callback && callback()),
-  //   };
-    
-  //   (https.request as jest.Mock).mockReturnValue(mockRequest);
-    
-  //   const endpoint = parse('https://example.com/telemetry');
-  //   const testEvent = createTestEvent('test', { foo: 'bar' });
-  //   const client = new EndpointTelemetryClient({ endpoint, ioHost });
-    
-  //   // WHEN
-  //   await client.emit(testEvent);
-  //   await client.flush();
-    
-  //   // THEN
-  //   // Verify that https.request was called twice (initial + retry)
-  //   expect(https.request).toHaveBeenCalledTimes(2);
-  // });
 });
