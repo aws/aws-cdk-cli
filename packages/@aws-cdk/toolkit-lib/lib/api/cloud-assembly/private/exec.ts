@@ -1,8 +1,8 @@
 import * as child_process from 'node:child_process';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
-import { formatCommandLine } from './_command-line';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
+import type { CommandLine } from '../command-line';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 
@@ -19,7 +19,9 @@ interface ExecOptions {
  * @param args - Optional arguments for the command
  * @param options - Additional options for execution
  */
-export async function execInChildProcess(argv: string[], options: ExecOptions = {}) {
+export async function execInChildProcess(cmd: CommandLine, options: ExecOptions = {}) {
+  const commandLineString = cmd.toStringGrouped();
+
   return new Promise<void>((ok, fail) => {
     // We use a slightly lower-level interface to:
     //
@@ -29,7 +31,7 @@ export async function execInChildProcess(argv: string[], options: ExecOptions = 
     //
     // - We have to capture any output to stdout and stderr sp we can pass it on to the IoHost
     //   To ensure messages get to the user fast, we will emit every full line we receive.
-    const proc = child_process.spawn(argv[0], argv.slice(1), {
+    const proc = child_process.spawn(commandLineString, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
       cwd: options.cwd,
@@ -58,7 +60,7 @@ export async function execInChildProcess(argv: string[], options: ExecOptions = 
       if (code === 0) {
         return ok();
       } else {
-        return fail(new ToolkitError(`${formatCommandLine(argv)}: Subprocess exited with error ${code}`));
+        return fail(new ToolkitError(`${commandLineString}: Subprocess exited with error ${code}`));
       }
     });
   });
