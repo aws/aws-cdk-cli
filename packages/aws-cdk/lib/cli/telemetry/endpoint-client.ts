@@ -1,11 +1,12 @@
-import { Agent, request } from 'https';
+import type { IncomingMessage } from 'http';
+import type { Agent } from 'https';
+import { request } from 'https';
 import type { UrlWithStringQuery } from 'url';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../api-private';
 import type { IIoHost } from '../io-host';
 import type { ITelemetryClient } from './client-interface';
 import type { TelemetrySchema } from './schema';
-import { IncomingMessage } from 'http';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
 
 const REQUEST_ATTEMPT_TIMEOUT_MS = 2_000;
 
@@ -97,11 +98,11 @@ export class EndpointTelemetryClient implements ITelemetryClient {
         return true;
       }
 
-      this.ioHost.defaults.debug(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
+      await this.ioHost.defaults.debug(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
 
       return false;
     } catch (e: any) {
-      this.ioHost.defaults.debug(`Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
+      await this.ioHost.defaults.debug(`Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
       return false;
     }
   }
