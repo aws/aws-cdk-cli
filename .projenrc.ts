@@ -738,7 +738,7 @@ new BundleCli(cdkAssetsCli, {
   test: 'bin/cdk-assets --version',
   entryPoints: [
     'bin/cdk-assets.js',
-    'bin/docker-credential-cdk-assets.js'
+    // 'bin/docker-credential-cdk-assets.js'
   ],
   minifyWhitespace: true,
 });
