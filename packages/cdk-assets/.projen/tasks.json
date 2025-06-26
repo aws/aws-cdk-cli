@@ -32,9 +32,9 @@
         "RELEASE_TAG_PREFIX": "cdk-assets@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
+        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- .",
-        "MAJOR": "3"
+        "MAJOR": "4"
       },
       "steps": [
         {
@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/yargs,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,@aws-cdk/cx-api,@smithy/config-resolver,@smithy/node-config-provider,archiver,glob,yargs"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-s3,@cdklabs/eslint-plugin,@types/jest,@types/yargs,aws-sdk-client-mock,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,node-backpack,ts-jest,yargs"
         }
       ]
     },
@@ -73,9 +73,6 @@
         {
           "exec": "tsc --build",
           "receiveArgs": true
-        },
-        {
-          "exec": "tsc --build test"
         }
       ]
     },
@@ -105,7 +102,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=exact @aws-cdk/cdk-assets-lib=future-minor",
           "receiveArgs": true
         }
       ]
@@ -145,13 +142,18 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "npm pack --pack-destination dist/js"
+          "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/$' --test 'bin/cdk-assets --version' --entrypoint 'bin/cdk-assets.js' --metafile dist/metafile.json"
         }
       ]
     },
     "post-compile": {
       "name": "post-compile",
-      "description": "Runs after successful compilation"
+      "description": "Runs after successful compilation",
+      "steps": [
+        {
+          "exec": "node-backpack validate --fix --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/$' --test 'bin/cdk-assets --version' --entrypoint 'bin/cdk-assets.js'"
+        }
+      ]
     },
     "pre-compile": {
       "name": "pre-compile",
@@ -159,23 +161,6 @@
       "steps": [
         {
           "spawn": "check-licenses"
-        }
-      ]
-    },
-    "shrinkwrap": {
-      "name": "shrinkwrap",
-      "steps": [
-        {
-          "spawn": "bump"
-        },
-        {
-          "exec": "npm shrinkwrap"
-        },
-        {
-          "spawn": "unbump"
-        },
-        {
-          "exec": "git checkout HEAD -- yarn.lock"
         }
       ]
     },
@@ -212,7 +197,7 @@
         "RELEASE_TAG_PREFIX": "cdk-assets@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
+        "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts maybeRc",
         "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
       },
       "steps": [

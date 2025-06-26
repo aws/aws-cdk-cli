@@ -23,12 +23,28 @@
     },
     "bump": {
       "name": "bump",
-      "description": "Bumps versions of local dependencies",
+      "description": "Bumps version based on latest git tag and generates a changelog entry",
+      "env": {
+        "OUTFILE": "package.json",
+        "CHANGELOG": "dist/changelog.md",
+        "BUMPFILE": "dist/version.txt",
+        "RELEASETAG": "dist/releasetag.txt",
+        "RELEASE_TAG_PREFIX": "@aws-cdk/cdk-assets-lib@",
+        "VERSIONRCOPTIONS": "{\"path\":\".\"}",
+        "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- .",
+        "MAJOR": "1"
+      },
       "steps": [
         {
           "spawn": "gather-versions"
+        },
+        {
+          "builtin": "release/bump-version"
         }
-      ]
+      ],
+      "condition": "git log --oneline -1 | grep -qv \"chore(release):\""
     },
     "check-for-updates": {
       "name": "check-for-updates",
@@ -37,7 +53,16 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,@types/license-checker,@types/madge,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,standard-version,ts-jest,esbuild,license-checker,madge,shlex,yargs"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,archiver,glob"
+        }
+      ]
+    },
+    "check-licenses": {
+      "name": "check-licenses",
+      "steps": [
+        {
+          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD\"",
+          "receiveArgs": true
         }
       ]
     },
@@ -48,6 +73,9 @@
         {
           "exec": "tsc --build",
           "receiveArgs": true
+        },
+        {
+          "exec": "tsc --build test"
         }
       ]
     },
@@ -68,7 +96,7 @@
       },
       "steps": [
         {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ src test build-tools",
+          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ lib test build-tools",
           "receiveArgs": true
         }
       ]
@@ -77,7 +105,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" ",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future",
           "receiveArgs": true
         }
       ]
@@ -111,7 +139,15 @@
     },
     "package": {
       "name": "package",
-      "description": "Creates the distribution package"
+      "description": "Creates the distribution package",
+      "steps": [
+        {
+          "exec": "mkdir -p dist/js"
+        },
+        {
+          "exec": "npm pack --pack-destination dist/js"
+        }
+      ]
     },
     "post-compile": {
       "name": "post-compile",
@@ -119,7 +155,12 @@
     },
     "pre-compile": {
       "name": "pre-compile",
-      "description": "Prepare the project for compilation"
+      "description": "Prepare the project for compilation",
+      "steps": [
+        {
+          "spawn": "check-licenses"
+        }
+      ]
     },
     "test": {
       "name": "test",
@@ -145,8 +186,22 @@
     },
     "unbump": {
       "name": "unbump",
-      "description": "Resets versions of local dependencies to 0.0.0",
+      "description": "Restores version to 0.0.0",
+      "env": {
+        "OUTFILE": "package.json",
+        "CHANGELOG": "dist/changelog.md",
+        "BUMPFILE": "dist/version.txt",
+        "RELEASETAG": "dist/releasetag.txt",
+        "RELEASE_TAG_PREFIX": "@aws-cdk/cdk-assets-lib@",
+        "VERSIONRCOPTIONS": "{\"path\":\".\"}",
+        "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
+      },
       "steps": [
+        {
+          "builtin": "release/reset-version"
+        },
         {
           "spawn": "gather-versions",
           "env": {

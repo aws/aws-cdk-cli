@@ -1,8 +1,8 @@
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as yargs from 'yargs';
 import { list } from './list';
 import { setLogThreshold, VERSION } from './logging';
 import { publish } from './publish';
-import { AssetManifest } from '../lib';
 
 async function main() {
   const argv = yargs
@@ -29,7 +29,7 @@ async function main() {
       (command) => command,
       wrapHandler(async (args) => {
         await list(args);
-      })
+      }),
     )
     .command(
       'publish [ASSET..]',
@@ -51,7 +51,7 @@ async function main() {
           assets: args.ASSET,
           profile: args.profile,
         });
-      })
+      }),
     )
     .demandCommand()
     .help()
