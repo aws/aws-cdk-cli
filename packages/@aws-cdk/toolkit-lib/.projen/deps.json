@@ -168,6 +168,10 @@
       "type": "peer"
     },
     {
+      "name": "@aws-cdk/cdk-assets-lib",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/cloud-assembly-schema",
       "type": "runtime"
     },
@@ -287,30 +291,31 @@
     },
     {
       "name": "@smithy/middleware-endpoint",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/property-provider",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/shared-ini-file-loader",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-retry",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-waiter",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "archiver",
-      "type": "runtime"
-    },
-    {
-      "name": "cdk-assets",
       "type": "runtime"
     },
     {

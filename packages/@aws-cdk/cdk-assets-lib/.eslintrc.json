@@ -62,7 +62,8 @@
           "**/build-tools/**"
         ],
         "optionalDependencies": false,
-        "peerDependencies": true
+        "peerDependencies": true,
+        "includeTypes": true
       }
     ],
     "import/no-unresolved": [
@@ -127,7 +128,7 @@
       "error"
     ],
     "no-console": [
-      "off"
+      "error"
     ],
     "@cdklabs/no-invalid-path": [
       "error"
@@ -313,6 +314,9 @@
     "jest/no-disabled-tests": "error",
     "jest/no-focused-tests": "error",
     "prettier/prettier": [
+      "off"
+    ],
+    "jest/no-export": [
       "off"
     ]
   },

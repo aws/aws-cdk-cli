@@ -36,6 +36,9 @@
   "exclude": [],
   "references": [
     {
+      "path": "../@aws-cdk/cdk-assets-lib"
+    },
+    {
       "path": "../@aws-cdk/cloud-assembly-schema"
     }
   ]

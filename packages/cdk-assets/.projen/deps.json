@@ -1,6 +1,14 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/cloud-assembly-schema",
+      "type": "build"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "type": "build"
+    },
+    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -10,21 +18,7 @@
       "type": "build"
     },
     {
-      "name": "@types/archiver",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
-      "type": "build"
-    },
-    {
-      "name": "@types/mime",
-      "version": "^2",
-      "type": "build"
-    },
-    {
-      "name": "@types/mock-fs",
-      "version": "^4",
       "type": "build"
     },
     {
@@ -48,10 +42,6 @@
     },
     {
       "name": "aws-sdk-client-mock",
-      "type": "build"
-    },
-    {
-      "name": "aws-sdk-client-mock-jest",
       "type": "build"
     },
     {
@@ -94,14 +84,6 @@
       "type": "build"
     },
     {
-      "name": "fs-extra",
-      "type": "build"
-    },
-    {
-      "name": "graceful-fs",
-      "type": "build"
-    },
-    {
       "name": "jest",
       "type": "build"
     },
@@ -111,16 +93,11 @@
       "type": "build"
     },
     {
-      "name": "jszip",
-      "type": "build"
-    },
-    {
       "name": "license-checker",
       "type": "build"
     },
     {
-      "name": "mock-fs",
-      "version": "^5",
+      "name": "node-backpack",
       "type": "build"
     },
     {
@@ -138,67 +115,7 @@
       "type": "build"
     },
     {
-      "name": "@aws-cdk/cloud-assembly-schema",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-cdk/cx-api",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/client-ecr",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/client-s3",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/client-secrets-manager",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/client-sts",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/credential-providers",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/lib-storage",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@smithy/config-resolver",
-      "type": "runtime"
-    },
-    {
-      "name": "@smithy/node-config-provider",
-      "type": "runtime"
-    },
-    {
-      "name": "archiver",
-      "type": "runtime"
-    },
-    {
-      "name": "glob",
-      "type": "runtime"
-    },
-    {
-      "name": "mime",
-      "version": "^2",
-      "type": "runtime"
-    },
-    {
-      "name": "minimatch",
-      "version": "10.0.1",
+      "name": "@aws-cdk/cdk-assets-lib",
       "type": "runtime"
     },
     {

@@ -560,6 +560,7 @@ export class TestFixture extends ShellHelper {
       AWS_DEFAULT_REGION: this.aws.region,
       STACK_NAME_PREFIX: this.stackNamePrefix,
       PACKAGE_LAYOUT_VERSION: '2',
+      TESTING_CDK: 'true',
       // In these tests we want to make a distinction between stdout and sterr
       CI: 'false',
       ...awsCreds,

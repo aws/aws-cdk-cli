@@ -141,8 +141,10 @@ export class BundleCli extends pj.Component {
       */
     ];
 
+    project.deps.addDependency('node-backpack', pj.DependencyType.BUILD);
+
     // Generate the license file
-    project.postCompileTask.exec(['node-bundle', 'validate', '--fix', ...args].join(' '));
+    project.postCompileTask.exec(['node-backpack', 'validate', '--fix', ...args].join(' '));
 
     // `node-bundle` replaces `npm pack`
     const packArgs = [
@@ -151,7 +153,7 @@ export class BundleCli extends pj.Component {
     ];
     project.packageTask.reset();
     project.packageTask.exec('mkdir -p dist/js');
-    project.packageTask.exec(['node-bundle', 'pack', '--destination', 'dist/js', ...packArgs].join(' '));
+    project.packageTask.exec(['node-backpack', 'pack', '--destination', 'dist/js', ...packArgs].join(' '));
   }
 }
 

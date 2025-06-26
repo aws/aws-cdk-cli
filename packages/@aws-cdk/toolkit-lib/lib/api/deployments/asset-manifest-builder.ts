@@ -1,5 +1,5 @@
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import { AssetManifest } from 'cdk-assets';
 
 export class AssetManifestBuilder {
   private readonly manifest: cxschema.AssetManifest = {

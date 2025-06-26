@@ -36,8 +36,15 @@ jspm_packages/
 !/test/
 !/tsconfig.json
 !/tsconfig.dev.json
-!/src/
-/lib
+!/lib/
+/lib/**/*.js
+/lib/**/*.d.ts
+/lib/**/*.d.ts.map
 /dist/
 !/.eslintrc.json
+/dist/changelog.md
+/dist/version.txt
 !/.eslintrc.js
+!/test/tsconfig.json
+*.js
+*.d.ts
