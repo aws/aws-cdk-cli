@@ -647,8 +647,8 @@ export function cli(args: string[] = process.argv.slice(2)) {
 /* c8 ignore stop */
 
 async function successfulTelemetryExitEvent(args: string[], startTime: number) {
-  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2000.msg(
-    `Exiting ${args[1]}`,
+  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2001.msg(
+    `Exiting ${args[0]}`,
     {
       duration: new Date().getTime() - startTime,
       success: true,
@@ -657,8 +657,8 @@ async function successfulTelemetryExitEvent(args: string[], startTime: number) {
 }
 
 async function failedTelemetryExitEvent(args: string[], startTime: number, err?: any) {
-  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2000.msg(
-    `Exiting ${args[1]}`,
+  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2001.msg(
+    `Exiting ${args[0]}`,
     {
       duration: new Date().getTime() - startTime,
       success: false,

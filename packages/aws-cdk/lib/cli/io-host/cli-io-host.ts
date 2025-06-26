@@ -622,14 +622,14 @@ function isNoticesMessage(msg: IoMessage<unknown>) {
 }
 
 function isTelemetryMessage(msg: IoMessage<unknown>) {
-  return CLI_PRIVATE_IO.CDK_CLI_I1000.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2000.is(msg);
+  return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg);
 }
 
 function telemetryEvent(msg: IoMessage<unknown>): EventType {
   switch (msg.code) {
-    case CLI_PRIVATE_IO.CDK_CLI_I1000.code: 
+    case CLI_PRIVATE_IO.CDK_CLI_I1001.code: 
       return 'SYNTH';
-    case CLI_PRIVATE_IO.CDK_CLI_I2000.code:
+    case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
       return 'INVOKE';
     default:
       throw new Error(`Unrecognized Telemetry Message Code: ${msg.code}`);
