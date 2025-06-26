@@ -1,14 +1,14 @@
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, Telemetry, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import type { ITelemetryClient } from '../telemetry/client-interface';
-import type { SessionSchema } from '../telemetry/schema';
+import type { EventType, SessionSchema, State } from '../telemetry/schema';
 import { randomUUID } from 'node:crypto';
 import * as version from './../version';
 import { IoHostTelemetryClient } from '../telemetry/io-host-client';
@@ -18,6 +18,7 @@ import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sani
 import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { RegionFetcher } from '../telemetry/region-fetcher';
 import { detectCiSystem } from '../ci-systems';
+import { CLI_PRIVATE_IO } from './messages';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -305,20 +306,13 @@ export class CliIoHost implements IIoHost {
 
     if (process.env.TELEMETRY_TEST_ENV) {
       try {
-        // Telemetry object is built inside CliIoHost, not sent through data of the msg
-        // Implicitly send telemetry not explicit. Connected messsages make you forced to implement it here and not forget about each other
-        if (['CDK_TOOLKIT_I5000'].includes(msg.code!)) {
-          const data: Telemetry = {
-            telemetry: {
-              duration: msg.data!.duration,
-              eventType: 'DEPLOY',
-              state: 'SUCCEEDED',
-            }
-          }
-          await this.emitTelemetry(msg);
-        }
-        if (this.isTelemetryMessage(msg)) {
-          await this.emitTelemetry(msg);
+        if (isTelemetryMessage(msg)) {
+          await this.emitTelemetry({
+            state: msg.data.success ? 'SUCCEEDED' : 'FAILED',
+            eventType: telemetryEvent(msg),
+            duration: msg.data.duration,
+            error: msg.data.error,
+          });
         }
       } catch (e: any) {
         this.defaults.debug(`Emit Telemetry Failed ${e.message}`);
@@ -347,17 +341,12 @@ export class CliIoHost implements IIoHost {
     stream?.write(output);
   }
 
-  private isTelemetryMessage(msg: IoMessage<any>) {
-    return msg.data && msg.data.telemetry;
-  }
-
-  private async emitTelemetry(msg: IoMessage<any>) {
+  private async emitTelemetry(event: TelemetryEvent) {
     // Session has not been attached
     if (!this.telemetryInfo) { 
       throw new ToolkitError('Session must be attached before telemetry is emitted');
     }
 
-    const event = msg.data.telemetry;
     await this.telemetryClient?.emit({
       event: {
         command: this.telemetryInfo.event.command,
@@ -630,4 +619,26 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
 
 function isNoticesMessage(msg: IoMessage<unknown>) {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
+}
+
+function isTelemetryMessage(msg: IoMessage<unknown>) {
+  return CLI_PRIVATE_IO.CDK_CLI_I1000.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2000.is(msg);
+}
+
+function telemetryEvent(msg: IoMessage<unknown>): EventType {
+  switch (msg.code) {
+    case CLI_PRIVATE_IO.CDK_CLI_I1000.code: 
+      return 'SYNTH';
+    case CLI_PRIVATE_IO.CDK_CLI_I2000.code:
+      return 'INVOKE';
+    default:
+      throw new Error(`Unrecognized Telemetry Message Code: ${msg.code}`);
+  } 
+}
+
+interface TelemetryEvent {
+  readonly state: State;
+  readonly eventType: EventType;
+  readonly duration: number;
+  readonly error?: any,
 }

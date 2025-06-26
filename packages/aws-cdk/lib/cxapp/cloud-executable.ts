@@ -3,7 +3,8 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
 import type { IoHelper } from '../../lib/api-private';
-import { BorrowedAssembly, IO } from '../../lib/api-private';
+import { BorrowedAssembly } from '../../lib/api-private';
+import { CLI_PRIVATE_IO } from '../cli/io-host';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import type { Configuration } from '../cli/user-configuration';
@@ -84,6 +85,7 @@ export class CloudExecutable implements ICloudAssemblySource {
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
     const startSynthTime = new Date().getTime();
+    let error: any | undefined;
     try {
       while (true) {
         const assembly = await this.props.synthesizer(this.props.sdkProvider, this.props.configuration);
@@ -127,35 +129,25 @@ export class CloudExecutable implements ICloudAssemblySource {
             continue;
           }
         }
-
-        const cloudAssembly = new CloudAssembly(assembly, this.props.ioHelper);
-        const elapsedSynthTime = new Date().getTime() - startSynthTime;
-        await this.props.ioHelper.notify(IO.CDK_TOOLKIT_I0050.msg(
-          `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
-          {
-            telemetry: {
-              eventType: 'Synth',
-              state: 'SUCCEEDED',
-              duration: elapsedSynthTime,
-            },
-          },
-        ));
-        return cloudAssembly;
+        return new CloudAssembly(assembly, this.props.ioHelper);
       }
     } catch (e: any) {
+      error = e;
+    } finally {
       const elapsedSynthTime = new Date().getTime() - startSynthTime;
-      await this.props.ioHelper.notify(IO.CDK_TOOLKIT_I0050.msg(
-        `\n✨  Synthesis time [FAILED]: ${formatTime(elapsedSynthTime)}s\n`,
+      await this.props.ioHelper.notify(CLI_PRIVATE_IO.CDK_CLI_I1000.msg(
+        `\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`,
         {
-          telemetry: {
-            eventType: 'Synth',
-            state: 'FAILED',
-            duration: elapsedSynthTime,
-          },
+          success: error === undefined,
+          duration: elapsedSynthTime,
+          error,
         },
       ));
-      throw e;
+
+      if (error) { throw error; }
     }
+
+    throw new ToolkitError('Unreachable Code');
   }
 
   private get canLookup() {

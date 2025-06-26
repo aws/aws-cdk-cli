@@ -70,19 +70,6 @@ export interface SingleStack {
   readonly stack: cxapi.CloudFormationStackArtifact;
 }
 
-export interface Telemetry {
-  readonly telemetry: {
-    readonly eventType: string,
-    readonly state: 'SUCCEEDED' | 'FAILED' | 'ABORTED';
-    readonly duration: number,
-    readonly error?: {
-      readonly name?: string;
-      readonly trace?: string;
-      readonly logs?: string;
-    },
-  }
-}
-
 /**
  * Duration information returned in the payload of an IO Message.
  */

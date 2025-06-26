@@ -23,9 +23,11 @@ interface SessionEvent {
   readonly command: Command;
 }
 
+export type EventType = 'SYNTH' | 'INVOKE';
+export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
 interface Event extends SessionEvent {
-  readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
-  readonly eventType: 'SYNTH' | 'EXIT';
+  readonly state: State;
+  readonly eventType: EventType;
 }
 
 export interface SessionEnvironment {

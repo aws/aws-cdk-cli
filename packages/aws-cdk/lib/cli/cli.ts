@@ -5,7 +5,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import type { IoMessageLevel } from './io-host';
-import { CliIoHost } from './io-host';
+import { CLI_PRIVATE_IO, CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
@@ -13,7 +13,7 @@ import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import * as version from './version';
-import { asIoHelper, IO } from '../../lib/api-private';
+import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
@@ -647,31 +647,22 @@ export function cli(args: string[] = process.argv.slice(2)) {
 /* c8 ignore stop */
 
 async function successfulTelemetryExitEvent(args: string[], startTime: number) {
-  await CliIoHost.instance().asIoHelper().notify(IO.CDK_TOOLKIT_I0050.msg(
+  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2000.msg(
     `Exiting ${args[1]}`,
     {
-      telemetry: {
-        duration: new Date().getTime() - startTime,
-        eventType: 'Exit',
-        state: 'SUCCEEDED',
-      },
+      duration: new Date().getTime() - startTime,
+      success: true,
     },
   ));
 }
 
 async function failedTelemetryExitEvent(args: string[], startTime: number, err?: any) {
-  await CliIoHost.instance().asIoHelper().notify(IO.CDK_TOOLKIT_I0050.msg(
+  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2000.msg(
     `Exiting ${args[1]}`,
     {
-      telemetry: {
-        duration: new Date().getTime() - startTime,
-        eventType: 'Exit',
-        state: 'FAILED',
-        error: {
-          name: err?.name ?? 'ExitCode1Error', // TODO: sanitize
-          // message: err.message, // TODO: sanitize
-        },
-      },
+      duration: new Date().getTime() - startTime,
+      success: false,
+      error: err ?? new ToolkitError('ExitCode1Error'),
     },
   ));
 }
