@@ -12,13 +12,11 @@
  */
 
 import * as fs from 'fs';
-import { DefaultAwsClient } from '@aws-cdk/cdk-assets-lib';
-
-import {
+import { DefaultAwsClient,
   cdkCredentialsConfig,
   cdkCredentialsConfigFile,
   fetchDockerLoginCredentials,
-} from '@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
+ } from '@aws-cdk/cdk-assets-lib';
 
 async function main() {
   // Expected invocation is [node, docker-credential-cdk-assets, get] with input fed via STDIN
