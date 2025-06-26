@@ -12,11 +12,15 @@
  */
 
 import * as fs from 'fs';
-import { DefaultAwsClient,
+import { DefaultAwsClient } from '@aws-cdk/cdk-assets-lib';
+
+// import from a relative local path because we don't want to export the private
+// docker-credentials module, and since we are bundling, we don't have to.
+import {
   cdkCredentialsConfig,
   cdkCredentialsConfigFile,
   fetchDockerLoginCredentials,
- } from '@aws-cdk/cdk-assets-lib';
+} from '../../@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
 
 async function main() {
   // Expected invocation is [node, docker-credential-cdk-assets, get] with input fed via STDIN

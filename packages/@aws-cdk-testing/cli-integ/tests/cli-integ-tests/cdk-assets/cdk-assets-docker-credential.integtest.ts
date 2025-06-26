@@ -8,7 +8,6 @@ integTest(
     await fixture.shell(['npm', 'init', '-y']);
     await fixture.shell(['npm', 'install', 'cdk-assets@latest']);
 
-    await fixture.shell(['node', './node_modules/cdk-assets/bin/docker-credential-cdk-assets', 'get'])
-
+    await fixture.shell(['node', './node_modules/cdk-assets/bin/docker-credential-cdk-assets', 'get']);
   }),
 );
