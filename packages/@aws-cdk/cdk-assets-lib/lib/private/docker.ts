@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { cdkCredentialsConfig, obtainEcrCredentials } from '../docker-credentials';
+import { cdkCredentialsConfig, obtainEcrCredentials } from './docker-credentials';
 import type { ShellOptions, ProcessFailedError } from './shell';
 import { shell } from './shell';
 import { createCriticalSection } from './util';
