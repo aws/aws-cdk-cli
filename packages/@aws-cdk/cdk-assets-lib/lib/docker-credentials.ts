@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { IAws, IECRClient } from '../aws';
-import type { EventEmitter } from '../progress';
-import { EventType } from '../progress';
+import type { IAws, IECRClient } from './aws';
+import type { EventEmitter } from './progress';
+import { EventType } from './progress';
 
 export interface DockerCredentials {
   readonly Username: string;

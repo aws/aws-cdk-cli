@@ -10,5 +10,7 @@ integTest(
 
     fixture.shell(['node', './node_modules/cdk-assets/bin/docker-credential-cdk-assets', 'get'])
 
+    // 185706627232.dkr.ecr.us-east-1.amazonaws.com
+
   }),
 );
