@@ -17,7 +17,9 @@ describe('IoHostTelemetryClient', () => {
     mockStdout = jest.fn();
     mockStderr = jest.fn();
 
-    ioHost = CliIoHost.instance();
+    ioHost = CliIoHost.instance({
+      isCI: false,
+    });
 
     (process as any).stdin = passThrough = new PassThrough();
     jest.spyOn(process.stdout, 'write').mockImplementation((str: any, encoding?: any, cb?: any) => {
