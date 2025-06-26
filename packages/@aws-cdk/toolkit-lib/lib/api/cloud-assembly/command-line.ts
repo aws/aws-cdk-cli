@@ -5,30 +5,35 @@ type ShellSyntax = 'posix' | 'cmd.exe';
 /**
  * Class to help with parsing and formatting command-lines
  *
- * What syntax we recognizing is an attribute of the `parse` and `toString()` operations,
- * NOT of the command line itself. Defaults to the current platform.
+ * What syntax we recognize is an attribute of the `parse` and `toString()` operations,
+ * NOT of the command line itself. Defaults to the current platform's default shell
+ * syntax.
  *
  * Because we start with arbitrary shell strings, we may end up stuffing special
  * shell syntax inside an `argv: string[]` array, which doesn't necessarily make
  * a lot of sense. There could be a lot more modeling here to for example tag
  * `argv` elements as literals or bits of shell syntax so we can render them out
- * inert or active.
+ * inert or active. Making this class do all of that correctly is weeks worth of
+ * work. Instead, it's going to be mostly concerned with correctly parsing and
+ * preserving spaces, so that we can correctly handle command lines with spaces
+ * in them on Windows.
  *
- * Making this class do all of that correctly is weeks worth of work. Instead,
- * it's going to be mostly concerned with correctly parsing and preserving spaces,
- * so that we can correctly handle command lines with spaces in them on Windows.
+ * - Windows: emulates the behavior of `cmd.exe` if `cmd.exe` is the default shell,
+ *   or the behavior of a POSIX shell otherwise.
+ * - POSIX: emulates the behavior of a standard POSIX shell.
+ *
+ * For some insight of the hell this is on Windows, see these links:
+ *
+ * - <https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw>
+ * - <https://daviddeley.com/autohotkey/parameters/parameters.htm#WIN>
  */
 export class CommandLine {
   /**
    * Parse a command line into components.
    *
-   * - Windows: emulates the behavior of `cmd.exe`.
-   * - POSIX: emulates the behavior of a standard POSIX shell.
-   *
-   * For some insight of the hell this is on Windows, see these links:
-   *
-   * - <https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw>
-   * - <https://daviddeley.com/autohotkey/parameters/parameters.htm#WIN>
+   * Shell characters will end up as elements of the command-line array without
+   * being marked as such. `toStringGrouped()` will render them out back again,
+   * while `toStringInert()` will escape them.
    */
   public static parse(cmdLine: string, syntax: ShellSyntax = defaultShellSyntax()) {
     const argv = isWindows(syntax) ? parseCommandLineWindows(cmdLine) : parseCommandLinePosix(cmdLine);

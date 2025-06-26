@@ -114,6 +114,11 @@ export function spaceAvailableForContext(env: Env, limit: number) {
  *
  * - On POSIX: if the file is NOT marked as executable, guess the interpreter. If it is executable,
  *   executing the file will work and the correct interpreter should be in the file's shebang.
+ *
+ * The behavior of only guessing the interpreter if the command line is a single file name
+ * is a bit limited: we can't put a `.js` file with arguments in the command line and have
+ * it work properly. Nevertheless, this is the behavior we have had for a long time and nobody
+ * has really complained about it, so we'll keep it for now.
  */
 export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>): Promise<CommandLine> {
   const commandLine = CommandLine.parse(app);

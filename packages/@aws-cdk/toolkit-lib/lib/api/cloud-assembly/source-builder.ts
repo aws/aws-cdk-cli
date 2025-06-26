@@ -417,11 +417,11 @@ export abstract class CloudAssemblySourceBuilder {
     };
   }
   /**
-   * Use a an AWS CDK app executable as source.
+   * Use an AWS CDK app executable as source.
    *
    * `app` is a command line that will be executed to produce a Cloud Assembly.
-   * The command line will be executed in a shell, so must be trusted. Use
-   * the `CommandLine` class to help you build a safe string here if necessary.
+   * The command will be executed in a shell, so it must come from a trusted source.
+   * Use the `CommandLine` class to help you build a safe shell string if necessary.
    *
    * The subprocess will execute in `workingDirectory`, which defaults to
    * the current process' working directory if not given.
