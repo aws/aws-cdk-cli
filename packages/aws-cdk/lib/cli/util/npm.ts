@@ -1,16 +1,16 @@
-import { exec as _exec } from 'child_process';
+import { execFile as _execFile } from 'child_process';
 import { promisify } from 'util';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 
-const exec = promisify(_exec);
+const execFile = promisify(_execFile);
 
 /* c8 ignore start */
 export async function execNpmView(currentVersion: string) {
   try {
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const [latestResult, currentResult] = await Promise.all([
-      exec('npm view aws-cdk@latest version', { timeout: 3000 }),
-      exec(`npm view aws-cdk@${currentVersion} name version deprecated --json`, { timeout: 3000 }),
+      execFile('npm', ['view', 'aws-cdk@latest', 'version'], { timeout: 3000 }),
+      execFile('npm', ['view', `aws-cdk@${currentVersion}`, 'name', 'version', 'deprecated', '--json'], { timeout: 3000 }),
     ]);
 
     if (latestResult.stderr && latestResult.stderr.trim().length > 0) {
