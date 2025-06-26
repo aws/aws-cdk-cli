@@ -30,7 +30,7 @@ export class CommandLine {
    * - <https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw>
    * - <https://daviddeley.com/autohotkey/parameters/parameters.htm#WIN>
    */
-  public static parse(cmdLine: string, syntax?: ShellSyntax) {
+  public static parse(cmdLine: string, syntax: ShellSyntax = defaultShellSyntax()) {
     const argv = isWindows(syntax) ? parseCommandLineWindows(cmdLine) : parseCommandLinePosix(cmdLine);
     return new CommandLine(argv);
   }
@@ -43,7 +43,7 @@ export class CommandLine {
    *
    * Any other special characters are left in exactly as-is.
    */
-  public toStringGrouped(syntax?: ShellSyntax) {
+  public toStringGrouped(syntax: ShellSyntax = defaultShellSyntax()) {
     if (isWindows(syntax)) {
       return formatCommandLineWindows(this.argv, /^\S+$/);
     } else {
@@ -56,7 +56,7 @@ export class CommandLine {
    *
    * The command will be a command invocation with literal parameters, nothing else.
    */
-  public toStringInert(syntax?: ShellSyntax) {
+  public toStringInert(syntax: ShellSyntax = defaultShellSyntax()) {
     if (isWindows(syntax)) {
       return formatCommandLineWindows(this.argv, /^[a-zA-Z0-9._\-+=/:]+$/);
     } else {
@@ -140,8 +140,8 @@ function isWhitespace(char: string): boolean {
   return char === ' ' || char === '\t';
 }
 
-function isWindows(x?: ShellSyntax) {
-  return x ? x === 'cmd.exe' : process.platform === 'win32';
+function isWindows(x: ShellSyntax) {
+  return x === 'cmd.exe';
 }
 
 function parseCommandLinePosix(commandLine: string): string[] {
@@ -277,4 +277,21 @@ function formatCommandLineWindows(argv: string[], componentIsSafe: RegExp): stri
     escaped += '"';
     return escaped;
   }).join(' ');
+}
+
+/**
+ * @see https://github.com/nodejs/node/blob/b4c5fb4ffbec9f27ba5799070c2e0588b7c7ff0e/lib/child_process.js#L626
+ */
+function defaultShellSyntax(): ShellSyntax {
+  if (process.platform !== 'win32') {
+    return 'posix';
+  }
+
+  const file = process.env.comspec || 'cmd.exe';
+  // '/d /s /c' is used only for cmd.exe.
+  if (/^(?:.*\\)?cmd(?:\.exe)?$/i.test(file)) {
+    return 'cmd.exe';
+  }
+
+  return 'posix';
 }

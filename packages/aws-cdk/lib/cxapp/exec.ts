@@ -116,7 +116,10 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           detached: false,
 
           // We are using 'shell: true' on purprose. Traditionally we have allowed shell features in
-          // this string, so we have to continue to do so into the future.
+          // this string, so we have to continue to do so into the future. On Windows, this is simply
+          // necessary to run .bat and .cmd files properly.
+          // Code scanning tools will flag this as a risk. The input comes from a trusted source,
+          // so it does not represent a security risk.
           shell: true,
 
           env: {
