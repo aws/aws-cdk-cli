@@ -277,7 +277,7 @@ const repoProject = new yarn.Monorepo({
         uses: 'actions/cache@v4',
         with: {
           'key': '${{ runner.os }}-nxcache',
-          'path': ['.nx/cache'].join('\n'),
+          'path': ['.nx'].join('\n'),
           // Only ever use cache on PRs
           'lookup-only': "${{ github.event_name != 'pull_request' }}",
         },
