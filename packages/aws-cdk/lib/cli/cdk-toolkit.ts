@@ -2,8 +2,18 @@ import * as path from 'path';
 import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit, MappingSource } from '@aws-cdk/toolkit-lib';
+import type {
+  DeploymentMethod,
+  ToolkitAction,
+  ToolkitOptions,
+} from '@aws-cdk/toolkit-lib';
+import {
+  MappingSource,
+  PermissionChangeType,
+  StackSelectionStrategy,
+  Toolkit,
+  ToolkitError,
+} from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -14,7 +24,17 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { asIoHelper, cfnApi, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
-import { DEFAULT_TOOLKIT_STACK_NAME, DiffFormatter, WorkGraphBuilder, removeNonImportResources, ResourceImporter, ResourceMigrator, GarbageCollector, CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api';
+import {
+  CloudWatchLogEventMonitor,
+  DEFAULT_TOOLKIT_STACK_NAME,
+  DiffFormatter,
+  findCloudWatchLogGroups,
+  GarbageCollector,
+  removeNonImportResources,
+  ResourceImporter,
+  ResourceMigrator,
+  WorkGraphBuilder,
+} from '../api';
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -1232,6 +1252,7 @@ export class CdkToolkit {
           strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         mappingSource: await mappingSource(),
+        force: options.force,
       });
     } catch (e) {
       error((e as Error).message);
@@ -1267,12 +1288,14 @@ export class CdkToolkit {
 
     async function mappingSource(): Promise<MappingSource> {
       if (options.mappingFile != null) {
-        return MappingSource.explicit(await readMappingFile(options.mappingFile));
+        return options.revert
+          ? MappingSource.reverse(await readMappingFile(options.mappingFile))
+          : MappingSource.explicit(await readMappingFile(options.mappingFile));
       }
-      if (options.revert) {
-        return MappingSource.reverse(await readMappingFile(options.mappingFile));
-      }
-      return MappingSource.auto((await readExcludeFile(options.excludeFile)) ?? []);
+
+      // const overrides = options.map ? parseMappingOverrides(options.map): [];
+      const overrides = await readMappingFile(options.overrideFile);
+      return MappingSource.auto((await readExcludeFile(options.excludeFile)) ?? [], overrides);
     }
   }
 
@@ -2012,6 +2035,13 @@ export interface RefactorOptions {
    * that was previously applied.
    */
   revert?: boolean;
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
+
+  overrideFile?: string;
 }
 
 /**

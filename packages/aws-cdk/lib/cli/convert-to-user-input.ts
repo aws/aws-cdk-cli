@@ -272,6 +272,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         excludeFile: args.excludeFile,
         mappingFile: args.mappingFile,
         revert: args.revert,
+        force: args.force,
+        overrideFile: args.overrideFile,
         STACKS: args.STACKS,
       };
       break;
@@ -471,6 +473,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     excludeFile: config.refactor?.excludeFile,
     mappingFile: config.refactor?.mappingFile,
     revert: config.refactor?.revert,
+    force: config.refactor?.force,
+    overrideFile: config.refactor?.overrideFile,
   };
   const userInput: UserInput = {
     globalOptions,
