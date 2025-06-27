@@ -32,7 +32,6 @@ integTest(
       modEnv: {
         ...fixture.cdkShellEnv(),
         CDK_DOCKER_CREDS_FILE: credsFilePath,
-        AWS_REGION: fixture.aws.region,
       },
       stdio: [fs.openSync(input, 'r')],
     });
