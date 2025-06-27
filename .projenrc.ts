@@ -95,7 +95,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
   return x;
 }
 
-const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_16-core';
+const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_32-core';
 
 const workflowRunsOn = [
   POWERFUL_RUNNER,
@@ -1764,6 +1764,7 @@ const disallowed = new Set([
 ]);
 repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
   pj.JsonPatch.replace('/jobs/validate/steps/0/with/scopes', [
+    'ci',
     'cli',
     'deps',
     'dev-deps',

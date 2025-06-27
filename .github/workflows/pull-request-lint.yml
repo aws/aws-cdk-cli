@@ -36,6 +36,7 @@ jobs:
             cdk-assets
             cdk-assets-lib
             cdk-cli-wrapper
+            ci
             cli
             cli-integ
             cli-lib-alpha
