@@ -33,8 +33,7 @@ integTest(
         CDK_DOCKER_CREDS_FILE: credsFilePath,
         AWS_REGION: fixture.aws.region,
       },
-      // inhereting stdin because we need to write to it
-      stdio: [fs.openSync(input, 'r'), 'pipe', 'pipe'],
+      stdio: [fs.openSync(input, 'r')],
     });
   }),
 );
