@@ -294,6 +294,9 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+// we want to use the cache
+repoProject.github?.tryFindWorkflow('build')?.file?.patch(pj.JsonPatch.remove('/jobs/build/env/NX_SKIP_NX_CACHE'));
+
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 
