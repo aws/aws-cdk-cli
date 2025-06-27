@@ -1101,8 +1101,12 @@ when using this command.
 
 Compares the infrastructure specified in the current state of the CDK app with 
 the currently deployed application, to determine if any resource was moved 
-(to a different stack or to a different logical ID, or both). The CLI will 
-show the correspondence between the old and new locations in a table:
+(to a different stack or to a different logical ID, or both). In keeping with
+the CloudFormation API, you are not allowed to modify the set of resources
+as part of a refactor. In other words, adding, deleting or updating resources
+is considered an error.
+
+The CLI will show the correspondence between the old and new locations in a table:
 
 ```
 $ cdk refactor --unstable=refactor --dry-run
@@ -1145,12 +1149,16 @@ $ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
 ```
 
 If your application has more than one stack, and you want the refactor 
-command to consider only a subset of them, you can pass a list of stack 
-patterns as a parameter:
+command to consider only a subset of them, you can specify the stacks you
+want, both local and deployed:
 
 ```shell
-$ cdk refactor Web* --unstable=refactor --dry-run 
+$ cdk refactor --local-stack Foo --local-stack Bar --deployed-stack Foo --unstable=refactor --dry-run 
 ```
+
+This is useful if, for example, you have more than one CDK application deployed
+to a given environment, and you want to only include the deployed stacks that
+belong to the application that you are refactoring.
 
 The pattern language is the same as the one used in the `cdk deploy` command. 
 However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 

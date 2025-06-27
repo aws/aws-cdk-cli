@@ -1,32 +1,40 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import {
   formatAmbiguousMappings as fmtAmbiguousMappings,
-  formatMappingsHeader as fmtMappingsHeader,
+  formatEnvironmentSectionHeader as fmtEnvironmentSectionHeader,
   formatTypedMappings as fmtTypedMappings,
-  formatAmbiguitySectionHeader as fmtAmbiguitySectionHeader,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
+import { minimatch } from 'minimatch';
+import { major } from 'semver';
 import { deserializeStructure } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
+import { hashObject } from './digest';
 import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export * from './exclude';
 
+interface StackGroup {
+  environment: cxapi.Environment;
+  localStacks: CloudFormationStack[];
+  deployedStacks: CloudFormationStack[];
+}
+
 export async function usePrescribedMappings(
   mappingGroups: MappingGroup[],
   sdkProvider: SdkProvider,
 ): Promise<ResourceMapping[]> {
-  interface StackGroup extends MappingGroup {
+  interface MappingGroupWithStacks extends MappingGroup {
     stacks: CloudFormationStack[];
   }
 
-  const stackGroups: StackGroup[] = [];
+  const stackGroups: MappingGroupWithStacks[] = [];
   for (const group of mappingGroups) {
     stackGroups.push({
       ...group,
@@ -135,26 +143,17 @@ export async function getDeployedStacks(
   return Promise.all(summaries.map(normalize));
 }
 
-export function formatMappingsHeader(): string {
-  return formatToStream(fmtMappingsHeader);
+export function formatEnvironmentSectionHeader(environment: cxapi.Environment) {
+  const env = `aws://${environment.account}/${environment.region}`;
+  return formatToStream(stream => fmtEnvironmentSectionHeader(stream, env));
 }
 
-export function formatTypedMappings(environment: cxapi.Environment, mappings: TypedMapping[]): string {
-  return formatToStream((stream) => {
-    const env = `aws://${environment.account}/${environment.region}`;
-    fmtTypedMappings(stream, mappings, env);
-  });
+export function formatTypedMappings(mappings: TypedMapping[]): string {
+  return formatToStream((stream) => fmtTypedMappings(stream, mappings));
 }
 
-export function formatAmbiguitySectionHeader(): string {
-  return formatToStream(fmtAmbiguitySectionHeader);
-}
-
-export function formatAmbiguousMappings(environment: cxapi.Environment, paths: [string[], string[]][]): string {
-  return formatToStream((stream) => {
-    const env = `aws://${environment.account}/${environment.region}`;
-    fmtAmbiguousMappings(stream, paths, env);
-  });
+export function formatAmbiguousMappings(paths: [string[], string[]][]): string {
+  return formatToStream((stream) => fmtAmbiguousMappings(stream, paths));
 }
 
 function formatToStream(cb: (stream: NodeJS.WritableStream) => void): string {
@@ -162,3 +161,68 @@ function formatToStream(cb: (stream: NodeJS.WritableStream) => void): string {
   cb(stream);
   return stream.toString();
 }
+
+/**
+ * Returns a list of stack groups, each containing the local stacks and the deployed stacks that match the given patterns.
+ */
+export async function groupStacks(sdkProvider: SdkProvider, cloudAssembly: cxapi.CloudAssembly, localPatterns: string[], deployedPatterns: string[]) {
+  const localStacks = getLocalStacks(cloudAssembly, localPatterns);
+
+  const environments: Map<string, cxapi.Environment> = new Map();
+
+  for (const stack of localStacks) {
+    const environment = await sdkProvider.resolveEnvironment(stack.environment);
+    const key = hashObject(environment);
+    environments.set(key, environment);
+  }
+
+  const localByEnvironment = await indexBy(localStacks,
+    async (s) => hashObject(await sdkProvider.resolveEnvironment(s.environment)),
+  );
+
+  const groups: StackGroup[] = [];
+  const deployedFilter = matchingPatterns(deployedPatterns, (s) => s.stackName);
+  for (let key of localByEnvironment.keys()) {
+    const environment = environments.get(key)!;
+    groups.push({
+      environment,
+      deployedStacks: (await getDeployedStacks(sdkProvider, environment)).filter(deployedFilter),
+      localStacks: localByEnvironment.get(key)!,
+    });
+  }
+
+  return groups;
+}
+
+function getLocalStacks(cloudAssembly: cxapi.CloudAssembly, patterns: string[]) {
+  const all = major(cloudAssembly.version) < 10 ? cloudAssembly.stacks : cloudAssembly.stacksRecursively;
+  return all.filter(matchingPatterns(patterns ?? [], (s) => s.hierarchicalId));
+}
+
+function matchingPatterns<S extends CloudFormationStack>(patterns: string[], id: (a: S) => string): (s: S) => boolean {
+  if (patterns.length === 0) {
+    return (s) => !Object.entries(s.template?.Resources ?? {})
+      .some(([logicalId, resource]: [string, any]) => logicalId === 'CdkBootstrapVersion' && resource.Type === 'AWS::SSM::Parameter');
+  }
+
+  if (patterns.includes('*')) {
+    return () => true;
+  }
+
+  return (s: S) => patterns.some(pattern => minimatch(id(s), pattern));
+}
+
+async function indexBy<A, B>(xs: A[], fn: (a: A) => Promise<B>): Promise<Map<B, A[]>> {
+  const ret = new Map<B, A[]>();
+  for (const x of xs) {
+    const key = await fn(x);
+    const group = ret.get(key);
+    if (group) {
+      group.push(x);
+    } else {
+      ret.set(key, [x]);
+    }
+  }
+  return ret;
+}
+

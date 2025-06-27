@@ -1420,6 +1420,20 @@ export interface DocsOptions {
  */
 export interface RefactorOptions {
   /**
+   * Filter to apply for stacks in the cloud assembly
+   *
+   * @default - undefined
+   */
+  readonly localStack?: Array<string>;
+
+  /**
+   * Filter to apply for stacks deployed to the AWS account
+   *
+   * @default - undefined
+   */
+  readonly deployedStack?: Array<string>;
+
+  /**
    * Do not perform any changes, just show what would be done
    *
    * @default - false
@@ -1446,9 +1460,4 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly revert?: boolean;
-
-  /**
-   * Positional argument for refactor
-   */
-  readonly STACKS?: Array<string>;
 }
