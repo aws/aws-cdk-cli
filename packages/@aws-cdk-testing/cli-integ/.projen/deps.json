@@ -159,6 +159,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-secrets-manager",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-sns",
       "type": "runtime"
     },
@@ -243,6 +247,10 @@
     {
       "name": "p-queue",
       "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "proxy-agent",
       "type": "runtime"
     },
     {

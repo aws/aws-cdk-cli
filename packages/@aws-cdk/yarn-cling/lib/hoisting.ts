@@ -23,6 +23,7 @@ import { iterDeps, isPackage, type PackageLockFile, type PackageLockTree } from 
  */
 export function hoistDependencies(packageTree: PackageLockFile): PackageLockFile {
   let tree = packageTree;
+  tree = _addTombstones(tree);
   tree = _pushDepsToParent(tree);
   tree = _removeDupesWithParent(tree);
   tree = _removeTombstones(tree);
@@ -57,6 +58,28 @@ export function renderTree(tree: PackageLockTree): string[] {
     }
 
     return as.length - bs.length;
+  }
+}
+
+export function _addTombstones<A extends PackageLockTree>(root: A): A {
+  let tree = structuredClone(root);
+  recurse(tree);
+  return tree;
+
+  function recurse(node: PackageLockTree) {
+    // For every node, all the packages they 'requires' should be in 'dependencies'.
+    // If it's not in 'dependencies', that must mean its at a higher level already, so we put
+    // the 'moved' tombstone in to make sure we don't accidentally replace this package with a different version.
+    for (const name of Object.keys(node.requires ?? {})) {
+      if (!node.dependencies?.[name]) {
+        node.dependencies = node.dependencies ?? {};
+        node.dependencies[name] = 'moved';
+      }
+    }
+
+    for (const [_, dep] of iterDeps(node)) {
+      recurse(dep);
+    }
   }
 }
 

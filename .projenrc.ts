@@ -1630,6 +1630,7 @@ const cliInteg = configureProject(
       '@aws-sdk/client-sns',
       '@aws-sdk/client-sso',
       '@aws-sdk/client-sts',
+      '@aws-sdk/client-secrets-manager',
       '@aws-sdk/credential-providers',
       '@cdklabs/cdk-atmosphere-client',
       '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
@@ -1651,6 +1652,7 @@ const cliInteg = configureProject(
       'jest@^29',
       'jest-junit@^15',
       'ts-jest@^29',
+      'proxy-agent',
       'node-pty',
     ],
     devDeps: [
