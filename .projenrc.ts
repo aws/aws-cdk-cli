@@ -1770,6 +1770,7 @@ const disallowed = new Set([
 ]);
 repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
   pj.JsonPatch.replace('/jobs/validate/steps/0/with/scopes', [
+    'ci',
     'cli',
     'deps',
     'dev-deps',
