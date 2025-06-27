@@ -30,6 +30,7 @@ integTest(
 
     await fixture.shell(['node', './node_modules/cdk-assets/bin/docker-credential-cdk-assets', 'get'], {
       modEnv: {
+        ...fixture.cdkShellEnv(),
         CDK_DOCKER_CREDS_FILE: credsFilePath,
         AWS_REGION: fixture.aws.region,
       },
