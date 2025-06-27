@@ -44,32 +44,39 @@ export function withAws<A extends TestContext>(
 
       const start = Date.now();
       const allocation = await atmosphere.acquire({ pool: atmospherePool(), requester: context.name, timeoutSeconds: 60 * 30 });
+      let outcome = 'success';
       context.reportWaitTime(Date.now() - start);
 
-      const aws = await AwsClients.forIdentity(allocation.environment.region, {
-        accessKeyId: allocation.credentials.accessKeyId,
-        secretAccessKey: allocation.credentials.secretAccessKey,
-        sessionToken: allocation.credentials.sessionToken,
-        accountId: allocation.environment.account,
-      }, context.output);
-
-      await sanityCheck(aws);
-
-      let outcome = 'success';
       try {
-        return await block({ ...context, disableBootstrap, aws });
-      } catch (e: any) {
-        outcome = 'failure';
-        throw e;
+        const aws = await AwsClients.forIdentity(context.randomString, allocation.environment.region, {
+          accessKeyId: allocation.credentials.accessKeyId,
+          secretAccessKey: allocation.credentials.secretAccessKey,
+          sessionToken: allocation.credentials.sessionToken,
+          accountId: allocation.environment.account,
+        }, context.output);
+        await sanityCheck(aws);
+
+        try {
+          return await block({ ...context, disableBootstrap, aws });
+        } catch (e: any) {
+          outcome = 'failure';
+          throw e;
+        } finally {
+          await aws.dispose();
+        }
       } finally {
         await atmosphere.release(allocation.id, outcome);
       }
     } else {
       return regionPool().using(async (region) => {
-        const aws = await AwsClients.forRegion(region, context.output);
-        await sanityCheck(aws);
+        const aws = await AwsClients.forRegion(context.randomString, region, context.output);
+        try {
+          await sanityCheck(aws);
 
-        return block({ ...context, disableBootstrap, aws });
+          return await block({ ...context, disableBootstrap, aws });
+        } finally {
+          await aws.dispose();
+        }
       });
     }
   };
