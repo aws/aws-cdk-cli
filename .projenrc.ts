@@ -97,10 +97,6 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 
 const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_16-core';
 
-const workflowRunsOn = [
-  POWERFUL_RUNNER,
-];
-
 // Ignore patterns that apply both to the CLI and to cli-lib
 const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   'db.json.gz',
@@ -232,7 +228,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   workflowNodeVersion: 'lts/*',
-  workflowRunsOn,
+  workflowRunsOn: [POWERFUL_RUNNER],
   gitignore: ['.DS_Store', '.tools'],
 
   autoApproveUpgrades: true,
@@ -276,12 +272,22 @@ const repoProject = new yarn.Monorepo({
 
   buildWorkflowOptions: {
     preBuildSteps: [
+      {
+        name: 'Nx cache',
+        uses: 'actions/cache@v4',
+        with: {
+          'key': '${{ runner.os }}-nxcache',
+          'path': ['.nx/cache'].join('\n'),
+          // Only ever use cache on PRs
+          'lookup-only': "${{ github.event_name != 'pull_request' }}",
+        },
+      },
       // Need this for the init tests
       {
         name: 'Set git identity',
         run: [
           'git config --global user.name "aws-cdk-cli"',
-          'git config --global user.email "noreply@example.com"',
+          'git config --global user.email "github-actions@github.com"',
         ].join('\n'),
       },
     ],
