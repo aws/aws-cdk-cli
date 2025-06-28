@@ -59,7 +59,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'xxxxx.test-with-snapshot.js.snapshot',
       requireApproval: 'never',
@@ -124,7 +124,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'node xxxxx.integ-test1.js',
       requireApproval: 'never',
@@ -229,7 +229,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(1, expect.objectContaining({
       app: 'xxxxx.test-with-snapshot.js.snapshot',
       context: expect.any(Object),
@@ -276,7 +276,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(0);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
   });
 
   test('dryrun', async () => {
@@ -340,7 +340,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'node xxxxx.integ-test1.js',
       requireApproval: 'never',
@@ -623,7 +623,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith(expect.objectContaining({
       app: 'node --no-warnings xxxxx.test-with-snapshot.js',
     }));
