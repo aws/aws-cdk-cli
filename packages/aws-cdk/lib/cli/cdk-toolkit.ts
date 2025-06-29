@@ -1227,10 +1227,8 @@ export class CdkToolkit {
     try {
       await this.toolkit.refactor(this.props.cloudExecutable, {
         dryRun: options.dryRun,
-        stacks: {
-          patterns: options.selector.patterns,
-          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-        },
+        localStacks: options.localStacks,
+        deployedStacks: options.deployedStacks,
         mappingSource: await mappingSource(),
       });
     } catch (e) {
@@ -1961,11 +1959,6 @@ export interface RefactorOptions {
   readonly dryRun: boolean;
 
   /**
-   * Criteria for selecting stacks to deploy
-   */
-  selector: StackSelector;
-
-  /**
    * The absolute path to a file that contains a list of resources that
    * should be excluded during the refactor. This file should contain a
    * newline separated list of _destination_ locations to exclude, i.e.,
@@ -2012,6 +2005,22 @@ export interface RefactorOptions {
    * that was previously applied.
    */
   revert?: boolean;
+
+  /**
+   * List of patterns for filtering local stacks. If no patterns are passed,
+   * then all stacks, except the bootstrap stacks are considered. If you want
+   * to consider all stacks (including bootstrap stacks), pass the wildcard
+   * '*'.
+   */
+  localStacks?: string[];
+
+  /**
+   * List of patterns for filtering deployed stacks. If no patterns are passed,
+   * then all stacks, except the bootstrap stacks are considered. If you want
+   * to consider all stacks (including bootstrap stacks), pass the wildcard
+   * '*'.
+   */
+  deployedStacks?: string[];
 }
 
 /**

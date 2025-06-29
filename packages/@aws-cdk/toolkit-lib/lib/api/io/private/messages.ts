@@ -369,6 +369,12 @@ export const IO = {
   }),
 
   // 8. Refactor (8xxx)
+  CDK_TOOLKIT_E8900: make.error<ErrorPayload>({
+    code: 'CDK_TOOLKIT_E8900',
+    description: 'Stack refactor failed',
+    interface: 'ErrorPayload',
+  }),
+
   CDK_TOOLKIT_I8900: make.result<RefactorResult>({
     code: 'CDK_TOOLKIT_I8900',
     description: 'Refactor result',

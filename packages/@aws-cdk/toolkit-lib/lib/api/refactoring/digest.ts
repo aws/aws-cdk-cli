@@ -1,5 +1,4 @@
 import * as crypto from 'node:crypto';
-import { loadResourceModel } from '@aws-cdk/cloudformation-diff/lib/diff/util';
 import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
 import { ResourceGraph } from './graph';
 
@@ -8,18 +7,12 @@ import { ResourceGraph } from './graph';
  *
  * Conceptually, the digest is computed as:
  *
- *     d(resource) = hash(type + physicalId)                       , if physicalId is defined
- *                 = hash(type + properties + dependencies.map(d)) , otherwise
+ *     digest(resource) = hash(type + properties + dependencies.map(d))
  *
- * where `hash` is a cryptographic hash function. In other words, if a resource has
- * a physical ID, we use the physical ID plus its type to uniquely identify
- * that resource. In this case, the digest can be computed from these two fields
- * alone. A corollary is that such resources can be renamed and have their
- * properties updated at the same time, and still be considered equivalent.
- *
- * Otherwise, the digest is computed from its type, its own properties (that is,
- * excluding properties that refer to other resources), and the digests of each of
- * its dependencies.
+ * where `hash` is a cryptographic hash function. In other words, the digest of a
+ * resource is computed from its type, its own properties (that is, excluding
+ * properties that refer to other resources), and the digests of each of its
+ * dependencies.
  *
  * The digest of a resource, defined recursively this way, remains stable even if
  * one or more of its dependencies gets renamed. Since the resources in a
@@ -36,41 +29,24 @@ export function computeResourceDigests(stacks: CloudFormationStack[]): Record<st
   );
 
   const resources = Object.fromEntries(
-    stacks.flatMap((s) =>
-      Object.entries(s.template.Resources ?? {}).map(
-        ([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource],
-      ),
-    ),
+    stacks.flatMap((s) => {
+      return Object.entries(s.template.Resources ?? {})
+        .filter(([_, res]) => res.Type !== 'AWS::CDK::Metadata')
+        .map(
+          ([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource],
+        );
+    }),
   );
 
   const graph = new ResourceGraph(stacks);
-  const nodes = graph.sortedNodes;
+  const nodes = graph.sortedNodes.filter(n => resources[n] != null);
   // 4. Compute digests in sorted order
   const result: Record<string, string> = {};
   for (const id of nodes) {
     const resource = resources[id];
-    const resourceProperties = resource.Properties ?? {};
-    const model = loadResourceModel(resource.Type);
-    const identifier = intersection(Object.keys(resourceProperties), model?.primaryIdentifier ?? []);
-    let toHash: string;
-
-    if (identifier.length === model?.primaryIdentifier?.length) {
-      // The resource has a physical ID defined, so we can
-      // use the ID and the type as the identity of the resource.
-      toHash =
-        resource.Type +
-        identifier
-          .sort()
-          .map((attr) => JSON.stringify(resourceProperties[attr]))
-          .join('');
-    } else {
-      // The resource does not have a physical ID defined, so we need to
-      // compute the digest based on its properties and dependencies.
-      const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
-      const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
-      toHash = resource.Type + propertiesHash + depDigests.join('');
-    }
-
+    const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
+    const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
+    const toHash = resource.Type + propertiesHash + depDigests.join('');
     result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
   }
 
@@ -145,8 +121,4 @@ function stripConstructPath(resource: any): any {
   const copy = JSON.parse(JSON.stringify(resource));
   delete copy.Metadata['aws:cdk:path'];
   return copy;
-}
-
-function intersection<T>(a: T[], b: T[]): T[] {
-  return a.filter((value) => b.includes(value));
 }

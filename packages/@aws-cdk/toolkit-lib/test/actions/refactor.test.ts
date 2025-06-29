@@ -1,5 +1,5 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { MappingSource, StackSelectionStrategy, Toolkit } from '../../lib';
+import { MappingSource, type RefactorOptions, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
@@ -86,6 +86,166 @@ test('detects the same resource in different locations', async () => {
   );
 });
 
+test('only considers deployed stacks that match the given filter', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(ListStacksCommand).resolves({
+    StackSummaries: [
+      {
+        StackName: 'Stack1',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+      {
+        StackName: 'Stack2',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack2',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+      {
+        StackName: 'CDKToolkit',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/CDKToolkit',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+    ],
+  });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          OldLogicalID: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack2',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          Queue: {
+            Type: 'AWS::SQS::Queue',
+            UpdateReplacePolicy: 'Delete',
+            DeletionPolicy: 'Delete',
+            Metadata: {
+              'aws:cdk:path': 'Stack2/Queue/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'CDKToolkit',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          CdkBootstrapVersion: {
+            Type: 'AWS::SSM::Parameter',
+            Properties: {
+              Type: 'String',
+              Name: {
+                'Fn::Sub': '/cdk-bootstrap/${Qualifier}/version',
+              },
+              Value: '1',
+            },
+          },
+        },
+      }),
+    });
+
+  await expectRefactorBehavior('stack-with-bucket',
+    {
+      dryRun: true,
+      // We are not passing any filter, which means that Stack2 will also be included in the comparison.
+      // This results in the set of deployed resources being different from the local resources, which
+      // results in an error.
+    },
+    {
+      action: 'refactor',
+      level: 'error',
+      code: 'CDK_TOOLKIT_E8900',
+      message: expect.stringMatching(/A refactor operation cannot add, remove or update resources/),
+    },
+  );
+
+  await expectRefactorBehavior('stack-with-bucket',
+    {
+      dryRun: true,
+      // To avoid the error, we tell the toolkit to only consider Stack1 in the deployed stacks.
+      deployedStacks: ['Stack1'],
+    },
+    {
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldLogicalID\/Resource.*Stack1\/MyBucket\/Resource/),
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldLogicalID/Resource',
+            destinationPath: 'Stack1/MyBucket/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
+    },
+  );
+
+  await expectRefactorBehavior('two-different-stacks',
+    {
+      dryRun: true,
+      // In this case, we are not passing any filter, either, but local and deployed are
+      // the same, except for the bootstrap stack. But that is ignored by default.
+    }, {
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldLogicalID/Resource',
+            destinationPath: 'Stack1/MyBucket/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+          {
+            sourcePath: 'Stack2/Queue/Resource',
+            destinationPath: 'Stack2/MyQueue/Resource',
+            type: 'AWS::SQS::Queue',
+          },
+        ],
+      }),
+    });
+
+  await expectRefactorBehavior('two-different-stacks',
+    {
+      dryRun: true,
+      // But if we pass a wildcard, even the bootstrap stack will be included in the comparison.
+      deployedStacks: ['*'],
+    }, {
+      action: 'refactor',
+      level: 'error',
+      code: 'CDK_TOOLKIT_E8900',
+      message: expect.stringMatching(/A refactor operation cannot add, remove or update resources/),
+    });
+});
+
 test('detects ambiguous mappings', async () => {
   // GIVEN
   mockCloudFormationClient.on(ListStacksCommand).resolves({
@@ -106,6 +266,7 @@ test('detects ambiguous mappings', async () => {
     .resolves({
       TemplateBody: JSON.stringify({
         Resources: {
+          // These two buckets were replaced with two other buckets
           CatPhotos: {
             Type: 'AWS::S3::Bucket',
             UpdateReplacePolicy: 'Retain',
@@ -127,7 +288,7 @@ test('detects ambiguous mappings', async () => {
     });
 
   // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  const cx = await builderFixture(toolkit, 'stack-with-two-buckets');
   await toolkit.refactor(cx, {
     dryRun: true,
   });
@@ -145,15 +306,80 @@ test('detects ambiguous mappings', async () => {
       │ - │ Stack1/CatPhotos/Resource │
       │   │ Stack1/DogPhotos/Resource │
       ├───┼───────────────────────────┤
-      │ + │ Stack1/Bucket/Resource    │
+      │ + │ Stack1/MyBucket1/Resource │
+      │   │ Stack1/MyBucket2/Resource │
       └───┴───────────────────────────┘
        */
       message: expect.stringMatching(
-        /-.*Stack1\/CatPhotos\/Resource.*\s+.*Stack1\/DogPhotos\/Resource.*\s+.*\s+.*\+.*Stack1\/MyBucket\/Resource/gm,
+        /-.*Stack1\/CatPhotos\/Resource.*\s+.*Stack1\/DogPhotos\/Resource.*\s+.*\s+.*\+.*Stack1\/MyBucket1\/Resource.*\s+.*Stack1\/MyBucket2\/Resource/gm,
       ),
       data: {
-        ambiguousPaths: [[['Stack1/CatPhotos/Resource', 'Stack1/DogPhotos/Resource'], ['Stack1/MyBucket/Resource']]],
+        ambiguousPaths: [
+          [
+            ['Stack1/CatPhotos/Resource', 'Stack1/DogPhotos/Resource'],
+            ['Stack1/MyBucket1/Resource', 'Stack1/MyBucket2/Resource'],
+          ],
+        ],
       },
+    }),
+  );
+});
+
+test('detects modifications to the infrastructure', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(ListStacksCommand).resolves({
+    StackSummaries: [
+      {
+        StackName: 'Stack1',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+    ],
+  });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          // This resource would be refactored
+          OldName: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/OldName/Resource',
+            },
+          },
+          // But there is an additional resource that will prevent it
+          Queue: {
+            Type: 'AWS::S3::Queue',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/Queue/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  // WHEN
+  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'error',
+      code: 'CDK_TOOLKIT_E8900',
+      message: expect.stringMatching(/A refactor operation cannot add, remove or update resources/),
     }),
   );
 });
@@ -226,10 +452,8 @@ test('filters stacks when stack selector is passed', async () => {
   const cx = await builderFixture(toolkit, 'two-different-stacks');
   await toolkit.refactor(cx, {
     dryRun: true,
-    stacks: {
-      strategy: StackSelectionStrategy.PATTERN_MATCH,
-      patterns: ['Stack1'],
-    },
+    localStacks: ['Stack1'],
+    deployedStacks: ['Stack1'],
   });
 
   // Resources were renamed in both stacks, but we are only including Stack1.
@@ -416,13 +640,15 @@ test('uses the reverse of an explicit mapping when provided', async () => {
   await toolkit.refactor(cx, {
     dryRun: true,
     // ... this is the mapping we used, and now we want to revert it
-    mappingSource: MappingSource.reverse([{
-      account: '123456789012',
-      region: 'us-east-1',
-      resources: {
-        'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
+    mappingSource: MappingSource.reverse([
+      {
+        account: '123456789012',
+        region: 'us-east-1',
+        resources: {
+          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
+        },
       },
-    }]),
+    ]),
   });
 
   // THEN
@@ -519,18 +745,24 @@ test('computes one set of mappings per environment', async () => {
   });
 
   // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledTimes(3);
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(4);
 
-  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
-    message: expect.stringMatching('aws://123456789012/us-east-1'),
-  }));
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({
+      message: expect.stringMatching('aws://123456789012/us-east-1'),
+    }),
+  );
 
-  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(2,
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
+    2,
     expect.objectContaining({
       action: 'refactor',
       level: 'result',
       code: 'CDK_TOOLKIT_I8900',
-      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldBucketName\/Resource.*Stack1\/NewBucketNameInStack1\/Resource/),
+      message: expect.stringMatching(
+        /AWS::S3::Bucket.*Stack1\/OldBucketName\/Resource.*Stack1\/NewBucketNameInStack1\/Resource/,
+      ),
       data: expect.objectContaining({
         typedMappings: [
           {
@@ -543,16 +775,22 @@ test('computes one set of mappings per environment', async () => {
     }),
   );
 
-  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(3, expect.objectContaining({
-    message: expect.stringMatching('aws://123456789012/us-east-2'),
-  }));
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
+    3,
+    expect.objectContaining({
+      message: expect.stringMatching('aws://123456789012/us-east-2'),
+    }),
+  );
 
-  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(3,
+  expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
+    4,
     expect.objectContaining({
       action: 'refactor',
       level: 'result',
       code: 'CDK_TOOLKIT_I8900',
-      message: expect.stringMatching(/AWS::S3::Bucket.*Stack2\/OldBucketName\/Resource.*Stack2\/NewBucketNameInStack2\/Resource/),
+      message: expect.stringMatching(
+        /AWS::S3::Bucket.*Stack2\/OldBucketName\/Resource.*Stack2\/NewBucketNameInStack2\/Resource/,
+      ),
       data: expect.objectContaining({
         typedMappings: [
           {
@@ -565,3 +803,11 @@ test('computes one set of mappings per environment', async () => {
     }),
   );
 });
+
+async function expectRefactorBehavior<E = {}>(fixtureName: string, input: RefactorOptions, output: E) {
+  const host = new TestIoHost();
+  const tk = new Toolkit({ ioHost: host, unstableFeatures: ['refactor'] });
+  await tk.refactor(await builderFixture(tk, fixtureName), input);
+  expect(host.notifySpy).toHaveBeenCalledWith(expect.objectContaining(output));
+}
+
