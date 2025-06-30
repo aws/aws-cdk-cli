@@ -159,7 +159,7 @@ function buildConfigArgs(config: CliConfig): string {
     'const userInput: UserInput = {',
     'globalOptions,',
     ...(Object.keys(config.commands).map((commandName) => {
-      return `'${commandName}': ${kebabToCamelCase(commandName)}Options,`;
+      return `'${kebabToCamelCase(commandName)}': ${kebabToCamelCase(commandName)}Options,`;
     })),
     '}',
     '',
