@@ -276,7 +276,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
-    case 'telemetry':
+    case 'cli-telemetry':
       commandOptions = {
         enable: args.enable,
         disable: args.disable,
@@ -479,9 +479,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     mappingFile: config.refactor?.mappingFile,
     revert: config.refactor?.revert,
   };
-  const telemetryOptions = {
-    enable: config.telemetry?.enable,
-    disable: config.telemetry?.disable,
+  const cliTelemetryOptions = {
+    enable: config.cliTelemetry?.enable,
+    disable: config.cliTelemetry?.disable,
   };
   const userInput: UserInput = {
     globalOptions,
@@ -505,7 +505,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     docs: docsOptions,
     doctor: doctorOptions,
     refactor: refactorOptions,
-    telemetry: telemetryOptions,
+    cliTelemetry: cliTelemetryOptions,
   };
 
   return userInput;

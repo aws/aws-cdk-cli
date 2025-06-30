@@ -195,10 +195,10 @@ export class CdkToolkit {
     await this.props.configuration.saveContext();
   }
 
-  public async telemetry(enableCliTelemetry: boolean) {
-    this.props.configuration.context.set('enable-cli-telemetry', enableCliTelemetry);
+  public async cliTelemetry(enable: boolean) {
+    this.props.configuration.context.set('cli-telemetry', enable);
     await this.props.configuration.saveContext();
-    info(`Telemetry ${enableCliTelemetry ? 'enabled' : 'disabled'}`);
+    info(`Telemetry ${enable ? 'enabled' : 'disabled'}`);
   }
 
   public async diff(options: DiffOptions): Promise<number> {

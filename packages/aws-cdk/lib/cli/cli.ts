@@ -454,12 +454,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'notices';
         return cli.acknowledge(args.ID);
 
-      case 'telemetry':
-        ioHost.currentAction = 'telemetry';
+      case 'cli-telemetry':
+        ioHost.currentAction = 'cli-telemetry';
         if (args.enable === undefined && args.disable === undefined) {
           throw new ToolkitError('Must specify either \'--enable\' or \'--disable\'');
         }
-        return cli.telemetry(args.disable ? false : true);
+
+        const enable = args.enable ?? !args.disable;
+        return cli.cliTelemetry(enable);
 
       case 'init':
         ioHost.currentAction = 'init';

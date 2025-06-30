@@ -140,7 +140,7 @@ describe('config', () => {
       doctor: expect.anything(),
       docs: expect.anything(),
       refactor: expect.anything(),
-      telemetry: expect.anything(),
+      cliTelemetry: expect.anything(),
     });
   });
 });

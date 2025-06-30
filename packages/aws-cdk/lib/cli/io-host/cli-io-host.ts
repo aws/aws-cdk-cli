@@ -19,7 +19,7 @@ type CliAction =
 | 'docs'
 | 'notices'
 | 'version'
-| 'telemetry'
+| 'cli-telemetry'
 | 'none';
 
 export interface CliIoHostProps {

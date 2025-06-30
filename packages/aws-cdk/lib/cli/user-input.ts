@@ -132,7 +132,7 @@ export interface UserInput {
   /**
    * Enable or disable anonymous telemetry
    */
-  readonly telemetry?: TelemetryOptions;
+  readonly cliTelemetry?: CliTelemetryOptions;
 }
 
 /**
@@ -1463,7 +1463,7 @@ export interface RefactorOptions {
  *
  * @struct
  */
-export interface TelemetryOptions {
+export interface CliTelemetryOptions {
   /**
    * Enable anonymous telemetry
    *

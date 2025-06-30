@@ -23,19 +23,19 @@ describe('telemetry command', () => {
 
   test('enable telemetry saves setting and displays message', async () => {
     // WHEN
-    await toolkit.telemetry(true);
+    await toolkit.cliTelemetry(true);
 
     // THEN
-    expect(configuration.context.get('enable-cli-telemetry')).toBe(true);
+    expect(configuration.context.get('cli-telemetry')).toBe(true);
     expect(info).toHaveBeenCalledWith('Telemetry enabled');
   });
 
   test('disable telemetry saves setting and displays message', async () => {
     // WHEN
-    await toolkit.telemetry(false);
+    await toolkit.cliTelemetry(false);
 
     // THEN
-    expect(configuration.context.get('enable-cli-telemetry')).toBe(false);
+    expect(configuration.context.get('cli-telemetry')).toBe(false);
     expect(info).toHaveBeenCalledWith('Telemetry disabled');
   });
 });
