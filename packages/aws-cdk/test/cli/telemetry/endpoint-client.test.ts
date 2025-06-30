@@ -2,7 +2,7 @@ import * as https from 'https';
 import { parse } from 'url';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { EndpointTelemetryClient } from '../../../lib/cli/telemetry/endpoint-client';
-import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import type { EventType, TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 
 // Mock the https module
 jest.mock('https', () => ({
@@ -10,7 +10,7 @@ jest.mock('https', () => ({
 }));
 
 // Helper function to create a test event
-function createTestEvent(eventType: string, properties: Record<string, any> = {}): TelemetrySchema {
+function createTestEvent(eventType: EventType, properties: Record<string, any> = {}): TelemetrySchema {
   return {
     identifiers: {
       cdkCliVersion: '1.0.0',
@@ -24,15 +24,15 @@ function createTestEvent(eventType: string, properties: Record<string, any> = {}
       state: 'SUCCEEDED',
       eventType,
       command: {
-        path: ['test'],
-        parameters: [],
+        path: ['INVOKE'],
+        parameters: {},
         config: properties,
       },
     },
     environment: {
       os: {
-        platform: 'test',
-        release: 'test',
+        platform: 'INVOKE',
+        release: 'INVOKE',
       },
       ci: false,
       nodeVersion: process.version,
@@ -84,7 +84,7 @@ describe('EndpointTelemetryClient', () => {
     // GIVEN
     const mockRequest = setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
-    const testEvent = createTestEvent('test', { foo: 'bar' });
+    const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
     // WHEN
@@ -112,7 +112,7 @@ describe('EndpointTelemetryClient', () => {
     // GIVEN
     const mockRequest = setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
-    const testEvent = createTestEvent('test');
+    const testEvent = createTestEvent('INVOKE');
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
     mockRequest.on.mockImplementation((event, callback) => {
@@ -132,8 +132,8 @@ describe('EndpointTelemetryClient', () => {
     // GIVEN
     const mockRequest = setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
-    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
-    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
     // WHEN
@@ -163,8 +163,8 @@ describe('EndpointTelemetryClient', () => {
     // GIVEN
     setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
-    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
-    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
     // WHEN
@@ -230,8 +230,8 @@ describe('EndpointTelemetryClient', () => {
     });
 
     const endpoint = parse('https://example.com/telemetry');
-    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
-    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
     const client = new EndpointTelemetryClient({ endpoint, ioHost });
 
     // WHEN

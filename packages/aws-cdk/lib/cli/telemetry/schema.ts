@@ -1,26 +1,36 @@
-interface Identifiers {
+interface SessionIdentifiers {
   readonly cdkCliVersion: string;
   readonly cdkLibraryVersion?: string;
   readonly telemetryVersion: string;
   readonly sessionId: string;
-  readonly eventId: string;
   readonly installationId: string;
-  readonly timestamp: string;
   readonly accountId?: string;
   readonly region?: string;
 }
 
-interface Event {
-  readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
-  readonly eventType: string;
-  readonly command: {
-    readonly path: string[];
-    readonly parameters: string[];
-    readonly config: { [key: string]: any };
-  };
+export interface Identifiers extends SessionIdentifiers {
+  readonly eventId: string;
+  readonly timestamp: string;
 }
 
-interface Environment {
+export interface Command {
+  readonly path: string[];
+  readonly parameters: { [key: string]: string };
+  readonly config: { [key: string]: boolean };
+}
+
+interface SessionEvent {
+  readonly command: Command;
+}
+
+export type EventType = 'SYNTH' | 'INVOKE';
+export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
+interface Event extends SessionEvent {
+  readonly state: State;
+  readonly eventType: EventType;
+}
+
+export interface SessionEnvironment {
   readonly os: {
     readonly platform: string;
     readonly release: string;
@@ -28,6 +38,8 @@ interface Environment {
   readonly ci: boolean;
   readonly nodeVersion: string;
 }
+
+interface Environment extends SessionEnvironment {}
 
 interface Duration {
   readonly total: number;
@@ -38,9 +50,9 @@ type Counters = { [key: string]: number };
 
 interface Error {
   readonly name: string;
-  readonly message?: string; // anonymized stack message
-  readonly trace?: string; // anonymized stack trace
-  readonly logs?: string; // anonymized stack logs
+  readonly message?: string; // sanitized stack message
+  readonly stackTrace?: string; // sanitized stack trace
+  readonly logs?: string; // sanitized stack logs
 }
 
 interface Dependency {
@@ -48,9 +60,11 @@ interface Dependency {
   readonly version: string;
 }
 
-interface Project {
+interface SessionProject {
   readonly dependencies?: Dependency[];
 }
+
+interface Project extends SessionProject {}
 
 export interface TelemetrySchema {
   readonly identifiers: Identifiers;
@@ -60,4 +74,17 @@ export interface TelemetrySchema {
   readonly duration: Duration;
   readonly counters?: Counters;
   readonly error?: Error;
+}
+
+export interface SessionSchema {
+  readonly identifiers: SessionIdentifiers;
+  readonly event: SessionEvent;
+  readonly environment: SessionEnvironment;
+  readonly project: SessionProject;
+}
+
+export interface TelemetryEvent {
+  readonly eventType: EventType;
+  readonly duration: number;
+  readonly error?: Error,
 }
