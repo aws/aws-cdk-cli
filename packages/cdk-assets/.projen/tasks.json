@@ -142,7 +142,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/$' --test 'bin/cdk-assets --version' --entrypoint 'bin/cdk-assets.js' --metafile dist/metafile.json"
+          "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/$' --test 'bin/cdk-assets --version' --entrypoint 'bin/cdk-assets.js' --entrypoint 'bin/docker-credential-cdk-assets.js' --metafile dist/metafile.json"
         }
       ]
     },
@@ -151,7 +151,7 @@
       "description": "Runs after successful compilation",
       "steps": [
         {
-          "exec": "node-backpack validate --fix --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/$' --test 'bin/cdk-assets --version' --entrypoint 'bin/cdk-assets.js'"
+          "exec": "node-backpack validate --fix --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/$' --test 'bin/cdk-assets --version' --entrypoint 'bin/cdk-assets.js' --entrypoint 'bin/docker-credential-cdk-assets.js'"
         }
       ]
     },
