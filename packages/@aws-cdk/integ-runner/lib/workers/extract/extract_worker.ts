@@ -15,7 +15,7 @@ import type { IntegWatchOptions } from '../integ-watch-worker';
  *
  * If the tests succeed it will then save the snapshot
  */
-export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorkerConfig[] {
+export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerConfig[]> {
   const failures: IntegTestInfo[] = [];
   const verbosity = request.verbosity ?? 0;
 
@@ -28,6 +28,7 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
 
     try {
       const runner = new IntegTestRunner({
+        engine: request.engine,
         test,
         profile: request.profile,
         env: {
@@ -37,14 +38,14 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
         showOutput: verbosity >= 2,
       }, testInfo.destructiveChanges);
 
-      const tests = runner.actualTests();
+      const tests = await runner.actualTests();
 
       if (!tests || Object.keys(tests).length === 0) {
         throw new Error(`No tests defined for ${runner.testName}`);
       }
       for (const testCaseName of Object.keys(tests)) {
         try {
-          const results = runner.runIntegTestCase({
+          const results = await runner.runIntegTestCase({
             testCaseName,
             clean: request.clean,
             dryRun: request.dryRun,
@@ -91,10 +92,11 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
   return failures;
 }
 
-export async function watchTestWorker(options: IntegWatchOptions) {
+export async function watchTestWorker(options: IntegWatchOptions): Promise<void> {
   const verbosity = options.verbosity ?? 0;
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
+    engine: options.engine,
     test,
     profile: options.profile,
     env: {
@@ -104,7 +106,7 @@ export async function watchTestWorker(options: IntegWatchOptions) {
     showOutput: verbosity >= 2,
   });
   runner.createCdkContextJson();
-  const tests = runner.actualTests();
+  const tests = await runner.actualTests();
 
   if (!tests || Object.keys(tests).length === 0) {
     throw new Error(`No tests defined for ${runner.testName}`);
@@ -123,7 +125,7 @@ export async function watchTestWorker(options: IntegWatchOptions) {
  * if there is an existing snapshot, and if there is will
  * check if there are any changes
  */
-export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVerificationOptions = {}): IntegTestWorkerConfig[] {
+export async function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVerificationOptions = {}): Promise<IntegTestWorkerConfig[]> {
   const failedTests = new Array<IntegTestWorkerConfig>();
   const start = Date.now();
   const test = new IntegTest(testInfo); // Hydrate the data record again
@@ -138,7 +140,10 @@ export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVer
   }, 60_000);
 
   try {
-    const runner = new IntegSnapshotRunner({ test });
+    const runner = new IntegSnapshotRunner({
+      engine: options.engine,
+      test,
+    });
     if (!runner.hasSnapshot()) {
       workerpool.workerEmit({
         reason: DiagnosticReason.NO_SNAPSHOT,
@@ -148,7 +153,7 @@ export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVer
       });
       failedTests.push(test.info);
     } else {
-      const { diagnostics, destructiveChanges } = runner.testSnapshot(options);
+      const { diagnostics, destructiveChanges } = await runner.testSnapshot(options);
       if (diagnostics.length > 0) {
         diagnostics.forEach(diagnostic => workerpool.workerEmit({
           ...diagnostic,

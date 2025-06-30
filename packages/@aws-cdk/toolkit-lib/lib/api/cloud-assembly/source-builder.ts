@@ -5,6 +5,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { CdkAppMultiContext, MemoryContext, type IContextStore } from './context-store';
 import { RWLock } from '../rwlock';
+import { CachedCloudAssembly } from './cached-source';
 import type { ContextAwareCloudAssemblyProps } from './private/context-aware-source';
 import { ContextAwareCloudAssemblySource } from './private/context-aware-source';
 import { execInChildProcess } from './private/exec';
@@ -15,7 +16,7 @@ import type { ToolkitServices } from '../../toolkit/private';
 import { ToolkitError, AssemblyError } from '../../toolkit/toolkit-error';
 import { noUndefined } from '../../util';
 import { IO } from '../io/private';
-import { temporarilyWriteEnv } from './private/helpers';
+import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
 
 /**
  * Properties the builder function receives.
@@ -61,6 +62,14 @@ export interface AssemblyDirectoryProps {
    * Options to configure loading of the assembly after it has been synthesized
    */
   readonly loadAssemblyOptions?: LoadAssemblyOptions;
+
+  /**
+   * Whether or not to fail if the synthesized assembly contains
+   * missing context
+   *
+   * @default true
+   */
+  readonly failOnMissingContext?: boolean;
 }
 
 /**
@@ -89,7 +98,7 @@ export interface AssemblySourceProps {
    * The context store will be used to source initial context values,
    * and updated values will be stored here.
    *
-   * @default - depend on the operation
+   * @default - Depends on the operation
    */
   readonly contextStore?: IContextStore;
 
@@ -164,7 +173,7 @@ export interface FromCdkAppOptions extends AssemblySourceProps {
   /**
    * Execute the application in this working directory.
    *
-   * @default - current working directory
+   * @default - Current working directory
    */
   readonly workingDirectory?: string;
 
@@ -333,7 +342,7 @@ export abstract class CloudAssemblySourceBuilder {
             ...synthParams.env,
           });
 
-          const cleanupContextTemp = writeContextToEnv(env, fullContext);
+          const cleanupContextTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           using _cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : undefined;
           let assembly;
           try {
@@ -379,30 +388,33 @@ export abstract class CloudAssemblySourceBuilder {
    */
   public async fromAssemblyDirectory(directory: string, props: AssemblyDirectoryProps = {}): Promise<ICloudAssemblySource> {
     const services: ToolkitServices = await this.sourceBuilderServices();
-    const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
-      services,
-      contextStore: new MemoryContext(), // @todo We shouldn't be using a `ContextAwareCloudAssemblySource` at all.
-      lookups: false,
-    };
 
-    return new ContextAwareCloudAssemblySource(
-      {
-        produce: async () => {
-          // @todo build
-          await services.ioHelper.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
-
-          const readLock = await new RWLock(directory).acquireRead();
-          try {
-            const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
-            return new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
-          } catch (e) {
-            await readLock.release();
-            throw e;
+    return {
+      async produce() {
+        await services.ioHelper.notify(IO.CDK_ASSEMBLY_I0150.msg('--app points to a cloud assembly, so we bypass synth'));
+        const readLock = await new RWLock(directory).acquireRead();
+        try {
+          const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
+          const assembly = new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
+          if (assembly.cloudAssembly.manifest.missing && assembly.cloudAssembly.manifest.missing.length > 0) {
+            if (props.failOnMissingContext ?? true) {
+              const missingKeysSet = missingContextKeys(assembly.cloudAssembly.manifest.missing);
+              const missingKeys = Array.from(missingKeysSet);
+              throw AssemblyError.withCause(
+                'Assembly contains missing context. ' +
+                  "Make sure all necessary context is already in 'cdk.context.json' by running 'cdk synth' on a machine with sufficient AWS credentials and committing the result. " +
+                  `Missing context keys: '${missingKeys.join(', ')}'`,
+                'Error producing assembly',
+              );
+            }
           }
-        },
+          return new CachedCloudAssembly(assembly);
+        } catch (e) {
+          await readLock.release();
+          throw e;
+        }
       },
-      contextAssemblyProps,
-    );
+    };
   }
   /**
    * Use a directory containing an AWS CDK app as source.
@@ -486,7 +498,7 @@ export abstract class CloudAssemblySourceBuilder {
             // Environment variables derived from settings
             ...synthParams.env,
           });
-          const cleanupTemp = writeContextToEnv(env, fullContext);
+          const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
             await execInChildProcess(commandLine.join(' '), {
               eventPublisher: async (type, line) => {

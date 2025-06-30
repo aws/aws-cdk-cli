@@ -128,62 +128,50 @@
     },
     {
       "name": "@aws-sdk/client-cloudformation",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-codeartifact",
-      "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/client-ecr-public",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecr",
-      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-ecr-public",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecs",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-iam",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-lambda",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-s3",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sns",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sso",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sts",
-      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "^3",
       "type": "runtime"
     },
     {
@@ -192,7 +180,7 @@
     },
     {
       "name": "@octokit/rest",
-      "version": "^18.12.0",
+      "version": "^20",
       "type": "runtime"
     },
     {

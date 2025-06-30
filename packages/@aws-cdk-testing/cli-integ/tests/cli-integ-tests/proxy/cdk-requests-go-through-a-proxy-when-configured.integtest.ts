@@ -1,5 +1,4 @@
 import { promises as fs } from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
 import { awsActionsFromRequests, startProxyServer } from '../../../lib/proxy';
@@ -10,8 +9,10 @@ integTest('requests go through a proxy when configured',
   withDefaultFixture(async (fixture) => {
     const proxyServer = await startProxyServer();
     try {
+      // Matches CDK_HOME below.
+      const cdkCacheDir = path.join(fixture.integTestDir, 'cache');
       // Delete notices cache if it exists
-      await fs.rm(path.join(process.env.HOME ?? os.userInfo().homedir, '.cdk/cache/notices.json'), { force: true });
+      await fs.rm(path.join(cdkCacheDir, 'notices.json'), { force: true });
 
       await fixture.cdkDeploy('test-2', {
         captureStderr: true,

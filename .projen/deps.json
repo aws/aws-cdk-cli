@@ -2,17 +2,14 @@
   "dependencies": [
     {
       "name": "@aws-sdk/client-s3",
-      "version": "^3",
       "type": "build"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "^3",
       "type": "build"
     },
     {
       "name": "@aws-sdk/lib-storage",
-      "version": "^3",
       "type": "build"
     },
     {

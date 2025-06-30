@@ -9,7 +9,7 @@ import { usePrescribedMappings } from '../../../lib/api/refactoring';
 import type { CloudFormationStack, CloudFormationTemplate } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
-import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
+import { generateStackDefinitions } from '../../../lib/api/refactoring/stack-definitions';
 import { MockSdkProvider, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 
 describe(computeResourceDigests, () => {
@@ -1029,6 +1029,13 @@ describe(generateStackDefinitions, () => {
         StackName: 'Foo',
         TemplateBody: JSON.stringify({
           Resources: {
+            Consumer: {
+              Type: 'AWS::X::Y',
+              Properties: {
+                // The reference has also been updated
+                Bucket: { Ref: 'Bucket2' },
+              },
+            },
             Bucket2: {
               Type: 'AWS::S3::Bucket',
             },
@@ -1036,13 +1043,6 @@ describe(generateStackDefinitions, () => {
             // original template. Should be included.
             NotInvolved: {
               Type: 'AWS::X::Y',
-            },
-            Consumer: {
-              Type: 'AWS::X::Y',
-              Properties: {
-                // The reference has also been updated
-                Bucket: { Ref: 'Bucket2' },
-              },
             },
           },
         }),
@@ -1134,14 +1134,14 @@ describe(generateStackDefinitions, () => {
         StackName: 'Stack2',
         TemplateBody: JSON.stringify({
           Resources: {
-            // Wasn't touched by the refactor
-            B: {
-              Type: 'AWS::B::B',
-            },
-
             // Old Bucket1 is now Bucket2 here
             Bucket2: {
               Type: 'AWS::S3::Bucket',
+            },
+
+            // Wasn't touched by the refactor
+            B: {
+              Type: 'AWS::B::B',
             },
           },
         }),
@@ -1196,17 +1196,6 @@ describe(generateStackDefinitions, () => {
     const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
     expect(result).toEqual([
       {
-        StackName: 'Stack2',
-        TemplateBody: JSON.stringify({
-          Resources: {
-            // Old Bucket1 is now Bucket2 here
-            Bucket2: {
-              Type: 'AWS::S3::Bucket',
-            },
-          },
-        }),
-      },
-      {
         StackName: 'Stack1',
         TemplateBody: JSON.stringify({
           Resources: {
@@ -1216,6 +1205,17 @@ describe(generateStackDefinitions, () => {
             },
 
             // Bucket1 doesn't exist anymore
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Old Bucket1 is now Bucket2 here
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+            },
           },
         }),
       },
@@ -1397,59 +1397,6 @@ describe(generateStackDefinitions, () => {
         }),
       },
     ]);
-  });
-
-  test('refactor should not create empty templates', () => {
-    const deployedStack1: CloudFormationStack = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-          },
-        },
-      },
-    };
-
-    const deployedStack2: CloudFormationStack = {
-      environment,
-      stackName: 'Stack2',
-      template: {
-        Resources: {},
-      },
-    };
-
-    const localStack1: CloudFormationStack = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {},
-      },
-    };
-
-    const localStack2: CloudFormationStack = {
-      environment,
-      stackName: 'Stack2',
-      template: {
-        Resources: {
-          Bucket2: {
-            Type: 'AWS::S3::Bucket',
-          },
-        },
-      },
-    };
-
-    const mappings: ResourceMapping[] = [
-      new ResourceMapping(
-        new ResourceLocation(deployedStack1, 'Bucket1'),
-        new ResourceLocation(deployedStack2, 'Bucket2'),
-      ),
-    ];
-
-    expect(() =>
-      generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]),
-    ).toThrow(/Stack Stack1 has no resources after refactor/);
   });
 
   test('local stacks have more resources than deployed stacks', async () => {
@@ -1760,6 +1707,9 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackX',
             TemplateBody: JSON.stringify({
+              Resources: {
+                B: { Type: 'AWS::B::B' }, // The moved resource
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'B' },
@@ -1767,9 +1717,6 @@ describe(generateStackDefinitions, () => {
                     Name: 'BFromOtherStack',
                   },
                 },
-              },
-              Resources: {
-                B: { Type: 'AWS::B::B' }, // The moved resource
               },
             }),
           },
@@ -1854,6 +1801,9 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
+              Resources: {
+                B: { Type: 'AWS::B::B' },
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'B' },
@@ -1861,9 +1811,6 @@ describe(generateStackDefinitions, () => {
                     Name: 'BFromOtherStack',
                   },
                 },
-              },
-              Resources: {
-                B: { Type: 'AWS::B::B' },
               },
             }),
           },
@@ -1933,16 +1880,6 @@ describe(generateStackDefinitions, () => {
         const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
-            StackName: 'StackX',
-            TemplateBody: JSON.stringify({
-              Resources: {
-                C: {
-                  Type: 'AWS::C::C',
-                },
-              },
-            }),
-          },
-          {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
               Resources: {
@@ -1953,6 +1890,16 @@ describe(generateStackDefinitions, () => {
                   },
                 },
                 B: { Type: 'AWS::B::B' },
+              },
+            }),
+          },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({
+              Resources: {
+                C: {
+                  Type: 'AWS::C::C',
+                },
               },
             }),
           },
@@ -2038,16 +1985,6 @@ describe(generateStackDefinitions, () => {
         const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
           {
-            StackName: 'StackX',
-            TemplateBody: JSON.stringify({
-              Resources: {
-                C: {
-                  Type: 'AWS::C::C',
-                },
-              },
-            }),
-          },
-          {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
               Resources: {
@@ -2063,6 +2000,11 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackZ',
             TemplateBody: JSON.stringify({
+              Resources: {
+                B: {
+                  Type: 'AWS::B::B',
+                },
+              },
               Outputs: {
                 Bout: {
                   Value: { Ref: 'B' },
@@ -2071,9 +2013,14 @@ describe(generateStackDefinitions, () => {
                   },
                 },
               },
+            }),
+          },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({
               Resources: {
-                B: {
-                  Type: 'AWS::B::B',
+                C: {
+                  Type: 'AWS::C::C',
                 },
               },
             }),
@@ -2161,7 +2108,17 @@ describe(generateStackDefinitions, () => {
 
         const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
         expect(result).toEqual([
-          // StackX was not part of the mappings
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({
+              Resources: {
+                A: {
+                  Type: 'AWS::A::A',
+                  Properties: { Props: { 'Fn::ImportValue': 'BnFromOtherStack' } },
+                },
+              },
+            }),
+          },
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
@@ -2243,17 +2200,18 @@ describe(generateStackDefinitions, () => {
           {
             StackName: 'StackY',
             TemplateBody: JSON.stringify({
+              Outputs: {
+                Bout: { Value: { Ref: 'B' }, Export: { Name: 'BFromOtherStack' } },
+              },
               Resources: {
-                A: {
-                  Type: 'AWS::A::A',
-                  Properties: {
-                    // The reference has been updated as the resource was moved
-                    Props: { Ref: 'B' },
-                  },
-                },
+                A: { Type: 'AWS::A::A', Properties: { Props: { Ref: 'B' } } },
                 B: { Type: 'AWS::B::B' },
               },
             }),
+          },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({ Resources: {} }),
           },
         ]);
       });
@@ -2330,6 +2288,18 @@ describe(generateStackDefinitions, () => {
                 },
                 B: { Type: 'AWS::B::B' },
               },
+            }),
+          },
+          {
+            StackName: 'StackY',
+            TemplateBody: JSON.stringify({
+              Outputs: {
+                Bout: {
+                  Value: { Ref: 'B' },
+                  Export: { Name: 'BFromOtherStack' },
+                },
+              },
+              Resources: {},
             }),
           },
         ]);
@@ -2410,8 +2380,498 @@ describe(generateStackDefinitions, () => {
               },
             }),
           },
+          {
+            StackName: 'StackX',
+            TemplateBody: JSON.stringify({ Resources: {} }),
+          },
+          {
+            StackName: 'StackY',
+            TemplateBody: JSON.stringify({
+              Outputs: {
+                Bout: {
+                  Value: { Ref: 'B' },
+                  Export: { Name: 'BFromOtherStack' },
+                },
+              },
+              Resources: {},
+            }),
+          },
         ]);
       });
+    });
+  });
+
+  describe('Local and deployed resources are not identical', () => {
+    // This may happen if the resource has a physical ID defined, which gives
+    // the user freedom to change the resource properties, while the matching
+    // algorithm still recognizes them as being the same.
+
+    test('deployed resource configuration prevails', () => {
+      const deployedStack: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { Ref: 'B' },
+                Prop2: { 'Fn::GetAtt': ['C', 'Banana'] },
+                Prop3: { 'Fn::Sub': ['${C} ${SomeVar} ${B.foo}', { SomeVar: { Ref: 'B' } }] },
+                Foo: 123,
+              },
+              DependsOn: ['D'],
+            },
+            B: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Foo: 123,
+              },
+            },
+            C: {
+              Type: 'AWS::C::C',
+              Properties: {
+                Banana: 'BananaValue',
+              },
+            },
+            D: {
+              Type: 'AWS::D::D',
+              Properties: {
+                Foo: 123,
+              },
+            },
+          },
+        },
+      };
+
+      const localStack: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { Ref: 'Bn' },
+                Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
+                Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar} ${Bn.foo}', { SomeVar: { Ref: 'Bn' } }] },
+                Bar: 456, // Different property
+              },
+              DependsOn: ['Dn'],
+            },
+            Bn: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Bar: 456,
+              },
+            },
+            Cn: {
+              Type: 'AWS::C::C',
+              Properties: {
+                Banana: 'BananaValue',
+              },
+            },
+            Dn: {
+              Type: 'AWS::D::D',
+              Properties: {
+                Bar: 456,
+              },
+            },
+          },
+        },
+      };
+
+      const mappings: ResourceMapping[] = [
+        new ResourceMapping(new ResourceLocation(deployedStack, 'B'), new ResourceLocation(deployedStack, 'Bn')),
+        new ResourceMapping(new ResourceLocation(deployedStack, 'C'), new ResourceLocation(deployedStack, 'Cn')),
+        new ResourceMapping(new ResourceLocation(deployedStack, 'D'), new ResourceLocation(deployedStack, 'Dn')),
+      ];
+
+      const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+      expect(result).toEqual([
+        {
+          StackName: 'Foo',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              A: {
+                Type: 'AWS::A::A',
+                Properties: {
+                  Prop: { Ref: 'Bn' },
+                  Prop2: { 'Fn::GetAtt': ['Cn', 'Banana'] },
+                  Prop3: { 'Fn::Sub': ['${Cn} ${SomeVar} ${Bn.foo}', { SomeVar: { Ref: 'Bn' } }] },
+                  Foo: 123,
+                },
+                DependsOn: ['Dn'],
+              },
+              Dn: {
+                Type: 'AWS::D::D',
+                Properties: {
+                  Foo: 123,
+                },
+              },
+              Bn: {
+                Type: 'AWS::B::B',
+                Properties: {
+                  Foo: 123,
+                },
+              },
+              Cn: {
+                Type: 'AWS::C::C',
+                Properties: {
+                  Banana: 'BananaValue',
+                },
+              },
+            },
+          }),
+        },
+      ]);
+    });
+
+    test('within -> cross', () => {
+      const deployedStack: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { Ref: 'B' }, // Reference to a resource in the same stack
+                Foo: 123,
+              },
+              DependsOn: 'B',
+            },
+            B: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Foo: 123,
+              },
+            },
+          },
+        },
+      };
+
+      const localStack1: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, // Reference to a resource in the same stack
+                Bar: 456, // Different property
+              },
+            },
+          },
+        },
+      };
+
+      const localStack2: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Bar',
+        template: {
+          Outputs: {
+            Bout: {
+              Value: { Ref: 'Bn' },
+              Export: {
+                Name: 'BFromOtherStack',
+              },
+            },
+          },
+          Resources: {
+            Bn: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Bar: 456,
+              },
+            },
+          },
+        },
+      };
+
+      const mappings: ResourceMapping[] = [
+        new ResourceMapping(new ResourceLocation(deployedStack, 'B'), new ResourceLocation(localStack2, 'Bn')),
+      ];
+
+      const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+      expect(result).toEqual([
+        {
+          StackName: 'Foo',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              A: {
+                Type: 'AWS::A::A',
+                Properties: {
+                  Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, // Reference to the moved resource
+                  Foo: 123, // But we keep the original property from the deployed stack
+                },
+                // Note the absence of DependsOn
+              },
+            },
+          }),
+        },
+        {
+          StackName: 'Bar',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              Bn: {
+                Type: 'AWS::B::B',
+                Properties: {
+                  Foo: 123,
+                },
+              },
+            },
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn' },
+                Export: {
+                  Name: 'BFromOtherStack',
+                },
+              },
+            },
+          }),
+        },
+      ]);
+    });
+
+    test('cross -> within', () => {
+      const deployedStack1: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, // Reference to a resource in the same stack
+                Foo: 123,
+              },
+            },
+          },
+        },
+      };
+
+      const deployedStack2: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Bar',
+        template: {
+          Outputs: {
+            Bout: {
+              Value: { Ref: 'Bn' },
+              Export: {
+                Name: 'BFromOtherStack',
+              },
+            },
+          },
+          Resources: {
+            Bn: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Foo: 123,
+              },
+            },
+          },
+        },
+      };
+
+      const localStack: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { Ref: 'B' },
+                Bar: 456,
+              },
+            },
+            B: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Bar: 456,
+              },
+            },
+          },
+        },
+      };
+
+      const mappings: ResourceMapping[] = [
+        new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack, 'B')),
+      ];
+
+      const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack]);
+      expect(result).toEqual([
+        {
+          StackName: 'Foo',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              A: {
+                Type: 'AWS::A::A',
+                Properties: {
+                  Prop: { Ref: 'B' },
+                  Foo: 123, // We keep the original property from the deployed stack
+                },
+              },
+              B: {
+                Type: 'AWS::B::B',
+                Properties: {
+                  Foo: 123, // We keep the original property from the deployed stack
+                },
+              },
+            },
+          }),
+        },
+        {
+          StackName: 'Bar',
+          TemplateBody: JSON.stringify({
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn' },
+                Export: { Name: 'BFromOtherStack' },
+              },
+            },
+            Resources: {},
+          }),
+        },
+      ]);
+    });
+
+    test('cross -> cross', () => {
+      const deployedStack1: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, // Reference to a resource in the same stack
+                Foo: 123,
+              },
+            },
+          },
+        },
+      };
+
+      const deployedStack2: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Bar',
+        template: {
+          Outputs: {
+            Bout: {
+              Value: { Ref: 'Bn' },
+              Export: {
+                Name: 'BFromOtherStack',
+              },
+            },
+          },
+          Resources: {
+            Bn: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Foo: 123,
+              },
+            },
+          },
+        },
+      };
+
+      const localStack1: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Foo',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Prop: { 'Fn::ImportValue': 'BFromOtherStack' },
+                Bar: 456,
+              },
+            },
+          },
+        },
+      };
+
+      const localStack2: CloudFormationStack = {
+        environment: environment,
+        stackName: 'Zee',
+        template: {
+          Outputs: {
+            Bout: {
+              Value: { Ref: 'Bn2' },
+              Export: {
+                Name: 'BFromOtherStack',
+              },
+            },
+          },
+          Resources: {
+            Bn2: {
+              Type: 'AWS::B::B',
+              Properties: {
+                Bar2: 456,
+              },
+            },
+          },
+        },
+      };
+
+      const mappings: ResourceMapping[] = [
+        new ResourceMapping(new ResourceLocation(deployedStack2, 'Bn'), new ResourceLocation(localStack2, 'Bn2')),
+      ];
+
+      const result = generateStackDefinitions(
+        mappings,
+        [deployedStack1, deployedStack2],
+        [localStack1, localStack2],
+      );
+      expect(result).toEqual([
+        {
+          StackName: 'Foo',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              A: {
+                Type: 'AWS::A::A',
+                Properties: { Prop: { 'Fn::ImportValue': 'BFromOtherStack' }, Foo: 123 },
+              },
+            },
+          }),
+        },
+        {
+          StackName: 'Zee',
+          TemplateBody: JSON.stringify({
+            Resources: {
+              Bn2: {
+                Type: 'AWS::B::B',
+                Properties: {
+                  Foo: 123,
+                },
+              },
+            },
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn2' },
+                Export: {
+                  Name: 'BFromOtherStack',
+                },
+              },
+            },
+          }),
+        },
+        {
+          StackName: 'Bar',
+          TemplateBody: JSON.stringify({
+            Outputs: {
+              Bout: {
+                Value: { Ref: 'Bn' },
+                Export: { Name: 'BFromOtherStack' },
+              },
+            },
+            Resources: {},
+          }),
+        },
+      ]);
     });
   });
 });

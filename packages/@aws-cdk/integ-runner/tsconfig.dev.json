@@ -8,8 +8,7 @@
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2020",
-      "dom"
+      "es2020"
     ],
     "module": "commonjs",
     "noEmitOnError": false,
@@ -27,6 +26,7 @@
     "target": "ES2020",
     "incremental": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
     "composite": true,
     "outDir": "lib"
   },
@@ -48,10 +48,13 @@
       "path": "../../aws-cdk"
     },
     {
-      "path": "../../cdk-assets"
+      "path": "../cdk-assets-lib"
     },
     {
       "path": "../cloudformation-diff"
+    },
+    {
+      "path": "../toolkit-lib"
     }
   ]
 }

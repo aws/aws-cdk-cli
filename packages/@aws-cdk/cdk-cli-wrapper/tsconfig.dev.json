@@ -26,6 +26,7 @@
     "target": "ES2020",
     "incremental": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
     "composite": true,
     "outDir": "lib"
   },
@@ -36,5 +37,9 @@
   "exclude": [
     "node_modules"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../cloud-assembly-schema"
+    }
+  ]
 }

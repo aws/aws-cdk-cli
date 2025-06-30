@@ -7,7 +7,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     const shell = ShellHelper.fromContext(context);
     await context.cli.makeCliAvailable();
 
-    await shell.shell(['cdk', 'init', '-l', 'csharp', template]);
+    await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'csharp', template]);
     await context.library.initializeDotnetPackages(context.integTestDir);
     await shell.shell(['cdk', 'synth']);
   })));

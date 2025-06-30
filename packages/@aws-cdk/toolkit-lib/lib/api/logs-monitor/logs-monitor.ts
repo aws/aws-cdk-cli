@@ -36,7 +36,7 @@ export interface CloudWatchLogEventMonitorProps {
   /**
    * The time from which we start reading log messages
    *
-   * @default - now
+   * @default - Now
    */
   readonly startTime?: Date;
 }

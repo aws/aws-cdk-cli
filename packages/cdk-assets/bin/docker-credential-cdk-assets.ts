@@ -12,13 +12,17 @@
  */
 
 import * as fs from 'fs';
-import { DefaultAwsClient } from '../lib';
+import { DefaultAwsClient } from '@aws-cdk/cdk-assets-lib';
 
+// During bundling, esbuild enforces that every module accessed
+// via the top level package name is also exported. Since 'docker-credentials' 
+// is a private module, we prefer to not export it. Luckily, we can use relative 
+// local paths instead.
 import {
   cdkCredentialsConfig,
   cdkCredentialsConfigFile,
   fetchDockerLoginCredentials,
-} from '../lib/private/docker-credentials';
+} from '../../@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
 
 async function main() {
   // Expected invocation is [node, docker-credential-cdk-assets, get] with input fed via STDIN

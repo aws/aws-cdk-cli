@@ -1,6 +1,7 @@
 import * as path from 'path';
-import type { DeployOptions, DestroyOptions } from '@aws-cdk/cdk-cli-wrapper';
+import type { DeployOptions } from '@aws-cdk/cdk-cli-wrapper';
 import { HotswapMode, StackActivityProgress } from '@aws-cdk/cdk-cli-wrapper';
+import type { DestroyOptions, TestCase } from '@aws-cdk/cloud-assembly-schema';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -8,7 +9,7 @@ import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
 import { IntegRunner, DEFAULT_SYNTH_OPTIONS } from './runner-base';
 import * as logger from '../logger';
-import { chunks, exec } from '../utils';
+import { chunks, exec, promiseWithResolvers } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
 import { DiagnosticReason, formatAssertionResults } from '../workers/common';
 
@@ -76,16 +77,21 @@ export class IntegTestRunner extends IntegRunner {
   constructor(options: IntegRunnerOptions, destructiveChanges?: DestructiveChange[]) {
     super(options);
     this._destructiveChanges = destructiveChanges;
+  }
 
+  public async actualTests(): Promise<{ [testName: string]: TestCase } | undefined> {
+    const actualTestSuite = await this.actualTestSuite();
     // We don't want new tests written in the legacy mode.
     // If there is no existing snapshot _and_ this is a legacy
     // test then point the user to the new `IntegTest` construct
-    if (!this.hasSnapshot() && this.isLegacyTest) {
+    if (!this.hasSnapshot() && actualTestSuite.type === 'legacy-test-suite') {
       throw new Error(`${this.testName} is a new test. Please use the IntegTest construct ` +
         'to configure the test\n' +
         'https://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha',
       );
     }
+
+    return actualTestSuite.testSuite;
   }
 
   public createCdkContextJson(): void {
@@ -161,9 +167,10 @@ export class IntegTestRunner extends IntegRunner {
    * This is meant to be run on a single test and will not create a snapshot
    */
   public async watchIntegTest(options: WatchOptions): Promise<void> {
-    const actualTestCase = this.actualTestSuite.testSuite[options.testCaseName];
+    const actualTestSuite = await this.actualTestSuite();
+    const actualTestCase = actualTestSuite.testSuite[options.testCaseName];
     if (!actualTestCase) {
-      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(this.actualTestSuite.testSuite)}'`);
+      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(actualTestSuite.testSuite)}'`);
     }
     const enableForVerbosityLevel = (needed = 1) => {
       const verbosity = options.verbosity ?? 0;
@@ -202,11 +209,12 @@ export class IntegTestRunner extends IntegRunner {
    * The update workflow exists to check for cases where a change would cause
    * a failure to an existing stack, but not for a newly created stack.
    */
-  public runIntegTestCase(options: RunOptions): AssertionResults | undefined {
+  public async runIntegTestCase(options: RunOptions): Promise<AssertionResults | undefined> {
     let assertionResults: AssertionResults | undefined;
-    const actualTestCase = this.actualTestSuite.testSuite[options.testCaseName];
+    const actualTestSuite = await this.actualTestSuite();
+    const actualTestCase = actualTestSuite.testSuite[options.testCaseName];
     if (!actualTestCase) {
-      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(this.actualTestSuite.testSuite)}'`);
+      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(actualTestSuite.testSuite)}'`);
     }
     const clean = options.clean ?? true;
     const updateWorkflowEnabled = (options.updateWorkflow ?? true)
@@ -218,7 +226,7 @@ export class IntegTestRunner extends IntegRunner {
 
     try {
       if (!options.dryRun && (actualTestCase.cdkCommandOptions?.deploy?.enabled ?? true)) {
-        assertionResults = this.deploy(
+        assertionResults = await this.deploy(
           {
             ...this.defaultArgs,
             profile: this.profile,
@@ -230,29 +238,24 @@ export class IntegTestRunner extends IntegRunner {
           options.testCaseName,
         );
       } else {
-        const env: Record<string, any> = {
-          ...DEFAULT_SYNTH_OPTIONS.env,
-          CDK_CONTEXT_JSON: JSON.stringify(this.getContext({
-            ...this.actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {},
-          })),
-        };
-        this.cdk.synthFast({
+        await this.cdk.synthFast({
           execCmd: this.cdkApp.split(' '),
-          env,
+          context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
+          env: DEFAULT_SYNTH_OPTIONS.env,
           output: path.relative(this.directory, this.cdkOutDir),
         });
       }
       // only create the snapshot if there are no failed assertion results
       // (i.e. no failures)
       if (!assertionResults || !Object.values(assertionResults).some(result => result.status === 'fail')) {
-        this.createSnapshot();
+        await this.createSnapshot();
       }
     } catch (e) {
       throw e;
     } finally {
       if (!options.dryRun) {
         if (clean && (actualTestCase.cdkCommandOptions?.destroy?.enabled ?? true)) {
-          this.destroy(options.testCaseName, {
+          await this.destroy(options.testCaseName, {
             ...this.defaultArgs,
             profile: this.profile,
             all: true,
@@ -274,8 +277,8 @@ export class IntegTestRunner extends IntegRunner {
   /**
    * Perform a integ test case stack destruction
    */
-  private destroy(testCaseName: string, destroyArgs: DestroyOptions) {
-    const actualTestCase = this.actualTestSuite.testSuite[testCaseName];
+  private async destroy(testCaseName: string, destroyArgs: DestroyOptions) {
+    const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
     try {
       if (actualTestCase.hooks?.preDestroy) {
         actualTestCase.hooks.preDestroy.forEach(cmd => {
@@ -284,7 +287,7 @@ export class IntegTestRunner extends IntegRunner {
           });
         });
       }
-      this.cdk.destroy({
+      await this.cdk.destroy({
         ...destroyArgs,
       });
 
@@ -304,7 +307,8 @@ export class IntegTestRunner extends IntegRunner {
   }
 
   private async watch(watchArgs: DeployOptions, testCaseName: string, verbosity: number): Promise<void> {
-    const actualTestCase = this.actualTestSuite.testSuite[testCaseName];
+    const actualTestSuite = await this.actualTestSuite();
+    const actualTestCase = actualTestSuite.testSuite[testCaseName];
     if (actualTestCase.hooks?.preDeploy) {
       actualTestCase.hooks.preDeploy.forEach(cmd => {
         exec(chunks(cmd), {
@@ -314,7 +318,7 @@ export class IntegTestRunner extends IntegRunner {
     }
     const deployArgs = {
       ...watchArgs,
-      lookups: this.actualTestSuite.enableLookups,
+      lookups: actualTestSuite.enableLookups,
       stacks: [
         ...actualTestCase.stacks,
         ...actualTestCase.assertionStack ? [actualTestCase.assertionStack] : [],
@@ -410,41 +414,43 @@ export class IntegTestRunner extends IntegRunner {
       });
     });
 
-    const child = this.cdk.watch(deployArgs);
-    // if `-v` (or above) is passed then stream the logs
-    child.stdout?.on('data', (message) => {
-      if (verbosity > 0) {
-        process.stdout.write(message);
-      }
-    });
-    child.stderr?.on('data', (message) => {
-      if (verbosity > 0) {
-        process.stderr.write(message);
-      }
-    });
+    const { promise: waiter, resolve } = promiseWithResolvers<number | null>();
 
-    await new Promise(resolve => {
-      child.on('close', async (code) => {
+    await this.cdk.watch(deployArgs, {
+      // if `-v` (or above) is passed then stream the logs
+      onStdout: (message) => {
+        if (verbosity > 0) {
+          process.stdout.write(message);
+        }
+      },
+      // if `-v` (or above) is passed then stream the logs
+      onStderr: (message) => {
+        if (verbosity > 0) {
+          process.stderr.write(message);
+        }
+      },
+      onClose: async (code) => {
         if (code !== 0) {
           throw new Error('Watch exited with error');
         }
-        child.stdin?.end();
         await watcher.close();
         resolve(code);
-      });
+      },
     });
+
+    await waiter;
   }
 
   /**
    * Perform a integ test case deployment, including
-   * peforming the update workflow
+   * performing the update workflow
    */
-  private deploy(
+  private async deploy(
     deployArgs: DeployOptions,
     updateWorkflowEnabled: boolean,
     testCaseName: string,
-  ): AssertionResults | undefined {
-    const actualTestCase = this.actualTestSuite.testSuite[testCaseName];
+  ): Promise<AssertionResults | undefined> {
+    const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
     try {
       if (actualTestCase.hooks?.preDeploy) {
         actualTestCase.hooks.preDeploy.forEach(cmd => {
@@ -459,24 +465,25 @@ export class IntegTestRunner extends IntegRunner {
       // with the current integration test
       // We also only want to run the update workflow if there is an existing
       // snapshot (otherwise there is nothing to update)
+      const expectedTestSuite = await this.expectedTestSuite();
       if (updateWorkflowEnabled && this.hasSnapshot() &&
-        (this.expectedTestSuite && testCaseName in this.expectedTestSuite?.testSuite)) {
+        (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite)) {
         // make sure the snapshot is the latest from 'origin'
         this.checkoutSnapshot();
-        const expectedTestCase = this.expectedTestSuite.testSuite[testCaseName];
-        this.cdk.deploy({
+        const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
+        await this.cdk.deploy({
           ...deployArgs,
           stacks: expectedTestCase.stacks,
           ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
           context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
           app: path.relative(this.directory, this.snapshotDir),
-          lookups: this.expectedTestSuite?.enableLookups,
+          lookups: expectedTestSuite?.enableLookups,
         });
       }
       // now deploy the "actual" test.
-      this.cdk.deploy({
+      await this.cdk.deploy({
         ...deployArgs,
-        lookups: this.actualTestSuite.enableLookups,
+        lookups: (await this.actualTestSuite()).enableLookups,
         stacks: [
           ...actualTestCase.stacks,
         ],
@@ -493,9 +500,9 @@ export class IntegTestRunner extends IntegRunner {
       // assertions instead of failing at the first failed assertion
       // combining it with the above deployment would prevent any replacement updates
       if (actualTestCase.assertionStack) {
-        this.cdk.deploy({
+        await this.cdk.deploy({
           ...deployArgs,
-          lookups: this.actualTestSuite.enableLookups,
+          lookups: (await this.actualTestSuite()).enableLookups,
           stacks: [
             actualTestCase.assertionStack,
           ],

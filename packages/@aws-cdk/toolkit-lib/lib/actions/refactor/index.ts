@@ -73,7 +73,7 @@ export interface RefactorOptions {
   /**
    * Criteria for selecting stacks to deploy
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   stacks?: StackSelector;
 

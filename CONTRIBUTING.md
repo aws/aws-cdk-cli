@@ -27,6 +27,8 @@ contributing guide will focus on technical aspects.
 - [Yarn >= 1.19.1, < 2](https://yarnpkg.com/lang/en/docs/install)
 - [Docker >= 19.03](https://docs.docker.com/get-docker/)
   - the Docker daemon must also be running
+- [.NET SDK >= 6.0](https://dotnet.microsoft.com/en-us/download)
+  - required for initializing or building CDK apps in C# (.csproj)
 
 We recommend that you use [Visual Studio Code](https://code.visualstudio.com/)
 to work on the CDK.  We use `ESLint` to keep our code consistent in terms of

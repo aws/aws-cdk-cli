@@ -19,6 +19,7 @@
     ".npmignore",
     ".projen/deps.json",
     ".projen/files.json",
+    ".projen/prepare-verdaccio.sh",
     ".projen/tasks.json",
     "aws-cdk-cli.code-workspace",
     "LICENSE",

@@ -17,7 +17,7 @@ export class WebsiteNoticeDataSourceProps {
    *
    * @see https://github.com/cdklabs/aws-cdk-notices
    *
-   * @default - official CDK notices
+   * @default - Official CDK notices
    */
   readonly url?: string | URL;
   /**
@@ -25,7 +25,7 @@ export class WebsiteNoticeDataSourceProps {
    *
    * Use this so set up a proxy connection.
    *
-   * @default - uses the shared global node agent
+   * @default - Uses the shared global node agent
    */
   readonly agent?: https.Agent;
 }
@@ -44,7 +44,11 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
   }
 
   async fetch(): Promise<Notice[]> {
-    const timeout = 3000;
+    // We are observing lots of timeouts when running in a massively parallel
+    // integration test environment, so wait for a longer timeout there.
+    //
+    // In production, have a short timeout to not hold up the user experience.
+    const timeout = process.env.TESTING_CDK ? 30_000 : 3_000;
 
     const options: RequestOptions = {
       agent: this.agent,

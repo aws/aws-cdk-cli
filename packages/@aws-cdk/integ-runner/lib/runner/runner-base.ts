@@ -1,7 +1,6 @@
 /* eslint-disable @cdklabs/no-literal-partition */
 import * as path from 'path';
 import type { ICdk } from '@aws-cdk/cdk-cli-wrapper';
-import { CdkCliWrapper } from '@aws-cdk/cdk-cli-wrapper';
 import type { TestCase, DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY, TARGET_PARTITIONS } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
@@ -9,6 +8,7 @@ import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
+import { makeEngine, type EngineOptions } from './engine';
 import type { ManifestTrace } from './private/cloud-assembly';
 import { AssemblyManifestReader } from './private/cloud-assembly';
 import type { DestructiveChange } from '../workers/common';
@@ -18,7 +18,7 @@ const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 /**
  * Options for creating an integration test runner
  */
-export interface IntegRunnerOptions {
+export interface IntegRunnerOptions extends EngineOptions {
   /**
    * Information about the test to run
    */
@@ -47,9 +47,9 @@ export interface IntegRunnerOptions {
   readonly integOutDir?: string;
 
   /**
-   * Instance of the CDK CLI to use
+   * Instance of the CDK Toolkit Engine to use
    *
-   * @default - CdkCliWrapper
+   * @default - based on `engine` option
    */
   readonly cdk?: ICdk;
 
@@ -97,16 +97,6 @@ export abstract class IntegRunner {
   protected readonly cdkContextPath: string;
 
   /**
-   * The test suite from the existing snapshot
-   */
-  protected readonly expectedTestSuite?: IntegTestSuite | LegacyIntegTestSuite;
-
-  /**
-   * The test suite from the new "actual" snapshot
-   */
-  protected readonly actualTestSuite: IntegTestSuite | LegacyIntegTestSuite;
-
-  /**
    * The working directory that the integration tests will be
    * executed from
    */
@@ -133,11 +123,15 @@ export abstract class IntegRunner {
    */
   protected readonly cdkOutDir: string;
 
+  /**
+   * The profile to use for the CDK CLI calls
+   */
   protected readonly profile?: string;
 
   protected _destructiveChanges?: DestructiveChange[];
   private legacyContext?: Record<string, any>;
-  protected isLegacyTest?: boolean;
+  private _expectedTestSuite?: IntegTestSuite | LegacyIntegTestSuite;
+  private _actualTestSuite?: IntegTestSuite | LegacyIntegTestSuite;
 
   constructor(options: IntegRunnerOptions) {
     this.test = options.test;
@@ -146,37 +140,27 @@ export abstract class IntegRunner {
     this.snapshotDir = this.test.snapshotDir;
     this.cdkContextPath = path.join(this.directory, 'cdk.context.json');
 
-    this.cdk = options.cdk ?? new CdkCliWrapper({
-      directory: this.directory,
-      showOutput: options.showOutput,
-      env: {
-        ...options.env,
-      },
-    });
+    this.cdk = options.cdk ?? makeEngine(options);
     this.cdkOutDir = options.integOutDir ?? this.test.temporaryOutputDir;
 
     const testRunCommand = this.test.appCommand;
     this.cdkApp = testRunCommand.replace('{filePath}', path.relative(this.directory, this.test.fileName));
 
     this.profile = options.profile;
-    if (this.hasSnapshot()) {
-      this.expectedTestSuite = this.loadManifest();
-    }
-    this.actualTestSuite = this.generateActualSnapshot();
   }
 
   /**
    * Return the list of expected (i.e. existing) test cases for this integration test
    */
-  public expectedTests(): { [testName: string]: TestCase } | undefined {
-    return this.expectedTestSuite?.testSuite;
+  public async expectedTests(): Promise<{ [testName: string]: TestCase } | undefined> {
+    return (await this.expectedTestSuite())?.testSuite;
   }
 
   /**
    * Return the list of actual (i.e. new) test cases for this integration test
    */
-  public actualTests(): { [testName: string]: TestCase } | undefined {
-    return this.actualTestSuite.testSuite;
+  public async actualTests(): Promise<{ [testName: string]: TestCase } | undefined> {
+    return (await this.actualTestSuite()).testSuite;
   }
 
   /**
@@ -184,18 +168,16 @@ export abstract class IntegRunner {
    * existing "expected" snapshot
    * This will synth and then load the integration test manifest
    */
-  public generateActualSnapshot(): IntegTestSuite | LegacyIntegTestSuite {
-    this.cdk.synthFast({
+  public async generateActualSnapshot(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
+    await this.cdk.synthFast({
       execCmd: this.cdkApp.split(' '),
-      env: {
-        ...DEFAULT_SYNTH_OPTIONS.env,
-        // we don't know the "actual" context yet (this method is what generates it) so just
-        // use the "expected" context. This is only run in order to read the manifest
-        CDK_CONTEXT_JSON: JSON.stringify(this.getContext(this.expectedTestSuite?.synthContext)),
-      },
+      // we don't know the "actual" context yet (this method is what generates it) so just
+      // use the "expected" context. This is only run in order to read the manifest
+      context: this.getContext((await this.expectedTestSuite())?.synthContext),
+      env: DEFAULT_SYNTH_OPTIONS.env,
       output: path.relative(this.directory, this.cdkOutDir),
     });
-    const manifest = this.loadManifest(this.cdkOutDir);
+    const manifest = await this.loadManifest(this.cdkOutDir);
     // after we load the manifest remove the tmp snapshot
     // so that it doesn't mess up the real snapshot created later
     this.cleanup();
@@ -210,18 +192,38 @@ export abstract class IntegRunner {
   }
 
   /**
+   * The test suite from the existing snapshot
+   */
+  protected async expectedTestSuite(): Promise<IntegTestSuite | LegacyIntegTestSuite | undefined> {
+    if (!this._expectedTestSuite && this.hasSnapshot()) {
+      this._expectedTestSuite = await this.loadManifest();
+    }
+    return this._expectedTestSuite;
+  }
+
+  /**
+   * The test suite from the new "actual" snapshot
+   */
+  protected async actualTestSuite(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
+    if (!this._actualTestSuite) {
+      this._actualTestSuite = await this.generateActualSnapshot();
+    }
+    return this._actualTestSuite;
+  }
+
+  /**
    * Load the integ manifest which contains information
    * on how to execute the tests
    * First we try and load the manifest from the integ manifest (i.e. integ.json)
    * from the cloud assembly. If it doesn't exist, then we fallback to the
    * "legacy mode" and create a manifest from pragma
    */
-  protected loadManifest(dir?: string): IntegTestSuite | LegacyIntegTestSuite {
+  protected async loadManifest(dir?: string): Promise<IntegTestSuite | LegacyIntegTestSuite> {
     try {
       const testSuite = IntegTestSuite.fromPath(dir ?? this.snapshotDir);
       return testSuite;
     } catch {
-      const testCases = LegacyIntegTestSuite.fromLegacy({
+      const testCases = await LegacyIntegTestSuite.fromLegacy({
         cdk: this.cdk,
         testName: this.test.normalizedTestName,
         integSourceFilePath: this.test.fileName,
@@ -234,7 +236,6 @@ export abstract class IntegRunner {
         },
       });
       this.legacyContext = LegacyIntegTestSuite.getPragmaContext(this.test.fileName);
-      this.isLegacyTest = true;
       return testCases;
     }
   }
@@ -275,8 +276,8 @@ export abstract class IntegRunner {
    * disabled and then delete assets that relate to that stack. It does that
    * by reading the asset manifest for the stack and deleting the asset source
    */
-  protected removeAssetsFromSnapshot(): void {
-    const stacks = this.actualTestSuite.getStacksWithoutUpdateWorkflow() ?? [];
+  protected async removeAssetsFromSnapshot(): Promise<void> {
+    const stacks = (await this.actualTestSuite()).getStacksWithoutUpdateWorkflow() ?? [];
     const manifest = AssemblyManifestReader.fromPath(this.snapshotDir);
     const assets = flatten(stacks.map(stack => {
       return manifest.getAssetLocationsForStack(stack) ?? [];
@@ -313,34 +314,32 @@ export abstract class IntegRunner {
   /**
    * Create the new snapshot.
    *
-   * If lookups are enabled, then we need create the snapshot by synthing again
+   * If lookups are enabled, then we need create the snapshot by synth'ing again
    * with the dummy context so that each time the test is run on different machines
    * (and with different context/env) the diff will not change.
    *
    * If lookups are disabled (which means the stack is env agnostic) then just copy
    * the assembly that was output by the deployment
    */
-  protected createSnapshot(): void {
+  protected async createSnapshot(): Promise<void> {
     if (fs.existsSync(this.snapshotDir)) {
       fs.removeSync(this.snapshotDir);
     }
 
     // if lookups are enabled then we need to synth again
     // using dummy context and save that as the snapshot
-    if (this.actualTestSuite.enableLookups) {
-      this.cdk.synthFast({
+    if ((await this.actualTestSuite()).enableLookups) {
+      await this.cdk.synthFast({
         execCmd: this.cdkApp.split(' '),
-        env: {
-          ...DEFAULT_SYNTH_OPTIONS.env,
-          CDK_CONTEXT_JSON: JSON.stringify(this.getContext(DEFAULT_SYNTH_OPTIONS.context)),
-        },
+        context: this.getContext(DEFAULT_SYNTH_OPTIONS.context),
+        env: DEFAULT_SYNTH_OPTIONS.env,
         output: path.relative(this.directory, this.snapshotDir),
       });
     } else {
       fs.moveSync(this.cdkOutDir, this.snapshotDir, { overwrite: true });
     }
 
-    this.cleanupSnapshot();
+    await this.cleanupSnapshot();
   }
 
   /**
@@ -348,9 +347,9 @@ export abstract class IntegRunner {
    * Anytime the snapshot needs to be modified after creation
    * the logic should live here.
    */
-  private cleanupSnapshot(): void {
+  private async cleanupSnapshot(): Promise<void> {
     if (fs.existsSync(this.snapshotDir)) {
-      this.removeAssetsFromSnapshot();
+      await this.removeAssetsFromSnapshot();
       this.removeAssetsCacheFromSnapshot();
       const assembly = AssemblyManifestReader.fromPath(this.snapshotDir);
       assembly.cleanManifest();
@@ -361,8 +360,9 @@ export abstract class IntegRunner {
     // in the snapshot directory which can be used for the
     // update workflow. Save any legacyContext as well so that it can be read
     // the next time
-    if (this.actualTestSuite.type === 'legacy-test-suite') {
-      (this.actualTestSuite as LegacyIntegTestSuite).saveManifest(this.snapshotDir, this.legacyContext);
+    const actualTestSuite = await this.actualTestSuite();
+    if (actualTestSuite.type === 'legacy-test-suite') {
+      (actualTestSuite as LegacyIntegTestSuite).saveManifest(this.snapshotDir, this.legacyContext);
     }
   }
 

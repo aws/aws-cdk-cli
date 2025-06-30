@@ -32,8 +32,12 @@ jobs:
             docs
             revert
           scopes: |-
+            aws-cdk
             cdk-assets
+            cdk-assets-lib
+            cdk-cli-wrapper
             cli
+            cli-integ
             cli-lib-alpha
             cli-plugin-contract
             cloud-assembly-schema
@@ -44,6 +48,8 @@ jobs:
             integ-runner
             integ-testing
             toolkit-lib
+            toolkit-lib
+            yarn-cling
           requireScope: false
   contributorStatement:
     name: Require Contributor Statement

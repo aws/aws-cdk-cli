@@ -8,9 +8,6 @@ import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
 
-// these tests often run a bit longer than the default
-jest.setTimeout(10_000);
-
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
 
@@ -311,6 +308,23 @@ describe('fromAssemblyDirectory', () => {
 
     // THEN
     await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
+  });
+
+  test('fails on missing context', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'assembly-missing-context');
+
+    // THEN
+    await expect(() => cx.produce()).rejects.toThrow(/Assembly contains missing context./);
+  });
+
+  test('no fail on missing context', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'assembly-missing-context', { failOnMissingContext: false });
+
+    // THEN
+    await using assembly = await cx.produce();
+    expect(assembly.cloudAssembly.manifest.missing?.length).toEqual(1);
   });
 
   test('can disable manifest version validation', async () => {

@@ -20,7 +20,7 @@ export interface NonInteractiveIoHostProps {
    *
    * When TTY is disabled, the CLI will have no interactions or color.
    *
-   * @default - determined from the current process
+   * @default - Determined from the current process
    */
   readonly isTTY?: boolean;
 
@@ -30,7 +30,7 @@ export interface NonInteractiveIoHostProps {
    * In CI mode, all non-error output goes to stdout instead of stderr.
    * Set to false in the IoHost constructor it will be overwritten if the CLI CI argument is passed
    *
-   * @default - determined from the environment, specifically based on `process.env.CI`
+   * @default - Determined from the environment, specifically based on `process.env.CI`
    */
   readonly isCI?: boolean;
 }

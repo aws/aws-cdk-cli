@@ -22,7 +22,7 @@ export interface NoticesHttpOptions {
    *
    * Use this so set up a proxy connection.
    *
-   * @default - uses the shared global node agent
+   * @default - Uses the shared global node agent
    */
   readonly agent?: Agent;
 }
