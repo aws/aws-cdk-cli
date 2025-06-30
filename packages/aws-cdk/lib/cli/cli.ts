@@ -467,7 +467,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
-            templatePath: args.templatePath, // Added to allow custom template path to be used
+            templatePath: args.templatePath,
+            gitUrl: args.gitUrl,
+            templateName: args.templateName,
+            npmPackage: args.npmPackage,
+            stackName: args.stackName,
           });
         }
       case 'migrate':

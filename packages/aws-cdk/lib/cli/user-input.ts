@@ -1270,6 +1270,41 @@ export interface InitOptions {
   readonly libVersion?: string;
 
   /**
+   * Path to a local template directory
+   *
+   * @default - undefined
+   */
+  readonly templatePath?: string;
+
+  /**
+   * Git repository URL containing template(s)
+   *
+   * @default - undefined
+   */
+  readonly gitUrl?: string;
+
+  /**
+   * Name of the specific template to use when a repository contains multiple templates
+   *
+   * @default - undefined
+   */
+  readonly templateName?: string;
+
+  /**
+   * NPM package name containing template(s)
+   *
+   * @default - undefined
+   */
+  readonly npmPackage?: string;
+
+  /**
+   * The name of the stack to create
+   *
+   * @default - undefined
+   */
+  readonly stackName?: string;
+
+  /**
    * Positional argument for init
    */
   readonly TEMPLATE?: string;

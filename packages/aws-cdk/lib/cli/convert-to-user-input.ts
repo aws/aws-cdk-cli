@@ -228,6 +228,11 @@ export function convertYargsToUserInput(args: any): UserInput {
         list: args.list,
         generateOnly: args.generateOnly,
         libVersion: args.libVersion,
+        templatePath: args.templatePath,
+        gitUrl: args.gitUrl,
+        templateName: args.templateName,
+        npmPackage: args.npmPackage,
+        stackName: args.stackName,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -444,6 +449,11 @@ export function convertConfigToUserInput(config: any): UserInput {
     list: config.init?.list,
     generateOnly: config.init?.generateOnly,
     libVersion: config.init?.libVersion,
+    templatePath: config.init?.templatePath,
+    gitUrl: config.init?.gitUrl,
+    templateName: config.init?.templateName,
+    npmPackage: config.init?.npmPackage,
+    stackName: config.init?.stackName,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,

@@ -36,9 +36,14 @@ export interface CliInitOptions {
   readonly templatePath?: string;
 
   /**
-   * GitHub repository URL containing template(s)
+   * Git repository URL containing template(s)
    */
-  readonly githubUrl?: string;
+  readonly gitUrl?: string;
+
+  /**
+   * Name of the specific template to use when a repository contains multiple templates
+   */
+  readonly templateName?: string;
 
   /**
    * NPM package name containing template(s)
@@ -54,12 +59,7 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
-  // For custom templates, only allow TypeScript
-  if ((options.templatePath || options.githubUrl || options.npmPackage) && options.language && options.language !== 'typescript') {
-    throw new ToolkitError('Custom templates are currently only supported for TypeScript');
-  }
-
-  if (!options.type && !options.language) {
+  if (!options.type && !options.language && !options.templatePath && !options.gitUrl && !options.npmPackage) {
     await printAvailableTemplates(undefined, options.templatePath);
     return;
   }
@@ -69,35 +69,77 @@ export async function cliInit(options: CliInitOptions) {
   let tempDir: string | undefined;
 
   try {
-    // Handle GitHub URL if provided
-    if (options.githubUrl) {
+    // Handle Git URL if provided ***//***
+    if (options.gitUrl) {
       if (!canUseNetwork) {
-        throw new ToolkitError('Cannot use GitHub URL without network access');
+        throw new ToolkitError('Cannot use Git URL without network access');
       }
 
       try {
+        const gitUrl = options.gitUrl;
+
         // Clone the repository
-        tempDir = await cloneGitHubRepository(options.githubUrl);
+        tempDir = await cloneGitRepository(gitUrl);
 
         // Find the template directory in the cloned repository
-        const templatePath = tempDir;
-        const templateName = path.basename(options.githubUrl.replace(/\.git$/, '').split('/').pop() || 'github-template');
+        let templatePath = tempDir;
+        let templateName = options.templateName;
 
-        // Validate that the template has a typescript directory
-        if (!await fs.pathExists(path.join(templatePath, 'typescript'))) {
-          throw new ToolkitError('GitHub template must contain a \'typescript\' directory');
+        if (!templateName) {
+          // Check if repository root has info.json (single template at root)
+          const hasInfoJson = await fs.pathExists(path.join(tempDir, INFO_DOT_JSON));
+
+          if (hasInfoJson) {
+            // Single template at repository root
+            templateName = path.basename(gitUrl.replace(/\.git$/, '').split('/').pop() || 'git-template');
+            template = await InitTemplate.fromPath(templatePath, templateName);
+          } else {
+            // Look for subdirectories with info.json
+            const subdirs = (await fs.readdir(tempDir)).filter(p => !p.startsWith('.'));
+            const templateDirs = [];
+
+            for (const subdir of subdirs) {
+              const subdirPath = path.join(tempDir, subdir);
+              const isDir = (await fs.stat(subdirPath)).isDirectory();
+              const hasTemplateInfoJson = await fs.pathExists(path.join(subdirPath, INFO_DOT_JSON));
+
+              if (isDir && hasTemplateInfoJson) {
+                templateDirs.push(subdir);
+              }
+            }
+
+            if (templateDirs.length === 0) {
+              throw new ToolkitError('Git repository does not contain any valid templates');
+            } else if (templateDirs.length === 1) {
+              // Only one template found, use it
+              templateName = templateDirs[0];
+              templatePath = path.join(tempDir, templateName);
+              template = await InitTemplate.fromPath(templatePath, templateName);
+            } else {
+              // Multiple templates found, user must specify --template-name
+              throw new ToolkitError(`Git repository contains multiple templates: ${templateDirs.join(', ')}. Please specify --template-name`);
+            }
+          }
+        } else {
+          // Specific template name provided
+          const specificTemplatePath = path.join(tempDir, templateName);
+          if (await fs.pathExists(specificTemplatePath) && await fs.pathExists(path.join(specificTemplatePath, INFO_DOT_JSON))) {
+            templatePath = specificTemplatePath;
+            template = await InitTemplate.fromPath(templatePath, templateName);
+          } else {
+            throw new ToolkitError(`Template '${templateName}' not found in the Git repository`);
+          }
         }
 
-        template = await InitTemplate.fromPath(templatePath, templateName);
-
-        // Force language to typescript for GitHub templates
-        language = 'typescript';
+        // Validate that the template has at least one language directory
+        if (template.languages.length === 0) {
+          throw new ToolkitError('Git template must contain at least one language directory');
+        }
       } catch (e: any) {
-        warning(`Failed to load template from GitHub: ${e.message}`);
-        warning('Falling back to default \'app\' template.');
-        // Let it fall through to use the default template
+        // Custom template failures should fail completely, not fall back to defaults
+        throw new ToolkitError(`Failed to load template from Git repository: ${e.message}`);
       }
-    } else if (options.npmPackage) { // Handle NPM package if provided
+    } else if (options.npmPackage) { // Handle NPM package if provided ***//***
       if (!canUseNetwork) {
         throw new ToolkitError('Cannot use NPM package without network access');
       }
@@ -107,60 +149,99 @@ export async function cliInit(options: CliInitOptions) {
         tempDir = await installNpmPackage(options.npmPackage);
 
         // Find the template directory in the installed package
-        const templatePath = tempDir;
-        const templateName = options.npmPackage.replace(/^@[^/]+\//, '');
+        let templatePath = tempDir;
+        let templateName = options.templateName;
 
-        // Validate that the template has a typescript directory
-        if (!await fs.pathExists(path.join(templatePath, 'typescript'))) {
-          throw new ToolkitError('NPM package must contain a \'typescript\' directory');
+        if (!templateName) {
+          // Check if package contains multiple templates or single template
+          const hasInfoJson = await fs.pathExists(path.join(templatePath, INFO_DOT_JSON));
+
+          if (hasInfoJson) {
+            // Single template at package root
+            templateName = options.npmPackage.split('/').pop() || options.npmPackage;
+          } else {
+            // Multiple templates - look for subdirectories with info.json
+            const subdirs = await listDirectory(templatePath);
+            const templateDirs = [];
+
+            for (const subdir of subdirs) {
+              const subdirPath = path.join(templatePath, subdir);
+              const isDir = (await fs.stat(subdirPath)).isDirectory();
+              const hasTemplateInfoJson = await fs.pathExists(path.join(subdirPath, INFO_DOT_JSON));
+
+              if (isDir && hasTemplateInfoJson) {
+                templateDirs.push(subdir);
+              }
+            }
+
+            if (templateDirs.length === 0) {
+              throw new ToolkitError('NPM package does not contain any valid templates');
+            } else if (templateDirs.length === 1) {
+              // Only one template found, use it
+              templateName = templateDirs[0];
+              templatePath = path.join(templatePath, templateName);
+            } else {
+              // Multiple templates found, user must specify --template-name
+              throw new ToolkitError(`NPM package contains multiple templates: ${templateDirs.join(', ')}. Please specify --template-name`);
+            }
+          }
+        } else {
+          // Specific template name provided
+          const specificTemplatePath = path.join(templatePath, templateName);
+          if (await fs.pathExists(specificTemplatePath) && await fs.pathExists(path.join(specificTemplatePath, INFO_DOT_JSON))) {
+            templatePath = specificTemplatePath;
+          } else {
+            throw new ToolkitError(`Template '${templateName}' not found in the NPM package`);
+          }
         }
 
         template = await InitTemplate.fromPath(templatePath, templateName);
 
-        // Force language to typescript for NPM templates
-        language = 'typescript';
+        // Validate that the template has at least one language directory
+        if (template.languages.length === 0) {
+          throw new ToolkitError('NPM package template must contain at least one language directory');
+        }
       } catch (e: any) {
-        warning(`Failed to load template from NPM package: ${e.message}`);
-        warning('Falling back to default \'app\' template.');
-        // Let it fall through to use the default template
+        // Custom template failures should fail completely, not fall back to defaults
+        throw new ToolkitError(`Failed to load template from NPM package: ${e.message}`);
       }
-    } else if (options.templatePath) { // Use custom template if templatePath is provided
+    } else if (options.templatePath) { // Handle local template path if provided ***//***
       try {
         const templatePath = path.resolve(options.templatePath);
         const templateName = path.basename(templatePath);
 
-        // Validate that the template has a typescript directory
-        if (!await fs.pathExists(path.join(templatePath, 'typescript'))) {
-          throw new ToolkitError('Custom template must contain a \'typescript\' directory');
-        }
-
         template = await InitTemplate.fromPath(templatePath, templateName);
 
-        // Force language to typescript for custom templates
-        language = 'typescript';
+        // Validate that the template has at least one language directory
+        if (template.languages.length === 0) {
+          throw new ToolkitError('Custom template must contain at least one language directory');
+        }
       } catch (e: any) {
-        warning(`Failed to load template from path: ${options.templatePath}`);
-        warning('Falling back to default \'app\' template.');
-        // Let it fall through to use the default template
+        // Custom template failures should fail completely, not fall back to defaults
+        throw new ToolkitError(`Failed to load template from path: ${options.templatePath}`);
       }
     }
 
-    // If no template was loaded (either no custom template was specified or it failed),
-    // use the built-in template
+    // If no template was loaded, user will be prompted with available templates in terminal
     if (!template) {
-      const type = options.type || 'default'; // "default" is the default type (and maps to "app")
-      template = (await availableInitTemplates()).find((t) => t.hasName(type!));
+      if (!options.type) {
+        await printAvailableTemplates(options.language);
+        throw new ToolkitError('No template specified. Please specify a template name or use a custom template option.');
+      }
+
+      // Find the requested built-in template
+      template = (await availableInitTemplates()).find((t) => t.hasName(options.type!));
 
       if (!template) {
         await printAvailableTemplates(options.language);
-        throw new ToolkitError(`Unknown init template: ${options.type || 'default'}`);
+        throw new ToolkitError(`Unknown init template: ${options.type}`);
       }
     }
 
-    // Case for custom template (typescript only for now)
+    // Auto-detect language for custom templates with single language
     if (!language && template.languages.length === 1) {
       language = template.languages[0];
-      warning(
+      info(
         `No --language was provided, but '${template.name}' supports only '${language}', so defaulting to --language=${language}`,
       );
     }
@@ -169,6 +250,7 @@ export async function cliInit(options: CliInitOptions) {
       throw new ToolkitError('No language was selected');
     }
 
+    // Create the CDK project using the selected template and language
     await initializeProject(
       template,
       language,
@@ -198,9 +280,16 @@ export function pythonExecutable() {
   }
   return python;
 }
+// Template metadata file name
 const INFO_DOT_JSON = 'info.json';
 
+/**
+ * Represents a CDK project template that can be instantiated
+ */
 export class InitTemplate {
+  /**
+   * Load a built-in template by name from the templates directory
+   */
   public static async fromName(templatesDir: string, name: string) {
     const basePath = path.join(templatesDir, name);
     const languages = await listDirectory(basePath);
@@ -208,6 +297,9 @@ export class InitTemplate {
     return new InitTemplate(basePath, name, languages, initInfo);
   }
 
+  /**
+   * Load a custom template from a file system path
+   */
   public static async fromPath(templatePath: string, name: string) {
     if (!await fs.pathExists(templatePath)) {
       throw new ToolkitError(`Template path does not exist: ${templatePath}`);
@@ -291,6 +383,9 @@ export class InitTemplate {
     );
   }
 
+  /**
+   * Recursively copy and process template files from source to target directory
+   */
   private async installFiles(sourceDirectory: string, targetDirectory: string, language: string, project: ProjectInfo) {
     for (const file of await fs.readdir(sourceDirectory)) {
       const fromFile = path.join(sourceDirectory, file);
@@ -311,6 +406,9 @@ export class InitTemplate {
     }
   }
 
+  /**
+   * Process a template file by replacing placeholders and write to target location
+   */
   private async installProcessed(templatePath: string, toFile: string, language: string, project: ProjectInfo) {
     const template = await fs.readFile(templatePath, { encoding: 'utf-8' });
     await fs.writeFile(toFile, expandPlaceholders(template, language, project));
@@ -351,6 +449,9 @@ export class InitTemplate {
   }
 }
 
+/**
+ * Replace all placeholders in template content with actual project values
+ */
 export function expandPlaceholders(template: string, language: string, project: ProjectInfo) {
   const cdkVersion = project.versions['aws-cdk-lib'];
   const cdkCliVersion = project.versions['aws-cdk'];
@@ -396,6 +497,9 @@ interface ProjectInfo {
   readonly versions: Versions;
 }
 
+/**
+ * Get all available templates (built-in and custom)
+ */
 export async function availableInitTemplates(customTemplatePath?: string): Promise<InitTemplate[]> {
   return new Promise(async (resolve) => {
     try {
@@ -445,6 +549,9 @@ export async function availableInitTemplates(customTemplatePath?: string): Promi
   });
 }
 
+/**
+ * Get all supported programming languages across all templates
+ */
 export async function availableInitLanguages(): Promise<string[]> {
   return new Promise(async (resolve) => {
     const templates = await availableInitTemplates();
@@ -462,6 +569,9 @@ export async function availableInitLanguages(): Promise<string[]> {
  * @param dirPath - is the directory to be listed.
  * @returns the list of file or directory names contained in ``dirPath``, excluding any dot-file, and sorted.
  */
+/**
+ * List directory contents, excluding hidden files and metadata
+ */
 async function listDirectory(dirPath: string) {
   return (
     (await fs.readdir(dirPath))
@@ -473,6 +583,9 @@ async function listDirectory(dirPath: string) {
   );
 }
 
+/**
+ * Display all available templates and usage examples to the user
+ */
 export async function printAvailableTemplates(language?: string, customTemplatePath?: string) {
   info('Available templates:');
   const templates = await availableInitTemplates(customTemplatePath);
@@ -492,14 +605,21 @@ export async function printAvailableTemplates(language?: string, customTemplateP
 
   // Add information about custom template options
   info('\nCustom template options:');
-  info(`* ${chalk.blue('cdk init --template-path=/path/to/template --language=typescript')}`);
-  info('  Use a template from a local directory');
-  info(`* ${chalk.blue('cdk init --github-url=https://github.com/user/repo --language=typescript')}`);
-  info('  Use a template from a GitHub repository');
-  info(`* ${chalk.blue('cdk init --npm-package=my-cdk-template --language=typescript')}`);
-  info('  Use a template from an NPM package');
+  info(`* ${chalk.blue('cdk init --template-path=/path/to/template [--language=LANGUAGE]')}`);
+  info('  Use a template from a local directory (language auto-detected if template has only one)');
+  info(`* ${chalk.blue('cdk init --git-url=https://github.com/user/repo [--language=LANGUAGE]')}`);
+  info('  Use a template from a Git repository (language auto-detected if template has only one)');
+  info(`* ${chalk.blue('cdk init --git-url=https://github.com/user/repo --template-name=my-template [--language=LANGUAGE]')}`);
+  info('  Use a specific template from a Git repository with multiple templates');
+  info(`* ${chalk.blue('cdk init --npm-package=my-cdk-template [--language=LANGUAGE]')}`);
+  info('  Use a template from an NPM package (language auto-detected if template has only one)');
+  info(`* ${chalk.blue('cdk init --npm-package=my-cdk-templates --template-name=api-service [--language=LANGUAGE]')}`);
+  info('  Use a specific template from an NPM package with multiple templates');
 }
 
+/**
+ * Create and set up a new CDK project from the selected template
+ */
 async function initializeProject(
   template: InitTemplate,
   language: string,
@@ -529,6 +649,9 @@ async function initializeProject(
   info('✅ All done!');
 }
 
+/**
+ * Ensure the target directory is empty before creating a new project
+ */
 async function assertIsEmptyDirectory(workDir: string) {
   const files = await fs.readdir(workDir);
   if (files.filter((f) => !f.startsWith('.')).length !== 0) {
@@ -536,6 +659,9 @@ async function assertIsEmptyDirectory(workDir: string) {
   }
 }
 
+/**
+ * Initialize a new Git repository and make initial commit
+ */
 async function initializeGitRepository(workDir: string) {
   if (await isInGitRepository(workDir)) {
     return;
@@ -550,6 +676,9 @@ async function initializeGitRepository(workDir: string) {
   }
 }
 
+/**
+ * Run language-specific post-installation steps (install dependencies, etc.)
+ */
 async function postInstall(language: string, canUseNetwork: boolean, workDir: string) {
   switch (language) {
     case 'javascript':
@@ -563,10 +692,16 @@ async function postInstall(language: string, canUseNetwork: boolean, workDir: st
   }
 }
 
+/**
+ * JavaScript post-install: run npm install
+ */
 async function postInstallJavascript(canUseNetwork: boolean, cwd: string) {
   return postInstallTypescript(canUseNetwork, cwd);
 }
 
+/**
+ * TypeScript post-install: run npm install
+ */
 async function postInstallTypescript(canUseNetwork: boolean, cwd: string) {
   const command = 'npm';
 
@@ -583,6 +718,9 @@ async function postInstallTypescript(canUseNetwork: boolean, cwd: string) {
   }
 }
 
+/**
+ * Java post-install: run mvn package
+ */
 async function postInstallJava(canUseNetwork: boolean, cwd: string) {
   const mvnPackageWarning = "Please run 'mvn package'!";
   if (!canUseNetwork) {
@@ -599,6 +737,9 @@ async function postInstallJava(canUseNetwork: boolean, cwd: string) {
   }
 }
 
+/**
+ * Python post-install: create virtual environment
+ */
 async function postInstallPython(cwd: string) {
   const python = pythonExecutable();
   warning(`Please run '${python} -m venv .venv'!`);
@@ -614,6 +755,9 @@ async function postInstallPython(cwd: string) {
 /**
  * @param dir - a directory to be checked
  * @returns true if ``dir`` is within a git repository.
+ */
+/**
+ * Check if directory is already inside a Git repository
  */
 async function isInGitRepository(dir: string) {
   while (true) {
@@ -631,36 +775,52 @@ async function isInGitRepository(dir: string) {
  * @param dir - a directory to be checked.
  * @returns true if ``dir`` is the root of a filesystem.
  */
+/**
+ * Check if directory is the filesystem root
+ */
 function isRoot(dir: string) {
   return path.dirname(dir) === dir;
 }
 
 /**
- * Clone a GitHub repository containing CDK templates
+ * Clone a Git repository containing CDK templates
  *
- * @param githubUrl - URL of the GitHub repository
+ * @param gitUrl - URL of the Git repository
  * @returns Path to the cloned repository
  */
-export async function cloneGitHubRepository(githubUrl: string): Promise<string> {
+export async function cloneGitRepository(gitUrl: string): Promise<string> {
   // Create a temporary directory for cloning
-  const tempDir = path.join(os.tmpdir(), `cdk-github-template-${Date.now()}`);
+  const tempDir = path.join(os.tmpdir(), `cdk-git-template-${Date.now()}`);
   await fs.mkdirp(tempDir);
 
-  // Normalize GitHub URL
+  // Normalize Git URL
   // Support formats like:
   // - https://github.com/user/repo
   // - github.com/user/repo
-  // - user/repo
-  let normalizedUrl = githubUrl;
+  // - user/repo (GitHub only)
+  // - https://gitlab.com/user/repo
+  // - https://bitbucket.org/user/repo
+  let normalizedUrl = gitUrl;
   if (!normalizedUrl.startsWith('http')) {
-    if (!normalizedUrl.includes('github.com')) {
+    if (!normalizedUrl.includes('/')) {
+      throw new ToolkitError('Invalid Git URL format');
+    }
+
+    // Handle GitHub shorthand format (user/repo)
+    if (!normalizedUrl.includes('.')) {
       normalizedUrl = `https://github.com/${normalizedUrl}`;
+    } else if (normalizedUrl.includes('github.com')) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    } else if (normalizedUrl.includes('gitlab.com')) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    } else if (normalizedUrl.includes('bitbucket.org')) {
+      normalizedUrl = `https://${normalizedUrl}`;
     } else {
       normalizedUrl = `https://${normalizedUrl}`;
     }
   }
 
-  info(`Cloning GitHub repository from ${normalizedUrl}...`);
+  info(`Cloning Git repository from ${normalizedUrl}...`);
 
   try {
     // Clone the repository
@@ -670,7 +830,7 @@ export async function cloneGitHubRepository(githubUrl: string): Promise<string> 
     // Clean up if there was an error
     await fs.remove(tempDir).catch(() => {
     });
-    throw new ToolkitError(`Failed to clone GitHub repository: ${e.message}`);
+    throw new ToolkitError(`Failed to clone Git repository: ${e.message}`);
   }
 }
 
@@ -702,16 +862,8 @@ export async function installNpmPackage(npmPackage: string): Promise<string> {
       throw new ToolkitError(`Failed to install package: ${e.message}`);
     }
 
-    // Handle scoped packages correctly
-    let packagePath;
-    if (npmPackage.startsWith('@')) {
-      // For scoped packages like @aws/cdk-template
-      const [scope, name] = npmPackage.split('/');
-      packagePath = path.join(tempDir, 'node_modules', scope, name);
-    } else {
-      // For regular packages
-      packagePath = path.join(tempDir, 'node_modules', npmPackage);
-    }
+    // Get the package path in node_modules
+    const packagePath = path.join(tempDir, 'node_modules', npmPackage);
 
     // Verify the package exists
     if (!await fs.pathExists(packagePath)) {
@@ -766,6 +918,9 @@ interface Versions {
  * Return the 'aws-cdk-lib' version we will init
  *
  * This has been built into the CLI at build time.
+ */
+/**
+ * Load CDK and dependency versions from build-time configuration
  */
 async function loadInitVersions(): Promise<Versions> {
   const initVersionFile = path.join(cliRootDir(), 'lib', 'init-templates', '.init-version.json');
