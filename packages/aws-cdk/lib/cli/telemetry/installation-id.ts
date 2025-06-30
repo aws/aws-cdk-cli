@@ -32,16 +32,16 @@ export function getInstallationId(ioHost: IoHelper) {
     const newId = randomUUID();
     try {
       fs.writeFileSync(INSTALLATION_ID_PATH, newId);
-    } catch (e) {
+    } catch (e: any) {
       // If we can't write the file, still return the generated ID
-      // but log a debug message about the failure
-      ioHost.defaults.debug(`Failed to write installation ID to ${INSTALLATION_ID_PATH}: ${e}`);
+      // but log a trace message about the failure
+      ioHost.defaults.trace(`Failed to write installation ID to ${INSTALLATION_ID_PATH}: ${e}`);
     }
     return newId;
-  } catch (e) {
+  } catch (e: any) {
     // If anything goes wrong, generate a temporary ID for this session
-    // and log a debug message about the failure
-    ioHost.defaults.debug(`Error getting installation ID: ${e}`);
+    // and log a trace message about the failure
+    ioHost.defaults.trace(`Error getting installation ID: ${e}`);
     return randomUUID();
   }
 }

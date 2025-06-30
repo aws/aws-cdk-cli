@@ -13,7 +13,7 @@ export const CLI_PRIVATE_IO = {
   CDK_CLI_I1000: make.trace<EventStart>({
     code: 'CDK_CLI_I1000',
     description: 'Cloud Execution is starting',
-    interface: 'Start',
+    interface: 'EventStart',
   }),
   CDK_CLI_I1001: make.trace<EventResult>({
     code: 'CDK_CLI_I1001',
@@ -23,7 +23,7 @@ export const CLI_PRIVATE_IO = {
   CDK_CLI_I2000: make.trace<EventStart>({
     code: 'CDK_CLI_I2000',
     description: 'Command has started',
-    interface: 'Start',
+    interface: 'EventStart',
   }),
   CDK_CLI_I2001: make.trace<EventResult>({
     code: 'CDK_CLI_I2001',

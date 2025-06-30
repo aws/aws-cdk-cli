@@ -631,8 +631,9 @@ export function cli(args: string[] = process.argv.slice(2)) {
       process.exitCode = 1;
     })
     .finally(() => {
-      if (process.exitCode === 1) {
-        // BS error 
+      if (!error && process.exitCode === 1) {
+        // The existence of an error determines if telemetry is successful or not so we create a
+        // dummy error in the event that exit code is 1 but no error is thrown
         error = new ToolkitError('ExitCode1Error');
       }
       CliIoHost.get()?.end(error);

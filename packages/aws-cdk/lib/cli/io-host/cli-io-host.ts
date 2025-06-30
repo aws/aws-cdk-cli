@@ -7,7 +7,7 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IMessageSpan } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import type { EventType } from '../telemetry/schema';
+import type { EventType, SessionSchema } from '../telemetry/schema';
 import { randomUUID } from 'node:crypto';
 import * as version from './../version';
 import { IoHostTelemetryClient } from '../telemetry/io-host-client';
@@ -20,6 +20,7 @@ import { detectCiSystem } from '../ci-systems';
 import { CLI_PRIVATE_IO, CLI_PRIVATE_SPAN, EventResult } from './messages';
 import { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import { TelemetrySession } from '../telemetry/session';
+import { getLibraryVersion } from '../telemetry/library-version';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -224,13 +225,13 @@ export class CliIoHost implements IIoHost {
 
     // sanitize the raw cli input
     const command = sanitizeCommandLineArguments(argv, await makeConfig());
-    const telemetryInfo = {
+    const telemetryInfo: SessionSchema = {
       identifiers: {
         installationId: getInstallationId(this.asIoHelper()),
         sessionId: randomUUID(),
         telemetryVersion: '1.0',
         cdkCliVersion: version.versionNumber(),
-        // TODO: cdkLibraryVersion
+        cdkLibraryVersion: await getLibraryVersion(this.asIoHelper()),
         accountId: await new AccountIdFetcher().fetch(),
         region: await new RegionFetcher().fetch(),
       },
