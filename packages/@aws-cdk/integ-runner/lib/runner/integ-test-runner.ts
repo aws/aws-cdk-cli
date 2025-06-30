@@ -7,7 +7,7 @@ import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
-import { IntegRunner, DEFAULT_SYNTH_OPTIONS } from './runner-base';
+import { IntegRunner } from './runner-base';
 import * as logger from '../logger';
 import { chunks, exec, promiseWithResolvers } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
@@ -237,17 +237,11 @@ export class IntegTestRunner extends IntegRunner {
           updateWorkflowEnabled,
           options.testCaseName,
         );
-      } else {
-        await this.cdk.synthFast({
-          execCmd: this.cdkApp.split(' '),
-          context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
-          env: DEFAULT_SYNTH_OPTIONS.env,
-          output: path.relative(this.directory, this.cdkOutDir),
-        });
       }
+
       // only create the snapshot if there are no failed assertion results
       // (i.e. no failures)
-      if (!assertionResults || !Object.values(assertionResults).some(result => result.status === 'fail')) {
+      if (!Object.values(assertionResults ?? {}).some(result => result.status === 'fail')) {
         await this.createSnapshot();
       }
     } catch (e) {
