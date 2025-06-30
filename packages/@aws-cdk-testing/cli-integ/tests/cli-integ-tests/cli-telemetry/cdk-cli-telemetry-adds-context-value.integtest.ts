@@ -17,23 +17,33 @@ integTest(
     );
     try {
       await fixture.cdk(['cli-telemetry', '--disable']);
-      const newContext = await fs.readFile(
+      const newContext = JSON.parse((await fs.readFile(
         contextFile,
-      );
-      expect(newContext).toEqual(JSON.stringify({
+      )).toString());
+      expect(newContext).toEqual({
         ...context,
         ['cli-telemetry']: false,
-      }));
+      });
 
       // Test that cli-telemetry enable works too
       await fixture.cdk(['cli-telemetry', '--enable']);
-      const newerContext = await fs.readFile(
+      const newerContext = JSON.parse((await fs.readFile(
         contextFile,
-      );
-      expect(newerContext).toEqual(JSON.stringify({
+      )).toString());
+      expect(newerContext).toEqual({
         ...context,
         ['cli-telemetry']: true,
-      }));
+      });
+
+      // Test that cli-telemetry --no-enable works (equals --disable)
+      await fixture.cdk(['cli-telemetry', '--no-enable']);
+      const newestContext = JSON.parse((await fs.readFile(
+        contextFile,
+      )).toString());
+      expect(newestContext).toEqual({
+        ...context,
+        ['cli-telemetry']: false,
+      });
     } finally {
       await fs.unlink(path.join(fixture.integTestDir, 'cdk.context.json'));
     }
