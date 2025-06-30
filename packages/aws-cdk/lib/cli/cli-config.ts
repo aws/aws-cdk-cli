@@ -20,6 +20,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'app': { type: 'string', alias: 'a', desc: 'REQUIRED WHEN RUNNING APP: command-line for executing your app or a cloud assembly directory (e.g. "node bin/my-app.js"). Can also be specified in cdk.json or ~/.cdk.json', requiresArg: true },
       'build': { type: 'string', desc: 'Command-line for a pre-synth build' },
       'context': { type: 'array', alias: 'c', desc: 'Add contextual string parameter (KEY=VALUE)' },
+      'context-file': { type: 'string', desc: 'Add contextual file path parameter' },
       'plugin': { type: 'array', alias: 'p', desc: 'Name or path of a node package that extend the CDK features. Can be specified multiple times' },
       'trace': { type: 'boolean', desc: 'Print trace for stack warnings' },
       'strict': { type: 'boolean', desc: 'Do not construct stacks with warnings' },

@@ -158,6 +158,13 @@ export interface GlobalOptions {
   readonly context?: Array<string>;
 
   /**
+   * Add contextual file path parameter
+   *
+   * @default - undefined
+   */
+  readonly contextFile?: string;
+
+  /**
    * Name or path of a node package that extend the CDK features. Can be specified multiple times
    *
    * @default - undefined
