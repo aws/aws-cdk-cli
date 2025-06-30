@@ -11,9 +11,14 @@ integTest(
       onlyStderr: true,
       modEnv: {
         CI: 'true',
+
+        // Disable all Node.js version warnings
         JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: 'true',
         JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: 'true',
         JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: 'true',
+
+        // Make sure we don't warn on use of deprecated APIs (that cannot be redirected)
+        JSII_DEPRECATED: 'quiet',
       },
       options: ['--no-notices'],
     };
