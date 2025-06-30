@@ -133,10 +133,7 @@ export class CloudExecutable implements ICloudAssemblySource {
     } catch (e: any) {
       error = e;
     } finally {
-      synthSpan.end({
-        success: error === undefined,
-        error,
-      })
+      synthSpan.end({error});
 
       if (error) { throw error; }
     }

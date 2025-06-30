@@ -2,17 +2,15 @@ import { Duration, ErrorPayload } from '@aws-cdk/toolkit-lib';
 import * as make from '../../api-private';
 import type { SpanDefinition } from '../../api-private';
 
-export interface EventResult extends Duration, Partial<ErrorPayload> {
-  readonly success: boolean;
-}
+export interface EventResult extends Duration, Partial<ErrorPayload> {}
 
-export interface Start {}
+export interface EventStart {}
 
 /**
  * Private message types specific to the CLI
  */
 export const CLI_PRIVATE_IO = {
-  CDK_CLI_I1000: make.trace<Start>({
+  CDK_CLI_I1000: make.trace<EventStart>({
     code: 'CDK_CLI_I1000',
     description: 'Cloud Execution is starting',
     interface: 'Start',
@@ -21,6 +19,11 @@ export const CLI_PRIVATE_IO = {
     code: 'CDK_CLI_I1001',
     description: 'Cloud Executable Result',
     interface: 'EventResult',
+  }),
+  CDK_CLI_I2000: make.trace<EventStart>({
+    code: 'CDK_CLI_I2000',
+    description: 'Command has started',
+    interface: 'Start',
   }),
   CDK_CLI_I2001: make.trace<EventResult>({
     code: 'CDK_CLI_I2001',
@@ -38,4 +41,9 @@ export const CLI_PRIVATE_SPAN = {
     start: CLI_PRIVATE_IO.CDK_CLI_I1000,
     end: CLI_PRIVATE_IO.CDK_CLI_I1001,
   },
+  COMMAND: {
+    name: 'Command',
+    start: CLI_PRIVATE_IO.CDK_CLI_I2000,
+    end: CLI_PRIVATE_IO.CDK_CLI_I2001,
+  }
 } satisfies Record<string, SpanDefinition<any, any>>;

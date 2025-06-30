@@ -5,7 +5,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import type { IoMessageLevel } from './io-host';
-import { CLI_PRIVATE_IO, CliIoHost } from './io-host';
+import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
@@ -55,13 +55,24 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     }
   }
 
+  const configuration = new Configuration({
+    commandLineArguments: {
+      ...argv,
+      _: argv._ as [Command, ...string[]], // TypeScript at its best
+    },
+  });
+  await configuration.load();
+
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
     isTTY: process.stdout.isTTY,
     isCI: Boolean(argv.ci),
     currentAction: cmd,
     stackProgress: argv.progress,
+    arguments: argv,
+    context: configuration.context,
   }, true);
+  await ioHost.begin();
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -79,21 +90,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   await ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
-
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
-  });
-  await configuration.load();
-
-  if (process.env.TELEMETRY_TEST_ENV) {
-    ioHost.bindTelemetryClient(
-      argv,
-      configuration.context.all,
-    );
-  }
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
@@ -620,49 +616,26 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 
 /* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
-  const startTime = new Date().getTime();
+  let error: Error | undefined;
   exec(args)
     .then(async (value) => {
       if (typeof value === 'number') {
         process.exitCode = value;
-      }
-      if (process.env.TELEMETRY_TEST_ENV) {
-        if (value === 1) {
-          await failedTelemetryExitEvent(args, startTime);
-        } else {
-          await successfulTelemetryExitEvent(args, startTime);
-        }
       }
     })
     .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, version.isDeveloperBuild());
-      if (process.env.TELEMETRY_TEST_ENV) {
-        await failedTelemetryExitEvent(args, startTime, err);
-      }
+      error = err;
       process.exitCode = 1;
+    })
+    .finally(() => {
+      if (process.exitCode === 1) {
+        // BS error 
+        error = new ToolkitError('ExitCode1Error');
+      }
+      CliIoHost.get()?.end(error);
     });
 }
 /* c8 ignore stop */
-
-async function successfulTelemetryExitEvent(args: string[], startTime: number) {
-  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2001.msg(
-    `Exiting ${args[0]}`,
-    {
-      duration: new Date().getTime() - startTime,
-      success: true,
-    },
-  ));
-}
-
-async function failedTelemetryExitEvent(args: string[], startTime: number, err?: any) {
-  await CliIoHost.instance().asIoHelper().notify(CLI_PRIVATE_IO.CDK_CLI_I2001.msg(
-    `Exiting ${args[0]}`,
-    {
-      duration: new Date().getTime() - startTime,
-      success: false,
-      error: err ?? new ToolkitError('ExitCode1Error'),
-    },
-  ));
-}

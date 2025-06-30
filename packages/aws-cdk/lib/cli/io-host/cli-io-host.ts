@@ -4,11 +4,10 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
+import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IMessageSpan } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import type { ITelemetryClient } from '../telemetry/client-interface';
-import type { EventType, SessionSchema, State } from '../telemetry/schema';
+import type { EventType } from '../telemetry/schema';
 import { randomUUID } from 'node:crypto';
 import * as version from './../version';
 import { IoHostTelemetryClient } from '../telemetry/io-host-client';
@@ -18,7 +17,9 @@ import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sani
 import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { RegionFetcher } from '../telemetry/region-fetcher';
 import { detectCiSystem } from '../ci-systems';
-import { CLI_PRIVATE_IO } from './messages';
+import { CLI_PRIVATE_IO, CLI_PRIVATE_SPAN, EventResult } from './messages';
+import { Context } from '@aws-cdk/toolkit-lib/lib/api';
+import { TelemetrySession } from '../telemetry/session';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -83,6 +84,20 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
+
+  /**
+   * Raw arguments supplied to the command
+   *
+   * @default - no arguments
+   */
+  readonly arguments?: any;
+
+  /**
+   * Context values
+   *
+   * @default - no context
+   */
+  readonly context?: Context;
 }
 
 /**
@@ -101,6 +116,13 @@ export class CliIoHost implements IIoHost {
     if (forceNew || !CliIoHost._instance) {
       CliIoHost._instance = new CliIoHost(props);
     }
+    return CliIoHost._instance;
+  }
+
+  /**
+   * Returns the singleton instance if it exists
+   */
+  static get(): CliIoHost | undefined {
     return CliIoHost._instance;
   }
 
@@ -156,9 +178,10 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  private telemetryClient?: ITelemetryClient;
-  private telemetryInfo?: SessionSchema;
-  private telemetryCount = 0;
+  private telemetrySession?: TelemetrySession;
+  private commandSpan?: IMessageSpan<EventResult>;
+  private readonly arguments?: any;
+  private readonly context?: Context;
 
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
@@ -168,20 +191,40 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+    this.arguments = props.arguments;
+    this.context = props.context;
+  }
+
+  /**
+   * Asynchronous constuction that needs to be called right after construction.
+   */
+  public async begin() {
+    if (true) {
+      this.commandSpan = await this.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
+      await this.bindTelemetrySession(this.arguments, this.context?.all ?? {});
+    }
+  }
+
+  /**
+   * When the command is complete, so is the CliIoHost. Ends the span of the entire CliIoHost
+   * and notifies with an optional error message in the data.
+   */
+  public async end(error?: Error) {
+    await this.commandSpan?.end({ error });
   }
 
   /**
    * Required for telemetry
    */
-  public async bindTelemetryClient(argv: any, context: {[key: string]: any}) {
+  private async bindTelemetrySession(argv: any, context: {[key: string]: any}) {
     // TODO: change this to EndpointTelemetryClient
-    this.telemetryClient = new IoHostTelemetryClient({
+    const telemetryClient = new IoHostTelemetryClient({
       ioHost: this,
     });
 
     // sanitize the raw cli input
     const command = sanitizeCommandLineArguments(argv, await makeConfig());
-    this.telemetryInfo = {
+    const telemetryInfo = {
       identifiers: {
         installationId: getInstallationId(this.asIoHelper()),
         sessionId: randomUUID(),
@@ -208,6 +251,11 @@ export class CliIoHost implements IIoHost {
       },
       project: {},
     };
+
+    this.telemetrySession = new TelemetrySession({
+      client: telemetryClient,
+      info: telemetryInfo,
+    });
   }
 
   /**
@@ -304,20 +352,7 @@ export class CliIoHost implements IIoHost {
       return this._internalIoHost.notify(msg);
     }
 
-    if (process.env.TELEMETRY_TEST_ENV) {
-      try {
-        if (isTelemetryMessage(msg)) {
-          await this.emitTelemetry({
-            state: msg.data.success ? 'SUCCEEDED' : 'FAILED',
-            eventType: telemetryEvent(msg),
-            duration: msg.data.duration,
-            error: msg.data.error,
-          });
-        }
-      } catch (e: any) {
-        this.defaults.debug(`Emit Telemetry Failed ${e.message}`);
-      }
-    }
+    await this.maybeEmitTelemetry(msg);
 
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
@@ -341,35 +376,17 @@ export class CliIoHost implements IIoHost {
     stream?.write(output);
   }
 
-  private async emitTelemetry(event: TelemetryEvent) {
-    // Session has not been attached
-    if (!this.telemetryInfo) { 
-      throw new ToolkitError('Session must be attached before telemetry is emitted');
+  private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
+    try {
+      if (this.telemetrySession && isTelemetryMessage(msg)) {
+        await this.telemetrySession.emit({
+          eventType: getEventType(msg),
+          duration: msg.data.duration,
+        });
+      }
+    } catch (e: any) {
+      this.defaults.debug(`Emit Telemetry Failed ${e.message}`);
     }
-
-    await this.telemetryClient?.emit({
-      event: {
-        command: this.telemetryInfo.event.command,
-        state: event.state,
-        eventType: event.eventType,
-      },
-      identifiers: {
-        ...this.telemetryInfo.identifiers,
-        eventId: `${this.telemetryInfo.identifiers.sessionId}:${this.telemetryCount}`,
-        timestamp: new Date().toISOString(),
-      },
-      environment: this.telemetryInfo.environment,
-      project: this.telemetryInfo.project,
-      duration: {
-        total: event.duration,
-      },
-      ...(event.error ? {
-        error: {
-          name: event.error.name,
-        },
-      } : {}),
-    });
-    this.telemetryCount+=1;
   }
 
   /**
@@ -625,7 +642,7 @@ function isTelemetryMessage(msg: IoMessage<unknown>) {
   return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg);
 }
 
-function telemetryEvent(msg: IoMessage<unknown>): EventType {
+function getEventType(msg: IoMessage<unknown>): EventType {
   switch (msg.code) {
     case CLI_PRIVATE_IO.CDK_CLI_I1001.code: 
       return 'SYNTH';
@@ -634,11 +651,4 @@ function telemetryEvent(msg: IoMessage<unknown>): EventType {
     default:
       throw new Error(`Unrecognized Telemetry Message Code: ${msg.code}`);
   } 
-}
-
-interface TelemetryEvent {
-  readonly state: State;
-  readonly eventType: EventType;
-  readonly duration: number;
-  readonly error?: any,
 }
