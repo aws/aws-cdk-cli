@@ -128,6 +128,11 @@ export interface UserInput {
    * Moves resources between stacks or within the same stack
    */
   readonly refactor?: RefactorOptions;
+
+  /**
+   * Enable or disable anonymous telemetry
+   */
+  readonly cliTelemetry?: CliTelemetryOptions;
 }
 
 /**
@@ -1451,4 +1456,25 @@ export interface RefactorOptions {
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;
+}
+
+/**
+ * Enable or disable anonymous telemetry
+ *
+ * @struct
+ */
+export interface CliTelemetryOptions {
+  /**
+   * Enable anonymous telemetry
+   *
+   * @default - undefined
+   */
+  readonly enable?: boolean;
+
+  /**
+   * Disable anonymous telemetry
+   *
+   * @default - undefined
+   */
+  readonly disable?: boolean;
 }
