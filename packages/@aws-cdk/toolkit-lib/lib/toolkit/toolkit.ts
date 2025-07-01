@@ -68,6 +68,7 @@ import {
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
+import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -1059,10 +1060,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
     const sdkProvider = await this.sdkProvider('refactor');
 
     const groups = await groupStacks(sdkProvider, assembly.cloudAssembly, options.localStacks ?? [], options.deployedStacks ?? []);
@@ -1096,12 +1093,45 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
         const typedMappings = mappings
           .map(m => m.toTypedMapping())
+          // Exclude CDK Metadata resources because they will never be refactorable.
+          // Most of the time, their content will be different from the deployed one.
+          // Even if the content does remain the same, the location won't change anyway.
           .filter(m => m.type !== 'AWS::CDK::Metadata');
 
         await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
+
+        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+
+        if (options.dryRun || context.mappings.length === 0) {
+          // Nothing left to do.
+          continue;
+        }
+
+        // In interactive mode (TTY) we need confirmation before proceeding
+        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+          await notifyInfo(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+          continue;
+        }
+
+        await notifyInfo('Refactoring...');
+        await context.execute(stackDefinitions, sdkProvider, ioHelper);
+        await notifyInfo('✅  Stack refactor complete');
       } catch (e: any) {
         await notifyError(e.message, e);
       }
+    }
+
+    async function confirm(force: boolean): Promise<boolean> {
+      // 'force' is set to true is the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
+      }
+
+      const question = 'Do you wish to refactor these resources?';
+      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        responseDescription: '[Y]es/[n]o',
+      }, 'y'));
+      return ['y', 'yes'].includes(response.toLowerCase());
     }
 
     async function notifyInfo(message: string, data: any = {}) {

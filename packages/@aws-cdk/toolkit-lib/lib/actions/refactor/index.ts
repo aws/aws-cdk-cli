@@ -89,6 +89,11 @@ export interface RefactorOptions {
    * '*'.
    */
   deployedStacks?: string[];
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
 }
 
 export interface MappingGroup {

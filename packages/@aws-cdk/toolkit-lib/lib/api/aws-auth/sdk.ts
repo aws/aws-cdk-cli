@@ -50,6 +50,7 @@ import type {
   CreateGeneratedTemplateCommandOutput,
   CreateStackCommandInput,
   CreateStackCommandOutput,
+  CreateStackRefactorCommandInput,
   DeleteChangeSetCommandInput,
   DeleteChangeSetCommandOutput,
   DeleteGeneratedTemplateCommandInput,
@@ -97,6 +98,9 @@ import type {
   DetectStackResourceDriftCommandInput,
   DetectStackResourceDriftCommandOutput,
   DescribeStackResourceDriftsCommandInput,
+  ExecuteStackRefactorCommandInput,
+  DescribeStackRefactorCommandInput,
+  CreateStackRefactorCommandOutput, ExecuteStackRefactorCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateListStacks,
@@ -105,6 +109,7 @@ import {
   CreateChangeSetCommand,
   CreateGeneratedTemplateCommand,
   CreateStackCommand,
+  CreateStackRefactorCommand,
   DeleteChangeSetCommand,
   DeleteGeneratedTemplateCommand,
   DeleteStackCommand,
@@ -115,6 +120,7 @@ import {
   DescribeStackResourcesCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
+  ExecuteStackRefactorCommand,
   GetGeneratedTemplateCommand,
   GetTemplateCommand,
   GetTemplateSummaryCommand,
@@ -132,6 +138,8 @@ import {
   DescribeStackResourceDriftsCommand,
   DetectStackDriftCommand,
   DetectStackResourceDriftCommand,
+  waitUntilStackRefactorCreateComplete,
+  waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
 import type {
   FilterLogEventsCommandInput,
@@ -460,6 +468,10 @@ export interface ICloudFormationClient {
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
+  createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
+  executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
+  waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
+  waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -765,6 +777,34 @@ export class SDK {
           stackResources.push(...(page?.StackSummaries || []));
         }
         return stackResources;
+      },
+      createStackRefactor: (input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput> => {
+        return client.send(new CreateStackRefactorCommand(input));
+      },
+      executeStackRefactor: (input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput> => {
+        return client.send(new ExecuteStackRefactorCommand(input));
+      },
+      waitUntilStackRefactorCreateComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorCreateComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
+      },
+      waitUntilStackRefactorExecuteComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorExecuteComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
       },
     };
   }

@@ -281,6 +281,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           revert: args.revert,
           localStacks: arrayFromYargs(args.localStack ?? []),
           deployedStacks: arrayFromYargs(args.deployedStack ?? []),
+          force: args.force ?? false,
         });
 
       case 'bootstrap':
