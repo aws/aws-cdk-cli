@@ -1,14 +1,14 @@
-import { Command } from "./schema";
+import { Command } from './schema';
 import * as fs from 'fs-extra';
+
+export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
 /**
  * argv is the output of yargs
  */
 export async function sanitizeCommandLineArguments(argv: any): Promise<Command> {
   // Get the configuration of the arguments
-  const config = fs.readJSONSync('../type-registry.json');
-  // const test: UserInput = convertYargsToUserInput(argv);
-  // const command = test.synth.
+  const config = fs.readJSONSync(`../${CLI_TYPE_REGISTRY_FILE}`);
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: {[key: string]: string } = {};
