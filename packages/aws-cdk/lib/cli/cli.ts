@@ -180,7 +180,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }
 
   async function main(command: string, args: any): Promise<number | void> {
-    // console.log('DEBUG: Command-line arguments:', process.argv);
     ioHost.currentAction = command as any;
     const toolkitStackName: string = ToolkitInfo.determineName(configuration.settings.get(['toolkitStackName']));
     await ioHost.defaults.debug(`Toolkit stack: ${chalk.bold(toolkitStackName)}`);
