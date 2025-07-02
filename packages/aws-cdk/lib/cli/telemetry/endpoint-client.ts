@@ -8,7 +8,7 @@ import type { IIoHost } from '../io-host';
 import type { TelemetrySchema } from './schema';
 import type { ITelemetrySink } from './sink-interface';
 
-const REQUEST_ATTEMPT_TIMEOUT_MS = 2_000;
+const REQUEST_ATTEMPT_TIMEOUT_MS = 500;
 
 /**
  * Properties for the Endpoint Telemetry Client
@@ -65,19 +65,20 @@ export class EndpointTelemetryClient implements ITelemetrySink {
   }
 
   public async flush(): Promise<void> {
-    if (this.events.length === 0) {
-      return;
-    }
-
     try {
+      if (this.events.length === 0) {
+        return;
+      }
+
       const res = await this.https(this.endpoint, this.events);
 
       // Clear the events array after successful output
       if (res) {
         this.events = [];
       }
-    } catch (_e: any) {
-      // Never throw errors, and error message was previously logged to ioHost
+    } catch (e: any) {
+      // Never throw errors, just log them via ioHost
+      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
     }
   }
 
@@ -89,7 +90,7 @@ export class EndpointTelemetryClient implements ITelemetrySink {
     body: TelemetrySchema[],
   ): Promise<boolean> {
     try {
-      const res = await requestPromise(url, body, this.agent);
+      const res = await doRequest(url, body, this.agent);
 
       // Successfully posted
       if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
@@ -109,7 +110,7 @@ export class EndpointTelemetryClient implements ITelemetrySink {
 /**
  * A Promisified version of `https.request()`
  */
-function requestPromise(
+function doRequest(
   url: UrlWithStringQuery,
   data: TelemetrySchema[],
   agent?: Agent,
