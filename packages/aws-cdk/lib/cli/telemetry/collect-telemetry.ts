@@ -5,11 +5,11 @@ import { Context } from "../../api/context";
  */
 export function canCollectTelemetry(context: Context): boolean {
   // TODO: remove this at launch. for now, this is an opt-in
-  if (!process.env.CLI_TELEMETRY) {
+  if (process.env.CLI_TELEMETRY !== 'true') {
     return false;
   }
 
-  if (process.env.DISABLE_CLI_TELEMETRY || context.get('cli-telemetry') !== true) {
+  if ((['true', '1'].includes(process.env.CDK_CLI_DISABLE_TELEMETRY ?? '')) || ['false', false].includes(context.get('cli-telemetry'))) {
     return false;
   }
 

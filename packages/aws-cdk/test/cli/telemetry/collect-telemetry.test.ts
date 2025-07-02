@@ -1,4 +1,4 @@
-import { Context } from '@aws-cdk/toolkit-lib/lib/api/context';
+import { Context } from '../../../lib/api/context';
 import { canCollectTelemetry } from '../../../lib/cli/telemetry/collect-telemetry';
 
 describe(canCollectTelemetry, () => {
@@ -16,7 +16,15 @@ describe(canCollectTelemetry, () => {
     expect(canCollectTelemetry(context)).toBeTruthy();
   });
 
-  test('returns false if context is set', async () => {
+  test('returns false if context is set to false', async () => {
+    context.set('cli-telemetry', false);
+    expect(canCollectTelemetry(context)).toBeFalsy();
+
+    context.set('cli-telemetry', 'false');
+    expect(canCollectTelemetry(context)).toBeFalsy();
+  });
+
+  test('returns true if context is set to true', async () => {
     context.set('cli-telemetry', true);
     expect(canCollectTelemetry(context)).toBeTruthy();
 
