@@ -9,7 +9,7 @@ import type { SdkProvider, IReadLock } from '../api';
 import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
-import { versionNumber } from '../cli/version';
+import { versionNumber } from '../cli/version-util';
 
 export interface ExecProgramResult {
   readonly assembly: cxapi.CloudAssembly;

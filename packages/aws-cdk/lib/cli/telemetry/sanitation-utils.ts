@@ -1,10 +1,14 @@
-import { CliConfig } from "@aws-cdk/user-input-gen";
 import { Command } from "./schema";
+import * as fs from 'fs-extra';
 
 /**
  * argv is the output of yargs
  */
-export function sanitizeCommandLineArguments(argv: any, config: CliConfig): Command {
+export async function sanitizeCommandLineArguments(argv: any): Promise<Command> {
+  // Get the configuration of the arguments
+  const config = fs.readJSONSync('../type-registry.json');
+  // const test: UserInput = convertYargsToUserInput(argv);
+  // const command = test.synth.
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: {[key: string]: string } = {};

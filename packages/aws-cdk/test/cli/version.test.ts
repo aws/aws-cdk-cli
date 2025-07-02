@@ -6,8 +6,9 @@ import * as sinon from 'sinon';
 import { setTimeout as _setTimeout } from 'timers';
 import { promisify } from 'util';
 import * as npm from '../../lib/cli/util/npm';
-import { displayVersionMessage, getVersionMessages, isDeveloperBuild, VersionCheckTTL } from '../../lib/cli/version';
+import { displayVersionMessage, getVersionMessages, VersionCheckTTL } from '../../lib/cli/version';
 import * as logging from '../../lib/logging';
+import { isDeveloperBuild } from '../../lib/cli/version-util';
 
 jest.setTimeout(10_000);
 

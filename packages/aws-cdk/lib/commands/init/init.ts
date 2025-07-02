@@ -5,7 +5,7 @@ import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
 import { cliRootDir } from '../../cli/root-dir';
-import { versionNumber } from '../../cli/version';
+import { versionNumber } from '../../cli/version-util';
 import { error, info, warning } from '../../logging';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 

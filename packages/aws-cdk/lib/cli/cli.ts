@@ -12,7 +12,7 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import * as version from './version';
+import { displayVersion, isDeveloperBuild, versionNumber } from './version-util';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -30,6 +30,7 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
+import { displayVersionMessage } from './version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -88,7 +89,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  await ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
@@ -107,7 +108,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
     httpOptions: { agent: proxyAgent },
-    cliVersion: version.versionNumber(),
+    cliVersion: versionNumber(),
   });
   const refreshNotices = (async () => {
     // the cdk notices command has it's own refresh
@@ -168,7 +169,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await version.displayVersionMessage();
+    await displayVersionMessage();
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -496,7 +497,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return ioHost.defaults.result(version.displayVersion());
+        return ioHost.defaults.result(displayVersion());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
@@ -635,7 +636,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
     .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      prettyPrintError(err, version.isDeveloperBuild());
+      prettyPrintError(err, isDeveloperBuild());
       error = err;
       process.exitCode = 1;
     })

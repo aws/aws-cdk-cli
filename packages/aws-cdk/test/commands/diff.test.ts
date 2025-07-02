@@ -557,6 +557,7 @@ describe('non-nested stacks', () => {
       configuration: cloudExecutable.configuration,
       sdkProvider: cloudExecutable.sdkProvider,
     });
+    notifySpy.mockClear();
 
     // WHEN
     const exitCode = await toolkit.diff({

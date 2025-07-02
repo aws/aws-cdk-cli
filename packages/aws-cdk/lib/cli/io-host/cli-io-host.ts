@@ -9,10 +9,8 @@ import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, Hist
 import { StackActivityProgress } from '../../commands/deploy';
 import type { EventType, SessionSchema } from '../telemetry/schema';
 import { randomUUID } from 'node:crypto';
-import * as version from './../version';
 import { IoHostTelemetryClient } from '../telemetry/io-host-client';
 import { getInstallationId } from '../telemetry/installation-id';
-import { makeConfig } from '../cli-config';
 import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
 import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { RegionFetcher } from '../telemetry/region-fetcher';
@@ -22,6 +20,7 @@ import { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import { TelemetrySession } from '../telemetry/session';
 import { getLibraryVersion } from '../telemetry/library-version';
 import { collectTelemetry } from '../telemetry/collect-telemetry';
+import { versionNumber } from '../version-util';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -205,8 +204,9 @@ export class CliIoHost implements IIoHost {
     if (true) {
       this.commandSpan = await this.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
 
-      if (collectTelemetry()) {
-        await this.bindTelemetrySession(this.arguments, this.context?.all ?? {});
+      // Cannot collect telemetry without these properties
+      if (collectTelemetry() && this.arguments && this.context) {
+        await this.bindTelemetrySession(this.arguments, this.context.all);
       }
     }
   }
@@ -217,6 +217,7 @@ export class CliIoHost implements IIoHost {
    */
   public async end(error?: Error) {
     await this.commandSpan?.end({ error });
+    // this.telemetrySession
   }
 
   /**
@@ -229,13 +230,13 @@ export class CliIoHost implements IIoHost {
     });
 
     // sanitize the raw cli input
-    const command = sanitizeCommandLineArguments(argv, await makeConfig());
+    const command = await sanitizeCommandLineArguments(argv);
     const telemetryInfo: SessionSchema = {
       identifiers: {
         installationId: getInstallationId(this.asIoHelper()),
         sessionId: randomUUID(),
         telemetryVersion: '1.0',
-        cdkCliVersion: version.versionNumber(),
+        cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.asIoHelper()),
         accountId: await new AccountIdFetcher().fetch(),
         region: await new RegionFetcher().fetch(),
