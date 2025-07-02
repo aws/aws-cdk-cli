@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ToolkitError, type IIoHost } from '@aws-cdk/toolkit-lib';
-import type { ITelemetrySink } from './client-interface';
+import type { ITelemetrySink } from './sink-interface';
 import type { TelemetrySchema } from './schema';
 import { IoHelper } from '../../api-private';
 
