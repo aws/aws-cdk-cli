@@ -1,9 +1,15 @@
 import { ITelemetryClient } from "./client-interface";
-import { SessionSchema, TelemetryEvent } from "./schema";
+import { EventType, SessionSchema, State } from "./schema";
 
 export interface TelemetrySessionProps {
   readonly client: ITelemetryClient;
   readonly info: SessionSchema;
+}
+
+interface TelemetryEvent {
+  readonly eventType: EventType;
+  readonly duration: number;
+  readonly error?: Error,
 }
 
 export class TelemetrySession {
@@ -21,7 +27,7 @@ export class TelemetrySession {
     return this.client.emit({
       event: {
         command: this.info.event.command,
-        state: event.error ? 'SUCCEEDED' : 'FAILED',
+        state: getState(event.error),
         eventType: event.eventType,
       },
       identifiers: {
@@ -41,4 +47,11 @@ export class TelemetrySession {
       } : {}),
     });
   }
+}
+
+function getState(error?: Error): State {
+  if (error) {
+    return error.cause === 'ABORTED' ? 'ABORTED' : 'FAILED';
+  }
+  return 'SUCCEEDED';
 }

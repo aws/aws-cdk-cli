@@ -82,9 +82,3 @@ export interface SessionSchema {
   readonly environment: SessionEnvironment;
   readonly project: SessionProject;
 }
-
-export interface TelemetryEvent {
-  readonly eventType: EventType;
-  readonly duration: number;
-  readonly error?: Error,
-}

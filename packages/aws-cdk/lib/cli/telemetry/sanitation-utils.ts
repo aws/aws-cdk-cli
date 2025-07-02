@@ -1,5 +1,6 @@
 import { Command } from './schema';
 import * as fs from 'fs-extra';
+import { join } from 'path';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
@@ -8,7 +9,7 @@ export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
  */
 export async function sanitizeCommandLineArguments(argv: any): Promise<Command> {
   // Get the configuration of the arguments
-  const config = fs.readJSONSync(`../${CLI_TYPE_REGISTRY_FILE}`);
+  const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: {[key: string]: string } = {};

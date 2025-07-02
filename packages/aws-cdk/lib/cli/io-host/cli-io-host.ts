@@ -206,7 +206,13 @@ export class CliIoHost implements IIoHost {
 
       // Cannot collect telemetry without these properties
       if (this.context && this.arguments && canCollectTelemetry(this.context)) {
+        // start the telemetry session
         await this.bindTelemetrySession(this.arguments, this.context.all);
+
+        // connect ctrl-c to ABORT event
+        process.on('SIGINT', async () => {
+          await this.end(new ToolkitError('ABORTED', 'aborted', 'ABORTED'));
+        });
       }
     }
   }
@@ -217,7 +223,8 @@ export class CliIoHost implements IIoHost {
    */
   public async end(error?: Error) {
     await this.commandSpan?.end({ error });
-    // this.telemetrySession
+    this.commandSpan = undefined;
+    // this.telemetrySession.flush
   }
 
   /**
@@ -389,6 +396,7 @@ export class CliIoHost implements IIoHost {
         await this.telemetrySession.emit({
           eventType: getEventType(msg),
           duration: msg.data.duration,
+          error: msg.data.error,
         });
       }
     } catch (e: any) {
