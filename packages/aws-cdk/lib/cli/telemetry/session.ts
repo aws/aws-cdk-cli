@@ -1,8 +1,8 @@
-import { ITelemetryClient } from "./client-interface";
 import { EventType, SessionSchema, State } from "./schema";
+import { ITelemetrySink } from "./sink-interface";
 
 export interface TelemetrySessionProps {
-  readonly client: ITelemetryClient;
+  readonly client: ITelemetrySink;
   readonly info: SessionSchema;
 }
 
@@ -13,7 +13,7 @@ interface TelemetryEvent {
 }
 
 export class TelemetrySession {
-  private readonly client: ITelemetryClient;
+  private readonly client: ITelemetrySink;
   private readonly info: SessionSchema;
   private count = 0;
 
@@ -22,7 +22,7 @@ export class TelemetrySession {
     this.info = props.info;
   }
 
-  public emit(event: TelemetryEvent): Promise<boolean> {
+  public async emit(event: TelemetryEvent): Promise<boolean> {
     this.count += 1;
     return this.client.emit({
       event: {
@@ -46,6 +46,10 @@ export class TelemetrySession {
         },
       } : {}),
     });
+  }
+
+  public async flush(): Promise<void> {
+    return this.client.flush();
   }
 }
 
