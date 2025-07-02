@@ -57,7 +57,7 @@ export class FileTelemetryClient implements ITelemetrySink {
       fs.appendFileSync(this.logFilePath, output);
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
-      await this.ioHelper.defaults.warn(`Failed to add telemetry event: ${e.message}`);
+      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
     }
   }
 

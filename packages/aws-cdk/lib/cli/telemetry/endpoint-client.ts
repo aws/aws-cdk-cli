@@ -40,12 +40,12 @@ export interface EndpointTelemetryClientProps {
 export class EndpointTelemetryClient implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
   private endpoint: UrlWithStringQuery;
-  private ioHost: IoHelper;
+  private ioHelper: IoHelper;
   private agent?: Agent;
 
   public constructor(props: EndpointTelemetryClientProps) {
     this.endpoint = props.endpoint;
-    this.ioHost = IoHelper.fromActionAwareIoHost(props.ioHost);
+    this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.agent = props.agent;
 
     // Batch events every 30 seconds
@@ -60,7 +60,7 @@ export class EndpointTelemetryClient implements ITelemetrySink {
       this.events.push(event);
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
-      await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
+      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
     }
   }
 
@@ -96,11 +96,11 @@ export class EndpointTelemetryClient implements ITelemetrySink {
         return true;
       }
 
-      await this.ioHost.defaults.debug(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
+      await this.ioHelper.defaults.trace(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
 
       return false;
     } catch (e: any) {
-      await this.ioHost.defaults.debug(`Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
+      await this.ioHelper.defaults.trace(`Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
       return false;
     }
   }
