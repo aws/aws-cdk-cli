@@ -19,7 +19,7 @@ import { CLI_PRIVATE_IO, CLI_PRIVATE_SPAN, EventResult } from './messages';
 import { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import { TelemetrySession } from '../telemetry/session';
 import { getLibraryVersion } from '../telemetry/library-version';
-import { collectTelemetry } from '../telemetry/collect-telemetry';
+import { collectTelemetry as canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { versionNumber } from '../version-util';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -205,7 +205,7 @@ export class CliIoHost implements IIoHost {
       this.commandSpan = await this.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
 
       // Cannot collect telemetry without these properties
-      if (collectTelemetry() && this.arguments && this.context) {
+      if (this.context && this.arguments && canCollectTelemetry(this.context)) {
         await this.bindTelemetrySession(this.arguments, this.context.all);
       }
     }
