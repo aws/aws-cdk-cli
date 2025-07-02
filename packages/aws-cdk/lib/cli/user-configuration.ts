@@ -38,6 +38,7 @@ export enum Command {
   DOCTOR = 'doctor',
   REFACTOR = 'refactor',
   DRIFT = 'drift',
+  CLI_TELEMETRY = 'cli-telemetry',
 }
 
 const BUNDLING_COMMANDS = [
