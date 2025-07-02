@@ -1,8 +1,11 @@
-import { Duration, ErrorPayload } from '@aws-cdk/toolkit-lib';
+import { Duration } from '@aws-cdk/toolkit-lib';
+import { ErrorDetails } from '../telemetry/schema';
 import * as make from '../../api-private';
 import type { SpanDefinition } from '../../api-private';
 
-export interface EventResult extends Duration, Partial<ErrorPayload> {}
+export interface EventResult extends Duration {
+  error?: ErrorDetails;
+}
 
 export interface EventStart {}
 

@@ -48,7 +48,7 @@ interface Duration {
 
 type Counters = { [key: string]: number };
 
-interface Error {
+export interface ErrorDetails {
   readonly name: string;
   readonly message?: string; // sanitized stack message
   readonly stackTrace?: string; // sanitized stack trace
@@ -73,7 +73,7 @@ export interface TelemetrySchema {
   readonly project: Project;
   readonly duration: Duration;
   readonly counters?: Counters;
-  readonly error?: Error;
+  readonly error?: ErrorDetails;
 }
 
 export interface SessionSchema {

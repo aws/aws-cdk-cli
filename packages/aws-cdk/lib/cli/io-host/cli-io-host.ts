@@ -7,7 +7,7 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IMessageSpan } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import type { EventType, SessionSchema } from '../telemetry/schema';
+import type { EventType, SessionSchema, ErrorDetails } from '../telemetry/schema';
 import { randomUUID } from 'node:crypto';
 import { IoHostTelemetryClient } from '../telemetry/io-host-client';
 import { getInstallationId } from '../telemetry/installation-id';
@@ -211,7 +211,10 @@ export class CliIoHost implements IIoHost {
 
         // connect ctrl-c to ABORT event
         process.on('SIGINT', async () => {
-          await this.end(new ToolkitError('ABORTED', 'aborted', 'ABORTED'));
+          // Send a special Error 
+          await this.end({
+            name: 'AbortedError',
+          });
         });
       }
     }
@@ -221,7 +224,7 @@ export class CliIoHost implements IIoHost {
    * When the command is complete, so is the CliIoHost. Ends the span of the entire CliIoHost
    * and notifies with an optional error message in the data.
    */
-  public async end(error?: Error) {
+  public async end(error?: ErrorDetails) {
     await this.commandSpan?.end({ error });
     this.commandSpan = undefined;
     this.telemetrySession?.flush();

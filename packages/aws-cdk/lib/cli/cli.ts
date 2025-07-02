@@ -31,6 +31,7 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import { displayVersionMessage } from './version';
+import type { ErrorDetails } from './telemetry/schema';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -626,7 +627,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 
 /* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
-  let error: Error | undefined;
+  let error: ErrorDetails | undefined;
   exec(args)
     .then(async (value) => {
       if (typeof value === 'number') {
@@ -644,7 +645,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
       if (!error && process.exitCode === 1) {
         // The existence of an error determines if telemetry is successful or not so we create a
         // dummy error in the event that exit code is 1 but no error is thrown
-        error = new ToolkitError('ExitCode1Error');
+        error = { name: 'ExitCode1Error' };
       }
       CliIoHost.get()?.end(error);
     });

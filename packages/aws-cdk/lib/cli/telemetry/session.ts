@@ -1,4 +1,4 @@
-import { EventType, SessionSchema, State } from "./schema";
+import { EventType, SessionSchema, State, ErrorDetails } from "./schema";
 import { ITelemetrySink } from "./sink-interface";
 
 export interface TelemetrySessionProps {
@@ -9,7 +9,7 @@ export interface TelemetrySessionProps {
 interface TelemetryEvent {
   readonly eventType: EventType;
   readonly duration: number;
-  readonly error?: Error,
+  readonly error?: ErrorDetails,
 }
 
 export class TelemetrySession {
@@ -53,9 +53,9 @@ export class TelemetrySession {
   }
 }
 
-function getState(error?: Error): State {
+function getState(error?: ErrorDetails): State {
   if (error) {
-    return error.cause === 'ABORTED' ? 'ABORTED' : 'FAILED';
+    return error.name === 'AbortedError' ? 'ABORTED' : 'FAILED';
   }
   return 'SUCCEEDED';
 }
