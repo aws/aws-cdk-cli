@@ -15,7 +15,7 @@ export interface RefactorManagerOptions {
   environment: Environment;
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
-  mappings?: ResourceMapping[];
+  overrides?: ResourceMapping[];
 }
 
 /**
@@ -28,14 +28,10 @@ export class RefactoringContext {
 
   constructor(props: RefactorManagerOptions) {
     this.environment = props.environment;
-    if (props.mappings != null) {
-      this._mappings = props.mappings;
-    } else {
-      const moves = resourceMoves(props.deployedStacks, props.localStacks);
-      this.ambiguousMoves = moves.filter(isAmbiguousMove);
-      const nonAmbiguousMoves = moves.filter((move) => !isAmbiguousMove(move));
-      this._mappings = resourceMappings(nonAmbiguousMoves);
-    }
+    const moves = resourceMoves(props.deployedStacks, props.localStacks);
+    const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(props.overrides ?? [], moves);
+    this.ambiguousMoves = ambiguousMoves;
+    this._mappings = resourceMappings(nonAmbiguousMoves);
   }
 
   public get ambiguousPaths(): [string[], string[]][] {
@@ -177,4 +173,51 @@ function equalSets<A>(a: Set<A>, b: Set<A>) {
     }
   }
   return true;
+}
+
+/**
+ * Partitions a list of moves into non-ambiguous and ambiguous moves.
+ * @param overrides - The list of overrides to disambiguate moves
+ * @param moves - a pair of lists of moves. First: non-ambiguous, second: ambiguous
+ */
+function partitionByAmbiguity(overrides: ResourceMapping[], moves: ResourceMove[]): [ResourceMove[], ResourceMove[]] {
+  const ambiguous: ResourceMove[] = [];
+  const nonAmbiguous: ResourceMove[] = [];
+
+  for (let move of moves) {
+    if (!isAmbiguousMove(move)) {
+      nonAmbiguous.push(move);
+    } else {
+      for (const override of overrides) {
+        const resolvedMove = resolve(override, move);
+        if (resolvedMove != null) {
+          nonAmbiguous.push(resolvedMove);
+          move = remove(override, move);
+        }
+      }
+      // One last chance to be non-ambiguous
+      if (!isAmbiguousMove(move)) {
+        nonAmbiguous.push(move);
+      } else {
+        ambiguous.push(move);
+      }
+    }
+  }
+
+  function resolve(override: ResourceMapping, move: ResourceMove): ResourceMove | undefined {
+    const [pre, post] = move;
+    const source = pre.find((loc) => loc.equalTo(override.source));
+    const destination = post.find((loc) => loc.equalTo(override.destination));
+    return (source && destination) ? [[source], [destination]] : undefined;
+  }
+
+  function remove(override: ResourceMapping, move: ResourceMove): ResourceMove {
+    const [pre, post] = move;
+    return [
+      pre.filter(loc => !loc.equalTo(override.source)),
+      post.filter(loc => !loc.equalTo(override.destination)),
+    ];
+  }
+
+  return [nonAmbiguous, ambiguous];
 }

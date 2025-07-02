@@ -1441,18 +1441,11 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * If specified, CDK will use the given file to exclude resources from the refactor
+   * A file that declares overrides to be applied to the list of mappings computed by the CLI.
    *
-   * @default - undefined
+   * @default - no overrides
    */
-  readonly excludeFile?: string;
-
-  /**
-   * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
-   *
-   * @default - undefined
-   */
-  readonly mappingFile?: string;
+  readonly overrideFile?: string;
 
   /**
    * If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.
