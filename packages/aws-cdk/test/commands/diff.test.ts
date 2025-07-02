@@ -1426,10 +1426,10 @@ describe('stack display names', () => {
     });
 
     // THEN
-    const output = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
 
     // Verify that the logical ID is shown when display name is not available
-    expect(output).toContain('Stack NoDisplayNameStack');
+    expect(plainTextOutput).toContain('Stack NoDisplayNameStack');
 
     expect(exitCode).toBe(0);
   });
