@@ -1,5 +1,5 @@
 import type { IIoHost } from '@aws-cdk/toolkit-lib';
-import type { ITelemetryClient } from './client-interface';
+import type { ITelemetrySink } from './client-interface';
 import type { TelemetrySchema } from './schema';
 import { IoHelper } from '../../api-private';
 
@@ -16,7 +16,7 @@ export interface IoHostTelemetryClientProps {
 /**
  * A telemetry client that collects events and flushes them to stdout.
  */
-export class IoHostTelemetryClient implements ITelemetryClient {
+export class IoHostTelemetryClient implements ITelemetrySink {
   private ioHost: IoHelper;
 
   /**
@@ -43,5 +43,9 @@ export class IoHostTelemetryClient implements ITelemetryClient {
       await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
       return false;
     }
+  }
+
+  public async flush(): Promise<void> {
+    return;
   }
 }
