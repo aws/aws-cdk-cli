@@ -1443,7 +1443,7 @@ export interface RefactorOptions {
   /**
    * A file that declares overrides to be applied to the list of mappings computed by the CLI.
    *
-   * @default - no overrides
+   * @default - undefined
    */
   readonly overrideFile?: string;
 
