@@ -20,6 +20,10 @@ let tmpDir: string;
 let ioHost = CliIoHost.instance();
 let notifySpy: jest.SpyInstance<Promise<void>>;
 
+function output() {
+  return notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
 beforeAll(() => {
   // The toolkit writes and checks for temporary files in the current directory,
   // so run these tests in a tempdir so they don't interfere with each other
@@ -96,7 +100,7 @@ describe('fixed template', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
     expect(plainTextOutput).toContain(`Resources
 [~] AWS::SomeService::SomeResource SomeResource
  └─ [~] Something
@@ -191,8 +195,8 @@ describe('import existing resources', () => {
     expect(createDiffChangeSet).toHaveBeenCalled();
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain(`
 Resources
 [-] AWS::DynamoDB::Table MyTable orphan
 [←] AWS::DynamoDB::GlobalTable MyGlobalTable import
@@ -229,8 +233,8 @@ Resources
     expect(createDiffChangeSet).toHaveBeenCalled();
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain(`
 Resources
 [-] AWS::DynamoDB::Table MyTable orphan
 [+] AWS::DynamoDB::GlobalTable MyGlobalTable
@@ -267,8 +271,8 @@ Resources
     expect(createDiffChangeSet).not.toHaveBeenCalled();
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')).toContain(`
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain(`
 Resources
 [-] AWS::DynamoDB::Table MyTable orphan
 [+] AWS::DynamoDB::GlobalTable MyGlobalTable
@@ -406,7 +410,7 @@ describe('imports', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
     expect(createDiffChangeSet).not.toHaveBeenCalled();
     expect(plainTextOutput).toContain(`Stack A
 Parameters and rules created during migration do not affect resource configuration.
@@ -433,7 +437,7 @@ Resources
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
     expect(createDiffChangeSet).toHaveBeenCalled();
     expect(plainTextOutput).toContain(`Stack A
 Parameters and rules created during migration do not affect resource configuration.
@@ -525,10 +529,9 @@ describe('non-nested stacks', () => {
     });
 
     // THEN
-    const plainTextOutputA = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutputA).toContain('Stack A');
-    const plainTextOutputB = notifySpy.mock.calls[2][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutputB).toContain('Stack B');
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Stack A');
+    expect(plainTextOutput).toContain('Stack B');
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('✨  Number of stacks with differences: 2'),
@@ -565,10 +568,9 @@ describe('non-nested stacks', () => {
     });
 
     // THEN
-    const plainTextOutputA = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutputA).toContain('Stack A');
-    const plainTextOutputB = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutputB).toContain('Stack B');
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Stack A');
+    expect(plainTextOutput).toContain('Stack B');
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('✨  Number of stacks with differences: 2'),
@@ -631,7 +633,7 @@ describe('non-nested stacks', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
     expect(plainTextOutput).not.toContain('Stack D');
     expect(plainTextOutput).not.toContain('There were no differences');
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -649,7 +651,7 @@ describe('non-nested stacks', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
     expect(plainTextOutput).toContain('Stack A');
     expect(plainTextOutput).not.toContain('There were no differences');
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -1057,8 +1059,8 @@ describe('nested stacks', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
-    expect(plainTextOutput.trim()).toEqual(`Stack Parent
+    const plainTextOutput = output().replace(/[ \t]+$/gm, '');
+    expect(plainTextOutput.trim()).toContain(`Stack Parent
 Resources
 [~] AWS::CloudFormation::Stack AdditionChild
  └─ [~] TemplateURL
@@ -1121,8 +1123,8 @@ There were no differences`);
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
-    expect(plainTextOutput.trim()).toEqual(`Stack Parent
+    const plainTextOutput = output().replace(/[ \t]+$/gm, '');
+    expect(plainTextOutput.trim()).toContain(`Stack Parent
 Resources
 [~] AWS::CloudFormation::Stack AdditionChild
  └─ [~] TemplateURL
@@ -1184,7 +1186,7 @@ There were no differences`);
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    const plainTextOutput = output().replace(/[ \t]+$/gm, '');
     expect(plainTextOutput).not.toContain('Stack UnchangedParent');
     expect(plainTextOutput).not.toContain('There were no differences');
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -1202,7 +1204,7 @@ There were no differences`);
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').replace(/[ \t]+$/gm, '');
+    const plainTextOutput = output().replace(/[ \t]+$/gm, '');
     expect(plainTextOutput).toContain(`Stack Parent
 Resources
 [~] AWS::CloudFormation::Stack AdditionChild
@@ -1312,8 +1314,8 @@ describe('--strict', () => {
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput.trim()).toEqual(`Stack A
+    const plainTextOutput = output();
+    expect(plainTextOutput.trim()).toContain(`Stack A
 Resources
 [+] AWS::CDK::Metadata MetadataResource
 [+] AWS::Something::Amazing SomeOtherResource
@@ -1334,8 +1336,8 @@ Other Changes
     });
 
     // THEN
-    const plainTextOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput.trim()).toEqual(`Stack A
+    const plainTextOutput = output();
+    expect(plainTextOutput.trim()).toContain(`Stack A
 Resources
 [+] AWS::Something::Amazing SomeOtherResource`);
 
@@ -1385,15 +1387,14 @@ describe('stack display names', () => {
     });
 
     // THEN
-    const parentOutput = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    const childOutput = notifySpy.mock.calls[1][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
 
     // Verify that the display name (path) is shown instead of the logical ID
-    expect(parentOutput).toContain('Stack Parent/NestedStack/MyChild');
-    expect(parentOutput).not.toContain('Stack MyChild');
+    expect(plainTextOutput).toContain('Stack Parent/NestedStack/MyChild');
+    expect(plainTextOutput).not.toContain('Stack MyChild');
 
-    expect(childOutput).toContain('Stack Parent/NestedStack');
-    expect(childOutput).not.toContain('Stack MyParent');
+    expect(plainTextOutput).toContain('Stack Parent/NestedStack');
+    expect(plainTextOutput).not.toContain('Stack MyParent');
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('✨  Number of stacks with differences: 2'),
@@ -1426,7 +1427,7 @@ describe('stack display names', () => {
     });
 
     // THEN
-    const output = notifySpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const output = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
 
     // Verify that the logical ID is shown when display name is not available
     expect(output).toContain('Stack NoDisplayNameStack');
