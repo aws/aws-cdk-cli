@@ -55,14 +55,12 @@ export class EndpointTelemetryClient implements ITelemetrySink {
   /**
    * Add an event to the collection.
    */
-  public async emit(event: TelemetrySchema): Promise<boolean> {
+  public async emit(event: TelemetrySchema): Promise<void> {
     try {
       this.events.push(event);
-      return true;
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
       await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
-      return false;
     }
   }
 

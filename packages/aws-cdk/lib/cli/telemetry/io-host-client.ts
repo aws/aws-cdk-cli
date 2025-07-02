@@ -17,31 +17,28 @@ export interface IoHostTelemetryClientProps {
  * A telemetry client that collects events and flushes them to stdout.
  */
 export class IoHostTelemetryClient implements ITelemetrySink {
-  private ioHost: IoHelper;
+  private ioHelper: IoHelper;
 
   /**
    * Create a new StdoutTelemetryClient
    */
   constructor(props: IoHostTelemetryClientProps) {
-    this.ioHost = IoHelper.fromActionAwareIoHost(props.ioHost);
+    this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
   }
 
   /**
    * Emit an event
    */
-  public async emit(event: TelemetrySchema): Promise<boolean> {
+  public async emit(event: TelemetrySchema): Promise<void> {
     try {
       // Format the events as a JSON string with pretty printing
       const output = JSON.stringify(event, null, 2);
 
       // Write to IoHost
-      await this.ioHost.defaults.info(`--- TELEMETRY EVENT ---\n${output}\n-----------------------\n`);
-
-      return true;
+      await this.ioHelper.defaults.trace(`--- TELEMETRY EVENT ---\n${output}\n-----------------------\n`);
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
-      await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
-      return false;
+      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
     }
   }
 

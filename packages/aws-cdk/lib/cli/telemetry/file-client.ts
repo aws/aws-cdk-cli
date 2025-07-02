@@ -24,42 +24,40 @@ export interface FileTelemetryClientProps {
  * A telemetry client that collects events writes them to a file
  */
 export class FileTelemetryClient implements ITelemetrySink {
-  private ioHost: IoHelper;
+  private ioHelper: IoHelper;
   private logFilePath: string;
 
   /**
    * Create a new FileTelemetryClient
    */
   constructor(props: FileTelemetryClientProps) {
-    this.ioHost = IoHelper.fromActionAwareIoHost(props.ioHost);
+    this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.logFilePath = props.logFilePath;
+
+    if (fs.existsSync(this.logFilePath)) {
+      throw new ToolkitError(`Telemetry file already exists at ${this.logFilePath}`);
+    }
 
     // Create the file if necessary
     const directory = path.dirname(this.logFilePath);
     if (!fs.existsSync(directory)) {
       fs.mkdirSync(directory, { recursive: true });
     }
-
-    if (fs.existsSync(this.logFilePath)) {
-      throw new ToolkitError(`Telemetry file already exists at ${this.logFilePath}`);
-    }
   }
 
   /**
    * Emit an event.
    */
-  public async emit(event: TelemetrySchema): Promise<boolean> {
+  public async emit(event: TelemetrySchema): Promise<void> {
     try {
       // Format the events as a JSON string with pretty printing
       const output = JSON.stringify(event, null, 2);
 
       // Write to file
       fs.appendFileSync(this.logFilePath, output);
-      return true;
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
-      await this.ioHost.defaults.warn(`Failed to add telemetry event: ${e.message}`);
-      return false;
+      await this.ioHelper.defaults.warn(`Failed to add telemetry event: ${e.message}`);
     }
   }
 
