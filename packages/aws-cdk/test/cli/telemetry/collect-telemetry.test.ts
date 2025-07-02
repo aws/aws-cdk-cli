@@ -2,7 +2,7 @@ import { Context } from '../../../lib/api/context';
 import { canCollectTelemetry } from '../../../lib/cli/telemetry/collect-telemetry';
 
 describe(canCollectTelemetry, () => {
-  let context: Context; 
+  let context: Context;
   beforeEach(() => {
     context = new Context();
   });
