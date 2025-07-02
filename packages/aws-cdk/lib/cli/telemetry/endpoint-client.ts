@@ -5,7 +5,7 @@ import type { UrlWithStringQuery } from 'url';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../api-private';
 import type { IIoHost } from '../io-host';
-import type { ITelemetryClient } from './client-interface';
+import type { ITelemetrySink } from './client-interface';
 import type { TelemetrySchema } from './schema';
 
 const REQUEST_ATTEMPT_TIMEOUT_MS = 2_000;
@@ -37,7 +37,7 @@ export interface EndpointTelemetryClientProps {
 /**
  * The telemetry client that hits an external endpoint.
  */
-export class EndpointTelemetryClient implements ITelemetryClient {
+export class EndpointTelemetryClient implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
   private endpoint: UrlWithStringQuery;
   private ioHost: IoHelper;
@@ -66,7 +66,7 @@ export class EndpointTelemetryClient implements ITelemetryClient {
     }
   }
 
-  public async flush() {
+  public async flush(): Promise<void> {
     if (this.events.length === 0) {
       return;
     }
