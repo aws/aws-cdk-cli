@@ -1,5 +1,5 @@
-import { EventType, SessionSchema, State, ErrorDetails } from "./schema";
-import { ITelemetrySink } from "./sink-interface";
+import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
+import type { ITelemetrySink } from './sink-interface';
 
 export interface TelemetrySessionProps {
   readonly client: ITelemetrySink;
@@ -9,7 +9,7 @@ export interface TelemetrySessionProps {
 interface TelemetryEvent {
   readonly eventType: EventType;
   readonly duration: number;
-  readonly error?: ErrorDetails,
+  readonly error?: ErrorDetails;
 }
 
 export class TelemetrySession {

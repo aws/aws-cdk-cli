@@ -1,13 +1,14 @@
-import { Duration } from '@aws-cdk/toolkit-lib';
-import { ErrorDetails } from '../telemetry/schema';
+import type { Duration } from '@aws-cdk/toolkit-lib';
 import * as make from '../../api-private';
 import type { SpanDefinition } from '../../api-private';
+import type { ErrorDetails } from '../telemetry/schema';
 
 export interface EventResult extends Duration {
   error?: ErrorDetails;
 }
 
-export interface EventStart {}
+export interface EventStart {
+}
 
 /**
  * Private message types specific to the CLI
@@ -33,7 +34,7 @@ export const CLI_PRIVATE_IO = {
     description: 'Command has finished executing',
     interface: 'EventResult',
   }),
-}
+};
 
 /**
  * Payload type of the end message must extend Duration
@@ -48,5 +49,5 @@ export const CLI_PRIVATE_SPAN = {
     name: 'Command',
     start: CLI_PRIVATE_IO.CDK_CLI_I2000,
     end: CLI_PRIVATE_IO.CDK_CLI_I2001,
-  }
+  },
 } satisfies Record<string, SpanDefinition<any, any>>;

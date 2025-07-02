@@ -30,8 +30,8 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
-import { displayVersionMessage } from './version';
 import type { ErrorDetails } from './telemetry/schema';
+import { displayVersionMessage } from './version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting

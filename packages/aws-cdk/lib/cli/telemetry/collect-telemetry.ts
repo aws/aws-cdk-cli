@@ -1,4 +1,4 @@
-import { Context } from "../../api/context";
+import type { Context } from '../../api/context';
 
 /**
  * Whether or not we collect telemetry

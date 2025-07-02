@@ -1,6 +1,6 @@
+import type { GetCallerIdentityCommandOutput } from '@aws-sdk/client-sts';
 import {
   GetCallerIdentityCommand,
-  GetCallerIdentityCommandOutput,
   STSClient,
 } from '@aws-sdk/client-sts';
 import { v5 as uuidV5 } from 'uuid';
@@ -16,7 +16,8 @@ export class AccountIdFetcher {
   /**
    * constructor for AccountIdFetcher
    */
-  constructor(private readonly stsClient = new STSClient()) {}
+  constructor(private readonly stsClient = new STSClient()) {
+  }
   fetch = async () => {
     if (this.accountIdPromise) {
       try {

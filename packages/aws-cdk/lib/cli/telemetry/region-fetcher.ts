@@ -9,10 +9,11 @@ export class RegionFetcher {
   /**
    * constructor for RegionFetcher
    */
-  constructor(private readonly stsClient = new STSClient()) {}
+  constructor(private readonly stsClient = new STSClient()) {
+  }
   fetch = async () => {
     if (this.regionPromise) {
-      return await this.regionPromise;
+      return this.regionPromise;
     }
     try {
       this.regionPromise = this.stsClient.config.region();

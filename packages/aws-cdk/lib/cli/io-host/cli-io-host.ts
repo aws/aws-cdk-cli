@@ -1,25 +1,26 @@
+import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
+import type { EventResult } from './messages';
+import { CLI_PRIVATE_IO, CLI_PRIVATE_SPAN } from './messages';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IMessageSpan } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import type { EventType, SessionSchema, ErrorDetails } from '../telemetry/schema';
-import { randomUUID } from 'node:crypto';
-import { IoHostTelemetryClient } from '../telemetry/io-host-client';
-import { getInstallationId } from '../telemetry/installation-id';
-import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
-import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
-import { RegionFetcher } from '../telemetry/region-fetcher';
 import { detectCiSystem } from '../ci-systems';
-import { CLI_PRIVATE_IO, CLI_PRIVATE_SPAN, EventResult } from './messages';
-import { Context } from '@aws-cdk/toolkit-lib/lib/api';
-import { TelemetrySession } from '../telemetry/session';
-import { getLibraryVersion } from '../telemetry/library-version';
+import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { getInstallationId } from '../telemetry/installation-id';
+import { IoHostTelemetryClient } from '../telemetry/io-host-client';
+import { getLibraryVersion } from '../telemetry/library-version';
+import { RegionFetcher } from '../telemetry/region-fetcher';
+import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
+import type { EventType, SessionSchema, ErrorDetails } from '../telemetry/schema';
+import { TelemetrySession } from '../telemetry/session';
 import { versionNumber } from '../version-util';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -211,7 +212,7 @@ export class CliIoHost implements IIoHost {
 
         // connect ctrl-c to ABORT event
         process.on('SIGINT', async () => {
-          // Send a special Error 
+          // Send a special Error
           await this.end({
             name: 'AbortedError',
           });
@@ -233,7 +234,7 @@ export class CliIoHost implements IIoHost {
   /**
    * Required for telemetry
    */
-  private async bindTelemetrySession(argv: any, context: {[key: string]: any}) {
+  private async bindTelemetrySession(argv: any, context: { [key: string]: any }) {
     // TODO: change this to EndpointTelemetryClient
     const telemetryClient = new IoHostTelemetryClient({
       ioHost: this,
@@ -662,11 +663,11 @@ function isTelemetryMessage(msg: IoMessage<unknown>) {
 
 function getEventType(msg: IoMessage<unknown>): EventType {
   switch (msg.code) {
-    case CLI_PRIVATE_IO.CDK_CLI_I1001.code: 
+    case CLI_PRIVATE_IO.CDK_CLI_I1001.code:
       return 'SYNTH';
     case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
       return 'INVOKE';
     default:
       throw new Error(`Unrecognized Telemetry Message Code: ${msg.code}`);
-  } 
+  }
 }

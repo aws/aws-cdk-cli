@@ -1,6 +1,6 @@
-import { Command } from './schema';
-import * as fs from 'fs-extra';
 import { join } from 'path';
+import * as fs from 'fs-extra';
+import type { Command } from './schema';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
@@ -12,7 +12,7 @@ export async function sanitizeCommandLineArguments(argv: any): Promise<Command> 
   const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
   const command = argv._[0];
   const path: string[] = [command];
-  const parameters: {[key: string]: string } = {};
+  const parameters: { [key: string]: string } = {};
 
   const globalOptions = Object.keys(config.globalOptions);
   const commandOptions = Object.keys(config.commands[command].options ?? {});
@@ -31,7 +31,9 @@ export async function sanitizeCommandLineArguments(argv: any): Promise<Command> 
     }
 
     // Continue if the arg name is not a global option or command option
-    if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) { continue; }
+    if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) {
+      continue;
+    }
     if (isNumberOrBoolean(argv[argName])) {
       parameters[argName] = argv[argName];
     } else {
@@ -46,8 +48,8 @@ export async function sanitizeCommandLineArguments(argv: any): Promise<Command> 
   };
 }
 
-export function sanitizeContext(context: {[key: string]: any}) {
-  const sanitizedContext: {[key: string]: boolean } = {};
+export function sanitizeContext(context: { [key: string]: any }) {
+  const sanitizedContext: { [key: string]: boolean } = {};
   for (const [flag, value] of Object.entries(context)) {
     // Falsy options include boolean false, string 'false'
     // All other inputs evaluate to true

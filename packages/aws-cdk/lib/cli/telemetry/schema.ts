@@ -39,7 +39,8 @@ export interface SessionEnvironment {
   readonly nodeVersion: string;
 }
 
-interface Environment extends SessionEnvironment {}
+interface Environment extends SessionEnvironment {
+}
 
 interface Duration {
   readonly total: number;
@@ -64,7 +65,8 @@ interface SessionProject {
   readonly dependencies?: Dependency[];
 }
 
-interface Project extends SessionProject {}
+interface Project extends SessionProject {
+}
 
 export interface TelemetrySchema {
   readonly identifiers: Identifiers;
