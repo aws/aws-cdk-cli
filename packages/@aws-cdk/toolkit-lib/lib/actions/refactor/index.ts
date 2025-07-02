@@ -1,5 +1,6 @@
 import type { ExcludeList } from '../../api/refactoring';
 import { InMemoryExcludeList, NeverExclude } from '../../api/refactoring';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 type MappingType = 'auto' | 'explicit';
 
@@ -70,11 +71,6 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * How the toolkit should obtain the mappings
-   */
-  mappingSource?: MappingSource;
-
-  /**
    * List of patterns for filtering local stacks. If no patterns are passed,
    * then all stacks, except the bootstrap stacks are considered. If you want
    * to consider all stacks (including bootstrap stacks), pass the wildcard
@@ -89,6 +85,12 @@ export interface RefactorOptions {
    * '*'.
    */
   deployedStacks?: string[];
+
+  /**
+   * List of overrides to be applied to resolve possible ambiguities in the
+   * computed list of mappings.
+   */
+  overrides?: MappingGroup[];
 }
 
 export interface MappingGroup {
@@ -113,4 +115,34 @@ export interface MappingGroup {
   resources: {
     [key: string]: string;
   };
+}
+
+export function parseMappingGroups(s: string) {
+  const mappingGroups = doParse();
+
+  // Validate that there are no duplicate destinations.
+  // By construction, there are no duplicate sources, already.
+  for (let group of mappingGroups) {
+    const destinations = new Set<string>();
+
+    for (const destination of Object.values(group.resources)) {
+      if (destinations.has(destination)) {
+        throw new ToolkitError(
+          `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
+        );
+      }
+      destinations.add(destination);
+    }
+  }
+
+  return mappingGroups;
+
+  function doParse(): MappingGroup[] {
+    const content = JSON.parse(s);
+    if (content.environments || !Array.isArray(content.environments)) {
+      return content.environments;
+    } else {
+      throw new ToolkitError("Expected an 'environments' array");
+    }
+  }
 }

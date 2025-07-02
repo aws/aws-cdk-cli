@@ -450,15 +450,10 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: 'Do not perform any changes, just show what would be done',
             default: false,
           },
-          'exclude-file': {
+          'override-file': {
             type: 'string',
             requiresArg: true,
-            desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
-          },
-          'mapping-file': {
-            type: 'string',
-            requiresArg: true,
-            desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+            desc: 'A file that declares overrides to be applied to the list of mappings computed by the CLI.',
           },
           'revert': {
             type: 'boolean',
