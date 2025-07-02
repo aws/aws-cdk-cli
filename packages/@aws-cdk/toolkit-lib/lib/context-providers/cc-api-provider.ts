@@ -101,23 +101,38 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     expectedMatchCount?: CcApiContextQuery['expectedMatchCount'],
   ): Promise<FoundResource[]> {
     try {
-      const result = await cc.listResources({
-        TypeName: typeName,
-      });
-      const found = (result.ResourceDescriptions ?? [])
-        .map(foundResourceFromCcApi)
-        .filter((r) => {
-          return Object.entries(propertyMatch).every(([propPath, expected]) => {
-            const actual = findJsonValue(r.properties, propPath);
-            return propertyMatchesFilter(actual, expected);
-          });
+      const found: FoundResource[] = [];
+      let nextToken: string | undefined = undefined;
+
+      do {
+        const result = await cc.listResources({
+          TypeName: typeName,
+          MaxResults: 100,
+          ...nextToken ? { NextToken: nextToken } : {},
         });
+
+        found.push(
+          ...(result.ResourceDescriptions ?? [])
+            .map(foundResourceFromCcApi)
+            .filter((r) => {
+              return Object.entries(propertyMatch).every(([propPath, expected]) => {
+                const actual = findJsonValue(r.properties, propPath);
+                return propertyMatchesFilter(actual, expected);
+              });
+            }),
+        );
+
+        nextToken = result.NextToken;
+
+        // This allows us to error out early, before we have consumed all pages.
+        if ((expectedMatchCount === 'at-most-one' || expectedMatchCount === 'exactly-one') && found.length > 1) {
+          const atLeast = nextToken ? 'at least ' : '';
+          throw new ContextProviderError(`Found ${atLeast}${found.length} resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}. Please narrow the search criteria`);
+        }
+      } while (nextToken);
 
       if ((expectedMatchCount === 'at-least-one' || expectedMatchCount === 'exactly-one') && found.length === 0) {
         throw new NoResultsFoundError(`Could not find any resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}.`);
-      }
-      if ((expectedMatchCount === 'at-most-one' || expectedMatchCount === 'exactly-one') && found.length > 1) {
-        throw new ContextProviderError(`Found ${found.length} resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}. Please narrow the search criteria`);
       }
 
       return found;

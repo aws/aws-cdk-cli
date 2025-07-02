@@ -36,24 +36,46 @@ export const FAKE_CREDENTIALS: SDKv3CompatibleCredentials = {
 export const FAKE_CREDENTIAL_CHAIN = createCredentialChain(() => Promise.resolve(FAKE_CREDENTIALS));
 
 // Default implementations
-export const mockAppSyncClient = mockClient(AppSyncClient);
-export const mockCloudControlClient = mockClient(CloudControlClient);
-export const mockCloudFormationClient = mockClient(CloudFormationClient);
-export const mockCloudWatchClient = mockClient(CloudWatchLogsClient);
-export const mockCodeBuildClient = mockClient(CodeBuildClient);
-export const mockEC2Client = mockClient(EC2Client);
-export const mockECRClient = mockClient(ECRClient);
-export const mockECSClient = mockClient(ECSClient);
-export const mockElasticLoadBalancingV2Client = mockClient(ElasticLoadBalancingV2Client);
-export const mockIAMClient = mockClient(IAMClient);
-export const mockKMSClient = mockClient(KMSClient);
-export const mockLambdaClient = mockClient(LambdaClient);
-export const mockRoute53Client = mockClient(Route53Client);
-export const mockS3Client = mockClient(S3Client);
-export const mockSecretsManagerClient = mockClient(SecretsManagerClient);
-export const mockSSMClient = mockClient(SSMClient);
-export const mockStepFunctionsClient = mockClient(SFNClient);
-export const mockSTSClient = mockClient(STSClient);
+export const awsMock = {
+  appSync: mockClient(AppSyncClient),
+  cloudControl: mockClient(CloudControlClient),
+  cloudFormation: mockClient(CloudFormationClient),
+  cloudWatch: mockClient(CloudWatchLogsClient),
+  codeBuild: mockClient(CodeBuildClient),
+  ec2: mockClient(EC2Client),
+  ecr: mockClient(ECRClient),
+  ecs: mockClient(ECSClient),
+  elasticLoadBalancingV2: mockClient(ElasticLoadBalancingV2Client),
+  iAM: mockClient(IAMClient),
+  kMS: mockClient(KMSClient),
+  lambda: mockClient(LambdaClient),
+  route53: mockClient(Route53Client),
+  s3: mockClient(S3Client),
+  sSM: mockClient(SSMClient),
+  sTS: mockClient(STSClient),
+  secretsManager: mockClient(SecretsManagerClient),
+  stepFunctions: mockClient(SFNClient),
+};
+
+// Global aliases for the mock clients for backwards compatibility
+export const mockAppSyncClient = awsMock.appSync;
+export const mockCloudControlClient = awsMock.cloudControl;
+export const mockCloudFormationClient = awsMock.cloudFormation;
+export const mockCloudWatchClient = awsMock.cloudWatch;
+export const mockCodeBuildClient = awsMock.codeBuild;
+export const mockEC2Client = awsMock.ec2;
+export const mockECRClient = awsMock.ecr;
+export const mockECSClient = awsMock.ecs;
+export const mockElasticLoadBalancingV2Client = awsMock.elasticLoadBalancingV2;
+export const mockIAMClient = awsMock.iAM;
+export const mockKMSClient = awsMock.kMS;
+export const mockLambdaClient = awsMock.lambda;
+export const mockRoute53Client = awsMock.route53;
+export const mockS3Client = awsMock.s3;
+export const mockSSMClient = awsMock.sSM;
+export const mockSTSClient = awsMock.sTS;
+export const mockSecretsManagerClient = awsMock.secretsManager;
+export const mockStepFunctionsClient = awsMock.stepFunctions;
 
 /**
  * Resets clients back to defaults and resets the history
@@ -67,22 +89,9 @@ export const mockSTSClient = mockClient(STSClient);
 export const restoreSdkMocksToDefault = () => {
   applyToAllMocks('reset');
 
-  mockAppSyncClient.onAnyCommand().resolves({});
-  mockCloudControlClient.onAnyCommand().resolves({});
-  mockCloudFormationClient.onAnyCommand().resolves({});
-  mockCloudWatchClient.onAnyCommand().resolves({});
-  mockCodeBuildClient.onAnyCommand().resolves({});
-  mockEC2Client.onAnyCommand().resolves({});
-  mockECRClient.onAnyCommand().resolves({});
-  mockECSClient.onAnyCommand().resolves({});
-  mockElasticLoadBalancingV2Client.onAnyCommand().resolves({});
-  mockIAMClient.onAnyCommand().resolves({});
-  mockKMSClient.onAnyCommand().resolves({});
-  mockLambdaClient.onAnyCommand().resolves({});
-  mockRoute53Client.onAnyCommand().resolves({});
-  mockS3Client.onAnyCommand().resolves({});
-  mockSecretsManagerClient.onAnyCommand().resolves({});
-  mockSSMClient.onAnyCommand().resolves({});
+  for (const mock of Object.values(awsMock)) {
+    (mock as any).onAnyCommand().resolves({});
+  }
 };
 
 /**
@@ -102,23 +111,9 @@ export function undoAllSdkMocks() {
 }
 
 function applyToAllMocks(meth: 'reset' | 'restore') {
-  mockAppSyncClient[meth]();
-  mockCloudFormationClient[meth]();
-  mockCloudWatchClient[meth]();
-  mockCodeBuildClient[meth]();
-  mockEC2Client[meth]();
-  mockECRClient[meth]();
-  mockECSClient[meth]();
-  mockElasticLoadBalancingV2Client[meth]();
-  mockIAMClient[meth]();
-  mockKMSClient[meth]();
-  mockLambdaClient[meth]();
-  mockRoute53Client[meth]();
-  mockS3Client[meth]();
-  mockSecretsManagerClient[meth]();
-  mockSSMClient[meth]();
-  mockStepFunctionsClient[meth]();
-  mockSTSClient[meth]();
+  for (const mock of Object.values(awsMock)) {
+    mock[meth]();
+  }
 }
 
 export const setDefaultSTSMocks = () => {
