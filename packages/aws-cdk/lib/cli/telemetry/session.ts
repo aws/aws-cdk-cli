@@ -93,7 +93,7 @@ export class TelemetrySession {
     await this.client.flush();
   }
 
-  public async emit(event: TelemetryEvent): Promise<boolean> {
+  public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
     return this.client.emit({
       event: {
