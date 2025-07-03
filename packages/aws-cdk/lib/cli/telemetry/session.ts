@@ -46,7 +46,7 @@ export class TelemetrySession {
     });
 
     // sanitize the raw cli input
-    const command = sanitizeCommandLineArguments(this.props.arguments);
+    const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
     this._sessionInfo = {
       identifiers: {
         installationId: getInstallationId(this.ioHost.asIoHelper()),
@@ -59,8 +59,8 @@ export class TelemetrySession {
       },
       event: {
         command: {
-          path: command.path,
-          parameters: command.parameters,
+          path,
+          parameters,
           config: sanitizeContext(this.props.context),
         },
       },

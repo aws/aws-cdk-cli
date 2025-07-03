@@ -1,13 +1,12 @@
 import { join } from 'path';
 import * as fs from 'fs-extra';
-import type { Command } from './schema';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
 /**
  * argv is the output of yargs
  */
-export function sanitizeCommandLineArguments(argv: any): Command {
+export function sanitizeCommandLineArguments(argv: any): { path: string[], parameters: {[key: string]: string }} {
   // Get the configuration of the arguments
   const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
   const command = argv._[0];
@@ -44,7 +43,6 @@ export function sanitizeCommandLineArguments(argv: any): Command {
   return {
     path,
     parameters,
-    config: {},
   };
 }
 
