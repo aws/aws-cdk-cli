@@ -319,7 +319,7 @@ export class CliIoHost implements IIoHost {
         });
       }
     } catch (e: any) {
-      this.defaults.debug(`Emit Telemetry Failed ${e.message}`);
+      this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
     }
   }
 
