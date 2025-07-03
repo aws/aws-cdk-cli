@@ -281,17 +281,17 @@ export class CliIoHost implements IIoHost {
    * The caller waits until the notification completes.
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
+    await this.maybeEmitTelemetry(msg);
+
     if (this._internalIoHost) {
       return this._internalIoHost.notify(msg);
     }
-
-    await this.maybeEmitTelemetry(msg);
 
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
         this.activityPrinter = this.makeActivityPrinter();
       }
-      await this.activityPrinter.notify(msg);
+      this.activityPrinter.notify(msg);
       return;
     }
 
