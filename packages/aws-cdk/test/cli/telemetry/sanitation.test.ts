@@ -84,5 +84,4 @@ describe(sanitizeCommandLineArguments, () => {
       parameters: { 'require-approval': '<redacted>', 'build-exclude': '<redacted>' },
     });
   });
-
 });
