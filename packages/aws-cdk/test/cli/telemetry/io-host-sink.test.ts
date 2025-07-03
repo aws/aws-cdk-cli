@@ -1,4 +1,5 @@
 import { PassThrough } from 'stream';
+import { IoHelper } from '../../../lib/api-private';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
@@ -74,6 +75,19 @@ describe('IoHostTelemetrySink', () => {
         total: 0,
       },
     };
+
+    // Create a mock IoHelper that writes to stderr like the original
+    const mockIoHelper = {
+      defaults: {
+        trace: async (message: string) => {
+          mockStderr(message);
+        },
+      },
+    };
+
+    // Mock IoHelper.fromActionAwareIoHost to return our mock
+    jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
+
     const client = new IoHostTelemetrySink({ ioHost });
 
     // WHEN
@@ -81,5 +95,66 @@ describe('IoHostTelemetrySink', () => {
 
     // THEN
     expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('--- TELEMETRY EVENT ---'));
+  });
+
+  test('handles errors gracefully and logs to trace without throwing', async () => {
+    // GIVEN
+    const testEvent: TelemetrySchema = {
+      identifiers: {
+        cdkCliVersion: '1.0.0',
+        telemetryVersion: '1.0.0',
+        sessionId: 'test-session',
+        eventId: 'test-event',
+        installationId: 'test-installation',
+        timestamp: new Date().toISOString(),
+      },
+      event: {
+        state: 'SUCCEEDED',
+        eventType: 'test',
+        command: {
+          path: ['test'],
+          parameters: [],
+          config: { foo: 'bar' },
+        },
+      },
+      environment: {
+        os: {
+          platform: 'test',
+          release: 'test',
+        },
+        ci: false,
+        nodeVersion: process.version,
+      },
+      project: {},
+      duration: {
+        total: 0,
+      },
+    };
+
+    // Create a mock IoHelper with trace spy
+    const traceSpy = jest.fn();
+    const mockIoHelper = {
+      defaults: {
+        trace: traceSpy,
+      },
+    };
+
+    // Mock IoHelper.fromActionAwareIoHost to return our mock
+    jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
+
+    const client = new IoHostTelemetrySink({ ioHost });
+
+    // Mock JSON.stringify to throw an error
+    jest.spyOn(JSON, 'stringify').mockImplementation(() => {
+      throw new Error('JSON stringify error');
+    });
+
+    // WHEN & THEN
+    await expect(client.emit(testEvent)).resolves.not.toThrow();
+
+    // Verify that the error was logged to trace
+    expect(traceSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to add telemetry event:'),
+    );
   });
 });

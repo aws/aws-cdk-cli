@@ -1,5 +1,6 @@
 import * as https from 'https';
 import { parse } from 'url';
+import { IoHelper } from '../../../lib/api-private';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../lib/cli/telemetry/endpoint-sink';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
@@ -53,6 +54,10 @@ describe('EndpointTelemetrySink', () => {
     ioHost = CliIoHost.instance();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   // Helper to create a mock request object with the necessary event handlers
   function setupMockRequest() {
     // Create a mock response object with a successful status code
@@ -102,7 +107,8 @@ describe('EndpointTelemetrySink', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload.length,
       },
-      timeout: 2000,
+      agent: undefined,
+      timeout: 500,
     }, expect.anything());
 
     expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
@@ -153,7 +159,8 @@ describe('EndpointTelemetrySink', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload.length,
       },
-      timeout: 2000,
+      agent: undefined,
+      timeout: 500,
     }, expect.anything());
 
     expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
@@ -185,7 +192,8 @@ describe('EndpointTelemetrySink', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload1.length,
       },
-      timeout: 2000,
+      agent: undefined,
+      timeout: 500,
     }, expect.anything());
 
     const expectedPayload2 = JSON.stringify([testEvent2]);
@@ -198,7 +206,8 @@ describe('EndpointTelemetrySink', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload2.length,
       },
-      timeout: 2000,
+      agent: undefined,
+      timeout: 500,
     }, expect.anything());
   });
 
@@ -257,7 +266,8 @@ describe('EndpointTelemetrySink', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload1.length,
       },
-      timeout: 2000,
+      agent: undefined,
+      timeout: 500,
     }, expect.anything());
 
     const expectedPayload2 = JSON.stringify([testEvent2]);
@@ -270,7 +280,8 @@ describe('EndpointTelemetrySink', () => {
         'content-type': 'application/json',
         'content-length': expectedPayload1.length + expectedPayload2.length - 1,
       },
-      timeout: 2000,
+      agent: undefined,
+      timeout: 500,
     }, expect.anything());
   });
 
@@ -309,5 +320,39 @@ describe('EndpointTelemetrySink', () => {
     // Clean up
     jest.useRealTimers();
     setIntervalSpy.mockRestore();
+  });
+
+  test('handles errors gracefully and logs to trace without throwing', async () => {
+    // GIVEN
+    const testEvent = createTestEvent('test');
+
+    // Create a mock IoHelper with trace spy
+    const traceSpy = jest.fn();
+    const mockIoHelper = {
+      defaults: {
+        trace: traceSpy,
+      },
+    };
+
+    // Mock IoHelper.fromActionAwareIoHost to return our mock
+    jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
+
+    const endpoint = parse('https://example.com/telemetry');
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+
+    // Mock https.request to throw an error
+    (https.request as jest.Mock).mockImplementation(() => {
+      throw new Error('Network error');
+    });
+
+    await client.emit(testEvent);
+
+    // WHEN & THEN - flush should not throw even when https.request fails
+    await expect(client.flush()).resolves.not.toThrow();
+
+    // Verify that the error was logged to trace
+    expect(traceSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Telemetry Error: POST example.com/telemetry:'),
+    );
   });
 });
