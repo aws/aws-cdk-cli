@@ -6,7 +6,7 @@ import { IoHelper } from '../../api-private';
 /**
  * Properties for the StdoutTelemetryClient
  */
-export interface IoHostTelemetryClientProps {
+export interface IoHostTelemetrySinkProps {
   /**
    * Where messages are going to be sent
    */
@@ -16,13 +16,13 @@ export interface IoHostTelemetryClientProps {
 /**
  * A telemetry client that collects events and flushes them to stdout.
  */
-export class IoHostTelemetryClient implements ITelemetrySink {
+export class IoHostTelemetrySink implements ITelemetrySink {
   private ioHelper: IoHelper;
 
   /**
    * Create a new StdoutTelemetryClient
    */
-  constructor(props: IoHostTelemetryClientProps) {
+  constructor(props: IoHostTelemetrySinkProps) {
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
   }
 

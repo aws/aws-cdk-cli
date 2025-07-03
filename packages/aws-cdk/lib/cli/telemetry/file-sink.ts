@@ -8,7 +8,7 @@ import { IoHelper } from '../../api-private';
 /**
  * Properties for the FileTelemetryClient
  */
-export interface FileTelemetryClientProps {
+export interface FileTelemetrySinkProps {
   /**
    * Where messages are going to be sent
    */
@@ -23,14 +23,14 @@ export interface FileTelemetryClientProps {
 /**
  * A telemetry client that collects events writes them to a file
  */
-export class FileTelemetryClient implements ITelemetrySink {
+export class FileTelemetrySink implements ITelemetrySink {
   private ioHelper: IoHelper;
   private logFilePath: string;
 
   /**
    * Create a new FileTelemetryClient
    */
-  constructor(props: FileTelemetryClientProps) {
+  constructor(props: FileTelemetrySinkProps) {
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.logFilePath = props.logFilePath;
 

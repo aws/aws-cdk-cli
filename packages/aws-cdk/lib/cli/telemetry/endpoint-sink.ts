@@ -13,7 +13,7 @@ const REQUEST_ATTEMPT_TIMEOUT_MS = 500;
 /**
  * Properties for the Endpoint Telemetry Client
  */
-export interface EndpointTelemetryClientProps {
+export interface EndpointTelemetrySinkProps {
   /**
    * The external endpoint to hit
    */
@@ -37,13 +37,13 @@ export interface EndpointTelemetryClientProps {
 /**
  * The telemetry client that hits an external endpoint.
  */
-export class EndpointTelemetryClient implements ITelemetrySink {
+export class EndpointTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
   private endpoint: UrlWithStringQuery;
   private ioHelper: IoHelper;
   private agent?: Agent;
 
-  public constructor(props: EndpointTelemetryClientProps) {
+  public constructor(props: EndpointTelemetrySinkProps) {
     this.endpoint = props.endpoint;
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.agent = props.agent;
