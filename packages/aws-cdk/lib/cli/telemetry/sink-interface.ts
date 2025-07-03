@@ -10,7 +10,7 @@ export interface ITelemetrySink {
   /**
    * Recieve an event
    */
-  emit(event: TelemetrySchema): Promise<boolean>;
+  emit(event: TelemetrySchema): Promise<void>;
 
   /**
    * If the implementer of ITelemetrySink batches events,
