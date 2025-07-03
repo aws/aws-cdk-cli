@@ -12,7 +12,7 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import * as version from './version';
+import { displayVersion, isDeveloperBuild, versionNumber } from './version-util';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -30,6 +30,8 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
+import type { ErrorDetails } from './telemetry/schema';
+import { displayVersionMessage } from './version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -55,13 +57,29 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     }
   }
 
+  const configuration = new Configuration({
+    commandLineArguments: {
+      ...argv,
+      _: argv._ as [Command, ...string[]], // TypeScript at its best
+    },
+  });
+  await configuration.load();
+
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
     isTTY: process.stdout.isTTY,
     isCI: Boolean(argv.ci),
     currentAction: cmd,
     stackProgress: argv.progress,
+    arguments: argv,
+    context: configuration.context,
   }, true);
+
+  try {
+    await ioHost.telemetry?.begin();
+  } catch (e: any) {
+    ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+  }
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -77,16 +95,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  await ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
-
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
-  });
-  await configuration.load();
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
@@ -104,7 +114,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
     httpOptions: { agent: proxyAgent },
-    cliVersion: version.versionNumber(),
+    cliVersion: versionNumber(),
   });
   const refreshNotices = (async () => {
     // the cdk notices command has it's own refresh
@@ -165,7 +175,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await version.displayVersionMessage();
+    await displayVersionMessage();
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -493,7 +503,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return ioHost.defaults.result(version.displayVersion());
+        return ioHost.defaults.result(displayVersion());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
@@ -622,17 +632,27 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 
 /* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
+  let error: ErrorDetails | undefined;
   exec(args)
     .then(async (value) => {
       if (typeof value === 'number') {
         process.exitCode = value;
       }
     })
-    .catch((err) => {
+    .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      prettyPrintError(err, version.isDeveloperBuild());
+      prettyPrintError(err, isDeveloperBuild());
+      error = err;
       process.exitCode = 1;
+    })
+    .finally(() => {
+      if (!error && process.exitCode === 1) {
+        // The existence of an error determines if telemetry is successful or not so we create a
+        // dummy error in the event that exit code is 1 but no error is thrown
+        error = { name: 'ExitCode1Error' };
+      }
+      CliIoHost.get()?.telemetry?.end(error);
     });
 }
 /* c8 ignore stop */

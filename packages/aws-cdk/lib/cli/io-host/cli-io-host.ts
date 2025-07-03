@@ -2,11 +2,16 @@ import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
+import { CLI_PRIVATE_IO } from './messages';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
+import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import type { EventType } from '../telemetry/schema';
+import { TelemetrySession } from '../telemetry/session';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -72,6 +77,20 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
+
+  /**
+   * Raw arguments supplied to the command
+   *
+   * @default - no arguments
+   */
+  readonly arguments?: any;
+
+  /**
+   * Context values
+   *
+   * @default - no context
+   */
+  readonly context?: Context;
 }
 
 /**
@@ -90,6 +109,13 @@ export class CliIoHost implements IIoHost {
     if (forceNew || !CliIoHost._instance) {
       CliIoHost._instance = new CliIoHost(props);
     }
+    return CliIoHost._instance;
+  }
+
+  /**
+   * Returns the singleton instance if it exists
+   */
+  static get(): CliIoHost | undefined {
     return CliIoHost._instance;
   }
 
@@ -145,6 +171,8 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  public telemetry?: TelemetrySession;
+
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
     this.isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
@@ -153,6 +181,14 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+
+    if (props.context && canCollectTelemetry(props.context)) {
+      this.telemetry = new TelemetrySession({
+        ioHost: this,
+        arguments: props.arguments,
+        context: props.context,
+      });
+    }
   }
 
   /**
@@ -245,6 +281,8 @@ export class CliIoHost implements IIoHost {
    * The caller waits until the notification completes.
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
+    await this.maybeEmitTelemetry(msg);
+
     if (this._internalIoHost) {
       return this._internalIoHost.notify(msg);
     }
@@ -253,7 +291,7 @@ export class CliIoHost implements IIoHost {
       if (!this.activityPrinter) {
         this.activityPrinter = this.makeActivityPrinter();
       }
-      await this.activityPrinter.notify(msg);
+      this.activityPrinter.notify(msg);
       return;
     }
 
@@ -269,6 +307,20 @@ export class CliIoHost implements IIoHost {
     const output = this.formatMessage(msg);
     const stream = this.selectStream(msg);
     stream?.write(output);
+  }
+
+  private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
+    try {
+      if (this.telemetry && isTelemetryMessage(msg)) {
+        await this.telemetry.emit({
+          eventType: getEventType(msg),
+          duration: msg.data.duration,
+          error: msg.data.error,
+        });
+      }
+    } catch (e: any) {
+      this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
+    }
   }
 
   /**
@@ -518,4 +570,19 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
 
 function isNoticesMessage(msg: IoMessage<unknown>) {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
+}
+
+function isTelemetryMessage(msg: IoMessage<unknown>) {
+  return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg);
+}
+
+function getEventType(msg: IoMessage<unknown>): EventType {
+  switch (msg.code) {
+    case CLI_PRIVATE_IO.CDK_CLI_I1001.code:
+      return 'SYNTH';
+    case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
+      return 'INVOKE';
+    default:
+      throw new Error(`Unrecognized Telemetry Message Code: ${msg.code}`);
+  }
 }

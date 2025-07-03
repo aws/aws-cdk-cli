@@ -21,7 +21,7 @@ export { cli, exec } from './cli/cli';
 export { cliRootDir as rootDir } from './cli/root-dir';
 export { Command, Configuration, PROJECT_CONTEXT } from './cli/user-configuration';
 export { formatAsBanner } from './cli/util/console-formatters';
-export { versionNumber } from './cli/version';
+export { versionNumber } from './cli/version-util';
 
 // Commands
 export { RequireApproval } from '@aws-cdk/cloud-assembly-schema';

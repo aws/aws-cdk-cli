@@ -6,33 +6,15 @@ import * as fs from 'fs-extra';
 import * as semver from 'semver';
 import { debug, info } from '../logging';
 import { cdkCacheDir } from '../util';
-import { cliRootDir } from './root-dir';
 import { formatAsBanner } from './util/console-formatters';
 import { execNpmView } from './util/npm';
+import { versionNumber } from './version-util';
 
 const ONE_DAY_IN_SECONDS = 1 * 24 * 60 * 60;
 
 const UPGRADE_DOCUMENTATION_LINKS: Record<number, string> = {
   1: 'https://docs.aws.amazon.com/cdk/v2/guide/migrating-v2.html',
 };
-
-export function displayVersion() {
-  return `${versionNumber()} (build ${commit()})`;
-}
-
-export function isDeveloperBuild(): boolean {
-  return versionNumber() === '0.0.0';
-}
-
-export function versionNumber(): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require(path.join(cliRootDir(), 'package.json')).version.replace(/\+[0-9a-f]+$/, '');
-}
-
-function commit(): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require(path.join(cliRootDir(), 'build-info.json')).commit;
-}
 
 export class VersionCheckTTL {
   public static timestampFilePath(): string {
