@@ -2,10 +2,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { CliIoHost } from '../../../lib/cli/io-host';
-import { FileTelemetryClient } from '../../../lib/cli/telemetry/file-client';
+import { FileTelemetrySink } from '../../../lib/cli/telemetry/file-sink';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 
-describe('FileTelemetryClient', () => {
+describe('FileTelemetrySink', () => {
   let tempDir: string;
   let logFilePath: string;
   let ioHost: CliIoHost;
@@ -59,7 +59,7 @@ describe('FileTelemetryClient', () => {
         total: 0,
       },
     };
-    const client = new FileTelemetryClient({ logFilePath, ioHost });
+    const client = new FileTelemetrySink({ logFilePath, ioHost });
 
     // WHEN
     await client.emit(testEvent);
@@ -69,5 +69,53 @@ describe('FileTelemetryClient', () => {
     const fileContent = fs.readFileSync(logFilePath, 'utf8');
     const parsedContent = JSON.parse(fileContent);
     expect(parsedContent).toEqual(testEvent);
+  });
+
+  test('appends data to a file', async () => {
+    // GIVEN
+    const testEvent: TelemetrySchema = {
+      identifiers: {
+        cdkCliVersion: '1.0.0',
+        telemetryVersion: '1.0.0',
+        sessionId: 'test-session',
+        eventId: 'test-event',
+        installationId: 'test-installation',
+        timestamp: new Date().toISOString(),
+      },
+      event: {
+        state: 'SUCCEEDED',
+        eventType: 'test',
+        command: {
+          path: ['test'],
+          parameters: [],
+          config: { foo: 'bar' },
+        },
+      },
+      environment: {
+        os: {
+          platform: 'test',
+          release: 'test',
+        },
+        ci: false,
+        nodeVersion: process.version,
+      },
+      project: {},
+      duration: {
+        total: 0,
+      },
+    };
+    const client = new FileTelemetrySink({ logFilePath, ioHost });
+
+    // WHEN
+    await client.emit(testEvent);
+    await client.emit(testEvent);
+
+    // THEN
+    expect(fs.existsSync(logFilePath)).toBe(true);
+    const fileContent = fs.readFileSync(logFilePath, 'utf8');
+    
+    // The file should contain two JSON objects, each pretty-printed with a newline
+    const expectedSingleEvent = JSON.stringify(testEvent, null, 2) + '\n';
+    expect(fileContent).toBe(expectedSingleEvent + expectedSingleEvent);
   });
 });

@@ -51,7 +51,7 @@ export class FileTelemetrySink implements ITelemetrySink {
   public async emit(event: TelemetrySchema): Promise<void> {
     try {
       // Format the events as a JSON string with pretty printing
-      const output = JSON.stringify(event, null, 2);
+      const output = JSON.stringify(event, null, 2) + '\n';
 
       // Write to file
       fs.appendFileSync(this.logFilePath, output);

@@ -1,7 +1,7 @@
 import * as https from 'https';
 import { parse } from 'url';
 import { CliIoHost } from '../../../lib/cli/io-host';
-import { EndpointTelemetryClient } from '../../../lib/cli/telemetry/endpoint-client';
+import { EndpointTelemetrySink } from '../../../lib/cli/telemetry/endpoint-sink';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 
 // Mock the https module
@@ -44,7 +44,7 @@ function createTestEvent(eventType: string, properties: Record<string, any> = {}
   };
 }
 
-describe('EndpointTelemetryClient', () => {
+describe('EndpointTelemetrySink', () => {
   let ioHost: CliIoHost;
 
   beforeEach(() => {
@@ -85,7 +85,7 @@ describe('EndpointTelemetryClient', () => {
     const mockRequest = setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
     const testEvent = createTestEvent('test', { foo: 'bar' });
-    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
 
     // WHEN
     await client.emit(testEvent);
@@ -113,7 +113,7 @@ describe('EndpointTelemetryClient', () => {
     const mockRequest = setupMockRequest();
     const endpoint = parse('https://example.com/telemetry');
     const testEvent = createTestEvent('test');
-    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
 
     mockRequest.on.mockImplementation((event, callback) => {
       if (event === 'error') {
@@ -134,7 +134,7 @@ describe('EndpointTelemetryClient', () => {
     const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('test1', { foo: 'bar' });
     const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
-    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
 
     // WHEN
     await client.emit(testEvent1);
@@ -165,7 +165,7 @@ describe('EndpointTelemetryClient', () => {
     const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('test1', { foo: 'bar' });
     const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
-    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
 
     // WHEN
     await client.emit(testEvent1);
@@ -232,7 +232,7 @@ describe('EndpointTelemetryClient', () => {
     const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('test1', { foo: 'bar' });
     const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
-    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
 
     // WHEN
     await client.emit(testEvent1);
@@ -284,7 +284,7 @@ describe('EndpointTelemetryClient', () => {
     const setIntervalSpy = jest.spyOn(global, 'setInterval');
 
     // Create the client
-    const client = new EndpointTelemetryClient({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint, ioHost });
 
     // Create a spy on the flush method
     const flushSpy = jest.spyOn(client, 'flush');

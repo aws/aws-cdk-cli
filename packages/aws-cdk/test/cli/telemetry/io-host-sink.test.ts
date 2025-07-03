@@ -1,6 +1,6 @@
 import { PassThrough } from 'stream';
 import { CliIoHost } from '../../../lib/cli/io-host';
-import { IoHostTelemetryClient } from '../../../lib/cli/telemetry/io-host-client';
+import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 
 let passThrough: PassThrough;
@@ -8,7 +8,7 @@ let passThrough: PassThrough;
 // Mess with the 'process' global so we can replace its 'process.stdin' member
 global.process = { ...process };
 
-describe('IoHostTelemetryClient', () => {
+describe('IoHostTelemetrySink', () => {
   let mockStdout: jest.Mock;
   let mockStderr: jest.Mock;
   let ioHost: CliIoHost;
@@ -74,7 +74,7 @@ describe('IoHostTelemetryClient', () => {
         total: 0,
       },
     };
-    const client = new IoHostTelemetryClient({ ioHost });
+    const client = new IoHostTelemetrySink({ ioHost });
 
     // WHEN
     await client.emit(testEvent);
