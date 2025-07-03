@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -6,22 +5,13 @@ import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, Tool
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import type { EventResult } from './messages';
-import { CLI_PRIVATE_IO, CLI_PRIVATE_SPAN } from './messages';
-import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IMessageSpan } from '../../../lib/api-private';
+import { CLI_PRIVATE_IO } from './messages';
+import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import { detectCiSystem } from '../ci-systems';
-import { AccountIdFetcher } from '../telemetry/account-id-fetcher';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
-import { getInstallationId } from '../telemetry/installation-id';
-import { IoHostTelemetryClient } from '../telemetry/io-host-client';
-import { getLibraryVersion } from '../telemetry/library-version';
-import { RegionFetcher } from '../telemetry/region-fetcher';
-import { sanitizeCommandLineArguments, sanitizeContext } from '../telemetry/sanitation-utils';
-import type { EventType, SessionSchema, ErrorDetails } from '../telemetry/schema';
+import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
-import { versionNumber } from '../version-util';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -181,10 +171,7 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  private telemetrySession?: TelemetrySession;
-  private commandSpan?: IMessageSpan<EventResult>;
-  private readonly arguments?: any;
-  private readonly context?: Context;
+  public telemetry?: TelemetrySession;
 
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
@@ -194,86 +181,14 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
-    this.arguments = props.arguments;
-    this.context = props.context;
-  }
 
-  /**
-   * Asynchronous constuction that needs to be called right after construction.
-   */
-  public async begin() {
-    if (true) {
-      this.commandSpan = await this.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
-
-      // Cannot collect telemetry without these properties
-      if (this.context && this.arguments !== undefined && canCollectTelemetry(this.context)) {
-        // start the telemetry session
-        await this.bindTelemetrySession(this.arguments, this.context.all);
-
-        // connect ctrl-c to ABORT event
-        process.on('SIGINT', async () => {
-          // Send a special Error
-          await this.end({
-            name: 'AbortedError',
-          });
-        });
-      }
+    if (props.context && canCollectTelemetry(props.context)) {
+      this.telemetry = new TelemetrySession({
+        ioHost: this,
+        arguments: props.arguments,
+        context: props.context,
+      });
     }
-  }
-
-  /**
-   * When the command is complete, so is the CliIoHost. Ends the span of the entire CliIoHost
-   * and notifies with an optional error message in the data.
-   */
-  public async end(error?: ErrorDetails) {
-    await this.commandSpan?.end({ error });
-    this.commandSpan = undefined;
-    this.telemetrySession?.flush();
-  }
-
-  /**
-   * Required for telemetry
-   */
-  private async bindTelemetrySession(argv: any, context: { [key: string]: any }) {
-    // TODO: change this to EndpointTelemetryClient
-    const telemetryClient = new IoHostTelemetryClient({
-      ioHost: this,
-    });
-
-    // sanitize the raw cli input
-    const command = await sanitizeCommandLineArguments(argv);
-    const telemetryInfo: SessionSchema = {
-      identifiers: {
-        installationId: getInstallationId(this.asIoHelper()),
-        sessionId: randomUUID(),
-        telemetryVersion: '1.0',
-        cdkCliVersion: versionNumber(),
-        cdkLibraryVersion: await getLibraryVersion(this.asIoHelper()),
-        accountId: await new AccountIdFetcher().fetch(),
-        region: await new RegionFetcher().fetch(),
-      },
-      event: {
-        command: {
-          path: command.path,
-          parameters: command.parameters,
-          config: sanitizeContext(context),
-        },
-      },
-      environment: {
-        ci: isCI() || Boolean(detectCiSystem()),
-        os: {
-          platform: process.platform,
-          release: process.release.name,
-        },
-        nodeVersion: process.version,
-      },
-      project: {},
-    };
-
-    this.telemetrySession = new TelemetrySession({
-      client: telemetryClient,
-      info: telemetryInfo,
-    });
   }
 
   /**
@@ -396,8 +311,8 @@ export class CliIoHost implements IIoHost {
 
   private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
     try {
-      if (this.telemetrySession && isTelemetryMessage(msg)) {
-        await this.telemetrySession.emit({
+      if (this.telemetry && isTelemetryMessage(msg)) {
+        await this.telemetry.emit({
           eventType: getEventType(msg),
           duration: msg.data.duration,
           error: msg.data.error,

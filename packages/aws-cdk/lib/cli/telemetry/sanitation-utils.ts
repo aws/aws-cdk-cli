@@ -7,7 +7,7 @@ export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 /**
  * argv is the output of yargs
  */
-export async function sanitizeCommandLineArguments(argv: any): Promise<Command> {
+export function sanitizeCommandLineArguments(argv: any): Command {
   // Get the configuration of the arguments
   const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
   const command = argv._[0];

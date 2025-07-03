@@ -74,7 +74,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     arguments: argv,
     context: configuration.context,
   }, true);
-  await ioHost.begin();
+
+  try {
+    await ioHost.telemetry?.begin();
+  } catch (e: any) {
+    ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+  }
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -647,7 +652,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
         // dummy error in the event that exit code is 1 but no error is thrown
         error = { name: 'ExitCode1Error' };
       }
-      CliIoHost.get()?.end(error);
+      CliIoHost.get()?.telemetry?.end(error);
     });
 }
 /* c8 ignore stop */
