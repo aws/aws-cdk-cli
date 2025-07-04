@@ -14,6 +14,8 @@ export interface CloudFormationTemplate {
     [logicalId: string]: CloudFormationResource;
   };
   Outputs?: Record<string, any>;
+  Rules?: Record<string, any>;
+  Parameters?: Record<string, any>;
 }
 
 export interface CloudFormationStack {

@@ -54,6 +54,18 @@ export function generateStackDefinitions(
     return !deployedStack || !deepEqual(localStack.template, deployedStack.template);
   });
 
+  // For stacks created by the refactor, CloudFormation does not allow Rules or Parameters
+  for (const stack of stacksToProcess) {
+    if (!deployedStacks.some(deployed => deployed.stackName === stack.stackName)) {
+      if ('Rules' in stack.template) {
+        delete stack.template.Rules;
+      }
+      if ('Parameters' in stack.template) {
+        delete stack.template.Parameters;
+      }
+    }
+  }
+
   return stacksToProcess.map((stack) => ({
     StackName: stack.stackName,
     TemplateBody: JSON.stringify(stack.template),

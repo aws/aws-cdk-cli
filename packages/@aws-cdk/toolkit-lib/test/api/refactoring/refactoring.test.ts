@@ -1416,4 +1416,103 @@ describe(generateStackDefinitions, () => {
       },
     ]);
   });
+
+  test('Rules and Parameters are removed for new stacks', () => {
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Bar',
+            },
+          },
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Zee',
+            },
+          },
+        },
+      },
+    };
+
+    const localStack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Bar',
+            },
+          },
+        },
+      },
+    };
+
+    const localStack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          // Moved out of the original stack to a new one.
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Zee',
+            },
+          },
+        },
+        Rules: {
+          CheckBootstrapVersion: {
+            Assertions: [],
+          },
+        },
+        Parameters: {
+          BootstrapVersion: {
+            Type: 'AWS::SSM::Parameter::Value<String>',
+            Default: '/cdk-bootstrap/hnb659fds/version',
+            Description: 'Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket2'), new ResourceLocation(localStack2, 'Bucket2')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket1: {
+              Type: 'AWS::S3::Bucket',
+              Properties: {
+                Foo: 'Bar',
+              },
+            },
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        // No Rules or Parameters, even though they are present in the local stack
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+              Properties: { Foo: 'Zee' },
+            },
+          },
+        }),
+      },
+    ]);
+  });
 });
