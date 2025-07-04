@@ -1,8 +1,14 @@
 import type { Environment } from '@aws-cdk/cx-api';
+import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import type { SDK } from '../aws-auth/sdk';
+import type { SdkProvider } from '../aws-auth/sdk-provider';
+import { EnvironmentResourcesRegistry } from '../environment';
+import type { IoHelper } from '../io/private';
+import { Mode } from '../plugin';
 
 /**
  * Represents a set of possible moves of a resource from one location
@@ -48,6 +54,56 @@ export class RefactoringContext {
 
   public get mappings(): ResourceMapping[] {
     return this._mappings;
+  }
+
+  public async execute(stackDefinitions: StackDefinition[], sdkProvider: SdkProvider, ioHelper: IoHelper): Promise<void> {
+    if (this.mappings.length === 0) {
+      return;
+    }
+
+    const sdk = (await sdkProvider.forEnvironment(this.environment, Mode.ForWriting)).sdk;
+
+    await this.checkBootstrapVersion(sdk, ioHelper);
+
+    const cfn = sdk.cloudFormation();
+    const mappings = this.mappings;
+
+    const input = {
+      EnableStackCreation: true,
+      ResourceMappings: mappings.map((m) => m.toCloudFormation()),
+      StackDefinitions: stackDefinitions,
+    };
+    const refactor = await cfn.createStackRefactor(input);
+
+    await cfn.waitUntilStackRefactorCreateComplete({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+
+    await cfn.executeStackRefactor({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+
+    await cfn.waitUntilStackRefactorExecuteComplete({
+      StackRefactorId: refactor.StackRefactorId,
+    });
+  }
+
+  private async checkBootstrapVersion(sdk: SDK, ioHelper: IoHelper) {
+    const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
+    const envResources = environmentResourcesRegistry.for(this.environment, sdk, ioHelper);
+    let bootstrapVersion: number | undefined = undefined;
+    try {
+      // Try to get the bootstrap version
+      bootstrapVersion = (await envResources.lookupToolkit()).version;
+    } catch (e) {
+      // But if we can't, keep going. Maybe we can still succeed.
+    }
+    if (bootstrapVersion != null && bootstrapVersion < 28) {
+      const environment = `aws://${this.environment.account}/${this.environment.region}`;
+      throw new ToolkitError(
+        `The CDK toolkit stack in environment ${environment} doesn't support refactoring. Please run 'cdk bootstrap ${environment}' to update it.`,
+      );
+    }
   }
 }
 

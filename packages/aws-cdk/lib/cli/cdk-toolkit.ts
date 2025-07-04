@@ -1229,6 +1229,7 @@ export class CdkToolkit {
         dryRun: options.dryRun,
         localStacks: options.localStacks,
         deployedStacks: options.deployedStacks,
+        force: options.force,
         mappingSource: await mappingSource(),
       });
     } catch (e) {
@@ -2021,6 +2022,11 @@ export interface RefactorOptions {
    * '*'.
    */
   deployedStacks?: string[];
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
 }
 
 /**

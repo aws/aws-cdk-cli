@@ -112,6 +112,7 @@
     "cdk-from-cfn": "^0.222.0",
     "chalk": "^4",
     "chokidar": "^3",
+    "fast-deep-equal": "^3.1.3",
     "fs-extra": "^9",
     "glob": "^11.0.3",
     "minimatch": "10.0.3",
