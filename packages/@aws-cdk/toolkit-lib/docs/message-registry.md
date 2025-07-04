@@ -125,6 +125,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I8900` | Refactor result | `result` | {@link RefactorResult} |
 | `CDK_TOOLKIT_W8010` | Refactor execution not yet supported | `warn` | n/a |
 | `CDK_TOOLKIT_I9000` | Provides bootstrap times | `info` | {@link Duration} |

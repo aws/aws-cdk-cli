@@ -16,7 +16,6 @@ export interface RefactorManagerOptions {
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
   mappings?: ResourceMapping[];
-  filteredStacks?: CloudFormationStack[];
 }
 
 /**
@@ -33,16 +32,10 @@ export class RefactoringContext {
       this._mappings = props.mappings;
     } else {
       const moves = resourceMoves(props.deployedStacks, props.localStacks);
-      this.ambiguousMoves = ambiguousMoves(moves);
-
-      if (!this.isAmbiguous) {
-        this._mappings = resourceMappings(resourceMoves(props.deployedStacks, props.localStacks), props.filteredStacks);
-      }
+      this.ambiguousMoves = moves.filter(isAmbiguousMove);
+      const nonAmbiguousMoves = moves.filter((move) => !isAmbiguousMove(move));
+      this._mappings = resourceMappings(nonAmbiguousMoves);
     }
-  }
-
-  public get isAmbiguous(): boolean {
-    return this.ambiguousMoves.length > 0;
   }
 
   public get ambiguousPaths(): [string[], string[]][] {
@@ -54,24 +47,36 @@ export class RefactoringContext {
   }
 
   public get mappings(): ResourceMapping[] {
-    if (this.isAmbiguous) {
-      throw new ToolkitError(
-        'Cannot access mappings when there are ambiguous resource moves. Please resolve the ambiguity first.',
-      );
-    }
     return this._mappings;
   }
 }
 
 function resourceMoves(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMove[] {
-  return Object.values(
-    removeUnmovedResources(zip(groupByKey(resourceDigests(before)), groupByKey(resourceDigests(after)))),
-  );
+  const digestsBefore = resourceDigests(before);
+  const digestsAfter = resourceDigests(after);
+
+  if (!isomorphic(digestsBefore, digestsAfter)) {
+    const message = 'A refactor operation cannot add, remove or update resources. ' +
+      'Only resource moves and renames are allowed. ' +
+      "Run 'cdk diff' to compare the local templates to the deployed stacks.";
+    throw new ToolkitError(message);
+  }
+
+  return Object.values(removeUnmovedResources(zip(digestsBefore, digestsAfter)));
 }
 
-function removeUnmovedResources(m: Record<string, ResourceMove>): Record<string, ResourceMove> {
+/**
+ * Whether two sets of resources have the same elements (uniquely identified by the digest), and
+ * each element is in the same number of locations. The locations themselves may be different.
+ */
+function isomorphic(a: Record<string, ResourceLocation[]>, b: Record<string, ResourceLocation[]>): boolean {
+  const sameKeys = equalSets(new Set(Object.keys(a)), new Set(Object.keys(b)));
+  return sameKeys && Object.entries(a).every(([digest, locations]) => locations.length === b[digest].length);
+}
+
+function removeUnmovedResources(moves: Record<string, ResourceMove>): Record<string, ResourceMove> {
   const result: Record<string, ResourceMove> = {};
-  for (const [hash, [before, after]] of Object.entries(m)) {
+  for (const [hash, [before, after]] of Object.entries(moves)) {
     const common = before.filter((b) => after.some((a) => a.equalTo(b)));
     result[hash] = [
       before.filter((b) => !common.some((c) => b.equalTo(c))),
@@ -109,24 +114,10 @@ function zip(
   return result;
 }
 
-function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
-  const result: Record<string, A[]> = {};
-
-  for (const [hash, location] of entries) {
-    if (hash in result) {
-      result[hash].push(location);
-    } else {
-      result[hash] = [location];
-    }
-  }
-
-  return result;
-}
-
 /**
  * Computes a list of pairs [digest, location] for each resource in the stack.
  */
-function resourceDigests(stacks: CloudFormationStack[]): [string, ResourceLocation][] {
+function resourceDigests(stacks: CloudFormationStack[]): Record<string, ResourceLocation[]> {
   // index stacks by name
   const stacksByName = new Map<string, CloudFormationStack>();
   for (const stack of stacks) {
@@ -135,35 +126,55 @@ function resourceDigests(stacks: CloudFormationStack[]): [string, ResourceLocati
 
   const digests = computeResourceDigests(stacks);
 
-  return Object.entries(digests).map(([loc, digest]) => {
-    const [stackName, logicalId] = loc.split('.');
-    const location: ResourceLocation = new ResourceLocation(stacksByName.get(stackName)!, logicalId);
-    return [digest, location];
-  });
+  return groupByKey(
+    Object.entries(digests).map(([loc, digest]) => {
+      const [stackName, logicalId] = loc.split('.');
+      const location: ResourceLocation = new ResourceLocation(stacksByName.get(stackName)!, logicalId);
+      return [digest, location];
+    }),
+  );
+
+  function groupByKey<A>(entries: [string, A][]): Record<string, A[]> {
+    const result: Record<string, A[]> = {};
+
+    for (const [key, value] of entries) {
+      if (key in result) {
+        result[key].push(value);
+      } else {
+        result[key] = [value];
+      }
+    }
+
+    return result;
+  }
 }
 
-function ambiguousMoves(movements: ResourceMove[]) {
+function isAmbiguousMove(move: ResourceMove): boolean {
+  const [pre, post] = move;
+
   // A move is considered ambiguous if two conditions are met:
   //  1. Both sides have at least one element (otherwise, it's just addition or deletion)
   //  2. At least one side has more than one element
-  return movements
-    .filter(([pre, post]) => pre.length > 0 && post.length > 0)
-    .filter(([pre, post]) => pre.length > 1 || post.length > 1);
+  return pre.length > 0 && post.length > 0 && (pre.length > 1 || post.length > 1);
 }
 
-function resourceMappings(movements: ResourceMove[], stacks?: CloudFormationStack[]): ResourceMapping[] {
-  const stacksPredicate =
-    stacks == null
-      ? () => true
-      : (m: ResourceMapping) => {
-        // Any movement that involves one of the selected stacks (either moving from or to)
-        // is considered a candidate for refactoring.
-        const stackNames = [m.source.stack.stackName, m.destination.stack.stackName];
-        return stacks.some((stack) => stackNames.includes(stack.stackName));
-      };
-
+function resourceMappings(movements: ResourceMove[]): ResourceMapping[] {
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
-    .map(([pre, post]) => new ResourceMapping(pre[0], post[0]))
-    .filter(stacksPredicate);
+    .map(([pre, post]) => new ResourceMapping(pre[0], post[0]));
+}
+
+/**
+ * Are two sets equal to each other
+ */
+function equalSets<A>(a: Set<A>, b: Set<A>) {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const x of a) {
+    if (!b.has(x)) {
+      return false;
+    }
+  }
+  return true;
 }
