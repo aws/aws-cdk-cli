@@ -1,39 +1,100 @@
 import * as fs from 'fs';
 import * as path from 'path';
+// import { CreateSecretCommand, DeleteSecretCommand } from '@aws-sdk/client-secrets-manager';
 import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+// eslint-disable-next-line import/no-relative-packages
+import type { DockerDomainCredentialSource } from '../../../../../@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
+import type { TestFixture } from '../../../lib';
 import { integTest, withDefaultFixture } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
-  'docker-credential-cdk-assets can be invoked as a program',
+  'docker-credential-cdk-assets can assume role and fetch ECR credentials',
   withDefaultFixture(async (fixture) => {
-    await fixture.shell(['npm', 'init', '-y']);
-    await fixture.shell(['npm', 'install', 'cdk-assets@latest']);
+    const caller = await fixture.aws.sts.send(new GetCallerIdentityCommand({}));
 
-    const caller = await fixture.aws.sts.send(new GetCallerIdentityCommand());
-    const domain = 'integ.test.domain';
-    const credsFilePath = path.join(fixture.integTestDir, 'cdk-docker-creds.json');
-
-    fs.writeFileSync(credsFilePath, JSON.stringify({
-      version: '1.0',
-      domainCredentials: {
-        [domain]: {
-          ecrRepository: true,
-          roleArn: caller.Arn,
-        },
+    const roleArn = await fixture.aws.temporaryRole('ecr-repo-role', [
+      {
+        Action: 'sts:AssumeRole',
+        Effect: 'Allow',
+        Principal: { AWS: caller.Account },
       },
-    }));
-
-    const input = path.join(fixture.integTestDir, 'input.txt');
-    fs.writeFileSync(input, `${domain}\n`);
-
-    await fixture.shell(['node', './node_modules/cdk-assets/bin/docker-credential-cdk-assets', 'get'], {
-      modEnv: {
-        ...fixture.cdkShellEnv(),
-        CDK_DOCKER_CREDS_FILE: credsFilePath,
+    ], [
+      {
+        Effect: 'Allow',
+        Resource: '*',
+        Action: ['ecr:GetAuthorizationToken'],
       },
-      stdio: [fs.openSync(input, 'r')],
+    ]);
+
+    await fixture.aws.waitForAssumeRole(roleArn);
+
+    await testDockerCredential(fixture, {
+      ecrRepository: true,
+      // This role must have permissions to call `ecr:GetAuthorizationToken`
+      assumeRoleArn: roleArn,
     });
   }),
 );
+
+/*
+
+// SKIPPED FOR NOW
+// Requires SecretsManager permissions on the role that's executing this, and that's
+// too much to set up right now.
+
+integTest(
+  'docker-credential-cdk-assets read from SecretsManager',
+  withDefaultFixture(async (fixture) => {
+    const secret = await fixture.aws.secretsManager.send(new CreateSecretCommand({
+      Name: `our-secret-${fixture.randomString}`,
+      SecretString: JSON.stringify({
+        username: 'test-user',
+        password: 'test-password',
+      }),
+    }));
+    fixture.aws.addCleanup(() => fixture.aws.secretsManager.send(new DeleteSecretCommand({
+      SecretId: secret.ARN,
+    })));
+
+    await testDockerCredential(fixture, {
+      secretsManagerSecretId: secret.ARN,
+      secretsUsernameField: 'username',
+      secretsPasswordField: 'password',
+    });
+  }),
+);
+
+*/
+
+async function testDockerCredential(fixture: TestFixture, credSource: DockerDomainCredentialSource) {
+  const domain = 'integ.test.domain';
+  const credsFilePath = path.join(fixture.integTestDir, 'cdk-docker-creds.json');
+
+  fs.writeFileSync(credsFilePath, JSON.stringify({
+    version: '1.0',
+    domainCredentials: {
+      [domain]: credSource,
+    },
+  }));
+
+  const input = path.join(fixture.integTestDir, 'input.txt');
+  fs.writeFileSync(input, `${domain}\n`);
+
+  await fixture.cdkAssets.makeCliAvailable();
+  const output = await fixture.shell(['docker-credential-cdk-assets', 'get'], {
+    modEnv: {
+      ...fixture.cdkShellEnv(),
+      CDK_DOCKER_CREDS_FILE: credsFilePath,
+    },
+    stdio: [fs.openSync(input, 'r')],
+    captureStderr: false,
+  });
+
+  const response = JSON.parse(output);
+  expect(response).toMatchObject({
+    Username: expect.anything(),
+    Secret: expect.anything(),
+  });
+}

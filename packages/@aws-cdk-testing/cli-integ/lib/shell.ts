@@ -227,7 +227,10 @@ export class ShellHelper {
   constructor(
     private readonly _cwd: string,
     private readonly _output: NodeJS.WritableStream) {
+  }
 
+  public get dockerConfigDir() {
+    return path.join(this._cwd, '.docker');
   }
 
   public async shell(command: string[], options: Omit<ShellOptions, 'cwd' | 'outputs'> = {}): Promise<string> {
@@ -238,7 +241,7 @@ export class ShellHelper {
       modEnv: {
         // give every shell its own docker config directory
         // so that parallel runs don't interfere with each other.
-        DOCKER_CONFIG: path.join(this._cwd, '.docker'),
+        DOCKER_CONFIG: this.dockerConfigDir,
         ...options.modEnv,
       },
     });

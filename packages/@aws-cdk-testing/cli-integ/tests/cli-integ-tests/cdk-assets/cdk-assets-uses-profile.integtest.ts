@@ -8,8 +8,7 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest('cdk-assets uses profile when specified', withDefaultFixture(async (fixture) => {
   const currentCreds = await fixture.aws.credentials();
 
-  await fixture.shell(['npm', 'init', '-y']);
-  await fixture.shell(['npm', 'install', 'cdk-assets@latest']);
+  await fixture.cdkAssets.makeCliAvailable();
 
   const account = await fixture.aws.account();
   const region = fixture.aws.region;
@@ -73,7 +72,7 @@ aws_secret_access_key=${currentCreds.secretAccessKey}
 aws_session_token=${currentCreds.sessionToken}`);
 
   await fs.writeFile(path.join(fixture.integTestDir, 'assets.json'), JSON.stringify(assetsJson, undefined, 2));
-  await fixture.shell(['npx', 'cdk-assets', '--path', 'assets.json', 'publish', '--profile', profile], {
+  await fixture.shell(['cdk-assets', '--path', 'assets.json', 'publish', '--profile', profile], {
     modEnv: {
       ...fixture.cdkShellEnv(),
       AWS_SHARED_CREDENTIALS_FILE: credentialsFile,

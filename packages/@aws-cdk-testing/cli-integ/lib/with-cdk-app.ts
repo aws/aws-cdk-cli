@@ -319,6 +319,7 @@ export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
   private readonly bucketsToDelete = new Array<string>();
   public readonly cli: ITestCliSource;
+  public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
 
   constructor(
@@ -331,6 +332,7 @@ export class TestFixture extends ShellHelper {
 
     this.qualifier = this.randomString.slice(0, 10);
     this.cli = testSource('cli');
+    this.cdkAssets = testSource('cdkAssets');
     this.library = testSource('library');
   }
 

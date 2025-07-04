@@ -8,7 +8,7 @@ import {
 import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
 import { ECSClient } from '@aws-sdk/client-ecs';
-import { IAMClient } from '@aws-sdk/client-iam';
+import { CreateRoleCommand, DeleteRoleCommand, DeleteRolePolicyCommand, IAMClient, ListRolePoliciesCommand, PutRolePolicyCommand } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import {
   S3Client,
@@ -17,27 +17,31 @@ import {
   type ObjectIdentifier,
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SNSClient } from '@aws-sdk/client-sns';
 import { SSOClient } from '@aws-sdk/client-sso';
-import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
-import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
+import type { AwsCredentialIdentity, AwsCredentialIdentityProvider, NodeHttpHandlerOptions } from '@smithy/types';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
+
 interface ClientConfig {
   readonly credentials: AwsCredentialIdentityProvider | AwsCredentialIdentity;
   readonly region: string;
   readonly retryStrategy: ConfiguredRetryStrategy;
+  readonly requestHandler?: NodeHttpHandlerOptions;
 }
 
 export class AwsClients {
-  public static async forIdentity(region: string, identity: AwsCredentialIdentity, output: NodeJS.WritableStream) {
-    return new AwsClients(region, output, identity);
+  public static async forIdentity(randomString: string, region: string, identity: AwsCredentialIdentity, output: NodeJS.WritableStream) {
+    return new AwsClients(randomString, region, output, identity);
   }
 
-  public static async forRegion(region: string, output: NodeJS.WritableStream) {
-    return new AwsClients(region, output);
+  public static async forRegion(randomString: string, region: string, output: NodeJS.WritableStream) {
+    return new AwsClients(randomString, region, output);
   }
 
+  private readonly cleanup: (() => Promise<void>)[] = [];
   private readonly config: ClientConfig;
 
   public readonly cloudFormation: CloudFormationClient;
@@ -50,8 +54,11 @@ export class AwsClients {
   public readonly iam: IAMClient;
   public readonly lambda: LambdaClient;
   public readonly sts: STSClient;
+  public readonly secretsManager: SecretsManagerClient;
 
-  constructor(
+  private constructor(
+    /** A random string to use for temporary resources, like roles (should preferably match unique test-specific randomString) */
+    private readonly randomString: string,
     public readonly region: string,
     private readonly output: NodeJS.WritableStream,
     public readonly identity?: AwsCredentialIdentity) {
@@ -60,6 +67,7 @@ export class AwsClients {
       region: this.region,
       retryStrategy: new ConfiguredRetryStrategy(9, (attempt: number) => attempt ** 500),
     };
+
     this.cloudFormation = new CloudFormationClient(this.config);
     this.s3 = new S3Client(this.config);
     this.ecr = new ECRClient(this.config);
@@ -70,6 +78,22 @@ export class AwsClients {
     this.iam = new IAMClient(this.config);
     this.lambda = new LambdaClient(this.config);
     this.sts = new STSClient(this.config);
+    this.secretsManager = new SecretsManagerClient(this.config);
+  }
+
+  public addCleanup(cleanup: () => Promise<any>) {
+    this.cleanup.push(cleanup);
+  }
+
+  public async dispose() {
+    for (const cleanup of this.cleanup) {
+      try {
+        await cleanup();
+      } catch (e: any) {
+        this.output.write(`⚠️ Error during cleanup: ${e.message}\n`);
+      }
+    }
+    this.cleanup.splice(0, this.cleanup.length);
   }
 
   public async account(): Promise<string> {
@@ -218,6 +242,79 @@ export class AwsClients {
       }
       throw e;
     }
+  }
+
+  /**
+   * Create a role that will be cleaned up when the AwsClients object is cleaned up
+   */
+  public async temporaryRole(namePrefix: string, assumeRolePolicyStatements: any[], policyStatements: any[]) {
+    const response = await this.iam.send(new CreateRoleCommand({
+      RoleName: `${namePrefix}-${this.randomString}`,
+      AssumeRolePolicyDocument: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: assumeRolePolicyStatements,
+      }, undefined, 2),
+      Tags: [
+        {
+          Key: 'deleteme',
+          Value: 'true',
+        },
+      ],
+    }));
+    await this.iam.send(new PutRolePolicyCommand({
+      RoleName: `${namePrefix}-${this.randomString}`,
+      PolicyName: 'DefaultPolicy',
+      PolicyDocument: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: policyStatements,
+      }, undefined, 2),
+    }));
+
+    this.addCleanup(() => this.deleteRole(response.Role!.RoleName!));
+
+    return response.Role?.Arn ?? '*CreateRole did not return an ARN*';
+  }
+
+  public async waitForAssumeRole(roleArn: string) {
+    // Wait until the role has replicated
+    const deadline = Date.now() + 60_000;
+    let lastError: Error | undefined;
+    while (Date.now() < deadline) {
+      try {
+        await this.sts.send(new AssumeRoleCommand({
+          RoleArn: roleArn,
+          RoleSessionName: 'test-existence',
+        }));
+        return;
+      } catch (e: any) {
+        lastError = e;
+
+        if (e.name === 'AccessDenied') {
+          continue;
+        }
+
+        throw e;
+      }
+    }
+
+    throw new Error(`Timed out waiting for role ${roleArn} to become assumable: ${lastError}`);
+  }
+
+  public async deleteRole(name: string) {
+    const policiesResponse = await this.iam.send(new ListRolePoliciesCommand({
+      RoleName: name,
+    }));
+
+    for (const policyName of policiesResponse.PolicyNames ?? []) {
+      await this.iam.send(new DeleteRolePolicyCommand({
+        RoleName: name,
+        PolicyName: policyName,
+      }));
+    }
+
+    await this.iam.send(new DeleteRoleCommand({
+      RoleName: name,
+    }));
   }
 }
 
