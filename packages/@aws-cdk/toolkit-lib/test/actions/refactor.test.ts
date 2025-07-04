@@ -894,56 +894,6 @@ describe('refactor execution', () => {
                     'v2:deflate64:H4sIAAAAAAAA/zPSMzIw1DNQTCwv1k1OydbNyUzSqw4uSUzO1kksL44vNtardipNzk4t0XFOy4Owamt18vJTUvWyivXLjIz0DM30DBSzijMzdYtK80oyc1P1giA0AJXmpMZbAAAA',
                 },
                 Metadata: { 'aws:cdk:path': 'Stack1/CDKMetadata/Default' },
-                Condition: 'CDKMetadataAvailable',
-              },
-            },
-            Conditions: {
-              CDKMetadataAvailable: {
-                'Fn::Or': [
-                  {
-                    'Fn::Or': [
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'af-south-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-east-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-northeast-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-northeast-2'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-northeast-3'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-south-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-south-2'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-southeast-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-southeast-2'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-southeast-3'] },
-                    ],
-                  },
-                  {
-                    'Fn::Or': [
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ap-southeast-4'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ca-central-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'ca-west-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'cn-north-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'cn-northwest-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-central-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-central-2'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-north-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-south-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-south-2'] },
-                    ],
-                  },
-                  {
-                    'Fn::Or': [
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-west-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-west-2'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'eu-west-3'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'il-central-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'me-central-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'me-south-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'sa-east-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'us-east-1'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'us-east-2'] },
-                      { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'us-west-1'] },
-                    ],
-                  },
-                  { 'Fn::Equals': [{ Ref: 'AWS::Region' }, 'us-west-2'] },
-                ],
               },
             },
             Parameters: {
