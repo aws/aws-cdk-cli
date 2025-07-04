@@ -887,14 +887,6 @@ describe('refactor execution', () => {
                 DeletionPolicy: 'Retain',
                 Metadata: { 'aws:cdk:path': 'Stack1/OldLogicalID/Resource' },
               },
-              CDKMetadata: {
-                Type: 'AWS::CDK::Metadata',
-                Properties: {
-                  Analytics:
-                    'v2:deflate64:H4sIAAAAAAAA/zPSMzIw1DNQTCwv1k1OydbNyUzSqw4uSUzO1kksL44vNtardipNzk4t0XFOy4Owamt18vJTUvWyivXLjIz0DM30DBSzijMzdYtK80oyc1P1giA0AJXmpMZbAAAA',
-                },
-                Metadata: { 'aws:cdk:path': 'Stack1/CDKMetadata/Default' },
-              },
             },
             Parameters: {
               BootstrapVersion: {

@@ -25,6 +25,8 @@ export function generateStackDefinitions(
       // Otherwise, CloudFormation will consider this a modification.
       if (deployedTemplate.Resources?.CDKMetadata != null) {
         localTemplate.Resources.CDKMetadata = deployedTemplate.Resources.CDKMetadata;
+      } else {
+        delete localTemplate.Resources.CDKMetadata;
       }
 
       // For every resource in the local template, take the Metadata['aws:cdk:path'] from the corresponding resource in the deployed template.
