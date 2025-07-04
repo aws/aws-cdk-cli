@@ -1117,7 +1117,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await context.execute(stackDefinitions, sdkProvider, ioHelper);
         await notifyInfo('✅  Stack refactor complete');
       } catch (e: any) {
-        await notifyError(e.message, e);
+        await notifyError(`❌  Refactor failed: ${formatError(e)}`, e);
       }
     }
 
@@ -1149,6 +1149,22 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       function matchesEnvironment(g: MappingGroup): boolean {
         return g.account === environment.account && g.region === environment.region;
+      }
+    }
+
+    function formatError(error: any): string {
+      try {
+        const payload = JSON.parse(error.message);
+        const messages: string[] = [];
+        if (payload.reason?.StatusReason) {
+          messages.push(`Refactor creation: [${payload.reason?.Status}] ${payload.reason.StatusReason}`);
+        }
+        if (payload.reason?.ExecutionStatusReason) {
+          messages.push(`Refactor execution: [${payload.reason?.Status}] ${payload.reason.ExecutionStatusReason}`);
+        }
+        return messages.length > 0 ? messages.join('\n') : 'Unknown error';
+      } catch (e) {
+        return formatErrorMessage(error);
       }
     }
   }

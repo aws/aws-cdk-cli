@@ -1223,8 +1223,9 @@ describe('refactor execution', () => {
         action: 'refactor',
         code: 'CDK_TOOLKIT_E8900',
         level: 'error',
-        message:
+        message: expect.stringMatching(
           "The CDK toolkit stack in environment aws://123456789012/us-east-1 doesn't support refactoring. Please run 'cdk bootstrap aws://123456789012/us-east-1' to update it.",
+        ),
       }),
     );
   });
