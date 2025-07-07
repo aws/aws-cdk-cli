@@ -672,6 +672,10 @@ const cdkAssetsLib = configureProject(
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
+
+    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-assets-lib', [
+      '@aws-cdk/cloud-assembly-schema',
+    ]),
   }),
 );
 
@@ -744,6 +748,11 @@ const cdkAssetsCli = configureProject(
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+
+    releasableCommits: transitiveFeaturesAndFixes('cdk-assets', [
+      '@aws-cdk/cdk-assets-lib',
+      '@aws-cdk/cloud-assembly-schema',
+    ]),
   }),
 );
 
