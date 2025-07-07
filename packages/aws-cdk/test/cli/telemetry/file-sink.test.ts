@@ -43,11 +43,11 @@ describe('FileTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { foo: true },
         },
       },
       environment: {
@@ -88,11 +88,11 @@ describe('FileTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { foo: true },
         },
       },
       environment: {
@@ -136,11 +136,11 @@ describe('FileTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { foo: true },
         },
       },
       environment: {
