@@ -22,8 +22,10 @@ export function mockSpawn(...invocations: Invocation[]) {
   let mock = (child_process.spawn as any);
   for (const _invocation of invocations) {
     const invocation = _invocation; // Mirror into variable for closure
-    mock = mock.mockImplementationOnce((binary: string, options: child_process.SpawnOptions) => {
-      expect(binary).toEqual(invocation.commandLine);
+    mock = mock.mockImplementationOnce((command: string, args: string[] = [], options: child_process.SpawnOptions) => {
+      // Handle both old and new calling conventions
+      const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      expect(fullCommand).toEqual(invocation.commandLine);
 
       if (invocation.cwd != null) {
         expect(options.cwd).toBe(invocation.cwd);

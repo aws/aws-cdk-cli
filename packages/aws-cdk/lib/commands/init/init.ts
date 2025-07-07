@@ -368,7 +368,7 @@ async function initializeGitRepository(workDir: string) {
   try {
     await execute('git', ['init'], { cwd: workDir });
     await execute('git', ['add', '.'], { cwd: workDir });
-    await execute('git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
+    await execute('git', ['commit', '--message=Initial commit', '--no-gpg-sign'], { cwd: workDir });
   } catch {
     warning('Unable to initialize git repository for your project.');
   }
@@ -428,7 +428,7 @@ async function postInstallPython(cwd: string) {
   warning(`Please run '${python} -m venv .venv'!`);
   info(`Executing ${chalk.green('Creating virtualenv...')}`);
   try {
-    await execute(python, ['-m venv', '.venv'], { cwd });
+    await execute(python, ['-m', 'venv', '.venv'], { cwd });
   } catch {
     warning('Unable to create virtualenv automatically');
     warning(`Please run '${python} -m venv .venv'!`);
@@ -470,7 +470,7 @@ function isRoot(dir: string) {
 async function execute(cmd: string, args: string[], { cwd }: { cwd: string }) {
   const child = childProcess.spawn(cmd, args, {
     cwd,
-    shell: true,
+    shell: false,
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   let stdout = '';
