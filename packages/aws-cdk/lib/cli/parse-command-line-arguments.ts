@@ -30,6 +30,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       nargs: 1,
       requiresArg: true,
     })
+    .option('context-file', {
+      default: undefined,
+      type: 'string',
+      desc: 'Add contextual file path parameter',
+    })
     .option('plugin', {
       type: 'array',
       alias: 'p',
