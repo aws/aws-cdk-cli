@@ -1,6 +1,5 @@
 import * as child_process from 'child_process';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { CommandLine } from '@aws-cdk/toolkit-lib/lib/api/cloud-assembly/command-line';
+import { CommandLine, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { debug } from '../../logging';
 
