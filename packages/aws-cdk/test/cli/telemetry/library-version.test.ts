@@ -114,6 +114,6 @@ describe('getLibraryVersion', () => {
 
     // THEN
     expect(result).toBeUndefined();
-    expect(traceSpy).toHaveBeenCalledWith('Could not get CDK Library Version: package.json does not have verision field');
+    expect(traceSpy).toHaveBeenCalledWith('Could not get CDK Library Version: package.json does not have version field');
   });
 });

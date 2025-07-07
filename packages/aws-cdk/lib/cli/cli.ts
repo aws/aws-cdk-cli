@@ -652,6 +652,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
         // dummy error in the event that exit code is 1 but no error is thrown
         error = { name: 'ExitCode1Error' };
       }
+
       CliIoHost.get()?.telemetry?.end(error);
     });
 }

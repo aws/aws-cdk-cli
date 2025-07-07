@@ -18,7 +18,7 @@ export async function getLibraryVersion(ioHelper: IoHelper): Promise<string | un
     const pathToPackageJson = path.join(path.dirname(stdout), 'package.json');
     const packageJson = fs.readJSONSync(pathToPackageJson);
     if (!packageJson.version) {
-      ioHelper.defaults.trace('Could not get CDK Library Version: package.json does not have verision field');
+      ioHelper.defaults.trace('Could not get CDK Library Version: package.json does not have version field');
       return;
     };
   

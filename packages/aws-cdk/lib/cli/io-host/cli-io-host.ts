@@ -11,7 +11,7 @@ import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, Hist
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import type { EventType } from '../telemetry/schema';
-import { TelemetrySession } from '../telemetry/session';
+import { isCI, TelemetrySession } from '../telemetry/session';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 

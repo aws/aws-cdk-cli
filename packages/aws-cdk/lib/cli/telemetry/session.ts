@@ -76,11 +76,12 @@ export class TelemetrySession {
       project: {},
     };
 
-    // connect ctrl-c to ABORT event
+    // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
+    // This ensures that on SIGINT we process safely close the telemetry session before exiting.
     process.on('SIGINT', async () => {
-      // Send a special Error
       await this.end({
-        name: 'AbortedError',
+        name: 'ToolkitError',
+        message: 'Subprocess exited with error null',
       });
     });
   }
@@ -91,6 +92,8 @@ export class TelemetrySession {
    */
   public async end(error?: ErrorDetails) {
     await this.span?.end({ error });
+    // Ideally span.end() should no-op if called twice, but that is not the case right now
+    this.span = undefined;
     await this.client.flush();
   }
 
@@ -137,9 +140,16 @@ export class TelemetrySession {
 
 function getState(error?: ErrorDetails): State {
   if (error) {
-    return error.name === 'AbortedError' ? 'ABORTED' : 'FAILED';
+    return isAbortedError(error) ? 'ABORTED' : 'FAILED';
   }
   return 'SUCCEEDED';
+}
+
+function isAbortedError(error?: ErrorDetails) {
+  if (error?.name === 'ToolkitError' && error?.message?.includes('Subprocess exited with error null')) {
+    return true;
+  }
+  return false;
 }
 
 /**
