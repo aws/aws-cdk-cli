@@ -296,7 +296,7 @@ export async function cliInit(options: CliInitOptions) {
       options.libVersion, // CDK version override
     );
   } finally {
-    // Removes temp directories created during Git/NPM operations
+    // Remove temp directories created during Git/NPM operations
     if (tempDir) {
       await fs.remove(tempDir).catch(() => {
       });
