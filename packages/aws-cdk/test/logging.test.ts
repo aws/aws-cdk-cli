@@ -167,9 +167,9 @@ describe('logging', () => {
   describe('message codes', () => {
     test('validates message codes correctly', async () => {
       // Valid codes
-      expect(async () => await error({ message: 'test', code: 'CDK_TOOLKIT_E0001' })).not.toThrow();
-      expect(async () => await warning({ message: 'test', code: 'CDK_ASSETS_W4999' })).not.toThrow();
-      expect(async () => await info({ message: 'test', code: 'CDK_SDK_I0000' })).not.toThrow();
+      expect(async () => error({ message: 'test', code: 'CDK_TOOLKIT_E0001' })).not.toThrow();
+      expect(async () => warning({ message: 'test', code: 'CDK_ASSETS_W4999' })).not.toThrow();
+      expect(async () => info({ message: 'test', code: 'CDK_SDK_I0000' })).not.toThrow();
     });
 
     test('uses default codes when none provided', async () => {
