@@ -16,38 +16,43 @@ const camelCase = require('camelcase');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const decamelize = require('decamelize');
 
+/**
+ * Config options for the CDK init command.
+ * - Built-in templates: use 'type' (e.g., 'app', 'lib')
+ * - Local templates: use 'templatePath'
+ * - Git templates: use 'gitUrl' (optionally with 'templateName')
+ * - NPM templates: use 'npmPackage' (optionally with 'templateName')
+ */
 export interface CliInitOptions {
   readonly type?: string;
+  
   readonly language?: string;
+  
   readonly canUseNetwork?: boolean;
+  
   readonly generateOnly?: boolean;
+  
   readonly workDir?: string;
+  
   readonly stackName?: string;
+  
   readonly migrate?: boolean;
 
-  /**
-   * Override the built-in CDK version
-   */
   readonly libVersion?: string;
 
-  /**
-   * Path to a local template directory
-   */
+  // Path to a local template directory containing info.json
   readonly templatePath?: string;
 
-  /**
-   * Git repository URL containing template(s)
-   */
+  // Git repository URL containing templates
   readonly gitUrl?: string;
 
-  /**
-   * Name of the specific template to use when a repository contains multiple templates
+  /** 
+   * Template name when Git repo or NPM package contains multiple templates.
+   * Required if multiple templates found and ignored if only one template exists.
    */
   readonly templateName?: string;
 
-  /**
-   * NPM package name containing template(s)
-   */
+  // NPM package name containing templates
   readonly npmPackage?: string;
 }
 
@@ -55,22 +60,24 @@ export interface CliInitOptions {
  * Initialize a CDK package in the current directory
  */
 export async function cliInit(options: CliInitOptions) {
-  const canUseNetwork = options.canUseNetwork ?? true;
-  const generateOnly = options.generateOnly ?? false;
-  const workDir = options.workDir ?? process.cwd();
+  const canUseNetwork = options.canUseNetwork ?? true;  // Default: allow network access
+  const generateOnly = options.generateOnly ?? false;   // Default: run full initialization
+  const workDir = options.workDir ?? process.cwd();     // Default: current directory
 
+  // If no template source and language specified, display available templates
   if (!options.type && !options.language && !options.templatePath && !options.gitUrl && !options.npmPackage) {
     await printAvailableTemplates(undefined, options.templatePath);
     return;
   }
 
-  let template: InitTemplate | undefined;
-  let language = options.language;
-  let tempDir: string | undefined;
+  let template: InitTemplate | undefined;  // Will hold the loaded template object
+  let language = options.language;         // Auto detected for single language templates
+  let tempDir: string | undefined;         // Tracks temporary directories for cleanup
 
   try {
-    // Handle Git URL if provided ***//***
+    // BRANCH 1: Git Repository Template Source
     if (options.gitUrl) {
+      // Validates that network access is available for Git operations
       if (!canUseNetwork) {
         throw new ToolkitError('Cannot use Git URL without network access');
       }
@@ -78,26 +85,30 @@ export async function cliInit(options: CliInitOptions) {
       try {
         const gitUrl = options.gitUrl;
 
-        // Clone the repository
+        // Clone repository to temp directory
         tempDir = await cloneGitRepository(gitUrl);
 
-        // Find the template directory in the cloned repository
-        let templatePath = tempDir;
-        let templateName = options.templateName;
+        let templatePath = tempDir;              // Start searching from repo root
+        let templateName = options.templateName; // User specified template name
 
+        // Template discovery for Git repositories
         if (!templateName) {
-          // Check if repository root has info.json (single template at root)
+          // If no specific template name provided by user
+          // Check if repository root contains info.json which indicates single template at root
           const hasInfoJson = await fs.pathExists(path.join(tempDir, INFO_DOT_JSON));
 
           if (hasInfoJson) {
-            // Single template at repository root
+            // CASE 1: Single template at repository root
+            // Extract template name from Git URL
             templateName = path.basename(gitUrl.replace(/\.git$/, '').split('/').pop() || 'git-template');
             template = await InitTemplate.fromPath(templatePath, templateName);
           } else {
-            // Look for subdirectories with info.json
+            // CASE 2: Multiple templates in subdirectories
+            // Scan for subdirectories
             const subdirs = (await fs.readdir(tempDir)).filter(p => !p.startsWith('.'));
             const templateDirs = [];
 
+            // Find all valid template directories that contain an info.json file
             for (const subdir of subdirs) {
               const subdirPath = path.join(tempDir, subdir);
               const isDir = (await fs.stat(subdirPath)).isDirectory();
@@ -109,20 +120,23 @@ export async function cliInit(options: CliInitOptions) {
             }
 
             if (templateDirs.length === 0) {
+              // If no templates are found, throw error
               throw new ToolkitError('Git repository does not contain any valid templates');
             } else if (templateDirs.length === 1) {
-              // Only one template found, use it
+              // If only one template found, use it automatically
               templateName = templateDirs[0];
               templatePath = path.join(tempDir, templateName);
               template = await InitTemplate.fromPath(templatePath, templateName);
             } else {
-              // Multiple templates found, user must specify --template-name
+              // If multiple templates found, require user to pass in template-name
               throw new ToolkitError(`Git repository contains multiple templates: ${templateDirs.join(', ')}. Please specify --template-name`);
             }
           }
         } else {
-          // Specific template name provided
+          // If user provides specific template name via --template-name parameter
           const specificTemplatePath = path.join(tempDir, templateName);
+          
+          // Validate template exists and has required info.json
           if (await fs.pathExists(specificTemplatePath) && await fs.pathExists(path.join(specificTemplatePath, INFO_DOT_JSON))) {
             templatePath = specificTemplatePath;
             template = await InitTemplate.fromPath(templatePath, templateName);
@@ -131,39 +145,45 @@ export async function cliInit(options: CliInitOptions) {
           }
         }
 
-        // Validate that the template has at least one language directory
+        // Validate that template has at least one CDK supported language subdirectory
         if (template.languages.length === 0) {
           throw new ToolkitError('Git template must contain at least one language directory');
         }
       } catch (e: any) {
-        // Custom template failures should fail completely, not fall back to defaults
         throw new ToolkitError(`Failed to load template from Git repository: ${e.message}`);
       }
-    } else if (options.npmPackage) { // Handle NPM package if provided ***//***
+      
+    // BRANCH 2: NPM Package Template Source  
+    } else if (options.npmPackage) {
+      // Validate network access is available for NPM operations
       if (!canUseNetwork) {
         throw new ToolkitError('Cannot use NPM package without network access');
       }
 
       try {
-        // Install the NPM package
+        // Install NPM package to temporary directory
         tempDir = await installNpmPackage(options.npmPackage);
 
-        // Find the template directory in the installed package
-        let templatePath = tempDir;
-        let templateName = options.templateName;
+        let templatePath = tempDir;              // Start searching from package root
+        let templateName = options.templateName; // User specified template name
 
+        // Template discovery for NPM Packages
         if (!templateName) {
-          // Check if package contains multiple templates or single template
+          // If no specific template name provided by user
+          // Check if repository root contains info.json which indicates single template at root
           const hasInfoJson = await fs.pathExists(path.join(templatePath, INFO_DOT_JSON));
 
           if (hasInfoJson) {
-            // Single template at package root
+            // CASE 1: Single template at package root
+            // Extract template name from package name
             templateName = options.npmPackage.split('/').pop() || options.npmPackage;
           } else {
-            // Multiple templates - look for subdirectories with info.json
+            // CASE 2: Multiple templates in subdirectories
+            // Use listDirectory helper to filter out hidden files and metadata**
             const subdirs = await listDirectory(templatePath);
             const templateDirs = [];
 
+            // Find all valid template directories that contain an info.json file
             for (const subdir of subdirs) {
               const subdirPath = path.join(templatePath, subdir);
               const isDir = (await fs.stat(subdirPath)).isDirectory();
@@ -175,19 +195,22 @@ export async function cliInit(options: CliInitOptions) {
             }
 
             if (templateDirs.length === 0) {
+              // If no templates are found, throw error
               throw new ToolkitError('NPM package does not contain any valid templates');
             } else if (templateDirs.length === 1) {
-              // Only one template found, use it
+              // If only one template found, use it automatically
               templateName = templateDirs[0];
               templatePath = path.join(templatePath, templateName);
             } else {
-              // Multiple templates found, user must specify --template-name
+              // If multiple templates found, require user to pass in template-name
               throw new ToolkitError(`NPM package contains multiple templates: ${templateDirs.join(', ')}. Please specify --template-name`);
             }
           }
         } else {
-          // Specific template name provided
+          // If user provides specific template name via --template-name parameter
           const specificTemplatePath = path.join(templatePath, templateName);
+          
+          // Validate template exists and has required info.json
           if (await fs.pathExists(specificTemplatePath) && await fs.pathExists(path.join(specificTemplatePath, INFO_DOT_JSON))) {
             templatePath = specificTemplatePath;
           } else {
@@ -195,74 +218,85 @@ export async function cliInit(options: CliInitOptions) {
           }
         }
 
+        // Load the discovered template
         template = await InitTemplate.fromPath(templatePath, templateName);
 
-        // Validate that the template has at least one language directory
+        // Validate that the template has at least one CDK supported language subdirectory
         if (template.languages.length === 0) {
           throw new ToolkitError('NPM package template must contain at least one language directory');
         }
       } catch (e: any) {
-        // Custom template failures should fail completely, not fall back to defaults
         throw new ToolkitError(`Failed to load template from NPM package: ${e.message}`);
       }
-    } else if (options.templatePath) { // Handle local template path if provided ***//***
+      
+    // BRANCH 3: Local File Path Template Source
+    } else if (options.templatePath) {
       try {
+        // Get local template file path
         const templatePath = path.resolve(options.templatePath);
+        
+        // Extract template name from directory name
         const templateName = path.basename(templatePath);
 
+        // Load template directly from local file path
         template = await InitTemplate.fromPath(templatePath, templateName);
 
-        // Validate that the template has at least one language directory
+        // Validate the template has at least one CDK supported language subdirectory
         if (template.languages.length === 0) {
           throw new ToolkitError('Custom template must contain at least one language directory');
         }
       } catch (e: any) {
-        // Custom template failures should fail completely, not fall back to defaults
         throw new ToolkitError(`Failed to load template from path: ${options.templatePath}`);
       }
     }
 
-    // If no template was loaded, user will be prompted with available templates in terminal
+    // BRANCH 4: Built-in Template Source (Default/Fallback)
     if (!template) {
       if (!options.type) {
+        // If no template source and language specified, display available templates
         await printAvailableTemplates(options.language);
         throw new ToolkitError('No template specified. Please specify a template name or use a custom template option.');
       }
 
-      // Find the requested built-in template
+      // Search built-in templates (lib/init-templates/ directory) for matching name or alias
       template = (await availableInitTemplates()).find((t) => t.hasName(options.type!));
 
       if (!template) {
+        // If no built-in template found, display available options and exit
         await printAvailableTemplates(options.language);
         throw new ToolkitError(`Unknown init template: ${options.type}`);
       }
     }
 
-    // Auto-detect language for custom templates with single language
+    // Handle automatic language detection for single-language templates
     if (!language && template.languages.length === 1) {
+      // If template only supports one language, use it automatically
       language = template.languages[0];
       info(
         `No --language was provided, but '${template.name}' supports only '${language}', so defaulting to --language=${language}`,
       );
     }
+    
+    // Does final language validation to make sure one is selected at this point
     if (!language) {
+      // Display available languages for the selected template and exit
       info(`Available languages for ${chalk.green(template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
       throw new ToolkitError('No language was selected');
     }
 
     // Create the CDK project using the selected template and language
     await initializeProject(
-      template,
-      language,
-      canUseNetwork,
-      generateOnly,
-      workDir,
-      options.stackName,
-      options.migrate,
-      options.libVersion,
+      template,        // Loaded template object
+      language,        // CDK supported programming language
+      canUseNetwork,   // Whether network operations are allowed
+      generateOnly,    // Whether to skip post-install steps
+      workDir,         // Target directory for project creation
+      options.stackName,  // Custom stack name
+      options.migrate,    // Whether to add migration context
+      options.libVersion, // CDK version override
     );
   } finally {
-    // Clean up temporary directory if it was created
+    // Removes temp directories created during Git/NPM operations
     if (tempDir) {
       await fs.remove(tempDir).catch(() => {
       });
@@ -618,7 +652,19 @@ export async function printAvailableTemplates(language?: string, customTemplateP
 }
 
 /**
- * Create and set up a new CDK project from the selected template
+ * Create and set up a new CDK project from the selected template.
+ * 
+ * This is the common initialization flow used by all template sources.
+ * Handles file generation, Git setup, and language-specific post-processing.
+ * 
+ * @param template - Loaded template object (from any source)
+ * @param language - Validated programming language
+ * @param canUseNetwork - Whether network operations are allowed
+ * @param generateOnly - If true, skip post-install steps (npm install, etc.)
+ * @param workDir - Target directory for project creation
+ * @param stackName - Optional custom stack name
+ * @param migrate - Whether to add cdk-migrate context flag
+ * @param cdkVersion - Optional CDK version override
  */
 async function initializeProject(
   template: InitTemplate,
@@ -630,19 +676,32 @@ async function initializeProject(
   migrate?: boolean,
   cdkVersion?: string,
 ) {
+  // SAFETY CHECK: Ensure target directory is empty to prevent accidental overwrites
   await assertIsEmptyDirectory(workDir);
+  
+  // PHASE 1: TEMPLATE INSTALLATION
   info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
+  
+  // Core template processing: copy files, replace placeholders, run hooks
   await template.install(language, workDir, stackName, cdkVersion);
+  
+  // Add migration-specific context if requested
   if (migrate) {
     await template.addMigrateContext(workDir);
   }
+  
+  // Display README content if generated (helpful for next steps)
   if (await fs.pathExists(`${workDir}/README.md`)) {
     const readme = await fs.readFile(`${workDir}/README.md`, { encoding: 'utf-8' });
     info(chalk.green(readme));
   }
 
+  // PHASE 2: POST-INSTALLATION (skipped if generateOnly=true)
   if (!generateOnly) {
+    // Initialize Git repository and make initial commit
     await initializeGitRepository(workDir);
+    
+    // Run language-specific setup (npm install, mvn package, etc.)
     await postInstall(language, canUseNetwork, workDir);
   }
 
@@ -677,7 +736,15 @@ async function initializeGitRepository(workDir: string) {
 }
 
 /**
- * Run language-specific post-installation steps (install dependencies, etc.)
+ * Run language-specific post-installation steps (install dependencies, etc.).
+ * 
+ * This function handles the final setup phase for each supported language.
+ * Only languages with specific tooling requirements are handled here.
+ * Languages not listed (like Go, C#, F#) don't require additional setup.
+ * 
+ * @param language - Programming language requiring post-install steps
+ * @param canUseNetwork - Whether network access is available for package managers
+ * @param workDir - Project directory where commands should be executed
  */
 async function postInstall(language: string, canUseNetwork: boolean, workDir: string) {
   switch (language) {
@@ -689,6 +756,8 @@ async function postInstall(language: string, canUseNetwork: boolean, workDir: st
       return postInstallJava(canUseNetwork, workDir);
     case 'python':
       return postInstallPython(workDir);
+    // Note: Go, C#, F# don't require post-install steps
+    // Their tooling handles dependencies differently or they're self-contained
   }
 }
 
