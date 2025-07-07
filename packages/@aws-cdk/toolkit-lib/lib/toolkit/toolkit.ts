@@ -1083,13 +1083,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
         const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
 
-        if (context.ambiguousPaths.length > 0) {
-          const paths = context.ambiguousPaths;
-          await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
-          continue;
-        }
-
-        if (mappings.length === 0) {
+        if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
           await notifyInfo('Nothing to refactor.');
           continue;
         }
@@ -1099,6 +1093,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           .filter(m => m.type !== 'AWS::CDK::Metadata');
 
         await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
+
+        if (context.ambiguousPaths.length > 0) {
+          const paths = context.ambiguousPaths;
+          await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
+        }
       } catch (e: any) {
         await notifyError(e.message, e);
       }
