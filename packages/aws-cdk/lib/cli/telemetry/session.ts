@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { IMessageSpan } from '../../api-private';
 import { Context } from '../../api/context';
-import { CLI_PRIVATE_SPAN, CliIoHost, EventResult, isCI, } from '../io-host';
+import { CLI_PRIVATE_SPAN, EventResult } from '../io-host/messages';
+import type { CliIoHost } from '../io-host/cli-io-host';
 import { getInstallationId } from './installation-id';
 import { IoHostTelemetryClient } from './io-host-client';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation-utils';
@@ -139,4 +140,12 @@ function getState(error?: ErrorDetails): State {
     return error.name === 'AbortedError' ? 'ABORTED' : 'FAILED';
   }
   return 'SUCCEEDED';
+}
+
+/**
+ * Returns true if the current process is running in a CI environment
+ * @returns true if the current process is running in a CI environment
+ */
+export function isCI(): boolean {
+  return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
 }
