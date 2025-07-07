@@ -40,7 +40,7 @@ describe('TelemetrySession', () => {
     }));
   });
 
-  test('state is failed if error supplied', async () => {    
+  test('state is failed if error supplied', async () => {
     // WHEN
     await session.emit({
       eventType: 'SYNTH',
@@ -58,7 +58,7 @@ describe('TelemetrySession', () => {
     }));
   });
 
-  test('state is aborted if special error supplied', async () => {    
+  test('state is aborted if special error supplied', async () => {
     // WHEN
     await session.emit({
       eventType: 'SYNTH',
@@ -150,7 +150,7 @@ describe('TelemetrySession', () => {
 
     // WHEN
     await session.end();
-  
+
     // THEN
     expect(clientFlushSpy).toHaveBeenCalledTimes(1);
   });

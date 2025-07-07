@@ -1,19 +1,20 @@
 import { randomUUID } from 'crypto';
-import { IMessageSpan } from '../../api-private';
-import { Context } from '../../api/context';
-import { CLI_PRIVATE_SPAN, EventResult } from '../io-host/messages';
-import type { CliIoHost } from '../io-host/cli-io-host';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { AccountIdFetcher } from './account-id-fetcher';
 import { getInstallationId } from './installation-id';
 import { IoHostTelemetryClient } from './io-host-client';
+import { getLibraryVersion } from './library-version';
+import { RegionFetcher } from './region-fetcher';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation-utils';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink-interface';
-import { versionNumber } from '../version-util';
+import type { Context } from '../../api/context';
+import type { IMessageSpan } from '../../api-private';
 import { detectCiSystem } from '../ci-systems';
-import { AccountIdFetcher } from './account-id-fetcher';
-import { getLibraryVersion } from './library-version';
-import { RegionFetcher } from './region-fetcher';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import type { CliIoHost } from '../io-host/cli-io-host';
+import type { EventResult } from '../telemetry/messages';
+import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
+import { versionNumber } from '../version-util';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -21,7 +22,7 @@ export interface TelemetrySessionProps {
   readonly context: Context;
 }
 
-interface TelemetryEvent {
+export interface TelemetryEvent {
   readonly eventType: EventType;
   readonly duration: number;
   readonly error?: ErrorDetails;
@@ -50,7 +51,7 @@ export class TelemetrySession {
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
     this._sessionInfo = {
       identifiers: {
-        installationId: getInstallationId(this.ioHost.asIoHelper()),
+        installationId: await getInstallationId(this.ioHost.asIoHelper()),
         sessionId: randomUUID(),
         telemetryVersion: '1.0',
         cdkCliVersion: versionNumber(),

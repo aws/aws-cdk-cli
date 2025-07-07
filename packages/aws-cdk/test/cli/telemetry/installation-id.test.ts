@@ -67,9 +67,9 @@ describe(getInstallationId, () => {
     jest.clearAllMocks();
   });
 
-  test('creates new installation ID when file does not exist', () => {
+  test('creates new installation ID when file does not exist', async () => {
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -84,14 +84,14 @@ describe(getInstallationId, () => {
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
-  test('returns existing valid installation ID from file', () => {
+  test('returns existing valid installation ID from file', async () => {
     // GIVEN
     const existingId = 'abcdef12-3456-7890-abcd-ef1234567890';
     const installationIdPath = path.join(tempDir, 'installation-id.json');
     fs.writeFileSync(installationIdPath, existingId);
 
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe(existingId);
@@ -99,13 +99,13 @@ describe(getInstallationId, () => {
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
-  test('creates new installation ID when existing file contains invalid UUID', () => {
+  test('creates new installation ID when existing file contains invalid UUID', async () => {
     // GIVEN
     const installationIdPath = path.join(tempDir, 'installation-id.json');
     fs.writeFileSync(installationIdPath, 'invalid-uuid');
 
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -116,13 +116,13 @@ describe(getInstallationId, () => {
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
-  test('creates new installation ID when existing file is empty', () => {
+  test('creates new installation ID when existing file is empty', async () => {
     // GIVEN
     const installationIdPath = path.join(tempDir, 'installation-id.json');
     fs.writeFileSync(installationIdPath, '');
 
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -130,13 +130,13 @@ describe(getInstallationId, () => {
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
-  test('creates cache directory if it does not exist', () => {
+  test('creates cache directory if it does not exist', async() => {
     // GIVEN
     // Remove the temp directory to test directory creation
     fs.rmSync(tempDir, { recursive: true, force: true });
 
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -147,13 +147,13 @@ describe(getInstallationId, () => {
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
-  test('handles file write error gracefully', () => {
+  test('handles file write error gracefully', async () => {
     // GIVEN
     // Make the temp directory read-only
     fs.chmodSync(tempDir, 0o444);
 
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -168,7 +168,7 @@ describe(getInstallationId, () => {
     fs.chmodSync(tempDir, 0o755);
   });
 
-  test('handles general error gracefully and returns temporary ID', () => {
+  test('handles general error gracefully and returns temporary ID', async () => {
     // GIVEN
     // Mock fs.existsSync to throw an error
     const originalExistsSync = fs.existsSync;
@@ -177,7 +177,7 @@ describe(getInstallationId, () => {
     });
 
     // WHEN
-    const result = getInstallationId(mockIoHelper);
+    const result = await getInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');

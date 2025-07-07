@@ -5,8 +5,8 @@ import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api
 import type { IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
-import { CLI_PRIVATE_SPAN } from '../cli/io-host';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
+import { CLI_PRIVATE_SPAN } from '../cli/telemetry/messages';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
 
@@ -133,7 +133,7 @@ export class CloudExecutable implements ICloudAssemblySource {
     } catch (e: any) {
       error = e;
     } finally {
-      synthSpan.end({ error });
+      await synthSpan.end({ error });
 
       if (error) {
         throw error;

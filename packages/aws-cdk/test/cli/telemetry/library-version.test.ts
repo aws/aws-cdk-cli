@@ -1,8 +1,8 @@
-import * as fs from 'fs-extra';
-import { promisify } from 'util';
 import { exec } from 'child_process';
-import { getLibraryVersion } from '../../../lib/cli/telemetry/library-version';
+import { promisify } from 'util';
+import * as fs from 'fs-extra';
 import type { IoHelper } from '../../../lib/api-private';
+import { getLibraryVersion } from '../../../lib/cli/telemetry/library-version';
 
 // Mock child_process exec
 jest.mock('child_process', () => ({
@@ -83,7 +83,7 @@ describe('getLibraryVersion', () => {
     expect(mockExistsSync).toHaveBeenCalledWith(mockLibPath);
     expect(mockReadJSONSync).not.toHaveBeenCalled();
     expect(traceSpy).toHaveBeenCalledWith(
-      'Could not get CDK Library Version: require.resolve("aws-cdk-lib") did not return a file path'
+      'Could not get CDK Library Version: require.resolve("aws-cdk-lib") did not return a file path',
     );
   });
 

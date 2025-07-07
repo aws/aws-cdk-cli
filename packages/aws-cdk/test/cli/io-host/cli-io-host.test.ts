@@ -1,6 +1,7 @@
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
+import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
 
@@ -259,6 +260,109 @@ describe('CliIoHost', () => {
       }));
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.white('info message') + '\n');
+    });
+  });
+
+  describe('telemetry', () => {
+    let telemetryIoHost: CliIoHost;
+    let telemetryEmitSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      process.env.CLI_TELEMETRY = 'true';
+
+      // Create a new instance with telemetry enabled
+      telemetryIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+        context: new Context(),
+        arguments: {},
+      }, true);
+
+      expect(telemetryIoHost.telemetry).toBeDefined();
+
+      telemetryEmitSpy = jest.spyOn(telemetryIoHost.telemetry!, 'emit')
+        .mockImplementation(async () => Promise.resolve());
+    });
+
+    afterEach(() => {
+      process.env.CLI_TELEMETRY = undefined;
+      jest.restoreAllMocks();
+    });
+
+    test('emit telemetry on SYNTH event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I1001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'SYNTH',
+        duration: 123,
+      }));
+    });
+
+    test('emit telemetry on INVOKE event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'INVOKE',
+        duration: 123,
+      }));
+    });
+
+    test('emit telemetry with error name', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+          error: {
+            name: 'MyError',
+            message: 'Some message',
+          },
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'INVOKE',
+        duration: 123,
+        error: {
+          name: 'MyError',
+          message: 'Some message',
+        },
+      }));
     });
   });
 

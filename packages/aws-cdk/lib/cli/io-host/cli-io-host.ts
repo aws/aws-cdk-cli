@@ -5,11 +5,11 @@ import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, Tool
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import { CLI_PRIVATE_IO } from './messages';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { isCI, TelemetrySession } from '../telemetry/session';
 
@@ -319,7 +319,7 @@ export class CliIoHost implements IIoHost {
         });
       }
     } catch (e: any) {
-      this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
+      await this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
     }
   }
 
@@ -575,6 +575,6 @@ function getEventType(msg: IoMessage<unknown>): EventType {
     case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
       return 'INVOKE';
     default:
-      throw new Error(`Unrecognized Telemetry Message Code: ${msg.code}`);
+      throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
   }
 }

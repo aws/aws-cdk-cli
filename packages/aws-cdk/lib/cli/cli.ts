@@ -78,7 +78,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     await ioHost.telemetry?.begin();
   } catch (e: any) {
-    ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
   // Debug should always imply tracing
@@ -646,14 +646,14 @@ export function cli(args: string[] = process.argv.slice(2)) {
       error = err;
       process.exitCode = 1;
     })
-    .finally(() => {
+    .finally(async () => {
       if (!error && process.exitCode === 1) {
         // The existence of an error determines if telemetry is successful or not so we create a
         // dummy error in the event that exit code is 1 but no error is thrown
         error = { name: 'ExitCode1Error' };
       }
 
-      CliIoHost.get()?.telemetry?.end(error);
+      await CliIoHost.get()?.telemetry?.end(error);
     });
 }
 /* c8 ignore stop */

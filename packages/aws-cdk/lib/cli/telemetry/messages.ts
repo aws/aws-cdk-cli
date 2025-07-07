@@ -1,7 +1,7 @@
 import type { Duration } from '@aws-cdk/toolkit-lib';
+import type { ErrorDetails } from './schema';
 import * as make from '../../api-private';
 import type { SpanDefinition } from '../../api-private';
-import type { ErrorDetails } from './schema';
 
 export interface EventResult extends Duration {
   error?: ErrorDetails;

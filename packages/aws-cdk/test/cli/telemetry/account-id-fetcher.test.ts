@@ -1,6 +1,7 @@
-import { AccountIdFetcher } from '../../../lib/cli/telemetry/account-id-fetcher';
-import { GetCallerIdentityCommandOutput, STSClient } from '@aws-sdk/client-sts';
+import type { GetCallerIdentityCommandOutput } from '@aws-sdk/client-sts';
+import { STSClient } from '@aws-sdk/client-sts';
 import { validate } from 'uuid';
+import { AccountIdFetcher } from '../../../lib/cli/telemetry/account-id-fetcher';
 
 describe('AccountIdFetcher', () => {
   beforeEach(() => {

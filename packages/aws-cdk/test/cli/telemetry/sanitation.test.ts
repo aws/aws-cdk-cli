@@ -8,7 +8,7 @@ describe(sanitizeContext, () => {
 
   test('string boolean values are booleanized', () => {
     const context = { key1: 'true', key2: 'false' };
-    expect(sanitizeContext(context)).toEqual({ key1: true, key2: false});
+    expect(sanitizeContext(context)).toEqual({ key1: true, key2: false });
   });
 
   test('strings values are booleanized', () => {
@@ -50,7 +50,7 @@ describe(sanitizeCommandLineArguments, () => {
       _: ['deploy'],
       STACKS: ['MyStack'],
       all: true,
-      concurrency: 4
+      concurrency: 4,
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
       path: ['deploy', '$STACK1'],
