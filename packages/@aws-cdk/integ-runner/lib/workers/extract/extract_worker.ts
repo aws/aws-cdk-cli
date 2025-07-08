@@ -143,6 +143,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
     const runner = new IntegSnapshotRunner({
       engine: options.engine,
       test,
+      showOutput: options.verbose ?? false,
     });
     if (!runner.hasSnapshot()) {
       workerpool.workerEmit({

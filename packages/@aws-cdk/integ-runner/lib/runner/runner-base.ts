@@ -9,9 +9,11 @@ import type { IntegTest } from './integration-tests';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
 import { makeEngine, type EngineOptions } from './engine';
+import * as logger from '../logger';
 import type { ManifestTrace } from './private/cloud-assembly';
 import { AssemblyManifestReader } from './private/cloud-assembly';
 import type { DestructiveChange } from '../workers/common';
+import { NoManifestError } from './private/integ-manifest';
 
 const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 
@@ -128,6 +130,11 @@ export abstract class IntegRunner {
    */
   protected readonly profile?: string;
 
+  /**
+   * Show output from the integ test run.
+   */
+  protected readonly showOutput: boolean;
+
   protected _destructiveChanges?: DestructiveChange[];
   private legacyContext?: Record<string, any>;
   private _expectedTestSuite?: IntegTestSuite | LegacyIntegTestSuite;
@@ -139,14 +146,14 @@ export abstract class IntegRunner {
     this.testName = this.test.testName;
     this.snapshotDir = this.test.snapshotDir;
     this.cdkContextPath = path.join(this.directory, 'cdk.context.json');
+    this.profile = options.profile;
+    this.showOutput = options.showOutput ?? false;
 
     this.cdk = options.cdk ?? makeEngine(options);
     this.cdkOutDir = options.integOutDir ?? this.test.temporaryOutputDir;
 
     const testRunCommand = this.test.appCommand;
     this.cdkApp = testRunCommand.replace('{filePath}', path.relative(this.directory, this.test.fileName));
-
-    this.profile = options.profile;
   }
 
   /**
@@ -219,10 +226,25 @@ export abstract class IntegRunner {
    * "legacy mode" and create a manifest from pragma
    */
   protected async loadManifest(dir?: string): Promise<IntegTestSuite | LegacyIntegTestSuite> {
+    const manifest = dir ?? this.snapshotDir;
     try {
-      const testSuite = IntegTestSuite.fromPath(dir ?? this.snapshotDir);
+      const testSuite = IntegTestSuite.fromPath(manifest);
       return testSuite;
-    } catch {
+    } catch (modernError: any) {
+      // Only attempt legacy test case if the integ test manifest was not found
+      // For any other errors, e.g. when parsing the manifest fails, we abort.
+      if (!(modernError instanceof NoManifestError)) {
+        throw modernError;
+      }
+
+      if (this.showOutput) {
+        logger.trace(
+          "Failed to load integ test manifest for '%s'. Attempting as deprecated legacy test instead. Error was: %s",
+          manifest,
+          modernError.message ?? String(modernError),
+        );
+      }
+
       const testCases = await LegacyIntegTestSuite.fromLegacy({
         cdk: this.cdk,
         testName: this.test.normalizedTestName,
