@@ -896,11 +896,15 @@
     },
     "refactor": {
       "description": "Moves resources between stacks or within the same stack",
-      "arg": {
-        "name": "STACKS",
-        "variadic": true
-      },
       "options": {
+        "local-stack": {
+          "type": "array",
+          "desc": "Filter to apply for stacks in the cloud assembly"
+        },
+        "deployed-stack": {
+          "type": "array",
+          "desc": "Filter to apply for stacks deployed to the AWS account"
+        },
         "dry-run": {
           "type": "boolean",
           "desc": "Do not perform any changes, just show what would be done",
