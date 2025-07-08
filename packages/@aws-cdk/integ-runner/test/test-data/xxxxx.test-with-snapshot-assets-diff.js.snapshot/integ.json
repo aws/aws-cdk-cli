@@ -1,7 +1,7 @@
 {
   "version": "v1.0.0",
+  "enableLookups": true,
   "testCases": {
-    "enableLookups": true,
     "xxxxx.test-with-snapshot-assets-diff": {
       "stacks": ["test-stack"],
       "diffAssets": false,
