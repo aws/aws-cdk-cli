@@ -920,6 +920,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Disable anonymous telemetry',
           conflicts: 'enable',
+        })
+        .option('status', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Report telemetry opt-in/out status',
+          conflicts: ['enable', 'disable'],
         }),
     )
     .version(helpers.cliVersion())

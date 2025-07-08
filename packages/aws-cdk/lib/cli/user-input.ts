@@ -1477,4 +1477,11 @@ export interface CliTelemetryOptions {
    * @default - undefined
    */
   readonly disable?: boolean;
+
+  /**
+   * Report telemetry opt-in/out status
+   *
+   * @default - undefined
+   */
+  readonly status?: boolean;
 }

@@ -456,13 +456,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'cli-telemetry':
         ioHost.currentAction = 'cli-telemetry';
-        if (args.enable === undefined && args.disable === undefined) {
-          throw new ToolkitError('Must specify either \'--enable\' or \'--disable\'');
+        if (args.enable === undefined && args.disable === undefined && args.status === undefined) {
+          throw new ToolkitError('Must specify \'--enable\', \'--disable\', or \'--status\'');
         }
 
-        const enable = args.enable ?? !args.disable;
-        return cli.cliTelemetry(enable);
-
+        if (args.status) {
+          return cli.cliTelemetryStatus();
+        } else {
+          const enable = args.enable ?? !args.disable;
+          return cli.cliTelemetry(enable);
+        }
       case 'init':
         ioHost.currentAction = 'init';
         const language = configuration.settings.get(['language']);
