@@ -591,7 +591,6 @@ export class CdkToolkit {
         success('\n' + message, stack.displayName);
         elapsedDeployTime = new Date().getTime() - startDeployTime;
         info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
- 
         if (Object.keys(deployResult.outputs).length > 0) {
           info('Outputs:');
 
