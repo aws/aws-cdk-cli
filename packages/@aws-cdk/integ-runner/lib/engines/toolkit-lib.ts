@@ -84,6 +84,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       outdir: options.output ? path.join(this.options.workingDirectory, options.output) : undefined,
       contextStore: new MemoryContext(options.context),
       lookups: false,
+      resolveDefaultEnvironment: false,
       env: {
         ...this.options.env,
         ...options.env,
@@ -209,6 +210,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       workingDirectory: this.options.workingDirectory,
       outdir,
       lookups: options.lookups,
+      resolveDefaultEnvironment: false, // not part of the integ-runner contract
       contextStore: new MemoryContext(options.context),
       env: this.options.env,
       synthOptions: {

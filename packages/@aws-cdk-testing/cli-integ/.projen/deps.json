@@ -23,11 +23,6 @@
       "type": "build"
     },
     {
-      "name": "@types/glob",
-      "version": "^7",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
       "type": "build"
     },
@@ -159,6 +154,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-secrets-manager",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-sns",
       "type": "runtime"
     },
@@ -208,7 +207,7 @@
     },
     {
       "name": "glob",
-      "version": "^7",
+      "version": "^9",
       "type": "runtime"
     },
     {
@@ -243,6 +242,10 @@
     {
       "name": "p-queue",
       "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "proxy-agent",
       "type": "runtime"
     },
     {

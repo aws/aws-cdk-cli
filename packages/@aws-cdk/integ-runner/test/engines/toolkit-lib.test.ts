@@ -73,6 +73,7 @@ describe('ToolkitLibRunnerEngine', () => {
         contextStore: expect.any(Object),
         lookups: false,
         env: { TEST: 'true' },
+        resolveDefaultEnvironment: false,
         synthOptions: {
           versionReporting: false,
           pathMetadata: false,

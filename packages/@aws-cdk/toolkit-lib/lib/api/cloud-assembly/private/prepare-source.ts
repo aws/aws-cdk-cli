@@ -20,6 +20,22 @@ import type { Context, Env } from '../environment';
 import { prepareDefaultEnvironment, spaceAvailableForContext, guessExecutable, synthParametersFromSettings } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
+export interface ExecutionEnvironmentOptions {
+  /**
+   * The directory the cloud assembly will be written to.
+   *
+   * @default - use a temporary directory as output directory, this will be cleaned up when this object is disposed
+   */
+  readonly outdir?: string;
+
+  /**
+   * Resolve and add environment variables for the app's default environment.
+   *
+   * This will make a call to STS, which is not always desirable e.g. if the env is explicitly specified.
+   */
+  readonly resolveDefaultAppEnv: boolean;
+}
+
 export class ExecutionEnvironment implements AsyncDisposable {
   /**
    * Create an ExecutionEnvironment
@@ -33,18 +49,39 @@ export class ExecutionEnvironment implements AsyncDisposable {
    * If `markSuccessful()` is called, the writer lock is converted to a reader lock
    * and temporary directories will not be cleaned up anymore.
    */
-  public static async create(services: ToolkitServices, props: { outdir?: string } = {}) {
-    let tempDir = false;
-    let dir = props.outdir;
+  public static async create(services: ToolkitServices, options: ExecutionEnvironmentOptions) {
+    let outDirIsTemporary = false;
+    let dir = options.outdir;
     if (!dir) {
-      tempDir = true;
+      outDirIsTemporary = true;
       dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
     }
-
     const lock = await new RWLock(dir).acquireWrite();
-    return new ExecutionEnvironment(services, dir, tempDir, lock);
+
+    const opts = {
+      outdir: dir,
+      resolveDefaultAppEnv: options.resolveDefaultAppEnv,
+    };
+
+    return new ExecutionEnvironment(services, opts, {
+      lock,
+      outDirIsTemporary,
+    });
   }
 
+  /**
+   * Should the outdir be disposed of.
+   */
+  public get shouldDisposeOutDir(): boolean {
+    return this.shouldClean;
+  }
+
+  /**
+   * The directory the cloud assembly will be written to.
+   */
+  public readonly outdir: string;
+
+  private readonly options: Required<ExecutionEnvironmentOptions>;
   private readonly ioHelper: IoHelper;
   private readonly sdkProvider: SdkProvider;
   private readonly debugFn: (msg: string) => Promise<void>;
@@ -53,21 +90,25 @@ export class ExecutionEnvironment implements AsyncDisposable {
 
   private constructor(
     services: ToolkitServices,
-    public readonly outdir: string,
-    public readonly outDirIsTemporary: boolean,
-    lock: IWriteLock,
+    options: Required<ExecutionEnvironmentOptions>,
+    { lock, outDirIsTemporary }: {
+      readonly outDirIsTemporary: boolean;
+      readonly lock: IWriteLock;
+    },
   ) {
     this.ioHelper = services.ioHelper;
     this.sdkProvider = services.sdkProvider;
     this.debugFn = (msg: string) => this.ioHelper.defaults.debug(msg);
     this.lock = lock;
     this.shouldClean = outDirIsTemporary;
+    this.outdir = options.outdir;
+    this.options = options;
   }
 
   public async [Symbol.asyncDispose]() {
     await this.lock?.release();
 
-    if (this.shouldClean) {
+    if (this.shouldDisposeOutDir) {
       await fs.rm(this.outdir, { recursive: true, force: true });
     }
   }
@@ -136,7 +177,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
    */
   public async defaultEnvVars(): Promise<Env> {
     const debugFn = (msg: string) => this.ioHelper.notify(IO.CDK_ASSEMBLY_I0010.msg(msg));
-    const env = await prepareDefaultEnvironment(this.sdkProvider, debugFn);
+    const env = this.options.resolveDefaultAppEnv ? await prepareDefaultEnvironment(this.sdkProvider, debugFn) : {};
 
     env[cxapi.OUTDIR_ENV] = this.outdir;
     await debugFn(format('outdir:', this.outdir));
