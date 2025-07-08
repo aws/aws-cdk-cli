@@ -95,7 +95,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload = JSON.stringify({ events: [testEvent]});
+    const expectedPayload = JSON.stringify({ events: [testEvent] });
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
       port: null,
@@ -144,7 +144,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload = JSON.stringify({ events: [testEvent1, testEvent2]});
+    const expectedPayload = JSON.stringify({ events: [testEvent1, testEvent2] });
     expect(https.request).toHaveBeenCalledTimes(1);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
@@ -176,7 +176,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload1 = JSON.stringify({ events: [testEvent1]});
+    const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
     expect(https.request).toHaveBeenCalledTimes(2);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
@@ -191,7 +191,7 @@ describe('EndpointTelemetrySink', () => {
       timeout: 500,
     }, expect.anything());
 
-    const expectedPayload2 = JSON.stringify({ events: [testEvent2]});
+    const expectedPayload2 = JSON.stringify({ events: [testEvent2] });
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
       port: null,
@@ -249,7 +249,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload1 = JSON.stringify({ events: [testEvent1]});
+    const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
     expect(https.request).toHaveBeenCalledTimes(2);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
@@ -264,7 +264,7 @@ describe('EndpointTelemetrySink', () => {
       timeout: 500,
     }, expect.anything());
 
-    const expectedPayload2 = JSON.stringify({ events: [testEvent1, testEvent2]});
+    const expectedPayload2 = JSON.stringify({ events: [testEvent1, testEvent2] });
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
       port: null,
