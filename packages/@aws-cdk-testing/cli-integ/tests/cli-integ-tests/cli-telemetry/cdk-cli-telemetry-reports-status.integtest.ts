@@ -22,7 +22,7 @@ integTest(
       expect(output1).toContain('Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable.');
 
       // disable status
-      await fs.writeFile(userContextFile, JSON.stringify({ context: { 'cli-telemetry': false }}));
+      await fs.writeFile(userContextFile, JSON.stringify({ context: { 'cli-telemetry': false } }));
       const output2 = await fixture.cdk(['cli-telemetry', '--status']);
       expect(output2).toContain('Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable.');
     } finally {
