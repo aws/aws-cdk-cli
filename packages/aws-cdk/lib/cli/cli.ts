@@ -81,13 +81,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
-  });
-  await configuration.load();
+  const configuration = await Configuration.fromArgsAndFiles(ioHelper,
+    {
+      commandLineArguments: {
+        ...argv,
+        _: argv._ as [Command, ...string[]], // TypeScript at its best
+      },
+    });
 
   // Always create and use ProxyAgent to support configuration via env vars
   const proxyAgent = await new ProxyAgentProvider(ioHelper).create({

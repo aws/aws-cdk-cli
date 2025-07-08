@@ -22,11 +22,11 @@ Modified Resources
   };
   const stack2Output: FormattedDrift = {};
 
-  beforeEach(() => {
+  beforeEach(async () => {
     notifySpy = jest.spyOn(ioHost, 'notify');
     notifySpy.mockClear();
 
-    cloudExecutable = new MockCloudExecutable({
+    cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         {
           stackName: 'Stack1',

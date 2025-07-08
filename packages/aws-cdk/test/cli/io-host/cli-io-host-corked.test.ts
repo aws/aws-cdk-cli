@@ -1,5 +1,4 @@
 import { CliIoHost } from '../../../lib/cli/io-host';
-import { debug, error, info, success, warning } from '../../../lib/logging';
 
 const ioHost = CliIoHost.instance({}, true);
 let mockStderr: jest.Mock;
@@ -27,8 +26,8 @@ afterEach(() => {
 describe('corked logging', () => {
   test('buffers messages when corked', async () => {
     await ioHost.withCorkedLogging(async () => {
-      info('message 1');
-      info('message 2');
+      await ioHost.asIoHelper().defaults.info('message 1');
+      await ioHost.asIoHelper().defaults.info('message 2');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
@@ -38,11 +37,11 @@ describe('corked logging', () => {
 
   test('handles nested corking correctly', async () => {
     await ioHost.withCorkedLogging(async () => {
-      info('outer 1');
+      await ioHost.asIoHelper().defaults.info('outer 1');
       await ioHost.withCorkedLogging(async () => {
-        info('inner');
+        await ioHost.asIoHelper().defaults.info('inner');
       });
-      info('outer 2');
+      await ioHost.asIoHelper().defaults.info('outer 2');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
@@ -54,7 +53,7 @@ describe('corked logging', () => {
 
   test('handles errors in corked block while preserving buffer', async () => {
     await expect(ioHost.withCorkedLogging(async () => {
-      info('message 1');
+      await ioHost.asIoHelper().defaults.info('message 1');
       throw new Error('test error');
     })).rejects.toThrow('test error');
 
@@ -67,17 +66,15 @@ describe('corked logging', () => {
     ioHost.logLevel = 'debug';
 
     await ioHost.withCorkedLogging(async () => {
-      error('error message');
-      warning('warning message');
-      success('success message');
-      debug('debug message');
+      await ioHost.asIoHelper().defaults.error('error message');
+      await ioHost.asIoHelper().defaults.warning('warning message');
+      await ioHost.asIoHelper().defaults.debug('debug message');
     });
 
     const calls = mockStderr.mock.calls.map(call => call[0]);
     expect(calls).toEqual([
       'error message\n',
       'warning message\n',
-      'success message\n',
       expect.stringMatching(/^\[\d{2}:\d{2}:\d{2}\] debug message\n$/),
     ]);
   });

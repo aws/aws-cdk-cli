@@ -3,6 +3,7 @@ import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
 
 const ioHost = CliIoHost.instance({}, true);
+const ioHelper = ioHost.asIoHelper();
 const notifySpy = jest.spyOn(ioHost, 'notify');
 
 describe('telemetry command', () => {
@@ -10,7 +11,7 @@ describe('telemetry command', () => {
   let toolkit: CdkToolkit;
 
   beforeEach(async () => {
-    configuration = new Configuration();
+    configuration = await Configuration.fromArgs(ioHelper);
     toolkit = new CdkToolkit({
       ioHost,
       configuration,

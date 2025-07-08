@@ -42,24 +42,21 @@ export interface TestAssembly {
 export class MockCloudExecutable extends CloudExecutable {
   public static async create(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider, ioHost?: IIoHost) {
     const mockIoHost = ioHost ?? new TestIoHost();
+    const configuration = await Configuration.fromArgs(asIoHelper(mockIoHost, 'deploy'));
     const sdkProvider = sdkProviderArg ?? new MockSdkProvider();
 
-    return new MockCloudExecutable(assembly, sdkProvider, mockIoHost);
+    return new MockCloudExecutable(assembly, configuration, sdkProvider, mockIoHost);
   }
 
   public readonly configuration: Configuration;
   public readonly sdkProvider: MockSdkProvider;
 
-  constructor(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider, ioHost?: IIoHost) {
-    const configuration = new Configuration();
-    const sdkProvider = sdkProviderArg ?? new MockSdkProvider();
-    const mockIoHost = ioHost ?? new TestIoHost();
-
+  private constructor(assembly: TestAssembly, configuration: Configuration, sdkProvider: MockSdkProvider, ioHost: IIoHost) {
     super({
       configuration,
       sdkProvider,
       synthesizer: () => Promise.resolve(testAssembly(assembly)),
-      ioHelper: asIoHelper(mockIoHost, 'deploy'),
+      ioHelper: asIoHelper(ioHost, 'deploy'),
     });
 
     this.configuration = configuration;

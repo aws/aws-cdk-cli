@@ -158,7 +158,7 @@ describe('bootstrap', () => {
   test('accepts qualifier from context', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('@aws-cdk/core:bootstrapQualifier', 'abcde');
 
     // WHEN

@@ -71,7 +71,7 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
       await listContext(ioHelper, options.context);
     }
   }
-  await version.displayVersionMessage(options.ioHelper);
+  await version.displayVersionMessage(ioHelper);
 
   return 0;
 }
