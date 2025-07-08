@@ -326,18 +326,16 @@ export abstract class IntegRunner {
       fs.removeSync(this.snapshotDir);
     }
 
+    const actualTestSuite = await this.actualTestSuite();
+
     // if lookups are enabled then we need to synth again
     // using dummy context and save that as the snapshot
-    if ((await this.actualTestSuite()).enableLookups) {
-      await this.cdk.synthFast({
-        execCmd: this.cdkApp.split(' '),
-        context: this.getContext(DEFAULT_SYNTH_OPTIONS.context),
-        env: DEFAULT_SYNTH_OPTIONS.env,
-        output: path.relative(this.directory, this.snapshotDir),
-      });
-    } else {
-      fs.moveSync(this.cdkOutDir, this.snapshotDir, { overwrite: true });
-    }
+    await this.cdk.synthFast({
+      execCmd: this.cdkApp.split(' '),
+      context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
+      env: DEFAULT_SYNTH_OPTIONS.env,
+      output: path.relative(this.directory, this.snapshotDir),
+    });
 
     await this.cleanupSnapshot();
   }

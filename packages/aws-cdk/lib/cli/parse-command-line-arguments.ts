@@ -919,6 +919,21 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
         }),
     )
+    .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>
+      yargs
+        .option('enable', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Enable anonymous telemetry',
+          conflicts: 'disable',
+        })
+        .option('disable', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Disable anonymous telemetry',
+          conflicts: 'enable',
+        }),
+    )
     .version(helpers.cliVersion())
     .demandCommand(1, '')
     .recommendCommands()

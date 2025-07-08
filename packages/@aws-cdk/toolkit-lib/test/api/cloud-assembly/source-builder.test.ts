@@ -2,6 +2,7 @@ import * as path from 'path';
 import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
 import { MemoryContext } from '../../../lib';
+import * as environment from '../../../lib/api/cloud-assembly/environment';
 import { RWLock } from '../../../lib/api/rwlock';
 import * as contextproviders from '../../../lib/context-providers';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
@@ -157,6 +158,39 @@ describe('fromAssemblyBuilder', () => {
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
     expect(await (lock! as any)._currentReaders()).toEqual([]);
   });
+
+  describe('resolveDefaultEnvironment', () => {
+    let prepareDefaultEnvironmentSpy: jest.SpyInstance;
+    beforeEach(() => {
+      // Mock the prepareDefaultEnvironment function to avoid actual STS calls
+      prepareDefaultEnvironmentSpy = jest.spyOn(environment, 'prepareDefaultEnvironment')
+        .mockImplementation(async () => {
+          return {
+            CDK_DEFAULT_ACCOUNT: '123456789012',
+            CDK_DEFAULT_REGION: 'us-east-1',
+          };
+        });
+    });
+
+    afterEach(() => {
+      prepareDefaultEnvironmentSpy.mockRestore();
+    });
+
+    test.each([[true, 1], [false, 0], [undefined, 1]])('respects resolveDefaultEnvironment=%s', async (resolveDefaultEnvironment, callCount) => {
+      // WHEN
+      const cx = await toolkit.fromAssemblyBuilder(async () => {
+        const app = new App();
+        return app.synth();
+      }, {
+        resolveDefaultEnvironment,
+      });
+
+      await using _ = await cx.produce();
+
+      // THEN
+      expect(prepareDefaultEnvironmentSpy).toHaveBeenCalledTimes(callCount);
+    });
+  });
 });
 
 describe('fromCdkApp', () => {
@@ -289,6 +323,45 @@ describe('fromCdkApp', () => {
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
     expect(await (lock! as any)._currentReaders()).toEqual([]);
+  });
+
+  describe('resolveDefaultEnvironment', () => {
+    let prepareDefaultEnvironmentSpy: jest.SpyInstance;
+    beforeEach(() => {
+      // Mock the prepareDefaultEnvironment function to avoid actual STS calls
+      prepareDefaultEnvironmentSpy = jest.spyOn(environment, 'prepareDefaultEnvironment')
+        .mockImplementation(async () => {
+          return {
+            CDK_DEFAULT_ACCOUNT: '123456789012',
+            CDK_DEFAULT_REGION: 'us-east-1',
+          };
+        });
+    });
+
+    afterEach(() => {
+      prepareDefaultEnvironmentSpy.mockRestore();
+    });
+
+    test.each([[true, 1], [false, 0], [undefined, 1]])('respects resolveDefaultEnvironment=%s', async (resolveDefaultEnvironment, callCount) => {
+      // GIVEN
+      await using synthDir = autoCleanOutDir();
+
+      // WHEN
+      const cx = await toolkit.fromCdkApp('node -e "console.log(JSON.stringify(process.env))"', {
+        workingDirectory: process.cwd(),
+        outdir: synthDir.dir,
+        resolveDefaultEnvironment,
+      });
+
+      try {
+        await using _ = await cx.produce();
+      } catch {
+        // we expect this app to throw
+      }
+
+      // THEN
+      expect(prepareDefaultEnvironmentSpy).toHaveBeenCalledTimes(callCount);
+    });
   });
 });
 
