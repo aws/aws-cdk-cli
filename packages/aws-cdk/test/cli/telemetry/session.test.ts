@@ -79,7 +79,9 @@ describe('TelemetrySession', () => {
 
   test('ci is recorded properly', async () => {
     // GIVEN
-    process.env.CI = 'true';
+    const CI = process.env.CI;
+    const NOT_CI = CI === 'true' ? 'false' : 'true';
+    process.env.CI = NOT_CI;
     const ciSession = new TelemetrySession({
       ioHost,
       arguments: { _: ['deploy'], STACKS: ['MyStack'] },
@@ -93,14 +95,15 @@ describe('TelemetrySession', () => {
     // THEN
     expect(privateCiInfo).toEqual(expect.objectContaining({
       environment: expect.objectContaining({
-        ci: true,
+        ci: NOT_CI,
       }),
     }));
     expect(privateInfo).toEqual(expect.objectContaining({
       environment: expect.objectContaining({
-        ci: false,
+        ci: CI,
       }),
     }));
+    process.env.CI = CI;
   });
 
   test('emit messsages are counted correctly', async () => {
