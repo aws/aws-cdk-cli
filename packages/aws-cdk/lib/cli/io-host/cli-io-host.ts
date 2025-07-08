@@ -565,7 +565,7 @@ function isNoticesMessage(msg: IoMessage<unknown>) {
 }
 
 function isTelemetryMessage(msg: IoMessage<unknown>) {
-  return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg);
+  return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg);
 }
 
 function getEventType(msg: IoMessage<unknown>): EventType {
@@ -574,6 +574,8 @@ function getEventType(msg: IoMessage<unknown>): EventType {
       return 'SYNTH';
     case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
       return 'INVOKE';
+    case CLI_PRIVATE_IO.CDK_CLI_I3001.code:
+      return 'DEPLOY';
     default:
       throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
   }

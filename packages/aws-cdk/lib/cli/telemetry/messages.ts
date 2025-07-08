@@ -34,6 +34,16 @@ export const CLI_PRIVATE_IO = {
     description: 'Command has finished executing',
     interface: 'EventResult',
   }),
+  CDK_CLI_I3000: make.trace<EventStart>({
+    code: 'CDK_CLI_I3000',
+    description: 'Deploy has started',
+    interface: 'EventStart',
+  }),
+  CDK_CLI_I3001: make.trace<EventResult>({
+    code: 'CDK_CLI_I3001',
+    description: 'Deploy has finished',
+    interface: 'EventResult',
+  }),
 };
 
 /**
@@ -49,5 +59,10 @@ export const CLI_PRIVATE_SPAN = {
     name: 'Command',
     start: CLI_PRIVATE_IO.CDK_CLI_I2000,
     end: CLI_PRIVATE_IO.CDK_CLI_I2001,
+  },
+  DEPLOY: {
+    name: 'Deploy',
+    start: CLI_PRIVATE_IO.CDK_CLI_I3000,
+    end: CLI_PRIVATE_IO.CDK_CLI_I3001,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;

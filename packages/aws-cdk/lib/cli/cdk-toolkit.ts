@@ -52,6 +52,7 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
+import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -485,13 +486,16 @@ export class CdkToolkit {
 
       const stackIndex = stacks.indexOf(stack) + 1;
       info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
-      const startDeployTime = new Date().getTime();
 
+      // TODO: these timers should be integrated with each other
+      const startDeployTime = new Date().getTime();
       let tags = options.tags;
       if (!tags || tags.length === 0) {
         tags = tagsForStack(stack);
       }
 
+      const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+      let error: any | undefined;
       let elapsedDeployTime = 0;
       try {
         let deployResult: SuccessfulDeployStackResult | undefined;
@@ -587,7 +591,7 @@ export class CdkToolkit {
         success('\n' + message, stack.displayName);
         elapsedDeployTime = new Date().getTime() - startDeployTime;
         info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
-
+ 
         if (Object.keys(deployResult.outputs).length > 0) {
           info('Outputs:');
 
@@ -603,12 +607,10 @@ export class CdkToolkit {
 
         logResult(deployResult.stackArn);
       } catch (e: any) {
-        // It has to be exactly this string because an integration test tests for
-        // "bold(stackname) failed: ResourceNotReady: <error>"
-        throw new ToolkitError(
-          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
-        );
+        error = e;
       } finally {
+        await deploySpan.end({ error });
+
         if (options.cloudWatchLogMonitor) {
           const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
           options.cloudWatchLogMonitor.addLogGroups(
@@ -626,6 +628,14 @@ export class CdkToolkit {
             spaces: 2,
             encoding: 'utf8',
           });
+        }
+
+        if (error) {
+          // It has to be exactly this string because an integration test tests for
+          // "bold(stackname) failed: ResourceNotReady: <error>"
+          throw new ToolkitError(
+            [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(error.name ? [`${error.name}:`] : []), formatErrorMessage(error)].join(' '),
+          );
         }
       }
       info(`\n✨  Total time: ${formatTime(elapsedSynthTime + elapsedDeployTime)}s\n`);
