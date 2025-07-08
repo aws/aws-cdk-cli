@@ -1,7 +1,7 @@
 import type { IncomingMessage } from 'http';
 import type { Agent } from 'https';
 import { request } from 'https';
-import type { UrlWithStringQuery } from 'url';
+import { parse, type UrlWithStringQuery } from 'url';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../api-private';
 import type { IIoHost } from '../io-host';
@@ -17,7 +17,7 @@ export interface EndpointTelemetrySinkProps {
   /**
    * The external endpoint to hit
    */
-  readonly endpoint: UrlWithStringQuery;
+  readonly endpoint: string;
 
   /**
    * Where messages are going to be sent
@@ -44,7 +44,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
   private agent?: Agent;
 
   public constructor(props: EndpointTelemetrySinkProps) {
-    this.endpoint = props.endpoint;
+    this.endpoint = parse(props.endpoint);
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.agent = props.agent;
 
@@ -70,7 +70,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
         return;
       }
 
-      const res = await this.https(this.endpoint, this.events);
+      const res = await this.https(this.endpoint, { events: this.events });
 
       // Clear the events array after successful output
       if (res) {
@@ -87,7 +87,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
    */
   private async https(
     url: UrlWithStringQuery,
-    body: TelemetrySchema[],
+    body: { events: TelemetrySchema[] },
   ): Promise<boolean> {
     try {
       const res = await doRequest(url, body, this.agent);
@@ -112,7 +112,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
  */
 function doRequest(
   url: UrlWithStringQuery,
-  data: TelemetrySchema[],
+  data: { events: TelemetrySchema[] },
   agent?: Agent,
 ) {
   return new Promise<IncomingMessage>((ok, ko) => {
