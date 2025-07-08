@@ -1228,7 +1228,7 @@ cli telemetry, including environment variables and preferences set globally in `
 
 ```bash
 $ # Check the current status of telemetry
-$ cdk cli-telemetry -status
+$ cdk cli-telemetry --status
 ```
 
 ## Global Options
