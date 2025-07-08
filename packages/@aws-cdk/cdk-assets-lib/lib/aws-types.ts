@@ -57,19 +57,19 @@ export interface GetBucketEncryptionCommandInput {
   ExpectedBucketOwner?: string;
 }
 
-export const ServerSideEncryption = {
+export const ServerSideEncryptionIn = {
   AES256: 'AES256',
   aws_kms: 'aws:kms',
   aws_kms_dsse: 'aws:kms:dsse',
 } as const;
 
-export type ServerSideEncryption = (typeof ServerSideEncryption)[keyof typeof ServerSideEncryption];
+export type ServerSideEncryption<Dir> = InOut<Dir, (typeof ServerSideEncryptionIn)[keyof typeof ServerSideEncryptionIn], string>;
 
-export interface ServerSideEncryptionByDefault {
+export interface ServerSideEncryptionByDefault<Dir> {
   /**
    * <p>Server-side encryption algorithm to use for the default encryption.</p>
    */
-  SSEAlgorithm: ServerSideEncryption | undefined;
+  SSEAlgorithm: ServerSideEncryption<Dir> | undefined;
   /**
    * <p>Amazon Web Services Key Management Service (KMS) customer Amazon Web Services KMS key ID to use for the default
    *          encryption. This parameter is allowed if and only if <code>SSEAlgorithm</code> is set to
@@ -102,13 +102,13 @@ export interface ServerSideEncryptionByDefault {
   KMSMasterKeyID?: string;
 }
 
-export interface ServerSideEncryptionRule {
+export interface ServerSideEncryptionRule<Dir> {
   /**
    * <p>Specifies the default server-side encryption to apply to new objects in the bucket. If a
    *          PUT Object request doesn't specify any server-side encryption, this default encryption will
    *          be applied.</p>
    */
-  ApplyServerSideEncryptionByDefault?: ServerSideEncryptionByDefault;
+  ApplyServerSideEncryptionByDefault?: ServerSideEncryptionByDefault<Dir>;
   /**
    * <p>Specifies whether Amazon S3 should use an S3 Bucket Key with server-side encryption using KMS
    *          (SSE-KMS) for new objects in the bucket. Existing objects are not affected. Setting the
@@ -120,19 +120,19 @@ export interface ServerSideEncryptionRule {
   BucketKeyEnabled?: boolean;
 }
 
-export interface ServerSideEncryptionConfiguration {
+export interface ServerSideEncryptionConfiguration<Dir> {
   /**
    * <p>Container for information about a particular server-side encryption configuration
    *          rule.</p>
    */
-  Rules: ServerSideEncryptionRule[] | undefined;
+  Rules: ServerSideEncryptionRule<Dir>[] | undefined;
 }
 
 export interface GetBucketEncryptionOutput {
   /**
    * <p>Specifies the default server-side-encryption configuration.</p>
    */
-  ServerSideEncryptionConfiguration?: ServerSideEncryptionConfiguration;
+  ServerSideEncryptionConfiguration?: ServerSideEncryptionConfiguration<'out'>;
 }
 
 export interface GetBucketEncryptionCommandOutput
@@ -362,7 +362,7 @@ export type ChecksumAlgorithmIn = (typeof ChecksumAlgorithmIn)[keyof typeof Chec
 
 export type ChecksumAlgorithmOut = string;
 
-export const ObjectStorageClass = {
+export const ObjectStorageClassIn = {
   DEEP_ARCHIVE: 'DEEP_ARCHIVE',
   EXPRESS_ONEZONE: 'EXPRESS_ONEZONE',
   GLACIER: 'GLACIER',
@@ -376,7 +376,7 @@ export const ObjectStorageClass = {
   STANDARD_IA: 'STANDARD_IA',
 } as const;
 
-export type ObjectStorageClass = (typeof ObjectStorageClass)[keyof typeof ObjectStorageClass];
+export type ObjectStorageClass<Dir> = InOut<Dir, (typeof ObjectStorageClassIn)[keyof typeof ObjectStorageClassIn], string>;
 
 export interface Owner {
   /**
@@ -520,7 +520,7 @@ export interface _Object<Dir> {
    *                <b>Directory buckets</b> - Only the S3 Express One Zone storage class is supported by directory buckets to store objects.</p>
    *          </note>
    */
-  StorageClass?: ObjectStorageClass;
+  StorageClass?: ObjectStorageClass<Dir>;
 
   /**
    * <p>The owner of the object</p>
@@ -1009,7 +1009,7 @@ export interface PutObjectRequest {
    *          <p>
    *             <b>Directory buckets </b> - For directory buckets, only the server-side encryption with Amazon S3 managed keys (SSE-S3) (<code>AES256</code>) value is supported.</p>
    */
-  ServerSideEncryption?: ServerSideEncryption;
+  ServerSideEncryption?: ServerSideEncryption<'in'>;
   /**
    * <p>By default, Amazon S3 uses the STANDARD Storage Class to store newly created objects. The
    *          STANDARD storage class provides high durability and high availability. Depending on
@@ -1242,7 +1242,7 @@ export interface CompleteMultipartUploadOutput {
    *             <p>For directory buckets, only server-side encryption with Amazon S3 managed keys (SSE-S3) (<code>AES256</code>) is supported.</p>
    *          </note>
    */
-  ServerSideEncryption?: ServerSideEncryption;
+  ServerSideEncryption?: ServerSideEncryption<'out'>;
   /**
    * <p>Version ID of the newly created object, in case the bucket has versioning turned
    *          on.</p>

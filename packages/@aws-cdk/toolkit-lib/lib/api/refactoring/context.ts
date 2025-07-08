@@ -51,11 +51,16 @@ function resourceMoves(before: CloudFormationStack[], after: CloudFormationStack
   const digestsBefore = resourceDigests(before);
   const digestsAfter = resourceDigests(after);
 
+  const stackNames = (stacks: CloudFormationStack[]) => stacks.map((s) => s.stackName).sort().join(', ');
   if (!isomorphic(digestsBefore, digestsAfter)) {
-    const message = 'A refactor operation cannot add, remove or update resources. ' +
-      'Only resource moves and renames are allowed. ' +
-      "Run 'cdk diff' to compare the local templates to the deployed stacks.";
-    throw new ToolkitError(message);
+    const message = [
+      'A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed. ',
+      'Run \'cdk diff\' to compare the local templates to the deployed stacks.\n',
+      `Deployed stacks: ${stackNames(before)}`,
+      `Local stacks: ${stackNames(after)}`,
+    ];
+
+    throw new ToolkitError(message.join('\n'));
   }
 
   return Object.values(removeUnmovedResources(zip(digestsBefore, digestsAfter)));
