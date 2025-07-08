@@ -19,9 +19,7 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
 
-// 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
-// https://github.com/microsoft/TypeScript/issues/60159
-const TYPESCRIPT_VERSION = '5.6';
+const TYPESCRIPT_VERSION = '5.8';
 
 /**
  * When adding an SDK dependency for a library, use this function
