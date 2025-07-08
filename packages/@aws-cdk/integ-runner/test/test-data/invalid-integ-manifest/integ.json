@@ -1,0 +1,11 @@
+{
+  "version": "v1.0.0",
+  "testCases": {
+    "invalid-test": {
+      "stacks": ["test-stack"],
+      "diffAssets": false,
+      // This is an invalid JSON comment that will cause parsing to fail
+      "regions": ["us-east-1"]
+    }
+  }
+}

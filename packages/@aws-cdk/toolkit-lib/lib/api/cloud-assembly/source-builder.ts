@@ -118,6 +118,18 @@ export interface AssemblySourceProps {
    * @default - `true` if `outdir` is not given, `false` otherwise
    */
   readonly disposeOutdir?: boolean;
+
+  /**
+   * Resolve the current default environment an provide as environment variables to the app.
+   *
+   * This will make a (cached) call to STS to resolve the current account using
+   * base credentials. The behavior is not always desirable and can add
+   * unnecessary delays, e.g. when an app specifies an environment explicitly
+   * or when local actions are be performed without internet access.
+   *
+   * @default true
+   */
+  readonly resolveDefaultEnvironment?: boolean;
 }
 
 /**
@@ -324,7 +336,10 @@ export abstract class CloudAssemblySourceBuilder {
     return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
-          await using execution = await ExecutionEnvironment.create(services, { outdir });
+          await using execution = await ExecutionEnvironment.create(services, {
+            outdir,
+            resolveDefaultAppEnv: props.resolveDefaultEnvironment ?? true,
+          });
 
           const synthParams = parametersFromSynthOptions(props.synthOptions);
 
@@ -368,7 +383,7 @@ export abstract class CloudAssemblySourceBuilder {
             : await assemblyFromDirectory(assembly.directory, services.ioHelper, props.loadAssemblyOptions);
 
           const success = await execution.markSuccessful();
-          const deleteOnDispose = props.disposeOutdir ?? execution.outDirIsTemporary;
+          const deleteOnDispose = props.disposeOutdir ?? execution.shouldDisposeOutDir;
           return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
         },
       },
@@ -462,19 +477,16 @@ export abstract class CloudAssemblySourceBuilder {
     return new ContextAwareCloudAssemblySource(
       {
         produce: async () => {
-          // @todo build
-          // const build = this.props.configuration.settings.get(['build']);
-          // if (build) {
-          //   await execInChildProcess(build, { cwd: props.workingDirectory });
-          // }
-
           try {
             fs.mkdirpSync(outdir);
           } catch (e: any) {
             throw new ToolkitError(`Could not create output directory at '${outdir}' (${e.message}).`);
           }
 
-          await using execution = await ExecutionEnvironment.create(services, { outdir });
+          await using execution = await ExecutionEnvironment.create(services, {
+            outdir,
+            resolveDefaultAppEnv: props.resolveDefaultEnvironment ?? true,
+          });
 
           const commandLine = await execution.guessExecutable(app);
 
@@ -521,7 +533,7 @@ export abstract class CloudAssemblySourceBuilder {
           const asm = await assemblyFromDirectory(outdir, services.ioHelper, props.loadAssemblyOptions);
 
           const success = await execution.markSuccessful();
-          const deleteOnDispose = props.disposeOutdir ?? execution.outDirIsTemporary;
+          const deleteOnDispose = props.disposeOutdir ?? execution.shouldDisposeOutDir;
           return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
         },
       },
