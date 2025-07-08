@@ -346,6 +346,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
             requiresArg: true,
           }),
     )
+    .command('flags', 'Modify feature flag configurations.')
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {

@@ -46,6 +46,11 @@ export interface UserInput {
   readonly gc?: GcOptions;
 
   /**
+   * Modify feature flag configurations.
+   */
+  readonly flags?: {};
+
+  /**
    * Deploys the stack(s) named STACKS into your AWS account
    */
   readonly deploy?: DeployOptions;

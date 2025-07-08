@@ -26,6 +26,7 @@ export enum Command {
   VERSION = 'version',
   WATCH = 'watch',
   GC = 'gc',
+  FLAGS = 'flags',
   ROLLBACK = 'rollback',
   IMPORT = 'import',
   ACKNOWLEDGE = 'acknowledge',

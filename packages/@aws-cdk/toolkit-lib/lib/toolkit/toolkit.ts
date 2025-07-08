@@ -1,5 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
+import type { ArtifactManifest, FeatureFlag, FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
@@ -1279,6 +1281,43 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     } catch {
       // just continue - deploy will show the error
     }
+  }
+
+  /**
+   * Retrieve feature flag information from the cloud assembly
+   */
+  public async flags(cx: ICloudAssemblySource): Promise<FeatureFlagReportProperties[]> {
+    const ioHelper = asIoHelper(this.ioHost, 'flags');
+    const assembly = await assemblyFromSource(ioHelper, cx);
+    const artifacts = assembly.cloudAssembly.manifest.artifacts;
+    const allFeatureFlags: ArtifactManifest[] = [];
+
+    for (const [_, artifactInfo] of Object.entries(artifacts!)) {
+      if (artifactInfo.type === ArtifactType.FEATURE_FLAG_REPORT) {
+        allFeatureFlags.push(artifactInfo);
+      }
+    }
+
+    const featureFlagReport: FeatureFlagReportProperties[] = [];
+
+    for (const report of allFeatureFlags) {
+      const flagData = report.properties as any;
+      let individualReport: FeatureFlagReportProperties = {
+        module: flagData.module,
+        flags: {},
+      };
+      for (const [flagName, flagInfo] of Object.entries(flagData.flags)) {
+        const flag = flagInfo as FeatureFlag;
+        individualReport.flags[flagName] = {
+          userValue: flag.userValue ?? '-',
+          recommendedValue: flag.recommendedValue,
+          explanation: flag.explanation ?? '',
+        };
+      }
+      featureFlagReport.push(individualReport);
+    }
+
+    return featureFlagReport;
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {

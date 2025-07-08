@@ -324,6 +324,9 @@
         }
       }
     },
+    "flags": {
+      "description": "Modify feature flag configurations."
+    },
     "deploy": {
       "description": "Deploys the stack(s) named STACKS into your AWS account",
       "options": {

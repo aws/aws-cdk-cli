@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import type { IoMessageLevel } from './io-host';
@@ -25,6 +25,7 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { displayFlags } from '../commands/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
@@ -424,6 +425,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           bootstrapStackName: args.bootstrapStackName,
           confirm: args.confirm,
         });
+
+      case 'flags':
+        ioHost.currentAction = 'flags';
+        const toolkit = new Toolkit({
+          ioHost,
+          toolkitStackName,
+        });
+        const flagsData = await toolkit.flags(cloudExecutable);
+        return displayFlags(flagsData);
 
       case 'synthesize':
       case 'synth':
