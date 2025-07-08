@@ -199,9 +199,9 @@ export class CdkToolkit {
   public async cliTelemetryStatus() {
     const currentStatus = canCollectTelemetry(this.props.configuration.context);
     if (currentStatus) {
-      info('Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable.');
+      info('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
     } else {
-      info('Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable.');
+      info('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
     }
   }
 
