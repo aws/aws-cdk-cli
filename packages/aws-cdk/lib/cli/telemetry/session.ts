@@ -2,10 +2,10 @@ import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { AccountIdFetcher } from './account-id-fetcher';
 import { getInstallationId } from './installation-id';
-import { IoHostTelemetryClient } from './io-host-client';
+import { IoHostTelemetrySink } from './io-host-sink';
 import { getLibraryVersion } from './library-version';
 import { RegionFetcher } from './region-fetcher';
-import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation-utils';
+import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink-interface';
 import type { Context } from '../../api/context';
@@ -42,8 +42,8 @@ export class TelemetrySession {
   public async begin() {
     this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
 
-    // TODO: change this to EndpointTelemetryClient
-    this._client = new IoHostTelemetryClient({
+    // TODO: change this to EndpointTelemetrySink
+    this._client = new IoHostTelemetrySink({
       ioHost: this.ioHost,
     });
 
