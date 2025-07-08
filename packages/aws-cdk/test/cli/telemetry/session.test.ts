@@ -95,12 +95,12 @@ describe('TelemetrySession', () => {
     // THEN
     expect(privateCiInfo).toEqual(expect.objectContaining({
       environment: expect.objectContaining({
-        ci: NOT_CI,
+        ci: Boolean(NOT_CI),
       }),
     }));
     expect(privateInfo).toEqual(expect.objectContaining({
       environment: expect.objectContaining({
-        ci: CI,
+        ci: Boolean(CI),
       }),
     }));
     process.env.CI = CI;
