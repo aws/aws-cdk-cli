@@ -1,8 +1,8 @@
 import { ciSystemIsStdErrSafe } from '../ci-systems';
-import { isCI } from '../telemetry/session';
+import { isCI } from '../util/ci';
 import { displayVersion } from '../version-util';
 
-export { isCI } from '../telemetry/session';
+export { isCI } from '../util/ci';
 
 /**
  * yargs middleware to negate an option if a negative alias is provided

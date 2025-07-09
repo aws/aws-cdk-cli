@@ -11,7 +11,8 @@ import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
-import { isCI, TelemetrySession } from '../telemetry/session';
+import { TelemetrySession } from '../telemetry/session';
+import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 

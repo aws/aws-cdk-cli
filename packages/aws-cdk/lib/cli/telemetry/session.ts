@@ -15,6 +15,7 @@ import type { CliIoHost } from '../io-host/cli-io-host';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { versionNumber } from '../version-util';
+import { isCI } from '../util/ci';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -151,12 +152,4 @@ function isAbortedError(error?: ErrorDetails) {
     return true;
   }
   return false;
-}
-
-/**
- * Returns true if the current process is running in a CI environment
- * @returns true if the current process is running in a CI environment
- */
-export function isCI(): boolean {
-  return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
 }
