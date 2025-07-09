@@ -1,10 +1,8 @@
 import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { AccountIdFetcher } from './account-id-fetcher';
 import { getInstallationId } from './installation-id';
 import { IoHostTelemetrySink } from './io-host-sink';
 import { getLibraryVersion } from './library-version';
-import { RegionFetcher } from './region-fetcher';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink-interface';
@@ -14,8 +12,8 @@ import { detectCiSystem } from '../ci-systems';
 import type { CliIoHost } from '../io-host/cli-io-host';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
-import { versionNumber } from '../version-util';
 import { isCI } from '../util/ci';
+import { versionNumber } from '../version-util';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -57,8 +55,6 @@ export class TelemetrySession {
         telemetryVersion: '1.0',
         cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.ioHost.asIoHelper()),
-        accountId: await new AccountIdFetcher().fetch(),
-        region: await new RegionFetcher().fetch(),
       },
       event: {
         command: {
@@ -86,6 +82,14 @@ export class TelemetrySession {
         message: 'Subprocess exited with error null',
       });
     });
+  }
+
+  public async attachEnvironment(env: { account?: string; region?: string }) {
+    this.sessionInfo.identifiers = {
+      ...this.sessionInfo.identifiers,
+      accountId: env.account,
+      region: env.region,
+    };
   }
 
   /**

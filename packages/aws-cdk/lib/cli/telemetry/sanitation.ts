@@ -13,9 +13,9 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
   const path: string[] = [command];
   const parameters: { [key: string]: string } = {};
 
-  const globalOptions = Object.keys(config.globalOptions);
-  const commandOptions = Object.keys(config.commands[command].options ?? {});
-  const commandArg = config.commands[command].arg;
+  const globalOptions: any[] = Object.keys(config.globalOptions);
+  const commandOptions: any[] = Object.keys(config.commands[command]?.options ?? {});
+  const commandArg: { name: string; variadic: string } | undefined = config.commands[command]?.arg;
 
   for (const argName of Object.keys(argv)) {
     if (argName === commandArg?.name) {

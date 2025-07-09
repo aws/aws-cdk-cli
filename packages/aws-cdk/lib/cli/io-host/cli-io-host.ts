@@ -78,20 +78,6 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
-
-  /**
-   * Raw arguments supplied to the command
-   *
-   * @default - no arguments
-   */
-  readonly arguments?: any;
-
-  /**
-   * Context values
-   *
-   * @default - no context
-   */
-  readonly context?: Context;
 }
 
 /**
@@ -182,13 +168,17 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+  }
 
-    if (props.context && canCollectTelemetry(props.context)) {
+  public async startTelemetry(args: any, context: Context) {
+    if (canCollectTelemetry(context)) {
       this.telemetry = new TelemetrySession({
         ioHost: this,
-        arguments: props.arguments,
-        context: props.context,
+        arguments: args,
+        context,
       });
+
+      await this.telemetry.begin();
     }
   }
 

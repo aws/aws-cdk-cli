@@ -7,6 +7,14 @@ import { CliIoHost } from '../../../lib/cli/io-host';
 
 let passThrough: PassThrough;
 
+// Store original process.on
+const originalProcessOn = process.on;
+
+// Mock process.on to be a no-op function that returns process for chaining
+process.on = jest.fn().mockImplementation(function() {
+  return process;
+}) as any;
+
 const ioHost = CliIoHost.instance({
   logLevel: 'trace',
 });
@@ -55,6 +63,11 @@ describe('CliIoHost', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    // Restore original process.on
+    process.on = originalProcessOn;
   });
 
   describe('stream selection', () => {
@@ -273,9 +286,8 @@ describe('CliIoHost', () => {
       // Create a new instance with telemetry enabled
       telemetryIoHost = CliIoHost.instance({
         logLevel: 'trace',
-        context: new Context(),
-        arguments: {},
       }, true);
+      telemetryIoHost.startTelemetry({ _: 'init' }, new Context());
 
       expect(telemetryIoHost.telemetry).toBeDefined();
 

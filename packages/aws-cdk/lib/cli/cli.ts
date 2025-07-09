@@ -57,29 +57,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     }
   }
 
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
-  });
-  await configuration.load();
-
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
     isTTY: process.stdout.isTTY,
     isCI: Boolean(argv.ci),
     currentAction: cmd,
     stackProgress: argv.progress,
-    arguments: argv,
-    context: configuration.context,
   }, true);
-
-  try {
-    await ioHost.telemetry?.begin();
-  } catch (e: any) {
-    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
-  }
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -97,6 +81,20 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   await ioHost.defaults.debug('CDK Toolkit CLI version:', displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
+
+  const configuration = new Configuration({
+    commandLineArguments: {
+      ...argv,
+      _: argv._ as [Command, ...string[]], // TypeScript at its best
+    },
+  });
+  await configuration.load();
+
+  try {
+    await ioHost.startTelemetry(argv, configuration.context);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+  }
 
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
@@ -133,6 +131,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
   }, configuration.settings.get(['profile']));
+
+  await ioHost.telemetry?.attachEnvironment({
+    account: (await sdkProvider.defaultAccount())?.accountId,
+    region: sdkProvider.defaultRegion,
+  });
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
