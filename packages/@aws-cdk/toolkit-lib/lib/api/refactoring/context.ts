@@ -3,6 +3,7 @@ import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { equalSets } from '../../util/sets';
 
 /**
  * Represents a set of possible moves of a resource from one location
@@ -167,19 +168,4 @@ function resourceMappings(movements: ResourceMove[]): ResourceMapping[] {
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]));
-}
-
-/**
- * Are two sets equal to each other
- */
-function equalSets<A>(a: Set<A>, b: Set<A>) {
-  if (a.size !== b.size) {
-    return false;
-  }
-  for (const x of a) {
-    if (!b.has(x)) {
-      return false;
-    }
-  }
-  return true;
 }

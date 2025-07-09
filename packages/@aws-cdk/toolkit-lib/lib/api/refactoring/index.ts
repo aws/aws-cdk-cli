@@ -8,7 +8,7 @@ import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
 import { minimatch } from 'minimatch';
 import { major } from 'semver';
-import { deserializeStructure } from '../../util';
+import { deserializeStructure, indexBy } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';
 import { StringWriteStream } from '../streams';
@@ -211,18 +211,3 @@ function matchingPatterns<S extends CloudFormationStack>(patterns: string[], id:
 
   return (s: S) => patterns.some(pattern => minimatch(id(s), pattern));
 }
-
-async function indexBy<A, B>(xs: A[], fn: (a: A) => Promise<B>): Promise<Map<B, A[]>> {
-  const ret = new Map<B, A[]>();
-  for (const x of xs) {
-    const key = await fn(x);
-    const group = ret.get(key);
-    if (group) {
-      group.push(x);
-    } else {
-      ret.set(key, [x]);
-    }
-  }
-  return ret;
-}
-
