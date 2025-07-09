@@ -1062,8 +1062,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.requireUnstableFeature('refactor');
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._refactor(assembly, ioHelper, options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._refactor(assembly, ioHelper, options);
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
