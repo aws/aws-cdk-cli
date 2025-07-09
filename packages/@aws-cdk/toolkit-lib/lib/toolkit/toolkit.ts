@@ -73,7 +73,7 @@ import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
-import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
+import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
@@ -1071,7 +1071,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
 
     for (let { environment, localStacks, deployedStacks } of groups) {
-      await notifyInfo(formatEnvironmentSectionHeader(environment));
+      await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
       try {
         const context = new RefactoringContext({
@@ -1084,7 +1084,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
 
         if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
-          await notifyInfo('Nothing to refactor.');
+          await ioHelper.defaults.info('Nothing to refactor.');
           continue;
         }
 
@@ -1092,23 +1092,19 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           .map(m => m.toTypedMapping())
           .filter(m => m.type !== 'AWS::CDK::Metadata');
 
-        await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
+        let refactorMessage = formatTypedMappings(typedMappings);
+        const refactorResult: RefactorResult = { typedMappings };
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
-          await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
+          refactorMessage += '\n' + formatAmbiguousMappings(paths);
+          refactorResult.ambiguousPaths = paths;
         }
+
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
       } catch (e: any) {
-        await notifyError(e.message, e);
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(e.message, { error: e }));
       }
-    }
-
-    async function notifyInfo(message: string, data: any = {}) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(message, data));
-    }
-
-    async function notifyError(message: string, error: Error) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error }));
     }
 
     async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {

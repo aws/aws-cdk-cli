@@ -320,6 +320,7 @@ test('detects ambiguous mappings', async () => {
             ['Stack1/MyBucket1/Resource', 'Stack1/MyBucket2/Resource'],
           ],
         ],
+        typedMappings: [],
       },
     }),
   );
@@ -527,8 +528,7 @@ test('resource is marked to be excluded for refactoring in the cloud assembly', 
   expect(ioHost.notifySpy).toHaveBeenCalledWith(
     expect.objectContaining({
       action: 'refactor',
-      level: 'result',
-      code: 'CDK_TOOLKIT_I8900',
+      level: 'info',
       // ...so we don't see it in the output
       message: expect.stringMatching(/Nothing to refactor/),
     }),
