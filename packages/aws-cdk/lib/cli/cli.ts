@@ -279,8 +279,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           excludeFile: args.excludeFile,
           mappingFile: args.mappingFile,
           revert: args.revert,
-          localStacks: arrayFromYargs(args.localStack ?? []),
-          deployedStacks: arrayFromYargs(args.deployedStack ?? []),
+          stacks: selector,
+          additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
         });
 
       case 'bootstrap':

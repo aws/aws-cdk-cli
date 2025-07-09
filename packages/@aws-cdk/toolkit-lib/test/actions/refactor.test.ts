@@ -1,5 +1,5 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { MappingSource, type RefactorOptions, Toolkit } from '../../lib';
+import { MappingSource, type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
@@ -86,8 +86,10 @@ test('detects the same resource in different locations', async () => {
   );
 });
 
-test('only considers deployed stacks that match the given filter', async () => {
+test('includes additional stacks in the comparison if provided', async () => {
   // GIVEN
+  // Deployed: Stack1, Stack2, CDKToolkit
+  // Local:    Stack1
   mockCloudFormationClient.on(ListStacksCommand).resolves({
     StackSummaries: [
       {
@@ -173,77 +175,38 @@ test('only considers deployed stacks that match the given filter', async () => {
   await expectRefactorBehavior('stack-with-bucket',
     {
       dryRun: true,
-      // We are not passing any filter, which means that Stack2 will also be included in the comparison.
-      // This results in the set of deployed resources being different from the local resources, which
-      // results in an error.
+      // We are not passing any filter, which means that only deployed Stack1 will be
+      // compared to local Stack1.
     },
     {
       action: 'refactor',
-      level: 'error',
-      code: 'CDK_TOOLKIT_E8900',
-      message: expect.stringMatching(/A refactor operation cannot add, remove or update resources/),
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      data: expect.objectContaining({
+        typedMappings: [
+          {
+            sourcePath: 'Stack1/OldLogicalID/Resource',
+            destinationPath: 'Stack1/MyBucket/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      }),
     },
   );
 
   await expectRefactorBehavior('stack-with-bucket',
     {
       dryRun: true,
-      // To avoid the error, we tell the toolkit to only consider Stack1 in the deployed stacks.
-      deployedStacks: ['Stack1'],
+      // If we include Stack2, the two resource graphs will now be different, and we'll get an error
+      additionalStackNames: ['Stack2'],
     },
     {
-      action: 'refactor',
-      level: 'result',
-      code: 'CDK_TOOLKIT_I8900',
-      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldLogicalID\/Resource.*Stack1\/MyBucket\/Resource/),
-      data: expect.objectContaining({
-        typedMappings: [
-          {
-            sourcePath: 'Stack1/OldLogicalID/Resource',
-            destinationPath: 'Stack1/MyBucket/Resource',
-            type: 'AWS::S3::Bucket',
-          },
-        ],
-      }),
-    },
-  );
-
-  await expectRefactorBehavior('two-different-stacks',
-    {
-      dryRun: true,
-      // In this case, we are not passing any filter, either, but local and deployed are
-      // the same, except for the bootstrap stack. But that is ignored by default.
-    }, {
-      action: 'refactor',
-      level: 'result',
-      code: 'CDK_TOOLKIT_I8900',
-      data: expect.objectContaining({
-        typedMappings: [
-          {
-            sourcePath: 'Stack1/OldLogicalID/Resource',
-            destinationPath: 'Stack1/MyBucket/Resource',
-            type: 'AWS::S3::Bucket',
-          },
-          {
-            sourcePath: 'Stack2/Queue/Resource',
-            destinationPath: 'Stack2/MyQueue/Resource',
-            type: 'AWS::SQS::Queue',
-          },
-        ],
-      }),
-    });
-
-  await expectRefactorBehavior('two-different-stacks',
-    {
-      dryRun: true,
-      // But if we pass a wildcard, even the bootstrap stack will be included in the comparison.
-      deployedStacks: ['*'],
-    }, {
       action: 'refactor',
       level: 'error',
       code: 'CDK_TOOLKIT_E8900',
       message: expect.stringMatching(/A refactor operation cannot add, remove or update resources/),
-    });
+    },
+  );
 });
 
 test('detects ambiguous mappings', async () => {
@@ -453,8 +416,10 @@ test('filters stacks when stack selector is passed', async () => {
   const cx = await builderFixture(toolkit, 'two-different-stacks');
   await toolkit.refactor(cx, {
     dryRun: true,
-    localStacks: ['Stack1'],
-    deployedStacks: ['Stack1'],
+    stacks: {
+      patterns: ['Stack1'],
+      strategy: StackSelectionStrategy.PATTERN_MATCH,
+    },
   });
 
   // Resources were renamed in both stacks, but we are only including Stack1.

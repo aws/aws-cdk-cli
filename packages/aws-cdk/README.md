@@ -1148,21 +1148,26 @@ and pass it to the CLI via the `--exclude-file` flag:
 $ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
 ```
 
-If your application has more than one stack, and you want the refactor 
-command to consider only a subset of them, you can specify the stacks you
-want, both local and deployed:
+If your application has more than one stack, and you want the `refactor` 
+command to consider only a subset of them, you can pass a list of stack 
+patterns as a parameter:
 
 ```shell
-$ cdk refactor --local-stack Foo --local-stack Bar --deployed-stack Foo --unstable=refactor --dry-run 
+$ cdk refactor Web* --unstable=refactor --dry-run 
 ```
 
-This is useful if, for example, you have more than one CDK application deployed
-to a given environment, and you want to only include the deployed stacks that
-belong to the application that you are refactoring.
-
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
+
+The CLI's default behavior is to include in the comparison only the deployed 
+stacks that have a counterpart (stack with the same name) locally. If you want
+to include additional deployed stacks in the comparison, pass their names using
+the `--additional-stack-name` option:
+
+```shell
+$ cdk refactor --unstable=refactor --dry-run --additional-stack-name=Foo --additional-stack-name=Bar
+```
 
 If, instead of letting the CLI decide which resources to move, you want to 
 provide your own mapping of old to new locations, you can do so by passing a

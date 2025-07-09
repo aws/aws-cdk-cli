@@ -6,8 +6,6 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
-import { minimatch } from 'minimatch';
-import { major } from 'semver';
 import { deserializeStructure, indexBy } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';
@@ -165,9 +163,7 @@ function formatToStream(cb: (stream: NodeJS.WritableStream) => void): string {
 /**
  * Returns a list of stack groups, each containing the local stacks and the deployed stacks that match the given patterns.
  */
-export async function groupStacks(sdkProvider: SdkProvider, cloudAssembly: cxapi.CloudAssembly, localPatterns: string[], deployedPatterns: string[]) {
-  const localStacks = getLocalStacks(cloudAssembly, localPatterns);
-
+export async function groupStacks(sdkProvider: SdkProvider, localStacks: CloudFormationStack[], additionalStackNames: string[]) {
   const environments: Map<string, cxapi.Environment> = new Map();
 
   for (const stack of localStacks) {
@@ -181,33 +177,19 @@ export async function groupStacks(sdkProvider: SdkProvider, cloudAssembly: cxapi
   );
 
   const groups: StackGroup[] = [];
-  const deployedFilter = matchingPatterns(deployedPatterns, (s) => s.stackName);
   for (let key of localByEnvironment.keys()) {
     const environment = environments.get(key)!;
+    const allDeployedStacks = await getDeployedStacks(sdkProvider, environment);
+    const local = localByEnvironment.get(key)!;
+    const hasLocalCounterpart = (s: CloudFormationStack) => local.some((l) => l.stackName === s.stackName);
+    const wasExplicitlyProvided = (s: CloudFormationStack) => additionalStackNames.includes(s.stackName);
+
     groups.push({
       environment,
-      deployedStacks: (await getDeployedStacks(sdkProvider, environment)).filter(deployedFilter),
-      localStacks: localByEnvironment.get(key)!,
+      deployedStacks: allDeployedStacks.filter(s => hasLocalCounterpart(s) || wasExplicitlyProvided(s)),
+      localStacks: local,
     });
   }
 
   return groups;
-}
-
-function getLocalStacks(cloudAssembly: cxapi.CloudAssembly, patterns: string[]) {
-  const all = major(cloudAssembly.version) < 10 ? cloudAssembly.stacks : cloudAssembly.stacksRecursively;
-  return all.filter(matchingPatterns(patterns ?? [], (s) => s.hierarchicalId));
-}
-
-function matchingPatterns<S extends CloudFormationStack>(patterns: string[], id: (a: S) => string): (s: S) => boolean {
-  if (patterns.length === 0) {
-    return (s) => !Object.entries(s.template?.Resources ?? {})
-      .some(([logicalId, resource]: [string, any]) => logicalId === 'CdkBootstrapVersion' && resource.Type === 'AWS::SSM::Parameter');
-  }
-
-  if (patterns.includes('*')) {
-    return () => true;
-  }
-
-  return (s: S) => patterns.some(pattern => minimatch(id(s), pattern));
 }

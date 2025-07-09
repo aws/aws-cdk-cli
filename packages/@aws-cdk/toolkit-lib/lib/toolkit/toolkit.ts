@@ -1064,8 +1064,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const sdkProvider = await this.sdkProvider('refactor');
-
-    const groups = await groupStacks(sdkProvider, assembly.cloudAssembly, options.localStacks ?? [], options.deployedStacks ?? []);
+    const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+    const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
 
     const mappingSource = options.mappingSource ?? MappingSource.auto();
     const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));

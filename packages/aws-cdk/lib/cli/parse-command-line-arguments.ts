@@ -882,19 +882,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('refactor', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
+    .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
-        .option('local-stack', {
+        .option('additional-stack-name', {
           type: 'array',
-          desc: 'Filter to apply for stacks in the cloud assembly',
-          nargs: 1,
           requiresArg: true,
-        })
-        .option('deployed-stack', {
-          type: 'array',
-          desc: 'Filter to apply for stacks deployed to the AWS account',
+          desc: 'Names of deployed stacks to be considered for resource comparison.',
           nargs: 1,
-          requiresArg: true,
         })
         .option('dry-run', {
           default: false,

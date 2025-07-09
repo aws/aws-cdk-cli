@@ -436,14 +436,15 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'refactor': {
         description: 'Moves resources between stacks or within the same stack',
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
         options: {
-          'local-stack': {
+          'additional-stack-name': {
             type: 'array',
-            desc: 'Filter to apply for stacks in the cloud assembly',
-          },
-          'deployed-stack': {
-            type: 'array',
-            desc: 'Filter to apply for stacks deployed to the AWS account',
+            requiresArg: true,
+            desc: 'Names of deployed stacks to be considered for resource comparison.',
           },
           'dry-run': {
             type: 'boolean',
