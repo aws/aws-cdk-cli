@@ -486,14 +486,14 @@ export class CdkToolkit {
 
       const stackIndex = stacks.indexOf(stack) + 1;
       info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
-
-      // TODO: these timers should be integrated with each other
       const startDeployTime = new Date().getTime();
       let tags = options.tags;
       if (!tags || tags.length === 0) {
         tags = tagsForStack(stack);
       }
 
+      // There is already a startDeployTime constant, but that does not work with telemetry.
+      // We should integrate the two in the future
       const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
       let error: any | undefined;
       let elapsedDeployTime = 0;
