@@ -1168,6 +1168,7 @@ export class CdkToolkit {
           fromScan: options.fromScan,
           sdkProvider: this.props.sdkProvider,
           environment: environment,
+          ioHelper: this.ioHost.asIoHelper(),
         });
         templateToDelete = generateTemplateOutput.templateId;
       } else if (scanType == TemplateSourceOptions.PATH) {
@@ -1210,7 +1211,7 @@ export class CdkToolkit {
       }
       const stack = generateStack(generateTemplateOutput.migrateJson.templateBody, options.stackName, language);
       await this.ioHost.asIoHelper().defaults.info(chalk.green(' ⏳  Generating CDK app for %s...'), chalk.blue(options.stackName));
-      await generateCdkApp(options.stackName, stack!, language, options.outputPath, options.compress);
+      await generateCdkApp(this.ioHost.asIoHelper(), options.stackName, stack!, language, options.outputPath, options.compress);
       if (generateTemplateOutput) {
         writeMigrateJsonFile(options.outputPath, options.stackName, generateTemplateOutput.migrateJson);
       }

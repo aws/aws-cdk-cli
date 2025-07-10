@@ -24,6 +24,7 @@ import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';
 import { Mode } from '../api/plugin';
+import type { IoHelper } from '../api-private';
 import { zipDirectory } from '../util';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');
@@ -39,6 +40,7 @@ const MIGRATE_SUPPORTED_LANGUAGES: readonly string[] = cdk_from_cfn.supported_la
  * @param outputPath - The path at which to generate the CDK app
  */
 export async function generateCdkApp(
+  ioHelper: IoHelper,
   stackName: string,
   stack: string,
   language: string,
@@ -53,6 +55,7 @@ export async function generateCdkApp(
     fs.mkdirSync(resolvedOutputPath, { recursive: true });
     const generateOnly = compress;
     await cliInit({
+      ioHelper,
       type: 'app',
       language,
       canUseNetwork: true,
@@ -933,6 +936,7 @@ export interface GenerateTemplateOptions {
   fromScan?: FromScan;
   sdkProvider: SdkProvider;
   environment: Environment;
+  ioHelper: IoHelper;
 }
 
 /**
