@@ -1,5 +1,4 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'fs-extra';
 import { ToolkitError, type IIoHost } from '@aws-cdk/toolkit-lib';
 import type { TelemetrySchema } from './schema';
 import type { ITelemetrySink } from './sink-interface';
@@ -38,11 +37,9 @@ export class FileTelemetrySink implements ITelemetrySink {
       throw new ToolkitError(`Telemetry file already exists at ${this.logFilePath}`);
     }
 
-    // Create the file if necessary
-    const directory = path.dirname(this.logFilePath);
-    if (!fs.existsSync(directory)) {
-      fs.mkdirSync(directory, { recursive: true });
-    }
+    // Create the file
+    fs.ensureFileSync(this.logFilePath);
+    fs.writeJsonSync(this.logFilePath, []);
   }
 
   /**
@@ -50,11 +47,9 @@ export class FileTelemetrySink implements ITelemetrySink {
    */
   public async emit(event: TelemetrySchema): Promise<void> {
     try {
-      // Format the events as a JSON string with pretty printing
-      const output = JSON.stringify(event, null, 2) + '\n';
-
-      // Write to file
-      fs.appendFileSync(this.logFilePath, output);
+      const json = fs.readJsonSync(this.logFilePath);
+      json.push(event);
+      fs.writeJSONSync(this.logFilePath, json, { spaces: 2 });
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
       await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);

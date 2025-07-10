@@ -1236,6 +1236,15 @@ cdk gc --unstable=gc
 The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
 is aware of the caveats in place for the feature.
 
+### `telemetry-file`
+
+Send your telemetry data to a local file (note that `--telemetry-file` is unstable, and must
+be passed in conjunction with `--unstable=telemetry`).
+
+```bash
+cdk list --telemetry-file=my/file/path --unstable=telemetry
+```
+
 ## Notices
 
 CDK Notices are important messages regarding security vulnerabilities, regressions, and usage of unsupported
