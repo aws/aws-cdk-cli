@@ -1,6 +1,6 @@
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Bootstrapper } from '../../lib/api/bootstrap';
-import type { Deployments } from '../../lib/api/deployments';
+import { Deployments } from '../../lib/api/deployments';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { listStacks } from '../../lib/commands/list-stacks';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
@@ -12,6 +12,8 @@ describe('list', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+
+    cloudFormation = instanceMockFrom(Deployments);
 
     bootstrapper = instanceMockFrom(Bootstrapper);
     bootstrapper.bootstrapEnvironment.mockResolvedValue({ noOp: false, outputs: {} } as any);

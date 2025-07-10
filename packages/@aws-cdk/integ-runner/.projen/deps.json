@@ -128,7 +128,7 @@
     },
     {
       "name": "typescript",
-      "version": "5.6",
+      "version": "5.8",
       "type": "build"
     },
     {

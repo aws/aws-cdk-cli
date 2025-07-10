@@ -19,9 +19,7 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
 
-// 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
-// https://github.com/microsoft/TypeScript/issues/60159
-const TYPESCRIPT_VERSION = '5.6';
+const TYPESCRIPT_VERSION = '5.8';
 
 /**
  * When adding an SDK dependency for a library, use this function
@@ -1639,6 +1637,7 @@ const cliInteg = configureProject(
       '@aws-sdk/client-sns',
       '@aws-sdk/client-sso',
       '@aws-sdk/client-sts',
+      '@aws-sdk/client-secrets-manager',
       '@aws-sdk/credential-providers',
       '@cdklabs/cdk-atmosphere-client',
       '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
@@ -1646,7 +1645,7 @@ const cliInteg = configureProject(
       'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
-      'glob@^7',
+      'glob@^9',
       'make-runnable@^1',
       'mockttp@^3',
       'npm@^10',
@@ -1660,6 +1659,7 @@ const cliInteg = configureProject(
       'jest@^29',
       'jest-junit@^15',
       'ts-jest@^29',
+      'proxy-agent',
       'node-pty',
     ],
     devDeps: [
@@ -1668,7 +1668,6 @@ const cliInteg = configureProject(
       '@types/semver@^7',
       '@types/yargs@^16',
       '@types/fs-extra@^9',
-      '@types/glob@^7',
     ],
     bin: {
       'run-suite': 'bin/run-suite',

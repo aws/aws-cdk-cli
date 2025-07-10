@@ -49,18 +49,18 @@
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jest": "^28.14.0",
-    "eslint-plugin-jsdoc": "^51.2.3",
+    "eslint-plugin-jsdoc": "^51.3.4",
     "eslint-plugin-prettier": "^5.5.1",
     "fs-extra": "^11.3.0",
     "graceful-fs": "^4.2.11",
-    "jest": "^30.0.3",
+    "jest": "^30.0.4",
     "jest-junit": "^16",
     "jszip": "^3.10.1",
     "license-checker": "^25.0.1",
     "mock-fs": "^5",
     "prettier": "^2.8",
     "ts-jest": "^29.4.0",
-    "typescript": "5.6"
+    "typescript": "5.8"
   },
   "dependencies": {
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",

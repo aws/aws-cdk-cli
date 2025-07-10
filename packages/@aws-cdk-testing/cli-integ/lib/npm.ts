@@ -7,6 +7,7 @@ const MINIMUM_VERSION = '3.9';
 export async function npmMostRecentMatching(packageName: string, range: string) {
   const output = JSON.parse(await shell(['node', require.resolve('npm'), '--silent', 'view', `${packageName}@${range}`, 'version', '--json'], {
     show: 'error',
+    captureStderr: false,
   }));
 
   if (typeof output === 'string') {

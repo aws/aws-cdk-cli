@@ -4,6 +4,7 @@ import * as path from 'path';
 import { SCHEMA_DIR } from './schema-definition';
 
 export function maybeBumpVersion(schemas: Record<string, any>) {
+  const $comment = "Do not hold back the version on additions: jsonschema validation of the manifest by the consumer will trigger errors on unexpected fields.";
   const serializedSchema = JSON.stringify(sortJson(schemas), null, 2);
 
   const versionFile = path.join(SCHEMA_DIR, 'version.json');
@@ -11,7 +12,7 @@ export function maybeBumpVersion(schemas: Record<string, any>) {
   const schemaHash = sha256(serializedSchema);
 
   if (current.schemaHash !== schemaHash) {
-    current = { schemaHash, revision: current.revision + 1 };
+    current = { schemaHash, $comment, revision: current.revision + 1 };
     console.log(`Schemas changed, bumping version to ${current.revision}`);
   }
 
@@ -26,6 +27,7 @@ function sha256(x: string) {
 
 interface SchemaVersionFile {
   revision: number;
+  $comment?: string;
   schemaHash: string;
 }
 
