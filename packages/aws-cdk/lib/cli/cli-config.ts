@@ -441,6 +441,11 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
+          'additional-stack-name': {
+            type: 'array',
+            requiresArg: true,
+            desc: 'Names of deployed stacks to be considered for resource comparison.',
+          },
           'dry-run': {
             type: 'boolean',
             desc: 'Do not perform any changes, just show what would be done',

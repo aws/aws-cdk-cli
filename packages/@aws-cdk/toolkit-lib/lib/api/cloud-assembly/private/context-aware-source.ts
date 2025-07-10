@@ -6,6 +6,7 @@ import { IO } from '../../io/private';
 import type { IContextStore } from '../context-store';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 import { missingContextKeys } from './helpers';
+import { equalSets } from '../../../util/sets';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -113,19 +114,4 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
       return readableAsm;
     }
   }
-}
-
-/**
- * Are two sets equal to each other
- */
-function equalSets<A>(a: Set<A>, b: Set<A>) {
-  if (a.size !== b.size) {
-    return false;
-  }
-  for (const x of a) {
-    if (!b.has(x)) {
-      return false;
-    }
-  }
-  return true;
 }

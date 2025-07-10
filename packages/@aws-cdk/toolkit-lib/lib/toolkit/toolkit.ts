@@ -59,23 +59,21 @@ import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespac
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
 import {
-  formatAmbiguitySectionHeader,
   formatAmbiguousMappings,
-  formatMappingsHeader,
+  formatEnvironmentSectionHeader,
   formatTypedMappings,
-  getDeployedStacks,
+  groupStacks,
   ManifestExcludeList,
   usePrescribedMappings,
 } from '../api/refactoring';
-import type { CloudFormationStack, ResourceMapping } from '../api/refactoring/cloudformation';
+import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
-import { hashObject } from '../api/refactoring/digest';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
-import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
+import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
@@ -140,12 +138,6 @@ export interface ToolkitOptions {
    * by passing it in this set.
    */
   readonly unstableFeatures?: Array<UnstableFeature>;
-}
-
-interface StackGroup {
-  environment: cxapi.Environment;
-  localStacks: CloudFormationStack[];
-  deployedStacks: CloudFormationStack[];
 }
 
 /**
@@ -1062,8 +1054,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.requireUnstableFeature('refactor');
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._refactor(assembly, ioHelper, options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._refactor(assembly, ioHelper, options);
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
@@ -1072,73 +1064,47 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const sdkProvider = await this.sdkProvider('refactor');
-    const stacks = await assembly.selectStacksV2(ALL_STACKS);
+    const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+    const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
+
     const mappingSource = options.mappingSource ?? MappingSource.auto();
     const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
-    const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
 
-    const refactoringContexts: RefactoringContext[] = [];
-    for (let { environment, localStacks, deployedStacks } of await groupStacksByEnvironment()) {
-      refactoringContexts.push(new RefactoringContext({
-        environment,
-        deployedStacks,
-        localStacks,
-        filteredStacks: filteredStacks.stackArtifacts,
-        mappings: await getUserProvidedMappings(environment),
-      }));
-    }
+    for (let { environment, localStacks, deployedStacks } of groups) {
+      await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
-    const nonAmbiguousContexts = refactoringContexts.filter(c => !c.isAmbiguous);
-    if (nonAmbiguousContexts.length > 0) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatMappingsHeader(), {}));
-    }
-    for (const context of nonAmbiguousContexts) {
-      const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
-      const typedMappings = mappings.map(m => m.toTypedMapping());
-      const environment = context.environment;
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(environment, typedMappings), {
-        typedMappings,
-      }));
-    }
-
-    const ambiguousContexts = refactoringContexts.filter(c => c.isAmbiguous);
-    if (ambiguousContexts.length > 0) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguitySectionHeader(), {}));
-    }
-    for (const context of ambiguousContexts) {
-      const paths = context.ambiguousPaths;
-      const environment = context.environment;
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(environment, paths), {
-        ambiguousPaths: paths,
-      }));
-    }
-
-    async function groupStacksByEnvironment(): Promise<StackGroup[]> {
-      const stackGroups: Map<string, [CloudFormationStack[], CloudFormationStack[]]> = new Map();
-      const environments: Map<string, cxapi.Environment> = new Map();
-
-      for (const stack of stacks.stackArtifacts) {
-        const environment = await sdkProvider.resolveEnvironment(stack.environment);
-        const key = hashObject(environment);
-        environments.set(key, environment);
-        if (stackGroups.has(key)) {
-          stackGroups.get(key)![1].push(stack);
-        } else {
-          // The first time we see an environment, we need to fetch all stacks deployed to it.
-          const before = await getDeployedStacks(sdkProvider, environment);
-          stackGroups.set(key, [before, [stack]]);
-        }
-      }
-
-      const result: StackGroup[] = [];
-      for (const [hash, [deployedStacks, localStacks]] of stackGroups) {
-        result.push({
-          environment: environments.get(hash)!,
-          localStacks,
+      try {
+        const context = new RefactoringContext({
+          environment,
           deployedStacks,
+          localStacks,
+          mappings: await getUserProvidedMappings(environment),
         });
+
+        const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+
+        if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
+          await ioHelper.defaults.info('Nothing to refactor.');
+          continue;
+        }
+
+        const typedMappings = mappings
+          .map(m => m.toTypedMapping())
+          .filter(m => m.type !== 'AWS::CDK::Metadata');
+
+        let refactorMessage = formatTypedMappings(typedMappings);
+        const refactorResult: RefactorResult = { typedMappings };
+
+        if (context.ambiguousPaths.length > 0) {
+          const paths = context.ambiguousPaths;
+          refactorMessage += '\n' + formatAmbiguousMappings(paths);
+          refactorResult.ambiguousPaths = paths;
+        }
+
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
+      } catch (e: any) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(e.message, { error: e }));
       }
-      return result;
     }
 
     async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {

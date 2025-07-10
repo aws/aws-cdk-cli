@@ -1,4 +1,4 @@
-import type { StackSelector } from '../../api/cloud-assembly';
+import type { StackSelector } from '../../api';
 import type { ExcludeList } from '../../api/refactoring';
 import { InMemoryExcludeList, NeverExclude } from '../../api/refactoring';
 
@@ -71,16 +71,20 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * Criteria for selecting stacks to deploy
-   *
-   * @default - All stacks
+   * How the toolkit should obtain the mappings
+   */
+  mappingSource?: MappingSource;
+
+  /**
+   * Criteria for selecting stacks to compare with the deployed stacks in the
+   * target environment.
    */
   stacks?: StackSelector;
 
   /**
-   * How the toolkit should obtain the mappings
+   * A list of names of additional deployed stacks to be included in the comparison.
    */
-  mappingSource?: MappingSource;
+  additionalStackNames?: string[];
 }
 
 export interface MappingGroup {

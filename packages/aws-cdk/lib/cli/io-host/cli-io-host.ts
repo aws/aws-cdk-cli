@@ -148,7 +148,6 @@ export class CliIoHost implements IIoHost {
    */
   public noticesDestination: TargetStream = 'stderr';
 
-  private _internalIoHost?: IIoHost;
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -179,15 +178,6 @@ export class CliIoHost implements IIoHost {
       });
 
       await this.telemetry.begin();
-    }
-  }
-
-  /**
-   * Returns the singleton instance
-   */
-  public registerIoHost(ioHost: IIoHost) {
-    if (ioHost !== this) {
-      this._internalIoHost = ioHost;
     }
   }
 
@@ -273,10 +263,6 @@ export class CliIoHost implements IIoHost {
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     await this.maybeEmitTelemetry(msg);
-
-    if (this._internalIoHost) {
-      return this._internalIoHost.notify(msg);
-    }
 
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
@@ -387,11 +373,6 @@ export class CliIoHost implements IIoHost {
    * default response from the input message will be used.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-    // First call out to a registered instance if we have one
-    if (this._internalIoHost) {
-      return this._internalIoHost.requestResponse(msg);
-    }
-
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
       await this.notify(msg);

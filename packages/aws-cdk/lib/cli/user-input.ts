@@ -1425,6 +1425,13 @@ export interface DocsOptions {
  */
 export interface RefactorOptions {
   /**
+   * Names of deployed stacks to be considered for resource comparison.
+   *
+   * @default - undefined
+   */
+  readonly additionalStackName?: Array<string>;
+
+  /**
    * Do not perform any changes, just show what would be done
    *
    * @default - false

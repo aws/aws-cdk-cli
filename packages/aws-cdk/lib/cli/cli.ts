@@ -289,10 +289,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'refactor';
         return cli.refactor({
           dryRun: args.dryRun,
-          selector,
           excludeFile: args.excludeFile,
           mappingFile: args.mappingFile,
           revert: args.revert,
+          stacks: selector,
+          additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
         });
 
       case 'bootstrap':
