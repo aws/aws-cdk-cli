@@ -1,18 +1,18 @@
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
+import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
-import { info } from '../../lib/logging';
 
-jest.mock('../../lib/logging', () => ({
-  info: jest.fn(),
-}));
+const ioHost = CliIoHost.instance({}, true);
+const notifySpy = jest.spyOn(ioHost, 'notify');
 
 describe('telemetry command', () => {
   let configuration: Configuration;
   let toolkit: CdkToolkit;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     configuration = new Configuration();
     toolkit = new CdkToolkit({
+      ioHost,
       configuration,
       sdkProvider: {} as any,
       cloudExecutable: {} as any,
@@ -27,7 +27,7 @@ describe('telemetry command', () => {
 
     // THEN
     expect(configuration.context.get('cli-telemetry')).toBe(true);
-    expect(info).toHaveBeenCalledWith('Telemetry enabled');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'Telemetry enabled' }));
   });
 
   test('disable telemetry saves setting and displays message', async () => {
@@ -36,6 +36,6 @@ describe('telemetry command', () => {
 
     // THEN
     expect(configuration.context.get('cli-telemetry')).toBe(false);
-    expect(info).toHaveBeenCalledWith('Telemetry disabled');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'Telemetry disabled' }));
   });
 });

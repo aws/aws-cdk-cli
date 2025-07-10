@@ -40,6 +40,13 @@ export interface TestAssembly {
 }
 
 export class MockCloudExecutable extends CloudExecutable {
+  public static async create(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider, ioHost?: IIoHost) {
+    const mockIoHost = ioHost ?? new TestIoHost();
+    const sdkProvider = sdkProviderArg ?? new MockSdkProvider();
+
+    return new MockCloudExecutable(assembly, sdkProvider, mockIoHost);
+  }
+
   public readonly configuration: Configuration;
   public readonly sdkProvider: MockSdkProvider;
 

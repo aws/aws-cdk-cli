@@ -195,7 +195,7 @@ export async function generateTemplate(options: GenerateTemplateOptions): Promis
   }
   info('');
   info('Template successfully generated!');
-  return buildGenertedTemplateOutput(
+  return buildGeneratedTemplateOutput(
     generatedTemplate,
     (await cfn.getGeneratedTemplate(templateArn)).TemplateBody!,
     templateArn,
@@ -574,7 +574,7 @@ export function isThereAWarning(generatedTemplateOutput: GenerateTemplateOutput)
  * @param templateBody - The body of the generated template
  * @returns A GenerateTemplateOutput object
  */
-export function buildGenertedTemplateOutput(
+export function buildGeneratedTemplateOutput(
   generatedTemplateSummary: DescribeGeneratedTemplateCommandOutput,
   templateBody: string,
   source: string,

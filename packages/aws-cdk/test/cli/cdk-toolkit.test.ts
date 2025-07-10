@@ -50,11 +50,6 @@ const fakeChokidarWatch = {
   },
 };
 
-const mockResult = jest.fn();
-jest.mock('../../lib/logging', () => ({
-  ...jest.requireActual('../../lib/logging'),
-  result: mockResult,
-}));
 jest.setTimeout(30_000);
 
 import 'aws-sdk-client-mock';
@@ -94,6 +89,7 @@ import { flatten } from '../../lib/util';
 import { instanceMockFrom } from '../_helpers/as-mock';
 import type { TestStackArtifact } from '../_helpers/assembly';
 import { MockCloudExecutable } from '../_helpers/assembly';
+import { expectIoMsg } from '../_helpers/io-host';
 import {
   mockCloudFormationClient,
   MockSdk,
@@ -101,16 +97,18 @@ import {
   mockSSMClient,
   restoreSdkMocksToDefault,
 } from '../_helpers/mock-sdk';
+import { promiseWithResolvers } from '../_helpers/promises';
 
 markTesting();
 
 const defaultBootstrapSource: BootstrapSource = { source: 'default' };
 const bootstrapEnvironmentMock = jest.spyOn(Bootstrapper.prototype, 'bootstrapEnvironment');
 let cloudExecutable: MockCloudExecutable;
-let stderrMock: jest.SpyInstance;
-let ioHelper = asIoHelper(CliIoHost.instance(), 'deploy');
+let ioHost = CliIoHost.instance();
+let ioHelper = asIoHelper(ioHost, 'deploy');
+let notifySpy = jest.spyOn(ioHost, 'notify');
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.resetAllMocks();
   restoreSdkMocksToDefault();
 
@@ -125,7 +123,7 @@ beforeEach(() => {
     stackArn: 'fake-arn',
   });
 
-  cloudExecutable = new MockCloudExecutable({
+  cloudExecutable = await MockCloudExecutable.create({
     stacks: [MockStack.MOCK_STACK_A, MockStack.MOCK_STACK_B],
     nestedAssemblies: [
       {
@@ -134,14 +132,15 @@ beforeEach(() => {
     ],
   });
 
-  CliIoHost.instance().isCI = false;
-  stderrMock = jest.spyOn(process.stderr, 'write').mockImplementation(() => {
-    return true;
-  });
+  ioHost = CliIoHost.instance();
+  ioHelper = asIoHelper(ioHost, 'deploy');
+  ioHost.isCI = false;
+  notifySpy = jest.spyOn(ioHost, 'notify');
 });
 
 function defaultToolkitSetup() {
   return new CdkToolkit({
+    ioHost,
     cloudExecutable,
     configuration: cloudExecutable.configuration,
     sdkProvider: cloudExecutable.sdkProvider,
@@ -190,9 +189,9 @@ describe('list', () => {
 
     // THEN
     expect(result).toEqual(0); // Exit code
-    expect(mockResult).toHaveBeenCalledWith('Test-Stack-A-Display-Name');
-    expect(mockResult).toHaveBeenCalledWith('Test-Stack-B');
-    expect(mockResult).toHaveBeenCalledWith('Test-Stack-A/Test-Stack-C');
+    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A-Display-Name', 'result'));
+    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-B', 'result'));
+    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A/Test-Stack-C', 'result'));
   });
 });
 
@@ -224,6 +223,7 @@ describe('deploy', () => {
         }),
       );
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable,
         configuration: cloudExecutable.configuration,
         sdkProvider: cloudExecutable.sdkProvider,
@@ -288,18 +288,15 @@ describe('deploy', () => {
 
     test('uses display names to reference assets', async () => {
       // GIVEN
-      cloudExecutable = new MockCloudExecutable({
+      cloudExecutable = await MockCloudExecutable.create({
         stacks: [MockStack.MOCK_STACK_WITH_ASSET],
       });
       const toolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable,
         configuration: cloudExecutable.configuration,
         sdkProvider: cloudExecutable.sdkProvider,
         deployments: new FakeCloudFormation({}),
-      });
-      stderrMock.mockImplementation((...x) => {
-        // eslint-disable-next-line no-console
-        console.error(...x);
       });
 
       // WHEN
@@ -309,16 +306,17 @@ describe('deploy', () => {
       });
 
       // THEN
-      expect(stderrMock).toHaveBeenCalledWith(expect.stringContaining('Building Asset Display Name'));
-      expect(stderrMock).toHaveBeenCalledWith(expect.stringContaining('Publishing Asset Display Name (desto)'));
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Building Asset Display Name') }));
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Publishing Asset Display Name (desto)') }));
     });
 
     test('force flag is passed to asset publishing', async () => {
       // GIVEN
-      cloudExecutable = new MockCloudExecutable({
+      cloudExecutable = await MockCloudExecutable.create({
         stacks: [MockStack.MOCK_STACK_WITH_ASSET],
       });
       const toolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable,
         configuration: cloudExecutable.configuration,
         sdkProvider: cloudExecutable.sdkProvider,
@@ -354,8 +352,8 @@ describe('deploy', () => {
     });
 
     describe('sns notification arns', () => {
-      beforeEach(() => {
-        cloudExecutable = new MockCloudExecutable({
+      beforeEach(async () => {
+        cloudExecutable = await MockCloudExecutable.create({
           stacks: [
             MockStack.MOCK_STACK_A,
             MockStack.MOCK_STACK_B,
@@ -372,6 +370,7 @@ describe('deploy', () => {
           'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
         ];
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -396,6 +395,7 @@ describe('deploy', () => {
         // GIVEN
         const notificationArns = ['arn:::cfn-my-cool-topic'];
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -422,6 +422,7 @@ describe('deploy', () => {
         // GIVEN
         const expectedNotificationArns = ['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic'];
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -443,6 +444,7 @@ describe('deploy', () => {
       test('fail with incorrect sns notification arns in the executable', async () => {
         // GIVEN
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -471,6 +473,7 @@ describe('deploy', () => {
           'arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic',
         ]);
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -494,6 +497,7 @@ describe('deploy', () => {
         // GIVEN
         const notificationArns = ['arn:::cfn-my-cool-topic'];
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -519,6 +523,7 @@ describe('deploy', () => {
         // GIVEN
         const notificationArns = ['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic'];
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -544,6 +549,7 @@ describe('deploy', () => {
         // GIVEN
         const notificationArns = ['arn:::cfn-my-cool-topic'];
         const toolkit = new CdkToolkit({
+          ioHost,
           cloudExecutable,
           configuration: cloudExecutable.configuration,
           sdkProvider: cloudExecutable.sdkProvider,
@@ -646,7 +652,7 @@ describe('deploy', () => {
     let mockCloudExecutable: MockCloudExecutable;
     let sdkProvider: SdkProvider;
     let mockForEnvironment: any;
-    beforeEach(() => {
+    beforeEach(async () => {
       jest.resetAllMocks();
       template = {
         Resources: {
@@ -658,7 +664,7 @@ describe('deploy', () => {
           },
         },
       };
-      mockCloudExecutable = new MockCloudExecutable({
+      mockCloudExecutable = await MockCloudExecutable.create({
         stacks: [
           {
             stackName: 'Test-Stack-C',
@@ -712,6 +718,7 @@ describe('deploy', () => {
       mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '6' } });
 
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
         sdkProvider: mockCloudExecutable.sdkProvider,
@@ -752,6 +759,7 @@ describe('deploy', () => {
       mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '1' } });
 
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
         sdkProvider: mockCloudExecutable.sdkProvider,
@@ -768,11 +776,10 @@ describe('deploy', () => {
       });
 
       // THEN
-      expect(flatten(stderrMock.mock.calls)).toEqual(
+      expect(flatten(notifySpy.mock.calls)).toEqual(
         expect.arrayContaining([
-
-          expect.stringContaining(
-            "Bootstrap stack version '5' is required, found version '1'. To get rid of this error, please upgrade to bootstrap version >= 5",
+          expectIoMsg(
+            expect.stringContaining("Bootstrap stack version '5' is required, found version '1'. To get rid of this error, please upgrade to bootstrap version >= 5"),
           ),
         ]),
       );
@@ -817,6 +824,7 @@ describe('deploy', () => {
       });
 
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
         sdkProvider: mockCloudExecutable.sdkProvider,
@@ -833,8 +841,8 @@ describe('deploy', () => {
       });
 
       // THEN
-      expect(flatten(stderrMock.mock.calls)).toEqual(
-        expect.arrayContaining([expect.stringMatching(/SSM parameter.*not found./)]),
+      expect(flatten(notifySpy.mock.calls)).toEqual(
+        expect.arrayContaining([expectIoMsg(expect.stringMatching(/SSM parameter.*not found./))]),
       );
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
@@ -873,6 +881,7 @@ describe('deploy', () => {
       });
 
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
         sdkProvider: mockCloudExecutable.sdkProvider,
@@ -890,8 +899,8 @@ describe('deploy', () => {
 
       // THEN
       expect(mockSSMClient).not.toHaveReceivedAnyCommand();
-      expect(flatten(stderrMock.mock.calls)).toEqual(
-        expect.arrayContaining([expect.stringMatching(/TheErrorThatGetsThrown/)]),
+      expect(flatten(notifySpy.mock.calls)).toEqual(
+        expect.arrayContaining([expectIoMsg(expect.stringMatching(/TheErrorThatGetsThrown/))]),
       );
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
@@ -929,6 +938,7 @@ describe('deploy', () => {
       });
       mockCloudExecutable.sdkProvider.forEnvironment = mockForEnvironment;
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
         sdkProvider: mockCloudExecutable.sdkProvider,
@@ -945,9 +955,9 @@ describe('deploy', () => {
       });
 
       // THEN
-      expect(flatten(stderrMock.mock.calls)).toEqual(
+      expect(flatten(notifySpy.mock.calls)).toEqual(
         expect.arrayContaining([
-          expect.stringMatching(/Lookup role.*was not assumed. Proceeding with default credentials./),
+          expectIoMsg(expect.stringMatching(/Lookup role.*was not assumed. Proceeding with default credentials./)),
         ]),
       );
       expect(mockSSMClient).not.toHaveReceivedAnyCommand();
@@ -982,6 +992,7 @@ describe('deploy', () => {
     test('do not print warnings if lookup role not provided in stack artifact', async () => {
       // GIVEN
       const cdkToolkit = new CdkToolkit({
+        ioHost,
         cloudExecutable: mockCloudExecutable,
         configuration: mockCloudExecutable.configuration,
         sdkProvider: mockCloudExecutable.sdkProvider,
@@ -998,7 +1009,7 @@ describe('deploy', () => {
       });
 
       // THEN
-      expect(flatten(stderrMock.mock.calls)).not.toEqual(
+      expect(flatten(notifySpy.mock.calls)).not.toEqual(
         expect.arrayContaining([
           expect.stringMatching(/Could not assume/),
           expect.stringMatching(/please upgrade to bootstrap version/),
@@ -1036,8 +1047,6 @@ describe('deploy', () => {
   });
 
   test('can set progress via options', async () => {
-    const ioHost = CliIoHost.instance();
-
     // Ensure environment allows StackActivityProgress.BAR
     ioHost.stackProgress = StackActivityProgress.BAR;
     ioHost.isTTY = true;
@@ -1306,13 +1315,16 @@ describe('watch', () => {
       });
 
       test("an initial 'deploy' is triggered, without any file changes", async () => {
-        expect(cdkDeployMock).toHaveBeenCalledTimes(1);
+        expect(cdkDeployMock).toHaveBeenCalledTimes(1); // from ready event
       });
 
       test("does trigger a 'deploy' for a file change", async () => {
         await fakeChokidarWatcherOn.fileEventCallback('add', 'my-file');
 
-        expect(cdkDeployMock).toHaveBeenCalledTimes(2);
+        expect(cdkDeployMock).toHaveBeenCalledTimes(
+          1 // from ready event
+          + 1, // from file event
+        );
       });
 
       test("triggers a 'deploy' twice for two file changes", async () => {
@@ -1322,19 +1334,52 @@ describe('watch', () => {
           fakeChokidarWatcherOn.fileEventCallback('change', 'my-file2'),
         ]);
 
-        expect(cdkDeployMock).toHaveBeenCalledTimes(3);
+        expect(cdkDeployMock).toHaveBeenCalledTimes(
+          1 // from ready event
+          + 2, // from file events
+        );
       });
 
       test("batches file changes that happen during 'deploy'", async () => {
-        // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-        await Promise.all([
-          fakeChokidarWatcherOn.fileEventCallback('add', 'my-file1'),
+        // The next time a deployment is triggered, we want to simulate the deployment
+        // taking some time, so we can queue up additional file changes.
+        const deployment = promiseWithResolvers<void>();
+        cdkDeployMock.mockImplementationOnce(() => {
+          return deployment.promise;
+        });
+
+        // Send the initial file event, this will start the deployment.
+        // We don't await this here, since we will finish the deployment after
+        // other events have been queued up.
+        const firstEvent = fakeChokidarWatcherOn.fileEventCallback('add', 'my-file1');
+
+        // We need to wait a few event loop cycles here, before additional events
+        // are send. If we don't, the callback for these events will be executed
+        // before we even have started the deployment. And that means the latch is still
+        // open. In reality, file events will come with a delay anyway.
+        await new Promise(r => setTimeout(r, 10));
+
+        // Next we simulate more file events.
+        // Because the deployment is still ongoing they will be queued.
+        const otherEvents = [
           fakeChokidarWatcherOn.fileEventCallback('change', 'my-file2'),
           fakeChokidarWatcherOn.fileEventCallback('unlink', 'my-file3'),
           fakeChokidarWatcherOn.fileEventCallback('add', 'my-file4'),
-        ]);
+        ];
 
-        expect(cdkDeployMock).toHaveBeenCalledTimes(3);
+        // Now complete the initial deployment.
+        // Because we are in the queued state, this will kick-off an other deployment.
+        deployment.resolve();
+
+        // Then wait for all events to complete so we can assert how often deploy was called
+        // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+        await Promise.all([firstEvent, ...otherEvents]);
+
+        expect(cdkDeployMock).toHaveBeenCalledTimes(
+          1 // from ready event
+          + 1 // from first add event
+          + 1, // from the queued events
+        );
       });
     });
   });
@@ -1346,8 +1391,8 @@ describe('synth', () => {
     await toolkit.synth([], false, false);
 
     // Separate tests as colorizing hampers detection
-    expect(stderrMock.mock.calls[1][0]).toMatch('Test-Stack-A-Display-Name');
-    expect(stderrMock.mock.calls[1][0]).toMatch('Test-Stack-B');
+    expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-A-Display-Name');
+    expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-B');
   });
 
   test('with no stdout option', async () => {
@@ -1356,12 +1401,12 @@ describe('synth', () => {
 
     // THEN
     await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
-    expect(mockResult.mock.calls.length).toEqual(0);
+    expect(notifySpy.mock.calls.length).toEqual(0);
   });
 
   describe('stack with error and flagged for validation', () => {
-    beforeEach(() => {
-      cloudExecutable = new MockCloudExecutable({
+    beforeEach(async () => {
+      cloudExecutable = await MockCloudExecutable.create({
         stacks: [MockStack.MOCK_STACK_A, MockStack.MOCK_STACK_B],
         nestedAssemblies: [
           {
@@ -1386,12 +1431,12 @@ describe('synth', () => {
       const toolkit = defaultToolkitSetup();
       const autoValidate = false;
       await toolkit.synth([], false, true, autoValidate);
-      expect(mockResult.mock.calls.length).toEqual(0);
+      expect(notifySpy.mock.calls.filter(([msg]) => msg.level === 'result').length).toBe(0);
     });
   });
 
   test('stack has error and was explicitly selected', async () => {
-    cloudExecutable = new MockCloudExecutable({
+    cloudExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_A, MockStack.MOCK_STACK_B],
       nestedAssemblies: [
         {
@@ -1411,7 +1456,7 @@ describe('synth', () => {
   });
 
   test('stack has error, is not flagged for validation and was not explicitly selected', async () => {
-    cloudExecutable = new MockCloudExecutable({
+    cloudExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_A, MockStack.MOCK_STACK_B],
       nestedAssemblies: [
         {
@@ -1431,7 +1476,7 @@ describe('synth', () => {
   });
 
   test('stack has dependency and was explicitly selected', async () => {
-    cloudExecutable = new MockCloudExecutable({
+    cloudExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_C, MockStack.MOCK_STACK_D],
     });
 
@@ -1439,8 +1484,8 @@ describe('synth', () => {
 
     await toolkit.synth([MockStack.MOCK_STACK_D.stackName], true, false);
 
-    expect(mockResult.mock.calls.length).toEqual(1);
-    expect(mockResult.mock.calls[0][0]).toBeDefined();
+    expect(notifySpy.mock.calls.length).toEqual(1);
+    expect(notifySpy.mock.calls[0][0]).toBeDefined();
   });
 });
 
@@ -1460,7 +1505,7 @@ describe('migrate', () => {
         fromStack: true,
       }),
     ).rejects.toThrow('Only one of `--from-path` or `--from-stack` may be provided.');
-    expect(stderrMock.mock.calls[1][0]).toContain(
+    expect(notifySpy.mock.calls[1][0].message).toContain(
       ' ❌  Migrate failed for `no-source`: Only one of `--from-path` or `--from-stack` may be provided.',
     );
   });
@@ -1473,7 +1518,7 @@ describe('migrate', () => {
         fromPath: './here/template.yml',
       }),
     ).rejects.toThrow("'./here/template.yml' is not a valid path.");
-    expect(stderrMock.mock.calls[1][0]).toContain(
+    expect(notifySpy.mock.calls[1][0].message).toContain(
       " ❌  Migrate failed for `bad-local-source`: './here/template.yml' is not a valid path.",
     );
   });
@@ -1482,11 +1527,12 @@ describe('migrate', () => {
     const mockSdkProvider = new MockSdkProvider();
     mockCloudFormationClient.on(DescribeStacksCommand).rejects(new Error('Stack does not exist in this environment'));
 
-    const mockCloudExecutable = new MockCloudExecutable({
+    const mockCloudExecutable = await MockCloudExecutable.create({
       stacks: [],
     });
 
     const cdkToolkit = new CdkToolkit({
+      ioHost,
       cloudExecutable: mockCloudExecutable,
       deployments: new Deployments({
         sdkProvider: mockSdkProvider,
@@ -1502,7 +1548,7 @@ describe('migrate', () => {
         fromStack: true,
       }),
     ).rejects.toThrow('Stack does not exist in this environment');
-    expect(stderrMock.mock.calls[1][0]).toContain(
+    expect(notifySpy.mock.calls[1][0].message).toContain(
       ' ❌  Migrate failed for `bad-cloudformation-source`: Stack does not exist in this environment',
     );
   });
@@ -1518,7 +1564,7 @@ describe('migrate', () => {
     ).rejects.toThrow(
       'CannotGenerateTemplateStack could not be generated because rust is not a supported language',
     );
-    expect(stderrMock.mock.calls[1][0]).toContain(
+    expect(notifySpy.mock.calls[1][0].message).toContain(
       ' ❌  Migrate failed for `cannot-generate-template`: CannotGenerateTemplateStack could not be generated because rust is not a supported language',
     );
   });
@@ -1595,7 +1641,7 @@ describe('migrate', () => {
 
 describe('rollback', () => {
   test('rollback uses deployment role', async () => {
-    cloudExecutable = new MockCloudExecutable({
+    cloudExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_C],
     });
 
@@ -1605,6 +1651,7 @@ describe('rollback', () => {
     });
 
     const toolkit = new CdkToolkit({
+      ioHost,
       cloudExecutable,
       configuration: cloudExecutable.configuration,
       sdkProvider: cloudExecutable.sdkProvider,
@@ -1629,7 +1676,7 @@ describe('rollback', () => {
     [{ type: 'replacement-requires-rollback' }, false],
     [{ type: 'replacement-requires-rollback' }, true],
   ] satisfies Array<[DeployStackResult, boolean]>)('no-rollback deployment that cant proceed will be called with rollback on retry: %p (using force: %p)', async (firstResult, useForce) => {
-    cloudExecutable = new MockCloudExecutable({
+    cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         MockStack.MOCK_STACK_C,
       ],
@@ -1656,6 +1703,7 @@ describe('rollback', () => {
     const mockedConfirm = jest.spyOn(promptly, 'confirm').mockResolvedValue(true);
 
     const toolkit = new CdkToolkit({
+      ioHost,
       cloudExecutable,
       configuration: cloudExecutable.configuration,
       sdkProvider: cloudExecutable.sdkProvider,
