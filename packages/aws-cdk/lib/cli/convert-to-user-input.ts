@@ -268,11 +268,11 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'refactor':
       commandOptions = {
-        localStack: args.localStack,
-        deployedStack: args.deployedStack,
+        additionalStackName: args.additionalStackName,
         dryRun: args.dryRun,
         overrideFile: args.overrideFile,
         revert: args.revert,
+        STACKS: args.STACKS,
       };
       break;
 
@@ -474,8 +474,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const doctorOptions = {};
   const refactorOptions = {
-    localStack: config.refactor?.localStack,
-    deployedStack: config.refactor?.deployedStack,
+    additionalStackName: config.refactor?.additionalStackName,
     dryRun: config.refactor?.dryRun,
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,

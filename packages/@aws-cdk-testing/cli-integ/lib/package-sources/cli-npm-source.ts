@@ -8,7 +8,7 @@ import { addToShellPath, rimraf, shell } from '../shell';
 export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
   public readonly sourceDescription: string;
 
-  constructor(private readonly range: string) {
+  constructor(private readonly packageName: string, private readonly range: string) {
     this.sourceDescription = `${this.range} (npm)`;
   }
 
@@ -16,12 +16,12 @@ export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tmpcdk'));
     fs.mkdirSync(tempDir, { recursive: true });
 
-    await shell(['node', require.resolve('npm'), 'install', `aws-cdk@${this.range}`], {
+    await shell(['node', require.resolve('npm'), 'install', `${this.packageName}@${this.range}`], {
       cwd: tempDir,
       show: 'error',
       outputs: [process.stderr],
     });
-    const installedVersion = await npmQueryInstalledVersion('aws-cdk', tempDir);
+    const installedVersion = await npmQueryInstalledVersion(this.packageName, tempDir);
 
     return {
       version: installedVersion,

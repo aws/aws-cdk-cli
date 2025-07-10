@@ -1425,18 +1425,11 @@ export interface DocsOptions {
  */
 export interface RefactorOptions {
   /**
-   * Filter to apply for stacks in the cloud assembly
+   * Names of deployed stacks to be considered for resource comparison.
    *
    * @default - undefined
    */
-  readonly localStack?: Array<string>;
-
-  /**
-   * Filter to apply for stacks deployed to the AWS account
-   *
-   * @default - undefined
-   */
-  readonly deployedStack?: Array<string>;
+  readonly additionalStackName?: Array<string>;
 
   /**
    * Do not perform any changes, just show what would be done

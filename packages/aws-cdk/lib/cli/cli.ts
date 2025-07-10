@@ -276,10 +276,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'refactor';
         return cli.refactor({
           dryRun: args.dryRun,
+          selector,
           overrideFile: args.overrideFile,
           revert: args.revert,
-          localStacks: arrayFromYargs(args.localStack ?? []),
-          deployedStacks: arrayFromYargs(args.deployedStack ?? []),
+          stacks: selector,
+          additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
         });
 
       case 'bootstrap':

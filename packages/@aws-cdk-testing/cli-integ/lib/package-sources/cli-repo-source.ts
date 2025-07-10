@@ -12,8 +12,8 @@ export class RunnerCliRepoSource implements IRunnerSource<ITestCliSource> {
   public readonly sourceDescription: string;
   private readonly cliBinPath: string;
 
-  constructor(private readonly repoRoot: string) {
-    this.cliBinPath = path.join(this.repoRoot, 'packages', 'aws-cdk', 'bin');
+  constructor(private readonly packageName: string, public readonly repoRoot: string) {
+    this.cliBinPath = path.join(this.repoRoot, 'packages', this.packageName, 'bin');
     this.sourceDescription = this.cliBinPath;
   }
 

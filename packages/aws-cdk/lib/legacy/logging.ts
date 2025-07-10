@@ -14,6 +14,9 @@ const { stdout, stderr } = process;
 
 type WritableFactory = () => Writable;
 
+/**
+ * @deprecated
+ */
 export async function withCorkedLogging<A>(block: () => Promise<A>): Promise<A> {
   corkLogging();
   try {
@@ -71,6 +74,9 @@ function formatTime(d: Date) {
   }
 }
 
+/**
+ * @deprecated
+ */
 export enum LogLevel {
   /** Not verbose at all */
   DEFAULT = 0,
@@ -80,17 +86,32 @@ export enum LogLevel {
   TRACE = 2,
 }
 
+/**
+ * @deprecated
+ */
 export let logLevel = LogLevel.DEFAULT;
+/**
+ * @deprecated
+ */
 export let CI = false;
 
+/**
+ * @deprecated
+ */
 export function setLogLevel(newLogLevel: LogLevel) {
   logLevel = newLogLevel;
 }
 
+/**
+ * @deprecated
+ */
 export function setCI(newCI: boolean) {
   CI = newCI;
 }
 
+/**
+ * @deprecated
+ */
 export function increaseVerbosity() {
   logLevel += 1;
 }
@@ -98,19 +119,48 @@ export function increaseVerbosity() {
 const stream = () => CI ? stdout : stderr;
 const _debug = logger(stream, [chalk.gray], true);
 
+/**
+ * @deprecated
+ */
 export const trace = (fmt: string, ...args: unknown[]) => logLevel >= LogLevel.TRACE && _debug(fmt, ...args);
+/**
+ * @deprecated
+ */
 export const debug = (fmt: string, ...args: unknown[]) => logLevel >= LogLevel.DEBUG && _debug(fmt, ...args);
+/**
+ * @deprecated
+ */
 export const error = logger(stderr, [chalk.red]);
+/**
+ * @deprecated
+ */
 export const warning = logger(stream, [chalk.yellow]);
+/**
+ * @deprecated
+ */
 export const success = logger(stream, [chalk.green]);
+/**
+ * @deprecated
+ */
 export const highlight = logger(stream, [chalk.bold]);
+/**
+ * @deprecated
+ */
 export const print = logger(stream);
+/**
+ * @deprecated
+ */
 export const data = logger(stdout);
 
+/**
+ * @deprecated
+ */
 export type LoggerFunction = (fmt: string, ...args: unknown[]) => void;
 
 /**
  * Create a logger output that features a constant prefix string.
+ *
+ * @deprecated
  *
  * @param prefixString - the prefix string to be appended before any log entry.
  * @param fn   - the logger function to be used (typically one of the other functions in this module)

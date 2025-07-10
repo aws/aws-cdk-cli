@@ -1,3 +1,4 @@
+import type { StackSelector } from '../../api';
 import type { ExcludeList } from '../../api/refactoring';
 import { InMemoryExcludeList, NeverExclude } from '../../api/refactoring';
 import { ToolkitError } from '../../toolkit/toolkit-error';
@@ -71,12 +72,11 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * List of patterns for filtering local stacks. If no patterns are passed,
-   * then all stacks, except the bootstrap stacks are considered. If you want
-   * to consider all stacks (including bootstrap stacks), pass the wildcard
-   * '*'.
+   * Criteria for selecting stacks to deploy
+   *
+   * @default - All stacks
    */
-  localStacks?: string[];
+  stacks?: StackSelector;
 
   /**
    * List of patterns for filtering deployed stacks. If no patterns are passed,
@@ -91,6 +91,17 @@ export interface RefactorOptions {
    * computed list of mappings.
    */
   overrides?: MappingGroup[];
+
+  /**
+   * Criteria for selecting stacks to compare with the deployed stacks in the
+   * target environment.
+   */
+  stacks?: StackSelector;
+
+  /**
+   * A list of names of additional deployed stacks to be included in the comparison.
+   */
+  additionalStackNames?: string[];
 }
 
 export interface MappingGroup {

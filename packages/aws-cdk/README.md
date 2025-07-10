@@ -1129,7 +1129,7 @@ show this table and exit. Eventually, the CLI will also be able to automatically
 apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
 mode is supported.
 
-If your application has more than one stack, and you want the refactor 
+If your application has more than one stack, and you want the `refactor` 
 command to consider only a subset of them, you can specify the stacks you
 want, both local and deployed:
 
@@ -1141,8 +1141,8 @@ This is useful if, for example, you have more than one CDK application deployed
 to a given environment, and you want to only include the deployed stacks that
 belong to the application that you are refactoring.
 
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
 
 In case of ambiguities, the CLI will display a table like this:
@@ -1163,6 +1163,19 @@ Detected ambiguities:
 You can resolve this ambiguity manually, by passing an override file via the
 `--override-file=<path>` CLI option. This file should contain a JSON object 
 with the following structure: 
+The CLI's default behavior is to include in the comparison only the deployed 
+stacks that have a counterpart (stack with the same name) locally. If you want
+to include additional deployed stacks in the comparison, pass their names using
+the `--additional-stack-name` option:
+
+```shell
+$ cdk refactor --unstable=refactor --dry-run --additional-stack-name=Foo --additional-stack-name=Bar
+```
+
+If, instead of letting the CLI decide which resources to move, you want to 
+provide your own mapping of old to new locations, you can do so by passing a
+mapping file to the CLI via the `--mapping-file` flag. This file should 
+contain a JSON object with the following format: 
 
 ```json
 {
