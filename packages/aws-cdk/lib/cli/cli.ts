@@ -132,10 +132,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     pluginHost: GLOBAL_PLUGIN_HOST,
   }, configuration.settings.get(['profile']));
 
-  await ioHost.telemetry?.attachEnvironment({
-    account: (await sdkProvider.defaultAccount())?.accountId,
-    region: sdkProvider.defaultRegion,
-  });
+  await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({

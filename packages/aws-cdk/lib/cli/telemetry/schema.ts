@@ -4,7 +4,6 @@ interface SessionIdentifiers {
   readonly telemetryVersion: string;
   readonly sessionId: string;
   readonly installationId: string;
-  readonly accountId?: string;
   readonly region?: string;
 }
 

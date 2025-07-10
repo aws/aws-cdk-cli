@@ -80,11 +80,10 @@ export class TelemetrySession {
     });
   }
 
-  public async attachEnvironment(env: { account?: string; region?: string }) {
+  public async attachRegion(region: string) {
     this.sessionInfo.identifiers = {
       ...this.sessionInfo.identifiers,
-      accountId: env.account,
-      region: env.region,
+      region,
     };
   }
 
