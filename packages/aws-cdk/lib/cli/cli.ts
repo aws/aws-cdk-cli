@@ -218,6 +218,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'context':
         ioHost.currentAction = 'context';
         return context({
+          ioHelper,
           context: configuration.context,
           clear: argv.clear,
           json: argv.json,
@@ -228,11 +229,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'docs':
       case 'doc':
         ioHost.currentAction = 'docs';
-        return docs({ browser: configuration.settings.get(['browser']) });
+        return docs({
+          ioHelper,
+          browser: configuration.settings.get(['browser']),
+        });
 
       case 'doctor':
         ioHost.currentAction = 'doctor';
-        return doctor();
+        return doctor({
+          ioHelper,
+        });
 
       case 'ls':
       case 'list':

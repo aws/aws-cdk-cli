@@ -3,9 +3,13 @@ import { contextHandler } from '../../lib/commands/context';
 import { Settings } from '../../lib/api/settings';
 import { Context } from '../../lib/api/context';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { TestIoHost } from '../_helpers/io-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('context');
 
 describe('context --list', () => {
-  test('runs', async() => {
+  test('runs', async () => {
     // GIVEN
     const configuration = new Configuration();
     configuration.context.set('foo', 'bar');
@@ -16,6 +20,7 @@ describe('context --list', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
     });
   });
@@ -35,6 +40,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'foo',
     });
@@ -58,6 +64,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: '1',
     });
@@ -83,6 +90,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'match-*',
     });
@@ -106,6 +114,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'fo*',
     });
@@ -128,6 +137,7 @@ describe('context --reset', () => {
 
     // When
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'match-*',
     }));
@@ -150,6 +160,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'baz',
     })).rejects.toThrow(/No context value matching key/);
@@ -166,6 +177,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'baz',
       force: true,
@@ -183,6 +195,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: '2',
     })).rejects.toThrow(/No context key with number/);
@@ -202,6 +215,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'foo',
     })).rejects.toThrow(/Cannot reset readonly context value with key/);
@@ -225,6 +239,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'match-*',
     })).rejects.toThrow(/None of the matched context values could be reset/);
@@ -245,6 +260,7 @@ describe('context --clear', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       clear: true,
     });
