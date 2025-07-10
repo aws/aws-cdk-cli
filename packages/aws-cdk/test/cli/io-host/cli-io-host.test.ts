@@ -1,3 +1,5 @@
+import * as os from 'os';
+import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
@@ -6,6 +8,14 @@ import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-h
 import { CliIoHost } from '../../../lib/cli/io-host';
 
 let passThrough: PassThrough;
+
+// Store original process.on
+const originalProcessOn = process.on;
+
+// Mock process.on to be a no-op function that returns process for chaining
+process.on = jest.fn().mockImplementation(function() {
+  return process;
+}) as any;
 
 const ioHost = CliIoHost.instance({
   logLevel: 'trace',
@@ -55,6 +65,11 @@ describe('CliIoHost', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    // Restore original process.on
+    process.on = originalProcessOn;
   });
 
   describe('stream selection', () => {
@@ -267,15 +282,15 @@ describe('CliIoHost', () => {
     let telemetryIoHost: CliIoHost;
     let telemetryEmitSpy: jest.SpyInstance;
 
-    beforeEach(() => {
-      process.env.CLI_TELEMETRY = 'true';
+    beforeEach(async () => {
+      // Create a telemetry file to satisfy requirements; we are not asserting on the file contents
+      const telemetryFilePath = path.join(os.tmpdir(), 'telemetry-file.json');
 
       // Create a new instance with telemetry enabled
       telemetryIoHost = CliIoHost.instance({
         logLevel: 'trace',
-        context: new Context(),
-        arguments: {},
       }, true);
+      await telemetryIoHost.startTelemetry({ '_': 'init', 'telemetry-file': telemetryFilePath }, new Context());
 
       expect(telemetryIoHost.telemetry).toBeDefined();
 
@@ -284,7 +299,6 @@ describe('CliIoHost', () => {
     });
 
     afterEach(() => {
-      process.env.CLI_TELEMETRY = undefined;
       jest.restoreAllMocks();
     });
 

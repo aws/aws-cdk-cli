@@ -122,6 +122,10 @@
       "type": "array",
       "desc": "Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.",
       "default": []
+    },
+    "telemetry-file": {
+      "type": "string",
+      "desc": "Send telemetry data to a local file."
     }
   },
   "commands": {
@@ -901,6 +905,11 @@
         "variadic": true
       },
       "options": {
+        "additional-stack-name": {
+          "type": "array",
+          "requiresArg": true,
+          "desc": "Names of deployed stacks to be considered for resource comparison."
+        },
         "dry-run": {
           "type": "boolean",
           "desc": "Do not perform any changes, just show what would be done",

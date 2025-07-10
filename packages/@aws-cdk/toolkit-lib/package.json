@@ -71,7 +71,7 @@
     "nock": "13",
     "prettier": "^2.8",
     "ts-jest": "^29.4.0",
-    "typescript": "5.6",
+    "typescript": "5.8",
     "xml-js": "^1.6.11"
   },
   "peerDependencies": {

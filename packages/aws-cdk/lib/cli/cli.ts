@@ -57,29 +57,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     }
   }
 
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
-  });
-  await configuration.load();
-
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
     isTTY: process.stdout.isTTY,
     isCI: Boolean(argv.ci),
     currentAction: cmd,
     stackProgress: argv.progress,
-    arguments: argv,
-    context: configuration.context,
   }, true);
-
-  try {
-    await ioHost.telemetry?.begin();
-  } catch (e: any) {
-    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
-  }
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -98,6 +82,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await ioHost.defaults.debug('CDK Toolkit CLI version:', displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
+  const configuration = new Configuration({
+    commandLineArguments: {
+      ...argv,
+      _: argv._ as [Command, ...string[]], // TypeScript at its best
+    },
+  });
+  await configuration.load();
+
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Always create and use ProxyAgent to support configuration via env vars
@@ -105,6 +97,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     proxyAddress: configuration.settings.get(['proxy']),
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
+
+  try {
+    await ioHost.startTelemetry(argv, configuration.context);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+  }
 
   const shouldDisplayNotices = configuration.settings.get(['notices']);
   // Notices either go to stderr, or nowhere
@@ -133,6 +131,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
   }, configuration.settings.get(['profile']));
+
+  await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
@@ -202,6 +202,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     if (args.all && args.STACKS) {
       throw new ToolkitError('You must either specify a list of Stacks or the `--all` argument');
+    }
+
+    if (args['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
+      throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
     }
 
     args.STACKS = args.STACKS ?? (args.STACK ? [args.STACK] : []);
@@ -286,10 +290,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'refactor';
         return cli.refactor({
           dryRun: args.dryRun,
-          selector,
           excludeFile: args.excludeFile,
           mappingFile: args.mappingFile,
           revert: args.revert,
+          stacks: selector,
+          additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
         });
 
       case 'bootstrap':

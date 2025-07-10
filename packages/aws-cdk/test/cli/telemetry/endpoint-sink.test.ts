@@ -1,5 +1,4 @@
 import * as https from 'https';
-import { parse } from 'url';
 import { IoHelper } from '../../../lib/api-private';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../lib/cli/telemetry/endpoint-sink';
@@ -88,16 +87,15 @@ describe('EndpointTelemetrySink', () => {
   test('makes a POST request to the specified endpoint', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const endpoint = parse('https://example.com/telemetry');
     const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
     await client.emit(testEvent);
     await client.flush();
 
     // THEN
-    const expectedPayload = JSON.stringify([testEvent]);
+    const expectedPayload = JSON.stringify({ events: [testEvent] });
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
       port: null,
@@ -117,9 +115,8 @@ describe('EndpointTelemetrySink', () => {
   test('silently catches request errors', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const endpoint = parse('https://example.com/telemetry');
     const testEvent = createTestEvent('INVOKE');
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     mockRequest.on.mockImplementation((event, callback) => {
       if (event === 'error') {
@@ -137,10 +134,9 @@ describe('EndpointTelemetrySink', () => {
   test('multiple events sent as one', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
     const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
     await client.emit(testEvent1);
@@ -148,7 +144,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload = JSON.stringify([testEvent1, testEvent2]);
+    const expectedPayload = JSON.stringify({ events: [testEvent1, testEvent2] });
     expect(https.request).toHaveBeenCalledTimes(1);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
@@ -169,10 +165,9 @@ describe('EndpointTelemetrySink', () => {
   test('successful flush clears events cache', async () => {
     // GIVEN
     setupMockRequest();
-    const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
     const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
     await client.emit(testEvent1);
@@ -181,7 +176,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload1 = JSON.stringify([testEvent1]);
+    const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
     expect(https.request).toHaveBeenCalledTimes(2);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
@@ -196,7 +191,7 @@ describe('EndpointTelemetrySink', () => {
       timeout: 500,
     }, expect.anything());
 
-    const expectedPayload2 = JSON.stringify([testEvent2]);
+    const expectedPayload2 = JSON.stringify({ events: [testEvent2] });
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
       port: null,
@@ -238,10 +233,9 @@ describe('EndpointTelemetrySink', () => {
       return mockRequest;
     });
 
-    const endpoint = parse('https://example.com/telemetry');
     const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
     const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
     await client.emit(testEvent1);
@@ -255,7 +249,7 @@ describe('EndpointTelemetrySink', () => {
     await client.flush();
 
     // THEN
-    const expectedPayload1 = JSON.stringify([testEvent1]);
+    const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
     expect(https.request).toHaveBeenCalledTimes(2);
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
@@ -270,7 +264,7 @@ describe('EndpointTelemetrySink', () => {
       timeout: 500,
     }, expect.anything());
 
-    const expectedPayload2 = JSON.stringify([testEvent2]);
+    const expectedPayload2 = JSON.stringify({ events: [testEvent1, testEvent2] });
     expect(https.request).toHaveBeenCalledWith({
       hostname: 'example.com',
       port: null,
@@ -278,7 +272,7 @@ describe('EndpointTelemetrySink', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'content-length': expectedPayload1.length + expectedPayload2.length - 1,
+        'content-length': expectedPayload2.length,
       },
       agent: undefined,
       timeout: 500,
@@ -289,13 +283,12 @@ describe('EndpointTelemetrySink', () => {
     // GIVEN
     jest.useFakeTimers();
     setupMockRequest(); // Setup the mock request but we don't need the return value
-    const endpoint = parse('https://example.com/telemetry');
 
     // Create a spy on setInterval
     const setIntervalSpy = jest.spyOn(global, 'setInterval');
 
     // Create the client
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // Create a spy on the flush method
     const flushSpy = jest.spyOn(client, 'flush');
@@ -337,8 +330,7 @@ describe('EndpointTelemetrySink', () => {
     // Mock IoHelper.fromActionAwareIoHost to return our mock
     jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
 
-    const endpoint = parse('https://example.com/telemetry');
-    const client = new EndpointTelemetrySink({ endpoint, ioHost });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // Mock https.request to throw an error
     (https.request as jest.Mock).mockImplementation(() => {

@@ -4,7 +4,6 @@ interface SessionIdentifiers {
   readonly telemetryVersion: string;
   readonly sessionId: string;
   readonly installationId: string;
-  readonly accountId?: string;
   readonly region?: string;
 }
 
@@ -79,8 +78,8 @@ export interface TelemetrySchema {
 }
 
 export interface SessionSchema {
-  readonly identifiers: SessionIdentifiers;
-  readonly event: SessionEvent;
-  readonly environment: SessionEnvironment;
-  readonly project: SessionProject;
+  identifiers: SessionIdentifiers;
+  event: SessionEvent;
+  environment: SessionEnvironment;
+  project: SessionProject;
 }

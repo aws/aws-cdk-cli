@@ -1101,8 +1101,12 @@ when using this command.
 
 Compares the infrastructure specified in the current state of the CDK app with 
 the currently deployed application, to determine if any resource was moved 
-(to a different stack or to a different logical ID, or both). The CLI will 
-show the correspondence between the old and new locations in a table:
+(to a different stack or to a different logical ID, or both). In keeping with
+the CloudFormation API, you are not allowed to modify the set of resources
+as part of a refactor. In other words, adding, deleting or updating resources
+is considered an error.
+
+The CLI will show the correspondence between the old and new locations in a table:
 
 ```
 $ cdk refactor --unstable=refactor --dry-run
@@ -1144,7 +1148,7 @@ and pass it to the CLI via the `--exclude-file` flag:
 $ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
 ```
 
-If your application has more than one stack, and you want the refactor 
+If your application has more than one stack, and you want the `refactor` 
 command to consider only a subset of them, you can pass a list of stack 
 patterns as a parameter:
 
@@ -1152,9 +1156,18 @@ patterns as a parameter:
 $ cdk refactor Web* --unstable=refactor --dry-run 
 ```
 
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
+
+The CLI's default behavior is to include in the comparison only the deployed 
+stacks that have a counterpart (stack with the same name) locally. If you want
+to include additional deployed stacks in the comparison, pass their names using
+the `--additional-stack-name` option:
+
+```shell
+$ cdk refactor --unstable=refactor --dry-run --additional-stack-name=Foo --additional-stack-name=Bar
+```
 
 If, instead of letting the CLI decide which resources to move, you want to 
 provide your own mapping of old to new locations, you can do so by passing a
@@ -1222,6 +1235,15 @@ cdk gc --unstable=gc
 
 The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
 is aware of the caveats in place for the feature.
+
+### `telemetry-file`
+
+Send your telemetry data to a local file (note that `--telemetry-file` is unstable, and must
+be passed in conjunction with `--unstable=telemetry`).
+
+```bash
+cdk list --telemetry-file=my/file/path --unstable=telemetry
+```
 
 ## Notices
 

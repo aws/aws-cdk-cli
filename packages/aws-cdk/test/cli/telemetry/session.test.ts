@@ -1,10 +1,12 @@
 import { Context } from '../../../lib/api/context';
 import { CliIoHost } from '../../../lib/cli/io-host';
+import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
+import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession } from '../../../lib/cli/telemetry/session';
 
 let ioHost: CliIoHost;
 let session: TelemetrySession;
-let clientEmitSpy: jest.SpyInstance<any, unknown[], any>;
+let clientEmitSpy: jest.SpyInstance<any, [event: TelemetrySchema], any>;
 let clientFlushSpy: jest.SpyInstance<any, unknown[], any>;
 
 describe('TelemetrySession', () => {
@@ -13,16 +15,18 @@ describe('TelemetrySession', () => {
       logLevel: 'trace',
     });
 
+    const client = new IoHostTelemetrySink({ ioHost });
+
     session = new TelemetrySession({
       ioHost,
+      client,
       arguments: { _: ['deploy'], STACKS: ['MyStack'] },
       context: new Context(),
     });
     await session.begin();
 
-    const privateClient = (session as any)._client;
-    clientEmitSpy = jest.spyOn(privateClient, 'emit');
-    clientFlushSpy = jest.spyOn(privateClient, 'flush');
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    clientFlushSpy = jest.spyOn(client, 'flush');
   });
 
   test('can emit data to the client', async () => {
@@ -84,6 +88,7 @@ describe('TelemetrySession', () => {
     process.env.CI = NOT_CI;
     const ciSession = new TelemetrySession({
       ioHost,
+      client: new IoHostTelemetrySink({ ioHost }),
       arguments: { _: ['deploy'], STACKS: ['MyStack'] },
       context: new Context(),
     });
@@ -95,12 +100,12 @@ describe('TelemetrySession', () => {
     // THEN
     expect(privateCiInfo).toEqual(expect.objectContaining({
       environment: expect.objectContaining({
-        ci: NOT_CI,
+        ci: Boolean(NOT_CI),
       }),
     }));
     expect(privateInfo).toEqual(expect.objectContaining({
       environment: expect.objectContaining({
-        ci: CI,
+        ci: Boolean(CI),
       }),
     }));
     process.env.CI = CI;

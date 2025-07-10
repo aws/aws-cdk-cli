@@ -155,6 +155,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       nargs: 1,
       requiresArg: true,
     })
+    .option('telemetry-file', {
+      default: undefined,
+      type: 'string',
+      desc: 'Send telemetry data to a local file.',
+    })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
         .option('long', {
@@ -884,6 +889,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .command('doctor', 'Check your set-up for potential problems')
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
+        .option('additional-stack-name', {
+          type: 'array',
+          requiresArg: true,
+          desc: 'Names of deployed stacks to be considered for resource comparison.',
+          nargs: 1,
+        })
         .option('dry-run', {
           default: false,
           type: 'boolean',

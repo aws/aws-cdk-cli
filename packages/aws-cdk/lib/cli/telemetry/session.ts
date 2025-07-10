@@ -1,10 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { AccountIdFetcher } from './account-id-fetcher';
 import { getInstallationId } from './installation-id';
-import { IoHostTelemetrySink } from './io-host-sink';
 import { getLibraryVersion } from './library-version';
-import { RegionFetcher } from './region-fetcher';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink-interface';
@@ -14,10 +11,12 @@ import { detectCiSystem } from '../ci-systems';
 import type { CliIoHost } from '../io-host/cli-io-host';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
+import { isCI } from '../util/ci';
 import { versionNumber } from '../version-util';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
+  readonly client: ITelemetrySink;
   readonly arguments: any;
   readonly context: Context;
 }
@@ -29,23 +28,19 @@ export interface TelemetryEvent {
 }
 
 export class TelemetrySession {
-  private readonly ioHost: CliIoHost;
-  private _client?: ITelemetrySink;
+  private ioHost: CliIoHost;
+  private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private span?: IMessageSpan<EventResult>;
   private count = 0;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
+    this.client = props.client;
   }
 
   public async begin() {
     this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
-
-    // TODO: change this to EndpointTelemetrySink
-    this._client = new IoHostTelemetrySink({
-      ioHost: this.ioHost,
-    });
 
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
@@ -56,8 +51,6 @@ export class TelemetrySession {
         telemetryVersion: '1.0',
         cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.ioHost.asIoHelper()),
-        accountId: await new AccountIdFetcher().fetch(),
-        region: await new RegionFetcher().fetch(),
       },
       event: {
         command: {
@@ -85,6 +78,13 @@ export class TelemetrySession {
         message: 'Subprocess exited with error null',
       });
     });
+  }
+
+  public async attachRegion(region: string) {
+    this.sessionInfo.identifiers = {
+      ...this.sessionInfo.identifiers,
+      region,
+    };
   }
 
   /**
@@ -124,13 +124,6 @@ export class TelemetrySession {
     });
   }
 
-  private get client(): ITelemetrySink {
-    if (!this._client) {
-      throw new ToolkitError('Client not initialized. Call begin() first.');
-    }
-    return this._client;
-  }
-
   private get sessionInfo(): SessionSchema {
     if (!this._sessionInfo) {
       throw new ToolkitError('Session Info not initialized. Call begin() first.');
@@ -151,12 +144,4 @@ function isAbortedError(error?: ErrorDetails) {
     return true;
   }
   return false;
-}
-
-/**
- * Returns true if the current process is running in a CI environment
- * @returns true if the current process is running in a CI environment
- */
-export function isCI(): boolean {
-  return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
 }

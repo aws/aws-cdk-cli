@@ -315,6 +315,13 @@ export interface GlobalOptions {
    * @default - []
    */
   readonly unstable?: Array<string>;
+
+  /**
+   * Send telemetry data to a local file.
+   *
+   * @default - undefined
+   */
+  readonly telemetryFile?: string;
 }
 
 /**
@@ -1424,6 +1431,13 @@ export interface DocsOptions {
  * @struct
  */
 export interface RefactorOptions {
+  /**
+   * Names of deployed stacks to be considered for resource comparison.
+   *
+   * @default - undefined
+   */
+  readonly additionalStackName?: Array<string>;
+
   /**
    * Do not perform any changes, just show what would be done
    *

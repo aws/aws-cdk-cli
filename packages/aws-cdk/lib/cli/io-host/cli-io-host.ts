@@ -1,3 +1,4 @@
+import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -8,10 +9,11 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { FileTelemetrySink } from '../telemetry/file-sink';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
-import { isCI, TelemetrySession } from '../telemetry/session';
+import { TelemetrySession } from '../telemetry/session';
+import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -77,20 +79,6 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
-
-  /**
-   * Raw arguments supplied to the command
-   *
-   * @default - no arguments
-   */
-  readonly arguments?: any;
-
-  /**
-   * Context values
-   *
-   * @default - no context
-   */
-  readonly context?: Context;
 }
 
 /**
@@ -161,7 +149,6 @@ export class CliIoHost implements IIoHost {
    */
   public noticesDestination: TargetStream = 'stderr';
 
-  private _internalIoHost?: IIoHost;
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -181,23 +168,36 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
-
-    if (props.context && canCollectTelemetry(props.context)) {
-      this.telemetry = new TelemetrySession({
-        ioHost: this,
-        arguments: props.arguments,
-        context: props.context,
-      });
-    }
   }
 
-  /**
-   * Returns the singleton instance
-   */
-  public registerIoHost(ioHost: IIoHost) {
-    if (ioHost !== this) {
-      this._internalIoHost = ioHost;
+  public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
+    let sink;
+    const telemetryFilePath = args['telemetry-file'];
+    if (telemetryFilePath) {
+      sink = new FileTelemetrySink({
+        ioHost: this,
+        logFilePath: telemetryFilePath,
+      });
     }
+    // TODO: uncomment this at launch
+    // if (canCollectTelemetry(context)) {
+    //   sink = new EndpointTelemetrySink({
+    //     ioHost: this,
+    //     agent: proxyAgent,
+    //     endpoint: '', // TODO: add endpoint
+    //   });
+    // }
+
+    if (sink) {
+      this.telemetry = new TelemetrySession({
+        ioHost: this,
+        client: sink,
+        arguments: args,
+        context: context,
+      });
+    }
+
+    await this.telemetry?.begin();
   }
 
   /**
@@ -282,10 +282,6 @@ export class CliIoHost implements IIoHost {
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     await this.maybeEmitTelemetry(msg);
-
-    if (this._internalIoHost) {
-      return this._internalIoHost.notify(msg);
-    }
 
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
@@ -396,11 +392,6 @@ export class CliIoHost implements IIoHost {
    * default response from the input message will be used.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-    // First call out to a registered instance if we have one
-    if (this._internalIoHost) {
-      return this._internalIoHost.requestResponse(msg);
-    }
-
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
       await this.notify(msg);

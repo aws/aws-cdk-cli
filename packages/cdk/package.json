@@ -54,7 +54,7 @@
     "license-checker": "^25.0.1",
     "prettier": "^2.8",
     "ts-jest": "^29.4.0",
-    "typescript": "5.6"
+    "typescript": "5.8"
   },
   "dependencies": {
     "aws-cdk": "^0.0.0"
