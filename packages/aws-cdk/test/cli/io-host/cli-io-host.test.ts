@@ -280,14 +280,14 @@ describe('CliIoHost', () => {
     let telemetryIoHost: CliIoHost;
     let telemetryEmitSpy: jest.SpyInstance;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       process.env.CLI_TELEMETRY = 'true';
 
       // Create a new instance with telemetry enabled
       telemetryIoHost = CliIoHost.instance({
         logLevel: 'trace',
       }, true);
-      telemetryIoHost.startTelemetry({ _: 'init' }, new Context());
+      await telemetryIoHost.startTelemetry({ _: 'init' }, new Context());
 
       expect(telemetryIoHost.telemetry).toBeDefined();
 
