@@ -72,21 +72,6 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * Criteria for selecting stacks to deploy
-   *
-   * @default - All stacks
-   */
-  stacks?: StackSelector;
-
-  /**
-   * List of patterns for filtering deployed stacks. If no patterns are passed,
-   * then all stacks, except the bootstrap stacks are considered. If you want
-   * to consider all stacks (including bootstrap stacks), pass the wildcard
-   * '*'.
-   */
-  deployedStacks?: string[];
-
-  /**
    * List of overrides to be applied to resolve possible ambiguities in the
    * computed list of mappings.
    */

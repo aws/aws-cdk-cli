@@ -276,7 +276,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'refactor';
         return cli.refactor({
           dryRun: args.dryRun,
-          selector,
           overrideFile: args.overrideFile,
           revert: args.revert,
           stacks: selector,

@@ -62,12 +62,9 @@ import {
   formatEnvironmentSectionHeader,
   formatTypedMappings,
   groupStacks,
-  groupStacks,
-  ManifestExcludeList,
-  usePrescribedMappings,
 } from '../api/refactoring';
-import { type CloudFormationStack, ResourceLocation, ResourceMapping } from '../api/refactoring/cloudformation';
-import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../api/refactoring/cloudformation';
+import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
@@ -1068,9 +1065,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
 
-    const mappingSource = options.mappingSource ?? MappingSource.auto();
-    const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
-
     for (let { environment, localStacks, deployedStacks } of groups) {
       await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
@@ -1079,10 +1073,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           environment,
           deployedStacks,
           localStacks,
-          mappings: await getUserProvidedMappings(environment),
+          overrides: getOverrides(environment, deployedStacks, localStacks),
         });
 
-        const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+        const mappings = context.mappings;
 
         if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
           await ioHelper.defaults.info('Nothing to refactor.');
@@ -1105,16 +1099,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(e.message, { error: e }));
-      }
-    }
-
-    async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {
-      return mappingSource.source == 'explicit'
-        ? usePrescribedMappings(mappingSource.groups.filter(matchesEnvironment), sdkProvider)
-        : undefined;
-
-      function matchesEnvironment(g: MappingGroup): boolean {
-        return g.account === environment.account && g.region === environment.region;
       }
     }
 

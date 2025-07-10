@@ -896,10 +896,6 @@
     },
     "refactor": {
       "description": "Moves resources between stacks or within the same stack",
-      "arg": {
-        "name": "STACKS",
-        "variadic": true
-      },
       "options": {
         "additional-stack-name": {
           "type": "array",

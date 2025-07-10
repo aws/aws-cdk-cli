@@ -2,17 +2,8 @@ import * as path from 'path';
 import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import type {
-  DeploymentMethod,
-  ToolkitAction,
-  ToolkitOptions,
-} from '@aws-cdk/toolkit-lib';
-import {
-  parseMappingGroups,
-  StackSelectionStrategy, ToolkitError, PermissionChangeType, Toolkit,
-} from '@aws-cdk/toolkit-lib';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { MappingSource, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { parseMappingGroups, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -22,13 +13,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import { asIoHelper, cfnApi, tagsForStack } from '../../lib/api-private';
-import type {
-  AssetBuildNode,
-  AssetPublishNode,
-  Concurrency,
-  StackNode,
-  WorkGraph,
-} from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
@@ -1257,8 +1242,8 @@ export class CdkToolkit {
       await this.toolkit.refactor(this.props.cloudExecutable, {
         dryRun: options.dryRun,
         stacks: {
-          patterns: options.selector.patterns,
-          strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+          patterns: patterns,
+          strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         overrides: readOverrides(options.revert ?? false, options.overrideFile),
       });

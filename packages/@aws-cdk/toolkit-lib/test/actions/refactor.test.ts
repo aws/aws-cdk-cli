@@ -1,6 +1,5 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { MappingSource, type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
-import { type RefactorOptions, Toolkit } from '../../lib';
+import { type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
@@ -434,65 +433,6 @@ test('overrides can be used to resolve ambiguities', async () => {
   );
 });
 
-test('detects modifications to the infrastructure', async () => {
-  // GIVEN
-  mockCloudFormationClient.on(ListStacksCommand).resolves({
-    StackSummaries: [
-      {
-        StackName: 'Stack1',
-        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
-        StackStatus: 'CREATE_COMPLETE',
-        CreationTime: new Date(),
-      },
-    ],
-  });
-
-  mockCloudFormationClient
-    .on(GetTemplateCommand, {
-      StackName: 'Stack1',
-    })
-    .resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          // This resource would be refactored
-          OldName: {
-            Type: 'AWS::S3::Bucket',
-            UpdateReplacePolicy: 'Retain',
-            DeletionPolicy: 'Retain',
-            Metadata: {
-              'aws:cdk:path': 'Stack1/OldName/Resource',
-            },
-          },
-          // But there is an additional resource that will prevent it
-          Queue: {
-            Type: 'AWS::S3::Queue',
-            UpdateReplacePolicy: 'Retain',
-            DeletionPolicy: 'Retain',
-            Metadata: {
-              'aws:cdk:path': 'Stack1/Queue/Resource',
-            },
-          },
-        },
-      }),
-    });
-
-  // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await toolkit.refactor(cx, {
-    dryRun: true,
-  });
-
-  // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledWith(
-    expect.objectContaining({
-      action: 'refactor',
-      level: 'info',
-      // ...so we don't see it in the output
-      message: expect.stringMatching(/Nothing to refactor/),
-    }),
-  );
-});
-
 test('fails when dry-run is false', async () => {
   const cx = await builderFixture(toolkit, 'stack-with-bucket');
   await expect(
@@ -561,16 +501,10 @@ test('filters stacks when stack selector is passed', async () => {
   const cx = await builderFixture(toolkit, 'two-different-stacks');
   await toolkit.refactor(cx, {
     dryRun: true,
-    // ... this is the mapping we used, and now we want to revert it
-    mappingSource: MappingSource.reverse([
-      {
-        account: '123456789012',
-        region: 'us-east-1',
-        resources: {
-          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
-        },
-      },
-    ]),
+    stacks: {
+      patterns: ['Stack1'],
+      strategy: StackSelectionStrategy.PATTERN_MATCH,
+    },
   });
 
   // Resources were renamed in both stacks, but we are only including Stack1.
