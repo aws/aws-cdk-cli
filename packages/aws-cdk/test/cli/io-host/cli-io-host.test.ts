@@ -1,3 +1,5 @@
+import * as os from 'os';
+import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
@@ -281,13 +283,14 @@ describe('CliIoHost', () => {
     let telemetryEmitSpy: jest.SpyInstance;
 
     beforeEach(async () => {
-      process.env.CLI_TELEMETRY = 'true';
+      // Create a telemetry file to satisfy requirements; we are not asserting on the file contents
+      const telemetryFilePath = path.join(os.tmpdir(), 'telemetry-file.json');
 
       // Create a new instance with telemetry enabled
       telemetryIoHost = CliIoHost.instance({
         logLevel: 'trace',
       }, true);
-      await telemetryIoHost.startTelemetry({ _: 'init' }, new Context());
+      await telemetryIoHost.startTelemetry({ '_': 'init', 'telemetry-file': telemetryFilePath }, new Context());
 
       expect(telemetryIoHost.telemetry).toBeDefined();
 
@@ -296,7 +299,6 @@ describe('CliIoHost', () => {
     });
 
     afterEach(() => {
-      process.env.CLI_TELEMETRY = undefined;
       jest.restoreAllMocks();
     });
 

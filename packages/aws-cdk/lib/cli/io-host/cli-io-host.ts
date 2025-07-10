@@ -1,3 +1,4 @@
+import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -8,7 +9,7 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { FileTelemetrySink } from '../telemetry/file-sink';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
@@ -169,16 +170,34 @@ export class CliIoHost implements IIoHost {
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
   }
 
-  public async startTelemetry(args: any, context: Context) {
-    if (canCollectTelemetry(context)) {
+  public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
+    let sink;
+    const telemetryFilePath = args['telemetry-file'];
+    if (telemetryFilePath) {
+      sink = new FileTelemetrySink({
+        ioHost: this,
+        logFilePath: telemetryFilePath,
+      });
+    }
+    // TODO: uncomment this at launch
+    // if (canCollectTelemetry(context)) {
+    //   sink = new EndpointTelemetrySink({
+    //     ioHost: this,
+    //     agent: proxyAgent,
+    //     endpoint: '', // TODO: add endpoint
+    //   });
+    // }
+
+    if (sink) {
       this.telemetry = new TelemetrySession({
         ioHost: this,
+        client: sink,
         arguments: args,
-        context,
+        context: context,
       });
-
-      await this.telemetry.begin();
     }
+
+    await this.telemetry?.begin();
   }
 
   /**

@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getInstallationId } from './installation-id';
-import { IoHostTelemetrySink } from './io-host-sink';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
@@ -17,6 +16,7 @@ import { versionNumber } from '../version-util';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
+  readonly client: ITelemetrySink;
   readonly arguments: any;
   readonly context: Context;
 }
@@ -28,23 +28,19 @@ export interface TelemetryEvent {
 }
 
 export class TelemetrySession {
-  private readonly ioHost: CliIoHost;
-  private _client?: ITelemetrySink;
+  private ioHost: CliIoHost;
+  private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private span?: IMessageSpan<EventResult>;
   private count = 0;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
+    this.client = props.client;
   }
 
   public async begin() {
     this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
-
-    // TODO: change this to EndpointTelemetrySink
-    this._client = new IoHostTelemetrySink({
-      ioHost: this.ioHost,
-    });
 
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
@@ -127,13 +123,6 @@ export class TelemetrySession {
         },
       } : {}),
     });
-  }
-
-  private get client(): ITelemetrySink {
-    if (!this._client) {
-      throw new ToolkitError('Client not initialized. Call begin() first.');
-    }
-    return this._client;
   }
 
   private get sessionInfo(): SessionSchema {

@@ -90,12 +90,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
   await configuration.load();
 
-  try {
-    await ioHost.startTelemetry(argv, configuration.context);
-  } catch (e: any) {
-    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
-  }
-
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Always create and use ProxyAgent to support configuration via env vars
@@ -103,6 +97,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     proxyAddress: configuration.settings.get(['proxy']),
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
+
+  try {
+    await ioHost.startTelemetry(argv, configuration.context);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+  }
 
   const shouldDisplayNotices = configuration.settings.get(['notices']);
   // Notices either go to stderr, or nowhere
