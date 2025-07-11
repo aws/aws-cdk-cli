@@ -1179,7 +1179,7 @@ export class CdkToolkit {
         if (templateId) {
           // if we have a template id, we can call describe generated template to get the resource identifiers
           // resource metadata, and template source to generate the template
-          cfn = new CfnTemplateGeneratorProvider(await buildCfnClient(this.props.sdkProvider, environment));
+          cfn = new CfnTemplateGeneratorProvider(await buildCfnClient(this.props.sdkProvider, environment), this.ioHost.asIoHelper());
           const generatedTemplateSummary = await cfn.describeGeneratedTemplate(templateId);
           generateTemplateOutput = buildGeneratedTemplateOutput(
             generatedTemplateSummary,
@@ -1230,7 +1230,7 @@ export class CdkToolkit {
     } finally {
       if (templateToDelete) {
         if (!cfn) {
-          cfn = new CfnTemplateGeneratorProvider(await buildCfnClient(this.props.sdkProvider, environment));
+          cfn = new CfnTemplateGeneratorProvider(await buildCfnClient(this.props.sdkProvider, environment), this.ioHost.asIoHelper());
         }
         if (!process.env.MIGRATE_INTEG_TEST) {
           await cfn.deleteGeneratedTemplate(templateToDelete);

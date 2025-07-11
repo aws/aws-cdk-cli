@@ -20,7 +20,6 @@ import type {
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import * as chalk from 'chalk';
 import { cliInit } from './init';
-import { info } from '../../lib/logging';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';
 import { Mode } from '../api/plugin';
@@ -166,38 +165,38 @@ export async function readFromStack(
  * @returns a generated cloudformation template
  */
 export async function generateTemplate(options: GenerateTemplateOptions): Promise<GenerateTemplateOutput> {
-  const cfn = new CfnTemplateGeneratorProvider(await buildCfnClient(options.sdkProvider, options.environment));
+  const cfn = new CfnTemplateGeneratorProvider(await buildCfnClient(options.sdkProvider, options.environment), options.ioHelper);
+  const ioHelper = options.ioHelper;
 
   const scanId = await findLastSuccessfulScan(cfn, options);
 
   // if a customer accidentally ctrl-c's out of the command and runs it again, this will continue the progress bar where it left off
   const curScan = await cfn.describeResourceScan(scanId);
   if (curScan.Status == ScanStatus.IN_PROGRESS) {
-    info('Resource scan in progress. Please wait, this can take 10 minutes or longer.');
-    await scanProgressBar(scanId, cfn);
+    await ioHelper.defaults.info('Resource scan in progress. Please wait, this can take 10 minutes or longer.');
+    await scanProgressBar(ioHelper, scanId, cfn);
   }
 
-  displayTimeDiff(new Date(), new Date(curScan.StartTime!));
+  await displayTimeDiff(ioHelper, new Date(), new Date(curScan.StartTime!));
 
   let resources: ScannedResource[] = await cfn.listResourceScanResources(scanId!, options.filters);
 
-  info('finding related resources.');
+  await ioHelper.defaults.info('finding related resources.');
   let relatedResources = await cfn.getResourceScanRelatedResources(scanId!, resources);
 
-  info(`Found ${relatedResources.length} resources.`);
+  await ioHelper.defaults.info(`Found ${relatedResources.length} resources.`);
 
-  info('Generating CFN template from scanned resources.');
+  await ioHelper.defaults.info('Generating CFN template from scanned resources.');
   const templateArn = (await cfn.createGeneratedTemplate(options.stackName, relatedResources)).GeneratedTemplateId!;
 
   let generatedTemplate = await cfn.describeGeneratedTemplate(templateArn);
 
-  info('Please wait, template creation in progress. This may take a couple minutes.');
+  await ioHelper.defaults.info('Please wait, template creation in progress. This may take a couple minutes.');
   while (generatedTemplate.Status !== ScanStatus.COMPLETE && generatedTemplate.Status !== ScanStatus.FAILED) {
     await printDots(`[${generatedTemplate.Status}] Template Creation in Progress`, 400);
     generatedTemplate = await cfn.describeGeneratedTemplate(templateArn);
   }
-  info('');
-  info('Template successfully generated!');
+  await ioHelper.defaults.info('\nTemplate successfully generated!');
   return buildGeneratedTemplateOutput(
     generatedTemplate,
     (await cfn.getGeneratedTemplate(templateArn)).TemplateBody!,
@@ -209,10 +208,11 @@ async function findLastSuccessfulScan(
   cfn: CfnTemplateGeneratorProvider,
   options: GenerateTemplateOptions,
 ): Promise<string> {
+  const ioHelper = options.ioHelper;
   let resourceScanSummaries: ResourceScanSummary[] | undefined = [];
   const clientRequestToken = `cdk-migrate-${options.environment.account}-${options.environment.region}`;
   if (options.fromScan === FromScan.NEW) {
-    info(`Starting new scan for account ${options.environment.account} in region ${options.environment.region}`);
+    await ioHelper.defaults.info(`Starting new scan for account ${options.environment.account} in region ${options.environment.region}`);
     try {
       await cfn.startResourceScan(clientRequestToken);
       resourceScanSummaries = (await cfn.listResourceScans()).ResourceScanSummaries;
@@ -220,7 +220,7 @@ async function findLastSuccessfulScan(
       // continuing here because if the scan fails on a new-scan it is very likely because there is either already a scan in progress
       // or the customer hit a rate limit. In either case we want to continue with the most recent scan.
       // If this happens to fail for a credential error then that will be caught immediately after anyway.
-      info(`Scan failed to start due to error '${(e as Error).message}', defaulting to latest scan.`);
+      await ioHelper.defaults.info(`Scan failed to start due to error '${(e as Error).message}', defaulting to latest scan.`);
     }
   } else {
     resourceScanSummaries = (await cfn.listResourceScans()).ResourceScanSummaries;
@@ -415,7 +415,7 @@ function resourceIdentifiers(resourceList: ScannedResource[]): ScannedResourceId
  * @param scanId - A string representing the scan id
  * @param cloudFormation - The CloudFormation sdk client to use
  */
-export async function scanProgressBar(scanId: string, cfn: CfnTemplateGeneratorProvider) {
+async function scanProgressBar(ioHelper: IoHelper, scanId: string, cfn: CfnTemplateGeneratorProvider) {
   let curProgress = 0.5;
   // we know it's in progress initially since we wouldn't have gotten here if it wasn't
   let curScan: DescribeResourceScanCommandOutput = {
@@ -428,8 +428,7 @@ export async function scanProgressBar(scanId: string, cfn: CfnTemplateGeneratorP
     printBar(30, curProgress);
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
-  info('');
-  info('✅ Scan Complete!');
+  await ioHelper.defaults.info('\n✅ Scan Complete!');
 }
 
 /**
@@ -499,14 +498,14 @@ export function rewriteLine(message: string) {
  * @param time1 - The first date to compare
  * @param time2 - The second date to compare
  */
-export function displayTimeDiff(time1: Date, time2: Date): void {
+async function displayTimeDiff(ioHelper: IoHelper, time1: Date, time2: Date): Promise<void> {
   const diff = Math.abs(time1.getTime() - time2.getTime());
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-  info(`Using the latest successful scan which is ${days} days, ${hours} hours, and ${minutes} minutes old.`);
+  await ioHelper.defaults.info(`Using the latest successful scan which is ${days} days, ${hours} hours, and ${minutes} minutes old.`);
 }
 
 /**
@@ -673,8 +672,10 @@ function deduplicateResources(resources: ResourceDetail[]) {
  */
 export class CfnTemplateGeneratorProvider {
   private cfn: ICloudFormationClient;
-  constructor(cfn: ICloudFormationClient) {
+  private ioHelper: IoHelper;
+  constructor(cfn: ICloudFormationClient, ioHelper: IoHelper) {
     this.cfn = cfn;
+    this.ioHelper = ioHelper;
   }
 
   async checkForResourceScan(
@@ -688,7 +689,7 @@ export class CfnTemplateGeneratorProvider {
           'No scans found. Please either start a new scan with the `--from-scan` new or do not specify a `--from-scan` option.',
         );
       } else {
-        info('No scans found. Initiating a new resource scan.');
+        await this.ioHelper.defaults.info('No scans found. Initiating a new resource scan.');
         await this.startResourceScan(clientRequestToken);
       }
     }
@@ -777,7 +778,7 @@ export class CfnTemplateGeneratorProvider {
     let resourceScanInputs: ListResourceScanResourcesCommandInput;
 
     if (filters.length > 0) {
-      info('Applying filters to resource scan.');
+      await this.ioHelper.defaults.info('Applying filters to resource scan.');
       for (const filter of filters) {
         const filterList = parseFilters(filter);
         resourceScanInputs = {
@@ -800,7 +801,7 @@ export class CfnTemplateGeneratorProvider {
         }
       }
     } else {
-      info('No filters provided. Retrieving all resources from scan.');
+      await this.ioHelper.defaults.info('No filters provided. Retrieving all resources from scan.');
       resourceScanInputs = {
         ResourceScanId: scanId,
       };
