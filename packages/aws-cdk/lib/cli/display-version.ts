@@ -7,7 +7,6 @@ import type { IoHelper } from '../api-private';
 import { cdkCacheDir, versionNumber } from '../util';
 import { formatAsBanner } from './util/console-formatters';
 import { execNpmView } from './util/npm';
-import { versionNumber } from './version';
 
 const ONE_DAY_IN_SECONDS = 1 * 24 * 60 * 60;
 
