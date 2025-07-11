@@ -12,7 +12,7 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import { displayVersion, isDeveloperBuild, versionNumber } from './version-util';
+import { version, isDeveloperBuildVersion, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -31,7 +31,7 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import type { ErrorDetails } from './telemetry/schema';
-import { displayVersionMessage } from './version';
+import { displayVersionMessage } from './display-version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -80,7 +80,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  await ioHost.defaults.debug('CDK Toolkit CLI version:', displayVersion());
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', version());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
   const configuration = await Configuration.fromArgsAndFiles(ioHelper,
@@ -514,7 +514,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return ioHost.defaults.result(displayVersion());
+        return ioHost.defaults.result(version());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
@@ -653,7 +653,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
     .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      prettyPrintError(err, isDeveloperBuild());
+      prettyPrintError(err, isDeveloperBuildVersion());
       error = err;
       process.exitCode = 1;
     })

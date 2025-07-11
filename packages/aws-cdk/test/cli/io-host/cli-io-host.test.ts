@@ -1,5 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
+import * as fs from 'fs-extra';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
@@ -281,10 +282,11 @@ describe('CliIoHost', () => {
   describe('telemetry', () => {
     let telemetryIoHost: CliIoHost;
     let telemetryEmitSpy: jest.SpyInstance;
+    let telemetryFilePath: string;
 
     beforeEach(async () => {
       // Create a telemetry file to satisfy requirements; we are not asserting on the file contents
-      const telemetryFilePath = path.join(os.tmpdir(), 'telemetry-file.json');
+      telemetryFilePath = path.join(os.tmpdir(), 'telemetry-file.json');
 
       // Create a new instance with telemetry enabled
       telemetryIoHost = CliIoHost.instance({
@@ -299,6 +301,7 @@ describe('CliIoHost', () => {
     });
 
     afterEach(() => {
+      fs.unlinkSync(telemetryFilePath);
       jest.restoreAllMocks();
     });
 

@@ -6,8 +6,8 @@ import * as sinon from 'sinon';
 import { setTimeout as _setTimeout } from 'timers';
 import { promisify } from 'util';
 import * as npm from '../../lib/cli/util/npm';
-import { displayVersionMessage, getVersionMessages, VersionCheckTTL } from '../../lib/cli/version';
-import { isDeveloperBuild } from '../../lib/cli/version-util';
+import { displayVersionMessage, getVersionMessages, VersionCheckTTL } from '../../lib/cli/display-version';
+import { isDeveloperBuildVersion } from '../../lib/cli/version';
 import { TestIoHost } from '../_helpers/io-host';
 
 jest.setTimeout(10_000);
@@ -151,7 +151,7 @@ test('isDeveloperBuild call does not throw an error', () => {
   // that the value is `true` when running tests, because I won't want to make too
   // many assumptions for no good reason.
 
-  isDeveloperBuild();
+  isDeveloperBuildVersion();
 
   // THEN: should not explode
 });

@@ -6,7 +6,7 @@ import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
 import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
-import { versionNumber } from '../../cli/version-util';
+import { versionNumber } from '../../cli/version';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module

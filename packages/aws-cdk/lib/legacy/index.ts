@@ -24,7 +24,7 @@ export { CloudExecutable, execProgram } from '../cxapp';
 export { cli, exec } from '../cli/cli';
 export { cliRootDir as rootDir } from '../cli/root-dir';
 export { formatAsBanner } from '../cli/util/console-formatters';
-export { versionNumber } from '../cli/version-util';
+export { versionNumber } from '../cli/version';
 
 // Commands
 export { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
