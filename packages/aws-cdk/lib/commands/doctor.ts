@@ -2,7 +2,8 @@ import * as process from 'process';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import type { IoHelper } from '../api-private';
-import * as version from '../cli/version';
+import { displayVersionMessage } from '../cli/display-version';
+import { version } from '../cli/version';
 
 export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<number> {
   let exitStatus: number = 0;
@@ -11,7 +12,7 @@ export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<numb
       exitStatus = -1;
     }
   }
-  await version.displayVersionMessage(ioHelper);
+  await displayVersionMessage(ioHelper);
   return exitStatus;
 }
 
@@ -24,7 +25,7 @@ const verifications: Array<(ioHelper: IoHelper) => boolean | Promise<boolean>> =
 // ### Verifications ###
 
 async function displayVersionInformation(ioHelper: IoHelper) {
-  await ioHelper.defaults.info(`ℹ️ CDK Version: ${chalk.green(version.displayVersion())}`);
+  await ioHelper.defaults.info(`ℹ️ CDK Version: ${chalk.green(version())}`);
   return true;
 }
 
