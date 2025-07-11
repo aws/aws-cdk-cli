@@ -17,6 +17,7 @@ import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export * from './exclude';
+export * from './context';
 
 interface StackGroup {
   environment: cxapi.Environment;

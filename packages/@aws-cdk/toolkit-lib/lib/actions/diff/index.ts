@@ -129,4 +129,12 @@ export interface DiffOptions {
    * @default 3
    */
   readonly contextLines?: number;
+
+  /**
+   * Whether to include resource moves in the diff. These are the same moves that are detected
+   * by the `refactor` command.
+   *
+   * @default false
+   */
+  readonly includeMoves?: boolean;
 }

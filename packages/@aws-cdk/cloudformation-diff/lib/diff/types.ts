@@ -547,6 +547,12 @@ export interface Resource {
   [key: string]: any;
 }
 
+export interface Move {
+  readonly direction: 'from' | 'to';
+  readonly stackName: string;
+  readonly resourceLogicalId: string;
+}
+
 /**
  * Change to a single resource between two CloudFormation templates
  *
@@ -567,6 +573,8 @@ export class ResourceDifference implements IDifference<Resource> {
    * Whether this resource was imported
    */
   public isImport?: boolean;
+
+  public move?: Move;
 
   /** Property-level changes on the resource */
   private readonly propertyDiffs: { [key: string]: PropertyDifference<any> };

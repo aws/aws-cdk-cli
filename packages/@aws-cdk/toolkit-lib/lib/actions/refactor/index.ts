@@ -1,6 +1,8 @@
+import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSelector } from '../../api';
+import type { SdkProvider } from '../../api/aws-auth/sdk-provider';
 import type { ExcludeList } from '../../api/refactoring';
-import { InMemoryExcludeList, NeverExclude } from '../../api/refactoring';
+import { groupStacks, InMemoryExcludeList, NeverExclude, RefactoringContext } from '../../api/refactoring';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 type MappingType = 'auto' | 'explicit';
@@ -141,4 +143,29 @@ export function parseMappingGroups(s: string) {
       throw new ToolkitError("Expected an 'environments' array");
     }
   }
+}
+
+export interface EnvironmentSpecificMappings {
+  readonly environment: cxapi.Environment;
+  readonly mappings: Record<string, string>;
+}
+
+export async function mappingsByEnvironment(
+  stackArtifacts: cxapi.CloudFormationStackArtifact[],
+  sdkProvider: SdkProvider,
+  ignoreModifications?: boolean,
+): Promise<EnvironmentSpecificMappings[]> {
+  const groups = await groupStacks(sdkProvider, stackArtifacts, []);
+  return groups.map((group) => {
+    const context = new RefactoringContext({
+      ...group,
+      ignoreModifications,
+    });
+    return {
+      environment: context.environment,
+      mappings: Object.fromEntries(
+        context.mappings.map((m) => [m.source.toLocationString(), m.destination.toLocationString()]),
+      ),
+    };
+  });
 }

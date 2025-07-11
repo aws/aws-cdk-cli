@@ -31,8 +31,7 @@ export class ResourceLocation {
   }
 
   public toPath(): string {
-    const stack = this.stack;
-    const resource = stack.template.Resources?.[this.logicalResourceId];
+    const resource = this.stack.template.Resources?.[this.logicalResourceId];
     const result = resource?.Metadata?.['aws:cdk:path'];
 
     if (result != null) {
@@ -40,7 +39,11 @@ export class ResourceLocation {
     }
 
     // If the path is not available, we can use stack name and logical ID
-    return `${stack.stackName}.${this.logicalResourceId}`;
+    return this.toLocationString();
+  }
+
+  public toLocationString() {
+    return `${this.stack.stackName}.${this.logicalResourceId}`;
   }
 
   public getType(): string {

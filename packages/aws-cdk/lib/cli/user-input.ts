@@ -1170,6 +1170,13 @@ export interface DiffOptions {
   readonly importExistingResources?: boolean;
 
   /**
+   * Whether to include moves in the diff
+   *
+   * @default - false
+   */
+  readonly includeMoves?: boolean;
+
+  /**
    * Positional argument for diff
    */
   readonly STACKS?: Array<string>;

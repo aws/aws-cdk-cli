@@ -12,11 +12,12 @@ import { equalSets } from '../../util/sets';
  */
 type ResourceMove = [ResourceLocation[], ResourceLocation[]];
 
-export interface RefactorManagerOptions {
+export interface RefactoringContextOptions {
   environment: Environment;
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
   overrides?: ResourceMapping[];
+  ignoreModifications?: boolean;
 }
 
 /**
@@ -27,9 +28,9 @@ export class RefactoringContext {
   private readonly ambiguousMoves: ResourceMove[] = [];
   public readonly environment: Environment;
 
-  constructor(props: RefactorManagerOptions) {
+  constructor(props: RefactoringContextOptions) {
     this.environment = props.environment;
-    const moves = resourceMoves(props.deployedStacks, props.localStacks);
+    const moves = resourceMoves(props.deployedStacks, props.localStacks, props.ignoreModifications);
     const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(props.overrides ?? [], moves);
     this.ambiguousMoves = ambiguousMoves;
     this._mappings = resourceMappings(nonAmbiguousMoves);
@@ -48,15 +49,23 @@ export class RefactoringContext {
   }
 }
 
-function resourceMoves(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMove[] {
+function resourceMoves(
+  before: CloudFormationStack[],
+  after: CloudFormationStack[],
+  ignoreModifications: boolean = false,
+): ResourceMove[] {
   const digestsBefore = resourceDigests(before);
   const digestsAfter = resourceDigests(after);
 
-  const stackNames = (stacks: CloudFormationStack[]) => stacks.map((s) => s.stackName).sort().join(', ');
-  if (!isomorphic(digestsBefore, digestsAfter)) {
+  const stackNames = (stacks: CloudFormationStack[]) =>
+    stacks
+      .map((s) => s.stackName)
+      .sort()
+      .join(', ');
+  if (!(ignoreModifications || isomorphic(digestsBefore, digestsAfter))) {
     const message = [
       'A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed. ',
-      'Run \'cdk diff\' to compare the local templates to the deployed stacks.\n',
+      "Run 'cdk diff' to compare the local templates to the deployed stacks.\n",
       `Deployed stacks: ${stackNames(before)}`,
       `Local stacks: ${stackNames(after)}`,
     ];
