@@ -1,22 +1,21 @@
 import * as process from 'process';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
-import { info } from '../../lib/logging';
-import { displayVersionMessage } from '../cli/version';
+import type { IoHelper } from '../api-private';
 import { displayVersion } from '../cli/version-util';
 
-export async function doctor(): Promise<number> {
+export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<number> {
   let exitStatus: number = 0;
   for (const verification of verifications) {
-    if (!await verification()) {
+    if (!await verification(ioHelper)) {
       exitStatus = -1;
     }
   }
-  await displayVersionMessage();
+  await displayVersionMessage(ioHelper);
   return exitStatus;
 }
 
-const verifications: Array<() => boolean | Promise<boolean>> = [
+const verifications: Array<(ioHelper: IoHelper) => boolean | Promise<boolean>> = [
   displayVersionInformation,
   displayAwsEnvironmentVariables,
   displayCdkEnvironmentVariables,
@@ -24,38 +23,38 @@ const verifications: Array<() => boolean | Promise<boolean>> = [
 
 // ### Verifications ###
 
-function displayVersionInformation() {
-  info(`ℹ️ CDK Version: ${chalk.green(displayVersion())}`);
+async function displayVersionInformation(ioHelper: IoHelper) {
+  await ioHelper.defaults.info(`ℹ️ CDK Version: ${chalk.green(displayVersion())}`);
   return true;
 }
 
-function displayAwsEnvironmentVariables() {
+async function displayAwsEnvironmentVariables(ioHelper: IoHelper) {
   const keys = Object.keys(process.env).filter(s => s.startsWith('AWS_'));
   if (keys.length === 0) {
-    info('ℹ️ No AWS environment variables');
+    await ioHelper.defaults.info('ℹ️ No AWS environment variables');
     return true;
   }
-  info('ℹ️ AWS environment variables:');
+  await ioHelper.defaults.info('ℹ️ AWS environment variables:');
   for (const key of keys) {
-    info(`  - ${chalk.blue(key)} = ${chalk.green(anonymizeAwsVariable(key, process.env[key]!))}`);
+    await ioHelper.defaults.info(`  - ${chalk.blue(key)} = ${chalk.green(anonymizeAwsVariable(key, process.env[key]!))}`);
   }
   return true;
 }
 
-function displayCdkEnvironmentVariables() {
+async function displayCdkEnvironmentVariables(ioHelper: IoHelper) {
   const keys = Object.keys(process.env).filter(s => s.startsWith('CDK_'));
   if (keys.length === 0) {
-    info('ℹ️ No CDK environment variables');
+    await ioHelper.defaults.info('ℹ️ No CDK environment variables');
     return true;
   }
-  info('ℹ️ CDK environment variables:');
+  await ioHelper.defaults.info('ℹ️ CDK environment variables:');
   let healthy = true;
   for (const key of keys.sort()) {
     if (key === cxapi.CONTEXT_ENV || key === cxapi.CONTEXT_OVERFLOW_LOCATION_ENV || key === cxapi.OUTDIR_ENV) {
-      info(`  - ${chalk.red(key)} = ${chalk.green(process.env[key]!)} (⚠️ reserved for use by the CDK toolkit)`);
+      await ioHelper.defaults.info(`  - ${chalk.red(key)} = ${chalk.green(process.env[key]!)} (⚠️ reserved for use by the CDK toolkit)`);
       healthy = false;
     } else {
-      info(`  - ${chalk.blue(key)} = ${chalk.green(process.env[key]!)}`);
+      await ioHelper.defaults.info(`  - ${chalk.blue(key)} = ${chalk.green(process.env[key]!)}`);
     }
   }
   return healthy;

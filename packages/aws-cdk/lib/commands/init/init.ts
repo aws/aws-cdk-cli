@@ -4,9 +4,9 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
+import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version-util';
-import { error, info, warning } from '../../logging';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
@@ -28,17 +28,20 @@ export interface CliInitOptions {
    * Override the built-in CDK version
    */
   readonly libVersion?: string;
+
+  readonly ioHelper: IoHelper;
 }
 
 /**
  * Initialize a CDK package in the current directory
  */
 export async function cliInit(options: CliInitOptions) {
+  const ioHelper = options.ioHelper;
   const canUseNetwork = options.canUseNetwork ?? true;
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
   if (!options.type && !options.language) {
-    await printAvailableTemplates();
+    await printAvailableTemplates(ioHelper);
     return;
   }
 
@@ -46,21 +49,22 @@ export async function cliInit(options: CliInitOptions) {
 
   const template = (await availableInitTemplates()).find((t) => t.hasName(type!));
   if (!template) {
-    await printAvailableTemplates(options.language);
+    await printAvailableTemplates(ioHelper, options.language);
     throw new ToolkitError(`Unknown init template: ${type}`);
   }
   if (!options.language && template.languages.length === 1) {
     const language = template.languages[0];
-    warning(
+    await ioHelper.defaults.warn(
       `No --language was provided, but '${type}' supports only '${language}', so defaulting to --language=${language}`,
     );
   }
   if (!options.language) {
-    info(`Available languages for ${chalk.green(type)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
+    await ioHelper.defaults.info(`Available languages for ${chalk.green(type)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
     throw new ToolkitError('No language was selected');
   }
 
   await initializeProject(
+    ioHelper,
     template,
     options.language,
     canUseNetwork,
@@ -121,9 +125,9 @@ export class InitTemplate {
    * @param language    - the language to instantiate this template with
    * @param targetDirectory - the directory where the template is to be instantiated into
    */
-  public async install(language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
+  public async install(ioHelper: IoHelper, language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
     if (this.languages.indexOf(language) === -1) {
-      error(
+      await ioHelper.defaults.error(
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
           `(it supports: ${this.languages.map((l) => chalk.blue(l)).join(', ')})`,
       );
@@ -145,6 +149,7 @@ export class InitTemplate {
     await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo);
     await this.applyFutureFlags(targetDirectory);
     await invokeBuiltinHooks(
+      ioHelper,
       { targetDirectory, language, templateName: this.name },
       {
         substitutePlaceholdersIn: async (...fileNames: string[]) => {
@@ -308,23 +313,24 @@ async function listDirectory(dirPath: string) {
   );
 }
 
-export async function printAvailableTemplates(language?: string) {
-  info('Available templates:');
+export async function printAvailableTemplates(ioHelper: IoHelper, language?: string) {
+  await ioHelper.defaults.info('Available templates:');
   for (const template of await availableInitTemplates()) {
     if (language && template.languages.indexOf(language) === -1) {
       continue;
     }
-    info(`* ${chalk.green(template.name)}: ${template.description}`);
+    await ioHelper.defaults.info(`* ${chalk.green(template.name)}: ${template.description}`);
     const languageArg = language
       ? chalk.bold(language)
       : template.languages.length > 1
         ? `[${template.languages.map((t) => chalk.bold(t)).join('|')}]`
         : chalk.bold(template.languages[0]);
-    info(`   └─ ${chalk.blue(`cdk init ${chalk.bold(template.name)} --language=${languageArg}`)}`);
+    await ioHelper.defaults.info(`   └─ ${chalk.blue(`cdk init ${chalk.bold(template.name)} --language=${languageArg}`)}`);
   }
 }
 
 async function initializeProject(
+  ioHelper: IoHelper,
   template: InitTemplate,
   language: string,
   canUseNetwork: boolean,
@@ -335,22 +341,22 @@ async function initializeProject(
   cdkVersion?: string,
 ) {
   await assertIsEmptyDirectory(workDir);
-  info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
-  await template.install(language, workDir, stackName, cdkVersion);
+  await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
+  await template.install(ioHelper, language, workDir, stackName, cdkVersion);
   if (migrate) {
     await template.addMigrateContext(workDir);
   }
   if (await fs.pathExists(`${workDir}/README.md`)) {
     const readme = await fs.readFile(`${workDir}/README.md`, { encoding: 'utf-8' });
-    info(chalk.green(readme));
+    await ioHelper.defaults.info(chalk.green(readme));
   }
 
   if (!generateOnly) {
-    await initializeGitRepository(workDir);
-    await postInstall(language, canUseNetwork, workDir);
+    await initializeGitRepository(ioHelper, workDir);
+    await postInstall(ioHelper, language, canUseNetwork, workDir);
   }
 
-  info('✅ All done!');
+  await ioHelper.defaults.info('✅ All done!');
 }
 
 async function assertIsEmptyDirectory(workDir: string) {
@@ -360,78 +366,78 @@ async function assertIsEmptyDirectory(workDir: string) {
   }
 }
 
-async function initializeGitRepository(workDir: string) {
+async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
   if (await isInGitRepository(workDir)) {
     return;
   }
-  info('Initializing a new git repository...');
+  await ioHelper.defaults.info('Initializing a new git repository...');
   try {
-    await execute('git', ['init'], { cwd: workDir });
-    await execute('git', ['add', '.'], { cwd: workDir });
-    await execute('git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['init'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
   } catch {
-    warning('Unable to initialize git repository for your project.');
+    await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
   }
 }
 
-async function postInstall(language: string, canUseNetwork: boolean, workDir: string) {
+async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: boolean, workDir: string) {
   switch (language) {
     case 'javascript':
-      return postInstallJavascript(canUseNetwork, workDir);
+      return postInstallJavascript(ioHelper, canUseNetwork, workDir);
     case 'typescript':
-      return postInstallTypescript(canUseNetwork, workDir);
+      return postInstallTypescript(ioHelper, canUseNetwork, workDir);
     case 'java':
-      return postInstallJava(canUseNetwork, workDir);
+      return postInstallJava(ioHelper, canUseNetwork, workDir);
     case 'python':
-      return postInstallPython(workDir);
+      return postInstallPython(ioHelper, workDir);
   }
 }
 
-async function postInstallJavascript(canUseNetwork: boolean, cwd: string) {
-  return postInstallTypescript(canUseNetwork, cwd);
+async function postInstallJavascript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  return postInstallTypescript(ioHelper, canUseNetwork, cwd);
 }
 
-async function postInstallTypescript(canUseNetwork: boolean, cwd: string) {
+async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
   const command = 'npm';
 
   if (!canUseNetwork) {
-    warning(`Please run '${command} install'!`);
+    await ioHelper.defaults.warn(`Please run '${command} install'!`);
     return;
   }
 
-  info(`Executing ${chalk.green(`${command} install`)}...`);
+  await ioHelper.defaults.info(`Executing ${chalk.green(`${command} install`)}...`);
   try {
-    await execute(command, ['install'], { cwd });
+    await execute(ioHelper, command, ['install'], { cwd });
   } catch (e: any) {
-    warning(`${command} install failed: ` + formatErrorMessage(e));
+    await ioHelper.defaults.warn(`${command} install failed: ` + formatErrorMessage(e));
   }
 }
 
-async function postInstallJava(canUseNetwork: boolean, cwd: string) {
+async function postInstallJava(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
   const mvnPackageWarning = "Please run 'mvn package'!";
   if (!canUseNetwork) {
-    warning(mvnPackageWarning);
+    await ioHelper.defaults.warn(mvnPackageWarning);
     return;
   }
 
-  info("Executing 'mvn package'");
+  await ioHelper.defaults.info("Executing 'mvn package'");
   try {
-    await execute('mvn', ['package'], { cwd });
+    await execute(ioHelper, 'mvn', ['package'], { cwd });
   } catch {
-    warning('Unable to package compiled code as JAR');
-    warning(mvnPackageWarning);
+    await ioHelper.defaults.warn('Unable to package compiled code as JAR');
+    await ioHelper.defaults.warn(mvnPackageWarning);
   }
 }
 
-async function postInstallPython(cwd: string) {
+async function postInstallPython(ioHelper: IoHelper, cwd: string) {
   const python = pythonExecutable();
-  warning(`Please run '${python} -m venv .venv'!`);
-  info(`Executing ${chalk.green('Creating virtualenv...')}`);
+  await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
+  await ioHelper.defaults.info(`Executing ${chalk.green('Creating virtualenv...')}`);
   try {
-    await execute(python, ['-m venv', '.venv'], { cwd });
+    await execute(ioHelper, python, ['-m venv', '.venv'], { cwd });
   } catch {
-    warning('Unable to create virtualenv automatically');
-    warning(`Please run '${python} -m venv .venv'!`);
+    await ioHelper.defaults.warn('Unable to create virtualenv automatically');
+    await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
   }
 }
 
@@ -462,12 +468,12 @@ function isRoot(dir: string) {
 /**
  * Executes `command`. STDERR is emitted in real-time.
  *
- * If command exits with non-zero exit code, an exceprion is thrown and includes
+ * If command exits with non-zero exit code, an exception is thrown and includes
  * the contents of STDOUT.
  *
  * @returns STDOUT (if successful).
  */
-async function execute(cmd: string, args: string[], { cwd }: { cwd: string }) {
+async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }: { cwd: string }) {
   const child = childProcess.spawn(cmd, args, {
     cwd,
     shell: true,
@@ -481,10 +487,12 @@ async function execute(cmd: string, args: string[], { cwd }: { cwd: string }) {
       if (status === 0) {
         return ok(stdout);
       } else {
-        error(stdout);
         return fail(new ToolkitError(`${cmd} exited with status ${status}`));
       }
     });
+  }).catch(async (err) => {
+    await ioHelper.defaults.error(stdout);
+    throw err;
   });
 }
 

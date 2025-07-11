@@ -64,6 +64,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     currentAction: cmd,
     stackProgress: argv.progress,
   }, true);
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -74,7 +75,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }
 
   try {
-    await checkForPlatformWarnings();
+    await checkForPlatformWarnings(ioHelper);
   } catch (e) {
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
@@ -82,15 +83,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await ioHost.defaults.debug('CDK Toolkit CLI version:', displayVersion());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
-  });
-  await configuration.load();
-
-  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
+  const configuration = await Configuration.fromArgsAndFiles(ioHelper,
+    {
+      commandLineArguments: {
+        ...argv,
+        _: argv._ as [Command, ...string[]], // TypeScript at its best
+      },
+    });
 
   // Always create and use ProxyAgent to support configuration via env vars
   const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
@@ -175,7 +174,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await displayVersionMessage();
+    await displayVersionMessage(ioHelper);
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -232,6 +231,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'context':
         ioHost.currentAction = 'context';
         return context({
+          ioHelper,
           context: configuration.context,
           clear: argv.clear,
           json: argv.json,
@@ -242,11 +242,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'docs':
       case 'doc':
         ioHost.currentAction = 'docs';
-        return docs({ browser: configuration.settings.get(['browser']) });
+        return docs({
+          ioHelper,
+          browser: configuration.settings.get(['browser']),
+        });
 
       case 'doctor':
         ioHost.currentAction = 'doctor';
-        return doctor();
+        return doctor({
+          ioHelper,
+        });
 
       case 'ls':
       case 'list':
@@ -482,9 +487,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'init';
         const language = configuration.settings.get(['language']);
         if (args.list) {
-          return printAvailableTemplates(language);
+          return printAvailableTemplates(ioHelper, language);
         } else {
           return cliInit({
+            ioHelper,
             type: args.TEMPLATE,
             language,
             canUseNetwork: undefined,

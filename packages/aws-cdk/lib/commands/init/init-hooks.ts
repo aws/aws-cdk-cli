@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { shell } from './os';
+import type { IoHelper } from '../../api-private';
 import { formatErrorMessage } from '../../util';
 
 export type SubstitutePlaceholders = (...fileNames: string[]) => Promise<void>;
@@ -47,17 +48,17 @@ export interface HookTarget {
  * Bundle hooks as built-ins into the CLI, so they get bundled and can take advantage
  * of all shared code.
  */
-export async function invokeBuiltinHooks(target: HookTarget, context: HookContext) {
+export async function invokeBuiltinHooks(ioHelper: IoHelper, target: HookTarget, context: HookContext) {
   switch (target.language) {
     case 'csharp':
       if (['app', 'sample-app'].includes(target.templateName)) {
-        return dotnetAddProject(target.targetDirectory, context);
+        return dotnetAddProject(ioHelper, target.targetDirectory, context);
       }
       break;
 
     case 'fsharp':
       if (['app', 'sample-app'].includes(target.templateName)) {
-        return dotnetAddProject(target.targetDirectory, context, 'fsproj');
+        return dotnetAddProject(ioHelper, target.targetDirectory, context, 'fsproj');
       }
       break;
 
@@ -79,7 +80,7 @@ export async function invokeBuiltinHooks(target: HookTarget, context: HookContex
   }
 }
 
-async function dotnetAddProject(targetDirectory: string, context: HookContext, ext = 'csproj') {
+async function dotnetAddProject(ioHelper: IoHelper, targetDirectory: string, context: HookContext, ext = 'csproj') {
   const pname = context.placeholder('name.PascalCased');
   const slnPath = path.join(targetDirectory, 'src', `${pname}.sln`);
   const csprojPath = path.join(targetDirectory, 'src', pname, `${pname}.${ext}`);
@@ -101,7 +102,7 @@ async function dotnetAddProject(targetDirectory: string, context: HookContext, e
   const MAX_ATTEMPTS = 3;
   for (let attempt = 1; ; attempt++) {
     try {
-      await shell(['dotnet', 'sln', slnPath, 'add', csprojPath]);
+      await shell(ioHelper, ['dotnet', 'sln', slnPath, 'add', csprojPath]);
       return;
     } catch (e: any) {
       if (attempt === MAX_ATTEMPTS) {

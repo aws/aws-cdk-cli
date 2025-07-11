@@ -4,8 +4,9 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import { debug, info } from '../logging';
 import { cdkCacheDir } from '../util';
+import { cliRootDir } from './root-dir';
+import type { IoHelper } from '../api-private';
 import { formatAsBanner } from './util/console-formatters';
 import { execNpmView } from './util/npm';
 import { versionNumber } from './version-util';
@@ -97,16 +98,22 @@ function getMajorVersionUpgradeMessage(currentVersion: string): string | void {
   }
 }
 
-export async function displayVersionMessage(currentVersion = versionNumber(), versionCheckCache?: VersionCheckTTL): Promise<void> {
+export async function displayVersionMessage(
+  ioHelper: IoHelper,
+  currentVersion = versionNumber(),
+  versionCheckCache?: VersionCheckTTL,
+): Promise<void> {
   if (!process.stdout.isTTY || process.env.CDK_DISABLE_VERSION_CHECK) {
     return;
   }
 
   try {
     const versionMessages = await getVersionMessages(currentVersion, versionCheckCache ?? new VersionCheckTTL());
-    formatAsBanner(versionMessages).forEach(e => info(e));
+    for (const e of formatAsBanner(versionMessages)) {
+      await ioHelper.defaults.info(e);
+    }
   } catch (err: any) {
-    debug(`Could not run version check - ${err.message}`);
+    await ioHelper.defaults.debug(`Could not run version check - ${err.message}`);
   }
 }
 /* c8 ignore stop */
