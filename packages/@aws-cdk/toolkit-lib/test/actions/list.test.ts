@@ -95,6 +95,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_A.metadata,
       dependencies: [],
     },
     {
@@ -105,6 +106,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_B.metadata,
       dependencies: [],
     }];
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -141,6 +143,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_A.metadata,
       dependencies: [],
     },
     {
@@ -151,6 +154,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_B.metadata,
       dependencies: [{
         id: 'Test-Stack-A',
         dependencies: [],
@@ -193,6 +197,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_A.metadata,
       dependencies: [],
     },
     {
@@ -203,6 +208,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_B.metadata,
       dependencies: [{
         id: 'Test-Stack-A',
         dependencies: [],
@@ -251,6 +257,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_A.metadata,
       dependencies: [],
     },
     {
@@ -261,6 +268,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_B.metadata,
       dependencies: [{
         id: 'Test-Stack-A',
         dependencies: [],
@@ -274,6 +282,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_C.metadata,
       dependencies: [{
         id: 'Test-Stack-A/Test-Stack-B',
         dependencies: [{
@@ -324,6 +333,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_A.metadata,
       dependencies: [],
     },
     {
@@ -334,6 +344,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_B.metadata,
       dependencies: [{
         id: 'Test-Stack-A',
         dependencies: [],
@@ -347,6 +358,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_C.metadata,
       dependencies: [{
         id: 'Test-Stack-B',
         dependencies: [{
@@ -411,6 +423,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_C.metadata,
       dependencies: [],
     },
     {
@@ -421,6 +434,7 @@ describe('list', () => {
         region: 'bermuda-triangle-1',
         name: 'aws://123456789012/bermuda-triangle-1',
       },
+      metadata: MOCK_STACK_A.metadata,
       dependencies: [{
         id: 'Test-Stack-C',
         dependencies: [],

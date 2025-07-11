@@ -1,4 +1,4 @@
-import * as assert from 'assert';
+import { strict as assert } from 'node:assert';
 
 type TestableError = string | RegExp | Error;
 

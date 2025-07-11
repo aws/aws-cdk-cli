@@ -201,8 +201,17 @@ export class CdkToolkit {
   }
 
   public async metadata(stackName: string, json: boolean) {
-    const stacks = await this.selectSingleStackByName(stackName);
-    await printSerializedObject(this.ioHost.asIoHelper(), stacks.firstStack.manifest.metadata ?? {}, json);
+    this.ioHost.silence();
+    const details = await this.toolkit.list(this.props.cloudExecutable, {
+      stacks: {
+        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+        patterns: [stackName],
+      },
+    });
+    // was: `This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`
+    // now: `Stack selection is ambiguous, please choose a specific stack for import [${allStacks.map(x => x.hierarchicalId).join(',')}]`
+
+    await this.ioHost.asIoHelper().defaults.result(serializeStructure(details[0].metadata ?? {}, json));
   }
 
   public async acknowledge(noticeId: string) {
@@ -1395,28 +1404,6 @@ export class CdkToolkit {
     if (stackNames.length != 0 && stacks.stackCount == 0) {
       throw new ToolkitError(`No stacks match the name(s) ${stackNames}`);
     }
-  }
-
-  /**
-   * Select a single stack by its name
-   */
-  private async selectSingleStackByName(stackName: string) {
-    const assembly = await this.assembly();
-
-    const stacks = await assembly.selectStacks(
-      { patterns: [stackName] },
-      {
-        extend: ExtendedStackSelection.None,
-        defaultBehavior: DefaultSelection.None,
-      },
-    );
-
-    // Could have been a glob so check that we evaluated to exactly one
-    if (stacks.stackCount > 1) {
-      throw new ToolkitError(`This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
-    }
-
-    return assembly.stackById(stacks.firstStack.id);
   }
 
   public assembly(cacheCloudAssembly?: boolean): Promise<CloudAssembly> {
