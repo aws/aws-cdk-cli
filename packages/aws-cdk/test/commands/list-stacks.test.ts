@@ -20,7 +20,7 @@ describe('list', () => {
   });
 
   test('stacks with no dependencies', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         MockStack.MOCK_STACK_A,
         {
@@ -72,7 +72,7 @@ describe('list', () => {
   });
 
   test('stacks with dependent stacks', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         MockStack.MOCK_STACK_A,
         {
@@ -131,7 +131,7 @@ describe('list', () => {
   // In the context where we have a display name set to hieraricalId/stackName
   // we would need to pass in the displayName to list the stacks.
   test('stacks with dependent stacks and have display name set to hieraricalId/stackName', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         MockStack.MOCK_STACK_A,
         {
@@ -189,7 +189,7 @@ describe('list', () => {
   });
 
   test('stacks with display names and have nested dependencies', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         MockStack.MOCK_STACK_A,
         {
@@ -277,7 +277,7 @@ describe('list', () => {
   });
 
   test('stacks with nested dependencies', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         MockStack.MOCK_STACK_A,
         {
@@ -368,7 +368,7 @@ describe('list', () => {
   // This involves handling the establishment of cross-references between stacks or nested stacks
   // and generating assets for nested stack templates as necessary.
   test('stacks with cross stack referencing', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         {
           stackName: 'Test-Stack-A',
@@ -437,7 +437,7 @@ describe('list', () => {
   });
 
   test('stacks with circular dependencies should error out', async () => {
-    let cloudExecutable = new MockCloudExecutable({
+    let cloudExecutable = await MockCloudExecutable.create({
       stacks: [
         {
           stackName: 'Test-Stack-A',

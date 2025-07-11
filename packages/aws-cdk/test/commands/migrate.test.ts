@@ -29,11 +29,14 @@ import {
   TemplateSourceOptions,
   FromScan,
 } from '../../lib/commands/migrate';
+import { TestIoHost } from '../_helpers/io-host';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 jest.setTimeout(120_000);
 
 const exec = promisify(_exec);
+
+const ioHelper = new TestIoHost().asHelper('migrate');
 
 describe('Migrate Function Tests', () => {
   let sdkProvider: MockSdkProvider;
@@ -205,7 +208,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generateCdkApp generates the expected cdk app when called for typescript', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodTypeScript', 'typescript');
-    await generateCdkApp('GoodTypeScript', stack, 'typescript', workDir);
+    await generateCdkApp(ioHelper, 'GoodTypeScript', stack, 'typescript', workDir);
 
     // Packages exist in the correct spot
     expect(fs.pathExistsSync(path.join(workDir, 'GoodTypeScript', 'package.json'))).toBeTruthy();
@@ -234,7 +237,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generateCdkApp adds cdk-migrate key in context', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodTypeScript', 'typescript');
-    await generateCdkApp('GoodTypeScript', stack, 'typescript', workDir);
+    await generateCdkApp(ioHelper, 'GoodTypeScript', stack, 'typescript', workDir);
 
     // cdk.json exist in the correct spot
     expect(fs.pathExistsSync(path.join(workDir, 'GoodTypeScript', 'cdk.json'))).toBeTruthy();
@@ -246,7 +249,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generateCdkApp generates the expected cdk app when called for python', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodPython', 'python');
-    await generateCdkApp('GoodPython', stack, 'python', workDir);
+    await generateCdkApp(ioHelper, 'GoodPython', stack, 'python', workDir);
 
     // Packages exist in the correct spot
     expect(fs.pathExistsSync(path.join(workDir, 'GoodPython', 'requirements.txt'))).toBeTruthy();
@@ -273,7 +276,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generateCdkApp generates the expected cdk app when called for java', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodJava', 'java');
-    await generateCdkApp('GoodJava', stack, 'java', workDir);
+    await generateCdkApp(ioHelper, 'GoodJava', stack, 'java', workDir);
 
     // Packages exist in the correct spot
     expect(fs.pathExistsSync(path.join(workDir, 'GoodJava', 'pom.xml'))).toBeTruthy();
@@ -305,7 +308,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generateCdkApp generates the expected cdk app when called for csharp', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodCSharp', 'csharp');
-    await generateCdkApp('GoodCSharp', stack, 'csharp', workDir);
+    await generateCdkApp(ioHelper, 'GoodCSharp', stack, 'csharp', workDir);
 
     // Packages exist in the correct spot
     expect(fs.pathExistsSync(path.join(workDir, 'GoodCSharp', 'src', 'GoodCSharp.sln'))).toBeTruthy();
@@ -333,7 +336,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generatedCdkApp generates the expected cdk app when called for go', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodGo', 'go');
-    await generateCdkApp('GoodGo', stack, 'go', workDir);
+    await generateCdkApp(ioHelper, 'GoodGo', stack, 'go', workDir);
 
     expect(fs.pathExists(path.join(workDir, 's3.go'))).toBeTruthy();
     const app = fs.readFileSync(path.join(workDir, 'GoodGo', 'good_go.go'), 'utf8').split('\n');
@@ -351,7 +354,7 @@ describe('Migrate Function Tests', () => {
 
   cliTest('generatedCdkApp generates a zip file when --compress is used', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodTypeScript', 'typescript');
-    await generateCdkApp('GoodTypeScript', stack, 'typescript', workDir, true);
+    await generateCdkApp(ioHelper, 'GoodTypeScript', stack, 'typescript', workDir, true);
 
     // Packages not in outDir
     expect(fs.pathExistsSync(path.join(workDir, 'GoodTypeScript', 'package.json'))).toBeFalsy();
@@ -487,6 +490,7 @@ describe('generateTemplate', () => {
 
   test('generateTemplate successfully generates template with a new scan', async () => {
     const opts: GenerateTemplateOptions = {
+      ioHelper,
       stackName: stackName,
       filters: [],
       fromScan: FromScan.NEW,
@@ -511,6 +515,7 @@ describe('generateTemplate', () => {
       });
 
     const opts = {
+      ioHelper,
       stackName: stackName,
       filters: [],
       newScan: true,
@@ -528,6 +533,7 @@ describe('generateTemplate', () => {
       });
 
     const opts: GenerateTemplateOptions = {
+      ioHelper,
       stackName: stackName,
       filters: [],
       fromScan: FromScan.MOST_RECENT,
@@ -541,6 +547,7 @@ describe('generateTemplate', () => {
 
   test('generateTemplate throws an error when an invalid key is passed in the filters', async () => {
     const opts: GenerateTemplateOptions = {
+      ioHelper,
       stackName: stackName,
       filters: ['invalid-key=invalid-value'],
       fromScan: FromScan.MOST_RECENT,
@@ -560,6 +567,7 @@ describe('generateTemplate', () => {
       });
 
     const opts: GenerateTemplateOptions = {
+      ioHelper,
       stackName: stackName,
       sdkProvider: sdkProvider,
       environment: environment,
@@ -571,6 +579,7 @@ describe('generateTemplate', () => {
 
   test('generateTemplate successfully generates templates with valid filter options', async () => {
     const opts: GenerateTemplateOptions = {
+      ioHelper,
       stackName: stackName,
       filters: ['type=AWS::S3::Bucket,identifier={"my-key":"my-bucket"}', 'type=AWS::EC2::Instance'],
       sdkProvider: sdkProvider,
