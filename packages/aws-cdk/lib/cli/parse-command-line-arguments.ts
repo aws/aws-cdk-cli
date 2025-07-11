@@ -155,6 +155,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       nargs: 1,
       requiresArg: true,
     })
+    .option('telemetry-file', {
+      default: undefined,
+      type: 'string',
+      desc: 'Send telemetry data to a local file.',
+    })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
         .option('long', {

@@ -1,4 +1,3 @@
-/* c8 ignore start */
 import * as path from 'path';
 import { cliRootDir } from './root-dir';
 

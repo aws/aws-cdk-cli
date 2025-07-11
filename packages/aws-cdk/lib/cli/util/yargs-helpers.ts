@@ -1,8 +1,8 @@
 import { ciSystemIsStdErrSafe } from '../ci-systems';
-import { isCI } from '../io-host';
+import { isCI } from '../util/ci';
 import { versionWithBuild } from '../version';
 
-export { isCI } from '../io-host';
+export { isCI } from '../util/ci';
 
 /**
  * yargs middleware to negate an option if a negative alias is provided

@@ -34,6 +34,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     noColor: args.noColor,
     ci: args.ci,
     unstable: args.unstable,
+    telemetryFile: args.telemetryFile,
   };
   let commandOptions;
   switch (args._[0] as Command) {
@@ -319,6 +320,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     noColor: config.noColor,
     ci: config.ci,
     unstable: config.unstable,
+    telemetryFile: config.telemetryFile,
   };
   const listOptions = {
     long: config.list?.long,
