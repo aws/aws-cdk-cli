@@ -48,7 +48,7 @@
     "jest-junit": "^16",
     "prettier": "^2.8",
     "ts-jest": "^29.4.0",
-    "typescript": "5.6"
+    "typescript": "5.8"
   },
   "dependencies": {
     "@aws-cdk/cloud-assembly-schema": "^0.0.0"

@@ -12,5 +12,5 @@ export interface RefactorResult {
   /**
    * Ambiguous path correspondences, if any
    */
-  readonly ambiguousPaths?: [string[], string[]][];
+  ambiguousPaths?: [string[], string[]][];
 }

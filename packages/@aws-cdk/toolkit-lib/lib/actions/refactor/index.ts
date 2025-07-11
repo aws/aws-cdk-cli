@@ -1,6 +1,7 @@
-import type { StackSelector } from '../../api/cloud-assembly';
+import type { StackSelector } from '../../api';
 import type { ExcludeList } from '../../api/refactoring';
 import { InMemoryExcludeList, NeverExclude } from '../../api/refactoring';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 type MappingType = 'auto' | 'explicit';
 
@@ -71,16 +72,21 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * Criteria for selecting stacks to deploy
-   *
-   * @default - All stacks
+   * List of overrides to be applied to resolve possible ambiguities in the
+   * computed list of mappings.
+   */
+  overrides?: MappingGroup[];
+
+  /**
+   * Criteria for selecting stacks to compare with the deployed stacks in the
+   * target environment.
    */
   stacks?: StackSelector;
 
   /**
-   * How the toolkit should obtain the mappings
+   * A list of names of additional deployed stacks to be included in the comparison.
    */
-  mappingSource?: MappingSource;
+  additionalStackNames?: string[];
 }
 
 export interface MappingGroup {
@@ -105,4 +111,34 @@ export interface MappingGroup {
   resources: {
     [key: string]: string;
   };
+}
+
+export function parseMappingGroups(s: string) {
+  const mappingGroups = doParse();
+
+  // Validate that there are no duplicate destinations.
+  // By construction, there are no duplicate sources, already.
+  for (let group of mappingGroups) {
+    const destinations = new Set<string>();
+
+    for (const destination of Object.values(group.resources)) {
+      if (destinations.has(destination)) {
+        throw new ToolkitError(
+          `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
+        );
+      }
+      destinations.add(destination);
+    }
+  }
+
+  return mappingGroups;
+
+  function doParse(): MappingGroup[] {
+    const content = JSON.parse(s);
+    if (content.environments || !Array.isArray(content.environments)) {
+      return content.environments;
+    } else {
+      throw new ToolkitError("Expected an 'environments' array");
+    }
+  }
 }

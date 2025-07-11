@@ -54,7 +54,7 @@
     "jest-junit": "^16",
     "prettier": "^2.8",
     "ts-jest": "^29.4.0",
-    "typescript": "5.6"
+    "typescript": "5.8"
   },
   "dependencies": {
     "@yarnpkg/lockfile": "^1.1.0",

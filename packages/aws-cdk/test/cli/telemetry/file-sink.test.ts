@@ -123,6 +123,14 @@ describe('FileTelemetrySink', () => {
     expect(fileContent).toBe(expectedSingleEvent + expectedSingleEvent);
   });
 
+  test('constructor throws if file already exists', async () => {
+    // GIVEN
+    fs.writeFileSync(logFilePath, 'exists');
+
+    // WHEN & THEN
+    expect(() => new FileTelemetrySink({ logFilePath, ioHost })).toThrow(/Telemetry file already exists/);
+  });
+
   test('handles errors gracefully and logs to trace without throwing', async () => {
     // GIVEN
     const testEvent: TelemetrySchema = {
