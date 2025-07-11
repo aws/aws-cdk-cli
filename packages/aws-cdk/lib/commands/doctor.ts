@@ -11,7 +11,7 @@ export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<numb
       exitStatus = -1;
     }
   }
-  await version.displayVersionMessage();
+  await version.displayVersionMessage(ioHelper);
   return exitStatus;
 }
 

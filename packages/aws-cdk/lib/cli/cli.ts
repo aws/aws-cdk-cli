@@ -62,6 +62,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     currentAction: cmd,
     stackProgress: argv.progress,
   }, true);
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Debug should always imply tracing
   if (argv.debug || argv.verbose > 2) {
@@ -72,7 +73,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }
 
   try {
-    await checkForPlatformWarnings();
+    await checkForPlatformWarnings(ioHelper);
   } catch (e) {
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
@@ -87,8 +88,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     },
   });
   await configuration.load();
-
-  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Always create and use ProxyAgent to support configuration via env vars
   const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
@@ -165,7 +164,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await version.displayVersionMessage();
+    await version.displayVersionMessage(ioHelper);
 
     await refreshNotices;
     if (cmd === 'notices') {
