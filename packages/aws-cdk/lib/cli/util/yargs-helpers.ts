@@ -1,6 +1,6 @@
 import { ciSystemIsStdErrSafe } from '../ci-systems';
 import { isCI } from '../io-host';
-import * as version from '../version';
+import { version } from '../version';
 
 export { isCI } from '../io-host';
 
@@ -31,7 +31,7 @@ export function yargsNegativeAlias<T extends { [x in S | L]: boolean | undefined
  * @returns the current version of the CLI
  */
 export function cliVersion(): string {
-  return version.version();
+  return version();
 }
 
 /**
