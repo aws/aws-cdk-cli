@@ -2,8 +2,8 @@ import * as process from 'process';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import type { IoHelper } from '../api-private';
-import { version } from '../cli/version';
 import { displayVersionMessage } from '../cli/display-version';
+import { version } from '../cli/version';
 
 export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<number> {
   let exitStatus: number = 0;

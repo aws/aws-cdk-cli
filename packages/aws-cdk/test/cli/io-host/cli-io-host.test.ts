@@ -1,9 +1,9 @@
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs-extra';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
+import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
