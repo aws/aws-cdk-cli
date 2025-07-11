@@ -3,9 +3,9 @@ import * as chalk from 'chalk';
 import { minimatch } from 'minimatch';
 import type { Context } from '../api/context';
 import type { IoHelper } from '../api-private';
+import { displayVersionMessage } from '../cli/display-version';
 import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';
-import * as version from '../cli/version';
 
 /**
  * Options for the context command
@@ -71,7 +71,7 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
       await listContext(ioHelper, options.context);
     }
   }
-  await version.displayVersionMessage(ioHelper);
+  await displayVersionMessage(ioHelper);
 
   return 0;
 }
