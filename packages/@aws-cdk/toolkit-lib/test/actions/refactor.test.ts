@@ -1,5 +1,5 @@
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { MappingSource, type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
+import { type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk } from '../_helpers/mock-sdk';
@@ -357,6 +357,91 @@ test('fails when dry-run is false', async () => {
   ).rejects.toThrow('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
 });
 
+test('overrides can be used to resolve ambiguities', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(ListStacksCommand).resolves({
+    StackSummaries: [
+      {
+        StackName: 'Stack1',
+        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+        StackStatus: 'CREATE_COMPLETE',
+        CreationTime: new Date(),
+      },
+    ],
+  });
+
+  mockCloudFormationClient
+    .on(GetTemplateCommand, {
+      StackName: 'Stack1',
+    })
+    .resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          // These two buckets were replaced with two other buckets
+          CatPhotos: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/CatPhotos/Resource',
+            },
+          },
+          DogPhotos: {
+            Type: 'AWS::S3::Bucket',
+            UpdateReplacePolicy: 'Retain',
+            DeletionPolicy: 'Retain',
+            Metadata: {
+              'aws:cdk:path': 'Stack1/DogPhotos/Resource',
+            },
+          },
+        },
+      }),
+    });
+
+  // WHEN
+  const cx = await builderFixture(toolkit, 'stack-with-two-buckets');
+  await toolkit.refactor(cx, {
+    dryRun: true,
+    overrides: [
+      {
+        account: '123456789012',
+        region: 'us-east-1',
+        resources: {
+          // Only one override is enough in this case
+          'Stack1.CatPhotos': 'Stack1.MyBucket1553EAA46',
+        },
+      },
+    ],
+    stacks: {
+      patterns: ['Stack1'],
+      strategy: StackSelectionStrategy.PATTERN_MATCH,
+    },
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      action: 'refactor',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I8900',
+      data: {
+        typedMappings: [
+          {
+            destinationPath: 'Stack1/MyBucket1/Resource',
+            sourcePath: 'Stack1/CatPhotos/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+          {
+            destinationPath: 'Stack1/MyBucket2/Resource',
+            sourcePath: 'Stack1/DogPhotos/Resource',
+            type: 'AWS::S3::Bucket',
+          },
+        ],
+      },
+    }),
+  );
+});
+
 test('filters stacks when stack selector is passed', async () => {
   // GIVEN
   mockCloudFormationClient.on(ListStacksCommand).resolves({
@@ -445,193 +530,6 @@ test('filters stacks when stack selector is passed', async () => {
   expect(ioHost.notifySpy).toHaveBeenCalledWith(
     expect.objectContaining({
       message: expect.not.stringMatching(/OldQueueName/),
-    }),
-  );
-});
-
-test('resource is marked to be excluded for refactoring in the cloud assembly', async () => {
-  // GIVEN
-  mockCloudFormationClient.on(ListStacksCommand).resolves({
-    StackSummaries: [
-      {
-        StackName: 'Stack1',
-        StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
-        StackStatus: 'CREATE_COMPLETE',
-        CreationTime: new Date(),
-      },
-    ],
-  });
-
-  mockCloudFormationClient
-    .on(GetTemplateCommand, {
-      StackName: 'Stack1',
-    })
-    .resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          // This would have caused a refactor to be detected,
-          // but the resource is marked to be excluded...
-          OldLogicalID: {
-            Type: 'AWS::S3::Bucket',
-            UpdateReplacePolicy: 'Retain',
-            DeletionPolicy: 'Retain',
-            Metadata: {
-              'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
-            },
-          },
-        },
-      }),
-    });
-
-  // WHEN
-  const cx = await builderFixture(toolkit, 'exclude-refactor');
-  await toolkit.refactor(cx, {
-    dryRun: true,
-  });
-
-  // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledWith(
-    expect.objectContaining({
-      action: 'refactor',
-      level: 'info',
-      // ...so we don't see it in the output
-      message: expect.stringMatching(/Nothing to refactor/),
-    }),
-  );
-});
-
-test('uses the explicit mapping when provided, instead of computing it on-the-fly', async () => {
-  // GIVEN
-  mockCloudFormationClient.on(ListStacksCommand).resolves({
-    StackSummaries: [
-      {
-        StackName: 'Stack1',
-        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
-        StackStatus: 'CREATE_COMPLETE',
-        CreationTime: new Date(),
-      },
-    ],
-  });
-
-  mockCloudFormationClient
-    .on(GetTemplateCommand, {
-      StackName: 'Stack1',
-    })
-    .resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          OldLogicalID: {
-            Type: 'AWS::S3::Bucket',
-            UpdateReplacePolicy: 'Retain',
-            DeletionPolicy: 'Retain',
-            Metadata: {
-              'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
-            },
-          },
-        },
-      }),
-    });
-
-  // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await toolkit.refactor(cx, {
-    dryRun: true,
-    mappingSource: MappingSource.explicit([
-      {
-        account: '123456789012',
-        region: 'us-east-1',
-        resources: {
-          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
-        },
-      },
-    ]),
-  });
-
-  // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledWith(
-    expect.objectContaining({
-      action: 'refactor',
-      level: 'result',
-      code: 'CDK_TOOLKIT_I8900',
-      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/OldLogicalID\/Resource.*Stack1\.NewLogicalID/),
-      data: expect.objectContaining({
-        typedMappings: [
-          {
-            sourcePath: 'Stack1/OldLogicalID/Resource',
-            destinationPath: 'Stack1.NewLogicalID',
-            type: 'AWS::S3::Bucket',
-          },
-        ],
-      }),
-    }),
-  );
-});
-
-test('uses the reverse of an explicit mapping when provided', async () => {
-  // GIVEN
-  mockCloudFormationClient.on(ListStacksCommand).resolves({
-    StackSummaries: [
-      {
-        StackName: 'Stack1',
-        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
-        StackStatus: 'CREATE_COMPLETE',
-        CreationTime: new Date(),
-      },
-    ],
-  });
-
-  mockCloudFormationClient
-    .on(GetTemplateCommand, {
-      StackName: 'Stack1',
-    })
-    .resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          // Suppose we had already mapped OldLogicalID -> NewLogicalID...
-          NewLogicalID: {
-            Type: 'AWS::S3::Bucket',
-            UpdateReplacePolicy: 'Retain',
-            DeletionPolicy: 'Retain',
-            Metadata: {
-              'aws:cdk:path': 'Stack1/NewLogicalID/Resource',
-            },
-          },
-        },
-      }),
-    });
-
-  // WHEN
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await toolkit.refactor(cx, {
-    dryRun: true,
-    // ... this is the mapping we used, and now we want to revert it
-    mappingSource: MappingSource.reverse([
-      {
-        account: '123456789012',
-        region: 'us-east-1',
-        resources: {
-          'Stack1.OldLogicalID': 'Stack1.NewLogicalID',
-        },
-      },
-    ]),
-  });
-
-  // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledWith(
-    expect.objectContaining({
-      action: 'refactor',
-      level: 'result',
-      code: 'CDK_TOOLKIT_I8900',
-      message: expect.stringMatching(/AWS::S3::Bucket.*Stack1\/NewLogicalID\/Resource.*Stack1\.OldLogicalID/),
-      data: expect.objectContaining({
-        typedMappings: [
-          {
-            sourcePath: 'Stack1/NewLogicalID/Resource',
-            destinationPath: 'Stack1.OldLogicalID',
-            type: 'AWS::S3::Bucket',
-          },
-        ],
-      }),
     }),
   );
 });

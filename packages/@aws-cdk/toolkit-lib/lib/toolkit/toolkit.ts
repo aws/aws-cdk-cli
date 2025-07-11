@@ -28,8 +28,7 @@ import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
-import type { MappingGroup, RefactorOptions } from '../actions/refactor';
-import { MappingSource } from '../actions/refactor';
+import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { IWatcher, WatchOptions } from '../actions/watch';
@@ -63,10 +62,9 @@ import {
   formatEnvironmentSectionHeader,
   formatTypedMappings,
   groupStacks,
-  ManifestExcludeList,
-  usePrescribedMappings,
 } from '../api/refactoring';
-import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../api/refactoring/cloudformation';
+import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
@@ -1067,9 +1065,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
 
-    const mappingSource = options.mappingSource ?? MappingSource.auto();
-    const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
-
     for (let { environment, localStacks, deployedStacks } of groups) {
       await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
@@ -1078,10 +1073,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           environment,
           deployedStacks,
           localStacks,
-          mappings: await getUserProvidedMappings(environment),
+          overrides: getOverrides(environment, deployedStacks, localStacks),
         });
 
-        const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+        const mappings = context.mappings;
 
         if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
           await ioHelper.defaults.info('Nothing to refactor.');
@@ -1107,13 +1102,42 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
     }
 
-    async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {
-      return mappingSource.source == 'explicit'
-        ? usePrescribedMappings(mappingSource.groups.filter(matchesEnvironment), sdkProvider)
-        : undefined;
+    function getOverrides(environment: cxapi.Environment, deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]) {
+      const mappingGroup = options.overrides
+        ?.find(g => g.region === environment.region && g.account === environment.account);
 
-      function matchesEnvironment(g: MappingGroup): boolean {
-        return g.account === environment.account && g.region === environment.region;
+      let overrides: ResourceMapping[] = [];
+      if (mappingGroup != null) {
+        overrides = Object.entries(mappingGroup.resources ?? {}).map(([source, destination]) => {
+          const sourceStack = findStack(source, deployedStacks);
+          const sourceLogicalId = source.split('.')[1];
+
+          const destinationStack = findStack(destination, localStacks);
+          const destinationLogicalId = destination.split('.')[1];
+
+          return new ResourceMapping(
+            new ResourceLocation(sourceStack, sourceLogicalId),
+            new ResourceLocation(destinationStack, destinationLogicalId),
+          );
+        });
+      }
+
+      return overrides;
+
+      function findStack(location: string, stacks: CloudFormationStack[]): CloudFormationStack {
+        const result = stacks.find(stack => {
+          const [stackName, logicalId] = location.split('.');
+          if (stackName == null || logicalId == null) {
+            throw new ToolkitError(`Invalid location '${location}'`);
+          }
+          return stack.stackName === stackName && stack.template.Resources?.[logicalId] != null;
+        });
+
+        if (result == null) {
+          throw new ToolkitError(`Cannot find resource in location ${location}`);
+        }
+
+        return result;
       }
     }
   }

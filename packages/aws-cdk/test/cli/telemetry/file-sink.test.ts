@@ -116,8 +116,6 @@ describe('FileTelemetrySink', () => {
     // THEN
     expect(fs.existsSync(logFilePath)).toBe(true);
     const fileJson = fs.readJSONSync(logFilePath, 'utf8');
-
-    // The file should contain two JSON objects, each pretty-printed with a newline
     const expectedJson = [testEvent, testEvent];
     expect(fileJson).toEqual(expectedJson);
   });

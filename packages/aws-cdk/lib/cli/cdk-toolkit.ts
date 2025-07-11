@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { MappingSource, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { parseMappingGroups, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -14,13 +14,7 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, tagsForStack } from '../../lib/api-private';
-import type {
-  AssetBuildNode,
-  AssetPublishNode,
-  Concurrency,
-  StackNode,
-  WorkGraph,
-} from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
@@ -1240,12 +1234,8 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    if (options.mappingFile && options.excludeFile) {
-      throw new ToolkitError('Cannot use both --exclude-file and mapping-file.');
-    }
-
-    if (options.revert && !options.mappingFile) {
-      throw new ToolkitError('The --revert option can only be used with the --mapping-file option.');
+    if (options.revert && !options.overrideFile) {
+      throw new ToolkitError('The --revert option can only be used with the --override-file option.');
     }
 
     try {
@@ -1257,7 +1247,7 @@ export class CdkToolkit {
           strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         additionalStackNames: options.additionalStackNames,
-        mappingSource: await mappingSource(),
+        overrides: readOverrides(options.overrideFile, options.revert),
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
@@ -1266,39 +1256,21 @@ export class CdkToolkit {
 
     return 0;
 
-    async function readMappingFile(filePath: string | undefined) {
+    function readOverrides(filePath: string | undefined, revert: boolean = false) {
       if (filePath == null) {
-        return undefined;
+        return [];
       }
-      if (!(await fs.pathExists(filePath))) {
+      if (!fs.pathExistsSync(filePath)) {
         throw new ToolkitError(`The mapping file ${filePath} does not exist`);
       }
-      const content = JSON.parse(fs.readFileSync(filePath).toString('utf-8'));
-      if (content.environments) {
-        return content.environments;
-      } else {
-        throw new ToolkitError(`The mapping file ${filePath} does not contain an \`environments\` array`);
-      }
-    }
+      const groups = parseMappingGroups(fs.readFileSync(filePath).toString('utf-8'));
 
-    async function readExcludeFile(filePath: string | undefined) {
-      if (filePath != null) {
-        if (!(await fs.pathExists(filePath))) {
-          throw new ToolkitError(`The exclude file '${filePath}' does not exist`);
-        }
-        return fs.readFileSync(filePath).toString('utf-8').split('\n');
-      }
-      return undefined;
-    }
-
-    async function mappingSource(): Promise<MappingSource> {
-      if (options.mappingFile != null) {
-        return MappingSource.explicit(await readMappingFile(options.mappingFile));
-      }
-      if (options.revert) {
-        return MappingSource.reverse(await readMappingFile(options.mappingFile));
-      }
-      return MappingSource.auto((await readExcludeFile(options.excludeFile)) ?? []);
+      return revert
+        ? groups.map((group) => ({
+          ...group,
+          resources: Object.fromEntries(Object.entries(group.resources ?? {}).map(([src, dst]) => [dst, src])),
+        }))
+        : groups;
     }
   }
 
@@ -1987,23 +1959,8 @@ export interface RefactorOptions {
   readonly dryRun: boolean;
 
   /**
-   * The absolute path to a file that contains a list of resources that
-   * should be excluded during the refactor. This file should contain a
-   * newline separated list of _destination_ locations to exclude, i.e.,
-   * the location to which a resource would be moved if the refactor
-   * were to happen.
-   *
-   * The format of the locations in the file can be either:
-   *
-   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
-   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
-   */
-  excludeFile?: string;
-
-  /**
-   * The absolute path to a file that contains an explicit mapping to
-   * be used by the toolkit (as opposed to letting the toolkit itself
-   * compute the mapping). This file should contain a JSON object with
+   * The absolute path to a file that contains overrides to the mappings
+   * computed by the CLI. This file should contain a JSON object with
    * the following format:
    *
    *     {
@@ -2025,7 +1982,7 @@ export interface RefactorOptions {
    * deployed, while the destination must refer to a location that is not already
    * occupied by any resource.
    */
-  mappingFile?: string;
+  overrideFile?: string;
 
   /**
    * Modifies the behavior of the `mappingFile` option by swapping source and

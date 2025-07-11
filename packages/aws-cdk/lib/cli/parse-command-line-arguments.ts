@@ -887,7 +887,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
+    .command('refactor', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
         .option('additional-stack-name', {
           type: 'array',
@@ -900,17 +900,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Do not perform any changes, just show what would be done',
         })
-        .option('exclude-file', {
+        .option('override-file', {
           default: undefined,
           type: 'string',
           requiresArg: true,
-          desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
-        })
-        .option('mapping-file', {
-          default: undefined,
-          type: 'string',
-          requiresArg: true,
-          desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+          desc: 'A file that declares overrides to be applied to the list of mappings computed by the CLI.',
         })
         .option('revert', {
           default: false,
