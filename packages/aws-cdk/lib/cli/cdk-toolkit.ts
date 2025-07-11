@@ -1245,6 +1245,7 @@ export class CdkToolkit {
           patterns: patterns,
           strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
+        additionalStackNames: options.additionalStackNames,
         overrides: readOverrides(options.revert ?? false, options.overrideFile),
       });
     } catch (e) {

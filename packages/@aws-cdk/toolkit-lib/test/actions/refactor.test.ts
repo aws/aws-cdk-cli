@@ -348,6 +348,15 @@ test('detects modifications to the infrastructure', async () => {
   );
 });
 
+test('fails when dry-run is false', async () => {
+  const cx = await builderFixture(toolkit, 'stack-with-bucket');
+  await expect(
+    toolkit.refactor(cx, {
+      dryRun: false,
+    }),
+  ).rejects.toThrow('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
+});
+
 test('overrides can be used to resolve ambiguities', async () => {
   // GIVEN
   mockCloudFormationClient.on(ListStacksCommand).resolves({
@@ -431,15 +440,6 @@ test('overrides can be used to resolve ambiguities', async () => {
       },
     }),
   );
-});
-
-test('fails when dry-run is false', async () => {
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await expect(
-    toolkit.refactor(cx, {
-      dryRun: false,
-    }),
-  ).rejects.toThrow('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
 });
 
 test('filters stacks when stack selector is passed', async () => {
