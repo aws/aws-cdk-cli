@@ -1,6 +1,6 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
-import type { ArtifactManifest, FeatureFlag, FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
@@ -11,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { DeployResult, DestroyResult, RollbackResult } from './types';
+import type { FeatureFlag, DeployResult, DestroyResult, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -154,7 +154,7 @@ interface StackGroup {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor';
+export type UnstableFeature = 'refactor' | 'flags';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -1286,38 +1286,33 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Retrieve feature flag information from the cloud assembly
    */
-  public async flags(cx: ICloudAssemblySource): Promise<FeatureFlagReportProperties[]> {
+  public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
+    this.requireUnstableFeature('flags');
+
     const ioHelper = asIoHelper(this.ioHost, 'flags');
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
     const artifacts = assembly.cloudAssembly.manifest.artifacts;
-    const allFeatureFlags: ArtifactManifest[] = [];
 
-    for (const [_, artifactInfo] of Object.entries(artifacts!)) {
-      if (artifactInfo.type === ArtifactType.FEATURE_FLAG_REPORT) {
-        allFeatureFlags.push(artifactInfo);
+    // filter for all feature flag reports
+    const featureFlagReports = Object.values(artifacts!).filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT);
+
+    const featureFlags: FeatureFlag[] = [];
+
+    for (const report of featureFlagReports) {
+      const properties = report.properties as FeatureFlagReportProperties;
+      const moduleName = properties.module;
+      for (const [flagName, flagInfo] of Object.entries(properties.flags)) {
+        featureFlags.push({
+          module: moduleName,
+          name: flagName,
+          recommendedValue: flagInfo.recommendedValue,
+          userValue: flagInfo.userValue ?? undefined,
+          explanation: flagInfo.explanation ?? '',
+        });
       }
     }
 
-    const featureFlagReport: FeatureFlagReportProperties[] = [];
-
-    for (const report of allFeatureFlags) {
-      const flagData = report.properties as any;
-      let individualReport: FeatureFlagReportProperties = {
-        module: flagData.module,
-        flags: {},
-      };
-      for (const [flagName, flagInfo] of Object.entries(flagData.flags)) {
-        const flag = flagInfo as FeatureFlag;
-        individualReport.flags[flagName] = {
-          userValue: flag.userValue ?? '-',
-          recommendedValue: flag.recommendedValue,
-          explanation: flag.explanation ?? '',
-        };
-      }
-      featureFlagReport.push(individualReport);
-    }
-
-    return featureFlagReport;
+    return featureFlags;
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {

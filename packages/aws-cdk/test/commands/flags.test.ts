@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { displayFlags } from '../../lib/commands/flags';
 
@@ -31,18 +32,15 @@ afterEach(() => {
 
 describe('displayFlags', () => {
   test('displays a single feature flag', async () => {
-    const flagsData =
-            [{
-              module: 'aws-cdk-lib',
-              flags: {
-                '@aws-cdk/core:enableStackNameDuplicates': {
-                  userValue: true,
-                  recommendedValue: false,
-                  explanation: 'Enable stack name duplicates',
-                },
-              },
-            }]
-            ;
+    const flagsData: FeatureFlag[] =
+      [{
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:enableStackNameDuplicates',
+        recommendedValue: 'true',
+        userValue: 'false',
+        explanation: 'Enable stack name duplicates',
+
+      }];
 
     await displayFlags(flagsData);
 
@@ -57,21 +55,21 @@ describe('displayFlags', () => {
   });
 
   test('displays multiple feature flags', async () => {
-    const flagsData = [{
-      module: 'aws-cdk-lib',
-      flags: {
-        '@aws-cdk/core:enableStackNameDuplicates': {
-          userValue: true,
-          recommendedValue: false,
-          explanation: 'Enable stack name duplicates',
-        },
-        '@aws-cdk/aws-s3:createDefaultLoggingPolicy': {
-          userValue: false,
-          recommendedValue: true,
-          explanation: 'Create default logging policy for S3 buckets',
-        },
-      },
-    }];
+    const flagsData: FeatureFlag[] =
+      [{
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:enableStackNameDuplicates',
+        recommendedValue: 'false',
+        userValue: 'true',
+        explanation: 'Enable stack name duplicates',
+
+      }, {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/aws-s3:createDefaultLoggingPolicy',
+        recommendedValue: 'true',
+        userValue: 'false',
+        explanation: 'Create default logging policy for S3 buckets',
+      }];
 
     await displayFlags(flagsData);
 
@@ -81,16 +79,14 @@ describe('displayFlags', () => {
   });
 
   test('handles null user values correctly', async () => {
-    const flagsData = [{
-      module: 'aws-cdk-lib',
-      flags: {
-        '@aws-cdk/aws-s3:createDefaultLoggingPolicy': {
-          userValue: null,
-          recommendedValue: true,
-          explanation: 'Test flag explanation',
-        },
-      },
-    }];
+    const flagsData: FeatureFlag[] =
+      [{
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/aws-s3:createDefaultLoggingPolicy',
+        recommendedValue: 'true',
+        userValue: null,
+        explanation: 'Create default logging policy for S3 buckets',
+      }];
 
     await displayFlags(flagsData);
 
@@ -100,21 +96,21 @@ describe('displayFlags', () => {
   });
 
   test('handles non-boolean flag values', async () => {
-    const flagsData = [{
-      module: 'aws-cdk-lib',
-      flags: {
-        '@aws-cdk/aws-lambda:recognizeLayerVersion': {
-          userValue: 'v2',
-          recommendedValue: 'v1',
-          explanation: 'Recognize layer version format',
-        },
-        '@aws-cdk/core:numericFlag': {
-          userValue: 42,
-          recommendedValue: 0,
-          explanation: 'Numeric flag value',
-        },
-      },
-    }];
+    const flagsData: FeatureFlag[] =
+      [{
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/aws-lambda:recognizeLayerVersion',
+        recommendedValue: 'v1',
+        userValue: 'v2',
+        explanation: 'Recognize layer version format',
+
+      }, {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:numericFlag',
+        recommendedValue: 0,
+        userValue: 42,
+        explanation: 'Numeric flag value',
+      }];
 
     await displayFlags(flagsData);
 
@@ -126,26 +122,28 @@ describe('displayFlags', () => {
   });
 
   test('handles mixed data types in flag values', async () => {
-    const flagsData = [{
-      module: 'aws-cdk-lib',
-      flags: {
-        '@aws-cdk/core:stringFlag': {
-          userValue: 'string-value',
-          recommendedValue: 'recommended-string',
-          explanation: 'String flag',
-        },
-        '@aws-cdk/core:numberFlag': {
-          userValue: 123,
-          recommendedValue: 456,
-          explanation: 'Number flag',
-        },
-        '@aws-cdk/core:booleanFlag': {
-          userValue: true,
-          recommendedValue: false,
-          explanation: 'Boolean flag',
-        },
-      },
-    }];
+    const flagsData: FeatureFlag[] =
+      [{
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:stringFlag',
+        recommendedValue: 'recommended-string',
+        userValue: 'string-value',
+        explanation: 'String flag',
+
+      }, {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:numberFlag',
+        recommendedValue: 456,
+        userValue: 123,
+        explanation: 'Number flag',
+      }
+      , {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:booleanFlag',
+        recommendedValue: false,
+        userValue: true,
+        explanation: 'Boolean flag',
+      }];
 
     await displayFlags(flagsData);
 

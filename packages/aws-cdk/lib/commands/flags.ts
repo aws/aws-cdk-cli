@@ -1,37 +1,26 @@
-import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import { formatTable } from '@aws-cdk/cloudformation-diff';
+import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
+import * as chalk from 'chalk';
 import { info } from '../logging';
 
-export async function displayFlags(flagsData: FeatureFlagReportProperties[]): Promise<void> {
+export async function displayFlags(flagsData: FeatureFlag[]): Promise<void> {
   info('Feature Flags Report:');
   const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
 
-  for (const report of flagsData) {
-    const flags = Object.entries(report.flags);
-    const columnWidths = [
-      Math.max(headers[0].length, ...flags.map(([name]) => name.length)),
-      Math.max(headers[1].length, ...flags.map(([, flag]) => String(flag.recommendedValue).length)),
-      Math.max(headers[2].length, ...flags.map(([, flag]) => String(flag.userValue).length)),
+  const rows: string[][] = flagsData.flatMap((flag) => {
+    const moduleRow: string[] = [chalk.bold(`Module: ${flag.module}`), '', ''];
+    const flagRow: string[] = [
+      flag.name,
+      String(flag.recommendedValue),
+      flag.userValue === undefined ? '- <unset>' : String(flag.userValue),
     ];
 
-    const createSeparator = () => {
-      return '+' + columnWidths.map(width => '-'.repeat(width + 2)).join('+') + '+';
-    };
+    return [moduleRow, flagRow];
+  });
 
-    const formatRow = (values: string[]) => {
-      return '|' + values.map((value, i) => ` ${value.padEnd(columnWidths[i])} `).join('|') + '|';
-    };
+  const tableData: string[][] = [headers, ...rows];
 
-    const separator = createSeparator();
+  const formattedTable = formatTable(tableData, 300);
 
-    info(separator);
-    info(formatRow(headers));
-    info(separator);
-    info(report.module);
-
-    for (const [flagName, flag] of flags) {
-      info(formatRow([flagName, String(flag.recommendedValue), String(flag.userValue)]));
-    }
-
-    info(separator);
-  }
+  info(formattedTable);
 }

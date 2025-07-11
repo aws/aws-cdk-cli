@@ -113,7 +113,7 @@ export async function makeConfig(): Promise<CliConfig> {
         },
       },
       'flags': {
-        description: 'Modify feature flag configurations.',
+        description: 'View and toggle feature flags.',
       },
       'deploy': {
         description: 'Deploys the stack(s) named STACKS into your AWS account',

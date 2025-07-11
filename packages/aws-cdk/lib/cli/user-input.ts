@@ -46,7 +46,7 @@ export interface UserInput {
   readonly gc?: GcOptions;
 
   /**
-   * Modify feature flag configurations.
+   * View and toggle feature flags.
    */
   readonly flags?: {};
 
