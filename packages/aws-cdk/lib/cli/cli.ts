@@ -4,6 +4,7 @@ import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@a
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -30,7 +31,6 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import { isDeveloperBuildVersion, version, versionNumber } from './version';
-import { displayVersionMessage } from './display-version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting

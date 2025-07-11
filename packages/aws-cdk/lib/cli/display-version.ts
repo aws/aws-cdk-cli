@@ -1,11 +1,11 @@
+import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
-import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
-import { IoHelper } from '../api-private';
-import { formatAsBanner } from '../legacy';
+import type { IoHelper } from '../api-private';
 import { cdkCacheDir, versionNumber } from '../util';
+import { formatAsBanner } from './util/console-formatters';
 import { execNpmView } from './util/npm';
 
 const ONE_DAY_IN_SECONDS = 1 * 24 * 60 * 60;
