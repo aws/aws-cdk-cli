@@ -39,4 +39,41 @@ describe('telemetry command', () => {
     expect(configuration.context.get('cli-telemetry')).toBe(false);
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'Telemetry disabled' }));
   });
+
+  test('status reports current telemetry status -- enabled by default', async () => {
+    // WHEN
+    await toolkit.cliTelemetryStatus();
+
+    // THEN
+    expect(info).toHaveBeenCalledWith('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
+  });
+
+  test('status reports current telemetry status -- enabled intentionally', async () => {
+    // WHEN
+    configuration.context.set('cli-telemetry', true);
+    await toolkit.cliTelemetryStatus();
+
+    // THEN
+    expect(info).toHaveBeenCalledWith('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
+  });
+
+  test('status reports current telemetry status -- disabled via context', async () => {
+    // WHEN
+    configuration.context.set('cli-telemetry', false);
+    await toolkit.cliTelemetryStatus();
+
+    // THEN
+    expect(info).toHaveBeenCalledWith('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
+  });
+
+  test('status reports current telemetry status -- disabled via env var', async () => {
+    // WHEN
+    const CDK_CLI_DISABLE_TELEMETRY = process.env.CDK_CLI_DISABLE_TELEMETRY;
+    process.env.CDK_CLI_DISABLE_TELEMETRY = 'true';
+    await toolkit.cliTelemetryStatus();
+
+    // THEN
+    expect(info).toHaveBeenCalledWith('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
+    process.env.CDK_CLI_DISABLE_TELEMETRY = CDK_CLI_DISABLE_TELEMETRY;
+  });
 });

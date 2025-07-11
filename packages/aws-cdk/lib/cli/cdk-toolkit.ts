@@ -63,6 +63,7 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
+import { canCollectTelemetry } from './telemetry/collect-telemetry';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -204,6 +205,15 @@ export class CdkToolkit {
     acks.push(Number(noticeId));
     this.props.configuration.context.set('acknowledged-issue-numbers', acks);
     await this.props.configuration.saveContext();
+  }
+
+  public async cliTelemetryStatus() {
+    const currentStatus = canCollectTelemetry(this.props.configuration.context);
+    if (currentStatus) {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
+    } else {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
+    }
   }
 
   public async cliTelemetry(enable: boolean) {

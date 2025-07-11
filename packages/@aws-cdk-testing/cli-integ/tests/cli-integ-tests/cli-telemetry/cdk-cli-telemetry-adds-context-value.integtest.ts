@@ -45,7 +45,7 @@ integTest(
         ['cli-telemetry']: false,
       });
     } finally {
-      await fs.unlink(path.join(fixture.integTestDir, 'cdk.context.json'));
+      await fs.unlink(contextFile);
     }
   }),
 );
