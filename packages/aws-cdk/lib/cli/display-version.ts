@@ -1,11 +1,10 @@
-/* c8 ignore start */
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
 import type { IoHelper } from '../api-private';
-import { cdkCacheDir } from '../util';
+import { cdkCacheDir, versionNumber } from '../util';
 import { formatAsBanner } from './util/console-formatters';
 import { execNpmView } from './util/npm';
 import { versionNumber } from './version';
@@ -115,4 +114,3 @@ export async function displayVersionMessage(
     await ioHelper.defaults.debug(`Could not run version check - ${err.message}`);
   }
 }
-/* c8 ignore stop */

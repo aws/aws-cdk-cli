@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { cliRootDir } from './root-dir';
 
-export function version() {
+export function versionWithBuild() {
   return `${versionNumber()} (build ${commit()})`;
 }
 

@@ -13,7 +13,6 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import { version, isDeveloperBuildVersion, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -32,6 +31,7 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import type { ErrorDetails } from './telemetry/schema';
+import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -80,7 +80,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  await ioHost.defaults.debug('CDK Toolkit CLI version:', version());
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', versionWithBuild());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
   const configuration = await Configuration.fromArgsAndFiles(ioHelper,
@@ -513,7 +513,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return ioHost.defaults.result(version());
+        return ioHost.defaults.result(versionWithBuild());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
