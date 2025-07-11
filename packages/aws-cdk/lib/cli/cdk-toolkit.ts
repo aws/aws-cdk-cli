@@ -1246,7 +1246,7 @@ export class CdkToolkit {
           strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         additionalStackNames: options.additionalStackNames,
-        overrides: readOverrides(options.revert ?? false, options.overrideFile),
+        overrides: readOverrides(options.overrideFile, options.revert),
       });
     } catch (e) {
       error((e as Error).message);
@@ -1255,7 +1255,7 @@ export class CdkToolkit {
 
     return 0;
 
-    function readOverrides(revert: boolean, filePath: string | undefined) {
+    function readOverrides(filePath: string | undefined, revert: boolean = false) {
       if (filePath == null) {
         return [];
       }
