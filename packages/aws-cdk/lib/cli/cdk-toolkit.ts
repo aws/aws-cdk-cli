@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { parseMappingGroups, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { parseMappingGroups, PermissionChangeType, Toolkit, ToolkitError, mappingsByEnvironment } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -266,6 +266,10 @@ export class CdkToolkit {
         info(diff.formattedDiff);
       }
     } else {
+      const allMappings = options.includeMoves
+        ? await mappingsByEnvironment(stacks.stackArtifacts, this.props.sdkProvider, true)
+        : [];
+
       // Compare N stacks against deployed templates
       for (const stack of stacks.stackArtifacts) {
         const templateWithNestedStacks = await this.props.deployments.readCurrentTemplateWithNestedStacks(
@@ -322,6 +326,10 @@ export class CdkToolkit {
           }
         }
 
+        const mappings = allMappings.find(m =>
+          m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
+        )?.mappings ?? {};
+
         const formatter = new DiffFormatter({
           templateInfo: {
             oldTemplate: currentTemplate,
@@ -329,6 +337,7 @@ export class CdkToolkit {
             changeSet,
             isImport: !!resourcesToImport,
             nestedStacks,
+            mappings,
           },
         });
 
@@ -1537,6 +1546,13 @@ export interface DiffOptions {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Whether to include resource moves in the diff
+   *
+   * @default false
+   */
+  readonly includeMoves?: boolean;
 }
 
 interface CfnDeployOptions {

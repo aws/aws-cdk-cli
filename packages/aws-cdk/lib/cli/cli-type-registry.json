@@ -719,6 +719,11 @@
           "type": "boolean",
           "desc": "Whether or not the change set imports resources that already exist",
           "default": false
+        },
+        "include-moves": {
+          "type": "boolean",
+          "desc": "Whether to include moves in the diff",
+          "default": false
         }
       }
     },

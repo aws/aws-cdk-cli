@@ -259,6 +259,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           changeSet: args['change-set'],
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
+          includeMoves: args['include-moves'],
         });
 
       case 'drift':
