@@ -102,8 +102,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('version-reporting', {
       default: undefined,
       type: 'boolean',
-      desc: 'Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
     })
+    .option('disable-telemetry', { type: 'boolean', hidden: true })
+    .middleware(helpers.yargsNegativeAlias('disable-telemetry', 'version-reporting'), true)
     .option('path-metadata', {
       default: undefined,
       type: 'boolean',
