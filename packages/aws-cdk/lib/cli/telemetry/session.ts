@@ -12,7 +12,7 @@ import type { CliIoHost } from '../io-host/cli-io-host';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
-import { versionNumber } from '../version-util';
+import { versionNumber } from '../version';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;

@@ -1,16 +1,13 @@
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
+import { Configuration } from '../../lib/cli/user-configuration';
+import { TestIoHost } from '../_helpers/io-host';
 
 // Store original version module exports so we don't conflict with other tests
 const originalVersion = jest.requireActual('../../lib/cli/version');
 
-// Mock the dependencies
-jest.mock('../../lib/logging', () => ({
-  debug: jest.fn(),
-  error: jest.fn(),
-  print: jest.fn(),
-  result: jest.fn(),
-}));
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper();
 
 jest.mock('@aws-cdk/cx-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
@@ -19,7 +16,7 @@ jest.mock('../../lib/cli/platform-warnings', () => ({
 
 jest.mock('../../lib/cli/user-configuration', () => ({
   Configuration: jest.fn().mockImplementation(() => ({
-    load: jest.fn().mockResolvedValue(undefined),
+    loadConfigFiles: jest.fn().mockResolvedValue(undefined),
     settings: {
       get: jest.fn().mockReturnValue(undefined),
     },
@@ -28,6 +25,10 @@ jest.mock('../../lib/cli/user-configuration', () => ({
     },
   })),
 }));
+
+const actualUserConfig = jest.requireActual('../../lib/cli/user-configuration');
+Configuration.fromArgs = jest.fn().mockImplementation(() => actualUserConfig.Configuration.fromArgs(ioHelper));
+Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => actualUserConfig.Configuration.fromArgs(ioHelper));
 
 jest.mock('../../lib/api/notices', () => ({
   Notices: {

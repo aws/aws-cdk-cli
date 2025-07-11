@@ -1,6 +1,6 @@
-import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as fs from 'fs-extra';
 import { IoHelper } from '../../../lib/api-private';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { FileTelemetrySink } from '../../../lib/cli/telemetry/file-sink';
@@ -70,9 +70,8 @@ describe('FileTelemetrySink', () => {
 
     // THEN
     expect(fs.existsSync(logFilePath)).toBe(true);
-    const fileContent = fs.readFileSync(logFilePath, 'utf8');
-    const parsedContent = JSON.parse(fileContent);
-    expect(parsedContent).toEqual(testEvent);
+    const fileJson = fs.readJSONSync(logFilePath, 'utf8');
+    expect(fileJson).toEqual([testEvent]);
   });
 
   test('appends data to a file', async () => {
@@ -116,11 +115,11 @@ describe('FileTelemetrySink', () => {
 
     // THEN
     expect(fs.existsSync(logFilePath)).toBe(true);
-    const fileContent = fs.readFileSync(logFilePath, 'utf8');
+    const fileJson = fs.readJSONSync(logFilePath, 'utf8');
 
     // The file should contain two JSON objects, each pretty-printed with a newline
-    const expectedSingleEvent = JSON.stringify(testEvent, null, 2) + '\n';
-    expect(fileContent).toBe(expectedSingleEvent + expectedSingleEvent);
+    const expectedJson = [testEvent, testEvent];
+    expect(fileJson).toEqual(expectedJson);
   });
 
   test('constructor throws if file already exists', async () => {
@@ -178,8 +177,8 @@ describe('FileTelemetrySink', () => {
 
     const client = new FileTelemetrySink({ logFilePath, ioHost });
 
-    // Mock fs.appendFileSync to throw an error
-    jest.spyOn(fs, 'appendFileSync').mockImplementation(() => {
+    // Mock fs.writeJSONSync to throw an error
+    jest.spyOn(fs, 'writeJSONSync').mockImplementation(() => {
       throw new Error('File write error');
     });
 
