@@ -38,9 +38,37 @@ export function computeResourceDigests(stacks: CloudFormationStack[]): Record<st
     }),
   );
 
-  const graph = new ResourceGraph(stacks);
+  /*
+  Compute the final digest for each resource by combining the direct and opposite digests.
+  This is to make sure that the digest of a resource takes into account both its in-neighbors
+  and out-neighbors. For example, if we have the following graph:
+
+          A --> B
+          C --> D
+
+   As long as A and C are different, the digests of B and D will also be different, even if
+   they are structurally identical and have no dependencies.
+  */
+  const graph = ResourceGraph.fromStacks(stacks);
+  const directDigests = computeDigestsInTopologicalOrder(graph, resources, exports);
+  const oppositeDigests = computeDigestsInTopologicalOrder(graph.opposite(), resources, exports);
+  const result: Record<string, string> = {};
+
+  for (const id in resources) {
+    result[id] = crypto.createHash('sha256')
+      .update(directDigests[id])
+      .update(oppositeDigests[id])
+      .digest('hex');
+  }
+
+  return result;
+}
+
+function computeDigestsInTopologicalOrder(
+  graph: ResourceGraph,
+  resources: Record<string, CloudFormationResource>,
+  exports: Record<string, { stackName: string; value: any }>): Record<string, string> {
   const nodes = graph.sortedNodes.filter(n => resources[n] != null);
-  // 4. Compute digests in sorted order
   const result: Record<string, string> = {};
   for (const id of nodes) {
     const resource = resources[id];

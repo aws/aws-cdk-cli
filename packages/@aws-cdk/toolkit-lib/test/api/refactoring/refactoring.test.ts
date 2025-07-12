@@ -530,6 +530,43 @@ describe(computeResourceDigests, () => {
     expect(result['Stack2.AnotherBucket']).toBeDefined();
     expect(result['Stack1.Bucket']).not.toEqual(result['Stack2.AnotherBucket']);
   });
+
+  test('identical resources up to dependers', () => {
+    {
+      const template = {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+          Foo: {
+            Type: 'AWS::Foo::Foo',
+            Properties: {
+              SomeProp: { Ref: 'Bucket1' },
+            },
+          },
+          Bar: {
+            Type: 'AWS::Foo::Bar',
+            Properties: {
+              SomeProp: { Ref: 'Bucket2' },
+            },
+          },
+        },
+      };
+
+      const stacks = makeStacks([template]);
+      const result = computeResourceDigests(stacks);
+      expect(result['Stack1.Bucket1']).toBeDefined();
+      expect(result['Stack1.Bucket2']).toBeDefined();
+      // Not the same digest even though the properties are the same
+      // The structure of the graph tells us that these are different resources
+      expect(result['Stack1.Bucket1']).not.toEqual(result['Stack1.Bucket2']);
+    }
+  });
 });
 
 describe(usePrescribedMappings, () => {
