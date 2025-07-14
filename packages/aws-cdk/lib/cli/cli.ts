@@ -435,6 +435,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         const toolkit = new Toolkit({
           ioHost,
           toolkitStackName,
+          unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
         return displayFlags(flagsData);

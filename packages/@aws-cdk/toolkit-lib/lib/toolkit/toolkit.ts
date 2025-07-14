@@ -1286,6 +1286,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Retrieve feature flag information from the cloud assembly
    */
+
   public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
     this.requireUnstableFeature('flags');
 
@@ -1293,26 +1294,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await assemblyFromSource(ioHelper, cx);
     const artifacts = assembly.cloudAssembly.manifest.artifacts;
 
-    // filter for all feature flag reports
-    const featureFlagReports = Object.values(artifacts!).filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT);
+    return Object.values(artifacts!)
+      .filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT)
+      .flatMap(report => {
+        const properties = report.properties as FeatureFlagReportProperties;
+        const moduleName = properties.module;
 
-    const featureFlags: FeatureFlag[] = [];
-
-    for (const report of featureFlagReports) {
-      const properties = report.properties as FeatureFlagReportProperties;
-      const moduleName = properties.module;
-      for (const [flagName, flagInfo] of Object.entries(properties.flags)) {
-        featureFlags.push({
+        return Object.entries(properties.flags).map(([flagName, flagInfo]) => ({
           module: moduleName,
           name: flagName,
           recommendedValue: flagInfo.recommendedValue,
           userValue: flagInfo.userValue ?? undefined,
           explanation: flagInfo.explanation ?? '',
-        });
-      }
-    }
-
-    return featureFlags;
+        }));
+      });
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
