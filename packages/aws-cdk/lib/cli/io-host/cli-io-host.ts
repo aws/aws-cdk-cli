@@ -4,6 +4,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
+import { IoEventEmitter } from './io-event-emitter';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
@@ -82,7 +83,7 @@ export type TargetStream = 'stdout' | 'stderr' | 'drop';
 /**
  * A simple IO host for the CLI that writes messages to the console.
  */
-export class CliIoHost implements IIoHost {
+export class CliIoHost extends IoEventEmitter implements IIoHost {
   /**
    * Returns the singleton instance
    */
@@ -145,6 +146,7 @@ export class CliIoHost implements IIoHost {
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
   private constructor(props: CliIoHostProps = {}) {
+    super();
     this.currentAction = props.currentAction ?? 'none';
     this.isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this.logLevel = props.logLevel ?? 'info';
@@ -235,6 +237,12 @@ export class CliIoHost implements IIoHost {
    * The caller waits until the notification completes.
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
+    // Emit events for every message
+    const shouldStop = await this.emit(msg);
+    if (shouldStop) {
+      return;
+    }
+
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
         this.activityPrinter = this.makeActivityPrinter();

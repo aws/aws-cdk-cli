@@ -201,7 +201,7 @@ export class CdkToolkit {
   }
 
   public async metadata(stackName: string, json: boolean) {
-    this.ioHost.silence();
+    const silence = this.ioHost.any(undefined);
     const details = await this.toolkit.list(this.props.cloudExecutable, {
       stacks: {
         strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
@@ -211,6 +211,7 @@ export class CdkToolkit {
     // was: `This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`
     // now: `Stack selection is ambiguous, please choose a specific stack for import [${allStacks.map(x => x.hierarchicalId).join(',')}]`
 
+    silence.off();
     await this.ioHost.asIoHelper().defaults.result(serializeStructure(details[0].metadata ?? {}, json));
   }
 
