@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
+import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { displayFlags } from '../../lib/commands/flags';
 
@@ -9,6 +10,7 @@ let oldDir: string;
 let tmpDir: string;
 let ioHost = CliIoHost.instance();
 let notifySpy: jest.SpyInstance<Promise<void>>;
+let ioHelper = asIoHelper(ioHost, 'flags');
 
 beforeAll(() => {
   oldDir = process.cwd();
@@ -30,30 +32,11 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+function output() {
+  return notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
 describe('displayFlags', () => {
-  test('displays a single feature flag', async () => {
-    const flagsData: FeatureFlag[] =
-      [{
-        module: 'aws-cdk-lib',
-        name: '@aws-cdk/core:enableStackNameDuplicates',
-        recommendedValue: 'true',
-        userValue: 'false',
-        explanation: 'Enable stack name duplicates',
-
-      }];
-
-    await displayFlags(flagsData);
-
-    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput).toContain('Feature Flags Report:');
-    expect(plainTextOutput).toContain('Feature Flag Name');
-    expect(plainTextOutput).toContain('Recommended Value');
-    expect(plainTextOutput).toContain('User Value');
-    expect(plainTextOutput).toContain('@aws-cdk/core:enableStackNameDuplicates');
-    expect(plainTextOutput).toContain('true');
-    expect(plainTextOutput).toContain('false');
-  });
-
   test('displays multiple feature flags', async () => {
     const flagsData: FeatureFlag[] =
       [{
@@ -71,9 +54,12 @@ describe('displayFlags', () => {
         explanation: 'Create default logging policy for S3 buckets',
       }];
 
-    await displayFlags(flagsData);
+    await displayFlags(flagsData, ioHelper);
 
-    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Feature Flag Name');
+    expect(plainTextOutput).toContain('Recommended Value');
+    expect(plainTextOutput).toContain('User Value');
     expect(plainTextOutput).toContain('@aws-cdk/core:enableStackNameDuplicates');
     expect(plainTextOutput).toContain('@aws-cdk/aws-s3:createDefaultLoggingPolicy');
   });
@@ -84,41 +70,15 @@ describe('displayFlags', () => {
         module: 'aws-cdk-lib',
         name: '@aws-cdk/aws-s3:createDefaultLoggingPolicy',
         recommendedValue: 'true',
-        userValue: null,
+        userValue: undefined,
         explanation: 'Create default logging policy for S3 buckets',
       }];
 
-    await displayFlags(flagsData);
+    await displayFlags(flagsData, ioHelper);
 
-    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput).toContain('-');
+    const plainTextOutput = output();
     expect(plainTextOutput).toContain('true');
-  });
-
-  test('handles non-boolean flag values', async () => {
-    const flagsData: FeatureFlag[] =
-      [{
-        module: 'aws-cdk-lib',
-        name: '@aws-cdk/aws-lambda:recognizeLayerVersion',
-        recommendedValue: 'v1',
-        userValue: 'v2',
-        explanation: 'Recognize layer version format',
-
-      }, {
-        module: 'aws-cdk-lib',
-        name: '@aws-cdk/core:numericFlag',
-        recommendedValue: 0,
-        userValue: 42,
-        explanation: 'Numeric flag value',
-      }];
-
-    await displayFlags(flagsData);
-
-    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput).toContain('v2');
-    expect(plainTextOutput).toContain('v1');
-    expect(plainTextOutput).toContain('42');
-    expect(plainTextOutput).toContain('0');
+    expect(plainTextOutput).toContain('<unset>');
   });
 
   test('handles mixed data types in flag values', async () => {
@@ -145,10 +105,9 @@ describe('displayFlags', () => {
         explanation: 'Boolean flag',
       }];
 
-    await displayFlags(flagsData);
+    await displayFlags(flagsData, ioHelper);
 
-    const plainTextOutput = notifySpy.mock.calls.map(x => x[0].message).join('\n').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-    expect(plainTextOutput).toContain('string-value');
+    const plainTextOutput = output(); expect(plainTextOutput).toContain('string-value');
     expect(plainTextOutput).toContain('recommended-string');
     expect(plainTextOutput).toContain('123');
     expect(plainTextOutput).toContain('456');

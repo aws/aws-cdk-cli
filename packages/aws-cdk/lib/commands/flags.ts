@@ -1,6 +1,6 @@
 import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
-import { info } from '../logging';
+import type { IoHelper } from '../api-private';
 
 function formatTable(headers: string[], rows: string[][]): string {
   const columnWidths = [
@@ -30,9 +30,7 @@ function formatTable(headers: string[], rows: string[][]): string {
   return table;
 }
 
-export async function displayFlags(flagsData: FeatureFlag[]): Promise<void> {
-  info('Feature Flags Report:');
-
+export async function displayFlags(flagsData: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
   const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
 
   const rows: string[][] = [];
@@ -45,11 +43,11 @@ export async function displayFlags(flagsData: FeatureFlag[]): Promise<void> {
     rows.push([
       flag.name,
       String(flag.recommendedValue),
-      flag.userValue === undefined ? '- <unset>' : String(flag.userValue),
+      flag.userValue === undefined ? '<unset>' : String(flag.userValue),
     ]);
   });
 
   const formattedTable = formatTable(headers, rows);
 
-  info(formattedTable);
+  await ioHelper.defaults.info(formattedTable);
 }

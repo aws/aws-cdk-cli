@@ -444,7 +444,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
-        return displayFlags(flagsData);
+        return displayFlags(flagsData, ioHelper);
 
       case 'synthesize':
       case 'synth':
