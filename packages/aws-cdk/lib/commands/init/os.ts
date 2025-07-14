@@ -1,7 +1,7 @@
 import * as child_process from 'child_process';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
-import { debug } from '../../logging';
+import type { IoHelper } from '../../api-private';
 
 /**
  * OS helpers
@@ -9,9 +9,9 @@ import { debug } from '../../logging';
  * Shell function which both prints to stdout and collects the output into a
  * string.
  */
-export async function shell(command: string[]): Promise<string> {
+export async function shell(ioHelper: IoHelper, command: string[]): Promise<string> {
   const commandLine = renderCommandLine(command);
-  debug(`Executing ${chalk.blue(commandLine)}`);
+  await ioHelper.defaults.debug(`Executing ${chalk.blue(commandLine)}`);
   const child = child_process.spawn(command[0], renderArguments(command.slice(1)), {
     // Need this for Windows where we want .cmd and .bat to be found as well.
     shell: true,

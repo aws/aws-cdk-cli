@@ -1101,8 +1101,12 @@ when using this command.
 
 Compares the infrastructure specified in the current state of the CDK app with 
 the currently deployed application, to determine if any resource was moved 
-(to a different stack or to a different logical ID, or both). The CLI will 
-show the correspondence between the old and new locations in a table:
+(to a different stack or to a different logical ID, or both). In keeping with
+the CloudFormation API, you are not allowed to modify the set of resources
+as part of a refactor. In other words, adding, deleting or updating resources
+is considered an error.
+
+The CLI will show the correspondence between the old and new locations in a table:
 
 ```
 $ cdk refactor --unstable=refactor --dry-run
@@ -1125,41 +1129,45 @@ show this table and exit. Eventually, the CLI will also be able to automatically
 apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
 mode is supported.
 
-If you want to exclude some resources from the refactor, you can pass an 
-exclude file, containing a list of destination locations to exclude. A 
-location can be either the stack name + logical ID, or the construct path. For  
-example, if you don't want to include the bucket and the distribution from 
-the table above in the refactor, you can create a file called 
-`exclude.txt` with the following content (destination locations separated by 
-newlines): 
-
-```
-Web/Website/Origin/Resource
-Web/Website/Distribution/Resource
-```
-
-and pass it to the CLI via the `--exclude-file` flag:
-
-```shell
-$ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
-```
-
-If your application has more than one stack, and you want the refactor 
-command to consider only a subset of them, you can pass a list of stack 
+If your application has more than one stack, and you want the `refactor`
+command to consider only a subset of them, you can pass a list of stack
 patterns as a parameter:
 
 ```shell
 $ cdk refactor Web* --unstable=refactor --dry-run 
 ```
 
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
 
-If, instead of letting the CLI decide which resources to move, you want to 
-provide your own mapping of old to new locations, you can do so by passing a
-mapping file to the CLI via the `--mapping-file` flag. This file should 
-contain a JSON object with the following format: 
+The CLI's default behavior is to include in the comparison only the deployed
+stacks that have a counterpart (stack with the same name) locally. If you want
+to include additional deployed stacks in the comparison, pass their names using
+the `--additional-stack-name` option:
+
+```shell
+$ cdk refactor --unstable=refactor --dry-run --additional-stack-name=Foo --additional-stack-name=Bar
+```
+
+In case of ambiguities, the CLI will display a table like this:
+
+```
+Detected ambiguities:
+┌───┬──────────────────────┐
+│   │ Resource             │
+├───┼──────────────────────┤
+│ - │ Stack2/DLQ/Resource  │
+│   │ Stack2/DLQ2/Resource │
+├───┼──────────────────────┤
+│ + │ Stack1/DLQ/Resource  │
+│   │ Stack1/DLQ2/Resource │
+└───┴──────────────────────┘
+```
+
+You can resolve this ambiguity manually, by passing an override file via the
+`--override-file=<path>` CLI option. This file should contain a JSON object 
+with the following structure: 
 
 ```json
 {
@@ -1168,22 +1176,19 @@ contain a JSON object with the following format:
       "account": "123456789012",
       "region": "us-east-1",
       "resources": {
-        "Foo.OldName": "Bar.NewName"
+        "Stack2.OldName": "Stack2.NewName"
       }
     }
   ]
 }
 ```
 
-where `resources` is a mapping of resources from source to destination 
-locations for a given environment. Resource locations are in the format 
-`StackName.LogicalId`.The source must refer to a location where there is a 
-resource currently deployed, while the destination must refer to a location 
+where `resources` is a mapping of resources from source to destination
+locations for a given environment. Resource locations are in the format
+`StackName.LogicalId`.The source must refer to a location where there is a
+resource currently deployed, while the destination must refer to a location
 that is not already occupied by any resource.
 
-If you want to undo a refactor, you can use the `--revert` option in 
-conjunction with the `--mapping-file` option. It will apply the mapping in 
-reverse order (source becomes destination and vice versa).
 
 ### `cdk drift`
 
