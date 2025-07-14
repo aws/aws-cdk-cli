@@ -279,13 +279,19 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
         }
 
+        const getOptionValue = (name: string) => args[name] ?? configuration.settings.get(['refactor', name]);
+
+        const additionalStackNames = args.additionalStackName != null
+          ? arrayFromYargs(args.additionalStackName ?? [])
+          : configuration.settings.get(['refactor', 'additionalStackNames']) ?? [];
+
         ioHost.currentAction = 'refactor';
         return cli.refactor({
-          dryRun: args.dryRun,
-          overrideFile: args.overrideFile,
-          revert: args.revert,
+          dryRun: getOptionValue('dryRun'),
+          overrideFile: getOptionValue('overrideFile'),
+          revert: getOptionValue('revert'),
           stacks: selector,
-          additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
+          additionalStackNames,
         });
 
       case 'bootstrap':

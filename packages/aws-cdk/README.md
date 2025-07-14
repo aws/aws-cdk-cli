@@ -1189,6 +1189,33 @@ locations for a given environment. Resource locations are in the format
 resource currently deployed, while the destination must refer to a location
 that is not already occupied by any resource.
 
+All command line options that are also available in the configuration file
+(`cdk.json`) in the `refactor` section. For example, you can specify the 
+`--dry-run` option in `cdk.json` as follows:
+
+```json
+{
+  "app": "node bin/main.js",
+  "refactor": {
+    "dryRun": true
+  }
+}
+```
+
+The same naming pattern applies to all other options, except for 
+`--additional-stack-name`, which becomes `additionalStackNames`:
+
+```json
+{
+  "app": "node bin/main.js",
+  "refactor": {
+    "additionalStackNames": [
+      "Foo",
+      "Bar"
+    ]
+  }
+}
+```
 
 ### `cdk drift`
 
