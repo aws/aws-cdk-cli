@@ -6,8 +6,9 @@ import * as sinon from 'sinon';
 import { setTimeout as _setTimeout } from 'timers';
 import { promisify } from 'util';
 import * as npm from '../../lib/cli/util/npm';
-import { displayVersionMessage, getVersionMessages, isDeveloperBuild, VersionCheckTTL } from '../../lib/cli/version';
-import * as logging from '../../lib/logging';
+import { isDeveloperBuildVersion } from '../../lib/cli/version';
+import { TestIoHost } from '../_helpers/io-host';
+import { displayVersionMessage, getVersionMessages, VersionCheckTTL } from '../../lib/cli/display-version';
 
 jest.setTimeout(10_000);
 
@@ -16,6 +17,9 @@ const setTimeout = promisify(_setTimeout);
 function tmpfile(): string {
   return `/tmp/version-${Math.floor(Math.random() * 10000)}`;
 }
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper();
 
 beforeEach(() => {
   process.chdir(os.tmpdir()); // Need a chdir because in the workspace 'npm view' will take a long time
@@ -70,9 +74,8 @@ test('No Version specified for storage in the TTL file', async () => {
 test('Skip version check if environment variable is set', async () => {
   sinon.stub(process, 'stdout').value({ ...process.stdout, isTTY: true });
   sinon.stub(process, 'env').value({ ...process.env, CDK_DISABLE_VERSION_CHECK: '1' });
-  const printStub = sinon.stub(logging, 'info');
-  await displayVersionMessage();
-  expect(printStub.called).toEqual(false);
+  await displayVersionMessage(ioHelper);
+  expect(ioHost.notifySpy).not.toHaveBeenCalled();
 });
 
 describe('version message', () => {
@@ -148,7 +151,7 @@ test('isDeveloperBuild call does not throw an error', () => {
   // that the value is `true` when running tests, because I won't want to make too
   // many assumptions for no good reason.
 
-  isDeveloperBuild();
+  isDeveloperBuildVersion();
 
   // THEN: should not explode
 });

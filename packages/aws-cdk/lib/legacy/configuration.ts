@@ -2,16 +2,19 @@ import * as os from 'os';
 import * as fs_path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import { Context, PROJECT_CONTEXT } from '../api/context';
+import { debug, warning } from './logging';
+import { Context } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
-import type { IoHelper } from '../api-private';
 
-export const PROJECT_CONFIG = 'cdk.json';
-export { PROJECT_CONTEXT } from '../api/context';
-export const USER_DEFAULTS = '~/.cdk.json';
+export const PROJECT_CONTEXT = 'cdk.context.json';
+const PROJECT_CONFIG = 'cdk.json';
+const USER_DEFAULTS = '~/.cdk.json';
 const CONTEXT_KEY = 'context';
 
+/**
+ * @deprecated
+ */
 export enum Command {
   LS = 'ls',
   LIST = 'list',
@@ -26,7 +29,6 @@ export enum Command {
   VERSION = 'version',
   WATCH = 'watch',
   GC = 'gc',
-  FLAGS = 'flags',
   ROLLBACK = 'rollback',
   IMPORT = 'import',
   ACKNOWLEDGE = 'acknowledge',
@@ -51,7 +53,7 @@ const BUNDLING_COMMANDS = [
   Command.IMPORT,
 ];
 
-export type Arguments = {
+type Arguments = {
   readonly _: [Command, ...string[]];
   readonly exclusively?: boolean;
   readonly STACKS?: string[];
@@ -59,7 +61,7 @@ export type Arguments = {
   readonly [name: string]: unknown;
 };
 
-export interface ConfigurationProps {
+interface ConfigurationProps {
   /**
    * Configuration passed via command line arguments
    *
@@ -77,27 +79,9 @@ export interface ConfigurationProps {
 
 /**
  * All sources of settings combined
+ * @deprecated
  */
 export class Configuration {
-  /**
-   * Creates user configuration from commandLineArguments
-   */
-  public static async fromArgs(ioHelper: IoHelper, args?: Arguments) {
-    const commandLineArguments = args
-      ? await commandLineArgumentsToSettings(ioHelper, args)
-      : new Settings();
-
-    return new Configuration(ioHelper, commandLineArguments);
-  }
-
-  /**
-   * Creates user configuration from commandLineArguments and loads
-   */
-  public static async fromArgsAndFiles(ioHelper: IoHelper, props: ConfigurationProps = {}) {
-    const configuration = await Configuration.fromArgs(ioHelper, props.commandLineArguments);
-    return configuration.loadConfigFiles(props.readUserContext ?? true);
-  }
-
   public settings = new Settings();
   public context = new Context();
 
@@ -114,11 +98,10 @@ export class Configuration {
   private _projectContext?: Settings;
   private loaded = false;
 
-  private ioHelper: IoHelper;
-
-  private constructor(ioHelper: IoHelper, commandLineArguments: Settings) {
-    this.ioHelper = ioHelper;
-    this.commandLineArguments = commandLineArguments;
+  constructor(private readonly props: ConfigurationProps = {}) {
+    this.commandLineArguments = props.commandLineArguments
+      ? commandLineArgumentsToSettings(props.commandLineArguments)
+      : new Settings();
     this.commandLineContext = this.commandLineArguments
       .subSettings([CONTEXT_KEY])
       .makeReadOnly();
@@ -141,10 +124,13 @@ export class Configuration {
   /**
    * Load all config
    */
-  private async loadConfigFiles(readUserContext: boolean): Promise<this> {
-    const userConfig = await loadAndLog(this.ioHelper, USER_DEFAULTS);
-    this._projectConfig = await loadAndLog(this.ioHelper, PROJECT_CONFIG);
-    this._projectContext = await loadAndLog(this.ioHelper, PROJECT_CONTEXT);
+  public async load(): Promise<this> {
+    const userConfig = await loadAndLog(USER_DEFAULTS);
+    this._projectConfig = await loadAndLog(PROJECT_CONFIG);
+    this._projectContext = await loadAndLog(PROJECT_CONTEXT);
+
+    // @todo cannot currently be disabled by cli users
+    const readUserContext = this.props.readUserContext ?? true;
 
     if (userConfig.get(['build'])) {
       throw new ToolkitError(
@@ -176,7 +162,7 @@ export class Configuration {
       .merge(this.commandLineArguments)
       .makeReadOnly();
 
-    await this.ioHelper.defaults.debug('merged settings:', this.settings.all);
+    debug('merged settings:', this.settings.all);
 
     this.loaded = true;
 
@@ -197,15 +183,15 @@ export class Configuration {
   }
 }
 
-async function loadAndLog(ioHelper: IoHelper, fileName: string): Promise<Settings> {
-  const ret = await settingsFromFile(ioHelper, fileName);
+async function loadAndLog(fileName: string): Promise<Settings> {
+  const ret = await settingsFromFile(fileName);
   if (!ret.empty) {
-    await ioHelper.defaults.debug(fileName + ':', JSON.stringify(ret.all, undefined, 2));
+    debug(fileName + ':', JSON.stringify(ret.all, undefined, 2));
   }
   return ret;
 }
 
-async function settingsFromFile(ioHelper: IoHelper, fileName: string): Promise<Settings> {
+async function settingsFromFile(fileName: string): Promise<Settings> {
   let settings;
   const expanded = expandHomeDir(fileName);
   if (await fs.pathExists(expanded)) {
@@ -217,7 +203,7 @@ async function settingsFromFile(ioHelper: IoHelper, fileName: string): Promise<S
 
   // See https://github.com/aws/aws-cdk/issues/59
   prohibitContextKeys(settings, ['default-account', 'default-region'], fileName);
-  await warnAboutContextKey(ioHelper, settings, 'aws:', fileName);
+  warnAboutContextKey(settings, 'aws:', fileName);
 
   return settings;
 }
@@ -239,7 +225,7 @@ function prohibitContextKeys(settings: Settings, keys: string[], fileName: strin
   }
 }
 
-async function warnAboutContextKey(ioHelper: IoHelper, settings: Settings, prefix: string, fileName: string) {
+function warnAboutContextKey(settings: Settings, prefix: string, fileName: string) {
   const context = settings.get(['context']);
   if (!context || typeof context !== 'object') {
     return;
@@ -247,7 +233,7 @@ async function warnAboutContextKey(ioHelper: IoHelper, settings: Settings, prefi
 
   for (const contextKey of Object.keys(context)) {
     if (contextKey.startsWith(prefix)) {
-      await ioHelper.defaults.warning(
+      warning(
         `A reserved context key ('context.${prefix}') key was found in ${fs_path.resolve(
           fileName,
         )}, it might cause surprising behavior and should be removed.`,
@@ -276,9 +262,9 @@ function expandHomeDir(x: string) {
  * @param argv - the received CLI arguments.
  * @returns a new Settings object.
  */
-export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: Arguments): Promise<Settings> {
-  const context = await parseStringContextListToObject(ioHelper, argv);
-  const tags = await parseStringTagsListToObject(ioHelper, expectStringList(argv.tags));
+function commandLineArgumentsToSettings(argv: Arguments): Settings {
+  const context = parseStringContextListToObject(argv);
+  const tags = parseStringTagsListToObject(expectStringList(argv.tags));
 
   // Determine bundling stacks
   let bundlingStacks: string[];
@@ -348,13 +334,13 @@ function expectStringList(x: unknown): string[] | undefined {
   return x;
 }
 
-async function parseStringContextListToObject(ioHelper: IoHelper, argv: Arguments): Promise<any> {
+function parseStringContextListToObject(argv: Arguments): any {
   const context: any = {};
 
   for (const assignment of (argv as any).context || []) {
     const parts = assignment.split(/=(.*)/, 2);
     if (parts.length === 2) {
-      await ioHelper.defaults.debug('CLI argument context: %s=%s', parts[0], parts[1]);
+      debug('CLI argument context: %s=%s', parts[0], parts[1]);
       if (parts[0].match(/^aws:.+/)) {
         throw new ToolkitError(
           `User-provided context cannot use keys prefixed with 'aws:', but ${parts[0]} was provided.`,
@@ -362,7 +348,7 @@ async function parseStringContextListToObject(ioHelper: IoHelper, argv: Argument
       }
       context[parts[0]] = parts[1];
     } else {
-      await ioHelper.defaults.warn(
+      warning(
         'Context argument is not an assignment (key=value): %s',
         assignment,
       );
@@ -377,10 +363,9 @@ async function parseStringContextListToObject(ioHelper: IoHelper, argv: Argument
  * Return undefined if no tags were provided, return an empty array if only empty
  * strings were provided
  */
-async function parseStringTagsListToObject(
-  ioHelper: IoHelper,
+function parseStringTagsListToObject(
   argTags: string[] | undefined,
-): Promise<Tag[] | undefined> {
+): Tag[] | undefined {
   if (argTags === undefined) {
     return undefined;
   }
@@ -397,13 +382,13 @@ async function parseStringTagsListToObject(
   for (const assignment of nonEmptyTags) {
     const parts = assignment.split(/=(.*)/, 2);
     if (parts.length === 2) {
-      await ioHelper.defaults.debug('CLI argument tags: %s=%s', parts[0], parts[1]);
+      debug('CLI argument tags: %s=%s', parts[0], parts[1]);
       tags.push({
         Key: parts[0],
         Value: parts[1],
       });
     } else {
-      await ioHelper.defaults.warn('Tags argument is not an assignment (key=value): %s', assignment);
+      warning('Tags argument is not an assignment (key=value): %s', assignment);
     }
   }
   return tags.length > 0 ? tags : undefined;

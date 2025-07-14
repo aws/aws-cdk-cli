@@ -50,7 +50,7 @@ describe('typed mappings', () => {
     expect(context.mappings).toEqual([]);
   });
 
-  test('returns empty mappings when there are only removals', () => {
+  test('resource removal is not allowed', () => {
     const stack1 = {
       environment,
       stackName: 'Foo',
@@ -73,15 +73,14 @@ describe('typed mappings', () => {
       },
     };
 
-    const context = new RefactoringContext({
+    expect(() => new RefactoringContext({
       environment,
       deployedStacks: [stack1],
       localStacks: [stack2],
-    });
-    expect(context.mappings).toEqual([]);
+    })).toThrow(/A refactor operation cannot add, remove or update resources/);
   });
 
-  test('returns empty mappings when there are only additions', () => {
+  test('resource addition is not allowed', () => {
     const stack1 = {
       environment,
       stackName: 'Foo',
@@ -104,15 +103,14 @@ describe('typed mappings', () => {
       },
     };
 
-    const context = new RefactoringContext({
+    expect(() => new RefactoringContext({
       environment,
       deployedStacks: [stack1],
       localStacks: [stack2],
-    });
-    expect(context.mappings).toEqual([]);
+    })).toThrow(/A refactor operation cannot add, remove or update resources/);
   });
 
-  test('normal updates are not mappings', () => {
+  test('resource update is not allowed', () => {
     const stack1 = {
       environment,
       stackName: 'Foo',
@@ -136,17 +134,17 @@ describe('typed mappings', () => {
           Bucket1: {
             Type: 'AWS::S3::Bucket',
             // Updated property
-            Properties: { Prop: 'old value' },
+            Properties: { Prop: 'new value' },
           },
         },
       },
     };
-    const context = new RefactoringContext({
+
+    expect(() => new RefactoringContext({
       environment,
       deployedStacks: [stack1],
       localStacks: [stack2],
-    });
-    expect(context.mappings).toEqual([]);
+    })).toThrow(/A refactor operation cannot add, remove or update resources/);
   });
 
   test('moving resources across stacks', () => {
@@ -299,16 +297,14 @@ describe('typed mappings', () => {
       },
     };
 
-    const context = new RefactoringContext({
-      environment,
-      deployedStacks: [stack1],
-      localStacks: [stack2],
-    });
-
     // We don't consider that a resource was moved from Foo.OldName to Bar.NewName,
     // even though they have the same properties. Since they have different types,
     // they are considered different resources.
-    expect(context.mappings).toEqual([]);
+    expect(() => new RefactoringContext({
+      environment,
+      deployedStacks: [stack1],
+      localStacks: [stack2],
+    })).toThrow(/A refactor operation cannot add, remove or update resources/);
   });
 
   test('ambiguous resources from multiple stacks', () => {
@@ -351,12 +347,11 @@ describe('typed mappings', () => {
       },
     };
 
-    const context = new RefactoringContext({
+    expect(() => new RefactoringContext({
       environment,
       deployedStacks: [stack1, stack2],
       localStacks: [stack3],
-    });
-    expect(context.ambiguousPaths).toEqual([[['Stack1.Bucket1', 'Stack2.Bucket2'], ['Stack3.Bucket3']]]);
+    })).toThrow(/A refactor operation cannot add, remove or update resources/);
   });
 
   test('ambiguous pairs', () => {
@@ -450,174 +445,11 @@ describe('typed mappings', () => {
       },
     };
 
-    const context = new RefactoringContext({
+    expect(() => new RefactoringContext({
       environment,
       deployedStacks: [stack1],
       localStacks: [stack2],
-    });
-    expect(context.mappings.map(toCfnMapping)).toEqual([
-      {
-        Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
-        Destination: { LogicalResourceId: 'NewName', StackName: 'Foo' },
-      },
-    ]);
-  });
-
-  test('stack filtering', () => {
-    // eslint-disable-next-line @typescript-eslint/no-shadow
-    const environment = {
-      name: 'prod',
-      account: '123456789012',
-      region: 'us-east-1',
-    };
-
-    // Scenario:
-    //  Foo.Bucket1 -> Bar.Bucket1
-    //  Zee.OldName -> Zee.NewName
-
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack3 = {
-      environment,
-      stackName: 'Zee',
-      template: {
-        Resources: {
-          OldName: {
-            Type: 'AWS::SQS::Queue',
-            Properties: { Prop: 'YYYYYYYYY' },
-          },
-        },
-      },
-    };
-
-    const stack4 = {
-      environment,
-      stackName: 'Zee',
-      template: {
-        Resources: {
-          NewName: {
-            Type: 'AWS::SQS::Queue',
-            Properties: { Prop: 'YYYYYYYYY' },
-          },
-        },
-      },
-    };
-
-    // Testing different filters:
-
-    // Only Foo. Should include Foo and Bar
-    let context = new RefactoringContext({
-      environment,
-      deployedStacks: [stack1, stack3],
-      localStacks: [stack2, stack4],
-      filteredStacks: [stack1],
-    });
-    expect(context.mappings.map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Bar',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Foo',
-        },
-      },
-    ]);
-
-    // Only Bar. Should include Foo and Bar
-    context = new RefactoringContext({
-      environment,
-      deployedStacks: [stack1, stack3],
-      localStacks: [stack2, stack4],
-      filteredStacks: [stack2],
-    });
-    expect(context.mappings.map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Bar',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Foo',
-        },
-      },
-    ]);
-
-    // Only Zee. Should include Zee
-    context = new RefactoringContext({
-      environment,
-      deployedStacks: [stack1, stack3],
-      localStacks: [stack2, stack4],
-      filteredStacks: [stack3],
-    });
-    expect(context.mappings.map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'NewName',
-          StackName: 'Zee',
-        },
-        Source: {
-          LogicalResourceId: 'OldName',
-          StackName: 'Zee',
-        },
-      },
-    ]);
-
-    // Foo and Zee. Should include all
-    context = new RefactoringContext({
-      environment,
-      deployedStacks: [stack1, stack3],
-      localStacks: [stack2, stack4],
-      filteredStacks: [stack1, stack3],
-    });
-    expect(context.mappings.map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Bar',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Foo',
-        },
-      },
-      {
-        Destination: {
-          LogicalResourceId: 'NewName',
-          StackName: 'Zee',
-        },
-        Source: {
-          LogicalResourceId: 'OldName',
-          StackName: 'Zee',
-        },
-      },
-    ]);
+    })).toThrow(/A refactor operation cannot add, remove or update resources/);
   });
 });
 

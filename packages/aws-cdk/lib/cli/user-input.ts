@@ -1430,6 +1430,13 @@ export interface DocsOptions {
  */
 export interface RefactorOptions {
   /**
+   * Names of deployed stacks to be considered for resource comparison.
+   *
+   * @default - undefined
+   */
+  readonly additionalStackName?: Array<string>;
+
+  /**
    * Do not perform any changes, just show what would be done
    *
    * @default - false
@@ -1437,18 +1444,11 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * If specified, CDK will use the given file to exclude resources from the refactor
+   * A file that declares overrides to be applied to the list of mappings computed by the CLI.
    *
    * @default - undefined
    */
-  readonly excludeFile?: string;
-
-  /**
-   * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
-   *
-   * @default - undefined
-   */
-  readonly mappingFile?: string;
+  readonly overrideFile?: string;
 
   /**
    * If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.
@@ -1456,11 +1456,6 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly revert?: boolean;
-
-  /**
-   * Positional argument for refactor
-   */
-  readonly STACKS?: Array<string>;
 }
 
 /**
