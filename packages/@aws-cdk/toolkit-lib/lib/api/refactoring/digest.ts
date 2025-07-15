@@ -2,6 +2,10 @@ import * as crypto from 'node:crypto';
 import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
 import { ResourceGraph } from './graph';
 
+export type GraphDirection =
+  'direct' // Edge A -> B mean that A depends on B
+  | 'opposite'; // Edge A -> B mean that B depends on A
+
 /**
  * Computes the digest for each resource in the template.
  *
@@ -19,12 +23,15 @@ import { ResourceGraph } from './graph';
  * CloudFormation template form a directed acyclic graph, this function is
  * well-defined.
  */
-export function computeResourceDigests(stacks: CloudFormationStack[]): Record<string, string> {
+export function computeResourceDigests(stacks: CloudFormationStack[], direction: GraphDirection = 'direct'): Record<string, string> {
   const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
     stacks.flatMap((s) =>
       Object.values(s.template.Outputs ?? {})
         .filter((o) => o.Export != null && typeof o.Export.Name === 'string')
-        .map((o) => [o.Export.Name, { stackName: s.stackName, value: o.Value }] as [string, { stackName: string; value: any }]),
+        .map(
+          (o) =>
+            [o.Export.Name, { stackName: s.stackName, value: o.Value }] as [string, { stackName: string; value: any }],
+        ),
     ),
   );
 
@@ -32,36 +39,15 @@ export function computeResourceDigests(stacks: CloudFormationStack[]): Record<st
     stacks.flatMap((s) => {
       return Object.entries(s.template.Resources ?? {})
         .filter(([_, res]) => res.Type !== 'AWS::CDK::Metadata')
-        .map(
-          ([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource],
-        );
+        .map(([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource]);
     }),
   );
 
-  /*
-  Compute the final digest for each resource by combining the direct and opposite digests.
-  This is to make sure that the digest of a resource takes into account both its in-neighbors
-  and out-neighbors. For example, if we have the following graph:
+  const graph = direction == 'direct'
+    ? ResourceGraph.fromStacks(stacks)
+    : ResourceGraph.fromStacks(stacks).opposite();
 
-          A --> B
-          C --> D
-
-   As long as A and C are different, the digests of B and D will also be different, even if
-   they are structurally identical and have no dependencies.
-  */
-  const graph = ResourceGraph.fromStacks(stacks);
-  const directDigests = computeDigestsInTopologicalOrder(graph, resources, exports);
-  const oppositeDigests = computeDigestsInTopologicalOrder(graph.opposite(), resources, exports);
-  const result: Record<string, string> = {};
-
-  for (const id in resources) {
-    result[id] = crypto.createHash('sha256')
-      .update(directDigests[id])
-      .update(oppositeDigests[id])
-      .digest('hex');
-  }
-
-  return result;
+  return computeDigestsInTopologicalOrder(graph, resources, exports);
 }
 
 function computeDigestsInTopologicalOrder(
