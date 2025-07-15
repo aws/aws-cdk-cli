@@ -71,7 +71,7 @@ export class RefactoringContext {
  *
  */
 function structuralOverrides(deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]): ResourceMapping[] {
-  const moves = resourceMoves(deployedStacks, localStacks, 'opposite');
+  const moves = resourceMoves(deployedStacks, localStacks, 'opposite', true);
   const [nonAmbiguousMoves] = partitionByAmbiguity([], moves);
   return resourceMappings(nonAmbiguousMoves);
 }
