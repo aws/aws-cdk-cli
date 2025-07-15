@@ -79,7 +79,7 @@
     "version-reporting": {
       "type": "boolean",
       "desc": "Disable CLI telemetry and do not include the \"AWS::CDK::Metadata\" resource in synthesized templates (enabled by default)",
-      "negativeAlias": "disable-telemetry"
+      "alias": "telemetry"
     },
     "path-metadata": {
       "type": "boolean",
