@@ -94,7 +94,15 @@ export function convertYargsToUserInput(args: any): UserInput {
       break;
 
     case 'flags':
-      commandOptions = {};
+      commandOptions = {
+        value: args.value,
+        set: args.set,
+        all: args.all,
+        unconfigured: args.unconfigured,
+        recommended: args.recommended,
+        default: args.default,
+        FLAGNAME: args.FLAGNAME,
+      };
       break;
 
     case 'deploy':
@@ -362,7 +370,14 @@ export function convertConfigToUserInput(config: any): UserInput {
     confirm: config.gc?.confirm,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
-  const flagsOptions = {};
+  const flagsOptions = {
+    value: config.flags?.value,
+    set: config.flags?.set,
+    all: config.flags?.all,
+    unconfigured: config.flags?.unconfigured,
+    recommended: config.flags?.recommended,
+    default: config.flags?.default,
+  };
   const deployOptions = {
     all: config.deploy?.all,
     buildExclude: config.deploy?.buildExclude,

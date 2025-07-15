@@ -25,7 +25,7 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
-import { displayFlags } from '../commands/flags';
+import { handleFlags } from '../commands/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
@@ -443,8 +443,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           unstableFeatures: configuration.settings.get(['unstable']),
         });
+        console.log('Debug args object:', JSON.stringify(args, null, 2));
         const flagsData = await toolkit.flags(cloudExecutable);
-        return displayFlags(flagsData, ioHelper);
+        console.log("here");
+        return handleFlags(flagsData, ioHelper, args);
+
 
       case 'synthesize':
       case 'synth':

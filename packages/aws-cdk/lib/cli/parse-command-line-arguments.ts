@@ -346,7 +346,45 @@ export function parseCommandLineArguments(args: Array<string>): any {
             requiresArg: true,
           }),
     )
-    .command('flags', 'View and toggle feature flags.')
+    .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
+      yargs
+        .option('value', {
+          default: undefined,
+          type: 'string',
+          desc: 'The value the user would like to set the feature flag configuration to',
+          requiresArg: true,
+        })
+        .option('set', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Signifies the user would like to modify their feature flag configuration',
+          requiresArg: false,
+        })
+        .option('all', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify or view all feature flags',
+          requiresArg: false,
+        })
+        .option('unconfigured', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify unconfigured feature flags',
+          requiresArg: false,
+        })
+        .option('recommended', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to recommended states',
+          requiresArg: false,
+        })
+        .option('default', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to default state',
+          requiresArg: false,
+        }),
+    )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {

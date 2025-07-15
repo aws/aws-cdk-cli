@@ -1880,7 +1880,6 @@ export interface GarbageCollectionOptions {
    */
   readonly confirm?: boolean;
 }
-
 export interface MigrateOptions {
   /**
    * The name assigned to the generated stack. This is also used to get

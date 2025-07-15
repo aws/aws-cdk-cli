@@ -48,7 +48,7 @@ export interface UserInput {
   /**
    * View and toggle feature flags.
    */
-  readonly flags?: {};
+  readonly flags?: FlagsOptions;
 
   /**
    * Deploys the stack(s) named STACKS into your AWS account
@@ -600,6 +600,60 @@ export interface GcOptions {
    * Positional argument for gc
    */
   readonly ENVIRONMENTS?: Array<string>;
+}
+
+/**
+ * View and toggle feature flags.
+ *
+ * @struct
+ */
+export interface FlagsOptions {
+  /**
+   * The value the user would like to set the feature flag configuration to
+   *
+   * @default - undefined
+   */
+  readonly value?: string;
+
+  /**
+   * Signifies the user would like to modify their feature flag configuration
+   *
+   * @default - undefined
+   */
+  readonly set?: boolean;
+
+  /**
+   * Modify or view all feature flags
+   *
+   * @default - undefined
+   */
+  readonly all?: boolean;
+
+  /**
+   * Modify unconfigured feature flags
+   *
+   * @default - undefined
+   */
+  readonly unconfigured?: boolean;
+
+  /**
+   * Change flags to recommended states
+   *
+   * @default - undefined
+   */
+  readonly recommended?: boolean;
+
+  /**
+   * Change flags to default state
+   *
+   * @default - undefined
+   */
+  readonly default?: boolean;
+
+  /**
+   * Positional argument for flags
+   */
+  readonly FLAGNAME?: Array<string>;
 }
 
 /**
