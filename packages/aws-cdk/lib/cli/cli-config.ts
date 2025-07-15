@@ -352,6 +352,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
+          'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
         },
       },
       'drift': {

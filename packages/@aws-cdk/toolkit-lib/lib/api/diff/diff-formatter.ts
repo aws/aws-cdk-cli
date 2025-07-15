@@ -5,6 +5,7 @@ import {
   formatSecurityChanges,
   fullDiff,
   mangleLikeCloudFormation,
+  type ResourceDifference,
   type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
@@ -122,6 +123,14 @@ export interface TemplateInfo {
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
+
+  /**
+   * Mappings of old locations to new locations. If these are provided,
+   * for all resources that were moved, their corresponding addition
+   * and removal lines will be augmented with the location they were
+   * moved fom and to, respectively.
+   */
+  readonly mappings?: Record<string, string>;
 }
 
 /**
@@ -134,6 +143,7 @@ export class DiffFormatter {
   private readonly changeSet?: any;
   private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
+  private readonly mappings: Record<string, string>;
 
   /**
    * Stores the TemplateDiffs that get calculated in this DiffFormatter,
@@ -148,6 +158,7 @@ export class DiffFormatter {
     this.changeSet = props.templateInfo.changeSet;
     this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;
+    this.mappings = props.templateInfo.mappings ?? {};
   }
 
   public get diffs() {
@@ -159,16 +170,38 @@ export class DiffFormatter {
    * If it creates the diff, it stores the result in a map for
    * easier retrieval later.
    */
-  private diff(stackName?: string, oldTemplate?: any) {
+  private diff(stackName?: string, oldTemplate?: any, mappings: Record<string, string> = {}) {
     const realStackName = stackName ?? this.stackName;
 
     if (!this._diffs[realStackName]) {
-      this._diffs[realStackName] = fullDiff(
+      const templateDiff = fullDiff(
         oldTemplate ?? this.oldTemplate,
         this.newTemplate.template,
         this.changeSet,
         this.isImport,
       );
+
+      const setMove = (change: ResourceDifference, direction: 'from' | 'to', location?: string)=> {
+        if (location != null) {
+          const [sourceStackName, sourceLogicalId] = location.split('.');
+          change.move = {
+            direction,
+            stackName: sourceStackName,
+            resourceLogicalId: sourceLogicalId,
+          };
+        }
+      };
+
+      templateDiff.resources.forEachDifference((id, change) => {
+        const location = `${realStackName}.${id}`;
+        if (change.isAddition && Object.values(mappings).includes(location)) {
+          setMove(change, 'from', Object.keys(mappings).find(k => mappings[k] === location));
+        } else if (change.isRemoval && Object.keys(mappings).includes(location)) {
+          setMove(change, 'to', mappings[location]);
+        }
+      });
+
+      this._diffs[realStackName] = templateDiff;
     }
     return this._diffs[realStackName];
   }
@@ -199,6 +232,7 @@ export class DiffFormatter {
       this.stackName,
       this.nestedStacks,
       options,
+      this.mappings,
     );
   }
 
@@ -207,8 +241,9 @@ export class DiffFormatter {
     stackName: string,
     nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
     options: ReusableStackDiffOptions,
+    mappings: Record<string, string> = {},
   ) {
-    let diff = this.diff(stackName, oldTemplate);
+    let diff = this.diff(stackName, oldTemplate, mappings);
 
     // The stack diff is formatted via `Formatter`, which takes in a stream
     // and sends its output directly to that stream. To facilitate use of the
@@ -279,6 +314,7 @@ export class DiffFormatter {
         nestedStack.physicalName ?? nestedStackLogicalId,
         nestedStack.nestedStackTemplates,
         options,
+        this.mappings,
       );
       numStacksWithChanges += nextDiff.numStacksWithChanges;
       formattedDiff += nextDiff.formattedDiff;

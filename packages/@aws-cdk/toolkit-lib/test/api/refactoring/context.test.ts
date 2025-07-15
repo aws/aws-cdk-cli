@@ -402,6 +402,117 @@ describe('typed mappings', () => {
     ]);
   });
 
+  test('ambiguous pairs that can be disambiguated by the structure', () => {
+    const stack1 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+          Depender1: {
+            Type: 'AWS::Foo::Foo',
+            Properties: {
+              SomeProp: { Ref: 'Bucket1' },
+            },
+          },
+          Depender2: {
+            Type: 'AWS::Bar::Bar',
+            Properties: {
+              SomeProp: { Ref: 'Bucket2' },
+            },
+          },
+        },
+      },
+    };
+
+    const stack2 = {
+      environment,
+      stackName: 'Bar',
+      template: {
+        Resources: {
+          Bucket3: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+          Bucket4: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+          Depender1: {
+            Type: 'AWS::Foo::Foo',
+            Properties: {
+              SomeProp: { Ref: 'Bucket3' },
+            },
+          },
+          Depender2: {
+            Type: 'AWS::Bar::Bar',
+            Properties: {
+              SomeProp: { Ref: 'Bucket4' },
+            },
+          },
+        },
+      },
+    };
+
+    const context = new RefactoringContext({
+      environment,
+      deployedStacks: [stack1],
+      localStacks: [stack2],
+    });
+    expect(context.ambiguousPaths.length).toEqual(0);
+    expect(context.mappings.map(toCfnMapping)).toEqual([
+      // Despite Bucket1 and Bucket2 being identical, we could still disambiguate
+      // them based on the resources that depend on them.
+      {
+        Destination: {
+          LogicalResourceId: 'Bucket3',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Bucket1',
+          StackName: 'Foo',
+        },
+      },
+      {
+        Destination: {
+          LogicalResourceId: 'Bucket4',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Bucket2',
+          StackName: 'Foo',
+        },
+      },
+      {
+        Destination: {
+          LogicalResourceId: 'Depender1',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Depender1',
+          StackName: 'Foo',
+        },
+      },
+      {
+        Destination: {
+          LogicalResourceId: 'Depender2',
+          StackName: 'Bar',
+        },
+        Source: {
+          LogicalResourceId: 'Depender2',
+          StackName: 'Foo',
+        },
+      },
+    ]);
+  });
+
   test('combines addition, deletion, update, and rename', () => {
     const stack1 = {
       environment,
