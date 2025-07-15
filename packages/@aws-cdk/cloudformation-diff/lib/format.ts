@@ -247,7 +247,7 @@ export class Formatter {
   }
 
   private formatMove(move?: Move): string {
-    return !move ? '' : chalk.gray('(OR', chalk.italic(chalk.bold('move')), `${move.direction} ${move.stackName}.${move.resourceLogicalId} via refactoring)`);
+    return !move ? '' : chalk.yellow('(OR', chalk.italic(chalk.bold('move')), `${move.direction} ${move.stackName}.${move.resourceLogicalId} via refactoring)`);
   }
 
   /**
