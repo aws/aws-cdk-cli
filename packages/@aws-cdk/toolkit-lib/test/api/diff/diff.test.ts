@@ -111,7 +111,7 @@ describe('formatStackDiff', () => {
     expect(sanitizedDiff).toBe(
       'Stack test-stack\n' +
       'Resources\n' +
-      '[+] AWS::Lambda::Function Func (moved from test-stack.OldName)',
+      '[+] AWS::Lambda::Function Func (OR move from test-stack.OldName via refactoring)',
     );
   });
 
