@@ -137,6 +137,7 @@ describe('config', () => {
       notices: expect.anything(),
       import: expect.anything(),
       gc: expect.anything(),
+      flags: expect.anything(),
       doctor: expect.anything(),
       docs: expect.anything(),
       refactor: expect.anything(),

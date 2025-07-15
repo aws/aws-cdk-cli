@@ -5,10 +5,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
  * An immutable directed graph of resources from multiple CloudFormation stacks.
  */
 export class ResourceGraph {
-  private readonly edges: Record<string, Set<string>> = {};
-  private readonly reverseEdges: Record<string, Set<string>> = {};
-
-  constructor(stacks: Omit<CloudFormationStack, 'environment'>[]) {
+  public static fromStacks(stacks: Omit<CloudFormationStack, 'environment'>[]): ResourceGraph {
     const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
       stacks.flatMap((s) =>
         Object.values(s.template.Outputs ?? {})
@@ -35,9 +32,11 @@ export class ResourceGraph {
     );
 
     // 1. Build adjacency lists
+    const edges: Record<string, Set<string>> = {};
+    const reverseEdges: Record<string, Set<string>> = {};
     for (const id of Object.keys(resources)) {
-      this.edges[id] = new Set();
-      this.reverseEdges[id] = new Set();
+      edges[id] = new Set();
+      reverseEdges[id] = new Set();
     }
 
     // 2. Detect dependencies by searching for Ref/Fn::GetAtt
@@ -84,11 +83,21 @@ export class ResourceGraph {
       const deps = findDependencies(stackName, res || {});
       for (const dep of deps) {
         if (dep in resources && dep !== id) {
-          this.edges[id].add(dep);
-          this.reverseEdges[dep].add(id);
+          edges[id].add(dep);
+          reverseEdges[dep].add(id);
         }
       }
     }
+
+    return new ResourceGraph(edges, reverseEdges);
+  }
+
+  private readonly edges: Record<string, Set<string>> = {};
+  private readonly reverseEdges: Record<string, Set<string>> = {};
+
+  private constructor(edges: Record<string, Set<string>>, reverseEdges: Record<string, Set<string>>) {
+    this.edges = edges;
+    this.reverseEdges = reverseEdges;
   }
 
   /**
@@ -128,5 +137,12 @@ export class ResourceGraph {
       throw new ToolkitError(`Node ${node} not found in the graph`);
     }
     return Array.from(this.edges[node] || []);
+  }
+
+  /**
+   * Returns another graph with the same nodes, but with the edges inverted
+   */
+  public opposite(): ResourceGraph {
+    return new ResourceGraph(this.reverseEdges, this.edges);
   }
 }

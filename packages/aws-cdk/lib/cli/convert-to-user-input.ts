@@ -93,6 +93,10 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'flags':
+      commandOptions = {};
+      break;
+
     case 'deploy':
       commandOptions = {
         all: args.all,
@@ -359,6 +363,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     confirm: config.gc?.confirm,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
+  const flagsOptions = {};
   const deployOptions = {
     all: config.deploy?.all,
     buildExclude: config.deploy?.buildExclude,
@@ -490,6 +495,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     synth: synthOptions,
     bootstrap: bootstrapOptions,
     gc: gcOptions,
+    flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
     import: importOptions,

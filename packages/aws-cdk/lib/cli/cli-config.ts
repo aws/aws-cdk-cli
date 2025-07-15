@@ -112,6 +112,9 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true },
         },
       },
+      'flags': {
+        description: 'View and toggle feature flags.',
+      },
       'deploy': {
         description: 'Deploys the stack(s) named STACKS into your AWS account',
         options: {
