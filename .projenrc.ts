@@ -1052,7 +1052,7 @@ toolkitLib.gitignore.addPatterns(
 const apiExtractorDocsTask = toolkitLib.addTask('docs', {
   exec: [
     // Run api-extractor to generate the API model
-    'api-extractor run || true',
+    'api-extractor run',
     // Create a directory for the API model
     'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
     // Copy the API model to the directory (with error handling)
