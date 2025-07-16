@@ -21,6 +21,9 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 
 const TYPESCRIPT_VERSION = '5.8';
 
+// This is a temporary aws-cdk-lib version until this PR is released: https://github.com/aws/aws-cdk/pull/34919
+const AWS_CDK_LIB_VERSION = '2.203.0';
+
 /**
  * When adding an SDK dependency for a library, use this function
  *
@@ -851,7 +854,7 @@ const toolkitLib = configureProject(
       '@smithy/util-stream',
       '@types/fs-extra',
       '@types/split2',
-      'aws-cdk-lib',
+      `aws-cdk-lib@${AWS_CDK_LIB_VERSION}`,
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
       'fast-check',
@@ -1049,7 +1052,7 @@ toolkitLib.gitignore.addPatterns(
 const apiExtractorDocsTask = toolkitLib.addTask('docs', {
   exec: [
     // Run api-extractor to generate the API model
-    'api-extractor run || true',
+    'api-extractor run',
     // Create a directory for the API model
     'mkdir -p dist/api-extractor-docs/cdk/api/toolkit-lib',
     // Copy the API model to the directory (with error handling)

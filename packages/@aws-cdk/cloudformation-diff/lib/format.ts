@@ -1,6 +1,6 @@
 import { format } from 'util';
 import * as chalk from 'chalk';
-import type { DifferenceCollection, TemplateDiff } from './diff/types';
+import type { DifferenceCollection, Move, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
 import type { Difference, ResourceDifference } from './diff-template';
 import { isPropertyDifference, ResourceImpact } from './diff-template';
@@ -166,8 +166,15 @@ export class Formatter {
 
     const resourceType = diff.isRemoval ? diff.oldResourceType : diff.newResourceType;
 
-    // eslint-disable-next-line @stylistic/max-len
-    this.print(`${this.formatResourcePrefix(diff)} ${this.formatValue(resourceType, chalk.cyan)} ${this.formatLogicalId(logicalId)} ${this.formatImpact(diff.changeImpact)}`.trimEnd());
+    const message = [
+      this.formatResourcePrefix(diff),
+      this.formatValue(resourceType, chalk.cyan),
+      this.formatLogicalId(logicalId),
+      this.formatImpact(diff.changeImpact),
+      this.formatMove(diff.move),
+    ].filter(Boolean).join(' ');
+
+    this.print(message);
 
     if (diff.isUpdate) {
       const differenceCount = diff.differenceCount;
@@ -237,6 +244,10 @@ export class Formatter {
       case ResourceImpact.NO_CHANGE:
         return ''; // no extra info is gained here
     }
+  }
+
+  private formatMove(move?: Move): string {
+    return !move ? '' : chalk.yellow('(OR', chalk.italic(chalk.bold('move')), `${move.direction} ${move.stackName}.${move.resourceLogicalId} via refactoring)`);
   }
 
   /**

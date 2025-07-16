@@ -286,28 +286,35 @@ export function printResults(diagnostic: Diagnostic): void {
       logger.success('  UNCHANGED  %s %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
       break;
     case DiagnosticReason.TEST_SUCCESS:
-      logger.success('  SUCCESS    %s %s\n      ', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), diagnostic.message);
+      logger.success('  SUCCESS    %s %s\n      ', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
       break;
     case DiagnosticReason.NO_SNAPSHOT:
       logger.error('  NEW        %s %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
       break;
     case DiagnosticReason.SNAPSHOT_FAILED:
-      logger.error('  CHANGED    %s %s\n      %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), diagnostic.message);
+      logger.error('  CHANGED    %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.SNAPSHOT_ERROR:
     case DiagnosticReason.TEST_ERROR:
-      logger.error('  ERROR      %s %s\n      %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), diagnostic.message);
+      logger.error('  ERROR      %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.TEST_FAILED:
-      logger.error('  FAILED     %s %s\n      %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), diagnostic.message);
+      logger.error('  FAILED     %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.ASSERTION_FAILED:
-      logger.error('  ASSERT     %s %s\n      %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), diagnostic.message);
+      logger.error('  ASSERT     %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
   }
   for (const addl of diagnostic.additionalMessages ?? []) {
     logger.print(`      ${addl}`);
   }
+}
+
+/**
+ * Takes a multiline string and indents every line with the same number of spaces.
+ */
+function indentLines(message: string, count = 2): string {
+  return message.split('\n').map(line => ' '.repeat(count) + line).join('\n');
 }
 
 export function printLaggards(testNames: Set<string>) {
@@ -318,4 +325,15 @@ export function printLaggards(testNames: Set<string>) {
   ];
 
   logger.print(chalk.grey(parts.filter(x => x).join(' ')));
+}
+
+export function formatError(error: any): string {
+  const name = error.name || 'Error';
+  const message = error.message || String(error);
+
+  if (error.cause) {
+    return `${name}: ${message}\n${chalk.gray('Cause: ' + formatError(error.cause))}`;
+  }
+
+  return `${name}: ${message}`;
 }

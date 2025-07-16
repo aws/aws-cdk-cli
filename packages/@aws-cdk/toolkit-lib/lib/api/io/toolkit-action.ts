@@ -18,4 +18,5 @@ export type ToolkitAction =
 | 'metadata'
 | 'init'
 | 'migrate'
-| 'refactor';
+| 'refactor'
+| 'flags';

@@ -1,5 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
+import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
@@ -9,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { DeployResult, DestroyResult, RollbackResult } from './types';
+import type { FeatureFlag, DeployResult, DestroyResult, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -142,7 +144,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor';
+export type UnstableFeature = 'refactor' | 'flags';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -1269,6 +1271,33 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     } catch {
       // just continue - deploy will show the error
     }
+  }
+
+  /**
+   * Retrieve feature flag information from the cloud assembly
+   */
+
+  public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
+    this.requireUnstableFeature('flags');
+
+    const ioHelper = asIoHelper(this.ioHost, 'flags');
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    const artifacts = assembly.cloudAssembly.manifest.artifacts;
+
+    return Object.values(artifacts!)
+      .filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT)
+      .flatMap(report => {
+        const properties = report.properties as FeatureFlagReportProperties;
+        const moduleName = properties.module;
+
+        return Object.entries(properties.flags).map(([flagName, flagInfo]) => ({
+          module: moduleName,
+          name: flagName,
+          recommendedValue: flagInfo.recommendedValue,
+          userValue: flagInfo.userValue ?? undefined,
+          explanation: flagInfo.explanation ?? '',
+        }));
+      });
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
