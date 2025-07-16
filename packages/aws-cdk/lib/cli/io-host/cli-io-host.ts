@@ -10,7 +10,7 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { FileTelemetrySink } from '../telemetry/file-sink';
-import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
+import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES, EventResult } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
 import { isCI } from '../util/ci';
@@ -552,11 +552,11 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
   }
 }
 
-function isNoticesMessage(msg: IoMessage<unknown>) {
+function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
 
-function isTelemetryMessage(msg: IoMessage<unknown>) {
+function isTelemetryMessage(msg: IoMessage<unknown>): msg is IoMessage<EventResult> {
   return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
 }
 
