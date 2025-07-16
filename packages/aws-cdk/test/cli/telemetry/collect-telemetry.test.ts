@@ -14,7 +14,7 @@ describe(canCollectTelemetry, () => {
   });
 
   test('returns false if env variable is set', async () => {
-    withEnv(async () => {
+    await withEnv(async () => {
       expect(canCollectTelemetry(context)).toBeTruthy();
     }, {
       DISABLE_CLI_TELEMETRY: 'true',

@@ -68,7 +68,7 @@ describe('telemetry command', () => {
   });
 
   test('status reports current telemetry status -- disabled via env var', async () => {
-    withEnv(async () => {
+    await withEnv(async () => {
       // WHEN
       process.env.CDK_CLI_DISABLE_TELEMETRY = 'true';
       await toolkit.cliTelemetryStatus();
