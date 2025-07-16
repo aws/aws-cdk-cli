@@ -113,6 +113,9 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true },
         },
       },
+      'flags': {
+        description: 'View and toggle feature flags.',
+      },
       'deploy': {
         description: 'Deploys the stack(s) named STACKS into your AWS account',
         options: {
@@ -338,6 +341,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
+          'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
         },
       },
       'drift': {
@@ -437,10 +441,6 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'refactor': {
         description: 'Moves resources between stacks or within the same stack',
-        arg: {
-          name: 'STACKS',
-          variadic: true,
-        },
         options: {
           'additional-stack-name': {
             type: 'array',
@@ -452,15 +452,10 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: 'Do not perform any changes, just show what would be done',
             default: false,
           },
-          'exclude-file': {
+          'override-file': {
             type: 'string',
             requiresArg: true,
-            desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
-          },
-          'mapping-file': {
-            type: 'string',
-            requiresArg: true,
-            desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+            desc: 'A file that declares overrides to be applied to the list of mappings computed by the CLI.',
           },
           'revert': {
             type: 'boolean',

@@ -2,6 +2,10 @@ import * as crypto from 'node:crypto';
 import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
 import { ResourceGraph } from './graph';
 
+export type GraphDirection =
+  'direct' // Edge A -> B mean that A depends on B
+  | 'opposite'; // Edge A -> B mean that B depends on A
+
 /**
  * Computes the digest for each resource in the template.
  *
@@ -19,12 +23,15 @@ import { ResourceGraph } from './graph';
  * CloudFormation template form a directed acyclic graph, this function is
  * well-defined.
  */
-export function computeResourceDigests(stacks: CloudFormationStack[]): Record<string, string> {
+export function computeResourceDigests(stacks: CloudFormationStack[], direction: GraphDirection = 'direct'): Record<string, string> {
   const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
     stacks.flatMap((s) =>
       Object.values(s.template.Outputs ?? {})
         .filter((o) => o.Export != null && typeof o.Export.Name === 'string')
-        .map((o) => [o.Export.Name, { stackName: s.stackName, value: o.Value }] as [string, { stackName: string; value: any }]),
+        .map(
+          (o) =>
+            [o.Export.Name, { stackName: s.stackName, value: o.Value }] as [string, { stackName: string; value: any }],
+        ),
     ),
   );
 
@@ -32,15 +39,22 @@ export function computeResourceDigests(stacks: CloudFormationStack[]): Record<st
     stacks.flatMap((s) => {
       return Object.entries(s.template.Resources ?? {})
         .filter(([_, res]) => res.Type !== 'AWS::CDK::Metadata')
-        .map(
-          ([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource],
-        );
+        .map(([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource]);
     }),
   );
 
-  const graph = new ResourceGraph(stacks);
+  const graph = direction == 'direct'
+    ? ResourceGraph.fromStacks(stacks)
+    : ResourceGraph.fromStacks(stacks).opposite();
+
+  return computeDigestsInTopologicalOrder(graph, resources, exports);
+}
+
+function computeDigestsInTopologicalOrder(
+  graph: ResourceGraph,
+  resources: Record<string, CloudFormationResource>,
+  exports: Record<string, { stackName: string; value: any }>): Record<string, string> {
   const nodes = graph.sortedNodes.filter(n => resources[n] != null);
-  // 4. Compute digests in sorted order
   const result: Record<string, string> = {};
   for (const id of nodes) {
     const resource = resources[id];

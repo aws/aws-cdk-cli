@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { MappingSource, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -14,13 +14,7 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, tagsForStack } from '../../lib/api-private';
-import type {
-  AssetBuildNode,
-  AssetPublishNode,
-  Concurrency,
-  StackNode,
-  WorkGraph,
-} from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
@@ -38,6 +32,7 @@ import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
+import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
@@ -273,6 +268,10 @@ export class CdkToolkit {
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
       }
     } else {
+      const allMappings = options.includeMoves
+        ? await mappingsByEnvironment(stacks.stackArtifacts, this.props.sdkProvider, true)
+        : [];
+
       // Compare N stacks against deployed templates
       for (const stack of stacks.stackArtifacts) {
         const templateWithNestedStacks = await this.props.deployments.readCurrentTemplateWithNestedStacks(
@@ -329,6 +328,10 @@ export class CdkToolkit {
           }
         }
 
+        const mappings = allMappings.find(m =>
+          m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
+        )?.mappings ?? {};
+
         const formatter = new DiffFormatter({
           templateInfo: {
             oldTemplate: currentTemplate,
@@ -336,6 +339,7 @@ export class CdkToolkit {
             changeSet,
             isImport: !!resourcesToImport,
             nestedStacks,
+            mappings,
           },
         });
 
@@ -766,7 +770,7 @@ export class CdkToolkit {
     if (!watchSettings) {
       throw new ToolkitError(
         "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-          'Make sure to add a "watch" key to your cdk.json',
+        'Make sure to add a "watch" key to your cdk.json',
       );
     }
 
@@ -851,7 +855,7 @@ export class CdkToolkit {
           latch = 'queued';
           await this.ioHost.asIoHelper().defaults.info(
             "Detected change to '%s' (type: %s) while 'cdk deploy' is still running. " +
-              'Will queue for another deployment after this one finishes',
+            'Will queue for another deployment after this one finishes',
             filePath,
             event,
           );
@@ -930,10 +934,10 @@ export class CdkToolkit {
     // Notify user of next steps
     await this.ioHost.asIoHelper().defaults.info(
       `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
-        'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
-        chalk.underline.blueBright(
-          'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
-        ),
+      'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
+      chalk.underline.blueBright(
+        'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
+      ),
     );
     if (actualImport.importResources.length < additions.length) {
       await this.ioHost.asIoHelper().defaults.info('');
@@ -995,29 +999,20 @@ export class CdkToolkit {
     }
 
     if (options.showDeps) {
-      const stackDeps = [];
-
-      for (const stack of stacks) {
-        stackDeps.push({
-          id: stack.id,
-          dependencies: stack.dependencies,
-        });
-      }
-
+      const stackDeps = stacks.map(stack => ({
+        id: stack.id,
+        dependencies: stack.dependencies,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), stackDeps, options.json ?? false);
       return 0;
     }
 
     if (options.long) {
-      const long = [];
-
-      for (const stack of stacks) {
-        long.push({
-          id: stack.id,
-          name: stack.name,
-          environment: stack.environment,
-        });
-      }
+      const long = stacks.map(stack => ({
+        id: stack.id,
+        name: stack.name,
+        environment: stack.environment,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), long, options.json ?? false);
       return 0;
     }
@@ -1026,7 +1021,6 @@ export class CdkToolkit {
     for (const stack of stacks) {
       await this.ioHost.asIoHelper().defaults.result(stack.id);
     }
-
     return 0; // exit-code
   }
 
@@ -1250,12 +1244,8 @@ export class CdkToolkit {
   }
 
   public async refactor(options: RefactorOptions): Promise<number> {
-    if (options.mappingFile && options.excludeFile) {
-      throw new ToolkitError('Cannot use both --exclude-file and mapping-file.');
-    }
-
-    if (options.revert && !options.mappingFile) {
-      throw new ToolkitError('The --revert option can only be used with the --mapping-file option.');
+    if (options.revert && !options.overrideFile) {
+      throw new ToolkitError('The --revert option can only be used with the --override-file option.');
     }
 
     try {
@@ -1267,7 +1257,7 @@ export class CdkToolkit {
           strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
         additionalStackNames: options.additionalStackNames,
-        mappingSource: await mappingSource(),
+        overrides: readOverrides(options.overrideFile, options.revert),
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
@@ -1276,39 +1266,21 @@ export class CdkToolkit {
 
     return 0;
 
-    async function readMappingFile(filePath: string | undefined) {
+    function readOverrides(filePath: string | undefined, revert: boolean = false) {
       if (filePath == null) {
-        return undefined;
+        return [];
       }
-      if (!(await fs.pathExists(filePath))) {
+      if (!fs.pathExistsSync(filePath)) {
         throw new ToolkitError(`The mapping file ${filePath} does not exist`);
       }
-      const content = JSON.parse(fs.readFileSync(filePath).toString('utf-8'));
-      if (content.environments) {
-        return content.environments;
-      } else {
-        throw new ToolkitError(`The mapping file ${filePath} does not contain an \`environments\` array`);
-      }
-    }
+      const groups = parseMappingGroups(fs.readFileSync(filePath).toString('utf-8'));
 
-    async function readExcludeFile(filePath: string | undefined) {
-      if (filePath != null) {
-        if (!(await fs.pathExists(filePath))) {
-          throw new ToolkitError(`The exclude file '${filePath}' does not exist`);
-        }
-        return fs.readFileSync(filePath).toString('utf-8').split('\n');
-      }
-      return undefined;
-    }
-
-    async function mappingSource(): Promise<MappingSource> {
-      if (options.mappingFile != null) {
-        return MappingSource.explicit(await readMappingFile(options.mappingFile));
-      }
-      if (options.revert) {
-        return MappingSource.reverse(await readMappingFile(options.mappingFile));
-      }
-      return MappingSource.auto((await readExcludeFile(options.excludeFile)) ?? []);
+      return revert
+        ? groups.map((group) => ({
+          ...group,
+          resources: Object.fromEntries(Object.entries(group.resources ?? {}).map(([src, dst]) => [dst, src])),
+        }))
+        : groups;
     }
   }
 
@@ -1576,6 +1548,13 @@ export interface DiffOptions {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Whether to include resource moves in the diff
+   *
+   * @default false
+   */
+  readonly includeMoves?: boolean;
 }
 
 interface CfnDeployOptions {
@@ -1997,23 +1976,8 @@ export interface RefactorOptions {
   readonly dryRun: boolean;
 
   /**
-   * The absolute path to a file that contains a list of resources that
-   * should be excluded during the refactor. This file should contain a
-   * newline separated list of _destination_ locations to exclude, i.e.,
-   * the location to which a resource would be moved if the refactor
-   * were to happen.
-   *
-   * The format of the locations in the file can be either:
-   *
-   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
-   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
-   */
-  excludeFile?: string;
-
-  /**
-   * The absolute path to a file that contains an explicit mapping to
-   * be used by the toolkit (as opposed to letting the toolkit itself
-   * compute the mapping). This file should contain a JSON object with
+   * The absolute path to a file that contains overrides to the mappings
+   * computed by the CLI. This file should contain a JSON object with
    * the following format:
    *
    *     {
@@ -2035,7 +1999,7 @@ export interface RefactorOptions {
    * deployed, while the destination must refer to a location that is not already
    * occupied by any resource.
    */
-  mappingFile?: string;
+  overrideFile?: string;
 
   /**
    * Modifies the behavior of the `mappingFile` option by swapping source and
@@ -2075,10 +2039,10 @@ export interface DriftOptions {
 
 function buildParameterMap(
   parameters:
-  | {
-    [name: string]: string | undefined;
-  }
-  | undefined,
+    | {
+      [name: string]: string | undefined;
+    }
+    | undefined,
 ): { [name: string]: { [name: string]: string | undefined } } {
   const parameterMap: {
     [name: string]: { [name: string]: string | undefined };
@@ -2162,5 +2126,5 @@ function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'in
  */
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
   return requireApproval === RequireApproval.ANYCHANGE ||
-  requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
+    requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }

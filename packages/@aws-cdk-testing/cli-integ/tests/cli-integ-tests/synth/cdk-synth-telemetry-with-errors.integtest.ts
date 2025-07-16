@@ -5,16 +5,24 @@ import { integTest, withDefaultFixture } from '../../../lib';
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
-  'cdk synth with telemetry data',
+  'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, 'telemetry.json');
-    await fixture.cdk(['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`]);
+    const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
+      allowErrExit: true,
+      modEnv: {
+        INTEG_STACK_SET: 'stage-with-errors',
+      },
+    });
+
+    expect(output).toContain('This is an error');
+
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACK1'],
+            path: ['synth'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -63,7 +71,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACK1'],
+            path: ['synth'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -84,7 +92,7 @@ integTest(
               fileNames: true,
             },
           }),
-          state: 'SUCCEEDED',
+          state: 'FAILED',
           eventType: 'INVOKE',
         }),
         identifiers: expect.objectContaining({
@@ -108,8 +116,12 @@ integTest(
         duration: {
           total: expect.anything(),
         },
+        error: {
+          name: 'AssemblyError',
+        },
       }),
     ]);
     fs.unlinkSync(telemetryFile);
   }),
 );
+

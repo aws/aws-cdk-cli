@@ -94,6 +94,10 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'flags':
+      commandOptions = {};
+      break;
+
     case 'deploy':
       commandOptions = {
         all: args.all,
@@ -193,6 +197,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         quiet: args.quiet,
         changeSet: args.changeSet,
         importExistingResources: args.importExistingResources,
+        includeMoves: args.includeMoves,
         STACKS: args.STACKS,
       };
       break;
@@ -271,10 +276,8 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         additionalStackName: args.additionalStackName,
         dryRun: args.dryRun,
-        excludeFile: args.excludeFile,
-        mappingFile: args.mappingFile,
+        overrideFile: args.overrideFile,
         revert: args.revert,
-        STACKS: args.STACKS,
       };
       break;
 
@@ -362,6 +365,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     confirm: config.gc?.confirm,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
+  const flagsOptions = {};
   const deployOptions = {
     all: config.deploy?.all,
     buildExclude: config.deploy?.buildExclude,
@@ -440,6 +444,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
     importExistingResources: config.diff?.importExistingResources,
+    includeMoves: config.diff?.includeMoves,
   };
   const driftOptions = {
     fail: config.drift?.fail,
@@ -479,8 +484,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
     dryRun: config.refactor?.dryRun,
-    excludeFile: config.refactor?.excludeFile,
-    mappingFile: config.refactor?.mappingFile,
+    overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
   };
   const cliTelemetryOptions = {
@@ -493,6 +497,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     synth: synthOptions,
     bootstrap: bootstrapOptions,
     gc: gcOptions,
+    flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
     import: importOptions,

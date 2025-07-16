@@ -4,6 +4,7 @@ import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-
 import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+import * as fs from 'fs-extra';
 
 export interface ToolkitLibEngineOptions {
   /**
@@ -199,6 +200,12 @@ export class ToolkitLibRunnerEngine implements ICdk {
   private async cx(options: DefaultCdkOptions): Promise<ICloudAssemblySource> {
     if (!options.app) {
       throw new Error('No app provided');
+    }
+
+    // check if the app is a path to existing snapshot and then use it as an assembly directory
+    const potentialCxPath = path.join(this.options.workingDirectory, options.app);
+    if (fs.pathExistsSync(potentialCxPath) && fs.statSync(potentialCxPath).isDirectory()) {
+      return this.toolkit.fromAssemblyDirectory(potentialCxPath);
     }
 
     let outdir;

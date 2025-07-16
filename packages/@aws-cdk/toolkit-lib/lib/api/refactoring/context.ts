@@ -1,6 +1,7 @@
 import type { Environment } from '@aws-cdk/cx-api';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
+import type { GraphDirection } from './digest';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { equalSets } from '../../util/sets';
@@ -12,11 +13,12 @@ import { equalSets } from '../../util/sets';
  */
 type ResourceMove = [ResourceLocation[], ResourceLocation[]];
 
-export interface RefactorManagerOptions {
+export interface RefactoringContextOptions {
   environment: Environment;
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
-  mappings?: ResourceMapping[];
+  overrides?: ResourceMapping[];
+  ignoreModifications?: boolean;
 }
 
 /**
@@ -27,16 +29,15 @@ export class RefactoringContext {
   private readonly ambiguousMoves: ResourceMove[] = [];
   public readonly environment: Environment;
 
-  constructor(props: RefactorManagerOptions) {
+  constructor(props: RefactoringContextOptions) {
     this.environment = props.environment;
-    if (props.mappings != null) {
-      this._mappings = props.mappings;
-    } else {
-      const moves = resourceMoves(props.deployedStacks, props.localStacks);
-      this.ambiguousMoves = moves.filter(isAmbiguousMove);
-      const nonAmbiguousMoves = moves.filter((move) => !isAmbiguousMove(move));
-      this._mappings = resourceMappings(nonAmbiguousMoves);
-    }
+    const moves = resourceMoves(props.deployedStacks, props.localStacks, 'direct', props.ignoreModifications);
+    const additionalOverrides = structuralOverrides(props.deployedStacks, props.localStacks);
+    const overrides = (props.overrides ?? []).concat(additionalOverrides);
+    const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(overrides, moves);
+    this.ambiguousMoves = ambiguousMoves;
+
+    this._mappings = resourceMappings(nonAmbiguousMoves);
   }
 
   public get ambiguousPaths(): [string[], string[]][] {
@@ -52,15 +53,46 @@ export class RefactoringContext {
   }
 }
 
-function resourceMoves(before: CloudFormationStack[], after: CloudFormationStack[]): ResourceMove[] {
-  const digestsBefore = resourceDigests(before);
-  const digestsAfter = resourceDigests(after);
+/**
+ * Generates an automatic list of overrides that can be deduced from the structure of the opposite resource graph.
+ * Suppose we have the following resource graph:
+ *
+ *     A --> B
+ *     C --> D
+ *
+ * such that B and D are identical, but A is different from C. Then digest(B) = digest(D). If both resources are moved,
+ * we have an ambiguity. But if we reverse the arrows:
+ *
+ *     A <-- B
+ *     C <-- D
+ *
+ * then digest(B) ≠ digest(D), because they now have different dependencies. If we compute the mappings from this
+ * opposite graph, we can use them as a set of overrides to disambiguate the original moves.
+ *
+ */
+function structuralOverrides(deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]): ResourceMapping[] {
+  const moves = resourceMoves(deployedStacks, localStacks, 'opposite', true);
+  const [nonAmbiguousMoves] = partitionByAmbiguity([], moves);
+  return resourceMappings(nonAmbiguousMoves);
+}
 
-  const stackNames = (stacks: CloudFormationStack[]) => stacks.map((s) => s.stackName).sort().join(', ');
-  if (!isomorphic(digestsBefore, digestsAfter)) {
+function resourceMoves(
+  before: CloudFormationStack[],
+  after: CloudFormationStack[],
+  direction: GraphDirection = 'direct',
+  ignoreModifications: boolean = false): ResourceMove[] {
+  const digestsBefore = resourceDigests(before, direction);
+  const digestsAfter = resourceDigests(after, direction);
+
+  const stackNames = (stacks: CloudFormationStack[]) =>
+    stacks
+      .map((s) => s.stackName)
+      .sort()
+      .join(', ');
+  if (!(ignoreModifications || isomorphic(digestsBefore, digestsAfter))) {
     const message = [
       'A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed. ',
-      'Run \'cdk diff\' to compare the local templates to the deployed stacks.\n',
+      "Run 'cdk diff' to compare the local templates to the deployed stacks.\n",
       `Deployed stacks: ${stackNames(before)}`,
       `Local stacks: ${stackNames(after)}`,
     ];
@@ -123,14 +155,14 @@ function zip(
 /**
  * Computes a list of pairs [digest, location] for each resource in the stack.
  */
-function resourceDigests(stacks: CloudFormationStack[]): Record<string, ResourceLocation[]> {
+function resourceDigests(stacks: CloudFormationStack[], direction: GraphDirection): Record<string, ResourceLocation[]> {
   // index stacks by name
   const stacksByName = new Map<string, CloudFormationStack>();
   for (const stack of stacks) {
     stacksByName.set(stack.stackName, stack);
   }
 
-  const digests = computeResourceDigests(stacks);
+  const digests = computeResourceDigests(stacks, direction);
 
   return groupByKey(
     Object.entries(digests).map(([loc, digest]) => {
@@ -168,4 +200,51 @@ function resourceMappings(movements: ResourceMove[]): ResourceMapping[] {
   return movements
     .filter(([pre, post]) => pre.length === 1 && post.length === 1 && !pre[0].equalTo(post[0]))
     .map(([pre, post]) => new ResourceMapping(pre[0], post[0]));
+}
+
+/**
+ * Partitions a list of moves into non-ambiguous and ambiguous moves.
+ * @param overrides - The list of overrides to disambiguate moves
+ * @param moves - a pair of lists of moves. First: non-ambiguous, second: ambiguous
+ */
+function partitionByAmbiguity(overrides: ResourceMapping[], moves: ResourceMove[]): [ResourceMove[], ResourceMove[]] {
+  const ambiguous: ResourceMove[] = [];
+  const nonAmbiguous: ResourceMove[] = [];
+
+  for (let move of moves) {
+    if (!isAmbiguousMove(move)) {
+      nonAmbiguous.push(move);
+    } else {
+      for (const override of overrides) {
+        const resolvedMove = resolve(override, move);
+        if (resolvedMove != null) {
+          nonAmbiguous.push(resolvedMove);
+          move = remove(override, move);
+        }
+      }
+      // One last chance to be non-ambiguous
+      if (!isAmbiguousMove(move)) {
+        nonAmbiguous.push(move);
+      } else {
+        ambiguous.push(move);
+      }
+    }
+  }
+
+  function resolve(override: ResourceMapping, move: ResourceMove): ResourceMove | undefined {
+    const [pre, post] = move;
+    const source = pre.find((loc) => loc.equalTo(override.source));
+    const destination = post.find((loc) => loc.equalTo(override.destination));
+    return (source && destination) ? [[source], [destination]] : undefined;
+  }
+
+  function remove(override: ResourceMapping, move: ResourceMove): ResourceMove {
+    const [pre, post] = move;
+    return [
+      pre.filter(loc => !loc.equalTo(override.source)),
+      post.filter(loc => !loc.equalTo(override.destination)),
+    ];
+  }
+
+  return [nonAmbiguous, ambiguous];
 }

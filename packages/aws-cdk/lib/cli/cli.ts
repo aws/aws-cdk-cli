@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { displayVersionMessage } from './display-version';
@@ -13,7 +13,6 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import { version, isDeveloperBuildVersion, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -26,12 +25,14 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { displayFlags } from '../commands/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import type { ErrorDetails } from './telemetry/schema';
+import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -80,7 +81,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  await ioHost.defaults.debug('CDK Toolkit CLI version:', version());
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', versionWithBuild());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
   const configuration = await Configuration.fromArgsAndFiles(ioHelper,
@@ -278,6 +279,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           changeSet: args['change-set'],
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
+          includeMoves: args['include-moves'],
         });
 
       case 'drift':
@@ -295,8 +297,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'refactor';
         return cli.refactor({
           dryRun: args.dryRun,
-          excludeFile: args.excludeFile,
-          mappingFile: args.mappingFile,
+          overrideFile: args.overrideFile,
           revert: args.revert,
           stacks: selector,
           additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
@@ -445,6 +446,20 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           confirm: args.confirm,
         });
 
+      case 'flags':
+        ioHost.currentAction = 'flags';
+        if (!configuration.settings.get(['unstable']).includes('flags')) {
+          throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
+        }
+
+        const toolkit = new Toolkit({
+          ioHost,
+          toolkitStackName,
+          unstableFeatures: configuration.settings.get(['unstable']),
+        });
+        const flagsData = await toolkit.flags(cloudExecutable);
+        return displayFlags(flagsData, ioHelper);
+
       case 'synthesize':
       case 'synth':
         ioHost.currentAction = 'synth';
@@ -514,7 +529,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return ioHost.defaults.result(version());
+        return ioHost.defaults.result(versionWithBuild());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);

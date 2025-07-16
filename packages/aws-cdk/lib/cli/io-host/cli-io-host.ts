@@ -24,6 +24,7 @@ type CliAction =
 | ToolkitAction
 | 'context'
 | 'docs'
+| 'flags'
 | 'notices'
 | 'version'
 | 'cli-telemetry'
