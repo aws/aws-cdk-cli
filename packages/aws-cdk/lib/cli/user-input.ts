@@ -252,7 +252,7 @@ export interface GlobalOptions {
   readonly ec2creds?: boolean;
 
   /**
-   * Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
+   * Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
    *
    * @default - undefined
    */
