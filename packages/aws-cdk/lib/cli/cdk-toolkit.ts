@@ -988,29 +988,20 @@ export class CdkToolkit {
     }
 
     if (options.showDeps) {
-      const stackDeps = [];
-
-      for (const stack of stacks) {
-        stackDeps.push({
-          id: stack.id,
-          dependencies: stack.dependencies,
-        });
-      }
-
+      const stackDeps = stacks.map(stack => ({
+        id: stack.id,
+        dependencies: stack.dependencies,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), stackDeps, options.json ?? false);
       return 0;
     }
 
     if (options.long) {
-      const long = [];
-
-      for (const stack of stacks) {
-        long.push({
-          id: stack.id,
-          name: stack.name,
-          environment: stack.environment,
-        });
-      }
+      const long = stacks.map(stack => ({
+        id: stack.id,
+        name: stack.name,
+        environment: stack.environment,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), long, options.json ?? false);
       return 0;
     }
@@ -1019,7 +1010,6 @@ export class CdkToolkit {
     for (const stack of stacks) {
       await this.ioHost.asIoHelper().defaults.result(stack.id);
     }
-
     return 0; // exit-code
   }
 
