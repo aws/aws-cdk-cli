@@ -7,26 +7,17 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'CLI Telemetry reports status',
   withDefaultFixture(async (fixture) => {
-    const contextFile = path.join(fixture.integTestDir, 'cdk.context.json');
     const userContextFile = path.join(fixture.integTestDir, 'cdk.json');
-    const context = {
-      existedBefore: 'this was here',
-    };
-    await fs.writeFile(
-      contextFile,
-      JSON.stringify(context),
-    );
     try {
       // default status is enabled
       const output1 = await fixture.cdk(['cli-telemetry', '--status']);
-      expect(output1).toContain('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
+      expect(output1).toContain('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
 
       // disable status
       await fs.writeFile(userContextFile, JSON.stringify({ context: { 'cli-telemetry': false } }));
       const output2 = await fixture.cdk(['cli-telemetry', '--status']);
-      expect(output2).toContain('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
+      expect(output2).toContain('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
     } finally {
-      await fs.unlink(contextFile);
       await fs.unlink(userContextFile);
     }
   }),
