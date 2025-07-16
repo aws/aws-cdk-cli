@@ -139,7 +139,7 @@ export class IntegTestRunner extends IntegRunner {
         `You need to manually checkout the snapshot directory ${this.snapshotDir}` +
         'from the merge-base (https://git-scm.com/docs/git-merge-base)',
       );
-      logger.warning('error: %s', e);
+      logger.warning('error: %s', formatError(e));
     }
 
     // if we found the base branch then get the merge-base (most recent common commit)
