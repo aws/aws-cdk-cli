@@ -10,7 +10,7 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { FileTelemetrySink } from '../telemetry/file-sink';
-import { CLI_PRIVATE_IO } from '../telemetry/messages';
+import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
 import { isCI } from '../util/ci';
@@ -557,7 +557,7 @@ function isNoticesMessage(msg: IoMessage<unknown>) {
 }
 
 function isTelemetryMessage(msg: IoMessage<unknown>) {
-  return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg);
+  return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
 }
 
 function getEventType(msg: IoMessage<unknown>): EventType {
