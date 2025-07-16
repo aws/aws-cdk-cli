@@ -15,6 +15,7 @@ import { IO } from '../../io/private';
 import type { IReadLock, IWriteLock } from '../../rwlock';
 import { RWLock } from '../../rwlock';
 import { Settings } from '../../settings';
+import type { ConstructTreeNode } from '../../tree';
 import { loadTree, some } from '../../tree';
 import type { Context, Env } from '../environment';
 import { prepareDefaultEnvironment, spaceAvailableForContext, guessExecutable, synthParametersFromSettings } from '../environment';
@@ -262,18 +263,28 @@ export function writeContextToEnv(env: Env, context: Context, completeness: 'add
 async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
   const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
   const tree = await loadTree(assembly, traceFn);
-  const frameworkDoesNotSupportContextOverflow = some(tree, node => {
-    const fqn = node.constructInfo?.fqn;
-    const version = node.constructInfo?.version;
-    return (fqn === 'aws-cdk-lib.App' && version != null && lte(version, '2.38.0')) // v2
-    || fqn === '@aws-cdk/core.App'; // v1
-  });
 
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
-  if (frameworkDoesNotSupportContextOverflow) {
+  if (!frameworkSupportsContextOverflow(tree)) {
     await ioHelper.notify(IO.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
   }
+}
+
+/**
+ * Checks if the framework supports context overflow
+ */
+export function frameworkSupportsContextOverflow(tree: ConstructTreeNode | undefined): boolean {
+  return !some(tree, node => {
+    const fqn = node.constructInfo?.fqn;
+    const version = node.constructInfo?.version;
+    return (
+      fqn === 'aws-cdk-lib.App' // v2 app
+      && version !== '0.0.0' // ignore developer builds
+      && version != null && lte(version, '2.38.0') // last version not supporting large context
+    ) // v2
+    || fqn === '@aws-cdk/core.App'; // v1 app => not supported
+  });
 }
 
 /**
