@@ -4,8 +4,6 @@ import type { SdkProvider } from '../../../api/aws-auth/sdk-provider';
 import { groupStacks, RefactoringContext } from '../../../api/refactoring';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 
-export type MappingType = 'auto' | 'explicit';
-
 export function parseMappingGroups(s: string) {
   const mappingGroups = doParse();
 
@@ -36,7 +34,7 @@ export function parseMappingGroups(s: string) {
   }
 }
 
-export interface EnvironmentSpecificMappings {
+interface EnvironmentSpecificMappings {
   readonly environment: cxapi.Environment;
   readonly mappings: Record<string, string>;
 }
