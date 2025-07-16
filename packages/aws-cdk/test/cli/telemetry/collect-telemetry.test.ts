@@ -1,5 +1,6 @@
 import { Context } from '../../../lib/api/context';
 import { canCollectTelemetry } from '../../../lib/cli/telemetry/collect-telemetry';
+import { withEnv } from '../../_helpers/with-env';
 
 describe(canCollectTelemetry, () => {
   let context: Context;
@@ -13,8 +14,11 @@ describe(canCollectTelemetry, () => {
   });
 
   test('returns false if env variable is set', async () => {
-    process.env.DISABLE_CLI_TELEMETRY = 'true';
-    expect(canCollectTelemetry(context)).toBeTruthy();
+    withEnv(async () => {
+      expect(canCollectTelemetry(context)).toBeTruthy();
+    }, {
+      DISABLE_CLI_TELEMETRY: 'true',
+    });
   });
 
   test('returns false if context is set to false', async () => {

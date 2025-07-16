@@ -1,6 +1,7 @@
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { withEnv } from '../_helpers/with-env';
 
 const ioHost = CliIoHost.instance({}, true);
 const ioHelper = ioHost.asIoHelper();
@@ -45,7 +46,7 @@ describe('telemetry command', () => {
     await toolkit.cliTelemetryStatus();
 
     // THEN
-    expect(info).toHaveBeenCalledWith('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.' }));
   });
 
   test('status reports current telemetry status -- enabled intentionally', async () => {
@@ -54,7 +55,7 @@ describe('telemetry command', () => {
     await toolkit.cliTelemetryStatus();
 
     // THEN
-    expect(info).toHaveBeenCalledWith('CLI Telemetry is enabled. Run \'cdk cli-telemetry --disable\' to disable for this CDK App.');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.' }));
   });
 
   test('status reports current telemetry status -- disabled via context', async () => {
@@ -63,17 +64,19 @@ describe('telemetry command', () => {
     await toolkit.cliTelemetryStatus();
 
     // THEN
-    expect(info).toHaveBeenCalledWith('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.' }));
   });
 
   test('status reports current telemetry status -- disabled via env var', async () => {
-    // WHEN
-    const CDK_CLI_DISABLE_TELEMETRY = process.env.CDK_CLI_DISABLE_TELEMETRY;
-    process.env.CDK_CLI_DISABLE_TELEMETRY = 'true';
-    await toolkit.cliTelemetryStatus();
+    withEnv(async () => {
+      // WHEN
+      process.env.CDK_CLI_DISABLE_TELEMETRY = 'true';
+      await toolkit.cliTelemetryStatus();
 
-    // THEN
-    expect(info).toHaveBeenCalledWith('CLI Telemetry is disabled. Run \'cdk cli-telemetry --enable\' to enable for this CDK App.');
-    process.env.CDK_CLI_DISABLE_TELEMETRY = CDK_CLI_DISABLE_TELEMETRY;
+      // THEN
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.' }));
+    }, {
+      CDK_CLI_DISABLE_TELEMETRY: 'true',
+    });
   });
 });
