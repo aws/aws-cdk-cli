@@ -628,7 +628,12 @@ export class CdkToolkit {
 
         await this.ioHost.asIoHelper().defaults.result(deployResult.stackArn);
       } catch (e: any) {
-        error = e;
+        // It has to be exactly this string because an integration test tests for
+        // "bold(stackname) failed: ResourceNotReady: <error>"
+        error = new ToolkitError(
+          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
+        );
+        throw error;
       } finally {
         await deploySpan.end({ error });
 
@@ -649,14 +654,6 @@ export class CdkToolkit {
             spaces: 2,
             encoding: 'utf8',
           });
-        }
-
-        if (error) {
-          // It has to be exactly this string because an integration test tests for
-          // "bold(stackname) failed: ResourceNotReady: <error>"
-          throw new ToolkitError(
-            [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(error.name ? [`${error.name}:`] : []), formatErrorMessage(error)].join(' '),
-          );
         }
       }
       await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(elapsedSynthTime + elapsedDeployTime)}s\n`);
