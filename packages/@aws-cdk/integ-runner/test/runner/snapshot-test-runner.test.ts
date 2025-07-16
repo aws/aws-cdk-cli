@@ -219,13 +219,13 @@ describe('IntegTest runSnapshotTests', () => {
       }));
       expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
       expect(cdkMock.mocks.synthFast).toHaveBeenCalledWith({
-        execCmd: ['node', 'xxxxx.integ-test2.js'],
+        execCmd: ['node', 'test/test-data/xxxxx.integ-test2.js'],
         env: expect.objectContaining({
           CDK_INTEG_ACCOUNT: '12345678',
           CDK_INTEG_REGION: 'test-region',
         }),
         context: expect.any(Object),
-        output: '../../does/not/exist',
+        output: 'does/not/exist',
       });
     });
   });
