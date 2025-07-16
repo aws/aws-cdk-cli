@@ -1099,7 +1099,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
 
-        if (options.dryRun || context.mappings.length === 0) {
+        if (options.dryRun || context.mappings.length === 0 || context.ambiguousPaths.length > 0) {
           // Nothing left to do.
           continue;
         }
