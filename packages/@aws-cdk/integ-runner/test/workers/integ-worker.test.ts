@@ -102,7 +102,7 @@ describe('test runner', () => {
 
     expect(spawnSyncMock).toHaveBeenCalledWith(
       expect.stringMatching(/node/),
-      ['xxxxx.integ-test1.js'],
+      ['test/test-data/xxxxx.integ-test1.js'],
       expect.objectContaining({
         env: expect.objectContaining({
           CDK_INTEG_ACCOUNT: '12345678',
@@ -155,24 +155,15 @@ describe('test runner', () => {
     expect(spawnSyncMock.mock.calls).toEqual(expect.arrayContaining([
       expect.arrayContaining([
         expect.stringMatching(/git/),
-        ['remote', 'show', 'origin'],
-        expect.objectContaining({
-          cwd: 'test/test-data',
-        }),
+        ['-C', 'test/test-data', 'remote', 'show', 'origin'],
       ]),
       expect.arrayContaining([
         expect.stringMatching(/git/),
-        ['merge-base', 'HEAD', 'master'],
-        expect.objectContaining({
-          cwd: 'test/test-data',
-        }),
+        ['-C', 'test/test-data', 'merge-base', 'HEAD', 'master'],
       ]),
       expect.arrayContaining([
         expect.stringMatching(/git/),
-        ['checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
-        expect.objectContaining({
-          cwd: 'test/test-data',
-        }),
+        ['-C', 'test/test-data', 'checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
       ]),
     ]));
 
