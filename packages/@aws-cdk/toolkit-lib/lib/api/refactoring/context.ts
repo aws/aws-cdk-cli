@@ -5,12 +5,12 @@ import { ResourceLocation, ResourceMapping } from './cloudformation';
 import type { GraphDirection } from './digest';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { equalSets } from '../../util/sets';
 import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { EnvironmentResourcesRegistry } from '../environment';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
-import { equalSets } from '../../util/sets';
 
 /**
  * Represents a set of possible moves of a resource from one location
@@ -155,18 +155,6 @@ function resourceMoves(
 
     throw new ToolkitError(message.join('\n'));
   }
-
-  return Object.values(removeUnmovedResources(zip(digestsBefore, digestsAfter)));
-}
-
-/**
- * Whether two sets of resources have the same elements (uniquely identified by the digest), and
- * each element is in the same number of locations. The locations themselves may be different.
- */
-function isomorphic(a: Record<string, ResourceLocation[]>, b: Record<string, ResourceLocation[]>): boolean {
-  const sameKeys = equalSets(new Set(Object.keys(a)), new Set(Object.keys(b)));
-  return sameKeys && Object.entries(a).every(([digest, locations]) => locations.length === b[digest].length);
-}
 
   return Object.values(removeUnmovedResources(zip(digestsBefore, digestsAfter)));
 }

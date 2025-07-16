@@ -7,8 +7,6 @@ import {
   ListStacksCommand,
 } from '@aws-sdk/client-cloudformation';
 import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
-import { MappingSource, type RefactorOptions, Toolkit } from '../../lib';
-import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
@@ -356,15 +354,6 @@ test('detects modifications to the infrastructure', async () => {
       message: expect.stringMatching(/A refactor operation cannot add, remove or update resources/),
     }),
   );
-});
-
-test('fails when dry-run is false', async () => {
-  const cx = await builderFixture(toolkit, 'stack-with-bucket');
-  await expect(
-    toolkit.refactor(cx, {
-      dryRun: false,
-    }),
-  ).rejects.toThrow('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
 });
 
 test('overrides can be used to resolve ambiguities', async () => {

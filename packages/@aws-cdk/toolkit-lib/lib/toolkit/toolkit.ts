@@ -11,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { FeatureFlag, DeployResult, DestroyResult, RollbackResult } from './types';
+import type { DeployResult, DestroyResult, FeatureFlag, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -64,11 +64,7 @@ import {
   formatEnvironmentSectionHeader,
   formatTypedMappings,
   groupStacks,
-  ManifestExcludeList,
-  usePrescribedMappings,
-  groupStacks,
 } from '../api/refactoring';
-import type { ResourceMapping } from '../api/refactoring/cloudformation';
 import type { CloudFormationStack } from '../api/refactoring/cloudformation';
 import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
@@ -1101,20 +1097,30 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           refactorResult.ambiguousPaths = paths;
         }
 
-        // In interactive mode (TTY) we need confirmation before proceeding
-        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
-          await notifyInfo(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
+
+        if (options.dryRun || context.mappings.length === 0) {
+          // Nothing left to do.
           continue;
         }
 
-        await notifyInfo('Refactoring...');
+        // In interactive mode (TTY) we need confirmation before proceeding
+        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+          await ioHelper.defaults.info(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+          continue;
+        }
+
+        await ioHelper.defaults.info('Refactoring...');
         await context.execute(stackDefinitions, sdkProvider, ioHelper);
-        await notifyInfo('✅  Stack refactor complete');
+        await ioHelper.defaults.info('✅  Stack refactor complete');
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
       } catch (e: any) {
         const message = `❌  Refactor failed: ${formatError(e)}`;
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
+
+        // Also debugging the error, because the API does not always return a user-friendly message
+        await ioHelper.defaults.debug(e.message);
       }
     }
 
@@ -1155,6 +1161,19 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
         return result;
       }
+    }
+
+    async function confirm(force: boolean): Promise<boolean> {
+      // 'force' is set to true is the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
+      }
+
+      const question = 'Do you wish to refactor these resources?';
+      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        responseDescription: '[Y]es/[n]o',
+      }, 'y'));
+      return ['y', 'yes'].includes(response.toLowerCase());
     }
 
     function formatError(error: any): string {

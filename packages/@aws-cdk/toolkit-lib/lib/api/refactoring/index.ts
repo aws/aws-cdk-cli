@@ -6,8 +6,6 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
-import { minimatch } from 'minimatch';
-import { major } from 'semver';
 import { deserializeStructure, indexBy } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';
