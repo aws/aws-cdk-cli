@@ -346,6 +346,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
             requiresArg: true,
           }),
     )
+    .command('flags', 'View and toggle feature flags.')
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {
@@ -749,6 +750,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: false,
             type: 'boolean',
             desc: 'Whether or not the change set imports resources that already exist',
+          })
+          .option('include-moves', {
+            default: false,
+            type: 'boolean',
+            desc: 'Whether to include moves in the diff',
           }),
     )
     .command('drift [STACKS..]', 'Detect drifts in the given CloudFormation stack(s)', (yargs: Argv) =>
@@ -884,34 +890,22 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .command('doctor', 'Check your set-up for potential problems')
     .command('refactor', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
-        .option('local-stack', {
+        .option('additional-stack-name', {
           type: 'array',
-          desc: 'Filter to apply for stacks in the cloud assembly',
-          nargs: 1,
           requiresArg: true,
-        })
-        .option('deployed-stack', {
-          type: 'array',
-          desc: 'Filter to apply for stacks deployed to the AWS account',
+          desc: 'Names of deployed stacks to be considered for resource comparison.',
           nargs: 1,
-          requiresArg: true,
         })
         .option('dry-run', {
           default: false,
           type: 'boolean',
           desc: 'Do not perform any changes, just show what would be done',
         })
-        .option('exclude-file', {
+        .option('override-file', {
           default: undefined,
           type: 'string',
           requiresArg: true,
-          desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
-        })
-        .option('mapping-file', {
-          default: undefined,
-          type: 'string',
-          requiresArg: true,
-          desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+          desc: 'A file that declares overrides to be applied to the list of mappings computed by the CLI.',
         })
         .option('revert', {
           default: false,
@@ -922,6 +916,21 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to do the refactor without asking for confirmation',
+        }),
+    )
+    .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>
+      yargs
+        .option('enable', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Enable anonymous telemetry',
+          conflicts: 'disable',
+        })
+        .option('disable', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Disable anonymous telemetry',
+          conflicts: 'enable',
         }),
     )
     .version(helpers.cliVersion())

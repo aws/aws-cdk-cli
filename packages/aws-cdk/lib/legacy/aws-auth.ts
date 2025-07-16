@@ -7,9 +7,9 @@
 // and can be used by the users that are ready to migrate
 // The old code will be removed in a future version of aws-cdk
 import type { AwsCredentialIdentityProvider, Logger, NodeHttpHandlerOptions } from '@smithy/types';
-import { SdkProvider as SdkProviderCurrentVersion } from './api/aws-auth';
-import { CliIoHost } from './cli/io-host';
-import { GLOBAL_PLUGIN_HOST } from './cli/singleton-plugin-host';
+import { SdkProvider as SdkProviderCurrentVersion } from '../api/aws-auth';
+import { CliIoHost } from '../cli/io-host';
+import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 
 /**
  * @deprecated

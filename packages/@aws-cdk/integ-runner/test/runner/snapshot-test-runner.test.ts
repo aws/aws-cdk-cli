@@ -155,7 +155,7 @@ describe('IntegTest runSnapshotTests', () => {
   describe('Legacy parameter based assets ', () => {
     test('diff asset hashes', async () => {
       // WHEN
-      const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot-assets.js', 'xxxxx.test-with-snapshot-assets-diff.js.snapshot');
+      const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot-assets.js', 'xxxxx.legacy-with-snapshot-assets-diff.js.snapshot');
 
       // THEN
       expect(results.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({

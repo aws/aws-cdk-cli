@@ -1,5 +1,4 @@
-import type { ChildProcess } from 'child_process';
-import { Readable, Writable } from 'stream';
+import * as path from 'path';
 import type { CdkCliWrapperOptions, DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '@aws-cdk/cdk-cli-wrapper';
 import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
@@ -105,4 +104,11 @@ export class MockCdkProvider {
 
     return results;
   }
+}
+
+/**
+ * Get the absolute path to a data located the test-data directory
+ */
+export function testDataPath(...location: string[]): string {
+  return path.join(__dirname, 'test-data', ...location);
 }

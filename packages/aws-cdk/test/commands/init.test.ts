@@ -3,10 +3,15 @@ import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
+import { TestIoHost } from '../_helpers/io-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('init');
 
 describe('constructs version', () => {
   cliTest('create a TypeScript library project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'lib',
       language: 'typescript',
       workDir,
@@ -19,6 +24,7 @@ describe('constructs version', () => {
 
   cliTest('can override requested version with environment variable', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'lib',
       language: 'typescript',
       workDir,
@@ -32,6 +38,7 @@ describe('constructs version', () => {
 
   cliTest('asking for a nonexistent template fails', async (workDir) => {
     await expect(cliInit({
+      ioHelper,
       type: 'banana',
       language: 'typescript',
       workDir,
@@ -40,6 +47,7 @@ describe('constructs version', () => {
 
   cliTest('asking for a template but no language prints and throws', async (workDir) => {
     await expect(cliInit({
+      ioHelper,
       type: 'app',
       workDir,
     })).rejects.toThrow(/No language/);
@@ -47,6 +55,7 @@ describe('constructs version', () => {
 
   cliTest('create a TypeScript app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       workDir,
@@ -59,6 +68,7 @@ describe('constructs version', () => {
 
   cliTest('create a JavaScript app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'javascript',
       workDir,
@@ -72,6 +82,7 @@ describe('constructs version', () => {
 
   cliTest('create a Java app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'java',
       canUseNetwork: false,
@@ -94,6 +105,7 @@ describe('constructs version', () => {
 
   cliTest('create a .NET app project in csharp', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'csharp',
       canUseNetwork: false,
@@ -116,6 +128,7 @@ describe('constructs version', () => {
 
   cliTest('create a .NET app project in fsharp', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'fsharp',
       canUseNetwork: false,
@@ -138,6 +151,7 @@ describe('constructs version', () => {
 
   cliTestWithDirSpaces('csharp app with spaces', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'csharp',
       canUseNetwork: false,
@@ -156,6 +170,7 @@ describe('constructs version', () => {
 
   cliTestWithDirSpaces('fsharp app with spaces', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'fsharp',
       canUseNetwork: false,
@@ -174,6 +189,7 @@ describe('constructs version', () => {
 
   cliTest('create a Python app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'python',
       canUseNetwork: false,
@@ -196,6 +212,7 @@ describe('constructs version', () => {
 
   cliTest('--generate-only should skip git init', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'javascript',
       canUseNetwork: false,
@@ -213,6 +230,7 @@ describe('constructs version', () => {
     fs.mkdirSync(path.join(workDir, '.git'));
 
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       canUseNetwork: false,
@@ -227,6 +245,7 @@ describe('constructs version', () => {
   cliTest('CLI uses recommended feature flags from data file to initialize context', async (workDir) => {
     const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.recommended-feature-flags.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ banana: 'yellow' }), () => cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       canUseNetwork: false,
@@ -241,6 +260,7 @@ describe('constructs version', () => {
   cliTest('CLI uses init versions file to initialize template', async (workDir) => {
     const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.init-version.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ 'aws-cdk-lib': '100.1.1', 'constructs': '^200.2.2' }), () => cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       canUseNetwork: false,
@@ -258,6 +278,7 @@ describe('constructs version', () => {
       for (const lang of templ.languages) {
         await withTempDir(async tmpDir => {
           await cliInit({
+            ioHelper,
             type: templ.name,
             language: lang,
             canUseNetwork: false,
@@ -301,7 +322,7 @@ test('check available init languages', async () => {
 });
 
 test('exercise printing available templates', async () => {
-  await printAvailableTemplates();
+  await printAvailableTemplates(ioHelper);
 });
 
 describe('expandPlaceholders', () => {

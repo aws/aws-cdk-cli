@@ -17,9 +17,12 @@ import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestam
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
-// 5.7 sometimes gives a weird error in `ts-jest` in `@aws-cdk/cli-lib-alpha`
-// https://github.com/microsoft/TypeScript/issues/60159
-const TYPESCRIPT_VERSION = '5.6';
+// #region shared config
+
+const TYPESCRIPT_VERSION = '5.8';
+
+// This is a temporary aws-cdk-lib version until this PR is released: https://github.com/aws/aws-cdk/pull/34919
+const AWS_CDK_LIB_VERSION = '2.203.0';
 
 /**
  * When adding an SDK dependency for a library, use this function
@@ -96,10 +99,6 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 }
 
 const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_16-core';
-
-const workflowRunsOn = [
-  POWERFUL_RUNNER,
-];
 
 // Ignore patterns that apply both to the CLI and to cli-lib
 const ADDITIONAL_CLI_IGNORE_PATTERNS = [
@@ -203,6 +202,10 @@ function transitiveToolkitPackages(thisPkg: string) {
   return transitiveFeaturesAndFixes(thisPkg, toolkitPackages.filter(name => name !== thisPkg));
 }
 
+// #endregion
+//////////////////////////////////////////////////////////////////////
+// #region Monorepo
+
 const repoProject = new yarn.Monorepo({
   projenrcTs: true,
   name: 'aws-cdk-cli',
@@ -232,7 +235,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   workflowNodeVersion: 'lts/*',
-  workflowRunsOn,
+  workflowRunsOn: [POWERFUL_RUNNER],
   gitignore: ['.DS_Store', '.tools'],
 
   autoApproveUpgrades: true,
@@ -367,7 +370,9 @@ function genericCdkProps(props: GenericProps = {}) {
   } satisfies Partial<yarn.TypeScriptWorkspaceOptions>;
 }
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cloud-assembly-schema
 
 const cloudAssemblySchema = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -438,7 +443,9 @@ new JsiiBuild(cloudAssemblySchema, {
   cloudAssemblySchema.addPackageIgnore('**/scripts');
 })();
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cloudformation-diff
 
 const cloudFormationDiff = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -446,6 +453,7 @@ const cloudFormationDiff = configureProject(
     parent: repo,
     name: '@aws-cdk/cloudformation-diff',
     description: 'Utilities to diff CDK stacks against CloudFormation templates',
+    majorVersion: 2,
     srcdir: 'lib',
     devDeps: [
       'fast-check',
@@ -483,7 +491,9 @@ const cloudFormationDiff = configureProject(
   }),
 );
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cx-api
 
 // cx-api currently is generated from `aws-cdk-lib` at build time. Not breaking
 // this dependency right now.
@@ -520,7 +530,9 @@ const cxApi = overrideEslint(
 );
 */
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/yarn-cling
 
 const yarnCling = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -550,7 +562,9 @@ const yarnCling = configureProject(
 );
 yarnCling.testTask.prependExec('ln -sf ../../cdk test/test-fixture/jsii/node_modules/');
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/user-input-gen
 
 const yargsGen = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -572,7 +586,9 @@ const yargsGen = configureProject(
   }),
 );
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cli-plugin-contract
 
 // This should be deprecated, but only after the move
 const cliPluginContract = configureProject(
@@ -581,6 +597,7 @@ const cliPluginContract = configureProject(
     parent: repo,
     name: '@aws-cdk/cli-plugin-contract',
     description: 'Contract between the CLI and authentication plugins, for the exchange of AWS credentials',
+    majorVersion: 2,
     srcdir: 'lib',
     deps: [
     ],
@@ -594,7 +611,9 @@ const cliPluginContract = configureProject(
   }),
 );
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-assets-lib
 
 const cdkAssetsLib = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -654,6 +673,10 @@ const cdkAssetsLib = configureProject(
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
+
+    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-assets-lib', [
+      '@aws-cdk/cloud-assembly-schema',
+    ]),
   }),
 );
 
@@ -676,7 +699,9 @@ cdkAssetsLib.gitignore.addPatterns(
 // This package happens do something only slightly naughty
 cdkAssetsLib.eslint?.addRules({ 'jest/no-export': ['off'] });
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region cdk-assets
 
 const cdkAssetsCli = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -684,6 +709,7 @@ const cdkAssetsCli = configureProject(
     parent: repo,
     name: 'cdk-assets',
     description: 'CDK Asset Publishing Tool',
+    majorVersion: 4,
     srcdir: 'lib',
     deps: [
       cdkAssetsLib,
@@ -710,7 +736,6 @@ const cdkAssetsCli = configureProject(
       },
       include: ['bin/**/*.ts'],
     },
-    majorVersion: 4,
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -724,6 +749,11 @@ const cdkAssetsCli = configureProject(
 
     // Append a specific version string for testing
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+
+    releasableCommits: transitiveFeaturesAndFixes('cdk-assets', [
+      '@aws-cdk/cdk-assets-lib',
+      '@aws-cdk/cloud-assembly-schema',
+    ]),
   }),
 );
 
@@ -743,7 +773,9 @@ new BundleCli(cdkAssetsCli, {
   minifyWhitespace: true,
 });
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/toolkit-lib
 
 const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
   'lib/init-templates/*/typescript/*/*.template.ts',
@@ -763,6 +795,7 @@ const toolkitLib = configureProject(
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
+    majorVersion: 1,
     srcdir: 'lib',
     peerDeps: [
       cliPluginContract.customizeReference({ versionType: 'any-minor' }), // allow consumers to easily de-depulicate this
@@ -822,7 +855,7 @@ const toolkitLib = configureProject(
       '@smithy/util-stream',
       '@types/fs-extra',
       '@types/split2',
-      'aws-cdk-lib',
+      `aws-cdk-lib@${AWS_CDK_LIB_VERSION}`,
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
       'fast-check',
@@ -869,7 +902,6 @@ const toolkitLib = configureProject(
         rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
-    majorVersion: 1,
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
@@ -1046,7 +1078,9 @@ toolkitLib.addTask('publish-local', {
   receiveArgs: true,
 });
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region aws-cdk
 
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -1054,6 +1088,7 @@ const cli = configureProject(
     parent: repo,
     name: 'aws-cdk',
     description: 'AWS CDK CLI, the command line tool for CDK apps',
+    majorVersion: 2,
     srcdir: 'lib',
     devDeps: [
       yargsGen,
@@ -1190,7 +1225,6 @@ const cli = configureProject(
     nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
 
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
-    majorVersion: 2,
   }),
 );
 
@@ -1304,7 +1338,9 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('vendor/**/*');
 }
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cli-lib-alpha
 
 const CLI_LIB_EXCLUDE_PATTERNS = [
   'lib/init-templates/*/typescript/*/*.template.ts',
@@ -1317,12 +1353,12 @@ const cliLibAlpha = configureProject(
     name: '@aws-cdk/cli-lib-alpha',
     entrypoint: 'lib/main.js', // Bundled entrypoint
     description: 'AWS CDK Programmatic CLI library',
+    majorVersion: 2,
     srcdir: 'lib',
     devDeps: ['aws-cdk-lib', cli.customizeReference({ versionType: 'exact' }), 'constructs'],
     disableTsconfig: true,
     nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
     releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
-    majorVersion: 2,
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1412,7 +1448,9 @@ for (const tsconfig of [cliLibAlpha.tsconfigDev]) {
   }
 }
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-cli-wrapper
 
 const cdkCliWrapper = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -1454,7 +1492,9 @@ const cdkCliWrapper = configureProject(
 })();
 */
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region cdk
 
 const cdkAliasPackage = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -1476,7 +1516,9 @@ const cdkAliasPackage = configureProject(
 );
 void cdkAliasPackage;
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/integ-runner
 
 const integRunner = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -1484,6 +1526,7 @@ const integRunner = configureProject(
     parent: repo,
     name: '@aws-cdk/integ-runner',
     description: 'CDK Integration Testing Tool',
+    majorVersion: 2,
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -1567,7 +1610,9 @@ new BundleCli(integRunner, {
   minifyWhitespace: true,
 });
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk-testing/cli-integ
 
 const cliInteg = configureProject(
   new yarn.TypeScriptWorkspace({
@@ -1596,6 +1641,7 @@ const cliInteg = configureProject(
       '@aws-sdk/client-sns',
       '@aws-sdk/client-sso',
       '@aws-sdk/client-sts',
+      '@aws-sdk/client-secrets-manager',
       '@aws-sdk/credential-providers',
       '@cdklabs/cdk-atmosphere-client',
       '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
@@ -1603,7 +1649,7 @@ const cliInteg = configureProject(
       'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
-      'glob@^7',
+      'glob@^9',
       'make-runnable@^1',
       'mockttp@^3',
       'npm@^10',
@@ -1617,6 +1663,7 @@ const cliInteg = configureProject(
       'jest@^29',
       'jest-junit@^15',
       'ts-jest@^29',
+      'proxy-agent',
       'node-pty',
     ],
     devDeps: [
@@ -1625,7 +1672,6 @@ const cliInteg = configureProject(
       '@types/semver@^7',
       '@types/yargs@^16',
       '@types/fs-extra@^9',
-      '@types/glob@^7',
     ],
     bin: {
       'run-suite': 'bin/run-suite',
@@ -1676,7 +1722,9 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 
+// #endregion
 //////////////////////////////////////////////////////////////////////
+// #region shared setup
 
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects
@@ -1779,3 +1827,5 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
 );
 
 repo.synth();
+
+// #endregion

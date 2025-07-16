@@ -46,6 +46,11 @@ export interface UserInput {
   readonly gc?: GcOptions;
 
   /**
+   * View and toggle feature flags.
+   */
+  readonly flags?: {};
+
+  /**
    * Deploys the stack(s) named STACKS into your AWS account
    */
   readonly deploy?: DeployOptions;
@@ -128,6 +133,11 @@ export interface UserInput {
    * Moves resources between stacks or within the same stack
    */
   readonly refactor?: RefactorOptions;
+
+  /**
+   * Enable or disable anonymous telemetry
+   */
+  readonly cliTelemetry?: CliTelemetryOptions;
 }
 
 /**
@@ -1165,6 +1175,13 @@ export interface DiffOptions {
   readonly importExistingResources?: boolean;
 
   /**
+   * Whether to include moves in the diff
+   *
+   * @default - false
+   */
+  readonly includeMoves?: boolean;
+
+  /**
    * Positional argument for diff
    */
   readonly STACKS?: Array<string>;
@@ -1420,18 +1437,11 @@ export interface DocsOptions {
  */
 export interface RefactorOptions {
   /**
-   * Filter to apply for stacks in the cloud assembly
+   * Names of deployed stacks to be considered for resource comparison.
    *
    * @default - undefined
    */
-  readonly localStack?: Array<string>;
-
-  /**
-   * Filter to apply for stacks deployed to the AWS account
-   *
-   * @default - undefined
-   */
-  readonly deployedStack?: Array<string>;
+  readonly additionalStackName?: Array<string>;
 
   /**
    * Do not perform any changes, just show what would be done
@@ -1441,18 +1451,11 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * If specified, CDK will use the given file to exclude resources from the refactor
+   * A file that declares overrides to be applied to the list of mappings computed by the CLI.
    *
    * @default - undefined
    */
-  readonly excludeFile?: string;
-
-  /**
-   * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
-   *
-   * @default - undefined
-   */
-  readonly mappingFile?: string;
+  readonly overrideFile?: string;
 
   /**
    * If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.
@@ -1467,4 +1470,25 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly force?: boolean;
+}
+
+/**
+ * Enable or disable anonymous telemetry
+ *
+ * @struct
+ */
+export interface CliTelemetryOptions {
+  /**
+   * Enable anonymous telemetry
+   *
+   * @default - undefined
+   */
+  readonly enable?: boolean;
+
+  /**
+   * Disable anonymous telemetry
+   *
+   * @default - undefined
+   */
+  readonly disable?: boolean;
 }

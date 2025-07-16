@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
@@ -7,7 +8,7 @@ import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
+import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -75,6 +76,78 @@ describe('diff', () => {
             isAddition: true,
             isRemoval: false,
             oldValue: undefined,
+            newValue: {
+              Type: 'AWS::S3::Bucket',
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
+  });
+
+  const resources = {
+    OldLogicalID: {
+      Type: 'AWS::S3::Bucket',
+      UpdateReplacePolicy: 'Retain',
+      DeletionPolicy: 'Retain',
+      Metadata: { 'aws:cdk:path': 'Stack1/OldLogicalID/Resource' },
+    },
+  };
+
+  test('returns diff augmented with moves', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
+      StackSummaries: [
+        {
+          StackName: 'Stack1',
+          StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
+
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Parameters: {},
+        resources,
+      },
+      nestedStacks: [] as any,
+    });
+
+    mockCloudFormationClient
+      .on(GetTemplateCommand, {
+        StackName: 'Stack1',
+      })
+      .resolves({
+        TemplateBody: JSON.stringify({
+          Resources: resources,
+        }),
+      });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      includeMoves: true,
+    });
+
+    // THEN
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyBucketF68F3FF0: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            move: {
+              direction: 'from',
+              resourceLogicalId: 'OldLogicalID',
+              stackName: 'Stack1',
+            },
             newValue: {
               Type: 'AWS::S3::Bucket',
               UpdateReplacePolicy: 'Retain',

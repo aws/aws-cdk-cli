@@ -20,12 +20,12 @@ let config: Configuration;
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('synth');
 
-beforeEach(() => {
+beforeEach(async () => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
 
   sdkProvider = new MockSdkProvider();
-  config = new Configuration();
+  config = await Configuration.fromArgs(ioHelper);
 
   config.settings.set(['output'], 'cdk.out');
 

@@ -25,13 +25,14 @@ import { legacy } from './index';
 export type { BootstrapEnvironmentOptions, BootstrapSource } from './api/bootstrap';
 export type { DeployStackResult } from './api/deployments';
 
-// Legacy copies
-export type * from './legacy-types';
-export type { Account, ContextProviderPlugin } from './legacy-aws-auth';
-export type { LoggerFunction } from './legacy-logging-source';
+// Legacy type copies
+export type * from './legacy';
 
 // Re-export all symbols via index.js
 // We do this, because index.js is the file that will end up with all dependencies bundled
+/**
+ * @deprecated
+ */
 export const {
   deepClone,
   flatten,

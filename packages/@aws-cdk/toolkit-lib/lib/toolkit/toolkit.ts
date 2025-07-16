@@ -1,5 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
+import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
@@ -9,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { DeployResult, DestroyResult, RollbackResult } from './types';
+import type { FeatureFlag, DeployResult, DestroyResult, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -28,8 +30,7 @@ import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
-import type { MappingGroup, RefactorOptions } from '../actions/refactor';
-import { MappingSource } from '../actions/refactor';
+import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { IWatcher, WatchOptions } from '../actions/watch';
@@ -65,8 +66,11 @@ import {
   groupStacks,
   ManifestExcludeList,
   usePrescribedMappings,
+  groupStacks,
 } from '../api/refactoring';
 import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../api/refactoring/cloudformation';
+import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
 import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
@@ -74,7 +78,7 @@ import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
-import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
+import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
@@ -145,7 +149,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor';
+export type UnstableFeature = 'refactor' | 'flags';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -1055,56 +1059,46 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.requireUnstableFeature('refactor');
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._refactor(assembly, ioHelper, options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._refactor(assembly, ioHelper, options);
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
     const sdkProvider = await this.sdkProvider('refactor');
-
-    const groups = await groupStacks(sdkProvider, assembly.cloudAssembly, options.localStacks ?? [], options.deployedStacks ?? []);
-
-    const mappingSource = options.mappingSource ?? MappingSource.auto();
-    const exclude = mappingSource.exclude.union(new ManifestExcludeList(assembly.cloudAssembly.manifest));
+    const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+    const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
 
     for (let { environment, localStacks, deployedStacks } of groups) {
-      await notifyInfo(formatEnvironmentSectionHeader(environment));
+      await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
       try {
         const context = new RefactoringContext({
           environment,
           deployedStacks,
           localStacks,
-          mappings: await getUserProvidedMappings(environment),
+          overrides: getOverrides(environment, deployedStacks, localStacks),
         });
 
-        const mappings = context.mappings.filter((m) => !exclude.isExcluded(m.destination));
+        const mappings = context.mappings;
 
-        if (context.ambiguousPaths.length > 0) {
-          const paths = context.ambiguousPaths;
-          await notifyInfo(formatAmbiguousMappings(paths), { ambiguousPaths: paths });
-          continue;
-        }
-
-        if (mappings.length === 0) {
-          await notifyInfo('Nothing to refactor.');
+        if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
+          await ioHelper.defaults.info('Nothing to refactor.');
           continue;
         }
 
         const typedMappings = mappings
           .map(m => m.toTypedMapping())
-          // Exclude CDK Metadata resources because they will never be refactorable.
-          // Most of the time, their content will be different from the deployed one.
-          // Even if the content does remain the same, the location won't change anyway.
           .filter(m => m.type !== 'AWS::CDK::Metadata');
 
-        await notifyInfo(formatTypedMappings(typedMappings), { typedMappings });
+        let refactorMessage = formatTypedMappings(typedMappings);
+        const refactorResult: RefactorResult = { typedMappings };
 
         const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
 
-        if (options.dryRun || context.mappings.length === 0) {
-          // Nothing left to do.
-          continue;
+        if (context.ambiguousPaths.length > 0) {
+          const paths = context.ambiguousPaths;
+          refactorMessage += '\n' + formatAmbiguousMappings(paths);
+          refactorResult.ambiguousPaths = paths;
         }
 
         // In interactive mode (TTY) we need confirmation before proceeding
@@ -1116,39 +1110,50 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await notifyInfo('Refactoring...');
         await context.execute(stackDefinitions, sdkProvider, ioHelper);
         await notifyInfo('✅  Stack refactor complete');
+
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
       } catch (e: any) {
-        await notifyError(`❌  Refactor failed: ${formatError(e)}`, e);
+        const message = `❌  Refactor failed: ${formatError(e)}`;
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
       }
     }
 
-    async function confirm(force: boolean): Promise<boolean> {
-      // 'force' is set to true is the equivalent of having pre-approval for any refactor
-      if (force) {
-        return true;
+    function getOverrides(environment: cxapi.Environment, deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]) {
+      const mappingGroup = options.overrides
+        ?.find(g => g.region === environment.region && g.account === environment.account);
+
+      let overrides: ResourceMapping[] = [];
+      if (mappingGroup != null) {
+        overrides = Object.entries(mappingGroup.resources ?? {}).map(([source, destination]) => {
+          const sourceStack = findStack(source, deployedStacks);
+          const sourceLogicalId = source.split('.')[1];
+
+          const destinationStack = findStack(destination, localStacks);
+          const destinationLogicalId = destination.split('.')[1];
+
+          return new ResourceMapping(
+            new ResourceLocation(sourceStack, sourceLogicalId),
+            new ResourceLocation(destinationStack, destinationLogicalId),
+          );
+        });
       }
 
-      const question = 'Do you wish to refactor these resources?';
-      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
-        responseDescription: '[Y]es/[n]o',
-      }, 'y'));
-      return ['y', 'yes'].includes(response.toLowerCase());
-    }
+      return overrides;
 
-    async function notifyInfo(message: string, data: any = {}) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(message, data));
-    }
+      function findStack(location: string, stacks: CloudFormationStack[]): CloudFormationStack {
+        const result = stacks.find(stack => {
+          const [stackName, logicalId] = location.split('.');
+          if (stackName == null || logicalId == null) {
+            throw new ToolkitError(`Invalid location '${location}'`);
+          }
+          return stack.stackName === stackName && stack.template.Resources?.[logicalId] != null;
+        });
 
-    async function notifyError(message: string, error: Error) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error }));
-    }
+        if (result == null) {
+          throw new ToolkitError(`Cannot find resource in location ${location}`);
+        }
 
-    async function getUserProvidedMappings(environment: cxapi.Environment): Promise<ResourceMapping[] | undefined> {
-      return mappingSource.source == 'explicit'
-        ? usePrescribedMappings(mappingSource.groups.filter(matchesEnvironment), sdkProvider)
-        : undefined;
-
-      function matchesEnvironment(g: MappingGroup): boolean {
-        return g.account === environment.account && g.region === environment.region;
+        return result;
       }
     }
 
@@ -1296,6 +1301,33 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     } catch {
       // just continue - deploy will show the error
     }
+  }
+
+  /**
+   * Retrieve feature flag information from the cloud assembly
+   */
+
+  public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
+    this.requireUnstableFeature('flags');
+
+    const ioHelper = asIoHelper(this.ioHost, 'flags');
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    const artifacts = assembly.cloudAssembly.manifest.artifacts;
+
+    return Object.values(artifacts!)
+      .filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT)
+      .flatMap(report => {
+        const properties = report.properties as FeatureFlagReportProperties;
+        const moduleName = properties.module;
+
+        return Object.entries(properties.flags).map(([flagName, flagInfo]) => ({
+          module: moduleName,
+          name: flagName,
+          recommendedValue: flagInfo.recommendedValue,
+          userValue: flagInfo.userValue ?? undefined,
+          explanation: flagInfo.explanation ?? '',
+        }));
+      });
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {

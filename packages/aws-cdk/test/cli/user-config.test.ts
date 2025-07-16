@@ -2,15 +2,19 @@
 import * as os from 'os';
 import * as fs_path from 'path';
 import * as fs from 'fs-extra';
-import type { Command } from '../../lib/cli/user-configuration';
+import type { Arguments, Command } from '../../lib/cli/user-configuration';
 import { Configuration, PROJECT_CONFIG, PROJECT_CONTEXT } from '../../lib/cli/user-configuration';
 import { parseCommandLineArguments } from '../../lib/cli/parse-command-line-arguments';
+import { TestIoHost } from '../_helpers/io-host';
 
 // mock fs deeply
 jest.mock('fs-extra');
 const mockedFs = jest.mocked(fs, { shallow: true });
 
 const USER_CONFIG = fs_path.join(os.homedir(), '.cdk.json');
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper();
 
 test('correctly parses hotswap overrides', async () => {
   const GIVEN_CONFIG: Map<string, any> = new Map([
@@ -31,14 +35,14 @@ test('correctly parses hotswap overrides', async () => {
     return GIVEN_CONFIG.get(path);
   });
 
-  const config = await new Configuration({
+  const config = await Configuration.fromArgsAndFiles(ioHelper, {
     commandLineArguments: {
       _: ['deploy'] as unknown as [Command, ...string[]],
       hotswapEcsMinimumHealthyPercent: 50,
       hotswapEcsMaximumHealthyPercent: 250,
       hotswapEcsStabilizationTimeoutSeconds: 20,
     },
-  }).load();
+  });
   expect(config.settings.get(['hotswap', 'ecs', 'minimumHealthyPercent'])).toEqual(50);
   expect(config.settings.get(['hotswap', 'ecs', 'maximumHealthyPercent'])).toEqual(250);
   expect(config.settings.get(['hotswap', 'ecs', 'stabilizationTimeoutSeconds'])).toEqual(20);
@@ -64,7 +68,7 @@ test('load settings from both files if available', async () => {
     return GIVEN_CONFIG.get(path);
   });
 
-  const config = await new Configuration().load();
+  const config = await Configuration.fromArgsAndFiles(ioHelper);
 
   // THEN
   expect(config.settings.get(['project'])).toBe('foobar');
@@ -97,7 +101,7 @@ test('load context from all 3 files if available', async () => {
     return GIVEN_CONFIG.get(path);
   });
 
-  const config = await new Configuration().load();
+  const config = await Configuration.fromArgsAndFiles(ioHelper);
 
   // THEN
   expect(config.context.get('project')).toBe('foobar');
@@ -122,7 +126,7 @@ test('throws an error if the `build` key is specified in the user config', async
   });
 
   // THEN
-  await expect(new Configuration().load()).rejects.toEqual(new Error('The `build` key cannot be specified in the user config (~/.cdk.json), specify it in the project config (cdk.json) instead'));
+  await expect(Configuration.fromArgsAndFiles(ioHelper)).rejects.toEqual(new Error('The `build` key cannot be specified in the user config (~/.cdk.json), specify it in the project config (cdk.json) instead'));
 });
 
 test('Can specify the `quiet` key in the user config', async () => {
@@ -142,7 +146,7 @@ test('Can specify the `quiet` key in the user config', async () => {
   });
 
   // THEN
-  const config = await new Configuration().load();
+  const config = await Configuration.fromArgsAndFiles(ioHelper);
 
   expect(config.settings.get(['quiet'])).toBe(true);
 });
@@ -154,8 +158,8 @@ test('array settings are not overridden by yarg defaults', async () => {
       plugin: ['dummy'],
     }],
   ]);
-  const argsWithPlugin = await parseCommandLineArguments(['ls', '--plugin', '[]']);
-  const argsWithoutPlugin = await parseCommandLineArguments(['ls']);
+  const argsWithPlugin: Arguments = await parseCommandLineArguments(['ls', '--plugin', '[]']);
+  const argsWithoutPlugin: Arguments= await parseCommandLineArguments(['ls']);
 
   // WHEN
   mockedFs.pathExists.mockImplementation(path => {
@@ -165,12 +169,8 @@ test('array settings are not overridden by yarg defaults', async () => {
     return GIVEN_CONFIG.get(path);
   });
 
-  const configWithPlugin = await new Configuration({
-    commandLineArguments: argsWithPlugin,
-  }).load();
-  const configWithoutPlugin = await new Configuration({
-    commandLineArguments: argsWithoutPlugin,
-  }).load();
+  const configWithPlugin = await Configuration.fromArgsAndFiles(ioHelper, { commandLineArguments: argsWithPlugin });
+  const configWithoutPlugin = await Configuration.fromArgsAndFiles(ioHelper, { commandLineArguments: argsWithoutPlugin });
 
   // THEN
   expect(configWithPlugin.settings.get(['plugin'])).toEqual(['[]']);

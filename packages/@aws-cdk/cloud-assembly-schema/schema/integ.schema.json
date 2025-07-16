@@ -10,7 +10,7 @@
                     "type": "string"
                 },
                 "enableLookups": {
-                    "description": "Enable lookups for this test. If lookups are enabled\nthen `stackUpdateWorkflow` must be set to false.\nLookups should only be enabled when you are explicitely testing\nlookups.",
+                    "description": "Enable lookups for this test. If lookups are enabled\nthen `stackUpdateWorkflow` must be set to false.\nLookups should only be enabled when you are explicitly testing\nlookups.",
                     "default": false,
                     "type": "boolean"
                 },
