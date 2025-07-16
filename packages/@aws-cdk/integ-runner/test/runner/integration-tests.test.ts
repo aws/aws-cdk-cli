@@ -138,4 +138,13 @@ describe('IntegrationTests Discovery', () => {
       expect(integTests[2].fileName).toEqual(expect.stringMatching(new RegExp('^.*test3\\.js$')));
     });
   });
+
+  describe('IntegTest directory is always cwd', () => {
+    test('directory is set to process.cwd()', async () => {
+      const integTests = await tests.fromCliOptions({ language: ['javascript'] });
+
+      expect(integTests.length).toBeGreaterThan(0);
+      expect(integTests[0].directory).toEqual(process.cwd());
+    });
+  });
 });
