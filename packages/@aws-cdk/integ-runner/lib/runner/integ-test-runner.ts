@@ -9,9 +9,9 @@ import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
 import { IntegRunner } from './runner-base';
 import * as logger from '../logger';
-import { chunks, exec, promiseWithResolvers } from '../utils';
+import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
-import { DiagnosticReason, formatAssertionResults } from '../workers/common';
+import { DiagnosticReason, formatAssertionResults, formatError } from '../workers/common';
 
 export interface CommonOptions {
   /**
@@ -114,15 +114,19 @@ export class IntegTestRunner extends IntegRunner {
    * all branches and we then search for one that starts with `HEAD branch: `
    */
   private checkoutSnapshot(): void {
-    const cwd = this.directory;
+    // We use the directory that contains the snapshot to run git commands in
+    // We don't change the cwd for executing git, but instead use the -C flag
+    // @see https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt
+    // This way we are guaranteed to operate under the correct git repo, even
+    // when executing integ-runner from outside the repo under test.
+    const gitCwd = path.dirname(this.snapshotDir);
+    const git = ['git', '-C', gitCwd];
 
     // https://git-scm.com/docs/git-merge-base
     let baseBranch: string | undefined = undefined;
     // try to find the base branch that the working branch was created from
     try {
-      const origin: string = exec(['git', 'remote', 'show', 'origin'], {
-        cwd,
-      });
+      const origin: string = exec([...git, 'remote', 'show', 'origin']);
       const originLines = origin.split('\n');
       for (const line of originLines) {
         if (line.trim().startsWith('HEAD branch: ')) {
@@ -141,22 +145,18 @@ export class IntegTestRunner extends IntegRunner {
     // if we found the base branch then get the merge-base (most recent common commit)
     // and checkout the snapshot using that commit
     if (baseBranch) {
-      const relativeSnapshotDir = path.relative(this.directory, this.snapshotDir);
+      const relativeSnapshotDir = path.relative(gitCwd, this.snapshotDir);
 
+      const checkoutCommand = [...git, 'checkout', [...git, 'merge-base', 'HEAD', baseBranch], '--', relativeSnapshotDir];
       try {
-        const base = exec(['git', 'merge-base', 'HEAD', baseBranch], {
-          cwd,
-        });
-        exec(['git', 'checkout', base, '--', relativeSnapshotDir], {
-          cwd,
-        });
+        execWithSubShell(checkoutCommand);
       } catch (e) {
         logger.warning('%s\n%s',
           `Could not checkout snapshot directory '${this.snapshotDir}'. Please verify the following command completes correctly:`,
-          `git checkout $(git merge-base HEAD ${baseBranch}) -- ${relativeSnapshotDir}`,
+          renderCommand(checkoutCommand),
           '',
         );
-        logger.warning('error: %s', e);
+        logger.warning('error: %s', formatError(e));
       }
     }
   }
