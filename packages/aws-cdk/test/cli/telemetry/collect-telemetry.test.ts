@@ -13,11 +13,19 @@ describe(canCollectTelemetry, () => {
     expect(canCollectTelemetry(context)).toBeTruthy();
   });
 
-  test('returns false if env variable is set', async () => {
+  test('returns false if env variable is set to true', async () => {
     await withEnv(async () => {
-      expect(canCollectTelemetry(context)).toBeTruthy();
+      expect(canCollectTelemetry(context)).toBeFalsy();
     }, {
-      DISABLE_CLI_TELEMETRY: 'true',
+      CDK_CLI_DISABLE_TELEMETRY: 'true',
+    });
+  });
+
+  test('returns false if env variable is set to 1', async () => {
+    await withEnv(async () => {
+      expect(canCollectTelemetry(context)).toBeFalsy();
+    }, {
+      CDK_CLI_DISABLE_TELEMETRY: '1',
     });
   });
 
