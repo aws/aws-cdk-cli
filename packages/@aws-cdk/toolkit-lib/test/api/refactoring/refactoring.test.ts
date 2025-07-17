@@ -1055,6 +1055,15 @@ describe(generateStackDefinitions, () => {
           Bucket2: {
             Type: 'AWS::S3::Bucket',
           },
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: {
+              Analytics: 'v2:deflate64:AAA',
+            },
+            Metadata: {
+              'aws:cdk:path': 'Data/CDKMetadata/Default',
+            },
+          },
         },
       },
     };
@@ -1085,6 +1094,7 @@ describe(generateStackDefinitions, () => {
             Bucket2: {
               Type: 'AWS::S3::Bucket',
             },
+            // CDKMetadata was not included
           },
         }),
       },
