@@ -1217,7 +1217,7 @@ $ cdk drift --verbose
 ### `cdk cli-telemetry`
 
 Enables or disables cli telemetry collection for your local CDK App. Records your
-choice in `cdk.context.json`. You can also set your preference manually in your
+choice in `cdk.context.json`. You can also set your preference manually under the `context` key in your
 `~/.cdk.json` file or `<app-root>/cdk.json` file.
 
 ```bash
