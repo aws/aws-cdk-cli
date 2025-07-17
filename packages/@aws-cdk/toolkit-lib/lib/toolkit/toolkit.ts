@@ -1113,8 +1113,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await ioHelper.defaults.info('Refactoring...');
         await context.execute(stackDefinitions, sdkProvider, ioHelper);
         await ioHelper.defaults.info('✅  Stack refactor complete');
-
-        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
       } catch (e: any) {
         const message = `❌  Refactor failed: ${formatError(e)}`;
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
@@ -1128,39 +1126,30 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const mappingGroup = options.overrides
         ?.find(g => g.region === environment.region && g.account === environment.account);
 
-      let overrides: ResourceMapping[] = [];
-      if (mappingGroup != null) {
-        overrides = Object.entries(mappingGroup.resources ?? {}).map(([source, destination]) => {
-          const sourceStack = findStack(source, deployedStacks);
-          const sourceLogicalId = source.split('.')[1];
+      return mappingGroup == null
+        ? []
+        : Object.entries(mappingGroup.resources ?? {})
+          .map(([source, destination]) => new ResourceMapping(
+            getResourceLocation(source, deployedStacks),
+            getResourceLocation(destination, localStacks),
+          ));
+    }
 
-          const destinationStack = findStack(destination, localStacks);
-          const destinationLogicalId = destination.split('.')[1];
-
-          return new ResourceMapping(
-            new ResourceLocation(sourceStack, sourceLogicalId),
-            new ResourceLocation(destinationStack, destinationLogicalId),
-          );
-        });
-      }
-
-      return overrides;
-
-      function findStack(location: string, stacks: CloudFormationStack[]): CloudFormationStack {
-        const result = stacks.find(stack => {
-          const [stackName, logicalId] = location.split('.');
-          if (stackName == null || logicalId == null) {
-            throw new ToolkitError(`Invalid location '${location}'`);
+    function getResourceLocation(location: string, stacks: CloudFormationStack[]): ResourceLocation {
+      for (let stack of stacks) {
+        const [stackName, logicalId] = location.split('.');
+        if (stackName != null && logicalId != null && stack.stackName === stackName && stack.template.Resources?.[logicalId] != null) {
+          return new ResourceLocation(stack, logicalId);
+        } else {
+          const resourceEntry = Object
+            .entries(stack.template.Resources ?? {})
+            .find(([_, r]) => r.Metadata?.['aws:cdk:path'] === location);
+          if (resourceEntry != null) {
+            return new ResourceLocation(stack, resourceEntry[0]);
           }
-          return stack.stackName === stackName && stack.template.Resources?.[logicalId] != null;
-        });
-
-        if (result == null) {
-          throw new ToolkitError(`Cannot find resource in location ${location}`);
         }
-
-        return result;
       }
+      throw new ToolkitError(`Cannot find resource in location ${location}`);
     }
 
     async function confirm(force: boolean): Promise<boolean> {

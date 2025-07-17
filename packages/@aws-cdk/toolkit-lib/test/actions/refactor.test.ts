@@ -356,7 +356,12 @@ test('detects modifications to the infrastructure', async () => {
   );
 });
 
-test('overrides can be used to resolve ambiguities', async () => {
+test.each([
+  // In each case, only one entry is enough to disambiguate the pair.
+  // In general, for n elements, we can disambiguate with n - 1 entries.
+  ['logical ID', { 'Stack1.CatPhotos': 'Stack1.MyBucket1553EAA46' }],
+  ['construct path', { 'Stack1/CatPhotos/Resource': 'Stack1/MyBucket1/Resource' }],
+])('overrides can be used to resolve ambiguities (using %s)', async (_, overrides) => {
   // GIVEN
   mockCloudFormationClient.on(ListStacksCommand).resolves({
     StackSummaries: [
@@ -405,10 +410,7 @@ test('overrides can be used to resolve ambiguities', async () => {
       {
         account: '123456789012',
         region: 'us-east-1',
-        resources: {
-          // Only one override is enough in this case
-          'Stack1.CatPhotos': 'Stack1.MyBucket1553EAA46',
-        },
+        resources: overrides,
       },
     ],
     stacks: {
