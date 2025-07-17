@@ -46,6 +46,11 @@ export interface UserInput {
   readonly gc?: GcOptions;
 
   /**
+   * View and toggle feature flags.
+   */
+  readonly flags?: {};
+
+  /**
    * Deploys the stack(s) named STACKS into your AWS account
    */
   readonly deploy?: DeployOptions;
@@ -1175,6 +1180,13 @@ export interface DiffOptions {
    * @default - false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Whether to include moves in the diff
+   *
+   * @default - false
+   */
+  readonly includeMoves?: boolean;
 
   /**
    * Positional argument for diff

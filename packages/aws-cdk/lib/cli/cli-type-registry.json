@@ -328,6 +328,9 @@
         }
       }
     },
+    "flags": {
+      "description": "View and toggle feature flags."
+    },
     "deploy": {
       "description": "Deploys the stack(s) named STACKS into your AWS account",
       "options": {
@@ -722,6 +725,11 @@
         "import-existing-resources": {
           "type": "boolean",
           "desc": "Whether or not the change set imports resources that already exist",
+          "default": false
+        },
+        "include-moves": {
+          "type": "boolean",
+          "desc": "Whether to include moves in the diff",
           "default": false
         }
       }

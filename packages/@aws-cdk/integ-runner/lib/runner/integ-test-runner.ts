@@ -454,7 +454,7 @@ export class IntegTestRunner extends IntegRunner {
         });
       }
       // if the update workflow is not disabled, first
-      // perform a deployment with the exising snapshot
+      // perform a deployment with the existing snapshot
       // then perform a deployment (which will be a stack update)
       // with the current integration test
       // We also only want to run the update workflow if there is an existing
