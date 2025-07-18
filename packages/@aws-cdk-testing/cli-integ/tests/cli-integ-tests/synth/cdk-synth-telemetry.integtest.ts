@@ -113,4 +113,3 @@ integTest(
     fs.unlinkSync(telemetryFile);
   }),
 );
-

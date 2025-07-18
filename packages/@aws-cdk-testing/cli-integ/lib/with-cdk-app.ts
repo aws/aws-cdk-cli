@@ -188,6 +188,7 @@ export interface CdkCliOptions extends ShellOptions {
   options?: string[];
   neverRequireApproval?: boolean;
   verbose?: boolean;
+  telemetryFile?: string;
 }
 
 export interface CdkDestroyCliOptions extends CdkCliOptions {
@@ -383,6 +384,7 @@ export class TestFixture extends ShellHelper {
       // use events because bar renders bad in tests
       '--progress', 'events',
       ...(skipStackRename ? stackNames : this.fullStackName(stackNames)),
+      ...(options.telemetryFile ? ['--unstable=telemetry', `--telemetry-file=${options.telemetryFile}`] : []),
     ];
   }
 

@@ -64,6 +64,7 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
+import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -507,12 +508,15 @@ export class CdkToolkit {
       const stackIndex = stacks.indexOf(stack) + 1;
       await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
       const startDeployTime = new Date().getTime();
-
       let tags = options.tags;
       if (!tags || tags.length === 0) {
         tags = tagsForStack(stack);
       }
 
+      // There is already a startDeployTime constant, but that does not work with telemetry.
+      // We should integrate the two in the future
+      const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+      let error: any | undefined;
       let elapsedDeployTime = 0;
       try {
         let deployResult: SuccessfulDeployStackResult | undefined;
@@ -626,10 +630,13 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        throw new ToolkitError(
+        error = new ToolkitError(
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
         );
+        throw error;
       } finally {
+        await deploySpan.end({ error });
+
         if (options.cloudWatchLogMonitor) {
           const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
           options.cloudWatchLogMonitor.addLogGroups(
