@@ -5,7 +5,7 @@ import { ResourceLocation, ResourceMapping } from './cloudformation';
 import type { GraphDirection } from './digest';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import { equalSets } from '../../util/sets';
+import { equalSets, setDiff } from '../../util/sets';
 import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { EnvironmentResourcesRegistry } from '../environment';
@@ -140,18 +140,42 @@ function resourceMoves(
   const digestsBefore = resourceDigests(before, direction);
   const digestsAfter = resourceDigests(after, direction);
 
-  const stackNames = (stacks: CloudFormationStack[]) =>
-    stacks
-      .map((s) => s.stackName)
-      .sort()
-      .join(', ');
   if (!(ignoreModifications || isomorphic(digestsBefore, digestsAfter))) {
-    const message = [
-      'A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed. ',
-      "Run 'cdk diff' to compare the local templates to the deployed stacks.\n",
-      `Deployed stacks: ${stackNames(before)}`,
-      `Local stacks: ${stackNames(after)}`,
-    ];
+    const message = ['A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed.'];
+
+    const difference = (a: Record<string, ResourceLocation[]>, b: Record<string, ResourceLocation[]>) => {
+      return Array.from(setDiff(new Set(Object.keys(a)), new Set(Object.keys(b)))).flatMap(k => a[k]!)
+        .map(x => `  - ${x.toPath()}`)
+        .sort()
+        .join('\n');
+    };
+
+    const stackNames = (stacks: CloudFormationStack[]) =>
+      stacks.length === 0
+        ? 'NONE'
+        : stacks
+          .map((s) => s.stackName)
+          .sort()
+          .join(', ');
+
+    const onlyDeployed = difference(digestsBefore, digestsAfter);
+    const onlyLocal = difference(digestsAfter, digestsBefore);
+
+    if (onlyDeployed.length > 0) {
+      message.push(`The following resources are present only in the AWS environment:\n${onlyDeployed}`);
+    }
+
+    if (onlyLocal.length > 0) {
+      message.push(`\nThe following resources are present only in your CDK application:\n${onlyLocal}`);
+    }
+
+    message.push('');
+    message.push('The following stacks were used in the comparison:');
+    message.push( `  - Deployed: ${stackNames(before)}`);
+    message.push( `  - Local: ${stackNames(after)}`);
+    message.push('');
+    message.push('Hint: by default, only deployed stacks that have the same name as a local stack are included.');
+    message.push('If you want to include additional deployed stacks for comparison, re-run the command with the option \'--additional-stack-name=<STACK>\' for each stack.');
 
     throw new ToolkitError(message.join('\n'));
   }
