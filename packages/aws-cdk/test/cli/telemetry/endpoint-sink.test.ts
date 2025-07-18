@@ -2,7 +2,7 @@ import * as https from 'https';
 import { IoHelper } from '../../../lib/api-private';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../lib/cli/telemetry/endpoint-sink';
-import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import type { EventType, TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 
 // Mock the https module
 jest.mock('https', () => ({
@@ -10,7 +10,7 @@ jest.mock('https', () => ({
 }));
 
 // Helper function to create a test event
-function createTestEvent(eventType: string, properties: Record<string, any> = {}): TelemetrySchema {
+function createTestEvent(eventType: EventType, properties: Record<string, any> = {}): TelemetrySchema {
   return {
     identifiers: {
       cdkCliVersion: '1.0.0',
@@ -25,7 +25,7 @@ function createTestEvent(eventType: string, properties: Record<string, any> = {}
       eventType,
       command: {
         path: ['test'],
-        parameters: [],
+        parameters: {},
         config: properties,
       },
     },
@@ -87,7 +87,7 @@ describe('EndpointTelemetrySink', () => {
   test('makes a POST request to the specified endpoint', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const testEvent = createTestEvent('test', { foo: 'bar' });
+    const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
     const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
@@ -115,7 +115,7 @@ describe('EndpointTelemetrySink', () => {
   test('silently catches request errors', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const testEvent = createTestEvent('test');
+    const testEvent = createTestEvent('INVOKE');
     const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     mockRequest.on.mockImplementation((event, callback) => {
@@ -134,8 +134,8 @@ describe('EndpointTelemetrySink', () => {
   test('multiple events sent as one', async () => {
     // GIVEN
     const mockRequest = setupMockRequest();
-    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
-    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
     const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
@@ -165,8 +165,8 @@ describe('EndpointTelemetrySink', () => {
   test('successful flush clears events cache', async () => {
     // GIVEN
     setupMockRequest();
-    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
-    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
     const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
@@ -233,8 +233,8 @@ describe('EndpointTelemetrySink', () => {
       return mockRequest;
     });
 
-    const testEvent1 = createTestEvent('test1', { foo: 'bar' });
-    const testEvent2 = createTestEvent('test2', { foo: 'bazoo' });
+    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
     const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
     // WHEN
@@ -317,7 +317,7 @@ describe('EndpointTelemetrySink', () => {
 
   test('handles errors gracefully and logs to trace without throwing', async () => {
     // GIVEN
-    const testEvent = createTestEvent('test');
+    const testEvent = createTestEvent('INVOKE');
 
     // Create a mock IoHelper with trace spy
     const traceSpy = jest.fn();

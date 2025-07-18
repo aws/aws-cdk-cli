@@ -320,6 +320,13 @@ export interface GlobalOptions {
    * @default - []
    */
   readonly unstable?: Array<string>;
+
+  /**
+   * Send telemetry data to a local file.
+   *
+   * @default - undefined
+   */
+  readonly telemetryFile?: string;
 }
 
 /**
