@@ -17,7 +17,7 @@ describe(canCollectTelemetry, () => {
     await withEnv(async () => {
       expect(canCollectTelemetry(context)).toBeFalsy();
     }, {
-      CDK_CLI_DISABLE_TELEMETRY: 'true',
+      CDK_DISABLE_CLI_TELEMETRY: 'true',
     });
   });
 
@@ -25,7 +25,7 @@ describe(canCollectTelemetry, () => {
     await withEnv(async () => {
       expect(canCollectTelemetry(context)).toBeFalsy();
     }, {
-      CDK_CLI_DISABLE_TELEMETRY: '1',
+      CDK_DISABLE_CLI_TELEMETRY: '1',
     });
   });
 
