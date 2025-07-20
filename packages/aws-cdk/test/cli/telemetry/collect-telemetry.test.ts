@@ -2,7 +2,6 @@ import { Context } from '../../../lib/api/context';
 import { canCollectTelemetry } from '../../../lib/cli/telemetry/collect-telemetry';
 import { withEnv } from '../../_helpers/with-env';
 
-
 describe(canCollectTelemetry, () => {
   let context: Context;
 
