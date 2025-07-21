@@ -18,7 +18,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['deploy', '$STACK1'],
+            path: ['deploy', '$STACKS_1'],
           }),
           state: 'SUCCEEDED',
           eventType: 'SYNTH',
@@ -30,7 +30,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['deploy', '$STACK1'],
+            path: ['deploy', '$STACKS_1'],
           }),
           state: 'SUCCEEDED',
           eventType: 'DEPLOY',
@@ -42,7 +42,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['deploy', '$STACK1'],
+            path: ['deploy', '$STACKS_1'],
           }),
           state: 'SUCCEEDED',
           eventType: 'INVOKE',
