@@ -31,12 +31,12 @@ describe('docs', () => {
   });
 });
 
-// describe('context', () => {
-//   test('prints note about empty context', async () => {
-//     await exec(['context']);
-//     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: expect.stringContaining('This CDK application does not have any saved context values yet.') }));
-//   });
-// });
+describe('context', () => {
+  test('prints note about empty context', async () => {
+    await exec(['context']);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: expect.stringContaining('This CDK application does not have any saved context values yet.') }));
+  });
+});
 
 describe('cli-telemetry', () => {
   test('requires a flag to be set', async () => {

@@ -88,6 +88,7 @@ integTest(
           sessionId: expect.anything(),
           telemetryVersion: '1.0',
           cdkCliVersion: expect.anything(),
+          cdkLibraryVersion: expect.anything(),
           region: expect.anything(),
           eventId: expect.stringContaining(':2'),
           timestamp: expect.anything(),

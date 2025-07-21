@@ -42,8 +42,6 @@ export class TelemetrySession {
   public async begin() {
     this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
 
-    console.log(process.env.CI, isCI(), (isCI() || Boolean(detectCiSystem())));
-
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
     this._sessionInfo = {
@@ -72,14 +70,18 @@ export class TelemetrySession {
       project: {},
     };
 
-    console.log('wtf', this.sessionInfo.environment.ci);
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
     process.on('SIGINT', async () => {
-      await this.end({
-        name: ToolkitError.name,
-        message: 'Subprocess exited with error null',
-      });
+      try {
+        await this.end({
+          name: ToolkitError.name,
+          message: 'Subprocess exited with error null',
+        });
+      } catch (e: any) {
+        await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
+      }
+      process.exit(1);
     });
   }
 
@@ -103,7 +105,6 @@ export class TelemetrySession {
 
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
-    console.log(this.sessionInfo.environment.ci);
     return this.client.emit({
       event: {
         command: this.sessionInfo.event.command,

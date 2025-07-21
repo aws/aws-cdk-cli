@@ -682,13 +682,11 @@ export function cli(args: string[] = process.argv.slice(2)) {
       process.exitCode = 1;
     })
     .finally(async () => {
-      if (!error && process.exitCode === 1) {
-        // The existence of an error determines if telemetry is successful or not so we create a
-        // dummy error in the event that exit code is 1 but no error is thrown
-        error = { name: 'ExitCode1Error' };
+      try {
+        await CliIoHost.get()?.telemetry?.end(error);
+      } catch (e: any) {
+        await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
-
-      await CliIoHost.get()?.telemetry?.end(error);
     });
 }
 /* c8 ignore stop */

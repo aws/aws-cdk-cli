@@ -172,10 +172,14 @@ test('ci is recorded properly - true', async () => {
     }));
   }, {
     CI: 'true',
+
+    // Our tests can run in these environments and we check for them too
+    CODEBUILD_BUILD_ID: undefined,
+    GITHUB_ACTION: undefined,
   });
 });
 
-test('ci is recorded properly - true', async () => {
+test('ci is recorded properly - false', async () => {
   await withEnv(async () => {
     // GIVEN
     ioHost = CliIoHost.instance({
@@ -208,6 +212,9 @@ test('ci is recorded properly - true', async () => {
     }));
   }, {
     CI: 'false',
+
+    // Our tests can run in these environments and we check for them too
+    CODEBUILD_BUILD_ID: undefined,
+    GITHUB_ACTION: undefined,
   });
 });
-
