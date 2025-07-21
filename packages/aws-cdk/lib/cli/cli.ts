@@ -132,7 +132,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     pluginHost: GLOBAL_PLUGIN_HOST,
   }, configuration.settings.get(['profile']));
 
-  await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  try {
+    await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry attach region failed: ${e.message}`);
+  }
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
@@ -672,17 +676,17 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
-      error = err;
+      error = {
+        name: err.name,
+      };
       process.exitCode = 1;
     })
     .finally(async () => {
-      if (!error && process.exitCode === 1) {
-        // The existence of an error determines if telemetry is successful or not so we create a
-        // dummy error in the event that exit code is 1 but no error is thrown
-        error = { name: 'ExitCode1Error' };
+      try {
+        await CliIoHost.get()?.telemetry?.end(error);
+      } catch (e: any) {
+        await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
-
-      await CliIoHost.get()?.telemetry?.end(error);
     });
 }
 /* c8 ignore stop */

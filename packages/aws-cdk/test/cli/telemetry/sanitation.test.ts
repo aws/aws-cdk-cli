@@ -1,23 +1,41 @@
+import { Context } from '../../../lib/api/context';
+import { Settings } from '../../../lib/api/settings';
 import { sanitizeCommandLineArguments, sanitizeContext } from '../../../lib/cli/telemetry/sanitation';
 
 describe(sanitizeContext, () => {
   test('boolean values are kept', () => {
-    const context = { key1: true, key2: false };
-    expect(sanitizeContext(context)).toEqual(context);
+    const bag = { key1: true, key2: false };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual(bag);
   });
 
   test('string boolean values are booleanized', () => {
-    const context = { key1: 'true', key2: 'false' };
+    const bag = { key1: 'true', key2: 'false' };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
     expect(sanitizeContext(context)).toEqual({ key1: true, key2: false });
   });
 
   test('strings values are booleanized', () => {
-    const context = { key1: 'fancy-value' };
+    const bag = { key1: 'fancy-value' };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
     expect(sanitizeContext(context)).toEqual({ key1: true });
   });
 
   test('list values are booleanized', () => {
-    const context = { key1: [true, false] };
+    const bag = { key1: [true, false] };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
     expect(sanitizeContext(context)).toEqual({ key1: true });
   });
 });
@@ -29,7 +47,7 @@ describe(sanitizeCommandLineArguments, () => {
       STACKS: ['MyStack'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: {},
     });
   });
@@ -40,7 +58,7 @@ describe(sanitizeCommandLineArguments, () => {
       STACKS: ['MyStackA', 'MyStackB'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1', '$STACK2'],
+      path: ['deploy', '$STACKS_1', '$STACKS_2'],
       parameters: {},
     });
   });
@@ -53,7 +71,7 @@ describe(sanitizeCommandLineArguments, () => {
       concurrency: 4,
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { all: true, concurrency: 4 },
     });
   });
@@ -67,7 +85,7 @@ describe(sanitizeCommandLineArguments, () => {
       blah: false,
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { all: true },
     });
   });
@@ -80,7 +98,7 @@ describe(sanitizeCommandLineArguments, () => {
       ['build-exclude']: ['something'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { 'require-approval': '<redacted>', 'build-exclude': '<redacted>' },
     });
   });

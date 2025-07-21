@@ -3,6 +3,7 @@ import { CliIoHost } from '../../../lib/cli/io-host';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
 import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession } from '../../../lib/cli/telemetry/session';
+import { withEnv } from '../../_helpers/with-env';
 
 let ioHost: CliIoHost;
 let session: TelemetrySession;
@@ -40,6 +41,10 @@ describe('TelemetrySession', () => {
     expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
       event: expect.objectContaining({
         state: 'SUCCEEDED',
+        eventType: 'SYNTH',
+      }),
+      duration: expect.objectContaining({
+        total: 1234,
       }),
     }));
   });
@@ -79,36 +84,6 @@ describe('TelemetrySession', () => {
         state: 'ABORTED',
       }),
     }));
-  });
-
-  test('ci is recorded properly', async () => {
-    // GIVEN
-    const CI = process.env.CI;
-    const NOT_CI = CI === 'true' ? 'false' : 'true';
-    process.env.CI = NOT_CI;
-    const ciSession = new TelemetrySession({
-      ioHost,
-      client: new IoHostTelemetrySink({ ioHost }),
-      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
-      context: new Context(),
-    });
-    await ciSession.begin();
-
-    const privateCiInfo = (ciSession as any)._sessionInfo;
-    const privateInfo = (session as any)._sessionInfo;
-
-    // THEN
-    expect(privateCiInfo).toEqual(expect.objectContaining({
-      environment: expect.objectContaining({
-        ci: Boolean(NOT_CI),
-      }),
-    }));
-    expect(privateInfo).toEqual(expect.objectContaining({
-      environment: expect.objectContaining({
-        ci: Boolean(CI),
-      }),
-    }));
-    process.env.CI = CI;
   });
 
   test('emit messsages are counted correctly', async () => {
@@ -161,5 +136,85 @@ describe('TelemetrySession', () => {
 
     // THEN
     expect(clientFlushSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+test('ci is recorded properly - true', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const ciSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await ciSession.begin();
+
+    // WHEN
+    await ciSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    console.log('CI', process.env.CI);
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      environment: expect.objectContaining({
+        ci: true,
+      }),
+    }));
+  }, {
+    CI: 'true',
+
+    // Our tests can run in these environments and we check for them too
+    CODEBUILD_BUILD_ID: undefined,
+    GITHUB_ACTION: undefined,
+  });
+});
+
+test('ci is recorded properly - false', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const ciSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await ciSession.begin();
+
+    // WHEN
+    await ciSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    console.log('CI', process.env.CI);
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      environment: expect.objectContaining({
+        ci: false,
+      }),
+    }));
+  }, {
+    CI: 'false',
+
+    // Our tests can run in these environments and we check for them too
+    CODEBUILD_BUILD_ID: undefined,
+    GITHUB_ACTION: undefined,
   });
 });

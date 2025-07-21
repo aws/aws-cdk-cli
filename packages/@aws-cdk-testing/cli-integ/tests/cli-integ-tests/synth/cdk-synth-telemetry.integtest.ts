@@ -14,7 +14,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACK1'],
+            path: ['synth', '$STACKS_1'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -30,19 +30,18 @@ integTest(
               validation: true,
               quiet: false,
             },
-            config: {
-              bags: true,
-              fileNames: true,
-            },
+            config: {},
           }),
           state: 'SUCCEEDED',
           eventType: 'SYNTH',
         }),
+        // some of these can change; but we assert that some value is recorded
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
           telemetryVersion: '1.0',
           cdkCliVersion: expect.anything(),
+          cdkLibraryVersion: expect.anything(),
           region: expect.anything(),
           eventId: expect.stringContaining(':1'),
           timestamp: expect.anything(),
@@ -63,7 +62,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACK1'],
+            path: ['synth', '$STACKS_1'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -79,10 +78,7 @@ integTest(
               validation: true,
               quiet: false,
             },
-            config: {
-              bags: true,
-              fileNames: true,
-            },
+            config: {},
           }),
           state: 'SUCCEEDED',
           eventType: 'INVOKE',
@@ -92,6 +88,7 @@ integTest(
           sessionId: expect.anything(),
           telemetryVersion: '1.0',
           cdkCliVersion: expect.anything(),
+          cdkLibraryVersion: expect.anything(),
           region: expect.anything(),
           eventId: expect.stringContaining(':2'),
           timestamp: expect.anything(),

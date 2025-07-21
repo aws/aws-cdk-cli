@@ -132,15 +132,10 @@ export class CloudExecutable implements ICloudAssemblySource {
       }
     } catch (e: any) {
       error = e;
+      throw (e);
     } finally {
       await synthSpan.end({ error });
-
-      if (error) {
-        throw error;
-      }
     }
-
-    throw new ToolkitError('Unreachable Code');
   }
 
   private get canLookup() {

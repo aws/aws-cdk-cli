@@ -19,9 +19,9 @@ jest.mock('../../../lib/util', () => ({
 
 // Now import after mocking
 import type { IoHelper } from '../../../lib/api-private';
-import { getInstallationId } from '../../../lib/cli/telemetry/installation-id';
+import { getOrCreateInstallationId } from '../../../lib/cli/telemetry/installation-id';
 
-describe(getInstallationId, () => {
+describe(getOrCreateInstallationId, () => {
   let mockIoHelper: IoHelper;
   let traceSpy: jest.Mock;
 
@@ -69,7 +69,7 @@ describe(getInstallationId, () => {
 
   test('creates new installation ID when file does not exist', async () => {
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -91,7 +91,7 @@ describe(getInstallationId, () => {
     fs.writeFileSync(installationIdPath, existingId);
 
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe(existingId);
@@ -105,7 +105,7 @@ describe(getInstallationId, () => {
     fs.writeFileSync(installationIdPath, 'invalid-uuid');
 
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -122,7 +122,7 @@ describe(getInstallationId, () => {
     fs.writeFileSync(installationIdPath, '');
 
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -136,7 +136,7 @@ describe(getInstallationId, () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
 
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -153,7 +153,7 @@ describe(getInstallationId, () => {
     fs.chmodSync(tempDir, 0o444);
 
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');
@@ -177,7 +177,7 @@ describe(getInstallationId, () => {
     });
 
     // WHEN
-    const result = await getInstallationId(mockIoHelper);
+    const result = await getOrCreateInstallationId(mockIoHelper);
 
     // THEN
     expect(result).toBe('12345678-1234-1234-1234-123456789abc');

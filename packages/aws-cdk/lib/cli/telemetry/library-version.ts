@@ -6,7 +6,7 @@ import type { IoHelper } from '../../api-private';
 
 export async function getLibraryVersion(ioHelper: IoHelper): Promise<string | undefined> {
   try {
-    const command = "node -e 'console.log(require.resolve(\"aws-cdk-lib\"))'";
+    const command = "node -e 'process.stdout.write(require.resolve(\"aws-cdk-lib\"))'";
     const { stdout } = await promisify(exec)(command);
 
     // stdout should be a file path but lets double check
