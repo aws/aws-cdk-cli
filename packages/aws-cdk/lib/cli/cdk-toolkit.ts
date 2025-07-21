@@ -64,8 +64,8 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
-import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import { canCollectTelemetry } from './telemetry/collect-telemetry';
+import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
