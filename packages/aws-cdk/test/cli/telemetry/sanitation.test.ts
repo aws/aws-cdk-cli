@@ -22,7 +22,7 @@ describe(sanitizeContext, () => {
   });
 
   test('strings values are booleanized', () => {
-    const bag = { key1: 'fancy-value'};
+    const bag = { key1: 'fancy-value' };
     const context = new Context({
       fileName: 'n/a',
       bag: new Settings(bag, true),

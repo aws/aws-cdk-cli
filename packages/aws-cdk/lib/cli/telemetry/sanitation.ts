@@ -1,6 +1,6 @@
 import { join } from 'path';
 import * as fs from 'fs-extra';
-import { Context } from '../../api/context';
+import type { Context } from '../../api/context';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 

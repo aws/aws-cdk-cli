@@ -352,7 +352,7 @@ describe('CliIoHost', () => {
       }));
     });
 
-        test('do not emit telemetry on non telemetry codes', async () => {
+    test('do not emit telemetry on non telemetry codes', async () => {
       // Create a message that should trigger telemetry using the actual message code
       const message: IoMessage<unknown> = {
         time: new Date(),

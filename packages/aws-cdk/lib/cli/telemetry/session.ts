@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
-import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
+import { sanitizeCommandLineArguments } from './sanitation';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink-interface';
 import type { Context } from '../../api/context';
@@ -58,7 +58,7 @@ export class TelemetrySession {
         command: {
           path,
           parameters,
-          config: sanitizeContext(this.props.context),
+          config: {}, // TODO: sanitize context after sourcing all possible context values
         },
       },
       environment: {
