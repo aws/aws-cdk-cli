@@ -162,8 +162,6 @@ test('ci is recorded properly - true', async () => {
       duration: 1234,
     });
 
-    console.log('CI', process.env.CI);
-
     // THEN
     expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
       environment: expect.objectContaining({
@@ -201,8 +199,6 @@ test('ci is recorded properly - false', async () => {
       eventType: 'SYNTH',
       duration: 1234,
     });
-
-    console.log('CI', process.env.CI);
 
     // THEN
     expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
