@@ -1,7 +1,7 @@
 import { integTest, withSpecificFixture } from '../../../lib';
 
 integTest(
-  'detects refactoring changes and prints the result',
+  'cdk refactor - detects refactoring changes and prints the result',
   withSpecificFixture('refactoring', async (fixture) => {
     // First, deploy a stack
     await fixture.cdkDeploy('basic', {
@@ -14,8 +14,8 @@ integTest(
     const stdErr = await fixture.cdkRefactor({
       options: ['--dry-run', '--unstable=refactor'],
       allowErrExit: true,
-      // Making sure the synthesized stack has the new name
-      // so that a refactor is detected
+      // Making sure the synthesized stack has a queue with
+      // the new name so that a refactor is detected
       modEnv: {
         BASIC_QUEUE_LOGICAL_ID: 'NewName',
       },
