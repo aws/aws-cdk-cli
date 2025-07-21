@@ -1,5 +1,6 @@
 import { join } from 'path';
 import * as fs from 'fs-extra';
+import { Context } from '../../api/context';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
@@ -19,17 +20,18 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
 
   for (const argName of Object.keys(argv)) {
     if (argName === commandArg?.name) {
-      const arg = dropDuplicate(argName);
       if (commandArg.variadic) {
         for (let i = 0; i < argv[argName].length; i++) {
-          path.push(`$${arg}${i+1}`);
+          path.push(`$${argName}_${i+1}`);
         }
       } else {
-        path.push(`$${arg}1`);
+        path.push(`$${argName}`);
       }
     }
 
     // Continue if the arg name is not a global option or command option
+    // arg name comes from yargs and could be an alias; we trust that the "normal"
+    // name has the same information and that is what we want to record
     if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) {
       continue;
     }
@@ -46,9 +48,9 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
   };
 }
 
-export function sanitizeContext(context: { [key: string]: any }) {
+export function sanitizeContext(context: Context) {
   const sanitizedContext: { [key: string]: boolean } = {};
-  for (const [flag, value] of Object.entries(context)) {
+  for (const [flag, value] of Object.entries(context.all)) {
     // Falsy options include boolean false, string 'false'
     // All other inputs evaluate to true
     const sanitizedValue: boolean = isBoolean(value) ? value : (value !== 'false');
@@ -62,9 +64,5 @@ function isBoolean(value: any): value is boolean {
 }
 
 function isNumberOrBoolean(value: any): boolean {
-  return typeof value === 'number' || typeof value === 'boolean';
-}
-
-function dropDuplicate(param: string): string {
-  return param.endsWith('S') ? param.slice(0, param.length-1) : param;
+  return typeof value === 'number' || isBoolean(value);
 }

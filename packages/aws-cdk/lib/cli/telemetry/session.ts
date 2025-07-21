@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { getInstallationId } from './installation-id';
+import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
@@ -46,7 +46,7 @@ export class TelemetrySession {
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
     this._sessionInfo = {
       identifiers: {
-        installationId: await getInstallationId(this.ioHost.asIoHelper()),
+        installationId: await getOrCreateInstallationId(this.ioHost.asIoHelper()),
         sessionId: randomUUID(),
         telemetryVersion: '1.0',
         cdkCliVersion: versionNumber(),
@@ -74,7 +74,7 @@ export class TelemetrySession {
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
     process.on('SIGINT', async () => {
       await this.end({
-        name: 'ToolkitError',
+        name: ToolkitError.name,
         message: 'Subprocess exited with error null',
       });
     });

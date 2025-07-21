@@ -9,7 +9,7 @@ const INSTALLATION_ID_PATH = path.join(cdkCacheDir(), 'installation-id.json');
 /**
  * Get or create installation id
  */
-export async function getInstallationId(ioHelper: IoHelper) {
+export async function getOrCreateInstallationId(ioHelper: IoHelper) {
   try {
     // Create the cache directory if it doesn't exist
     if (!fs.existsSync(path.dirname(INSTALLATION_ID_PATH))) {

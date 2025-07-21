@@ -132,7 +132,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     pluginHost: GLOBAL_PLUGIN_HOST,
   }, configuration.settings.get(['profile']));
 
-  await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  try {
+    await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry attach region failed: ${e.message}`);
+  }
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
@@ -672,7 +676,9 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
-      error = err;
+      error = {
+        name: err.name,
+      };
       process.exitCode = 1;
     })
     .finally(async () => {
