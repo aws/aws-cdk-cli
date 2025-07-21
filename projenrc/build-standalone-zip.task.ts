@@ -20,7 +20,7 @@ async function main() {
 
     // Write a package.json with the top-level dependency
     await fs.writeFile(path.join(outdir, 'package.json'), JSON.stringify({
-      name: 'test',
+      name: '@aws-cdk/build-standalone-zip',
       private: true,
       version: '1.0.0',
       dependencies,

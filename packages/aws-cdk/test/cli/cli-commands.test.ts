@@ -39,9 +39,9 @@ describe('context', () => {
 });
 
 describe('cli-telemetry', () => {
-  test('requires either --enable or --disable flag', async () => {
+  test('requires a flag to be set', async () => {
     await expect(exec(['cli-telemetry']))
       .rejects
-      .toThrow("Must specify either '--enable' or '--disable'");
+      .toThrow("Must specify '--enable', '--disable', or '--status'");
   });
 });

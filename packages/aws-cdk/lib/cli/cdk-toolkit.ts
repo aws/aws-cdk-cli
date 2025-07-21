@@ -65,6 +65,7 @@ import {
   validateSnsTopicArn,
 } from '../util';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
+import { canCollectTelemetry } from './telemetry/collect-telemetry';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -206,6 +207,15 @@ export class CdkToolkit {
     acks.push(Number(noticeId));
     this.props.configuration.context.set('acknowledged-issue-numbers', acks);
     await this.props.configuration.saveContext();
+  }
+
+  public async cliTelemetryStatus() {
+    const canCollect = canCollectTelemetry(this.props.configuration.context);
+    if (canCollect) {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
+    } else {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
+    }
   }
 
   public async cliTelemetry(enable: boolean) {
