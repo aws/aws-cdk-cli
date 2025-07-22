@@ -1,4 +1,4 @@
-import { ErrorName } from "./schema";
+import { ErrorName } from './schema';
 
 export function cdkCliErrorName(name: string): ErrorName {
   // We only record error names that we control. Errors coming from dependencies

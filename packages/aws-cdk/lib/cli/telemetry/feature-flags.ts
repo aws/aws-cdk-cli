@@ -2,7 +2,7 @@
 // We are currently hardcoding these values to facilitate a quicker release.
 /**
  * Enum of all valid CDK feature flag names.
- * 
+ *
  * These flags are used to control behavior changes in the CDK.
  * For more information, see: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk-lib/cx-api/FEATURE_FLAGS.md
  */

@@ -59,7 +59,7 @@ describe('IoHostTelemetrySink', () => {
         command: {
           path: ['test'],
           parameters: {},
-          config: { context: { foo: true }},
+          config: { context: { foo: true } },
         },
       },
       environment: {
@@ -114,7 +114,7 @@ describe('IoHostTelemetrySink', () => {
         command: {
           path: ['test'],
           parameters: {},
-          config: { context: { foo: true }},
+          config: { context: { foo: true } },
         },
       },
       environment: {

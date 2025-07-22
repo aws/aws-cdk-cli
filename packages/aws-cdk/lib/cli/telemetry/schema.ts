@@ -56,7 +56,7 @@ export enum ErrorName {
   ASSEMBLY_ERROR = 'AssemblyError',
   CONTEXT_PROVIDER_ERROR = 'ContextProviderError',
   UNKNOWN_ERROR = 'UnknownError',
-};
+}
 
 export interface ErrorDetails {
   readonly name: ErrorName;

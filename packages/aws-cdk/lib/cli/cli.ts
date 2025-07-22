@@ -31,9 +31,9 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
+import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { cdkCliErrorName } from './telemetry/error';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting

@@ -6,11 +6,11 @@ import type { IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
+import { cdkCliErrorName } from '../cli/telemetry/error';
 import { CLI_PRIVATE_SPAN } from '../cli/telemetry/messages';
+import type { ErrorDetails } from '../cli/telemetry/schema';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
-import { ErrorDetails } from '../cli/telemetry/schema';
-import { cdkCliErrorName } from '../cli/telemetry/error';
 
 /**
  * @returns output directory

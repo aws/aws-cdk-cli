@@ -1,7 +1,7 @@
 import { join } from 'path';
 import * as fs from 'fs-extra';
-import type { Context } from '../../api/context';
 import { FeatureFlag } from './feature-flags';
+import type { Context } from '../../api/context';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
@@ -56,7 +56,7 @@ export function sanitizeContext(context: Context) {
     if (!isFeatureFlag(flag)) {
       continue;
     }
-    
+
     // Falsy options include boolean false, string 'false'
     // All other inputs evaluate to true
     const sanitizedValue: boolean = isBoolean(value) ? value : (value !== 'false');

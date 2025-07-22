@@ -40,7 +40,7 @@ describe(sanitizeContext, () => {
   });
 
   test('non feature flag keys are dropped', () => {
-    const bag = { 'my-special-key': true, '@aws-cdk/core:newStyleStackSynthesis': true};
+    const bag = { 'my-special-key': true, '@aws-cdk/core:newStyleStackSynthesis': true };
     const context = new Context({
       fileName: 'n/a',
       bag: new Settings(bag, true),
