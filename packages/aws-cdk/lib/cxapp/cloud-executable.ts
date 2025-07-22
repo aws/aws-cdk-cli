@@ -136,7 +136,7 @@ export class CloudExecutable implements ICloudAssemblySource {
       error = {
         name: cdkCliErrorName(e.name),
       };
-      throw (e);
+      throw e;
     } finally {
       await synthSpan.end({ error });
     }

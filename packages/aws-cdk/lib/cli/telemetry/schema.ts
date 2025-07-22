@@ -12,10 +12,12 @@ export interface Identifiers extends SessionIdentifiers {
   readonly timestamp: string;
 }
 
+type ConfigEntry = { [key: string]: boolean };
+
 export interface Command {
   readonly path: string[];
   readonly parameters: { [key: string]: string };
-  readonly config: { [key: string]: { [key: string]: boolean } };
+  readonly config: { [key: string]: ConfigEntry };
 }
 
 interface SessionEvent {

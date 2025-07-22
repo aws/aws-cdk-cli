@@ -14,6 +14,8 @@ import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
 
+const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
+
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
   readonly client: ITelemetrySink;
@@ -76,7 +78,7 @@ export class TelemetrySession {
       try {
         await this.end({
           name: ErrorName.TOOLKIT_ERROR,
-          message: 'Subprocess exited with error null',
+          message: ABORTED_ERROR_MESSAGE,
         });
       } catch (e: any) {
         await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
@@ -148,7 +150,7 @@ function getState(error?: ErrorDetails): State {
 }
 
 function isAbortedError(error?: ErrorDetails) {
-  if (error?.name === 'ToolkitError' && error?.message?.includes('Subprocess exited with error null')) {
+  if (error?.name === 'ToolkitError' && error?.message?.includes(ABORTED_ERROR_MESSAGE)) {
     return true;
   }
   return false;
