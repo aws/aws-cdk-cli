@@ -6,7 +6,7 @@
  * These flags are used to control behavior changes in the CDK.
  * For more information, see: https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk-lib/cx-api/FEATURE_FLAGS.md
  */
-export enum FeatureFlags {
+export enum FeatureFlag {
   CORE_NEW_STYLE_STACK_SYNTHESIS = '@aws-cdk/core:newStyleStackSynthesis',
   CORE_STACK_RELATIVE_EXPORTS = '@aws-cdk/core:stackRelativeExports',
   RDS_LOWERCASE_DB_IDENTIFIER = '@aws-cdk/aws-rds:lowercaseDbIdentifier',
