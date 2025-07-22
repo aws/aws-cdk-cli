@@ -6,6 +6,8 @@ import { FeatureFlag } from './feature-flags';
  */
 export function sanitizeCommandLineArguments(argv: any): { path: string[]; parameters: { [key: string]: string } } {
   // Get the configuration of the arguments
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const config = require('../cli-type-registry.json')
   const command = argv._[0];
   const path: string[] = [command];
