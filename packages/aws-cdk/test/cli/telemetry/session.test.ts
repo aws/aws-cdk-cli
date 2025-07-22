@@ -1,7 +1,7 @@
 import { Context } from '../../../lib/api/context';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
-import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import { ErrorName, type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession } from '../../../lib/cli/telemetry/session';
 import { withEnv } from '../../_helpers/with-env';
 
@@ -55,7 +55,7 @@ describe('TelemetrySession', () => {
       eventType: 'SYNTH',
       duration: 1234,
       error: {
-        name: 'ToolkitError',
+        name: ErrorName.TOOLKIT_ERROR,
       },
     });
 
@@ -73,8 +73,8 @@ describe('TelemetrySession', () => {
       eventType: 'SYNTH',
       duration: 1234,
       error: {
-        name: 'ToolkitError',
-        message: 'Subprocess exited with error null',
+        name: ErrorName.TOOLKIT_ERROR,
+        message: '__CDK-Toolkit__Aborted',
       },
     });
 
