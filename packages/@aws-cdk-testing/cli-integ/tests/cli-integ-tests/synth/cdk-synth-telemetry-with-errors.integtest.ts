@@ -7,7 +7,7 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
-    const telemetryFile = path.join(fixture.integTestDir, 'telemetry.json');
+    const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
     const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
       allowErrExit: true,
       modEnv: {
