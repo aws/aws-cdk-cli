@@ -15,7 +15,7 @@ export interface Identifiers extends SessionIdentifiers {
 export interface Command {
   readonly path: string[];
   readonly parameters: { [key: string]: string };
-  readonly config: { [key: string]: boolean };
+  readonly config: { [key: string]: { [key: string]: boolean } };
 }
 
 interface SessionEvent {
@@ -48,8 +48,16 @@ interface Duration {
 
 type Counters = { [key: string]: number };
 
+export enum ErrorName {
+  TOOLKIT_ERROR = 'ToolkitError',
+  AUTHENTICATION_ERROR = 'AuthenticationError',
+  ASSEMBLY_ERROR = 'AssemblyError',
+  CONTEXT_PROVIDER_ERROR = 'ContextProviderError',
+  UNKNOWN_ERROR = 'UnknownError',
+};
+
 export interface ErrorDetails {
-  readonly name: string;
+  readonly name: ErrorName;
   readonly message?: string; // sanitized stack message
   readonly stackTrace?: string; // sanitized stack trace
   readonly logs?: string; // sanitized stack logs

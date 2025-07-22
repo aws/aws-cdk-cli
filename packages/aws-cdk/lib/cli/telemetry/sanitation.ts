@@ -1,6 +1,7 @@
 import { join } from 'path';
 import * as fs from 'fs-extra';
 import type { Context } from '../../api/context';
+import { FeatureFlags } from './feature-flags';
 
 export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
@@ -49,8 +50,13 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
 }
 
 export function sanitizeContext(context: Context) {
-  const sanitizedContext: { [key: string]: boolean } = {};
+  const sanitizedContext: { [K in FeatureFlags]: boolean } = {} as { [K in FeatureFlags]: boolean };
   for (const [flag, value] of Object.entries(context.all)) {
+    // Skip if flag is not in the FeatureFlags enum
+    if (!isFeatureFlag(flag)) {
+      continue;
+    }
+    
     // Falsy options include boolean false, string 'false'
     // All other inputs evaluate to true
     const sanitizedValue: boolean = isBoolean(value) ? value : (value !== 'false');
@@ -65,4 +71,8 @@ function isBoolean(value: any): value is boolean {
 
 function isNumberOrBoolean(value: any): boolean {
   return typeof value === 'number' || isBoolean(value);
+}
+
+function isFeatureFlag(flag: string): flag is FeatureFlags {
+  return Object.values(FeatureFlags).includes(flag as FeatureFlags);
 }

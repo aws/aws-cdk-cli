@@ -47,7 +47,7 @@ describe('FileTelemetrySink', () => {
         command: {
           path: ['test'],
           parameters: {},
-          config: { foo: true },
+          config: { context: { foo: true }},
         },
       },
       environment: {
@@ -91,7 +91,7 @@ describe('FileTelemetrySink', () => {
         command: {
           path: ['test'],
           parameters: {},
-          config: { foo: true },
+          config: { context: { foo: true }},
         },
       },
       environment: {
@@ -145,7 +145,7 @@ describe('FileTelemetrySink', () => {
         command: {
           path: ['test'],
           parameters: {},
-          config: { foo: true },
+          config: { context: { foo: true }},
         },
       },
       environment: {
