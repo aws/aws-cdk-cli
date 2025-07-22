@@ -1,16 +1,12 @@
-import { join } from 'path';
-import * as fs from 'fs-extra';
-import { FeatureFlag } from './feature-flags';
 import type { Context } from '../../api/context';
-
-export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
+import { FeatureFlag } from './feature-flags';
 
 /**
  * argv is the output of yargs
  */
 export function sanitizeCommandLineArguments(argv: any): { path: string[]; parameters: { [key: string]: string } } {
   // Get the configuration of the arguments
-  const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
+  const config = require('../cli-type-registry.json')
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: { [key: string]: string } = {};
