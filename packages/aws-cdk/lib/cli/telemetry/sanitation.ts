@@ -1,5 +1,5 @@
-import type { Context } from '../../api/context';
 import { FeatureFlag } from './feature-flags';
+import type { Context } from '../../api/context';
 
 /**
  * argv is the output of yargs
@@ -8,7 +8,7 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
   // Get the configuration of the arguments
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const config = require('../cli-type-registry.json')
+  const config = require('../cli-type-registry.json');
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: { [key: string]: string } = {};
