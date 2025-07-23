@@ -32,7 +32,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
       'ca-bundle-path': { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true },
       'ec2creds': { type: 'boolean', alias: 'i', default: undefined, desc: 'Force trying to fetch EC2 instance credentials. Default: guess EC2 instance status' },
-      'version-reporting': { type: 'boolean', desc: 'Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)', default: undefined },
+      'version-reporting': { type: 'boolean', desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)', default: undefined, alias: 'telemetry' },
       'path-metadata': { type: 'boolean', desc: 'Include "aws:cdk:path" CloudFormation metadata for each resource (enabled by default)', default: undefined },
       'asset-metadata': { type: 'boolean', desc: 'Include "aws:asset:*" CloudFormation metadata for resources that uses assets (enabled by default)', default: undefined },
       'role-arn': { type: 'string', alias: 'r', desc: 'ARN of Role to use when invoking CloudFormation', default: undefined, requiresArg: true },

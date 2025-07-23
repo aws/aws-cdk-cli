@@ -208,8 +208,10 @@ export class CdkToolkit {
     await this.props.configuration.saveContext();
   }
 
-  public async cliTelemetryStatus() {
-    const canCollect = canCollectTelemetry(this.props.configuration.context);
+  public async cliTelemetryStatus(versionReporting: boolean = true) {
+    // recreate the version-reporting property in args rather than bring the entire args object over
+    const args = { ['version-reporting']: versionReporting };
+    const canCollect = canCollectTelemetry(args, this.props.configuration.context);
     if (canCollect) {
       await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
     } else {
