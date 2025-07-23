@@ -1,24 +1,51 @@
+import { Context } from '../../../lib/api/context';
+import { Settings } from '../../../lib/api/settings';
 import { sanitizeCommandLineArguments, sanitizeContext } from '../../../lib/cli/telemetry/sanitation';
 
 describe(sanitizeContext, () => {
   test('boolean values are kept', () => {
-    const context = { key1: true, key2: false };
-    expect(sanitizeContext(context)).toEqual(context);
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': true, '@aws-cdk/core:stackRelativeExports': false };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual(bag);
   });
 
   test('string boolean values are booleanized', () => {
-    const context = { key1: 'true', key2: 'false' };
-    expect(sanitizeContext(context)).toEqual({ key1: true, key2: false });
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': 'true', '@aws-cdk/core:stackRelativeExports': 'false' };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true, '@aws-cdk/core:stackRelativeExports': false });
   });
 
   test('strings values are booleanized', () => {
-    const context = { key1: 'fancy-value' };
-    expect(sanitizeContext(context)).toEqual({ key1: true });
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': 'fancy-value' };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true });
   });
 
   test('list values are booleanized', () => {
-    const context = { key1: [true, false] };
-    expect(sanitizeContext(context)).toEqual({ key1: true });
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': [true, false] };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true });
+  });
+
+  test('non feature flag keys are dropped', () => {
+    const bag = { 'my-special-key': true, '@aws-cdk/core:newStyleStackSynthesis': true };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true });
   });
 });
 
@@ -29,7 +56,7 @@ describe(sanitizeCommandLineArguments, () => {
       STACKS: ['MyStack'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: {},
     });
   });
@@ -40,7 +67,7 @@ describe(sanitizeCommandLineArguments, () => {
       STACKS: ['MyStackA', 'MyStackB'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1', '$STACK2'],
+      path: ['deploy', '$STACKS_1', '$STACKS_2'],
       parameters: {},
     });
   });
@@ -53,12 +80,12 @@ describe(sanitizeCommandLineArguments, () => {
       concurrency: 4,
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { all: true, concurrency: 4 },
     });
   });
 
-  test('unknown options are dropped', () => {
+  test('unknown and aliased options are dropped', () => {
     const argv = {
       _: ['deploy'],
       STACKS: ['MyStack'],
@@ -67,7 +94,7 @@ describe(sanitizeCommandLineArguments, () => {
       blah: false,
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { all: true },
     });
   });
@@ -79,7 +106,7 @@ describe(sanitizeCommandLineArguments, () => {
       ['build-exclude']: ['something'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { 'build-exclude': '<redacted>' },
     });
   });
@@ -91,7 +118,7 @@ describe(sanitizeCommandLineArguments, () => {
       ['require-approval']: 'broadening',
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { 'require-approval': 'broadening' },
     });
   });
@@ -103,7 +130,7 @@ describe(sanitizeCommandLineArguments, () => {
       ['require-approval']: 'invalid',
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
-      path: ['deploy', '$STACK1'],
+      path: ['deploy', '$STACKS_1'],
       parameters: { 'require-approval': '<redacted>' },
     });
   });

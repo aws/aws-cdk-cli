@@ -63,7 +63,7 @@ describe('getLibraryVersion', () => {
     // THEN
     expect(result).toBe(expectedVersion);
     expect(mockPromisify).toHaveBeenCalledWith(mockExec);
-    expect(mockPromisifiedExec).toHaveBeenCalledWith("node -e 'console.log(require.resolve(\"aws-cdk-lib\"))'");
+    expect(mockPromisifiedExec).toHaveBeenCalledWith("node -e 'process.stdout.write(require.resolve(\"aws-cdk-lib\"))'");
     expect(mockExistsSync).toHaveBeenCalledWith(mockLibPath);
     expect(mockReadJSONSync).toHaveBeenCalledWith(mockPackageJsonPath);
     expect(traceSpy).not.toHaveBeenCalled();

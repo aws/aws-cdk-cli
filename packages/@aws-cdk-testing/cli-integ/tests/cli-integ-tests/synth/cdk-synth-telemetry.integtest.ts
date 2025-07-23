@@ -7,14 +7,14 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'cdk synth with telemetry data',
   withDefaultFixture(async (fixture) => {
-    const telemetryFile = path.join(fixture.integTestDir, 'telemetry.json');
+    const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
     await fixture.cdk(['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`]);
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACK1'],
+            path: ['synth', '$STACKS_1'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -31,18 +31,19 @@ integTest(
               quiet: false,
             },
             config: {
-              bags: true,
-              fileNames: true,
+              context: {},
             },
           }),
           state: 'SUCCEEDED',
           eventType: 'SYNTH',
         }),
+        // some of these can change; but we assert that some value is recorded
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
           telemetryVersion: '1.0',
           cdkCliVersion: expect.anything(),
+          cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
           eventId: expect.stringContaining(':1'),
           timestamp: expect.anything(),
@@ -63,7 +64,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACK1'],
+            path: ['synth', '$STACKS_1'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -80,8 +81,7 @@ integTest(
               quiet: false,
             },
             config: {
-              bags: true,
-              fileNames: true,
+              context: {},
             },
           }),
           state: 'SUCCEEDED',
@@ -92,6 +92,7 @@ integTest(
           sessionId: expect.anything(),
           telemetryVersion: '1.0',
           cdkCliVersion: expect.anything(),
+          cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
           eventId: expect.stringContaining(':2'),
           timestamp: expect.anything(),

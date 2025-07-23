@@ -31,6 +31,7 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
+import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
@@ -98,6 +99,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
+  if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
+    throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
+  }
+
   try {
     await ioHost.startTelemetry(argv, configuration.context);
   } catch (e: any) {
@@ -132,7 +137,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     pluginHost: GLOBAL_PLUGIN_HOST,
   }, configuration.settings.get(['profile']));
 
-  await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  try {
+    await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry attach region failed: ${e.message}`);
+  }
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
@@ -491,13 +500,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'cli-telemetry':
         ioHost.currentAction = 'cli-telemetry';
-        if (args.enable === undefined && args.disable === undefined) {
-          throw new ToolkitError('Must specify either \'--enable\' or \'--disable\'');
+        if (args.enable === undefined && args.disable === undefined && args.status === undefined) {
+          throw new ToolkitError('Must specify \'--enable\', \'--disable\', or \'--status\'');
         }
 
-        const enable = args.enable ?? !args.disable;
-        return cli.cliTelemetry(enable);
-
+        if (args.status) {
+          return cli.cliTelemetryStatus();
+        } else {
+          const enable = args.enable ?? !args.disable;
+          return cli.cliTelemetry(enable);
+        }
       case 'init':
         ioHost.currentAction = 'init';
         const language = configuration.settings.get(['language']);
@@ -669,17 +681,17 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
-      error = err;
+      error = {
+        name: cdkCliErrorName(err.name),
+      };
       process.exitCode = 1;
     })
     .finally(async () => {
-      if (!error && process.exitCode === 1) {
-        // The existence of an error determines if telemetry is successful or not so we create a
-        // dummy error in the event that exit code is 1 but no error is thrown
-        error = { name: 'ExitCode1Error' };
+      try {
+        await CliIoHost.get()?.telemetry?.end(error);
+      } catch (e: any) {
+        await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
-
-      await CliIoHost.get()?.telemetry?.end(error);
     });
 }
 /* c8 ignore stop */

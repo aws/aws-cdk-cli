@@ -442,13 +442,13 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(spawnSyncMock.mock.calls).toEqual(expect.arrayContaining([
       expect.arrayContaining([
-        'git', ['remote', 'show', 'origin'],
+        'git', ['-C', expect.any(String), 'remote', 'show', 'origin'],
       ]),
       expect.arrayContaining([
-        'git', ['merge-base', 'HEAD', 'main'],
+        'git', ['-C', expect.any(String), 'merge-base', 'HEAD', 'main'],
       ]),
       expect.arrayContaining([
-        'git', ['checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
+        'git', ['-C', expect.any(String), 'checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
       ]),
     ]));
   });

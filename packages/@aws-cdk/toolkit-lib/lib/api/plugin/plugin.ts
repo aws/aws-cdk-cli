@@ -36,12 +36,19 @@ export class PluginHost implements IPluginHost {
    * @param ioHost - the I/O host to use for printing progress information
    */
   public async load(moduleSpec: string, ioHost?: IIoHost) {
+    const resolved = this._doResolve(moduleSpec);
+    if (ioHost) {
+      await IoHelper.fromIoHost(ioHost, 'init').defaults.debug(`Loading plug-in: ${resolved} from ${moduleSpec}`);
+    }
+    return this._doLoad(resolved);
+  }
+
+  /**
+   * Do the resolving of a module string to an actual path
+   */
+  private _doResolve(moduleSpec: string) {
     try {
-      const resolved = require.resolve(moduleSpec);
-      if (ioHost) {
-        await IoHelper.fromIoHost(ioHost, 'init').defaults.debug(`Loading plug-in: ${resolved} from ${moduleSpec}`);
-      }
-      return this._doLoad(resolved);
+      return require.resolve(moduleSpec);
     } catch (e: any) {
       // according to Node.js docs `MODULE_NOT_FOUND` is the only possible error here
       // @see https://nodejs.org/api/modules.html#requireresolverequest-options
