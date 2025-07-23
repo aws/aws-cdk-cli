@@ -453,7 +453,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'flags':
         ioHost.currentAction = 'flags';
-  
+
         if (!configuration.settings.get(['unstable']).includes('flags')) {
           throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
         }
@@ -465,7 +465,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
         const flagsData = await toolkit.flags(cloudExecutable);
         return handleFlags(flagsData, ioHelper, args, toolkit);
-
 
       case 'synthesize':
       case 'synth':

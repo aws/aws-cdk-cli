@@ -4,8 +4,8 @@ import * as path from 'path';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
+import type { FlagsOptions } from '../../lib/cli/user-input';
 import { displayFlags, handleFlags } from '../../lib/commands/flag-operations';
-import { FlagsOptions } from '../../lib/cli/user-input';
 
 let oldDir: string;
 let tmpDir: string;
@@ -34,7 +34,7 @@ const mockFlagsData: FeatureFlag[] = [
     recommendedValue: 'true',
     userValue: 'true',
     explanation: 'Flag that matches recommendation',
-  }
+  },
 ];
 
 function createMockToolkit(): jest.Mocked<Toolkit> {
@@ -50,9 +50,9 @@ function createMockCloudAssembly() {
     stacksRecursively: [
       {
         templateFullPath: '/mock/path/template.json',
-        hierarchicalId: 'TestStack'
-      }
-    ]
+        hierarchicalId: 'TestStack',
+      },
+    ],
   };
 }
 
@@ -60,20 +60,20 @@ async function createCdkJsonFile(context: Record<string, any> = {}): Promise<str
   const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
   const cdkJsonContent = {
     app: 'node app.js',
-    context
+    context,
   };
   await fs.promises.writeFile(cdkJsonPath, JSON.stringify(cdkJsonContent, null, 2));
   return cdkJsonPath;
 }
 
 async function cleanupCdkJsonFile(cdkJsonPath: string): Promise<void> {
-    await fs.promises.unlink(cdkJsonPath);
+  await fs.promises.unlink(cdkJsonPath);
 }
 
 function setupMockToolkitForPrototyping(mockToolkit: jest.Mocked<Toolkit>) {
   const mockCloudAssembly = createMockCloudAssembly();
   const mockCx = { cloudAssembly: mockCloudAssembly };
-  
+
   mockToolkit.fromCdkApp.mockResolvedValue({} as any);
   mockToolkit.synth.mockResolvedValue(mockCx as any);
 }
@@ -189,8 +189,8 @@ describe('handleFlags', () => {
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag'); 
-    expect(plainTextOutput).not.toContain('@aws-cdk/core:matchingFlag'); 
+    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/core:matchingFlag');
   });
 
   test('handles flag not found for specific flag query', async () => {
@@ -208,7 +208,7 @@ describe('handleFlags', () => {
 
   test('calls prototypeChanges when set option is true with valid flag', async () => {
     const cdkJsonPath = await createCdkJsonFile();
-    
+
     setupMockToolkitForPrototyping(mockToolkit);
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
@@ -237,7 +237,7 @@ describe('handleFlags', () => {
 
   test('does not resynthesize when setting flag to same value as current context', async () => {
     const cdkJsonPath = await createCdkJsonFile({
-      '@aws-cdk/core:testFlag': true
+      '@aws-cdk/core:testFlag': true,
     });
 
     const options: FlagsOptions = {
@@ -262,7 +262,7 @@ describe('handleFlags', () => {
   test('prototyping does not modify actual context values until confirmed', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
-      '@aws-cdk/core:existingFlag': true
+      '@aws-cdk/core:existingFlag': true,
     });
 
     setupMockToolkitForPrototyping(mockToolkit);
@@ -281,7 +281,7 @@ describe('handleFlags', () => {
 
     const finalContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const finalJson = JSON.parse(finalContent);
-    
+
     expect(finalJson.context['@aws-cdk/core:testFlag']).toBe(false);
     expect(finalJson.context['@aws-cdk/core:existingFlag']).toBe(true);
 
@@ -302,10 +302,10 @@ describe('handleFlags', () => {
       {
         module: 'aws-cdk-lib',
         name: '@aws-cdk/core:nonBooleanFlag',
-        recommendedValue: 'some-string-value', 
+        recommendedValue: 'some-string-value',
         userValue: undefined,
         explanation: 'A flag with non-boolean recommended value',
-      }
+      },
     ];
 
     const options: FlagsOptions = {
@@ -326,7 +326,7 @@ describe('handleFlags', () => {
 describe('modifyValues', () => {
   test('updates cdk.json file correctly', async () => {
     const cdkJsonPath = await createCdkJsonFile({
-      '@aws-cdk/core:existingFlag': false
+      '@aws-cdk/core:existingFlag': false,
     });
 
     const mockToolkit = createMockToolkit();
@@ -348,7 +348,7 @@ describe('modifyValues', () => {
     const updatedJson = JSON.parse(updatedContent);
 
     expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(true);
-    expect(updatedJson.context['@aws-cdk/core:existingFlag']).toBe(false); 
+    expect(updatedJson.context['@aws-cdk/core:existingFlag']).toBe(false);
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Flag value updated successfully.');
