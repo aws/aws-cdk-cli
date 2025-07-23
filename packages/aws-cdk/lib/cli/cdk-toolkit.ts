@@ -65,9 +65,9 @@ import {
   validateSnsTopicArn,
 } from '../util';
 import { canCollectTelemetry } from './telemetry/collect-telemetry';
-import { CLI_PRIVATE_SPAN } from './telemetry/messages';
-import { ErrorDetails } from './telemetry/schema';
 import { cdkCliErrorName } from './telemetry/error';
+import { CLI_PRIVATE_SPAN } from './telemetry/messages';
+import type { ErrorDetails } from './telemetry/schema';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
