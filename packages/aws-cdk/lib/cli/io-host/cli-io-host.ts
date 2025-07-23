@@ -182,7 +182,7 @@ export class CliIoHost implements IIoHost {
       });
     }
     // TODO: uncomment this at launch
-    // if (canCollectTelemetry(context)) {
+    // if (canCollectTelemetry(args, context)) {
     //   sink = new EndpointTelemetrySink({
     //     ioHost: this,
     //     agent: proxyAgent,
