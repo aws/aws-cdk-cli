@@ -55,11 +55,11 @@ describe('IoHostTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { context: { foo: true } },
         },
       },
       environment: {
@@ -110,11 +110,11 @@ describe('IoHostTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { context: { foo: true } },
         },
       },
       environment: {

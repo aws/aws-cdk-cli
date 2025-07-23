@@ -176,7 +176,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
   } catch (e: any) {
     failedTests.push(test.info);
     workerpool.workerEmit({
-      message: e.message,
+      message: formatError(e),
       testName: test.testName,
       reason: DiagnosticReason.SNAPSHOT_ERROR,
       duration: (Date.now() - start) / 1000,

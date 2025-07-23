@@ -252,7 +252,7 @@ export interface GlobalOptions {
   readonly ec2creds?: boolean;
 
   /**
-   * Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
+   * Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
    *
    * @default - undefined
    */
@@ -320,6 +320,13 @@ export interface GlobalOptions {
    * @default - []
    */
   readonly unstable?: Array<string>;
+
+  /**
+   * Send telemetry data to a local file.
+   *
+   * @default - undefined
+   */
+  readonly telemetryFile?: string;
 }
 
 /**
@@ -1538,4 +1545,11 @@ export interface CliTelemetryOptions {
    * @default - undefined
    */
   readonly disable?: boolean;
+
+  /**
+   * Report telemetry opt-in/out status
+   *
+   * @default - undefined
+   */
+  readonly status?: boolean;
 }

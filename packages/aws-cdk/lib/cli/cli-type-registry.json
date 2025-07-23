@@ -78,7 +78,8 @@
     },
     "version-reporting": {
       "type": "boolean",
-      "desc": "Include the \"AWS::CDK::Metadata\" resource in synthesized templates (enabled by default)"
+      "desc": "Disable CLI telemetry and do not include the \"AWS::CDK::Metadata\" resource in synthesized templates (enabled by default)",
+      "alias": "telemetry"
     },
     "path-metadata": {
       "type": "boolean",
@@ -122,6 +123,10 @@
       "type": "array",
       "desc": "Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.",
       "default": []
+    },
+    "telemetry-file": {
+      "type": "string",
+      "desc": "Send telemetry data to a local file."
     }
   },
   "commands": {
@@ -975,6 +980,14 @@
           "type": "boolean",
           "desc": "Disable anonymous telemetry",
           "conflicts": "enable"
+        },
+        "status": {
+          "type": "boolean",
+          "desc": "Report telemetry opt-in/out status",
+          "conflicts": [
+            "enable",
+            "disable"
+          ]
         }
       }
     }

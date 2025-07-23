@@ -43,11 +43,11 @@ describe('FileTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { context: { foo: true } },
         },
       },
       environment: {
@@ -69,6 +69,7 @@ describe('FileTelemetrySink', () => {
     await client.emit(testEvent);
 
     // THEN
+    expect(fs.existsSync(logFilePath)).toBe(true);
     const fileJson = fs.readJSONSync(logFilePath, 'utf8');
     expect(fileJson).toEqual([testEvent]);
   });
@@ -86,11 +87,11 @@ describe('FileTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { context: { foo: true } },
         },
       },
       environment: {
@@ -140,11 +141,11 @@ describe('FileTelemetrySink', () => {
       },
       event: {
         state: 'SUCCEEDED',
-        eventType: 'test',
+        eventType: 'INVOKE',
         command: {
           path: ['test'],
-          parameters: [],
-          config: { foo: 'bar' },
+          parameters: {},
+          config: { context: { foo: true } },
         },
       },
       environment: {

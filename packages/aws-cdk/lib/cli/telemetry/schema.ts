@@ -1,32 +1,46 @@
-interface Identifiers {
+interface SessionIdentifiers {
   readonly cdkCliVersion: string;
   readonly cdkLibraryVersion?: string;
   readonly telemetryVersion: string;
   readonly sessionId: string;
-  readonly eventId: string;
   readonly installationId: string;
-  readonly timestamp: string;
-  readonly accountId?: string;
   readonly region?: string;
 }
 
-interface Event {
-  readonly state: 'ABORTED' | 'FAILED' | 'SUCCEEDED';
-  readonly eventType: string;
-  readonly command: {
-    readonly path: string[];
-    readonly parameters: string[];
-    readonly config: { [key: string]: any };
-  };
+export interface Identifiers extends SessionIdentifiers {
+  readonly eventId: string;
+  readonly timestamp: string;
 }
 
-interface Environment {
+type ConfigEntry = { [key: string]: boolean };
+
+export interface Command {
+  readonly path: string[];
+  readonly parameters: { [key: string]: string };
+  readonly config: { [key: string]: ConfigEntry };
+}
+
+interface SessionEvent {
+  readonly command: Command;
+}
+
+export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY';
+export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
+interface Event extends SessionEvent {
+  readonly state: State;
+  readonly eventType: EventType;
+}
+
+export interface SessionEnvironment {
   readonly os: {
     readonly platform: string;
     readonly release: string;
   };
   readonly ci: boolean;
   readonly nodeVersion: string;
+}
+
+interface Environment extends SessionEnvironment {
 }
 
 interface Duration {
@@ -36,11 +50,19 @@ interface Duration {
 
 type Counters = { [key: string]: number };
 
-interface Error {
-  readonly name: string;
-  readonly message?: string; // anonymized stack message
-  readonly trace?: string; // anonymized stack trace
-  readonly logs?: string; // anonymized stack logs
+export enum ErrorName {
+  TOOLKIT_ERROR = 'ToolkitError',
+  AUTHENTICATION_ERROR = 'AuthenticationError',
+  ASSEMBLY_ERROR = 'AssemblyError',
+  CONTEXT_PROVIDER_ERROR = 'ContextProviderError',
+  UNKNOWN_ERROR = 'UnknownError',
+}
+
+export interface ErrorDetails {
+  readonly name: ErrorName;
+  readonly message?: string; // sanitized stack message
+  readonly stackTrace?: string; // sanitized stack trace
+  readonly logs?: string; // sanitized stack logs
 }
 
 interface Dependency {
@@ -48,8 +70,11 @@ interface Dependency {
   readonly version: string;
 }
 
-interface Project {
+interface SessionProject {
   readonly dependencies?: Dependency[];
+}
+
+interface Project extends SessionProject {
 }
 
 export interface TelemetrySchema {
@@ -59,5 +84,12 @@ export interface TelemetrySchema {
   readonly project: Project;
   readonly duration: Duration;
   readonly counters?: Counters;
-  readonly error?: Error;
+  readonly error?: ErrorDetails;
+}
+
+export interface SessionSchema {
+  identifiers: SessionIdentifiers;
+  event: SessionEvent;
+  environment: SessionEnvironment;
+  project: SessionProject;
 }
