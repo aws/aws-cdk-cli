@@ -2,8 +2,8 @@ import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
-import { sanitizeCommandLineArguments } from './sanitation';
-import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
+import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
+import { type EventType, type SessionSchema, type State, type ErrorDetails, ErrorName } from './schema';
 import type { ITelemetrySink } from './sink-interface';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
@@ -13,6 +13,8 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
+
+const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -40,8 +42,6 @@ export class TelemetrySession {
   }
 
   public async begin() {
-    this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
-
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
     this._sessionInfo = {
@@ -56,7 +56,9 @@ export class TelemetrySession {
         command: {
           path,
           parameters,
-          config: {}, // TODO: sanitize context after sourcing all possible context values
+          config: {
+            context: sanitizeContext(this.props.context),
+          },
         },
       },
       environment: {
@@ -75,14 +77,17 @@ export class TelemetrySession {
     process.on('SIGINT', async () => {
       try {
         await this.end({
-          name: ToolkitError.name,
-          message: 'Subprocess exited with error null',
+          name: ErrorName.TOOLKIT_ERROR,
+          message: ABORTED_ERROR_MESSAGE,
         });
       } catch (e: any) {
         await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
       process.exit(1);
     });
+
+    // Begin the session span
+    this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
   }
 
   public async attachRegion(region: string) {
@@ -145,7 +150,7 @@ function getState(error?: ErrorDetails): State {
 }
 
 function isAbortedError(error?: ErrorDetails) {
-  if (error?.name === 'ToolkitError' && error?.message?.includes('Subprocess exited with error null')) {
+  if (error?.name === 'ToolkitError' && error?.message?.includes(ABORTED_ERROR_MESSAGE)) {
     return true;
   }
   return false;

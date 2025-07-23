@@ -1266,10 +1266,7 @@ cdk list --telemetry-file=my/file/path --unstable=telemetry
 The supplied path must be a non existing file. If the file exists, it will fail to log telemetry
 data but the command itself will continue uninterrupted.
 
-> Note: [opting out](https://github.com/aws/aws-cdk-rfcs/blob/main/text/0732-cdk-cli-telemetry.md#opt-out)
-> of sending telemetry data to AWS has no effect on the `--telemetry-file` option, and vice versa.
-> If you specify `--telemetry-file`, we will log your telemetry data to the given file path.
-> Independently, we will send telemetry data to AWS if `cdk cli-telemetry --status` says it is enabled.
+> Note: The file will be written to regardless of your opt-out status.
 
 ## Notices
 

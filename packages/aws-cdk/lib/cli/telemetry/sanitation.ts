@@ -1,15 +1,14 @@
-import { join } from 'path';
-import * as fs from 'fs-extra';
+import { FeatureFlag } from './feature-flags';
 import type { Context } from '../../api/context';
-
-export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
 
 /**
  * argv is the output of yargs
  */
 export function sanitizeCommandLineArguments(argv: any): { path: string[]; parameters: { [key: string]: string } } {
   // Get the configuration of the arguments
-  const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const config = require('../cli-type-registry.json');
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: { [key: string]: string } = {};
@@ -49,8 +48,13 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
 }
 
 export function sanitizeContext(context: Context) {
-  const sanitizedContext: { [key: string]: boolean } = {};
+  const sanitizedContext: { [K in FeatureFlag]: boolean } = {} as { [K in FeatureFlag]: boolean };
   for (const [flag, value] of Object.entries(context.all)) {
+    // Skip if flag is not in the FeatureFlags enum
+    if (!isFeatureFlag(flag)) {
+      continue;
+    }
+
     // Falsy options include boolean false, string 'false'
     // All other inputs evaluate to true
     const sanitizedValue: boolean = isBoolean(value) ? value : (value !== 'false');
@@ -65,4 +69,8 @@ function isBoolean(value: any): value is boolean {
 
 function isNumberOrBoolean(value: any): boolean {
   return typeof value === 'number' || isBoolean(value);
+}
+
+function isFeatureFlag(flag: string): flag is FeatureFlag {
+  return Object.values(FeatureFlag).includes(flag as FeatureFlag);
 }

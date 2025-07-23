@@ -4,7 +4,7 @@ import { sanitizeCommandLineArguments, sanitizeContext } from '../../../lib/cli/
 
 describe(sanitizeContext, () => {
   test('boolean values are kept', () => {
-    const bag = { key1: true, key2: false };
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': true, '@aws-cdk/core:stackRelativeExports': false };
     const context = new Context({
       fileName: 'n/a',
       bag: new Settings(bag, true),
@@ -13,30 +13,39 @@ describe(sanitizeContext, () => {
   });
 
   test('string boolean values are booleanized', () => {
-    const bag = { key1: 'true', key2: 'false' };
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': 'true', '@aws-cdk/core:stackRelativeExports': 'false' };
     const context = new Context({
       fileName: 'n/a',
       bag: new Settings(bag, true),
     });
-    expect(sanitizeContext(context)).toEqual({ key1: true, key2: false });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true, '@aws-cdk/core:stackRelativeExports': false });
   });
 
   test('strings values are booleanized', () => {
-    const bag = { key1: 'fancy-value' };
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': 'fancy-value' };
     const context = new Context({
       fileName: 'n/a',
       bag: new Settings(bag, true),
     });
-    expect(sanitizeContext(context)).toEqual({ key1: true });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true });
   });
 
   test('list values are booleanized', () => {
-    const bag = { key1: [true, false] };
+    const bag = { '@aws-cdk/core:newStyleStackSynthesis': [true, false] };
     const context = new Context({
       fileName: 'n/a',
       bag: new Settings(bag, true),
     });
-    expect(sanitizeContext(context)).toEqual({ key1: true });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true });
+  });
+
+  test('non feature flag keys are dropped', () => {
+    const bag = { 'my-special-key': true, '@aws-cdk/core:newStyleStackSynthesis': true };
+    const context = new Context({
+      fileName: 'n/a',
+      bag: new Settings(bag, true),
+    });
+    expect(sanitizeContext(context)).toEqual({ '@aws-cdk/core:newStyleStackSynthesis': true });
   });
 });
 
@@ -76,7 +85,7 @@ describe(sanitizeCommandLineArguments, () => {
     });
   });
 
-  test('unknown options are dropped', () => {
+  test('unknown and aliased options are dropped', () => {
     const argv = {
       _: ['deploy'],
       STACKS: ['MyStack'],

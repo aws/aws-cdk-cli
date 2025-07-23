@@ -6,7 +6,9 @@ import type { IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
+import { cdkCliErrorName } from '../cli/telemetry/error';
 import { CLI_PRIVATE_SPAN } from '../cli/telemetry/messages';
+import type { ErrorDetails } from '../cli/telemetry/schema';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
 
@@ -84,7 +86,7 @@ export class CloudExecutable implements ICloudAssemblySource {
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
     const synthSpan = await this.props.ioHelper.span(CLI_PRIVATE_SPAN.SYNTH_ASSEMBLY).begin({});
-    let error: any | undefined;
+    let error: ErrorDetails | undefined;
     try {
       while (true) {
         const assembly = await this.props.synthesizer(this.props.sdkProvider, this.props.configuration);
@@ -131,8 +133,10 @@ export class CloudExecutable implements ICloudAssemblySource {
         return new CloudAssembly(assembly, this.props.ioHelper);
       }
     } catch (e: any) {
-      error = e;
-      throw (e);
+      error = {
+        name: cdkCliErrorName(e.name),
+      };
+      throw e;
     } finally {
       await synthSpan.end({ error });
     }

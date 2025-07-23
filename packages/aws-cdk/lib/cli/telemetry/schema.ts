@@ -12,17 +12,19 @@ export interface Identifiers extends SessionIdentifiers {
   readonly timestamp: string;
 }
 
+type ConfigEntry = { [key: string]: boolean };
+
 export interface Command {
   readonly path: string[];
   readonly parameters: { [key: string]: string };
-  readonly config: { [key: string]: boolean };
+  readonly config: { [key: string]: ConfigEntry };
 }
 
 interface SessionEvent {
   readonly command: Command;
 }
 
-export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY';
+export type EventType = 'SYNTH' | 'INVOKE';
 export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
 interface Event extends SessionEvent {
   readonly state: State;
@@ -48,8 +50,16 @@ interface Duration {
 
 type Counters = { [key: string]: number };
 
+export enum ErrorName {
+  TOOLKIT_ERROR = 'ToolkitError',
+  AUTHENTICATION_ERROR = 'AuthenticationError',
+  ASSEMBLY_ERROR = 'AssemblyError',
+  CONTEXT_PROVIDER_ERROR = 'ContextProviderError',
+  UNKNOWN_ERROR = 'UnknownError',
+}
+
 export interface ErrorDetails {
-  readonly name: string;
+  readonly name: ErrorName;
   readonly message?: string; // sanitized stack message
   readonly stackTrace?: string; // sanitized stack trace
   readonly logs?: string; // sanitized stack logs

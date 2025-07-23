@@ -31,6 +31,7 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
+import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
@@ -677,7 +678,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
       error = {
-        name: err.name,
+        name: cdkCliErrorName(err.name),
       };
       process.exitCode = 1;
     })
