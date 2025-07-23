@@ -66,6 +66,8 @@ import {
 } from '../util';
 import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
+import { ErrorDetails } from './telemetry/schema';
+import { cdkCliErrorName } from './telemetry/error';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -526,7 +528,7 @@ export class CdkToolkit {
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
       const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
-      let error: any | undefined;
+      let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
         let deployResult: SuccessfulDeployStackResult | undefined;
@@ -640,10 +642,15 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        error = new ToolkitError(
+        const wrappedError = new ToolkitError(
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
         );
-        throw error;
+
+        error = {
+          name: cdkCliErrorName(wrappedError.name),
+        };
+
+        throw wrappedError;
       } finally {
         await deploySpan.end({ error });
 
