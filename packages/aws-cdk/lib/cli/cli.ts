@@ -99,6 +99,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
+  if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
+    throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
+  }
+
   try {
     await ioHost.startTelemetry(argv, configuration.context);
   } catch (e: any) {
@@ -207,10 +211,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     if (args.all && args.STACKS) {
       throw new ToolkitError('You must either specify a list of Stacks or the `--all` argument');
-    }
-
-    if (args['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
-      throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
     }
 
     args.STACKS = args.STACKS ?? (args.STACK ? [args.STACK] : []);
