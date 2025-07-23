@@ -182,7 +182,7 @@ export class SdkProvider {
       return { sdk, didAssumeRole: true };
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
-        throw err;
+        throw new AuthenticationError(`Assuming role failed: ${err.message ?? err}`);
       }
 
       // AssumeRole failed. Proceed and warn *if and only if* the baseCredentials were already for the right account
@@ -368,7 +368,7 @@ export class SdkProvider {
       return this._makeSdk(credentials, region);
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
-        throw err;
+        throw new AuthenticationError(`Assuming role failed: ${err.message ?? err}`);
       }
 
       await this.ioHelper.defaults.debug(`Assuming role failed: ${err.message}`);
