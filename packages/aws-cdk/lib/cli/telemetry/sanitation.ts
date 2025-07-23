@@ -34,7 +34,7 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
     if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) {
       continue;
     }
-    if (isNumberOrBoolean(argv[argName])) || isKnownEnumValue(argName, argv[argName], command, config)) {
+    if (isNumberOrBoolean(argv[argName]) || isKnownEnumValue(argName, argv[argName], command, config)) {
       parameters[argName] = argv[argName];
     } else {
       parameters[argName] = '<redacted>';
