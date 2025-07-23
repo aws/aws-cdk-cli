@@ -19,6 +19,7 @@ import type { StackActivity, StackMonitoringControlEvent } from '../../../payloa
 import type { StackSelectionDetails } from '../../../payloads/synth';
 import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, SingleStack, StackAndAssemblyData } from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
+import { FeatureFlagChangeRequest } from '../../../payloads/flags';
 
 /**
  * We have a rough system by which we assign message codes:
@@ -414,6 +415,13 @@ export const IO = {
     code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',
     interface: 'ErrorPayload',
+  }),
+
+  // flags (93xxx) 
+  CDK_TOOLKIT_I9300: make.info<FeatureFlagChangeRequest>({
+    code: 'CDK_TOOLKIT_I9300',
+    description: 'Confirm the feature flag configuration changes',
+    interface: 'FeatureFlagChangeRequest'
   }),
 
   // Notices

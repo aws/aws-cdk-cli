@@ -25,7 +25,7 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
-import { handleFlags } from '../commands/flags';
+import { handleFlags } from '../commands/flag-operations';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
@@ -435,6 +435,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'flags':
         ioHost.currentAction = 'flags';
+  
         if (!configuration.settings.get(['unstable']).includes('flags')) {
           throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
         }
@@ -444,10 +445,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           unstableFeatures: configuration.settings.get(['unstable']),
         });
-        console.log('Debug args object:', JSON.stringify(args, null, 2));
         const flagsData = await toolkit.flags(cloudExecutable);
-        console.log("here");
-        return handleFlags(flagsData, ioHelper, args);
+        return handleFlags(flagsData, ioHelper, args, toolkit);
 
 
       case 'synthesize':

@@ -155,3 +155,4 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_ASSEMBLY_E9999` | Errors emitted by the cloud assembly | `error` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_SDK_I0100` | An SDK trace. SDK traces are emitted as traces to the IoHost, but contain the original SDK logging level. | `trace` | {@link SdkTrace} |
 | `CDK_SDK_I1100` | Get an MFA token for an MFA device. | `info` | {@link MfaTokenRequest} |
+| `CDK_TOOLKIT_I9300` | Confirm the feature flag configuration changes | `info` | {@link ConfirmationRequest} |
