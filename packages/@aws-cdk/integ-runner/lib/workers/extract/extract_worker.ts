@@ -3,7 +3,7 @@ import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
 import { IntegTest } from '../../runner/integration-tests';
 import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic } from '../common';
-import { DiagnosticReason, formatAssertionResults } from '../common';
+import { DiagnosticReason, formatAssertionResults, formatError } from '../common';
 import type { IntegTestBatchRequest } from '../integ-test-worker';
 import type { IntegWatchOptions } from '../integ-watch-worker';
 
@@ -73,7 +73,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           workerpool.workerEmit({
             reason: DiagnosticReason.TEST_FAILED,
             testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
-            message: `Integration test failed: ${e}`,
+            message: `Integration test failed: ${formatError(e)}`,
             duration: (Date.now() - start) / 1000,
           });
         }
@@ -83,7 +83,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
       workerpool.workerEmit({
         reason: DiagnosticReason.TEST_ERROR,
         testName: `${testInfo.fileName} (${request.profile}/${request.region})`,
-        message: `Error during integration test: ${e}`,
+        message: `Error during integration test: ${formatError(e)}`,
         duration: (Date.now() - start) / 1000,
       });
     }
@@ -176,7 +176,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
   } catch (e: any) {
     failedTests.push(test.info);
     workerpool.workerEmit({
-      message: e.message,
+      message: formatError(e),
       testName: test.testName,
       reason: DiagnosticReason.SNAPSHOT_ERROR,
       duration: (Date.now() - start) / 1000,

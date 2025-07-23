@@ -282,11 +282,12 @@ describe('CliIoHost', () => {
   describe('telemetry', () => {
     let telemetryIoHost: CliIoHost;
     let telemetryEmitSpy: jest.SpyInstance;
-    let telemetryFilePath: string;
+    let telemetryDir: string;
 
     beforeEach(async () => {
       // Create a telemetry file to satisfy requirements; we are not asserting on the file contents
-      telemetryFilePath = path.join(os.tmpdir(), 'telemetry-file.json');
+      telemetryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'telemetry'));
+      const telemetryFilePath = path.join(telemetryDir, 'telemetry-file.json');
 
       // Create a new instance with telemetry enabled
       telemetryIoHost = CliIoHost.instance({
@@ -301,7 +302,7 @@ describe('CliIoHost', () => {
     });
 
     afterEach(() => {
-      fs.unlinkSync(telemetryFilePath);
+      fs.rmdirSync(telemetryDir, { recursive: true });
       jest.restoreAllMocks();
     });
 
@@ -349,6 +350,26 @@ describe('CliIoHost', () => {
         eventType: 'INVOKE',
         duration: 123,
       }));
+    });
+
+    test('do not emit telemetry on non telemetry codes', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2000', // only I2001, I1001 are valid
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was not called
+      expect(telemetryEmitSpy).not.toHaveBeenCalled();
     });
 
     test('emit telemetry with error name', async () => {

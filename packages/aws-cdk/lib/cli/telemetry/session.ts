@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { getInstallationId } from './installation-id';
+import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
-import type { EventType, SessionSchema, State, ErrorDetails } from './schema';
+import { type EventType, type SessionSchema, type State, type ErrorDetails, ErrorName } from './schema';
 import type { ITelemetrySink } from './sink-interface';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
@@ -13,6 +13,8 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
+
+const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -40,13 +42,11 @@ export class TelemetrySession {
   }
 
   public async begin() {
-    this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
-
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
     this._sessionInfo = {
       identifiers: {
-        installationId: await getInstallationId(this.ioHost.asIoHelper()),
+        installationId: await getOrCreateInstallationId(this.ioHost.asIoHelper()),
         sessionId: randomUUID(),
         telemetryVersion: '1.0',
         cdkCliVersion: versionNumber(),
@@ -56,7 +56,9 @@ export class TelemetrySession {
         command: {
           path,
           parameters,
-          config: sanitizeContext(this.props.context),
+          config: {
+            context: sanitizeContext(this.props.context),
+          },
         },
       },
       environment: {
@@ -73,11 +75,19 @@ export class TelemetrySession {
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
     process.on('SIGINT', async () => {
-      await this.end({
-        name: 'ToolkitError',
-        message: 'Subprocess exited with error null',
-      });
+      try {
+        await this.end({
+          name: ErrorName.TOOLKIT_ERROR,
+          message: ABORTED_ERROR_MESSAGE,
+        });
+      } catch (e: any) {
+        await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
+      }
+      process.exit(1);
     });
+
+    // Begin the session span
+    this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
   }
 
   public async attachRegion(region: string) {
@@ -140,7 +150,7 @@ function getState(error?: ErrorDetails): State {
 }
 
 function isAbortedError(error?: ErrorDetails) {
-  if (error?.name === 'ToolkitError' && error?.message?.includes('Subprocess exited with error null')) {
+  if (error?.name === 'ToolkitError' && error?.message?.includes(ABORTED_ERROR_MESSAGE)) {
     return true;
   }
   return false;

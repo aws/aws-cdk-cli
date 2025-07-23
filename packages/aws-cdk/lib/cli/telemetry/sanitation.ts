@@ -1,14 +1,14 @@
-import { join } from 'path';
-import * as fs from 'fs-extra';
-
-export const CLI_TYPE_REGISTRY_FILE = 'cli-type-registry.json';
+import { FeatureFlag } from './feature-flags';
+import type { Context } from '../../api/context';
 
 /**
  * argv is the output of yargs
  */
 export function sanitizeCommandLineArguments(argv: any): { path: string[]; parameters: { [key: string]: string } } {
   // Get the configuration of the arguments
-  const config = fs.readJSONSync(join(__dirname, '..', CLI_TYPE_REGISTRY_FILE));
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const config = require('../cli-type-registry.json');
   const command = argv._[0];
   const path: string[] = [command];
   const parameters: { [key: string]: string } = {};
@@ -19,17 +19,18 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
 
   for (const argName of Object.keys(argv)) {
     if (argName === commandArg?.name) {
-      const arg = dropDuplicate(argName);
       if (commandArg.variadic) {
         for (let i = 0; i < argv[argName].length; i++) {
-          path.push(`$${arg}${i+1}`);
+          path.push(`$${argName}_${i+1}`);
         }
       } else {
-        path.push(`$${arg}1`);
+        path.push(`$${argName}`);
       }
     }
 
     // Continue if the arg name is not a global option or command option
+    // arg name comes from yargs and could be an alias; we trust that the "normal"
+    // name has the same information and that is what we want to record
     if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) {
       continue;
     }
@@ -46,9 +47,14 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
   };
 }
 
-export function sanitizeContext(context: { [key: string]: any }) {
-  const sanitizedContext: { [key: string]: boolean } = {};
-  for (const [flag, value] of Object.entries(context)) {
+export function sanitizeContext(context: Context) {
+  const sanitizedContext: { [K in FeatureFlag]: boolean } = {} as { [K in FeatureFlag]: boolean };
+  for (const [flag, value] of Object.entries(context.all)) {
+    // Skip if flag is not in the FeatureFlags enum
+    if (!isFeatureFlag(flag)) {
+      continue;
+    }
+
     // Falsy options include boolean false, string 'false'
     // All other inputs evaluate to true
     const sanitizedValue: boolean = isBoolean(value) ? value : (value !== 'false');
@@ -62,9 +68,9 @@ function isBoolean(value: any): value is boolean {
 }
 
 function isNumberOrBoolean(value: any): boolean {
-  return typeof value === 'number' || typeof value === 'boolean';
+  return typeof value === 'number' || isBoolean(value);
 }
 
-function dropDuplicate(param: string): string {
-  return param.endsWith('S') ? param.slice(0, param.length-1) : param;
+function isFeatureFlag(flag: string): flag is FeatureFlag {
+  return Object.values(FeatureFlag).includes(flag as FeatureFlag);
 }

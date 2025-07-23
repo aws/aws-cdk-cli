@@ -113,6 +113,9 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true },
         },
       },
+      'flags': {
+        description: 'View and toggle feature flags.',
+      },
       'deploy': {
         description: 'Deploys the stack(s) named STACKS into your AWS account',
         options: {
@@ -338,6 +341,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
+          'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
         },
       },
       'drift': {
@@ -472,6 +476,11 @@ export async function makeConfig(): Promise<CliConfig> {
             type: 'boolean',
             desc: 'Disable anonymous telemetry',
             conflicts: 'enable',
+          },
+          status: {
+            type: 'boolean',
+            desc: 'Report telemetry opt-in/out status',
+            conflicts: ['enable', 'disable'],
           },
         },
       },

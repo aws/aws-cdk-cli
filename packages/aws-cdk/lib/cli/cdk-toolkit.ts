@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { parseMappingGroups, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -32,6 +32,7 @@ import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
+import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
@@ -63,6 +64,7 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
+import { canCollectTelemetry } from './telemetry/collect-telemetry';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -206,6 +208,15 @@ export class CdkToolkit {
     await this.props.configuration.saveContext();
   }
 
+  public async cliTelemetryStatus() {
+    const canCollect = canCollectTelemetry(this.props.configuration.context);
+    if (canCollect) {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
+    } else {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
+    }
+  }
+
   public async cliTelemetry(enable: boolean) {
     this.props.configuration.context.set('cli-telemetry', enable);
     await this.props.configuration.saveContext();
@@ -266,6 +277,10 @@ export class CdkToolkit {
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
       }
     } else {
+      const allMappings = options.includeMoves
+        ? await mappingsByEnvironment(stacks.stackArtifacts, this.props.sdkProvider, true)
+        : [];
+
       // Compare N stacks against deployed templates
       for (const stack of stacks.stackArtifacts) {
         const templateWithNestedStacks = await this.props.deployments.readCurrentTemplateWithNestedStacks(
@@ -322,6 +337,10 @@ export class CdkToolkit {
           }
         }
 
+        const mappings = allMappings.find(m =>
+          m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
+        )?.mappings ?? {};
+
         const formatter = new DiffFormatter({
           templateInfo: {
             oldTemplate: currentTemplate,
@@ -329,6 +348,7 @@ export class CdkToolkit {
             changeSet,
             isImport: !!resourcesToImport,
             nestedStacks,
+            mappings,
           },
         });
 
@@ -750,7 +770,7 @@ export class CdkToolkit {
     if (!watchSettings) {
       throw new ToolkitError(
         "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-          'Make sure to add a "watch" key to your cdk.json',
+        'Make sure to add a "watch" key to your cdk.json',
       );
     }
 
@@ -835,7 +855,7 @@ export class CdkToolkit {
           latch = 'queued';
           await this.ioHost.asIoHelper().defaults.info(
             "Detected change to '%s' (type: %s) while 'cdk deploy' is still running. " +
-              'Will queue for another deployment after this one finishes',
+            'Will queue for another deployment after this one finishes',
             filePath,
             event,
           );
@@ -914,10 +934,10 @@ export class CdkToolkit {
     // Notify user of next steps
     await this.ioHost.asIoHelper().defaults.info(
       `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
-        'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
-        chalk.underline.blueBright(
-          'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
-        ),
+      'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
+      chalk.underline.blueBright(
+        'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
+      ),
     );
     if (actualImport.importResources.length < additions.length) {
       await this.ioHost.asIoHelper().defaults.info('');
@@ -979,29 +999,20 @@ export class CdkToolkit {
     }
 
     if (options.showDeps) {
-      const stackDeps = [];
-
-      for (const stack of stacks) {
-        stackDeps.push({
-          id: stack.id,
-          dependencies: stack.dependencies,
-        });
-      }
-
+      const stackDeps = stacks.map(stack => ({
+        id: stack.id,
+        dependencies: stack.dependencies,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), stackDeps, options.json ?? false);
       return 0;
     }
 
     if (options.long) {
-      const long = [];
-
-      for (const stack of stacks) {
-        long.push({
-          id: stack.id,
-          name: stack.name,
-          environment: stack.environment,
-        });
-      }
+      const long = stacks.map(stack => ({
+        id: stack.id,
+        name: stack.name,
+        environment: stack.environment,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), long, options.json ?? false);
       return 0;
     }
@@ -1010,7 +1021,6 @@ export class CdkToolkit {
     for (const stack of stacks) {
       await this.ioHost.asIoHelper().defaults.result(stack.id);
     }
-
     return 0; // exit-code
   }
 
@@ -1538,6 +1548,13 @@ export interface DiffOptions {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Whether to include resource moves in the diff
+   *
+   * @default false
+   */
+  readonly includeMoves?: boolean;
 }
 
 interface CfnDeployOptions {
@@ -2022,10 +2039,10 @@ export interface DriftOptions {
 
 function buildParameterMap(
   parameters:
-  | {
-    [name: string]: string | undefined;
-  }
-  | undefined,
+    | {
+      [name: string]: string | undefined;
+    }
+    | undefined,
 ): { [name: string]: { [name: string]: string | undefined } } {
   const parameterMap: {
     [name: string]: { [name: string]: string | undefined };
@@ -2109,5 +2126,5 @@ function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'in
  */
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
   return requireApproval === RequireApproval.ANYCHANGE ||
-  requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
+    requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }

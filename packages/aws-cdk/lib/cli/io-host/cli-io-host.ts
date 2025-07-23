@@ -24,6 +24,7 @@ type CliAction =
 | ToolkitAction
 | 'context'
 | 'docs'
+| 'flags'
 | 'notices'
 | 'version'
 | 'cli-telemetry'
@@ -180,7 +181,7 @@ export class CliIoHost implements IIoHost {
       });
     }
     // TODO: uncomment this at launch
-    // if (canCollectTelemetry(args, context)) {
+    // if (canCollectTelemetry(context)) {
     //   sink = new EndpointTelemetrySink({
     //     ioHost: this,
     //     agent: proxyAgent,

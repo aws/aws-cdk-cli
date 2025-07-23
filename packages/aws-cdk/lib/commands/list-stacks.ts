@@ -31,5 +31,11 @@ export async function listStacks(toolkit: CdkToolkit, options: ListStacksOptions
     defaultBehavior: DefaultSelection.AllStacks,
   });
 
-  return stacks.withDependencies();
+  // we only want to print a subset of information in `cdk list --json`
+  return stacks.withDependencies().map(stack => ({
+    id: stack.id,
+    name: stack.name,
+    environment: stack.environment,
+    dependencies: stack.dependencies,
+  }));
 }

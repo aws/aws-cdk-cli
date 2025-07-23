@@ -94,6 +94,10 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'flags':
+      commandOptions = {};
+      break;
+
     case 'deploy':
       commandOptions = {
         all: args.all,
@@ -193,6 +197,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         quiet: args.quiet,
         changeSet: args.changeSet,
         importExistingResources: args.importExistingResources,
+        includeMoves: args.includeMoves,
         STACKS: args.STACKS,
       };
       break;
@@ -280,6 +285,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         enable: args.enable,
         disable: args.disable,
+        status: args.status,
       };
       break;
   }
@@ -360,6 +366,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     confirm: config.gc?.confirm,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
+  const flagsOptions = {};
   const deployOptions = {
     all: config.deploy?.all,
     buildExclude: config.deploy?.buildExclude,
@@ -438,6 +445,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
     importExistingResources: config.diff?.importExistingResources,
+    includeMoves: config.diff?.includeMoves,
   };
   const driftOptions = {
     fail: config.drift?.fail,
@@ -483,6 +491,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,
     disable: config.cliTelemetry?.disable,
+    status: config.cliTelemetry?.status,
   };
   const userInput: UserInput = {
     globalOptions,
@@ -490,6 +499,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     synth: synthOptions,
     bootstrap: bootstrapOptions,
     gc: gcOptions,
+    flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
     import: importOptions,

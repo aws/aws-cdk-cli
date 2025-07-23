@@ -329,6 +329,9 @@
         }
       }
     },
+    "flags": {
+      "description": "View and toggle feature flags."
+    },
     "deploy": {
       "description": "Deploys the stack(s) named STACKS into your AWS account",
       "options": {
@@ -724,6 +727,11 @@
           "type": "boolean",
           "desc": "Whether or not the change set imports resources that already exist",
           "default": false
+        },
+        "include-moves": {
+          "type": "boolean",
+          "desc": "Whether to include moves in the diff",
+          "default": false
         }
       }
     },
@@ -936,6 +944,14 @@
           "type": "boolean",
           "desc": "Disable anonymous telemetry",
           "conflicts": "enable"
+        },
+        "status": {
+          "type": "boolean",
+          "desc": "Report telemetry opt-in/out status",
+          "conflicts": [
+            "enable",
+            "disable"
+          ]
         }
       }
     }

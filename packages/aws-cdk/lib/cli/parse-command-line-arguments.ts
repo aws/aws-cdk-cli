@@ -352,6 +352,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
             requiresArg: true,
           }),
     )
+    .command('flags', 'View and toggle feature flags.')
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {
@@ -755,6 +756,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: false,
             type: 'boolean',
             desc: 'Whether or not the change set imports resources that already exist',
+          })
+          .option('include-moves', {
+            default: false,
+            type: 'boolean',
+            desc: 'Whether to include moves in the diff',
           }),
     )
     .command('drift [STACKS..]', 'Detect drifts in the given CloudFormation stack(s)', (yargs: Argv) =>
@@ -926,6 +932,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Disable anonymous telemetry',
           conflicts: 'enable',
+        })
+        .option('status', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Report telemetry opt-in/out status',
+          conflicts: ['enable', 'disable'],
         }),
     )
     .version(helpers.cliVersion())

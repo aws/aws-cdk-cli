@@ -1,67 +1,4 @@
 import type { StackSelector } from '../../api';
-import type { ExcludeList } from '../../api/refactoring';
-import { InMemoryExcludeList, NeverExclude } from '../../api/refactoring';
-import { ToolkitError } from '../../toolkit/toolkit-error';
-
-type MappingType = 'auto' | 'explicit';
-
-/**
- * The source of the resource mappings to be used for refactoring.
- */
-export class MappingSource {
-  /**
-   * The mapping will be automatically generated based on a comparison of
-   * the deployed stacks and the local stacks.
-   *
-   * @param exclude - A list of resource locations to exclude from the mapping.
-   */
-  public static auto(exclude: string[] = []): MappingSource {
-    const excludeList = new InMemoryExcludeList(exclude);
-    return new MappingSource('auto', [], excludeList);
-  }
-
-  /**
-   * An explicitly provided list of mappings, which will be used for refactoring.
-   */
-  public static explicit(groups: MappingGroup[]): MappingSource {
-    return new MappingSource('explicit', groups, new NeverExclude());
-  }
-
-  /**
-   * An explicitly provided list of mappings, which will be used for refactoring,
-   * but in reverse, that is, the source locations will become the destination
-   * locations and vice versa.
-   */
-  public static reverse(groups: MappingGroup[]): MappingSource {
-    const reverseGroups = groups.map((group) => ({
-      ...group,
-      resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => [dst, src])),
-    }));
-
-    return MappingSource.explicit(reverseGroups);
-  }
-
-  /**
-   * @internal
-   */
-  public readonly source: MappingType;
-
-  /**
-   * @internal
-   */
-  public readonly groups: MappingGroup[];
-
-  /**
-   * @internal
-   */
-  public readonly exclude: ExcludeList;
-
-  private constructor(source: MappingType, groups: MappingGroup[], exclude: ExcludeList) {
-    this.source = source;
-    this.groups = groups;
-    this.exclude = exclude;
-  }
-}
 
 export interface RefactorOptions {
   /**
@@ -75,30 +12,30 @@ export interface RefactorOptions {
    * List of overrides to be applied to resolve possible ambiguities in the
    * computed list of mappings.
    */
-  overrides?: MappingGroup[];
+  readonly overrides?: MappingGroup[];
 
   /**
    * Criteria for selecting stacks to compare with the deployed stacks in the
    * target environment.
    */
-  stacks?: StackSelector;
+  readonly stacks?: StackSelector;
 
   /**
    * A list of names of additional deployed stacks to be included in the comparison.
    */
-  additionalStackNames?: string[];
+  readonly additionalStackNames?: string[];
 }
 
 export interface MappingGroup {
   /**
    * The account ID of the environment in which the mapping is valid.
    */
-  account: string;
+  readonly account: string;
 
   /**
    * The region of the environment in which the mapping is valid.
    */
-  region: string;
+  readonly region: string;
 
   /**
    * A collection of resource mappings, where each key is the source location
@@ -108,37 +45,7 @@ export interface MappingGroup {
    * location that is not already occupied by any resource.
    *
    */
-  resources: {
-    [key: string]: string;
+  readonly resources: {
+    readonly [key: string]: string;
   };
-}
-
-export function parseMappingGroups(s: string) {
-  const mappingGroups = doParse();
-
-  // Validate that there are no duplicate destinations.
-  // By construction, there are no duplicate sources, already.
-  for (let group of mappingGroups) {
-    const destinations = new Set<string>();
-
-    for (const destination of Object.values(group.resources)) {
-      if (destinations.has(destination)) {
-        throw new ToolkitError(
-          `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
-        );
-      }
-      destinations.add(destination);
-    }
-  }
-
-  return mappingGroups;
-
-  function doParse(): MappingGroup[] {
-    const content = JSON.parse(s);
-    if (content.environments || !Array.isArray(content.environments)) {
-      return content.environments;
-    } else {
-      throw new ToolkitError("Expected an 'environments' array");
-    }
-  }
 }
