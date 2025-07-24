@@ -106,7 +106,7 @@ async function prototypeChanges(
     return;
   }
 
-  if (typeof flag.recommendedValue !== 'boolean') {
+  if (typeof flag.recommendedValue !== 'boolean' && flag.recommendedValue !== 'true' && flag.recommendedValue !== 'false') {
     await ioHelper.defaults.info(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
     return;
   }
