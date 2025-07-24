@@ -1277,7 +1277,7 @@ export class CdkToolkit {
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
-      return 1;
+      throw e;
     }
 
     return 0;
