@@ -9,22 +9,22 @@ import type { FlagsOptions } from '../cli/user-input';
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
   if (options.FLAGNAME && options.all) {
-    await ioHelper.defaults.info('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
+    await ioHelper.defaults.error('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
     return;
   }
 
   if (options.set && options.all) {
-    await ioHelper.defaults.info('Error: --set is currently only compatible with a flag name. Please specify which flag you want to set.');
+    await ioHelper.defaults.error('Error: --set is currently only compatible with a flag name. Please specify which flag you want to set.');
     return;
   }
 
   if (options.set && !options.FLAGNAME) {
-    await ioHelper.defaults.info('Error: --set requires a flag name. Please specify which flag you want to set.');
+    await ioHelper.defaults.error('Error: --set requires a flag name. Please specify which flag you want to set.');
     return;
   }
 
   if (options.set && !options.value) {
-    await ioHelper.defaults.info('Error: --set requires a value. Please specify the value you want to set for the flag.');
+    await ioHelper.defaults.error('Error: --set requires a value. Please specify the value you want to set for the flag.');
     return;
   }
 
@@ -52,7 +52,7 @@ export async function displayFlags(flagsData: FeatureFlag[], ioHelper: IoHelper,
   if (flagName && flagName.length > 0) {
     const flag = flagsData.find(f => f.name === flagName);
     if (!flag) {
-      await ioHelper.defaults.info('Flag not found.');
+      await ioHelper.defaults.error('Flag not found.');
       return;
     }
 
@@ -123,12 +123,12 @@ async function prototypeChanges(
 ) {
   const flag = flagData.find(f => f.name === flagName);
   if (!flag) {
-    await ioHelper.defaults.info('Flag not found.');
+    await ioHelper.defaults.error('Flag not found.');
     return;
   }
 
   if (typeof flag.recommendedValue !== 'boolean' && flag.recommendedValue !== 'true' && flag.recommendedValue !== 'false') {
-    await ioHelper.defaults.info(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
+    await ioHelper.defaults.error(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
     return;
   }
 
@@ -139,7 +139,7 @@ async function prototypeChanges(
   const boolValue = value!.toLowerCase() === 'true';
 
   if (baseContextValues[flagName] == boolValue) {
-    await ioHelper.defaults.info('Flag is already set to the specified value. No changes needed.');
+    await ioHelper.defaults.error('Flag is already set to the specified value. No changes needed.');
     return;
   }
   const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
