@@ -371,24 +371,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Modify or view all feature flags',
           requiresArg: false,
-        })
-        .option('unconfigured', {
-          default: undefined,
-          type: 'boolean',
-          desc: 'Modify unconfigured feature flags',
-          requiresArg: false,
-        })
-        .option('recommended', {
-          default: undefined,
-          type: 'boolean',
-          desc: 'Change flags to recommended states',
-          requiresArg: false,
-        })
-        .option('default', {
-          default: undefined,
-          type: 'boolean',
-          desc: 'Change flags to default state',
-          requiresArg: false,
         }),
     )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>

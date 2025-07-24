@@ -8,7 +8,27 @@ import type { IoHelper } from '../api-private';
 import type { FlagsOptions } from '../cli/user-input';
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
-  if (options.FLAGNAME && !options.set) {
+  if (options.FLAGNAME && options.all) {
+    await ioHelper.defaults.info('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
+    return;
+  }
+
+  if (options.set && options.all) {
+    await ioHelper.defaults.info('Error: --set is currently only compatible with a flag name. Please specify which flag you want to set.');
+    return;
+  }
+
+  if (options.set && !options.FLAGNAME) {
+    await ioHelper.defaults.info('Error: --set requires a flag name. Please specify which flag you want to set.');
+    return;
+  }
+
+  if (options.set && !options.value) {
+    await ioHelper.defaults.info('Error: --set requires a value. Please specify the value you want to set for the flag.');
+    return;
+  }
+
+  if (options.FLAGNAME && !options.set && !options.value) {
     await displayFlags(flagData, ioHelper, String(options.FLAGNAME));
     return;
   }
@@ -17,7 +37,8 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     await displayFlags(flagData, ioHelper, undefined, true);
     return;
   }
-  if (options.set && options.FLAGNAME) {
+
+  if (options.set && options.FLAGNAME || options.value && options.FLAGNAME) {
     await prototypeChanges(flagData, ioHelper, String(options.FLAGNAME), options.value, toolkit);
     return;
   }
