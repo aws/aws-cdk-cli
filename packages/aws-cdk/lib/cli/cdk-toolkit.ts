@@ -1258,6 +1258,7 @@ export class CdkToolkit {
         force: options.force,
         additionalStackNames: options.additionalStackNames,
         overrides: readOverrides(options.overrideFile, options.revert),
+        roleArn: options.roleArn,
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
@@ -2023,6 +2024,11 @@ export interface RefactorOptions {
    * A list of names of additional deployed stacks to be included in the comparison.
    */
   additionalStackNames?: string[];
+
+  /**
+   * Role to assume in the target environment before performing the refactor.
+   */
+  roleArn?: string;
 }
 
 /**

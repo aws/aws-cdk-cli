@@ -1,4 +1,6 @@
+import { DefaultAwsClient, type IAws } from '@aws-cdk/cdk-assets-lib';
 import type { Environment } from '@aws-cdk/cx-api';
+import { EnvironmentPlaceholders } from '@aws-cdk/cx-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
@@ -24,6 +26,7 @@ export interface RefactoringContextOptions {
   localStacks: CloudFormationStack[];
   deployedStacks: CloudFormationStack[];
   overrides?: ResourceMapping[];
+  assumeRoleArn?: string;
   ignoreModifications?: boolean;
 }
 
@@ -33,6 +36,8 @@ export interface RefactoringContextOptions {
 export class RefactoringContext {
   private readonly _mappings: ResourceMapping[] = [];
   private readonly ambiguousMoves: ResourceMove[] = [];
+  private readonly localStacks: CloudFormationStack[];
+  private readonly assumeRoleArn?: string;
   public readonly environment: Environment;
 
   constructor(props: RefactoringContextOptions) {
@@ -42,6 +47,8 @@ export class RefactoringContext {
     const overrides = (props.overrides ?? []).concat(additionalOverrides);
     const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(overrides, moves);
     this.ambiguousMoves = ambiguousMoves;
+    this.localStacks = props.localStacks;
+    this.assumeRoleArn = props.assumeRoleArn;
 
     this._mappings = resourceMappings(nonAmbiguousMoves);
   }
@@ -63,7 +70,12 @@ export class RefactoringContext {
       return;
     }
 
-    const sdk = (await sdkProvider.forEnvironment(this.environment, Mode.ForWriting)).sdk;
+    const assumeRoleArn = this.assumeRoleArn ?? await this.findRoleToAssume(sdkProvider);
+    const sdk = (
+      await sdkProvider.forEnvironment(this.environment, Mode.ForWriting, {
+        assumeRoleArn,
+      })
+    ).sdk;
 
     await this.checkBootstrapVersion(sdk, ioHelper);
 
@@ -106,6 +118,50 @@ export class RefactoringContext {
         `The CDK toolkit stack in environment ${environment} doesn't support refactoring. Please run 'cdk bootstrap ${environment}' to update it.`,
       );
     }
+  }
+
+  private async findRoleToAssume(sdkProvider: SdkProvider): Promise < string | undefined > {
+    // To execute a refactor, we need the deployment role ARN for the given
+    // environment. Most toolkit commands get the information about which roles to
+    // assume from the cloud assembly (and ultimately from the CDK framework). Refactor
+    // is different because it is not the application/framework that dictates what the
+    // toolkit should do, but it is the toolkit itself that has to figure it out.
+    //
+    // Nevertheless, the cloud assembly is the most reliable source for this kind of
+    // information. For the deployment role ARN, in particular, what we do here
+    // is look at all the stacks for a given environment in the cloud assembly and
+    // extract the deployment role ARN that is common to all of them. If no role is
+    // found, we go ahead without assuming a role. If there is more than one role,
+    // we consider that an invariant was violated, and throw an error.
+
+    const env = this.environment;
+    const roleArns = new Set(
+      this.localStacks
+        .filter((s) => s.environment.account === env.account && s.environment.region === env.region)
+        .map((s) => s.assumeRole),
+    );
+
+    if (roleArns.size === 0) {
+      return undefined;
+    }
+
+    if (roleArns.size !== 1) {
+      // Unlikely to happen. But if it does, we can't proceed
+      throw new ToolkitError(
+        `Multiple stacks in environment aws://${env.account}/${env.region} have different deployment role ARNs. Cannot proceed.`,
+      );
+    }
+
+    const arn = Array.from(roleArns)[0];
+    if (arn != null) {
+      const resolvedEnv = await sdkProvider.resolveEnvironment(env);
+      const region = resolvedEnv.region;
+      return (await replaceAwsPlaceholders({ region, assumeRoleArn: arn }, new DefaultAwsClient())).assumeRoleArn;
+    }
+
+    // If we couldn't find a role ARN, we can proceed without assuming a role.
+    // Maybe the default credentials have permissions to do what we need.
+    return undefined;
   }
 }
 
@@ -328,3 +384,39 @@ function partitionByAmbiguity(overrides: ResourceMapping[], moves: ResourceMove[
 
   return [nonAmbiguous, ambiguous];
 }
+
+/**
+ * Replace the {ACCOUNT} and {REGION} placeholders in all strings found in a complex object.
+ *
+ * Duplicated between cdk-assets and aws-cdk CLI because we don't have a good single place to put it
+ * (they're nominally independent tools).
+ */
+export async function replaceAwsPlaceholders<A extends { region?: string }>(
+  object: A,
+  aws: IAws,
+): Promise<A> {
+  let partition = async () => {
+    const p = await aws.discoverPartition();
+    partition = () => Promise.resolve(p);
+    return p;
+  };
+
+  let account = async () => {
+    const a = await aws.discoverCurrentAccount();
+    account = () => Promise.resolve(a);
+    return a;
+  };
+
+  return EnvironmentPlaceholders.replaceAsync(object, {
+    async region() {
+      return object.region ?? aws.discoverDefaultRegion();
+    },
+    async accountId() {
+      return (await account()).accountId;
+    },
+    async partition() {
+      return partition();
+    },
+  });
+}
+

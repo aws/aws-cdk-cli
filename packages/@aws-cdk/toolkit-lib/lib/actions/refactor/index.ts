@@ -110,6 +110,11 @@ export interface RefactorOptions {
    * Whether to do the refactor without prompting the user for confirmation.
    */
   force?: boolean;
+
+  /**
+   * Role to assume in the target environment before performing the refactor.
+   */
+  roleArn?: string;
 }
 
 export interface MappingGroup {

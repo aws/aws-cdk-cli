@@ -1072,6 +1072,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           environment,
           deployedStacks,
           localStacks,
+          assumeRoleArn: options.roleArn,
           overrides: getOverrides(environment, deployedStacks, localStacks),
         });
 
