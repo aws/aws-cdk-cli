@@ -1274,6 +1274,13 @@ export interface InitOptions {
    *
    * @default - undefined
    */
+  readonly fromPath?: string;
+
+  /**
+   * Path to a specific template within a Git repository or NPM package
+   *
+   * @default - undefined
+   */
   readonly templatePath?: string;
 
   /**
@@ -1281,21 +1288,21 @@ export interface InitOptions {
    *
    * @default - undefined
    */
-  readonly gitUrl?: string;
+  readonly fromGit?: string;
 
   /**
-   * Name of the specific template to use when a repository contains multiple templates
+   * GitHub repository shorthand notation (user/repo) containing template(s)
    *
    * @default - undefined
    */
-  readonly templateName?: string;
+  readonly fromGithub?: string;
 
   /**
    * NPM package name containing template(s)
    *
    * @default - undefined
    */
-  readonly npmPackage?: string;
+  readonly fromNpm?: string;
 
   /**
    * The name of the stack to create

@@ -793,25 +793,31 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'V',
           desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
         })
-        .option('template-path', {
+        .option('from-path', {
           default: undefined,
           type: 'string',
           desc: 'Path to a local template directory',
           requiresArg: true,
         })
-        .option('git-url', {
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a specific template within a Git repository or NPM package',
+          requiresArg: true,
+        })
+        .option('from-git', {
           default: undefined,
           type: 'string',
           desc: 'Git repository URL containing template(s)',
           requiresArg: true,
         })
-        .option('template-name', {
+        .option('from-github', {
           default: undefined,
           type: 'string',
-          desc: 'Name of the specific template to use when a repository contains multiple templates',
+          desc: 'GitHub repository shorthand notation (user/repo) containing template(s)',
           requiresArg: true,
         })
-        .option('npm-package', {
+        .option('from-npm', {
           default: undefined,
           type: 'string',
           desc: 'NPM package name containing template(s)',

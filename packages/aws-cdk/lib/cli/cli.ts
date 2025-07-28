@@ -466,10 +466,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
+            fromPath: args.fromPath,
             templatePath: args.templatePath,
-            gitUrl: args.gitUrl,
-            templateName: args.templateName,
-            npmPackage: args.npmPackage,
+            fromGit: args.fromGit,
+            fromGithub: args.fromGithub,
+            fromNpm: args.fromNpm,
             stackName: args.stackName,
           });
         }
