@@ -222,6 +222,11 @@ export class Manifest {
       errors = stripEnumErrors(errors);
     }
 
+    // Filter out errors related to feature flag reports
+    errors = errors.filter(e => {
+      return !e.property?.includes('aws-cdk-lib/feature-flag-report');
+    });
+
     if (errors.length > 0) {
       throw new Error(`Invalid assembly manifest:\n${errors.map((e) => e.stack).join('\n')}`);
     }
