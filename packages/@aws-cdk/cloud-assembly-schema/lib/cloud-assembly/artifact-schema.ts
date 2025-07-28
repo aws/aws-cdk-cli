@@ -277,7 +277,7 @@ export interface FeatureFlag {
    *
    * @default - No value
    */
-  readonly unconfiguredBehavesLike?: string;
+  readonly unconfiguredBehavesLike?: { [key: string]: any };
 }
 
 /**
