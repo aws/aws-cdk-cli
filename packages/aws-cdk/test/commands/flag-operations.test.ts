@@ -154,8 +154,6 @@ describe('handleFlags', () => {
   test('displays specific flag when FLAGNAME is provided without set option', async () => {
     const options: FlagsOptions = {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
-      set: false,
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -169,7 +167,6 @@ describe('handleFlags', () => {
   test('displays all flags when all option is true', async () => {
     const options: FlagsOptions = {
       all: true,
-      set: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -181,8 +178,6 @@ describe('handleFlags', () => {
 
   test('displays only differing flags when no specific options are provided', async () => {
     const options: FlagsOptions = {
-      set: false,
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -196,8 +191,6 @@ describe('handleFlags', () => {
   test('handles flag not found for specific flag query', async () => {
     const options: FlagsOptions = {
       FLAGNAME: ['@aws-cdk/core:nonExistentFlag'],
-      set: false,
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -218,7 +211,6 @@ describe('handleFlags', () => {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
       set: true,
       value: 'true',
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -240,21 +232,19 @@ describe('handleFlags', () => {
       '@aws-cdk/core:testFlag': true,
     });
 
+    setupMockToolkitForPrototyping(mockToolkit);
+
     const options: FlagsOptions = {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
       set: true,
       value: 'true',
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
-    expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
+    expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(1);
     expect(mockToolkit.synth).not.toHaveBeenCalled();
     expect(mockToolkit.diff).not.toHaveBeenCalled();
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Flag is already set to the specified value. No changes needed.');
 
     await cleanupCdkJsonFile(cdkJsonPath);
   });
@@ -274,7 +264,6 @@ describe('handleFlags', () => {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
       set: true,
       value: 'true',
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -312,7 +301,6 @@ describe('handleFlags', () => {
       FLAGNAME: ['@aws-cdk/core:nonBooleanFlag'],
       set: true,
       value: 'true',
-      all: false,
     };
 
     await handleFlags(nonBooleanFlagsData, ioHelper, options, mockToolkit);
@@ -324,7 +312,7 @@ describe('handleFlags', () => {
 });
 
 describe('modifyValues', () => {
-  test('updates cdk.json file correctly', async () => {
+  test('updates cdk.json file correctly for single flag', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:existingFlag': false,
     });
@@ -339,7 +327,6 @@ describe('modifyValues', () => {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
       set: true,
       value: 'true',
-      all: false,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -350,10 +337,69 @@ describe('modifyValues', () => {
     expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(true);
     expect(updatedJson.context['@aws-cdk/core:existingFlag']).toBe(false);
 
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Flag value updated successfully.');
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('sets only unconfigured flags to recommended values', async () => {
+    const cdkJsonPath = await createCdkJsonFile({
+      '@aws-cdk/core:testFlag': false,
+      '@aws-cdk/core:matchingFlag': true,
+    });
+
+    const mockToolkit = createMockToolkit();
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      set: true,
+      unconfigured: true,
+      recommended: true,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+    const updatedJson = JSON.parse(updatedContent);
+
+    expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
+    expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(false);
+    expect(updatedJson.context['@aws-cdk/core:matchingFlag']).toBe(true);
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
+});
+
+test('sets all flags to recommended values', async () => {
+  const cdkJsonPath = await createCdkJsonFile({
+    '@aws-cdk/core:testFlag': false,
+    '@aws-cdk/core:matchingFlag': true,
+  });
+
+  const mockToolkit = createMockToolkit();
+  setupMockToolkitForPrototyping(mockToolkit);
+
+  const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+  requestResponseSpy.mockResolvedValue(true);
+
+  const options: FlagsOptions = {
+    set: true,
+    all: true,
+    recommended: true,
+  };
+
+  await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+  const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+  const updatedJson = JSON.parse(updatedContent);
+
+  expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(true);
+  expect(updatedJson.context['@aws-cdk/core:matchingFlag']).toBe(true);
+  expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
+
+  await cleanupCdkJsonFile(cdkJsonPath);
+  requestResponseSpy.mockRestore();
 });
