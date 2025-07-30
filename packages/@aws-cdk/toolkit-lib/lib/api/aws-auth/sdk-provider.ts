@@ -182,7 +182,7 @@ export class SdkProvider {
       return { sdk, didAssumeRole: true };
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
-        throw AuthenticationError.withCause('Assuming role failed with ExpiredToken', err);
+        throw AuthenticationError.withCause('Assuming role failed: ExpiredToken', err);
       }
 
       // AssumeRole failed. Proceed and warn *if and only if* the baseCredentials were already for the right account
