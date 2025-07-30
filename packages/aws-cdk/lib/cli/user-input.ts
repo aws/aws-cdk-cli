@@ -48,7 +48,7 @@ export interface UserInput {
   /**
    * View and toggle feature flags.
    */
-  readonly flags?: {};
+  readonly flags?: FlagsOptions;
 
   /**
    * Deploys the stack(s) named STACKS into your AWS account
@@ -252,7 +252,7 @@ export interface GlobalOptions {
   readonly ec2creds?: boolean;
 
   /**
-   * Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
+   * Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
    *
    * @default - undefined
    */
@@ -607,6 +607,39 @@ export interface GcOptions {
    * Positional argument for gc
    */
   readonly ENVIRONMENTS?: Array<string>;
+}
+
+/**
+ * View and toggle feature flags.
+ *
+ * @struct
+ */
+export interface FlagsOptions {
+  /**
+   * The value the user would like to set the feature flag configuration to
+   *
+   * @default - undefined
+   */
+  readonly value?: string;
+
+  /**
+   * Signifies the user would like to modify their feature flag configuration
+   *
+   * @default - undefined
+   */
+  readonly set?: boolean;
+
+  /**
+   * Modify or view all feature flags
+   *
+   * @default - undefined
+   */
+  readonly all?: boolean;
+
+  /**
+   * Positional argument for flags
+   */
+  readonly FLAGNAME?: Array<string>;
 }
 
 /**

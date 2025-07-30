@@ -65,6 +65,9 @@ import {
   validateSnsTopicArn,
 } from '../util';
 import { canCollectTelemetry } from './telemetry/collect-telemetry';
+import { cdkCliErrorName } from './telemetry/error';
+import { CLI_PRIVATE_SPAN } from './telemetry/messages';
+import type { ErrorDetails } from './telemetry/schema';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -208,8 +211,10 @@ export class CdkToolkit {
     await this.props.configuration.saveContext();
   }
 
-  public async cliTelemetryStatus() {
-    const canCollect = canCollectTelemetry(this.props.configuration.context);
+  public async cliTelemetryStatus(versionReporting: boolean = true) {
+    // recreate the version-reporting property in args rather than bring the entire args object over
+    const args = { ['version-reporting']: versionReporting };
+    const canCollect = canCollectTelemetry(args, this.props.configuration.context);
     if (canCollect) {
       await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
     } else {
@@ -517,12 +522,15 @@ export class CdkToolkit {
       const stackIndex = stacks.indexOf(stack) + 1;
       await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
       const startDeployTime = new Date().getTime();
-
       let tags = options.tags;
       if (!tags || tags.length === 0) {
         tags = tagsForStack(stack);
       }
 
+      // There is already a startDeployTime constant, but that does not work with telemetry.
+      // We should integrate the two in the future
+      const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+      let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
         let deployResult: SuccessfulDeployStackResult | undefined;
@@ -636,10 +644,18 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        throw new ToolkitError(
+        const wrappedError = new ToolkitError(
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
         );
+
+        error = {
+          name: cdkCliErrorName(wrappedError.name),
+        };
+
+        throw wrappedError;
       } finally {
+        await deploySpan.end({ error });
+
         if (options.cloudWatchLogMonitor) {
           const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
           options.cloudWatchLogMonitor.addLogGroups(
@@ -1897,7 +1913,6 @@ export interface GarbageCollectionOptions {
    */
   readonly confirm?: boolean;
 }
-
 export interface MigrateOptions {
   /**
    * The name assigned to the generated stack. This is also used to get

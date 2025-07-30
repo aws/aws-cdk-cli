@@ -10,7 +10,8 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { FileTelemetrySink } from '../telemetry/file-sink';
-import { CLI_PRIVATE_IO } from '../telemetry/messages';
+import type { EventResult } from '../telemetry/messages';
+import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
 import { isCI } from '../util/ci';
@@ -181,7 +182,7 @@ export class CliIoHost implements IIoHost {
       });
     }
     // TODO: uncomment this at launch
-    // if (canCollectTelemetry(context)) {
+    // if (canCollectTelemetry(args, context)) {
     //   sink = new EndpointTelemetrySink({
     //     ioHost: this,
     //     agent: proxyAgent,
@@ -552,12 +553,12 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
   }
 }
 
-function isNoticesMessage(msg: IoMessage<unknown>) {
+function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
 
-function isTelemetryMessage(msg: IoMessage<unknown>) {
-  return CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg) || CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg);
+function isTelemetryMessage(msg: IoMessage<unknown>): msg is IoMessage<EventResult> {
+  return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
 }
 
 function getEventType(msg: IoMessage<unknown>): EventType {
@@ -566,6 +567,8 @@ function getEventType(msg: IoMessage<unknown>): EventType {
       return 'SYNTH';
     case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
       return 'INVOKE';
+    case CLI_PRIVATE_IO.CDK_CLI_I3001.code:
+      return 'DEPLOY';
     default:
       throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
   }

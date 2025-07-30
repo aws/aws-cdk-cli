@@ -11,27 +11,27 @@
 
 The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
-| Command                                  | Description                                                                       |
-| ---------------------------------------- | --------------------------------------------------------------------------------- |
-| [`cdk docs`](#cdk-docs)                  | Access the online documentation                                                   |
-| [`cdk init`](#cdk-init)                  | Start a new CDK project (app or library)                                          |
-| [`cdk list`](#cdk-list)                  | List stacks and their dependencies in an application                              |
-| [`cdk synth`](#cdk-synth)                | Synthesize a CDK app to CloudFormation template(s)                                |
-| [`cdk diff`](#cdk-diff)                  | Diff stacks against current state                                                 |
-| [`cdk deploy`](#cdk-deploy)              | Deploy a stack into an AWS account                                                |
-| [`cdk rollback`](#cdk-rollback)          | Roll back a failed deployment                                                     |
-| [`cdk import`](#cdk-import)              | Import existing AWS resources into a CDK stack                                    |
-| [`cdk migrate`](#cdk-migrate)            | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
-| [`cdk watch`](#cdk-watch)                | Watches a CDK app for deployable and hotswappable changes                         |
-| [`cdk destroy`](#cdk-destroy)            | Deletes a stack from an AWS account                                               |
-| [`cdk bootstrap`](#cdk-bootstrap)        | Deploy a toolkit stack to support deploying large stacks & artifacts              |
-| [`cdk gc`](#cdk-gc)                      | Garbage collect assets associated with the bootstrapped stack                     |
-| [`cdk doctor`](#cdk-doctor)              | Inspect the environment and produce information useful for troubleshooting        |
-| [`cdk acknowledge`](#cdk-acknowledge)    | Acknowledge (and hide) a notice by issue number                                   |
-| [`cdk notices`](#cdk-notices)            | List all relevant notices for the application                                     |
-| [`cdk refactor`](#cdk-refactor)          | Moves resources between stacks or within the same stack                           |
-| [`cdk drift`](#cdk-drift)                | Detect drifts in the given CloudFormation stack(s)                                |
-| [`cdk cli-telemetry](#cdk-cli-telemetry) | Enable or disable cli telemetry collection                                        |
+| Command                                   | Description                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| [`cdk docs`](#cdk-docs)                   | Access the online documentation                                                   |
+| [`cdk init`](#cdk-init)                   | Start a new CDK project (app or library)                                          |
+| [`cdk list`](#cdk-list)                   | List stacks and their dependencies in an application                              |
+| [`cdk synth`](#cdk-synth)                 | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk diff`](#cdk-diff)                   | Diff stacks against current state                                                 |
+| [`cdk deploy`](#cdk-deploy)               | Deploy a stack into an AWS account                                                |
+| [`cdk rollback`](#cdk-rollback)           | Roll back a failed deployment                                                     |
+| [`cdk import`](#cdk-import)               | Import existing AWS resources into a CDK stack                                    |
+| [`cdk migrate`](#cdk-migrate)             | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
+| [`cdk watch`](#cdk-watch)                 | Watches a CDK app for deployable and hotswappable changes                         |
+| [`cdk destroy`](#cdk-destroy)             | Deletes a stack from an AWS account                                               |
+| [`cdk bootstrap`](#cdk-bootstrap)         | Deploy a toolkit stack to support deploying large stacks & artifacts              |
+| [`cdk gc`](#cdk-gc)                       | Garbage collect assets associated with the bootstrapped stack                     |
+| [`cdk doctor`](#cdk-doctor)               | Inspect the environment and produce information useful for troubleshooting        |
+| [`cdk acknowledge`](#cdk-acknowledge)     | Acknowledge (and hide) a notice by issue number                                   |
+| [`cdk notices`](#cdk-notices)             | List all relevant notices for the application                                     |
+| [`cdk refactor`](#cdk-refactor)           | Moves resources between stacks or within the same stack                           |
+| [`cdk drift`](#cdk-drift)                 | Detect drifts in the given CloudFormation stack(s)                                |
+| [`cdk cli-telemetry`](#cdk-cli-telemetry) | Enable or disable cli telemetry collection                                        |
 
 ## Common topics
 

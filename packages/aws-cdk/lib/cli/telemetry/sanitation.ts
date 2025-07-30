@@ -34,7 +34,7 @@ export function sanitizeCommandLineArguments(argv: any): { path: string[]; param
     if (argv[argName] === undefined || (!globalOptions.includes(argName) && !commandOptions.includes(argName))) {
       continue;
     }
-    if (isNumberOrBoolean(argv[argName])) {
+    if (isNumberOrBoolean(argv[argName]) || isKnownEnumValue(argName, argv[argName], command, config)) {
       parameters[argName] = argv[argName];
     } else {
       parameters[argName] = '<redacted>';
@@ -69,6 +69,15 @@ function isBoolean(value: any): value is boolean {
 
 function isNumberOrBoolean(value: any): boolean {
   return typeof value === 'number' || isBoolean(value);
+}
+
+function isKnownEnumValue(name: string, value: any, command: string, config: any): boolean {
+  const propertyDefiniton = config.globalOptions[name] ?? config.commands[command]?.options[name];
+  if (propertyDefiniton.type === 'string') {
+    // Even if the property has choices, only record if the value is a valid choice
+    return propertyDefiniton.choices?.includes(value);
+  }
+  return false;
 }
 
 function isFeatureFlag(flag: string): flag is FeatureFlag {
