@@ -104,7 +104,13 @@ function output() {
 
 describe('displayFlags', () => {
   test('displays multiple feature flags', async () => {
-    await displayFlags(mockFlagsData, ioHelper, undefined, true);
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      all: true,
+    };
+    await displayFlags(params);
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -112,14 +118,26 @@ describe('displayFlags', () => {
   });
 
   test('handles null user values correctly', async () => {
-    await displayFlags(mockFlagsData, ioHelper, undefined, true);
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      all: true,
+    };
+    await displayFlags(params);
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('<unset>');
   });
 
   test('handles mixed data types in flag values', async () => {
-    await displayFlags(mockFlagsData, ioHelper, undefined, true);
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      all: true,
+    };
+    await displayFlags(params);
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('true');
@@ -127,7 +145,13 @@ describe('displayFlags', () => {
   });
 
   test('displays single flag by name', async () => {
-    await displayFlags(mockFlagsData, ioHelper, '@aws-cdk/core:testFlag');
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      flagName: ['@aws-cdk/core:testFlag'],
+    };
+    await displayFlags(params);
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Description: Test flag for unit tests');
@@ -136,7 +160,13 @@ describe('displayFlags', () => {
   });
 
   test('groups flags by module', async () => {
-    await displayFlags(mockFlagsData, ioHelper, undefined, true);
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      all: true,
+    };
+    await displayFlags(params);
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('aws-cdk-lib');

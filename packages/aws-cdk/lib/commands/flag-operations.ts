@@ -7,14 +7,38 @@ import { StackSelectionStrategy } from '../api';
 import type { IoHelper } from '../api-private';
 import type { FlagsOptions } from '../cli/user-input';
 
+interface FlagOperationsParams {
+  flagData: FeatureFlag[];
+  toolkit: Toolkit;
+  ioHelper: IoHelper;
+  recommended?: boolean;
+  all?: boolean;
+  value?: string;
+  flagName?: string[];
+  default?: boolean;
+  unconfigured?: boolean;
+}
+
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
   const OBSOLETE_FLAGS = [
     '@aws-cdk/core:enableStackNameDuplicates',
     '@aws-cdk/aws-s3:grantWriteWithoutAcl',
     '@aws-cdk/aws-kms:defaultKeyPolicies',
   ];
-
+  
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
+  
+  const params = {
+    flagData,
+    toolkit,
+    ioHelper,
+    recommended: options.recommended,
+    all: options.all,
+    value: options.value,
+    flagName: options.FLAGNAME,
+    default: options.default,
+    unconfigured: options.unconfigured,
+  };
 
   if (options.FLAGNAME && options.all) {
     await ioHelper.defaults.error('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
@@ -62,49 +86,49 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.FLAGNAME && !options.set && !options.value) {
-    await displayFlags(flagData, ioHelper, String(options.FLAGNAME));
+    await displayFlags(params);
     return;
   }
 
   if (options.all && !options.set) {
-    await displayFlags(flagData, ioHelper, undefined, true);
+    await displayFlags(params);
     return;
   }
 
   if (options.set && options.FLAGNAME && options.value) {
-    await setFlag(flagData, ioHelper, String(options.FLAGNAME), toolkit, options.value);
+    await setFlag(params);
     return;
   }
 
   if (!options.FLAGNAME && !options.all && !options.set) {
-    await displayFlags(flagData, ioHelper, undefined, false);
+    await displayFlags(params);
     return;
   }
 
   if (options.set && options.all && options.recommended) {
-    await setMultipleFlags(true, flagData, ioHelper, toolkit, true);
+    await setMultipleFlags(params);
     return;
   }
 
   if (options.set && options.all && options.default) {
-    await setMultipleFlags(true, flagData, ioHelper, toolkit, false);
+    await setMultipleFlags(params);
     return;
   }
 
   if (options.set && options.unconfigured && options.recommended) {
-    await setMultipleFlags(false, flagData, ioHelper, toolkit, true);
+    await setMultipleFlags(params);
     return;
   }
 
   if (options.set && options.unconfigured && options.default) {
-    await setMultipleFlags(false, flagData, ioHelper, toolkit, false);
+    await setMultipleFlags(params);
     return;
   }
 }
 
-async function setFlag(flagData: FeatureFlag[], ioHelper: IoHelper, flagName: string, toolkit: Toolkit, value: string) {
-  const flag = flagData.find(f => f.name === flagName);
-  const boolValue = toBooleanValue(value);
+async function setFlag(params: FlagOperationsParams) {
+  const { flagData, ioHelper, flagName } = params;
+  const flag = flagData.find(f => f.name === flagName![0]);
 
   if (!flag) {
     await ioHelper.defaults.error('Flag not found.');
@@ -116,21 +140,18 @@ async function setFlag(flagData: FeatureFlag[], ioHelper: IoHelper, flagName: st
     return;
   }
 
-  const prototypeSuccess = await prototypeChanges(flagData, ioHelper, flagName, toolkit, false, boolValue);
+  const prototypeSuccess = await prototypeChanges(params, flagName!);
 
   if (prototypeSuccess) {
-    await handleUserResponse(flagData, ioHelper, flagName, value);
+    await handleUserResponse(params, flagName!);
   }
 }
 
 async function prototypeChanges(
-  flagData: FeatureFlag[],
-  ioHelper: IoHelper,
-  flagNames: string[] | string,
-  toolkit: Toolkit,
-  recommended: boolean,
-  value?: boolean,
+  params: FlagOperationsParams,
+  flagNames: string[],
 ): Promise<boolean> {
+  const { flagData, toolkit, ioHelper, recommended, value } = params;
   const baseContext = new CdkAppMultiContext(process.cwd());
   const baseContextValues = await baseContext.read();
   const memoryContext = new MemoryContext(baseContextValues);
@@ -144,18 +165,22 @@ async function prototypeChanges(
   });
 
   const updateObj: Record<string, boolean> = {};
-  if (typeof (flagNames) == 'string') {
-    if (baseContextValues[flagNames] == value) {
-      await ioHelper.defaults.error('Flag is already set to the specified value. No changes needed.');
+  const boolValue = toBooleanValue(value);
+  if (flagNames.length === 1 && value !== undefined) {
+    const flagName = flagNames[0];
+    if (baseContextValues[flagName] == boolValue) {
       return false;
     }
-    updateObj[flagNames] = value!;
+    updateObj[flagName] = boolValue;
   } else {
     if (recommended) {
       for (const flagName of flagNames) {
         const flag = flagData.find(f => f.name === flagName);
-        const boolValue = toBooleanValue(flag!.recommendedValue);
-        updateObj[flagName] = boolValue;
+        if (!flag) {
+          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
+          return false;
+        }
+        updateObj[flagName] = toBooleanValue(flag.recommendedValue);
       }
     } else {
       // In this case, set the flag to its default behavior. Will be updated when we can access the `unconfiguredBehavesLike` field in the feature flag report.
@@ -189,10 +214,11 @@ async function prototypeChanges(
   return true;
 }
 
-async function setMultipleFlags(all: boolean, flagData: FeatureFlag[], ioHelper: IoHelper, toolkit: Toolkit, recommended: boolean) {
+async function setMultipleFlags(params: FlagOperationsParams) {
+  const { flagData, all } = params;
   let flagsToSet;
   if (all) {
-    flagsToSet = flagData.filter(flag => flag.userValue === undefined || String(flag.userValue) !== String(flag.recommendedValue))
+    flagsToSet = flagData.filter(flag => flag.userValue === undefined || !isUserValueEqualToRecommended(flag))
       .filter(flag => isBooleanFlag(flag))
       .map(flag => flag.name);
   } else {
@@ -201,38 +227,31 @@ async function setMultipleFlags(all: boolean, flagData: FeatureFlag[], ioHelper:
       .filter(flag => isBooleanFlag(flag))
       .map(flag => flag.name);
   }
-  let prototypeSuccess = false;
-
-  if (recommended) {
-    prototypeSuccess = await prototypeChanges(flagData, ioHelper, flagsToSet, toolkit, true);
-  } else {
-    prototypeSuccess = await prototypeChanges(flagData, ioHelper, flagsToSet, toolkit, false);
-  }
+  const prototypeSuccess = await prototypeChanges(params, flagsToSet);
 
   if (prototypeSuccess) {
-    await handleUserResponse(flagData, ioHelper, flagsToSet);
+    await handleUserResponse(params, flagsToSet);
   }
 }
 
 async function handleUserResponse(
-  flagsData: FeatureFlag[],
-  ioHelper: IoHelper,
-  flagName: string[] | string,
-  newValue?: string,
+  params: FlagOperationsParams,
+  flagNames: string[],
 ): Promise<void> {
+  const { ioHelper } = params;
   const userAccepted = await ioHelper.requestResponse({
     time: new Date(),
     level: 'info',
     code: 'CDK_TOOLKIT_I9300',
     message: 'Do you want to accept these changes?',
     data: {
-      flagName,
+      flagNames,
       responseDescription: 'Enter "y" to apply changes or "n" to cancel',
     },
     defaultResponse: false,
   });
   if (userAccepted) {
-    await modifyValues(flagsData, flagName, ioHelper, newValue);
+    await modifyValues(params, flagNames);
     await ioHelper.defaults.info('Flag value(s) updated successfully.');
   } else {
     await ioHelper.defaults.info('Operation cancelled');
@@ -245,19 +264,20 @@ async function handleUserResponse(
   await fs.remove(tempDir);
 }
 
-async function modifyValues(flagsData: FeatureFlag[], flagName: string | string[], ioHelper: IoHelper, value?: string): Promise<void> {
+async function modifyValues(params: FlagOperationsParams, flagNames: string[]): Promise<void> {
+  const { flagData, ioHelper, value } = params;
   const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
   const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
   const cdkJson = JSON.parse(cdkJsonContent);
 
-  if (typeof flagName == 'string') {
+  if (flagNames.length == 1) {
     const boolValue = toBooleanValue(value);
-    cdkJson.context[flagName] = boolValue;
+    cdkJson.context[String(flagNames[0])] = boolValue;
 
-    await ioHelper.defaults.info(`Setting flag '${flagName}' to: ${boolValue}`);
+    await ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
   } else {
-    for (const name of flagName) {
-      const flag = flagsData.find(f => f.name === name);
+    for (const name of flagNames) {
+      const flag = flagData.find(f => f.name === name);
       const boolValue = toBooleanValue(flag!.recommendedValue);
       cdkJson.context[name] = boolValue;
     }
@@ -298,9 +318,10 @@ function formatTable(headers: string[], rows: string[][]): string {
   return table;
 }
 
-export async function displayFlags(flagsData: FeatureFlag[], ioHelper: IoHelper, flagName?: string, all?: boolean): Promise<void> {
+export async function displayFlags(params: FlagOperationsParams): Promise<void> {
+  const { flagData, ioHelper, flagName, all } = params;
   if (flagName && flagName.length > 0) {
-    const flag = flagsData.find(f => f.name === flagName);
+    const flag = flagData.find(f => f.name === flagName![0]);
     if (!flag) {
       await ioHelper.defaults.error('Flag not found.');
       return;
@@ -318,7 +339,7 @@ export async function displayFlags(flagsData: FeatureFlag[], ioHelper: IoHelper,
   const getFlagPriority = (flag: FeatureFlag): number => {
     if (flag.userValue === undefined) {
       return 3;
-    } else if (String(flag.userValue) === String(flag.recommendedValue)) {
+    } else if (isUserValueEqualToRecommended(flag)) {
       return 1;
     } else {
       return 2;
@@ -327,10 +348,10 @@ export async function displayFlags(flagsData: FeatureFlag[], ioHelper: IoHelper,
 
   let flagsToDisplay: FeatureFlag[];
   if (all) {
-    flagsToDisplay = flagsData;
+    flagsToDisplay = flagData;
   } else {
-    flagsToDisplay = flagsData.filter(flag =>
-      flag.userValue === undefined || String(flag.userValue) !== String(flag.recommendedValue),
+    flagsToDisplay = flagData.filter(flag =>
+      flag.userValue === undefined || !isUserValueEqualToRecommended(flag),
     );
   }
 
@@ -364,6 +385,10 @@ export async function displayFlags(flagsData: FeatureFlag[], ioHelper: IoHelper,
   await ioHelper.defaults.info(formattedTable);
 }
 
+function isUserValueEqualToRecommended(flag: FeatureFlag): boolean {
+  return String(flag.userValue) === String(flag.recommendedValue);
+}
+
 function toBooleanValue(value: unknown): boolean {
   if (typeof value === 'boolean') {
     return value;
@@ -377,6 +402,6 @@ function toBooleanValue(value: unknown): boolean {
 function isBooleanFlag(flag: FeatureFlag): boolean {
   const recommended = flag.recommendedValue;
   return typeof recommended === 'boolean' ||
-           recommended === 'true' ||
-           recommended === 'false';
+    recommended === 'true' ||
+    recommended === 'false';
 }
