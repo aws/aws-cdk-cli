@@ -350,6 +350,21 @@
           "type": "boolean",
           "desc": "Modify or view all feature flags",
           "requiresArg": false
+        },
+        "unconfigured": {
+          "type": "boolean",
+          "desc": "Modify unconfigured feature flags",
+          "requiresArg": false
+        },
+        "recommended": {
+          "type": "boolean",
+          "desc": "Change flags to recommended states",
+          "requiresArg": false
+        },
+        "default": {
+          "type": "boolean",
+          "desc": "Change flags to default state",
+          "requiresArg": false
         }
       }
     },
