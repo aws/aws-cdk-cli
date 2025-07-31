@@ -25,9 +25,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     '@aws-cdk/aws-s3:grantWriteWithoutAcl',
     '@aws-cdk/aws-kms:defaultKeyPolicies',
   ];
-  
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
-  
   const params = {
     flagData,
     toolkit,
