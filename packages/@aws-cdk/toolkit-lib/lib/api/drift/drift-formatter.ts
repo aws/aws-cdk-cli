@@ -56,6 +56,11 @@ interface DriftFormatterOutput {
   readonly deleted?: string;
 
   /**
+   * Resources that have UNKNOWN drift status
+   */
+  readonly unknown?: string;
+
+  /**
    * The header, containing the stack name
    */
   readonly stackHeader: string;
@@ -157,6 +162,7 @@ export class DriftFormatter {
     let unchecked;
     let modified;
     let deleted;
+    let unknown;
 
     const drifts = this.resourceDriftResults;
 
@@ -220,7 +226,21 @@ export class DriftFormatter {
       deleted += this.printSectionFooter();
     }
 
-    return { unchanged, unchecked, modified, deleted };
+    // Process resources with UNKNOWN drift status
+    const unknownResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.UNKNOWN);
+    if (unknownResources.length > 0) {
+      unknown = this.printSectionHeader('Resources With Unknown Drift Status');
+      for (const drift of unknownResources) {
+        if (!drift.LogicalResourceId || !drift.ResourceType) continue;
+        unknown += `${UNKNOWN} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        if (drift.DriftStatusReason) {
+          unknown += `${' '.repeat(7)}${chalk.gray(drift.DriftStatusReason)}\n`;
+        }
+      }
+      unknown += this.printSectionFooter();
+    }
+
+    return { unchanged, unchecked, modified, deleted, unknown };
   }
 
   private formatLogicalId(logicalToPathMap: { [logicalId: string]: string }, logicalId: string): string {
@@ -287,3 +307,4 @@ const ADDITION = chalk.green('[+]');
 const CONTEXT = chalk.grey('[ ]');
 const UPDATE = chalk.yellow('[~]');
 const REMOVAL = chalk.red('[-]');
+const UNKNOWN = chalk.yellow('[?]');
