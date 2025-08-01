@@ -2,47 +2,12 @@ import * as https from 'https';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sinks/endpoint-sink';
-import type { EventType, TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
+import { createTestEvent } from './util';
 
 // Mock the https module
 jest.mock('https', () => ({
   request: jest.fn(),
 }));
-
-// Helper function to create a test event
-function createTestEvent(eventType: EventType, properties: Record<string, any> = {}): TelemetrySchema {
-  return {
-    identifiers: {
-      cdkCliVersion: '1.0.0',
-      telemetryVersion: '1.0.0',
-      sessionId: 'test-session',
-      eventId: `test-event-${eventType}`,
-      installationId: 'test-installation',
-      timestamp: new Date().toISOString(),
-    },
-    event: {
-      state: 'SUCCEEDED',
-      eventType,
-      command: {
-        path: ['test'],
-        parameters: {},
-        config: properties,
-      },
-    },
-    environment: {
-      os: {
-        platform: 'test',
-        release: 'test',
-      },
-      ci: false,
-      nodeVersion: process.version,
-    },
-    project: {},
-    duration: {
-      total: 0,
-    },
-  };
-}
 
 describe('EndpointTelemetrySink', () => {
   let ioHost: CliIoHost;
