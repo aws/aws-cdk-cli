@@ -6,7 +6,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../../api-private';
 import type { IIoHost } from '../../io-host';
 import type { TelemetrySchema } from '../schema';
-import type { ITelemetrySink } from '../sink-interface';
+import type { ITelemetrySink } from './sink-interface';
 
 const REQUEST_ATTEMPT_TIMEOUT_MS = 500;
 
