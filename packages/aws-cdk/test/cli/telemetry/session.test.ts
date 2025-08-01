@@ -1,8 +1,8 @@
 import { Context } from '../../../lib/api/context';
 import { CliIoHost } from '../../../lib/cli/io-host';
-import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
 import { ErrorName, type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession } from '../../../lib/cli/telemetry/session';
+import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/sink/io-host-sink';
 import { withEnv } from '../../_helpers/with-env';
 
 let ioHost: CliIoHost;

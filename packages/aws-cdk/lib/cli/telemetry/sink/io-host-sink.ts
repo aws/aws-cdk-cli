@@ -1,7 +1,7 @@
 import type { IIoHost } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../../api-private';
 import type { TelemetrySchema } from '../schema';
-import type { ITelemetrySink } from '../sink-interface';
+import type { ITelemetrySink } from './sink-interface';
 
 /**
  * Properties for the StdoutTelemetryClient
