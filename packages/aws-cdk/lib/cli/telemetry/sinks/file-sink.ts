@@ -1,8 +1,8 @@
 import { ToolkitError, type IIoHost } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import type { TelemetrySchema } from './schema';
-import type { ITelemetrySink } from './sink-interface';
-import { IoHelper } from '../../api-private';
+import type { TelemetrySchema } from '../schema';
+import type { ITelemetrySink } from '../sink-interface';
+import { IoHelper } from '../../../api-private';
 
 /**
  * Properties for the FileTelemetryClient
