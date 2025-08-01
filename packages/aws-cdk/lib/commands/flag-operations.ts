@@ -181,9 +181,17 @@ async function prototypeChanges(
         updateObj[flagName] = toBooleanValue(flag.recommendedValue);
       }
     } else {
-      // In this case, set the flag to its default behavior. Will be updated when we can access the `unconfiguredBehavesLike` field in the feature flag report.
       for (const flagName of flagNames) {
-        updateObj[flagName] = false;
+        const flag = flagData.find(f => f.name === flagName);
+        if (!flag) {
+          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
+          return false;
+        }
+        if (flag.unconfiguredBehavesLike == undefined || flag.unconfiguredBehavesLike.v2 == 'false') {
+          updateObj[flagName] = false;
+        } else {
+          updateObj[flagName] = true;
+        } 
       }
     }
   }
