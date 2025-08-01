@@ -9,11 +9,11 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
-import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
+import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
