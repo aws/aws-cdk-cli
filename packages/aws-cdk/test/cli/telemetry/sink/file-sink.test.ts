@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
-import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sinks/file-sink';
+import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 import { createTestEvent } from './util';
 
 describe('FileTelemetrySink', () => {
