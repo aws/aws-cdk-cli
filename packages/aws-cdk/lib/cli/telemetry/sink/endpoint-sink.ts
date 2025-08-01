@@ -3,9 +3,9 @@ import type { Agent } from 'https';
 import { request } from 'https';
 import { parse, type UrlWithStringQuery } from 'url';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { IoHelper } from '../../api-private';
-import type { IIoHost } from '../io-host';
-import type { TelemetrySchema } from './schema';
+import { IoHelper } from '../../../api-private';
+import type { IIoHost } from '../../io-host';
+import type { TelemetrySchema } from '../schema';
 import type { ITelemetrySink } from './sink-interface';
 
 const REQUEST_ATTEMPT_TIMEOUT_MS = 500;

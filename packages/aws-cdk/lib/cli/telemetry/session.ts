@@ -4,7 +4,7 @@ import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import { type EventType, type SessionSchema, type State, type ErrorDetails, ErrorName } from './schema';
-import type { ITelemetrySink } from './sink-interface';
+import type { ITelemetrySink } from './sink/sink-interface';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
 import { detectCiSystem } from '../ci-systems';

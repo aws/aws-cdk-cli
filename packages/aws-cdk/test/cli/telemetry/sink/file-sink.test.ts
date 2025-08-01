@@ -1,10 +1,10 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { IoHelper } from '../../../lib/api-private';
-import { CliIoHost } from '../../../lib/cli/io-host';
-import { FileTelemetrySink } from '../../../lib/cli/telemetry/file-sink';
-import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import { IoHelper } from '../../../../lib/api-private';
+import { CliIoHost } from '../../../../lib/cli/io-host';
+import type { TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
+import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 
 describe('FileTelemetrySink', () => {
   let tempDir: string;
