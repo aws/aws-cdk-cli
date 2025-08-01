@@ -5,13 +5,13 @@ import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 // eslint-disable-next-line import/no-relative-packages
 import type { DockerDomainCredentialSource } from '../../../../../@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
 import type { TestFixture } from '../../../lib';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withDefaultFixture, withRetry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
-  withDefaultFixture(async (fixture) => {
+  withDefaultFixture(withRetry(async (fixture) => {
     const caller = await fixture.aws.sts.send(new GetCallerIdentityCommand({}));
 
     const roleArn = await fixture.aws.temporaryRole('ecr-repo-role', [
@@ -35,7 +35,7 @@ integTest(
       // This role must have permissions to call `ecr:GetAuthorizationToken`
       assumeRoleArn: roleArn,
     });
-  }),
+  })),
 );
 
 /*
