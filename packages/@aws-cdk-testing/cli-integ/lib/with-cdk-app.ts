@@ -170,7 +170,7 @@ export function withCDKMigrateFixture(language: string, block: (content: TestFix
  * it throws the last error encountered.
  */
 
-export function withRetry<T>(
+export function withRetry<T extends TestContext>(
   callback: (context: T) => Promise<void>,
   maxAttempts: number = 3,
 ): (context: T) => Promise<void> {
@@ -184,8 +184,7 @@ export function withRetry<T>(
       } catch (error) {
         lastError = error;
         if (attempt < maxAttempts) {
-          const logger = (context as any).log || console.log;
-          logger(`Attempt ${attempt}/${maxAttempts} failed: ${(error as Error).message}. Retrying...`);
+          context.log(`Attempt ${attempt}/${maxAttempts} failed: ${(error as Error).message}. Retrying...`);
         }
       }
     }

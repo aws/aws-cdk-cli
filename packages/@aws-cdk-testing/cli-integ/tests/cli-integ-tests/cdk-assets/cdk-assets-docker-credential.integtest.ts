@@ -11,7 +11,7 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 
 integTest(
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
-  withDefaultFixture(withRetry(async (fixture) => {
+  withRetry(withDefaultFixture(async (fixture) => {
     const caller = await fixture.aws.sts.send(new GetCallerIdentityCommand({}));
 
     const roleArn = await fixture.aws.temporaryRole('ecr-repo-role', [
