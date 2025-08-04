@@ -1,7 +1,6 @@
-
 import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { asIoHelper } from '../../lib/api-private';
-import { displayFlagsMessage } from '../../lib/cli/cli';
+import { displayFlagsMessage } from '../../lib/cli/cdk-toolkit';
 import { TestIoHost } from '../_helpers/io-host';
 
 describe('displayFlagsMessage', () => {
@@ -62,6 +61,23 @@ describe('displayFlagsMessage', () => {
         level: 'info',
       }),
     );
+  });
+  test('does not display a message when user has no unconfigured flags', async () => {
+    const mockFlagsData = [
+      {
+        name: '@aws-cdk/s3:anotherFlag',
+        userValue: 'false',
+        recommendedValue: 'false',
+        explanation: 'Another test flag',
+        module: 'aws-cdk-lib',
+      },
+    ];
+    mockToolkit.flags.mockResolvedValue(mockFlagsData);
+
+    await displayFlagsMessage(ioHost as any, 'test-stack', mockCloudExecutable, ioHelper);
+
+    expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
+    expect(ioHost.notifySpy).not.toHaveBeenCalled();
   });
 });
 

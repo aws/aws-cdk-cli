@@ -13,7 +13,6 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import type { IoHelper } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -469,7 +468,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'synthesize':
       case 'synth':
         ioHost.currentAction = 'synth';
-        await displayFlagsMessage(ioHost, toolkitStackName, cloudExecutable, ioHelper);
         const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
         if (args.exclusively) {
           return cli.synth(args.STACKS, args.exclusively, quiet, args.validation, argv.json);
@@ -544,28 +542,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       default:
         throw new ToolkitError('Unknown command: ' + command);
     }
-  }
-}
-
-export async function displayFlagsMessage(ioHost: CliIoHost, toolkitStackName: string, cloudExecutable: CloudExecutable,
-  ioHelper: IoHelper): Promise<void> {
-  const tk = new Toolkit({
-    ioHost,
-    toolkitStackName,
-    unstableFeatures: ['flags'],
-  });
-  let flagData = await tk.flags(cloudExecutable);
-
-  const OBSOLETE_FLAGS = [
-    '@aws-cdk/core:enableStackNameDuplicates',
-    '@aws-cdk/aws-s3:grantWriteWithoutAcl',
-    '@aws-cdk/aws-kms:defaultKeyPolicies',
-  ];
-  flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
-
-  const numUnconfigured = flagData.filter(flag => flag.userValue === undefined).length;
-  if (numUnconfigured > 0) {
-    await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
   }
 }
 
