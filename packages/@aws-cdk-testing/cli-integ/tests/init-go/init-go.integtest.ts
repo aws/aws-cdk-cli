@@ -8,6 +8,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     const shell = ShellHelper.fromContext(context);
     await context.cli.makeCliAvailable();
 
+    await shell.shell(['go', 'version']);
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'go', template]);
 
     // Canaries will use the generated go.mod as is

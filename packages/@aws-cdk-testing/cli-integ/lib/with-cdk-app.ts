@@ -163,6 +163,36 @@ export function withCDKMigrateFixture(language: string, block: (content: TestFix
   return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkMigrateApp(language, block)));
 }
 
+/**
+ * Retry wrapper that executes a test callback up to maxAttempts times
+ *
+ * If any attempt succeeds, it returns immediately. If all attempts fail,
+ * it throws the last error encountered.
+ */
+
+export function withRetry<T extends TestContext>(
+  callback: (context: T) => Promise<void>,
+  maxAttempts: number = 2,
+): (context: T) => Promise<void> {
+  return async (context: T) => {
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await callback(context);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxAttempts) {
+          context.log(`Attempt ${attempt}/${maxAttempts} failed: ${error}. Retrying...`);
+        }
+      }
+    }
+
+    throw lastError;
+  };
+}
+
 export interface DisableBootstrapContext {
   /**
    * Whether to disable creating the default bootstrap

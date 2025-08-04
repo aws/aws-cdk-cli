@@ -55,6 +55,7 @@ import {
 } from '../commands/migrate';
 import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
 import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
+import { OBSOLETE_FLAGS } from '../obsolete-flags';
 import {
   deserializeStructure,
   formatErrorMessage,
@@ -195,7 +196,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor'],
+      unstableFeatures: ['refactor', 'flags'],
     });
   }
 
@@ -1057,6 +1058,8 @@ export class CdkToolkit {
     json?: boolean,
   ): Promise<any> {
     const stacks = await this.selectStacksForDiff(stackNames, exclusively, autoValidate);
+
+    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable, this.ioHost.asIoHelper());
 
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
@@ -2107,6 +2110,16 @@ async function askUserConfirmation(
       throw new ToolkitError('Aborted by user');
     }
   });
+}
+export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable,
+  ioHelper: IoHelper): Promise<void> {
+  let numUnconfigured = (await toolkit.flags(cloudExecutable))
+    .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
+    .filter(flag => flag.userValue === undefined).length;
+
+  if (numUnconfigured > 0) {
+    await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
+  }
 }
 
 /**
