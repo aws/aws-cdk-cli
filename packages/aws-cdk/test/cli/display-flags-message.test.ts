@@ -52,7 +52,7 @@ describe('displayFlagsMessage', () => {
 
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
 
-    await displayFlagsMessage(ioHost as any, 'test-stack', mockCloudExecutable, ioHelper);
+    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable, ioHelper);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
     expect(ioHost.notifySpy).toHaveBeenCalledWith(
@@ -74,7 +74,7 @@ describe('displayFlagsMessage', () => {
     ];
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
 
-    await displayFlagsMessage(ioHost as any, 'test-stack', mockCloudExecutable, ioHelper);
+    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable, ioHelper);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
     expect(ioHost.notifySpy).not.toHaveBeenCalled();

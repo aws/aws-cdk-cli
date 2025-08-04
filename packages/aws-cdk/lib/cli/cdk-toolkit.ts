@@ -55,7 +55,6 @@ import {
 } from '../commands/migrate';
 import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
 import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
-import { OBSOLETE_FLAGS } from '../obsolete-flags';
 import {
   deserializeStructure,
   formatErrorMessage,
@@ -69,6 +68,7 @@ import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
+import { OBSOLETE_FLAGS } from '../obsolete-flags';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -196,7 +196,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor'],
+      unstableFeatures: ['refactor', 'flags'],
     });
   }
 
@@ -1059,7 +1059,7 @@ export class CdkToolkit {
   ): Promise<any> {
     const stacks = await this.selectStacksForDiff(stackNames, exclusively, autoValidate);
 
-    await displayFlagsMessage(this.ioHost, this.toolkitStackName, this.props.cloudExecutable, this.ioHost.asIoHelper());
+    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable, this.ioHost.asIoHelper());
 
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
@@ -2111,14 +2111,9 @@ async function askUserConfirmation(
     }
   });
 }
-export async function displayFlagsMessage(ioHost: CliIoHost, toolkitStackName: string, cloudExecutable: CloudExecutable,
+export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable,
   ioHelper: IoHelper): Promise<void> {
-  const tk = new Toolkit({
-    ioHost,
-    toolkitStackName,
-    unstableFeatures: ['flags'],
-  });
-  let flagData = await tk.flags(cloudExecutable);
+  let flagData = await toolkit.flags(cloudExecutable);
 
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
 
