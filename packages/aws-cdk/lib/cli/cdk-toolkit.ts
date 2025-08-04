@@ -2113,11 +2113,10 @@ async function askUserConfirmation(
 }
 export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable,
   ioHelper: IoHelper): Promise<void> {
-  let flagData = await toolkit.flags(cloudExecutable);
+  let numUnconfigured = (await toolkit.flags(cloudExecutable))
+    .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
+    .filter(flag => flag.userValue === undefined).length;
 
-  flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
-
-  const numUnconfigured = flagData.filter(flag => flag.userValue === undefined).length;
   if (numUnconfigured > 0) {
     await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
   }
