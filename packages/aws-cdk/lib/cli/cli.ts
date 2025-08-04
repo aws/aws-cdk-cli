@@ -565,8 +565,7 @@ export async function displayFlagsMessage(ioHost: CliIoHost, toolkitStackName: s
 
   const numUnconfigured = flagData.filter(flag => flag.userValue === undefined).length;
   if (numUnconfigured > 0) {
-    await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your 
-      application up-to-date. Run 'cdk flags' to learn more.`);
+    await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
   }
 }
 

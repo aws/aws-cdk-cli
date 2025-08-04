@@ -58,8 +58,7 @@ describe('displayFlagsMessage', () => {
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
     expect(ioHost.notifySpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: `You currently have 1 unconfigured feature flags that may require attention to keep your 
-      application up-to-date. Run 'cdk flags' to learn more.`,
+        message: 'You currently have 1 unconfigured feature flags that may require attention to keep your application up-to-date. Run \'cdk flags\' to learn more.',
         level: 'info',
       }),
     );
