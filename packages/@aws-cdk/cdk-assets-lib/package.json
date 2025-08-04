@@ -53,13 +53,13 @@
     "eslint-plugin-prettier": "^5.5.3",
     "fs-extra": "^11.3.0",
     "graceful-fs": "^4.2.11",
-    "jest": "^30.0.4",
+    "jest": "^30.0.5",
     "jest-junit": "^16",
     "jszip": "^3.10.1",
     "license-checker": "^25.0.1",
     "mock-fs": "^5",
     "prettier": "^2.8",
-    "ts-jest": "^29.4.0",
+    "ts-jest": "^29.4.1",
     "typescript": "5.8"
   },
   "dependencies": {
