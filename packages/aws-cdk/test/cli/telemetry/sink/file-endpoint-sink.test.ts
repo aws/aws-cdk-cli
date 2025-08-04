@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import * as https from 'https';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
-import { FileEndpointTelemetrySink } from '../../../../lib/cli/telemetry/sinks/file-endpoint-sink';
+import { FileEndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-endpoint-sink';
 import type { TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
 import { createTestEvent } from './util';
 
