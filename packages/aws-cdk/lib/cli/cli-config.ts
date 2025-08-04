@@ -395,6 +395,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'list': { type: 'boolean', desc: 'List the available templates' },
           'generate-only': { type: 'boolean', default: false, desc: 'If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project' },
           'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.' },
+          'from-path': { type: 'string', desc: 'Path to a local custom template directory', requiresArg: true },
         },
       },
       'migrate': {

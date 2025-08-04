@@ -242,6 +242,83 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
   });
 
+  cliTest('create project from local custom template', async (workDir) => {
+    // Create a simple custom template
+    const templateDir = path.join(workDir, 'custom-template');
+    const tsDir = path.join(templateDir, 'typescript');
+    await fs.mkdirp(tsDir);
+
+    // Create template files (custom templates don't process placeholders)
+    await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({
+      name: 'my-custom-project',
+      version: '1.0.0',
+      dependencies: {
+        'aws-cdk-lib': '^2.0.0',
+        'constructs': '^10.0.0',
+      },
+    }, null, 2));
+
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello from custom template!");');
+
+    // Initialize project from custom template
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    // Verify files were created (custom templates copy files as-is)
+    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+
+    const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
+    expect(packageJson.name).toBe('my-custom-project');
+
+    const appTs = await fs.readFile(path.join(projectDir, 'app.ts'), 'utf8');
+    expect(appTs).toBe('console.log("Hello from custom template!");');
+  });
+
+  cliTest('custom template with single language auto-detects language', async (workDir) => {
+    // Create a custom template with only TypeScript
+    const templateDir = path.join(workDir, 'custom-template');
+    const tsDir = path.join(templateDir, 'typescript');
+    await fs.mkdirp(tsDir);
+
+    await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({ name: '%name%' }, null, 2));
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    // Don't specify language - should auto-detect
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
+  });
+
+  cliTest('custom template path does not exist throws error', async (workDir) => {
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: '/nonexistent/path',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Template path does not exist/);
+  });
+
   cliTest('CLI uses recommended feature flags from data file to initialize context', async (workDir) => {
     const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.recommended-feature-flags.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ banana: 'yellow' }), () => cliInit({

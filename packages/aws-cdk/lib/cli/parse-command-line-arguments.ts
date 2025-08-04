@@ -824,6 +824,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'V',
           desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
+        })
+        .option('from-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a local custom template directory',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
