@@ -5,15 +5,16 @@ import * as fs from 'fs-extra';
 import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
-import type { TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
-import { FileEndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-endpoint-sink';
+import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
+import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
+import { Funnel } from '../../../../lib/cli/telemetry/sink/funnel';
 
 // Mock the https module
 jest.mock('https', () => ({
   request: jest.fn(),
 }));
 
-describe('FileEndpointTelemetrySink', () => {
+describe('Funnel', () => {
   let tempDir: string;
   let logFilePath: string;
   let ioHost: CliIoHost;
@@ -66,56 +67,13 @@ describe('FileEndpointTelemetrySink', () => {
     return mockRequest;
   }
 
-  describe('File', () => {
-    test('saves data to a file', async () => {
-      // GIVEN
-      const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
-      const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
+  describe('File and Endpoint', () => {
+    let fileSink: FileTelemetrySink;
+    let endpointSink: EndpointTelemetrySink;
+    const traceSpy = jest.fn();
 
-      // WHEN
-      await client.emit(testEvent);
-
-      // THEN
-      expect(fs.existsSync(logFilePath)).toBe(true);
-      const fileJson = fs.readJSONSync(logFilePath, 'utf8');
-      expect(fileJson).toEqual([testEvent]);
-    });
-    test('handles errors gracefully and logs to trace without throwing', async () => {
-      // GIVEN
-      const testEvent: TelemetrySchema = {
-        identifiers: {
-          cdkCliVersion: '1.0.0',
-          telemetryVersion: '1.0.0',
-          sessionId: 'test-session',
-          eventId: 'test-event',
-          installationId: 'test-installation',
-          timestamp: new Date().toISOString(),
-        },
-        event: {
-          state: 'SUCCEEDED',
-          eventType: 'INVOKE',
-          command: {
-            path: ['test'],
-            parameters: {},
-            config: { context: { foo: true } },
-          },
-        },
-        environment: {
-          os: {
-            platform: 'test',
-            release: 'test',
-          },
-          ci: false,
-          nodeVersion: process.version,
-        },
-        project: {},
-        duration: {
-          total: 0,
-        },
-      };
-
+    beforeEach(() => {
       // Create a mock IoHelper with trace spy
-      const traceSpy = jest.fn();
       const mockIoHelper = {
         defaults: {
           trace: traceSpy,
@@ -125,29 +83,29 @@ describe('FileEndpointTelemetrySink', () => {
       // Mock IoHelper.fromActionAwareIoHost to return our mock
       jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
 
-      const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
-
-      // Mock fs.writeJSONSync to throw an error
-      jest.spyOn(fs, 'writeJSONSync').mockImplementation(() => {
-        throw new Error('File write error');
-      });
-
-      // WHEN & THEN
-      await expect(client.emit(testEvent)).resolves.not.toThrow();
-
-      // Verify that the error was logged to trace
-      expect(traceSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to add telemetry event:'),
-      );
+      fileSink = new FileTelemetrySink({ ioHost, logFilePath });
+      endpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry' });
     });
-  });
 
-  describe('Endpoint', () => {
+    test('saves data to a file', async () => {
+      // GIVEN
+      const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
+      const client = new Funnel({ sinks: [fileSink, endpointSink] });
+
+      // WHEN
+      await client.emit(testEvent);
+
+      // THEN
+      expect(fs.existsSync(logFilePath)).toBe(true);
+      const fileJson = fs.readJSONSync(logFilePath, 'utf8');
+      expect(fileJson).toEqual([testEvent]);
+    });
+
     test('makes a POST request to the specified endpoint', async () => {
       // GIVEN
       const mockRequest = setupMockRequest();
       const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
-      const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
+      const client = new Funnel({ sinks: [fileSink, endpointSink] });
 
       // WHEN
       await client.emit(testEvent);
@@ -174,37 +132,37 @@ describe('FileEndpointTelemetrySink', () => {
     test('flush is called every 30 seconds on the endpoint sink only', async () => {
       // GIVEN
       jest.useFakeTimers();
-      setupMockRequest(); // Setup the mock request but we don't need the return value
+      setupMockRequest();
 
-      // Create a spy on setInterval
-      const setIntervalSpy = jest.spyOn(global, 'setInterval');
+      // Spy on the EndpointTelemetrySink prototype flush method BEFORE creating any instances
+      const flushSpy = jest.spyOn(EndpointTelemetrySink.prototype, 'flush').mockResolvedValue();
 
-      // Create the client
-      const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
+      // Create a fresh endpoint sink for this test - the setInterval will be set up in constructor
+      const testEndpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry' });
+      new Funnel({ sinks: [fileSink, testEndpointSink] });
 
-      // Create a spy on the flush method for the endpoint sink
-      const flushSpy = jest.spyOn((client as any).endpointSink, 'flush');
+      // Reset the spy call count since the constructor might have called flush
+      flushSpy.mockClear();
 
-      // WHEN
-      // Advance the timer by 30 seconds
+      // WHEN & THEN
+      // Initially no calls from the interval (the setInterval hasn't fired yet)
+      expect(flushSpy).toHaveBeenCalledTimes(0);
+
+      // Advance the timer by 30 seconds - this should trigger the first interval flush
       jest.advanceTimersByTime(30000);
 
-      // THEN
-      // Verify setInterval was called with the correct interval
-      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 30000);
-
-      // Verify flush was called
+      // Verify flush was called once
       expect(flushSpy).toHaveBeenCalledTimes(1);
 
-      // Advance the timer by another 30 seconds
+      // Advance the timer by another 30 seconds - this should trigger the second interval flush
       jest.advanceTimersByTime(30000);
 
-      // Verify flush was called again
+      // Verify flush was called again (total of 2 times)
       expect(flushSpy).toHaveBeenCalledTimes(2);
 
       // Clean up
+      flushSpy.mockRestore();
       jest.useRealTimers();
-      setIntervalSpy.mockRestore();
     });
 
     test('failed flush does not clear events cache', async () => {
@@ -236,7 +194,7 @@ describe('FileEndpointTelemetrySink', () => {
 
       const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
       const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-      const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
+      const client = new Funnel({ sinks: [fileSink, endpointSink] });
 
       // WHEN
       await client.emit(testEvent1);
@@ -284,18 +242,7 @@ describe('FileEndpointTelemetrySink', () => {
       // GIVEN
       const testEvent = createTestEvent('INVOKE');
 
-      // Create a mock IoHelper with trace spy
-      const traceSpy = jest.fn();
-      const mockIoHelper = {
-        defaults: {
-          trace: traceSpy,
-        },
-      };
-
-      // Mock IoHelper.fromActionAwareIoHost to return our mock
-      jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
-
-      const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
+      const client = new Funnel({ sinks: [fileSink, endpointSink] });
 
       // Mock https.request to throw an error
       (https.request as jest.Mock).mockImplementation(() => {
@@ -305,9 +252,10 @@ describe('FileEndpointTelemetrySink', () => {
       await client.emit(testEvent);
 
       // WHEN & THEN - flush should not throw even when https.request fails
-      await expect(client.flush()).resolves.not.toThrow();
+      await client.flush();
 
-      // Verify that the error was logged to trace
+      // Verify that the error was lt
+      // logged to trace
       expect(traceSpy).toHaveBeenCalledWith(
         expect.stringContaining('Telemetry Error: POST example.com/telemetry:'),
       );
