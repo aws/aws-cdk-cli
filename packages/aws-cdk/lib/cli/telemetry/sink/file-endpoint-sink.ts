@@ -1,6 +1,6 @@
-import { EndpointTelemetrySink, EndpointTelemetrySinkProps } from "../endpoint-sink";
-import { FileTelemetrySink, FileTelemetrySinkProps } from "../file-sink";
-import { TelemetrySchema } from "../schema";
+import { EndpointTelemetrySink, EndpointTelemetrySinkProps } from './endpoint-sink';
+import { FileTelemetrySink, FileTelemetrySinkProps } from './file-sink';
+import { TelemetrySchema } from '../schema';
 
 export interface FileEndpointTelemetrySinkProps extends FileTelemetrySinkProps, EndpointTelemetrySinkProps {}
 
