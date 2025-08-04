@@ -319,6 +319,19 @@ describe('constructs version', () => {
     })).rejects.toThrow(/Template path does not exist/);
   });
 
+  cliTest('git template without network access throws error', async (workDir) => {
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromGitUrl: 'https://github.com/user/repo.git',
+      language: 'typescript',
+      canUseNetwork: false,
+      workDir: projectDir,
+    })).rejects.toThrow(/Cannot use Git URL without network access/);
+  });
+
   cliTest('CLI uses recommended feature flags from data file to initialize context', async (workDir) => {
     const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.recommended-feature-flags.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ banana: 'yellow' }), () => cliInit({

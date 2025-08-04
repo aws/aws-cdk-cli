@@ -521,6 +521,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
             fromPath: args['from-path'],
+            fromGitUrl: args['from-git-url'],
           });
         }
       case 'migrate':

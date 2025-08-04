@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import * as os from 'os';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -34,6 +35,11 @@ export interface CliInitOptions {
    */
   readonly fromPath?: string;
 
+  /**
+   * Git repository URL containing templates
+   */
+  readonly fromGitUrl?: string;
+
   readonly ioHelper: IoHelper;
 }
 
@@ -46,39 +52,97 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
-  // Step 1: Load template
   let template: InitTemplate;
-  if (options.fromPath) {
-    template = await loadLocalTemplate(options.fromPath);
-  } else {
-    template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+  let tempDir: string | undefined;
+
+  try {
+    // Step 1: Load template
+    if (options.fromGitUrl) {
+      // Validate network access for Git operations
+      if (!canUseNetwork) {
+        throw new ToolkitError('Cannot use Git URL without network access');
+      }
+      
+      await ioHelper.defaults.info(`Cloning Git repository from ${options.fromGitUrl}...`);
+      template = await loadGitTemplate(options.fromGitUrl);
+      // Store temp directory for cleanup
+      tempDir = template['basePath'];
+    } else if (options.fromPath) {
+      template = await loadLocalTemplate(options.fromPath);
+    } else {
+      template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+    }
+
+    // Step 2: Resolve language
+    const language = await resolveLanguage(ioHelper, template, options.language);
+
+    // Step 3: Initialize project following standard process
+    await initializeProject(
+      ioHelper,
+      template,
+      language,
+      canUseNetwork,
+      generateOnly,
+      workDir,
+      options.stackName,
+      options.migrate,
+      options.libVersion,
+    );
+  } finally {
+    // Clean up temporary directory if it was created for Git template
+    if (tempDir && options.fromGitUrl) {
+      await fs.remove(tempDir).catch(() => {});
+    }
   }
+}
 
-  // Step 2: Resolve language
-  const language = await resolveLanguage(ioHelper, template, options.language);
-
-  // Step 3: Initialize project following standard process
-  await initializeProject(
-    ioHelper,
-    template,
-    language,
-    canUseNetwork,
-    generateOnly,
-    workDir,
-    options.stackName,
-    options.migrate,
-    options.libVersion,
-  );
+/**
+ * Load a Git repository template
+ *
+ * @param gitUrl Git repository URL
+ * @returns Promise resolving to the loaded InitTemplate
+ */
+async function loadGitTemplate(gitUrl: string): Promise<InitTemplate> {
+  try {
+    const tempDir = await cloneGitRepository(gitUrl);
+    
+    const languageDirs = await getLanguageDirectories(tempDir);
+    
+    if (languageDirs.length > 0) {
+      const templateName = path.basename(gitUrl.replace(/\.git$/, '').split('/').pop() || 'git-template');
+      const template = await InitTemplate.fromPath(tempDir, templateName, 'Custom template from Git repository');
+      return template;
+    } else {
+      const rootEntries = await fs.readdir(tempDir, { withFileTypes: true });
+      const directories = rootEntries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
+      
+      if (directories.length === 1) {
+        const singleDir = path.join(tempDir, directories[0].name);
+        const singleDirLanguages = await getLanguageDirectories(singleDir);
+        
+        if (singleDirLanguages.length > 0) {
+          const templateName = directories[0].name;
+          const template = await InitTemplate.fromPath(singleDir, templateName, 'Custom template from Git repository');
+          return template;
+        }
+      }
+      
+      throw new ToolkitError('Git repository must contain language directories at root or in a single subdirectory');
+    }
+  } catch (e: any) {
+    throw new ToolkitError(`Failed to load template from Git repository: ${e.message}`);
+  }
 }
 
 /**
  * Load a local custom template from file system path
- * @param templatePath - Path to the local template directory
+ *
+ * @param templatePath Path to the local template directory
  * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
   try {
-    const template = await InitTemplate.fromPath(templatePath);
+    const template = await InitTemplate.fromPath(templatePath, undefined, 'Custom template from local path');
 
     if (template.languages.length === 0) {
       throw new ToolkitError('Custom template must contain at least one language directory');
@@ -92,9 +156,10 @@ async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
 
 /**
  * Load a built-in template by name
- * @param ioHelper - IO helper for user interaction
- * @param type - Template type name
- * @param language - Programming language filter
+ *
+ * @param ioHelper IO helper for user interaction
+ * @param type Template type name
+ * @param language Programming language filter
  * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
@@ -120,9 +185,10 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
 
 /**
  * Resolve the programming language for the template
- * @param ioHelper - IO helper for user interaction
- * @param template - The template to resolve language for
- * @param requestedLanguage - User-requested language (optional)
+ *
+ * @param ioHelper IO helper for user interaction
+ * @param template The template to resolve language for
+ * @param requestedLanguage User-requested language (optional)
  * @returns Promise resolving to the selected language
  */
 async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
@@ -146,7 +212,8 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
 
 /**
  * Get valid CDK language directories from a template path
- * @param templatePath - Path to the template directory
+ *
+ * @param templatePath Path to the template directory
  * @returns Promise resolving to array of supported language names
  */
 async function getLanguageDirectories(templatePath: string): Promise<string[]> {
@@ -179,7 +246,60 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
 }
 
 /**
+ * Clone a Git repository containing CDK templates
+ *
+ * @param gitUrl URL of the Git repository
+ * @returns Path to the cloned repository
+ */
+async function cloneGitRepository(gitUrl: string): Promise<string> {
+  const tempDir = path.join(os.tmpdir(), `cdk-git-template-${Date.now()}`);
+  await fs.mkdirp(tempDir);
+
+  let normalizedUrl = gitUrl;
+  if (!normalizedUrl.endsWith('.git')) {
+    normalizedUrl = `${normalizedUrl}.git`;
+  }
+
+  try {
+    await executeCommand('git', ['clone', '--depth', '1', normalizedUrl, tempDir], { cwd: process.cwd() });
+    return tempDir;
+  } catch (e: any) {
+    await fs.remove(tempDir).catch(() => {});
+    throw new ToolkitError(`Failed to clone Git repository: ${e.message}`);
+  }
+}
+
+/**
+ * Execute a command and return stdout
+ *
+ * @param cmd command to execute
+ * @param args command arguments
+ * @param options execution options
+ * @returns stdout if successful
+ */
+async function executeCommand(cmd: string, args: string[], { cwd }: { cwd: string }) {
+  const child = childProcess.spawn(cmd, args, {
+    cwd,
+    shell: true,
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  let stdout = '';
+  child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
+  return new Promise<string>((ok, fail) => {
+    child.once('error', (err) => fail(err));
+    child.once('exit', (status) => {
+      if (status === 0) {
+        return ok(stdout);
+      } else {
+        return fail(new ToolkitError(`${cmd} exited with status ${status}`));
+      }
+    });
+  });
+}
+
+/**
  * Returns the name of the Python executable for this OS
+ *
  * @returns The Python executable name for the current platform
  */
 function pythonExecutable() {
@@ -199,7 +319,7 @@ export class InitTemplate {
     return new InitTemplate(basePath, name, languages, initInfo);
   }
 
-  public static async fromPath(templatePath: string) {
+  public static async fromPath(templatePath: string, name?: string, description?: string) {
     const basePath = path.resolve(templatePath);
 
     if (!await fs.pathExists(basePath)) {
@@ -207,9 +327,10 @@ export class InitTemplate {
     }
 
     const languages = await getLanguageDirectories(basePath);
-    const name = path.basename(basePath);
+    const templateName = name || path.basename(basePath);
+    const templateDescription = description || 'Custom template from local path';
 
-    return new InitTemplate(basePath, name, languages, { description: 'Custom template from local path' });
+    return new InitTemplate(basePath, templateName, languages, { description: templateDescription });
   }
 
   public readonly description: string;
@@ -307,11 +428,7 @@ export class InitTemplate {
     }
   }
 
-  private isTextFile(filename: string): boolean {
-    const textExtensions = ['.ts', '.js', '.py', '.java', '.cs', '.fs', '.go', '.json', '.yaml', '.yml', '.md', '.txt', '.xml', '.html', '.css', '.scss', '.less'];
-    const ext = path.extname(filename).toLowerCase();
-    return textExtensions.includes(ext) || !ext; // Include files without extension
-  }
+
 
   private async installProcessed(templatePath: string, toFile: string, language: string, project: ProjectInfo) {
     const template = await fs.readFile(templatePath, { encoding: 'utf-8' });
