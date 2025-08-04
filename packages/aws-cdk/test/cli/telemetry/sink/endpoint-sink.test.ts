@@ -1,8 +1,8 @@
 import * as https from 'https';
+import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
-import { createTestEvent } from './util';
 
 // Mock the https module
 jest.mock('https', () => ({

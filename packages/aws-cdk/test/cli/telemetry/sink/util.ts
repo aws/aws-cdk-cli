@@ -1,4 +1,4 @@
-import { EventType, TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
+import type { EventType, TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
 
 // Helper function to create a test event
 export function createTestEvent(eventType: EventType, config: Record<string, any> = {}): TelemetrySchema {

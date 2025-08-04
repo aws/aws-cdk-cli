@@ -1,8 +1,11 @@
-import { EndpointTelemetrySink, EndpointTelemetrySinkProps } from './endpoint-sink';
-import { FileTelemetrySink, FileTelemetrySinkProps } from './file-sink';
-import { TelemetrySchema } from '../schema';
+import type { EndpointTelemetrySinkProps } from './endpoint-sink';
+import { EndpointTelemetrySink } from './endpoint-sink';
+import type { FileTelemetrySinkProps } from './file-sink';
+import { FileTelemetrySink } from './file-sink';
+import type { TelemetrySchema } from '../schema';
 
-export interface FileEndpointTelemetrySinkProps extends FileTelemetrySinkProps, EndpointTelemetrySinkProps {}
+export interface FileEndpointTelemetrySinkProps extends FileTelemetrySinkProps, EndpointTelemetrySinkProps {
+}
 
 export class FileEndpointTelemetrySink {
   private fileSink: FileTelemetrySink;

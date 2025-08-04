@@ -1,8 +1,8 @@
 import { PassThrough } from 'stream';
+import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { IoHostTelemetrySink } from '../../../../lib/cli/telemetry/sink/io-host-sink';
-import { createTestEvent } from './util';
 
 let passThrough: PassThrough;
 

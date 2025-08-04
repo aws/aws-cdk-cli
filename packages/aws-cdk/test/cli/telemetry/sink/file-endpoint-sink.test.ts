@@ -1,12 +1,12 @@
+import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import * as https from 'https';
+import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
-import { FileEndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-endpoint-sink';
 import type { TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
-import { createTestEvent } from './util';
+import { FileEndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-endpoint-sink';
 
 // Mock the https module
 jest.mock('https', () => ({
@@ -183,7 +183,7 @@ describe('FileEndpointTelemetrySink', () => {
       const client = new FileEndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', logFilePath, ioHost });
 
       // Create a spy on the flush method for the endpoint sink
-      const flushSpy = jest.spyOn((client as any).endpointSink, 'flush')
+      const flushSpy = jest.spyOn((client as any).endpointSink, 'flush');
 
       // WHEN
       // Advance the timer by 30 seconds
