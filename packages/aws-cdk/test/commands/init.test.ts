@@ -430,6 +430,33 @@ describe('expandPlaceholders', () => {
   });
 });
 
+describe('Git template functionality', () => {
+  test('custom git templates do not process placeholders', async () => {
+    await withTempDir(async (workDir) => {
+      const templateDir = path.join(workDir, 'git-template');
+      const tsDir = path.join(templateDir, 'typescript');
+      await fs.mkdirp(tsDir);
+
+      // Create template with placeholders that should NOT be processed
+      await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({
+        name: '%name%', // Should remain as-is for custom templates
+        version: '1.0.0',
+      }, null, 2));
+
+      const { InitTemplate } = await import('../../lib/commands/init/init');
+      const template = await InitTemplate.fromPath(templateDir, 'git-template');
+      const projectDir = path.join(workDir, 'test-project');
+      await fs.mkdirp(projectDir);
+
+      await template.install(ioHelper, 'typescript', projectDir);
+
+      // Verify placeholders were NOT processed
+      const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
+      expect(packageJson.name).toBe('%name%'); // Should remain unchanged
+    });
+  });
+});
+
 function cliTest(name: string, handler: (dir: string) => void | Promise<any>): void {
   test(name, () => withTempDir(handler));
 }
@@ -485,3 +512,4 @@ async function withReplacedFile(fileName: string, contents: any, cb: () => Promi
     await fs.writeFile(fileName, oldContents);
   }
 }
+

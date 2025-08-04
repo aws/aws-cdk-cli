@@ -52,62 +52,51 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
+  // Step 1: Load template
   let template: InitTemplate;
-  let tempDir: string | undefined;
-
-  try {
-    // Step 1: Load template
-    if (options.fromGitUrl) {
-      // Validate network access for Git operations
-      if (!canUseNetwork) {
-        throw new ToolkitError('Cannot use Git URL without network access');
-      }
-      
-      await ioHelper.defaults.info(`Cloning Git repository from ${options.fromGitUrl}...`);
-      template = await loadGitTemplate(options.fromGitUrl);
-      // Store temp directory for cleanup
-      tempDir = template['basePath'];
-    } else if (options.fromPath) {
-      template = await loadLocalTemplate(options.fromPath);
-    } else {
-      template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+  if (options.fromGitUrl) {
+    // Validate network access for Git operations
+    if (!canUseNetwork) {
+      throw new ToolkitError('Cannot use Git URL without network access');
     }
 
-    // Step 2: Resolve language
-    const language = await resolveLanguage(ioHelper, template, options.language);
-
-    // Step 3: Initialize project following standard process
-    await initializeProject(
-      ioHelper,
-      template,
-      language,
-      canUseNetwork,
-      generateOnly,
-      workDir,
-      options.stackName,
-      options.migrate,
-      options.libVersion,
-    );
-  } finally {
-    // Clean up temporary directory if it was created for Git template
-    if (tempDir && options.fromGitUrl) {
-      await fs.remove(tempDir).catch(() => {});
-    }
+    await ioHelper.defaults.info(`Cloning Git repository from ${options.fromGitUrl}...`);
+    template = await loadGitTemplate(options.fromGitUrl);
+  } else if (options.fromPath) {
+    template = await loadLocalTemplate(options.fromPath);
+  } else {
+    template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
   }
+
+  // Step 2: Resolve language
+  const language = await resolveLanguage(ioHelper, template, options.language);
+
+  // Step 3: Initialize project following standard process
+  await initializeProject(
+    ioHelper,
+    template,
+    language,
+    canUseNetwork,
+    generateOnly,
+    workDir,
+    options.stackName,
+    options.migrate,
+    options.libVersion,
+  );
 }
 
 /**
  * Load a Git repository template
  *
- * @param gitUrl Git repository URL
+ * @param gitUrl - Git repository URL
  * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadGitTemplate(gitUrl: string): Promise<InitTemplate> {
+  const tempDir = await cloneGitRepository(gitUrl);
+
   try {
-    const tempDir = await cloneGitRepository(gitUrl);
-    
     const languageDirs = await getLanguageDirectories(tempDir);
-    
+
     if (languageDirs.length > 0) {
       const templateName = path.basename(gitUrl.replace(/\.git$/, '').split('/').pop() || 'git-template');
       const template = await InitTemplate.fromPath(tempDir, templateName, 'Custom template from Git repository');
@@ -115,21 +104,27 @@ async function loadGitTemplate(gitUrl: string): Promise<InitTemplate> {
     } else {
       const rootEntries = await fs.readdir(tempDir, { withFileTypes: true });
       const directories = rootEntries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
-      
+
       if (directories.length === 1) {
         const singleDir = path.join(tempDir, directories[0].name);
         const singleDirLanguages = await getLanguageDirectories(singleDir);
-        
+
         if (singleDirLanguages.length > 0) {
           const templateName = directories[0].name;
           const template = await InitTemplate.fromPath(singleDir, templateName, 'Custom template from Git repository');
           return template;
         }
       }
-      
+
       throw new ToolkitError('Git repository must contain language directories at root or in a single subdirectory');
     }
   } catch (e: any) {
+    // Clean up temp directory on error
+    try {
+      await fs.remove(tempDir);
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
     throw new ToolkitError(`Failed to load template from Git repository: ${e.message}`);
   }
 }
@@ -137,7 +132,7 @@ async function loadGitTemplate(gitUrl: string): Promise<InitTemplate> {
 /**
  * Load a local custom template from file system path
  *
- * @param templatePath Path to the local template directory
+ * @param templatePath - Path to the local template directory
  * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
@@ -157,9 +152,9 @@ async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
 /**
  * Load a built-in template by name
  *
- * @param ioHelper IO helper for user interaction
- * @param type Template type name
- * @param language Programming language filter
+ * @param ioHelper - IO helper for user interaction
+ * @param type - Template type name
+ * @param language - Programming language filter
  * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
@@ -186,9 +181,9 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
 /**
  * Resolve the programming language for the template
  *
- * @param ioHelper IO helper for user interaction
- * @param template The template to resolve language for
- * @param requestedLanguage User-requested language (optional)
+ * @param ioHelper - IO helper for user interaction
+ * @param template - The template to resolve language for
+ * @param requestedLanguage - User-requested language (optional)
  * @returns Promise resolving to the selected language
  */
 async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
@@ -211,9 +206,23 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
 }
 
 /**
+ * Validate Git URL format
+ */
+export function isValidGitUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:', 'git:', 'ssh:'].includes(parsed.protocol) &&
+           parsed.hostname.length > 0;
+  } catch {
+    // Check for SSH format: git@host:path
+    return /^git@[\w.-]+:[\w.-/]+$/.test(url);
+  }
+}
+
+/**
  * Get valid CDK language directories from a template path
  *
- * @param templatePath Path to the template directory
+ * @param templatePath - Path to the template directory
  * @returns Promise resolving to array of supported language names
  */
 async function getLanguageDirectories(templatePath: string): Promise<string[]> {
@@ -248,10 +257,15 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
 /**
  * Clone a Git repository containing CDK templates
  *
- * @param gitUrl URL of the Git repository
+ * @param gitUrl - URL of the Git repository
  * @returns Path to the cloned repository
  */
-async function cloneGitRepository(gitUrl: string): Promise<string> {
+export async function cloneGitRepository(gitUrl: string): Promise<string> {
+  // Validate Git URL format
+  if (!isValidGitUrl(gitUrl)) {
+    throw new ToolkitError('Invalid Git URL format');
+  }
+
   const tempDir = path.join(os.tmpdir(), `cdk-git-template-${Date.now()}`);
   await fs.mkdirp(tempDir);
 
@@ -261,10 +275,11 @@ async function cloneGitRepository(gitUrl: string): Promise<string> {
   }
 
   try {
-    await executeCommand('git', ['clone', '--depth', '1', normalizedUrl, tempDir], { cwd: process.cwd() });
+    await executeCommand('git', ['clone', '--depth', '1', normalizedUrl, '.'], { cwd: tempDir });
     return tempDir;
   } catch (e: any) {
-    await fs.remove(tempDir).catch(() => {});
+    await fs.remove(tempDir).catch(() => {
+    });
     throw new ToolkitError(`Failed to clone Git repository: ${e.message}`);
   }
 }
@@ -272,15 +287,20 @@ async function cloneGitRepository(gitUrl: string): Promise<string> {
 /**
  * Execute a command and return stdout
  *
- * @param cmd command to execute
- * @param args command arguments
- * @param options execution options
+ * @param cmd - command to execute
+ * @param args - command arguments
+ * @param options - execution options
  * @returns stdout if successful
  */
 async function executeCommand(cmd: string, args: string[], { cwd }: { cwd: string }) {
+  // Validate command
+  if (cmd !== 'git') {
+    throw new ToolkitError('Only git commands are allowed');
+  }
+
   const child = childProcess.spawn(cmd, args, {
     cwd,
-    shell: true,
+    shell: false, // Disable shell to prevent injection
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   let stdout = '';
@@ -303,11 +323,7 @@ async function executeCommand(cmd: string, args: string[], { cwd }: { cwd: strin
  * @returns The Python executable name for the current platform
  */
 function pythonExecutable() {
-  let python = 'python3';
-  if (process.platform === 'win32') {
-    python = 'python';
-  }
-  return python;
+  return process.platform === 'win32' ? 'python' : 'python3';
 }
 const INFO_DOT_JSON = 'info.json';
 
@@ -382,7 +398,7 @@ export class InitTemplate {
     }
 
     const sourceDirectory = path.join(this.basePath, language);
-    const isCustomTemplate = this.description === 'Custom template from local path';
+    const isCustomTemplate = this.description === 'Custom template from local path' || this.description === 'Custom template from Git repository';
 
     if (isCustomTemplate) {
       // For custom templates, copy files without processing placeholders
@@ -410,8 +426,20 @@ export class InitTemplate {
 
   private async installFiles(sourceDirectory: string, targetDirectory: string, language: string, project: ProjectInfo) {
     for (const file of await fs.readdir(sourceDirectory)) {
+      // Validate file name to prevent path traversal
+      if (file.includes('..') || path.isAbsolute(file)) {
+        continue;
+      }
+
       const fromFile = path.join(sourceDirectory, file);
-      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project));
+      const expandedFileName = expandPlaceholders(file, language, project);
+      const toFile = path.join(targetDirectory, expandedFileName);
+
+      // Ensure target file is within target directory
+      if (!toFile.startsWith(path.resolve(targetDirectory))) {
+        continue;
+      }
+
       if ((await fs.stat(fromFile)).isDirectory()) {
         await fs.mkdir(toFile);
         await this.installFiles(fromFile, toFile, language, project);
@@ -428,8 +456,6 @@ export class InitTemplate {
     }
   }
 
-
-
   private async installProcessed(templatePath: string, toFile: string, language: string, project: ProjectInfo) {
     const template = await fs.readFile(templatePath, { encoding: 'utf-8' });
     await fs.writeFile(toFile, expandPlaceholders(template, language, project));
@@ -440,8 +466,18 @@ export class InitTemplate {
    */
   private async installFilesWithoutProcessing(sourceDirectory: string, targetDirectory: string) {
     for (const file of await fs.readdir(sourceDirectory)) {
+      // Validate file name to prevent path traversal
+      if (file.includes('..') || path.isAbsolute(file)) {
+        continue;
+      }
+
       const fromFile = path.join(sourceDirectory, file);
       const toFile = path.join(targetDirectory, file);
+
+      // Ensure target file is within target directory
+      if (!toFile.startsWith(path.resolve(targetDirectory))) {
+        continue;
+      }
 
       if ((await fs.stat(fromFile)).isDirectory()) {
         await fs.mkdir(toFile);
@@ -537,32 +573,29 @@ interface ProjectInfo {
 }
 
 export async function availableInitTemplates(): Promise<InitTemplate[]> {
-  return new Promise(async (resolve) => {
-    try {
-      const templatesDir = path.join(cliRootDir(), 'lib', 'init-templates');
-      const templateNames = await listDirectory(templatesDir);
-      const templates = new Array<InitTemplate>();
-      for (const templateName of templateNames) {
-        templates.push(await InitTemplate.fromName(templatesDir, templateName));
-      }
-      resolve(templates);
-    } catch {
-      resolve([]);
+  try {
+    const templatesDir = path.join(cliRootDir(), 'lib', 'init-templates');
+    const templateNames = await listDirectory(templatesDir);
+    const templates = new Array<InitTemplate>();
+    for (const templateName of templateNames) {
+      templates.push(await InitTemplate.fromName(templatesDir, templateName));
     }
-  });
+    return templates;
+  } catch (e) {
+    // Log error but return empty array to not break CLI
+    return [];
+  }
 }
 
 export async function availableInitLanguages(): Promise<string[]> {
-  return new Promise(async (resolve) => {
-    const templates = await availableInitTemplates();
-    const result = new Set<string>();
-    for (const template of templates) {
-      for (const language of template.languages) {
-        result.add(language);
-      }
+  const templates = await availableInitTemplates();
+  const result = new Set<string>();
+  for (const template of templates) {
+    for (const language of template.languages) {
+      result.add(language);
     }
-    resolve([...result]);
-  });
+  }
+  return [...result];
 }
 
 /**
@@ -608,7 +641,7 @@ async function initializeProject(
   cdkVersion?: string,
 ) {
   // Step 1: Ensure target directory is empty
-  await assertIsEmptyDirectory(workDir);
+  await ensureEmptyDirectory(workDir);
 
   // Step 2: Copy template files
   await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
@@ -636,7 +669,7 @@ async function initializeProject(
   await ioHelper.defaults.info('✅ All done!');
 }
 
-async function assertIsEmptyDirectory(workDir: string) {
+async function ensureEmptyDirectory(workDir: string) {
   try {
     const files = await fs.readdir(workDir);
     if (files.filter((f) => !f.startsWith('.')).length !== 0) {
@@ -659,8 +692,8 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
   try {
     await execute(ioHelper, 'git', ['init'], { cwd: workDir });
     await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
-    await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
-  } catch {
+    await execute(ioHelper, 'git', ['commit', '--message=Initial commit', '--no-gpg-sign'], { cwd: workDir });
+  } catch (e) {
     await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
   }
 }
@@ -761,7 +794,7 @@ function isRoot(dir: string) {
 async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }: { cwd: string }) {
   const child = childProcess.spawn(cmd, args, {
     cwd,
-    shell: true,
+    shell: false, // Disable shell to prevent injection
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   let stdout = '';
@@ -794,22 +827,24 @@ interface Versions {
  */
 async function loadInitVersions(): Promise<Versions> {
   const initVersionFile = path.join(cliRootDir(), 'lib', 'init-templates', '.init-version.json');
-  const contents = JSON.parse(await fs.readFile(initVersionFile, { encoding: 'utf-8' }));
+  try {
+    const contents = JSON.parse(await fs.readFile(initVersionFile, { encoding: 'utf-8' }));
 
-  const ret = {
-    'aws-cdk-lib': contents['aws-cdk-lib'],
-    'constructs': contents.constructs,
-    'aws-cdk': versionNumber(),
-  };
-  for (const [key, value] of Object.entries(ret)) {
-    /* c8 ignore start */
-    if (!value) {
-      throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
+    const ret = {
+      'aws-cdk-lib': contents['aws-cdk-lib'],
+      'constructs': contents.constructs,
+      'aws-cdk': versionNumber(),
+    };
+    for (const [key, value] of Object.entries(ret)) {
+      if (!value) {
+        throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
+      }
     }
-    /* c8 ignore stop */
-  }
 
-  return ret;
+    return ret;
+  } catch (e: any) {
+    throw new ToolkitError(`Failed to load init versions: ${e.message}`);
+  }
 }
 
 /**
@@ -819,5 +854,9 @@ async function loadInitVersions(): Promise<Versions> {
  */
 export async function currentlyRecommendedAwsCdkLibFlags() {
   const recommendedFlagsFile = path.join(cliRootDir(), 'lib', 'init-templates', '.recommended-feature-flags.json');
-  return JSON.parse(await fs.readFile(recommendedFlagsFile, { encoding: 'utf-8' }));
+  try {
+    return JSON.parse(await fs.readFile(recommendedFlagsFile, { encoding: 'utf-8' }));
+  } catch (e: any) {
+    throw new ToolkitError(`Failed to load recommended feature flags: ${e.message}`);
+  }
 }
