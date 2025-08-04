@@ -1536,7 +1536,9 @@ export interface DescribeRepositoriesCommandInput extends DescribeRepositoriesRe
 
 export const ImageTagMutability = {
   IMMUTABLE: 'IMMUTABLE',
+  IMMUTABLE_WITH_EXCLUSION: 'IMMUTABLE_WITH_EXCLUSION',
   MUTABLE: 'MUTABLE',
+  MUTABLE_WITH_EXCLUSION: 'MUTABLE_WITH_EXCLUSION',
 } as const;
 
 /**
