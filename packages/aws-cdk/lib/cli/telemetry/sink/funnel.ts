@@ -9,17 +9,21 @@ export class Funnel {
   private readonly sinks: ITelemetrySink[];
 
   constructor(props: FunnelProps) {
+    if (props.sinks.length > 5) {
+      throw new Error(`Funnel class supports a maximum of 5 parallel sinks, got ${props.sinks.length} sinks.`);
+    }
+
     this.sinks = props.sinks;
   }
 
   public async emit(event: TelemetrySchema): Promise<void> {
-    // There is a limited set of sinks
+    // Funnel class enforces a maximum of 5 parallel sinks
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all(this.sinks.map(sink => sink.emit(event)));
   }
 
   public async flush(): Promise<void> {
-    // There is a limited set of sinks
+    // Funnel class enforces a maximum of 5 parallel sinks
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all(this.sinks.map(sink => sink.flush()));
   }
