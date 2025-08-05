@@ -400,6 +400,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'from-path': { type: 'string', desc: 'Path to a local custom template directory', requiresArg: true },
           'from-git-url': { type: 'string', desc: 'Git repository URL containing templates', requiresArg: true },
           'template-path': { type: 'string', desc: 'Path to a subdirectory within Git repositories', requiresArg: true },
+          'template-version': { type: 'string', desc: 'Git branch, tag, or commit to use for template (only for Git repositories)', requiresArg: true },
         },
       },
       'migrate': {

@@ -45,6 +45,11 @@ export interface CliInitOptions {
    */
   readonly templatePath?: string;
 
+  /**
+   * Git branch, tag, or commit to use for template (only for Git repositories)
+   */
+  readonly templateVersion?: string;
+
   readonly ioHelper: IoHelper;
 }
 
@@ -68,7 +73,7 @@ export async function cliInit(options: CliInitOptions) {
     }
 
     await ioHelper.defaults.info(`Cloning Git repository from ${options.fromGitUrl}...`);
-    template = await loadGitTemplate(options.fromGitUrl, options.templatePath);
+    template = await loadGitTemplate(options.fromGitUrl, options.templatePath, options.templateVersion);
   } else if (options.fromPath) {
     template = await loadLocalTemplate(options.fromPath);
   } else {
@@ -97,10 +102,11 @@ export async function cliInit(options: CliInitOptions) {
  *
  * @param gitUrl - Git repository URL
  * @param templatePath - Optional path to specific template within repository
+ * @param templateVersion - Optional Git branch, tag, or commit to use
  * @returns Promise resolving to the loaded InitTemplate
  */
-export async function loadGitTemplate(gitUrl: string, templatePath?: string): Promise<InitTemplate> {
-  const tempDir = await cloneGitRepository(gitUrl);
+export async function loadGitTemplate(gitUrl: string, templatePath?: string, templateVersion?: string): Promise<InitTemplate> {
+  const tempDir = await cloneGitRepository(gitUrl, templateVersion);
 
   try {
     let templateDir = tempDir;
@@ -352,30 +358,150 @@ async function getAllFiles(dir: string): Promise<string[]> {
  * Clone a Git repository containing CDK templates
  *
  * @param gitUrl - URL of the Git repository
+ * @param templateVersion - Optional Git branch, tag, or commit to use
  * @returns Path to the cloned repository
  */
-export async function cloneGitRepository(gitUrl: string): Promise<string> {
-  // Validate Git URL format
+export async function cloneGitRepository(gitUrl: string, templateVersion?: string): Promise<string> {
   if (!isValidGitUrl(gitUrl)) {
     throw new ToolkitError('Invalid Git URL format');
   }
 
-  const tempDir = path.join(os.tmpdir(), `cdk-git-template-${Date.now()}`);
-  await fs.mkdirp(tempDir);
-
+  // Normalize URL and create temp directory
   let normalizedUrl = gitUrl;
   if (!normalizedUrl.endsWith('.git')) {
     normalizedUrl = `${normalizedUrl}.git`;
   }
 
+  const tempDir = path.join(os.tmpdir(), `cdk-git-template-${Date.now()}`);
+  await fs.mkdirp(tempDir);
+
   try {
-    await executeCommand('git', ['clone', '--depth', '1', normalizedUrl, '.'], { cwd: tempDir });
+    if (templateVersion) {
+      // Clone entire repository to access all branches and tags
+      await executeCommand('git', ['clone', normalizedUrl, '.'], { cwd: tempDir });
+
+      // Resolve and checkout the specified version
+      const resolvedRef = await resolveGitReference(tempDir, templateVersion);
+      await executeCommand('git', ['checkout', resolvedRef], { cwd: tempDir });
+    } else {
+      // Clone with depth 1 for default branch (faster)
+      await executeCommand('git', ['clone', '--depth', '1', normalizedUrl, '.'], { cwd: tempDir });
+    }
+
     return tempDir;
   } catch (e: any) {
     await fs.remove(tempDir).catch(() => {
     });
     throw new ToolkitError(`Failed to clone Git repository: ${e.message}`);
   }
+}
+
+/**
+ * Resolve Git reference with interactive conflict resolution
+ *
+ * @param repoPath - Path to the cloned Git repository
+ * @param reference - Git reference (branch, tag, or commit) to resolve
+ * @returns Promise resolving to the actual Git reference to checkout
+ */
+async function resolveGitReference(repoPath: string, reference: string): Promise<string> {
+  try {
+    // Check if reference is a commit hash first (most specific)
+    try {
+      await executeCommand('git', ['rev-parse', '--verify', `${reference}^{commit}`], { cwd: repoPath });
+      return reference; // Valid commit hash
+    } catch {
+      // Not a commit hash, continue with branch/tag resolution
+    }
+
+    // Find matching branches
+    const branches: string[] = [];
+    try {
+      const branchOutput = await executeCommand('git', ['branch', '-r', '--list', `*/${reference}`], { cwd: repoPath });
+      const branchLines = branchOutput.trim().split('\n').filter(line => line.trim());
+
+      for (const line of branchLines) {
+        const branchName = line.trim().replace(/^origin\//, '');
+        if (branchName === reference) {
+          const commitHash = await executeCommand('git', ['rev-parse', `origin/${reference}`], { cwd: repoPath });
+          branches.push(`Branch ${reference} (latest commit: ${commitHash.trim().substring(0, 7)})`);
+        }
+      }
+    } catch {
+      // No matching branches found
+    }
+
+    // Find matching tags
+    const tags: string[] = [];
+    try {
+      const tagOutput = await executeCommand('git', ['tag', '-l', reference], { cwd: repoPath });
+      const tagLines = tagOutput.trim().split('\n').filter(line => line.trim());
+
+      for (const tagName of tagLines) {
+        if (tagName === reference) {
+          const commitHash = await executeCommand('git', ['rev-parse', `${reference}^{commit}`], { cwd: repoPath });
+          tags.push(`Tag ${reference} (commit: ${commitHash.trim().substring(0, 7)})`);
+        }
+      }
+    } catch {
+      // No matching tags found
+    }
+
+    // Handle conflicts and resolution
+    if (branches.length > 0 && tags.length > 0) {
+      // Ambiguous reference - prompt user for selection
+      process.stderr.write(`\n⚠️  Ambiguous reference "${reference}" found:\n`);
+
+      const options: string[] = [];
+      let index = 1;
+
+      for (const branch of branches) {
+        process.stderr.write(`  [${index}] ${branch}\n`);
+        options.push(`origin/${reference}`);
+        index++;
+      }
+
+      for (const tag of tags) {
+        process.stderr.write(`  [${index}] ${tag}\n`);
+        options.push(reference);
+        index++;
+      }
+
+      const choice = await promptUser(`\nWhich would you like to use? [1/${options.length}]: `);
+      const choiceNum = parseInt(choice.trim());
+
+      if (isNaN(choiceNum) || choiceNum < 1 || choiceNum > options.length) {
+        throw new ToolkitError('Invalid selection');
+      }
+
+      return options[choiceNum - 1];
+    } else if (branches.length > 0) {
+      return `origin/${reference}`;
+    } else if (tags.length > 0) {
+      return reference;
+    } else {
+      throw new ToolkitError(`Git reference '${reference}' not found. Please check that the branch, tag, or commit exists.`);
+    }
+  } catch (e: any) {
+    if (e instanceof ToolkitError) {
+      throw e;
+    }
+    throw new ToolkitError(`Failed to resolve Git reference '${reference}': ${e.message}`);
+  }
+}
+
+/**
+ * Prompt user for input (simple implementation for interactive conflict resolution)
+ *
+ * @param question - Question to ask the user
+ * @returns Promise resolving to user's input
+ */
+async function promptUser(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+    process.stdin.once('data', (data) => {
+      resolve(data.toString());
+    });
+  });
 }
 
 /**

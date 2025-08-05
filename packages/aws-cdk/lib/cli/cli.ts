@@ -523,6 +523,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             fromPath: args['from-path'],
             fromGitUrl: args['from-git-url'],
             templatePath: args['template-path'],
+            templateVersion: args['template-version'],
           });
         }
       case 'migrate':
