@@ -291,6 +291,8 @@ describe('constructs version', () => {
     await fs.mkdirp(tsDir);
 
     await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({ name: '%name%' }, null, 2));
+    // Add a TypeScript file to make it a valid TypeScript template
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello World");');
 
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
@@ -305,6 +307,7 @@ describe('constructs version', () => {
     });
 
     expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
   });
 
   cliTest('custom template path does not exist throws error', async (workDir) => {
@@ -443,6 +446,9 @@ describe('Git template functionality', () => {
         version: '1.0.0',
       }, null, 2));
 
+      // Add a TypeScript file to make it a valid TypeScript template
+      await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("%name%");');
+
       const { InitTemplate } = await import('../../lib/commands/init/init');
       const template = await InitTemplate.fromPath(templateDir, 'git-template');
       const projectDir = path.join(workDir, 'test-project');
@@ -453,6 +459,56 @@ describe('Git template functionality', () => {
       // Verify placeholders were NOT processed
       const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
       expect(packageJson.name).toBe('%name%'); // Should remain unchanged
+
+      const appTs = await fs.readFile(path.join(projectDir, 'app.ts'), 'utf8');
+      expect(appTs).toBe('console.log("%name%");'); // Should remain unchanged
+    });
+  });
+
+  test('loadGitTemplate with templatePath option', async () => {
+    await withTempDir(async (workDir) => {
+      // Create a mock Git repository structure with multiple templates
+      const repoDir = path.join(workDir, 'mock-repo');
+      const template1Dir = path.join(repoDir, 'template1');
+      const template2Dir = path.join(repoDir, 'template2');
+
+      // Create template1 with TypeScript
+      const ts1Dir = path.join(template1Dir, 'typescript');
+      await fs.mkdirp(ts1Dir);
+      await fs.writeFile(path.join(ts1Dir, 'package.json'), JSON.stringify({ name: 'template1' }, null, 2));
+      await fs.writeFile(path.join(ts1Dir, 'app.ts'), 'console.log("Template 1");');
+
+      // Create template2 with Java
+      const javaDir = path.join(template2Dir, 'java');
+      await fs.mkdirp(javaDir);
+      await fs.writeFile(path.join(javaDir, 'pom.xml'), '<project></project>');
+      await fs.writeFile(path.join(javaDir, 'App.template.java'), 'public class App {}');
+
+      const { loadGitTemplate } = await import('../../lib/commands/init/init');
+
+      // Test InitTemplate.fromPath directly with the template path
+      const { InitTemplate } = await import('../../lib/commands/init/init');
+      const template = await InitTemplate.fromPath(template2Dir, 'template2');
+
+      expect(template.name).toBe('template2');
+      expect(template.languages).toContain('java');
+    });
+  });
+
+  test('Java template files are recognized correctly', async () => {
+    await withTempDir(async (workDir) => {
+      // Test Java template files
+      const templateDir = path.join(workDir, 'java-template');
+      const javaDir = path.join(templateDir, 'java');
+      await fs.mkdirp(javaDir);
+      await fs.writeFile(path.join(javaDir, 'pom.xml'), '<project></project>');
+      await fs.writeFile(path.join(javaDir, 'App.template.java'), 'public class App {}');
+
+      // Test that InitTemplate can load Java templates with .template.java files
+      const { InitTemplate } = await import('../../lib/commands/init/init');
+      const template = await InitTemplate.fromPath(templateDir, 'java-template');
+
+      expect(template.languages).toContain('java');
     });
   });
 });

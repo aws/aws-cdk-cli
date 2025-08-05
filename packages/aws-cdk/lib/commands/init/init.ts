@@ -40,6 +40,11 @@ export interface CliInitOptions {
    */
   readonly fromGitUrl?: string;
 
+  /**
+   * Path to a subdirectory within Git repositories
+   */
+  readonly templatePath?: string;
+
   readonly ioHelper: IoHelper;
 }
 
@@ -61,7 +66,7 @@ export async function cliInit(options: CliInitOptions) {
     }
 
     await ioHelper.defaults.info(`Cloning Git repository from ${options.fromGitUrl}...`);
-    template = await loadGitTemplate(options.fromGitUrl);
+    template = await loadGitTemplate(options.fromGitUrl, options.templatePath);
   } else if (options.fromPath) {
     template = await loadLocalTemplate(options.fromPath);
   } else {
@@ -89,35 +94,64 @@ export async function cliInit(options: CliInitOptions) {
  * Load a Git repository template
  *
  * @param gitUrl - Git repository URL
+ * @param templatePath - Optional path to specific template within repository
  * @returns Promise resolving to the loaded InitTemplate
  */
-async function loadGitTemplate(gitUrl: string): Promise<InitTemplate> {
+export async function loadGitTemplate(gitUrl: string, templatePath?: string): Promise<InitTemplate> {
   const tempDir = await cloneGitRepository(gitUrl);
 
   try {
-    const languageDirs = await getLanguageDirectories(tempDir);
+    let templateDir = tempDir;
+    let templateName: string;
 
-    if (languageDirs.length > 0) {
-      const templateName = path.basename(gitUrl.replace(/\.git$/, '').split('/').pop() || 'git-template');
-      const template = await InitTemplate.fromPath(tempDir, templateName, 'Custom template from Git repository');
-      return template;
-    } else {
-      const rootEntries = await fs.readdir(tempDir, { withFileTypes: true });
-      const directories = rootEntries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
+    if (templatePath) {
+      // User specified a specific template path within the repository
+      templateDir = path.join(tempDir, templatePath);
 
-      if (directories.length === 1) {
-        const singleDir = path.join(tempDir, directories[0].name);
-        const singleDirLanguages = await getLanguageDirectories(singleDir);
-
-        if (singleDirLanguages.length > 0) {
-          const templateName = directories[0].name;
-          const template = await InitTemplate.fromPath(singleDir, templateName, 'Custom template from Git repository');
-          return template;
-        }
+      if (!await fs.pathExists(templateDir)) {
+        throw new ToolkitError(`Template path '${templatePath}' not found in the Git repository`);
       }
 
-      throw new ToolkitError('Git repository must contain language directories at root or in a single subdirectory');
+      const languageDirs = await getLanguageDirectories(templateDir);
+      if (languageDirs.length === 0) {
+        throw new ToolkitError(`Template path '${templatePath}' doesn't contain language directories`);
+      }
+
+      templateName = path.basename(templatePath);
+    } else {
+      // Auto-discover template (existing logic)
+      const languageDirs = await getLanguageDirectories(tempDir);
+
+      if (languageDirs.length > 0) {
+        // Template at repository root
+        templateName = path.basename(gitUrl.replace(/\.git$/, '').split('/').pop() || 'git-template');
+      } else {
+        // Check for single directory containing template
+        const rootEntries = await fs.readdir(tempDir, { withFileTypes: true });
+        const directories = rootEntries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
+
+        if (directories.length === 1) {
+          const singleDir = path.join(tempDir, directories[0].name);
+          const singleDirLanguages = await getLanguageDirectories(singleDir);
+
+          if (singleDirLanguages.length > 0) {
+            templateDir = singleDir;
+            templateName = directories[0].name;
+          } else {
+            throw new ToolkitError('Git repository must contain language directories at root or in a single subdirectory. For other structures, use --template-path');
+          }
+        } else if (directories.length > 1) {
+          // Multiple directories found - user must specify template path
+          const dirList = directories.map(d => d.name).join(', ');
+          throw new ToolkitError(`Git repository contains multiple directories: ${dirList}. Please specify which template to use with --template-path`);
+        } else {
+          throw new ToolkitError('Git repository must contain language directories at root or in a single subdirectory');
+        }
+      }
     }
+
+    const template = await InitTemplate.fromPath(templateDir, templateName, 'Custom template from Git repository');
+    return template;
   } catch (e: any) {
     // Clean up temp directory on error
     try {
@@ -221,9 +255,6 @@ export function isValidGitUrl(url: string): boolean {
 
 /**
  * Get valid CDK language directories from a template path
- *
- * @param templatePath - Path to the template directory
- * @returns Promise resolving to array of supported language names
  */
 async function getLanguageDirectories(templatePath: string): Promise<string[]> {
   const result: string[] = [];
@@ -235,23 +266,71 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
     for (const entry of entries) {
       if (entry.isDirectory() && supportedLanguages.includes(entry.name)) {
         const langDir = path.join(templatePath, entry.name);
-        try {
-          const files = await fs.readdir(langDir);
-          if (files.length > 0) {
-            result.push(entry.name);
-          }
-        } catch (e) {
-          // Skip directories we can't read
-          continue;
+
+        if (await hasValidLanguageFiles(langDir, entry.name)) {
+          result.push(entry.name);
         }
       }
     }
   } catch (e) {
-    // If we can't read the directory, return empty array
     return [];
   }
 
   return result;
+}
+
+/**
+ * Check if a language directory contains valid template files
+ */
+async function hasValidLanguageFiles(langDir: string, language: string): Promise<boolean> {
+  try {
+    const files = await getAllFiles(langDir);
+
+    // Define expected file patterns for each language
+    const languagePatterns: Record<string, RegExp[]> = {
+      typescript: [/\.(ts|tsx)$/, /\.template\.(ts|tsx)$/],
+      javascript: [/\.(js|jsx)$/, /\.template\.(js|jsx)$/],
+      python: [/\.py$/, /\.template\.py$/],
+      java: [/\.java$/, /\.template\.java$/],
+      csharp: [/\.cs$/, /\.template\.cs$/],
+      fsharp: [/\.fs$/, /\.template\.fs$/],
+      go: [/\.go$/, /\.template\.go$/],
+    };
+
+    const patterns = languagePatterns[language];
+    if (!patterns) return false;
+
+    // Check if any file matches the expected patterns
+    return files.some(file => patterns.some(pattern => pattern.test(file)));
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Recursively get all files in a directory
+ */
+async function getAllFiles(dir: string): Promise<string[]> {
+  const files: string[] = [];
+
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        const subFiles = await getAllFiles(fullPath);
+        files.push(...subFiles);
+      } else {
+        files.push(entry.name);
+      }
+    }
+  } catch (e) {
+    // Skip directories we can't read
+  }
+
+  return files;
 }
 
 /**
