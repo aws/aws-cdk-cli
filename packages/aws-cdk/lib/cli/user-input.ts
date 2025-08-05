@@ -1327,6 +1327,34 @@ export interface InitOptions {
   readonly libVersion?: string;
 
   /**
+   * Path to a local custom template directory
+   *
+   * @default - undefined
+   */
+  readonly fromPath?: string;
+
+  /**
+   * Git repository URL containing templates
+   *
+   * @default - undefined
+   */
+  readonly fromGitUrl?: string;
+
+  /**
+   * Path to a subdirectory within Git repositories
+   *
+   * @default - undefined
+   */
+  readonly templatePath?: string;
+
+  /**
+   * Git branch, tag, or commit to use for template (only for Git repositories)
+   *
+   * @default - undefined
+   */
+  readonly templateVersion?: string;
+
+  /**
    * Positional argument for init
    */
   readonly TEMPLATE?: string;

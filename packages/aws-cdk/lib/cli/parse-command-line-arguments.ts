@@ -830,6 +830,24 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Path to a local custom template directory',
           requiresArg: true,
+        })
+        .option('from-git-url', {
+          default: undefined,
+          type: 'string',
+          desc: 'Git repository URL containing templates',
+          requiresArg: true,
+        })
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a subdirectory within Git repositories',
+          requiresArg: true,
+        })
+        .option('template-version', {
+          default: undefined,
+          type: 'string',
+          desc: 'Git branch, tag, or commit to use for template (only for Git repositories)',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
