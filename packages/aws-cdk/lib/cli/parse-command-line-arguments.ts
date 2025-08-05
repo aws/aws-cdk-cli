@@ -389,6 +389,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Change flags to default state',
           requiresArg: false,
+        })
+        .option('i', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Interactive option for flags command',
+          requiresArg: false,
         }),
     )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>

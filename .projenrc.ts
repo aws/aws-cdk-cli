@@ -1152,6 +1152,7 @@ const cli = configureProject(
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
+      'enquirer',
       'fs-extra@^9',
       'glob',
       'minimatch',

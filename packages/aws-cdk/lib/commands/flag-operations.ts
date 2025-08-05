@@ -2,10 +2,13 @@ import * as path from 'path';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+// @ts-ignore
+import { Select } from 'enquirer';
 import * as fs from 'fs-extra';
 import { StackSelectionStrategy } from '../api';
 import type { IoHelper } from '../api-private';
 import type { FlagsOptions } from '../cli/user-input';
+import { OBSOLETE_FLAGS } from '../obsolete-flags';
 
 interface FlagOperationsParams {
   flagData: FeatureFlag[];
@@ -20,13 +23,8 @@ interface FlagOperationsParams {
 }
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
-  const OBSOLETE_FLAGS = [
-    '@aws-cdk/core:enableStackNameDuplicates',
-    '@aws-cdk/aws-s3:grantWriteWithoutAcl',
-    '@aws-cdk/aws-kms:defaultKeyPolicies',
-  ];
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
-  const params = {
+  let params = {
     flagData,
     toolkit,
     ioHelper,
@@ -37,6 +35,52 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     default: options.default,
     unconfigured: options.unconfigured,
   };
+
+  const interactiveOptions = [
+    'Set all flags to recommended values',
+    'Set unconfigured flags to recommended values',
+    'Set unconfigured flags to their implied configuration (record current behavior)',
+    'Modify a specific flag',
+    'Exit',
+  ];
+
+  if (options.i) {
+    const prompt = new Select({
+      name: 'option',
+      message: 'Menu',
+      choices: interactiveOptions,
+    });
+
+    const answer = await prompt.run();
+    if (answer == 'Set all flags to recommended values') {
+      params = {
+        ...params,
+        recommended: true,
+        all: true,
+      };
+      await setMultipleFlags(params);
+    } else if (answer == 'Set unconfigured flags to recommended values') {
+      params = {
+        ...params,
+        recommended: true,
+        unconfigured: true,
+      };
+      await setMultipleFlags(params);
+    } else if (answer == 'Set unconfigured flags to their implied configuration (record current behavior)') {
+      params = {
+        ...params,
+        default: true,
+        unconfigured: true,
+      };
+      await setMultipleFlags(params);
+    } else if (answer == 'Modify a specific flag') {
+      await setFlag(params, true);
+    } else if (answer == 'Exit') {
+      return;
+    }
+
+    return;
+  }
 
   if (options.FLAGNAME && options.all) {
     await ioHelper.defaults.error('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
@@ -124,24 +168,56 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 }
 
-async function setFlag(params: FlagOperationsParams) {
+async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
   const { flagData, ioHelper, flagName } = params;
-  const flag = flagData.find(f => f.name === flagName![0]);
+  let updatedParams = params;
+  let updatedFlagName = flagName;
 
-  if (!flag) {
-    await ioHelper.defaults.error('Flag not found.');
-    return;
+  if (interactive) {
+    const allFlagNames = flagData.filter(flag => isBooleanFlag(flag) == true).map(flag => flag.name);
+
+    const prompt = new Select({
+      name: 'flag',
+      message: 'Select which flag you would like to modify:',
+      limit: 100,
+      choices: allFlagNames,
+    });
+
+    const selectedFlagName = await prompt.run();
+    updatedFlagName = [selectedFlagName];
+
+    const valuePrompt = new Select({
+      name: 'value',
+      message: 'Select a value:',
+      choices: ['true', 'false'],
+    });
+
+    const updatedValue = await valuePrompt.run();
+
+    updatedParams = {
+      ...params,
+      value: updatedValue,
+      flagName: updatedFlagName,
+    };
+  }
+  else {
+    const flag = flagData.find(f => f.name === flagName![0]);
+
+    if (!flag) {
+      await ioHelper.defaults.error('Flag not found.');
+      return;
+    }
+
+    if (!isBooleanFlag(flag)) {
+      await ioHelper.defaults.error(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
+      return;
+    }
   }
 
-  if (!isBooleanFlag(flag)) {
-    await ioHelper.defaults.error(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
-    return;
-  }
-
-  const prototypeSuccess = await prototypeChanges(params, flagName!);
+  const prototypeSuccess = await prototypeChanges(updatedParams, updatedFlagName!);
 
   if (prototypeSuccess) {
-    await handleUserResponse(params, flagName!);
+    await handleUserResponse(updatedParams, updatedFlagName!);
   }
 }
 
@@ -167,6 +243,7 @@ async function prototypeChanges(
   if (flagNames.length === 1 && value !== undefined) {
     const flagName = flagNames[0];
     if (baseContextValues[flagName] == boolValue) {
+      ioHelper.defaults.info('Flag is already set to the specified value. No changes needed.');
       return false;
     }
     updateObj[flagName] = boolValue;
@@ -191,7 +268,7 @@ async function prototypeChanges(
           updateObj[flagName] = false;
         } else {
           updateObj[flagName] = true;
-        } 
+        }
       }
     }
   }

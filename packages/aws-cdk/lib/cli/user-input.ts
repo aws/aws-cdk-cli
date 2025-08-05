@@ -658,6 +658,13 @@ export interface FlagsOptions {
   readonly default?: boolean;
 
   /**
+   * Interactive option for flags command
+   *
+   * @default - undefined
+   */
+  readonly i?: boolean;
+
+  /**
    * Positional argument for flags
    */
   readonly FLAGNAME?: Array<string>;
