@@ -102,7 +102,8 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('version-reporting', {
       default: undefined,
       type: 'boolean',
-      desc: 'Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      alias: 'telemetry',
     })
     .option('path-metadata', {
       default: undefined,
@@ -351,7 +352,27 @@ export function parseCommandLineArguments(args: Array<string>): any {
             requiresArg: true,
           }),
     )
-    .command('flags', 'View and toggle feature flags.')
+    .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
+      yargs
+        .option('value', {
+          default: undefined,
+          type: 'string',
+          desc: 'The value the user would like to set the feature flag configuration to',
+          requiresArg: true,
+        })
+        .option('set', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Signifies the user would like to modify their feature flag configuration',
+          requiresArg: false,
+        })
+        .option('all', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify or view all feature flags',
+          requiresArg: false,
+        }),
+    )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {

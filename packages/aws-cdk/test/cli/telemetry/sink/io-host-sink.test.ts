@@ -1,8 +1,8 @@
 import { PassThrough } from 'stream';
-import { IoHelper } from '../../../lib/api-private';
-import { CliIoHost } from '../../../lib/cli/io-host';
-import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/io-host-sink';
-import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import { IoHelper } from '../../../../lib/api-private';
+import { CliIoHost } from '../../../../lib/cli/io-host';
+import type { TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
+import { IoHostTelemetrySink } from '../../../../lib/cli/telemetry/sink/io-host-sink';
 
 let passThrough: PassThrough;
 

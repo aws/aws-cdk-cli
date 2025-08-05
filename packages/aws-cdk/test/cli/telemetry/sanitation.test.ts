@@ -103,12 +103,35 @@ describe(sanitizeCommandLineArguments, () => {
     const argv = {
       _: ['deploy'],
       STACKS: ['MyStack'],
-      ['require-approval']: 'broadening',
       ['build-exclude']: ['something'],
     };
     expect(sanitizeCommandLineArguments(argv)).toEqual({
       path: ['deploy', '$STACKS_1'],
-      parameters: { 'require-approval': '<redacted>', 'build-exclude': '<redacted>' },
+      parameters: { 'build-exclude': '<redacted>' },
+    });
+  });
+
+  test('enum options are allowed', () => {
+    const argv = {
+      _: ['deploy'],
+      STACKS: ['MyStack'],
+      ['require-approval']: 'broadening',
+    };
+    expect(sanitizeCommandLineArguments(argv)).toEqual({
+      path: ['deploy', '$STACKS_1'],
+      parameters: { 'require-approval': 'broadening' },
+    });
+  });
+
+  test('invalid enum options are redacted', () => {
+    const argv = {
+      _: ['deploy'],
+      STACKS: ['MyStack'],
+      ['require-approval']: 'invalid',
+    };
+    expect(sanitizeCommandLineArguments(argv)).toEqual({
+      path: ['deploy', '$STACKS_1'],
+      parameters: { 'require-approval': '<redacted>' },
     });
   });
 });
