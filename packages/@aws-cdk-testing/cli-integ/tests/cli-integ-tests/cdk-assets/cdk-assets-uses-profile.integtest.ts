@@ -5,7 +5,7 @@ import { integTest, withDefaultFixture, withRetry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
-integTest('cdk-assets uses profile when specified', 
+integTest('cdk-assets uses profile when specified',
   withRetry(withDefaultFixture(async (fixture) => {
     const currentCreds = await fixture.aws.credentials();
 
