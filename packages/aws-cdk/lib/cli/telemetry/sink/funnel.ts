@@ -5,6 +5,11 @@ export interface FunnelProps {
   readonly sinks: ITelemetrySink[];
 }
 
+/**
+ * A funnel is a combination of one or more sinks.
+ * The sink functions are executed in parallel, and a maximum of 5
+ * sinks are supported per funnel.
+ */
 export class Funnel {
   private readonly sinks: ITelemetrySink[];
 
