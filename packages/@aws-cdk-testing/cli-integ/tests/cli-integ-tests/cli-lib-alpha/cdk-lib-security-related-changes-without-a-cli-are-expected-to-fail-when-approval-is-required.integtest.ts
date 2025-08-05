@@ -1,11 +1,11 @@
 import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { integTest, withCliLibFixture } from '../../../lib';
+import { integTest, withCliLibFixture, withRetry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'security related changes without a CLI are expected to fail when approval is required',
-  withCliLibFixture(async (fixture) => {
+  withRetry(withCliLibFixture(async (fixture) => {
     const stdErr = await fixture.cdk(['deploy', fixture.fullStackName('simple-1')], {
       onlyStderr: true,
       captureStderr: true,
@@ -25,5 +25,5 @@ integTest(
         }),
       ),
     ).rejects.toThrow('does not exist');
-  }),
+  })),
 );

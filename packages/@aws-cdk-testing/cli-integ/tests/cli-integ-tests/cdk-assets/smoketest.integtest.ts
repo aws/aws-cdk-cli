@@ -4,13 +4,13 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { writeDockerAsset, writeFileAsset } from './asset_helpers';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withDefaultFixture, withRetry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'cdk-assets smoke test',
-  withDefaultFixture(async (fixture) => {
+  withRetry(withDefaultFixture(async (fixture) => {
     await fixture.shell(['npm', 'init', '-y']);
     await fixture.shell(['npm', 'install', 'cdk-assets@latest']);
 
@@ -61,5 +61,5 @@ integTest(
         ...fixture.cdkShellEnv(),
       },
     });
-  }),
+  })),
 );

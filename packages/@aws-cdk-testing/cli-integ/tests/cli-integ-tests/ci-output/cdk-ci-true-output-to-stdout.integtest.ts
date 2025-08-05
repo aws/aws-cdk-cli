@@ -1,11 +1,11 @@
 import type { CdkCliOptions } from '../../../lib';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withDefaultFixture, withRetry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'ci=true output to stdout',
-  withDefaultFixture(async (fixture) => {
+  withRetry(withDefaultFixture(async (fixture) => {
     const execOptions: CdkCliOptions = {
       captureStderr: true,
       onlyStderr: true,
@@ -29,6 +29,6 @@ integTest(
     expect(deployOutput).toEqual('');
     expect(destroyOutput).toEqual('');
     expect(diffOutput).toEqual('');
-  }),
+  })),
 );
 

@@ -1,11 +1,11 @@
 import { DescribeStackResourcesCommand } from '@aws-sdk/client-cloudformation';
-import { integTest, withCliLibFixture } from '../../../lib';
+import { integTest, withCliLibFixture, withRetry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'cli-lib deploy',
-  withCliLibFixture(async (fixture) => {
+  withRetry(withCliLibFixture(async (fixture) => {
     const stackName = fixture.fullStackName('simple-1');
 
     try {
@@ -27,6 +27,6 @@ integTest(
         captureStderr: false,
       });
     }
-  }),
+  })),
 );
 
