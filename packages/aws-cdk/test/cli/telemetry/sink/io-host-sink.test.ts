@@ -1,7 +1,7 @@
 import { PassThrough } from 'stream';
+import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
-import type { TelemetrySchema } from '../../../../lib/cli/telemetry/schema';
 import { IoHostTelemetrySink } from '../../../../lib/cli/telemetry/sink/io-host-sink';
 
 let passThrough: PassThrough;
@@ -44,37 +44,7 @@ describe('IoHostTelemetrySink', () => {
 
   test('adds events to collection', async () => {
     // GIVEN
-    const testEvent: TelemetrySchema = {
-      identifiers: {
-        cdkCliVersion: '1.0.0',
-        telemetryVersion: '1.0.0',
-        sessionId: 'test-session',
-        eventId: 'test-event',
-        installationId: 'test-installation',
-        timestamp: new Date().toISOString(),
-      },
-      event: {
-        state: 'SUCCEEDED',
-        eventType: 'INVOKE',
-        command: {
-          path: ['test'],
-          parameters: {},
-          config: { context: { foo: true } },
-        },
-      },
-      environment: {
-        os: {
-          platform: 'test',
-          release: 'test',
-        },
-        ci: false,
-        nodeVersion: process.version,
-      },
-      project: {},
-      duration: {
-        total: 0,
-      },
-    };
+    const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
 
     // Create a mock IoHelper that writes to stderr like the original
     const mockIoHelper = {
@@ -99,37 +69,7 @@ describe('IoHostTelemetrySink', () => {
 
   test('handles errors gracefully and logs to trace without throwing', async () => {
     // GIVEN
-    const testEvent: TelemetrySchema = {
-      identifiers: {
-        cdkCliVersion: '1.0.0',
-        telemetryVersion: '1.0.0',
-        sessionId: 'test-session',
-        eventId: 'test-event',
-        installationId: 'test-installation',
-        timestamp: new Date().toISOString(),
-      },
-      event: {
-        state: 'SUCCEEDED',
-        eventType: 'INVOKE',
-        command: {
-          path: ['test'],
-          parameters: {},
-          config: { context: { foo: true } },
-        },
-      },
-      environment: {
-        os: {
-          platform: 'test',
-          release: 'test',
-        },
-        ci: false,
-        nodeVersion: process.version,
-      },
-      project: {},
-      duration: {
-        total: 0,
-      },
-    };
+    const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
 
     // Create a mock IoHelper with trace spy
     const traceSpy = jest.fn();
