@@ -50,6 +50,8 @@ export interface CliInitOptions {
 
 /**
  * Initialize a CDK package in the current directory
+ *
+ * @param options - Configuration options for CDK initialization
  */
 export async function cliInit(options: CliInitOptions) {
   const ioHelper = options.ioHelper;
@@ -241,6 +243,9 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
 
 /**
  * Validate Git URL format
+ *
+ * @param url - The Git URL to validate
+ * @returns true if the URL is a valid Git URL format
  */
 export function isValidGitUrl(url: string): boolean {
   try {
@@ -255,6 +260,9 @@ export function isValidGitUrl(url: string): boolean {
 
 /**
  * Get valid CDK language directories from a template path
+ *
+ * @param templatePath - Path to the template directory to scan
+ * @returns Array of supported language directory names found
  */
 async function getLanguageDirectories(templatePath: string): Promise<string[]> {
   const result: string[] = [];
@@ -281,6 +289,10 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
 
 /**
  * Check if a language directory contains valid template files
+ *
+ * @param langDir - Path to the language directory to check
+ * @param language - The programming language to validate files for
+ * @returns true if the directory contains valid template files for the language
  */
 async function hasValidLanguageFiles(langDir: string, language: string): Promise<boolean> {
   try {
@@ -309,6 +321,9 @@ async function hasValidLanguageFiles(langDir: string, language: string): Promise
 
 /**
  * Recursively get all files in a directory
+ *
+ * @param dir - Directory path to scan recursively
+ * @returns Array of all file names found in the directory tree
  */
 async function getAllFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
@@ -366,10 +381,10 @@ export async function cloneGitRepository(gitUrl: string): Promise<string> {
 /**
  * Execute a command and return stdout
  *
- * @param cmd - command to execute
- * @param args - command arguments
- * @param options - execution options
- * @returns stdout if successful
+ * @param cmd - Command to execute (only 'git' is allowed for security)
+ * @param args - Command arguments array
+ * @param options - Execution options containing working directory
+ * @returns Promise resolving to stdout if successful
  */
 async function executeCommand(cmd: string, args: string[], { cwd }: { cwd: string }) {
   // Validate command

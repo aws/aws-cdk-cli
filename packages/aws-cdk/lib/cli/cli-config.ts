@@ -13,6 +13,8 @@ export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
  * - the `yargs` definition in `lib/parse-command-line-arguments.ts`.
  * - the `UserInput` type in `lib/user-input.ts`.
  * - the `convertXxxToUserInput` functions in `lib/convert-to-user-input.ts`.
+ *
+ * @returns Promise resolving to the complete CLI configuration object
  */
 export async function makeConfig(): Promise<CliConfig> {
   return {

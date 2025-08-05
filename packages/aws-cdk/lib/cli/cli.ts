@@ -550,7 +550,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 }
 
 /**
- * Determine which version of bootstrapping
+ * Determine which version of bootstrapping to use
+ *
+ * @param ioHost - CLI IO host for user interaction
+ * @param args - Arguments containing optional template path
+ * @returns Promise resolving to the bootstrap source configuration
  */
 async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): Promise<BootstrapSource> {
   let source: BootstrapSource;
@@ -567,6 +571,13 @@ async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: s
   return source;
 }
 
+/**
+ * Check if a feature flag is enabled in the configuration
+ *
+ * @param configuration - CDK configuration object
+ * @param featureFlag - Feature flag name to check
+ * @returns true if the feature flag is enabled
+ */
 function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
   return configuration.context.get(featureFlag) ?? cxapi.futureFlagDefault(featureFlag);
 }
@@ -579,6 +590,9 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
  *   undefined.
  * - If the user passed a single empty string, they did something like `--array=`, which we'll
  *   take to mean they passed an empty array.
+ *
+ * @param xs - Input array from Yargs
+ * @returns Filtered array or undefined if no meaningful input
  */
 function arrayFromYargs(xs: string[]): string[] | undefined {
   if (xs.length === 0) {
@@ -587,6 +601,14 @@ function arrayFromYargs(xs: string[]): string[] | undefined {
   return xs.filter((x) => x !== '');
 }
 
+/**
+ * Determine the deployment method based on arguments and configuration
+ *
+ * @param args - Command line arguments
+ * @param configuration - CDK configuration object
+ * @param watch - Whether this is for watch mode
+ * @returns The determined deployment method
+ */
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {
   let deploymentMethod: ChangeSetDeployment | DirectDeployment | undefined;
   switch (args.method) {
@@ -646,6 +668,14 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
   }
 }
 
+/**
+ * Determine the hotswap mode based on provided flags
+ *
+ * @param hotswap - Whether hotswap-only mode is enabled
+ * @param hotswapFallback - Whether hotswap with fallback is enabled
+ * @param watch - Whether this is for watch mode
+ * @returns The determined hotswap mode
+ */
 function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watch?: boolean): HotswapMode {
   if (hotswap && hotswapFallback) {
     throw new ToolkitError('Can not supply both --hotswap and --hotswap-fallback at the same time');
