@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
+// @ts-ignore
+import { Select } from 'enquirer';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { FlagsOptions } from '../../lib/cli/user-input';
@@ -75,12 +77,12 @@ async function cleanupCdkJsonFile(cdkJsonPath: string): Promise<void> {
   await fs.promises.unlink(cdkJsonPath);
 }
 
-function setupMockToolkitForPrototyping(mockToolkit: jest.Mocked<Toolkit>) {
+function setupMockToolkitForPrototyping(mockTk: jest.Mocked<Toolkit>) {
   const mockCloudAssembly = createMockCloudAssembly();
   const mockCx = { cloudAssembly: mockCloudAssembly };
 
-  mockToolkit.fromCdkApp.mockResolvedValue({} as any);
-  mockToolkit.synth.mockResolvedValue(mockCx as any);
+  mockTk.fromCdkApp.mockResolvedValue({} as any);
+  mockTk.synth.mockResolvedValue(mockCx as any);
 }
 
 beforeAll(() => {
@@ -432,14 +434,12 @@ test('sets all flags to recommended values', async () => {
 });
 
 describe('interactive prompts lead to the correct function calls', () => {
-  const { Select } = require('enquirer');
-
   beforeEach(() => {
     setupMockToolkitForPrototyping(mockToolkit);
     jest.clearAllMocks();
   });
 
-  test(`setMultipleFlags() is called if 'Set all flags to recommended values' is selected`, async () => {
+  test('setMultipleFlags() is called if \'Set all flags to recommended values\' is selected', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
       '@aws-cdk/core:matchingFlag': true,
@@ -452,7 +452,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockResolvedValue(true);
 
     const options: FlagsOptions = {
-      i: true, 
+      i: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -473,7 +473,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockRestore();
   });
 
-  test(`setMultipleFlags() is called if 'Set unconfigured flags to recommended values' is selected`, async () => {
+  test('setMultipleFlags() is called if \'Set unconfigured flags to recommended values\' is selected', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
     });
@@ -497,14 +497,14 @@ describe('interactive prompts lead to the correct function calls', () => {
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
 
-    expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(false); 
+    expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(false);
     expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
 
-  test(`setMultipleFlags() is called if 'Set unconfigured flags to their implied configuration' is selected`, async () => {
+  test('setMultipleFlags() is called if \'Set unconfigured flags to their implied configuration\' is selected', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
     });
@@ -529,7 +529,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockRestore();
   });
 
-  test(`setFlag() is called if 'Modify a specific flag' is selected`, async () => {
+  test('setFlag() is called if \'Modify a specific flag\' is selected', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
     });
@@ -567,7 +567,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockRestore();
   });
 
-  test(`Returns early if 'Exit' is selected`, async () => {
+  test('Returns early if \'Exit\' is selected', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
     });
@@ -619,4 +619,4 @@ describe('interactive prompts lead to the correct function calls', () => {
 
     await cleanupCdkJsonFile(cdkJsonPath);
   });
-})
+});

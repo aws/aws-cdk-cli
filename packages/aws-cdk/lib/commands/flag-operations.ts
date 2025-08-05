@@ -199,8 +199,7 @@ async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
       value: updatedValue,
       flagName: updatedFlagName,
     };
-  }
-  else {
+  } else {
     const flag = flagData.find(f => f.name === flagName![0]);
 
     if (!flag) {
@@ -243,7 +242,7 @@ async function prototypeChanges(
   if (flagNames.length === 1 && value !== undefined) {
     const flagName = flagNames[0];
     if (baseContextValues[flagName] == boolValue) {
-      ioHelper.defaults.info('Flag is already set to the specified value. No changes needed.');
+      await ioHelper.defaults.info('Flag is already set to the specified value. No changes needed.');
       return false;
     }
     updateObj[flagName] = boolValue;
