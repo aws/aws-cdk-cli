@@ -1,3 +1,4 @@
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { TelemetrySchema } from '../schema';
 import type { ITelemetrySink } from './sink-interface';
 
@@ -15,7 +16,7 @@ export class Funnel {
 
   constructor(props: FunnelProps) {
     if (props.sinks.length > 5) {
-      throw new Error(`Funnel class supports a maximum of 5 parallel sinks, got ${props.sinks.length} sinks.`);
+      throw new ToolkitError(`Funnel class supports a maximum of 5 parallel sinks, got ${props.sinks.length} sinks.`);
     }
 
     this.sinks = props.sinks;

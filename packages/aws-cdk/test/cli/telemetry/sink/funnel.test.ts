@@ -262,7 +262,7 @@ describe('Funnel', () => {
     });
 
     test('throws when too many sinks are added', async () => {
-      expect(() => new Funnel({ sinks: [fileSink, fileSink, fileSink, fileSink, fileSink, fileSink]})).toThrow(/Funnel class supports a maximum of 5 parallel sinks, got 6 sinks./);
+      expect(() => new Funnel({ sinks: [fileSink, fileSink, fileSink, fileSink, fileSink, fileSink] })).toThrow(/Funnel class supports a maximum of 5 parallel sinks, got 6 sinks./);
     });
   });
 });
