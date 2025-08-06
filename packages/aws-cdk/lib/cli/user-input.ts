@@ -658,7 +658,7 @@ export interface FlagsOptions {
   readonly default?: boolean;
 
   /**
-   * Interactive option for flags command
+   * Interactive option for the flags command
    *
    * @default - undefined
    */

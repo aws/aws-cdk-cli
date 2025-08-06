@@ -393,7 +393,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('i', {
           default: undefined,
           type: 'boolean',
-          desc: 'Interactive option for flags command',
+          desc: 'Interactive option for the flags command',
           requiresArg: false,
         }),
     )

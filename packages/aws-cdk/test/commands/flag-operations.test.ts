@@ -457,36 +457,36 @@ describe('modifyValues', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
-});
 
-test('sets all flags to recommended values', async () => {
-  const cdkJsonPath = await createCdkJsonFile({
-    '@aws-cdk/core:testFlag': false,
-    '@aws-cdk/core:matchingFlag': true,
+  test('sets all flags to recommended values', async () => {
+    const cdkJsonPath = await createCdkJsonFile({
+      '@aws-cdk/core:testFlag': false,
+      '@aws-cdk/core:matchingFlag': true,
+    });
+
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      set: true,
+      all: true,
+      recommended: true,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+    const updatedJson = JSON.parse(updatedContent);
+
+    expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(true);
+    expect(updatedJson.context['@aws-cdk/core:matchingFlag']).toBe(true);
+    expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
   });
-
-  setupMockToolkitForPrototyping(mockToolkit);
-
-  const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
-  requestResponseSpy.mockResolvedValue(true);
-
-  const options: FlagsOptions = {
-    set: true,
-    all: true,
-    recommended: true,
-  };
-
-  await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
-
-  const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
-  const updatedJson = JSON.parse(updatedContent);
-
-  expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(true);
-  expect(updatedJson.context['@aws-cdk/core:matchingFlag']).toBe(true);
-  expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
-
-  await cleanupCdkJsonFile(cdkJsonPath);
-  requestResponseSpy.mockRestore();
 });
 
 describe('interactive prompts lead to the correct function calls', () => {

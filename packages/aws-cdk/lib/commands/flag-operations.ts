@@ -271,6 +271,7 @@ async function prototypeChanges(
       updateObj[flagName] = newValue;
     }
   }
+
   await memoryContext.update(updateObj);
   const cx = await toolkit.synth(source);
   const assembly = cx.cloudAssembly;
