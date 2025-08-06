@@ -171,24 +171,16 @@ async function prototypeChanges(
     }
     updateObj[flagName] = boolValue;
   } else {
-    if (recommended) {
-      for (const flagName of flagNames) {
-        const flag = flagData.find(f => f.name === flagName);
-        if (!flag) {
-          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
-          return false;
-        }
-        updateObj[flagName] = toBooleanValue(flag.recommendedValue);
+    for (const flagName of flagNames) {
+      const flag = flagData.find(f => f.name === flagName);
+      if (!flag) {
+        await ioHelper.defaults.error(`Flag ${flagName} not found.`);
+        return false;
       }
-    } else {
-      for (const flagName of flagNames) {
-        const flag = flagData.find(f => f.name === flagName);
-        if (!flag) {
-          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
-          return false;
-        }
-        updateObj[flagName] = String(flag.unconfiguredBehavesLike?.v2) === 'true';
-      }
+      const newValue = recommended
+        ? toBooleanValue(flag.recommendedValue)
+        : String(flag.unconfiguredBehavesLike?.v2) === 'true';
+      updateObj[flagName] = newValue;
     }
   }
   await memoryContext.update(updateObj);
@@ -278,17 +270,12 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
 
     await ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
   } else {
-    if (recommended) {
-      for (const name of flagNames) {
-        const flag = flagData.find(f => f.name === name);
-        const boolValue = toBooleanValue(flag!.recommendedValue);
-        cdkJson.context[name] = boolValue;
-      }
-    } else {
-      for (const name of flagNames) {
-        const flag = flagData.find(f => f.name === name);
-        cdkJson.context[name] = String(flag!.unconfiguredBehavesLike?.v2) === 'true';
-      }
+    for (const flagName of flagNames) {
+      const flag = flagData.find(f => f.name === flagName);
+      const newValue = recommended
+        ? toBooleanValue(flag!.recommendedValue)
+        : String(flag!.unconfiguredBehavesLike?.v2) === 'true';
+      cdkJson.context[flagName] = newValue;
     }
   }
 
