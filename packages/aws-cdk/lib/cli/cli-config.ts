@@ -123,6 +123,9 @@ export async function makeConfig(): Promise<CliConfig> {
           value: { type: 'string', desc: 'The value the user would like to set the feature flag configuration to', requiresArg: true },
           set: { type: 'boolean', desc: 'Signifies the user would like to modify their feature flag configuration', requiresArg: false },
           all: { type: 'boolean', desc: 'Modify or view all feature flags', requiresArg: false },
+          unconfigured: { type: 'boolean', desc: 'Modify unconfigured feature flags', requiresArg: false },
+          recommended: { type: 'boolean', desc: 'Change flags to recommended states', requiresArg: false },
+          default: { type: 'boolean', desc: 'Change flags to default state', requiresArg: false },
         },
       },
       'deploy': {

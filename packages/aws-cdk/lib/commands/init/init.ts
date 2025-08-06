@@ -390,6 +390,8 @@ async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: 
       return postInstallJava(ioHelper, canUseNetwork, workDir);
     case 'python':
       return postInstallPython(ioHelper, workDir);
+    case 'go':
+      return postInstallGo(ioHelper, canUseNetwork, workDir);
   }
 }
 
@@ -438,6 +440,20 @@ async function postInstallPython(ioHelper: IoHelper, cwd: string) {
   } catch {
     await ioHelper.defaults.warn('Unable to create virtualenv automatically');
     await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
+  }
+}
+
+async function postInstallGo(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  if (!canUseNetwork) {
+    await ioHelper.defaults.warn('Please run \'go mod tidy\'!');
+    return;
+  }
+
+  await ioHelper.defaults.info(`Executing ${chalk.green('go mod tidy')}...`);
+  try {
+    await execute(ioHelper, 'go', ['mod', 'tidy'], { cwd });
+  } catch (e: any) {
+    await ioHelper.defaults.warn('\'go mod tidy\' failed: ' + formatErrorMessage(e));
   }
 }
 

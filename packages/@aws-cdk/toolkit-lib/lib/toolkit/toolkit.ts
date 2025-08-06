@@ -1296,6 +1296,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           recommendedValue: flagInfo.recommendedValue,
           userValue: flagInfo.userValue ?? undefined,
           explanation: flagInfo.explanation ?? '',
+          unconfiguredBehavesLike: flagInfo.unconfiguredBehavesLike,
         }));
       });
   }
