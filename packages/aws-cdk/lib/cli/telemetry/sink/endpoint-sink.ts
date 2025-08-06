@@ -45,6 +45,11 @@ export class EndpointTelemetrySink implements ITelemetrySink {
 
   public constructor(props: EndpointTelemetrySinkProps) {
     this.endpoint = parse(props.endpoint);
+
+    if (!this.endpoint.hostname || !this.endpoint.pathname) {
+      throw new ToolkitError(`Telemetry Endpoint malformed. Received hostname: ${this.endpoint.hostname}, pathname: ${this.endpoint.pathname}`);
+    }
+
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.agent = props.agent;
 
@@ -78,7 +83,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
       }
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
-      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
+      await this.ioHelper.defaults.trace(`Failed to send telemetry event: ${e.message}`);
     }
   }
 
@@ -94,10 +99,12 @@ export class EndpointTelemetrySink implements ITelemetrySink {
 
       // Successfully posted
       if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+        await this.ioHelper.defaults.trace('Telemetry Sent Succesfully');
         return true;
       }
 
       await this.ioHelper.defaults.trace(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
+      await this.ioHelper.defaults.trace(`Data: ${JSON.stringify(body)}`);
 
       return false;
     } catch (e: any) {

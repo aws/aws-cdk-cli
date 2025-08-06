@@ -15,6 +15,10 @@ import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { isCI } from '../util/ci';
+import { ITelemetrySink } from '../telemetry/sink/sink-interface';
+import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
+import { Funnel } from '../telemetry/sink/funnel';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -168,32 +172,42 @@ export class CliIoHost implements IIoHost {
     this.logLevel = props.logLevel ?? 'info';
     this.isCI = props.isCI ?? isCI();
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
-
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
   }
 
-  public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
-    let sink;
+  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+    let sinks: ITelemetrySink[] = [];
     const telemetryFilePath = args['telemetry-file'];
     if (telemetryFilePath) {
-      sink = new FileTelemetrySink({
-        ioHost: this,
-        logFilePath: telemetryFilePath,
-      });
+      try {
+        sinks.push(new FileTelemetrySink({
+          ioHost: this,
+          logFilePath: telemetryFilePath,
+        }));
+        await this.asIoHelper().defaults.trace(`File Telemetry connected`);
+      } catch (e: any) {
+        await this.asIoHelper().defaults.trace(`File Telemetry instantiation failed: ${e.message}`);
+      }
     }
-    // TODO: uncomment this at launch
-    // if (canCollectTelemetry(args, context)) {
-    //   sink = new EndpointTelemetrySink({
-    //     ioHost: this,
-    //     agent: proxyAgent,
-    //     endpoint: '', // TODO: add endpoint
-    //   });
-    // }
 
-    if (sink) {
+    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT;
+    if (canCollectTelemetry(args, context) && telemetryEndpoint) {
+      try {
+        sinks.push(new EndpointTelemetrySink({
+          ioHost: this,
+          agent: proxyAgent,
+          endpoint: telemetryEndpoint,
+        }));
+        await this.asIoHelper().defaults.trace(`Endpoint Telemetry connected`);
+      } catch (e: any) {
+        await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
+      }
+    }
+
+    if (sinks.length > 0) {
       this.telemetry = new TelemetrySession({
         ioHost: this,
-        client: sink,
+        client: new Funnel({ sinks }),
         arguments: args,
         context: context,
       });
