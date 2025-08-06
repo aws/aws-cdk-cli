@@ -10,9 +10,14 @@ integTest(
     const telemetryFile = path.join(fixture.integTestDir, 'telemetry.json');
 
     // Deploy stack while collecting telemetry
-    await fixture.cdkDeploy('test-1', {
+    const deployOutput = await fixture.cdkDeploy('test-1', {
       telemetryFile,
+      options: ['-vvv'], // force trace mode
     });
+
+    // Check the trace that telemetry was executed successfully
+    expect(deployOutput).toContain("Telemetry Sent Successfully");
+
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({

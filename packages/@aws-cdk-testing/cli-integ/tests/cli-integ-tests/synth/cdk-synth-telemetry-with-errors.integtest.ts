@@ -13,9 +13,13 @@ integTest(
       modEnv: {
         INTEG_STACK_SET: 'stage-with-errors',
       },
+      options: ['-vvv'], // force trace mode
     });
 
     expect(output).toContain('This is an error');
+
+    // Check the trace that telemetry was executed successfully despite error in synth
+    expect(output).toContain("Telemetry Sent Successfully");
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
@@ -23,8 +27,7 @@ integTest(
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['synth'],
-            parameters: {
-              verbose: 1,
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -37,7 +40,7 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            },
+            }),
             config: {
               context: {},
             },
@@ -72,8 +75,7 @@ integTest(
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['synth'],
-            parameters: {
-              verbose: 1,
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -86,7 +88,7 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            },
+            }),
             config: {
               context: {},
             },

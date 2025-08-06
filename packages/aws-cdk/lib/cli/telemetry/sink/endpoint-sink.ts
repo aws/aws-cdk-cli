@@ -99,12 +99,11 @@ export class EndpointTelemetrySink implements ITelemetrySink {
 
       // Successfully posted
       if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-        await this.ioHelper.defaults.trace('Telemetry Sent Succesfully');
+        await this.ioHelper.defaults.trace('Telemetry Sent Successfully');
         return true;
       }
 
       await this.ioHelper.defaults.trace(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
-      await this.ioHelper.defaults.trace(`Data: ${JSON.stringify(body)}`);
 
       return false;
     } catch (e: any) {
