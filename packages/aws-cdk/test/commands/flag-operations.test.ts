@@ -172,6 +172,22 @@ describe('displayFlags', () => {
     expect(plainTextOutput).toContain('aws-cdk-lib');
     expect(plainTextOutput).toContain('different-module');
   });
+  test('displays single flag details when only one substring match is found', async () => {
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      flagName: ['s3'],
+    };
+    await displayFlags(params);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Description: Another test flag');
+    expect(plainTextOutput).toContain('Recommended value: false');
+    expect(plainTextOutput).toContain('User value: undefined');
+    expect(plainTextOutput).not.toContain('Found');
+    expect(plainTextOutput).not.toContain('matching');
+  });
 });
 
 describe('handleFlags', () => {
