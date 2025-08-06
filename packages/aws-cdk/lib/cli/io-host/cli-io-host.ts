@@ -190,7 +190,7 @@ export class CliIoHost implements IIoHost {
       }
     }
 
-    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT;
+    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT; // TODO: replace with endpoint at launch
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
         sinks.push(new EndpointTelemetrySink({
