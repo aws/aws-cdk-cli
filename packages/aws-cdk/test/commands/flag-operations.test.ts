@@ -339,6 +339,59 @@ describe('handleFlags', () => {
     expect(mockToolkit.synth).not.toHaveBeenCalled();
     expect(mockToolkit.diff).not.toHaveBeenCalled();
   });
+
+  test('sets flag to default value based on unconfiguredBehavesLike.v2 property', async () => {
+    const flagsWithUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:flagWithV2True',
+        recommendedValue: 'false',
+        userValue: undefined,
+        explanation: 'Flag with unconfiguredBehavesLike.v2 = true',
+        unconfiguredBehavesLike: { v2: 'true' },
+      },
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:flagWithV2False',
+        recommendedValue: 'false',
+        userValue: undefined,
+        explanation: 'Flag with unconfiguredBehavesLike.v2 = false',
+        unconfiguredBehavesLike: { v2: 'false' },
+      },
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:flagWithoutV2',
+        recommendedValue: 'false',
+        userValue: undefined,
+        explanation: 'Flag without unconfiguredBehavesLike.v2',
+      },
+    ];
+
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      set: true,
+      all: true,
+      default: true,
+    };
+
+    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+
+    const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+    const updatedJson = JSON.parse(updatedContent);
+
+    expect(updatedJson.context['@aws-cdk/core:flagWithV2True']).toBe(true);
+    expect(updatedJson.context['@aws-cdk/core:flagWithV2False']).toBe(false);
+    expect(updatedJson.context['@aws-cdk/core:flagWithoutV2']).toBe(false);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
 });
 
 describe('modifyValues', () => {

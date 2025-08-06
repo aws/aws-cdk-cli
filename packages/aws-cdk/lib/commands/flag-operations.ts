@@ -187,11 +187,7 @@ async function prototypeChanges(
           await ioHelper.defaults.error(`Flag ${flagName} not found.`);
           return false;
         }
-        if (flag.unconfiguredBehavesLike == undefined || flag.unconfiguredBehavesLike.v2 == 'false') {
-          updateObj[flagName] = false;
-        } else {
-          updateObj[flagName] = true;
-        } 
+        updateObj[flagName] = String(flag.unconfiguredBehavesLike?.v2) === 'true';
       }
     }
   }
@@ -271,7 +267,7 @@ async function handleUserResponse(
 }
 
 async function modifyValues(params: FlagOperationsParams, flagNames: string[]): Promise<void> {
-  const { flagData, ioHelper, value } = params;
+  const { flagData, ioHelper, value, recommended } = params;
   const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
   const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
   const cdkJson = JSON.parse(cdkJsonContent);
@@ -282,10 +278,17 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
 
     await ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
   } else {
-    for (const name of flagNames) {
-      const flag = flagData.find(f => f.name === name);
-      const boolValue = toBooleanValue(flag!.recommendedValue);
-      cdkJson.context[name] = boolValue;
+    if (recommended) {
+      for (const name of flagNames) {
+        const flag = flagData.find(f => f.name === name);
+        const boolValue = toBooleanValue(flag!.recommendedValue);
+        cdkJson.context[name] = boolValue;
+      }
+    } else {
+      for (const name of flagNames) {
+        const flag = flagData.find(f => f.name === name);
+        cdkJson.context[name] = String(flag!.unconfiguredBehavesLike?.v2) === 'true';
+      }
     }
   }
 
