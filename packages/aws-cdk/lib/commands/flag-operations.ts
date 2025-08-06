@@ -22,6 +22,18 @@ interface FlagOperationsParams {
   unconfigured?: boolean;
 }
 
+interface FlagOperationsParams {
+  flagData: FeatureFlag[];
+  toolkit: Toolkit;
+  ioHelper: IoHelper;
+  recommended?: boolean;
+  all?: boolean;
+  value?: string;
+  flagName?: string[];
+  default?: boolean;
+  unconfigured?: boolean;
+}
+
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
   let params = {
@@ -247,28 +259,16 @@ async function prototypeChanges(
     }
     updateObj[flagName] = boolValue;
   } else {
-    if (recommended) {
-      for (const flagName of flagNames) {
-        const flag = flagData.find(f => f.name === flagName);
-        if (!flag) {
-          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
-          return false;
-        }
-        updateObj[flagName] = toBooleanValue(flag.recommendedValue);
+    for (const flagName of flagNames) {
+      const flag = flagData.find(f => f.name === flagName);
+      if (!flag) {
+        await ioHelper.defaults.error(`Flag ${flagName} not found.`);
+        return false;
       }
-    } else {
-      for (const flagName of flagNames) {
-        const flag = flagData.find(f => f.name === flagName);
-        if (!flag) {
-          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
-          return false;
-        }
-        if (flag.unconfiguredBehavesLike == undefined || flag.unconfiguredBehavesLike.v2 == 'false') {
-          updateObj[flagName] = false;
-        } else {
-          updateObj[flagName] = true;
-        }
-      }
+      const newValue = recommended
+        ? toBooleanValue(flag.recommendedValue)
+        : String(flag.unconfiguredBehavesLike?.v2) === 'true';
+      updateObj[flagName] = newValue;
     }
   }
   await memoryContext.update(updateObj);
@@ -347,7 +347,7 @@ async function handleUserResponse(
 }
 
 async function modifyValues(params: FlagOperationsParams, flagNames: string[]): Promise<void> {
-  const { flagData, ioHelper, value } = params;
+  const { flagData, ioHelper, value, recommended } = params;
   const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
   const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
   const cdkJson = JSON.parse(cdkJsonContent);
@@ -358,10 +358,12 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
 
     await ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
   } else {
-    for (const name of flagNames) {
-      const flag = flagData.find(f => f.name === name);
-      const boolValue = toBooleanValue(flag!.recommendedValue);
-      cdkJson.context[name] = boolValue;
+    for (const flagName of flagNames) {
+      const flag = flagData.find(f => f.name === flagName);
+      const newValue = recommended
+        ? toBooleanValue(flag!.recommendedValue)
+        : String(flag!.unconfiguredBehavesLike?.v2) === 'true';
+      cdkJson.context[flagName] = newValue;
     }
   }
 

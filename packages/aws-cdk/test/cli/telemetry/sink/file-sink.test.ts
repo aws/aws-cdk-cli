@@ -1,10 +1,10 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { IoHelper } from '../../../lib/api-private';
-import { CliIoHost } from '../../../lib/cli/io-host';
-import { FileTelemetrySink } from '../../../lib/cli/telemetry/file-sink';
-import type { TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import { createTestEvent } from './util';
+import { IoHelper } from '../../../../lib/api-private';
+import { CliIoHost } from '../../../../lib/cli/io-host';
+import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 
 describe('FileTelemetrySink', () => {
   let tempDir: string;
@@ -32,37 +32,7 @@ describe('FileTelemetrySink', () => {
 
   test('saves data to a file', async () => {
     // GIVEN
-    const testEvent: TelemetrySchema = {
-      identifiers: {
-        cdkCliVersion: '1.0.0',
-        telemetryVersion: '1.0.0',
-        sessionId: 'test-session',
-        eventId: 'test-event',
-        installationId: 'test-installation',
-        timestamp: new Date().toISOString(),
-      },
-      event: {
-        state: 'SUCCEEDED',
-        eventType: 'INVOKE',
-        command: {
-          path: ['test'],
-          parameters: {},
-          config: { context: { foo: true } },
-        },
-      },
-      environment: {
-        os: {
-          platform: 'test',
-          release: 'test',
-        },
-        ci: false,
-        nodeVersion: process.version,
-      },
-      project: {},
-      duration: {
-        total: 0,
-      },
-    };
+    const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
     const client = new FileTelemetrySink({ logFilePath, ioHost });
 
     // WHEN
@@ -76,37 +46,7 @@ describe('FileTelemetrySink', () => {
 
   test('appends data to a file', async () => {
     // GIVEN
-    const testEvent: TelemetrySchema = {
-      identifiers: {
-        cdkCliVersion: '1.0.0',
-        telemetryVersion: '1.0.0',
-        sessionId: 'test-session',
-        eventId: 'test-event',
-        installationId: 'test-installation',
-        timestamp: new Date().toISOString(),
-      },
-      event: {
-        state: 'SUCCEEDED',
-        eventType: 'INVOKE',
-        command: {
-          path: ['test'],
-          parameters: {},
-          config: { context: { foo: true } },
-        },
-      },
-      environment: {
-        os: {
-          platform: 'test',
-          release: 'test',
-        },
-        ci: false,
-        nodeVersion: process.version,
-      },
-      project: {},
-      duration: {
-        total: 0,
-      },
-    };
+    const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
     const client = new FileTelemetrySink({ logFilePath, ioHost });
 
     // WHEN
@@ -130,37 +70,7 @@ describe('FileTelemetrySink', () => {
 
   test('handles errors gracefully and logs to trace without throwing', async () => {
     // GIVEN
-    const testEvent: TelemetrySchema = {
-      identifiers: {
-        cdkCliVersion: '1.0.0',
-        telemetryVersion: '1.0.0',
-        sessionId: 'test-session',
-        eventId: 'test-event',
-        installationId: 'test-installation',
-        timestamp: new Date().toISOString(),
-      },
-      event: {
-        state: 'SUCCEEDED',
-        eventType: 'INVOKE',
-        command: {
-          path: ['test'],
-          parameters: {},
-          config: { context: { foo: true } },
-        },
-      },
-      environment: {
-        os: {
-          platform: 'test',
-          release: 'test',
-        },
-        ci: false,
-        nodeVersion: process.version,
-      },
-      project: {},
-      duration: {
-        total: 0,
-      },
-    };
+    const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
 
     // Create a mock IoHelper with trace spy
     const traceSpy = jest.fn();

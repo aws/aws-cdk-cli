@@ -457,7 +457,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (!configuration.settings.get(['unstable']).includes('flags')) {
           throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
         }
-
         const toolkit = new Toolkit({
           ioHost,
           toolkitStackName,
