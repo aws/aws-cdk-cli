@@ -11,11 +11,11 @@ integTest(
 
     const synthOutput = await fixture.cdk(
       ['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`],
-      { options: ['-vvv']}, // force trace mode
+      { options: ['-vvv'] }, // force trace mode
     );
 
     // Check the trace that telemetry was executed successfully
-    expect(synthOutput).toContain("Telemetry Sent Successfully");
+    expect(synthOutput).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([

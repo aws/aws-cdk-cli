@@ -16,7 +16,7 @@ integTest(
     });
 
     // Check the trace that telemetry was executed successfully
-    expect(deployOutput).toContain("Telemetry Sent Successfully");
+    expect(deployOutput).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([

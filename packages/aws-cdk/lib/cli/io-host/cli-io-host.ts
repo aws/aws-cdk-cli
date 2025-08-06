@@ -9,16 +9,16 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
+import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
-import { FileTelemetrySink } from '../telemetry/sink/file-sink';
-import { isCI } from '../util/ci';
-import { ITelemetrySink } from '../telemetry/sink/sink-interface';
-import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
+import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
+import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
+import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
@@ -184,7 +184,7 @@ export class CliIoHost implements IIoHost {
           ioHost: this,
           logFilePath: telemetryFilePath,
         }));
-        await this.asIoHelper().defaults.trace(`File Telemetry connected`);
+        await this.asIoHelper().defaults.trace('File Telemetry connected');
       } catch (e: any) {
         await this.asIoHelper().defaults.trace(`File Telemetry instantiation failed: ${e.message}`);
       }
@@ -198,7 +198,7 @@ export class CliIoHost implements IIoHost {
           agent: proxyAgent,
           endpoint: telemetryEndpoint,
         }));
-        await this.asIoHelper().defaults.trace(`Endpoint Telemetry connected`);
+        await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
       } catch (e: any) {
         await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
       }

@@ -19,7 +19,7 @@ integTest(
     expect(output).toContain('This is an error');
 
     // Check the trace that telemetry was executed successfully despite error in synth
-    expect(output).toContain("Telemetry Sent Successfully");
+    expect(output).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
