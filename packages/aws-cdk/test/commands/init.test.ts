@@ -291,6 +291,7 @@ describe('constructs version', () => {
     await fs.mkdirp(tsDir);
 
     await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({ name: '%name%' }, null, 2));
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello!");');
 
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
@@ -305,6 +306,7 @@ describe('constructs version', () => {
     });
 
     expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
   });
 
   cliTest('custom template path does not exist throws error', async (workDir) => {

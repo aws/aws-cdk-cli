@@ -1327,6 +1327,13 @@ export interface InitOptions {
   readonly libVersion?: string;
 
   /**
+   * Path to a local custom template directory
+   *
+   * @default - undefined
+   */
+  readonly fromPath?: string;
+
+  /**
    * Positional argument for init
    */
   readonly TEMPLATE?: string;
