@@ -3,6 +3,8 @@
 import * as deployStack from '../../../lib/api/deployments/deploy-stack';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CreatePolicyCommand, GetPolicyCommand } from '@aws-sdk/client-iam';
+import { Match, Template } from 'aws-cdk-lib/assertions';
+
 import {
   mockBootstrapStack,
   mockIAMClient,
@@ -641,5 +643,94 @@ describe('Bootstrapping v2', () => {
         );
       },
     );
+  });
+
+  describe('contains sts:TagSession on trusted accounts', () => {
+    let template: Template;
+
+    const iamRoleName = (name: string) => {
+      return {
+        'Fn::Sub': `cdk-\${Qualifier}-${name}-\${AWS::AccountId}-\${AWS::Region}`,
+      };
+    };
+
+    const statementWithCondition = (conditionName: string) => {
+      return Match.objectLike({
+        'Fn::If': Match.arrayWith([
+          conditionName,
+          Match.objectLike({
+            Action: Match.arrayWith(['sts:AssumeRole', 'sts:TagSession']),
+          }),
+        ]),
+      });
+    };
+
+    beforeEach(async () => {
+      let rawTemplate: any;
+      mockDeployStack.mockImplementation((args: deployStack.DeployStackOptions) => {
+        rawTemplate = args.stack.template;
+        return Promise.resolve({
+          type: 'did-deploy-stack',
+          noOp: false,
+          outputs: {},
+          stackArn: 'arn:stack',
+        });
+      });
+      await bootstrapper.bootstrapEnvironment(env, sdk, {});
+      template = Template.fromJSON(rawTemplate);
+    });
+
+    test('in the FilePublishingRole', async () => {
+      template.hasResource('AWS::IAM::Role', {
+        Properties: {
+          RoleName: iamRoleName('file-publishing-role'),
+          AssumeRolePolicyDocument: {
+            Statement: Match.arrayWith([
+              statementWithCondition('HasTrustedAccounts'),
+            ]),
+          },
+        },
+      });
+    });
+
+    test('in the ImagePublishingRole', async () => {
+      template.hasResource('AWS::IAM::Role', {
+        Properties: {
+          RoleName: iamRoleName('image-publishing-role'),
+          AssumeRolePolicyDocument: {
+            Statement: Match.arrayWith([
+              statementWithCondition('HasTrustedAccounts'),
+            ]),
+          },
+        },
+      });
+    });
+
+    test('in the LookupRole', async () => {
+      template.hasResource('AWS::IAM::Role', {
+        Properties: {
+          RoleName: iamRoleName('lookup-role'),
+          AssumeRolePolicyDocument: {
+            Statement: Match.arrayWith([
+              statementWithCondition('HasTrustedAccountsForLookup'),
+              statementWithCondition('HasTrustedAccounts'),
+            ]),
+          },
+        },
+      });
+    });
+
+    test('in the DeploymentActionRole', async () => {
+      template.hasResource('AWS::IAM::Role', {
+        Properties: {
+          RoleName: iamRoleName('deploy-role'),
+          AssumeRolePolicyDocument: {
+            Statement: Match.arrayWith([
+              statementWithCondition('HasTrustedAccounts'),
+            ]),
+          },
+        },
+      });
+    });
   });
 });
