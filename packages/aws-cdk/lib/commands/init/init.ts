@@ -802,11 +802,9 @@ async function loadInitVersions(): Promise<Versions> {
     'aws-cdk': versionNumber(),
   };
   for (const [key, value] of Object.entries(ret)) {
-    /* c8 ignore start */
     if (!value) {
       throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
     }
-    /* c8 ignore stop */
   }
 
   return ret;
