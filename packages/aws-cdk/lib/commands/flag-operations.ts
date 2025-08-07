@@ -10,16 +10,12 @@ import type { IoHelper } from '../api-private';
 import type { FlagsOptions } from '../cli/user-input';
 import { OBSOLETE_FLAGS } from '../obsolete-flags';
 
-interface FlagOperationsParams {
-  flagData: FeatureFlag[];
-  toolkit: Toolkit;
-  ioHelper: IoHelper;
-  recommended?: boolean;
-  all?: boolean;
-  value?: string;
-  flagName?: string[];
-  default?: boolean;
-  unconfigured?: boolean;
+enum FlagsMenuOptions {
+  ALL_TO_RECOMMENDED = 'Set all flags to recommended values',
+  UNCONFIGURED_TO_RECOMMENDED = 'Set unconfigured flags to recommended values',
+  UNCONFIGURED_TO_DEFAULT = 'Set unconfigured flags to their implied configuration (record current behavior)',
+  MODIFY_SPECIFIC_FLAG = 'Modify a specific flag',
+  EXIT = 'Exit',
 }
 
 interface FlagOperationsParams {
@@ -48,15 +44,9 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     unconfigured: options.unconfigured,
   };
 
-  const interactiveOptions = [
-    'Set all flags to recommended values',
-    'Set unconfigured flags to recommended values',
-    'Set unconfigured flags to their implied configuration (record current behavior)',
-    'Modify a specific flag',
-    'Exit',
-  ];
+  const interactiveOptions = Object.values(FlagsMenuOptions);
 
-  if (options.i) {
+  if (options.interactive) {
     const prompt = new Select({
       name: 'option',
       message: 'Menu',
@@ -64,33 +54,32 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     });
 
     const answer = await prompt.run();
-    if (answer == 'Set all flags to recommended values') {
+    if (answer == FlagsMenuOptions.ALL_TO_RECOMMENDED) {
       params = {
         ...params,
         recommended: true,
         all: true,
       };
       await setMultipleFlags(params);
-    } else if (answer == 'Set unconfigured flags to recommended values') {
+    } else if (answer == FlagsMenuOptions.UNCONFIGURED_TO_RECOMMENDED) {
       params = {
         ...params,
         recommended: true,
         unconfigured: true,
       };
       await setMultipleFlags(params);
-    } else if (answer == 'Set unconfigured flags to their implied configuration (record current behavior)') {
+    } else if (answer == FlagsMenuOptions.UNCONFIGURED_TO_DEFAULT) {
       params = {
         ...params,
         default: true,
         unconfigured: true,
       };
       await setMultipleFlags(params);
-    } else if (answer == 'Modify a specific flag') {
+    } else if (answer == FlagsMenuOptions.MODIFY_SPECIFIC_FLAG) {
       await setFlag(params, true);
-    } else if (answer == 'Exit') {
+    } else if (answer == FlagsMenuOptions.EXIT) {
       return;
     }
-
     return;
   }
 

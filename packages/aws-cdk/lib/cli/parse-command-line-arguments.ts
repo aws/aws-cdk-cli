@@ -390,9 +390,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Change flags to default state',
           requiresArg: false,
         })
-        .option('i', {
+        .option('interactive', {
           default: undefined,
           type: 'boolean',
+          alias: ['i'],
           desc: 'Interactive option for the flags command',
           requiresArg: false,
         }),

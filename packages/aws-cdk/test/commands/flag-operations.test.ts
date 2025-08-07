@@ -508,7 +508,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockResolvedValue(true);
 
     const options: FlagsOptions = {
-      i: true,
+      interactive: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -541,7 +541,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockResolvedValue(true);
 
     const options: FlagsOptions = {
-      i: true,
+      interactive: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -572,7 +572,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockResolvedValue(true);
 
     const options: FlagsOptions = {
-      i: true,
+      interactive: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -605,7 +605,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     requestResponseSpy.mockResolvedValue(true);
 
     const options: FlagsOptions = {
-      i: true,
+      interactive: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -632,7 +632,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     Select.mockImplementation(() => ({ run: mockRun }));
 
     const options: FlagsOptions = {
-      i: true,
+      interactive: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
@@ -656,7 +656,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     Select.mockImplementation(() => ({ run: mockRun }));
 
     const options: FlagsOptions = {
-      i: true,
+      interactive: true,
     };
 
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);

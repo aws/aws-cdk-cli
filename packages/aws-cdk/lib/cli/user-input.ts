@@ -660,9 +660,11 @@ export interface FlagsOptions {
   /**
    * Interactive option for the flags command
    *
+   * aliases: i
+   *
    * @default - undefined
    */
-  readonly i?: boolean;
+  readonly interactive?: boolean;
 
   /**
    * Positional argument for flags
