@@ -835,7 +835,10 @@
         "from-path": {
           "type": "string",
           "desc": "Path to a local custom template directory",
-          "requiresArg": true
+          "requiresArg": true,
+          "conflicts": [
+            "lib-version"
+          ]
         }
       }
     },

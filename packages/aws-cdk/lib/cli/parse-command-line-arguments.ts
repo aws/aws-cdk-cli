@@ -830,6 +830,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Path to a local custom template directory',
           requiresArg: true,
+          conflicts: ['lib-version'],
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
