@@ -17,12 +17,14 @@ const decamelize = require('decamelize');
 
 export interface CliInitOptions {
   /**
-   * @default - Throws error requiring template specification
+   * Template name to initialize
+   * @default undefined
    */
   readonly type?: string;
 
   /**
-   * @default - Auto-detects for single-language templates or throws error
+   * Programming language for the project
+   * @default undefined
    */
   readonly language?: string;
 
@@ -37,7 +39,7 @@ export interface CliInitOptions {
   readonly generateOnly?: boolean;
 
   /**
-   * @default - Process.cwd()
+   * @default process.cwd()
    */
   readonly workDir?: string;
 
@@ -53,13 +55,13 @@ export interface CliInitOptions {
 
   /**
    * Override the built-in CDK version
-   * @default - Uses built-in CDK version
+   * @default undefined
    */
   readonly libVersion?: string;
 
   /**
    * Path to a local custom template directory
-   * @default - Uses built-in templates
+   * @default undefined
    */
   readonly fromPath?: string;
 
@@ -74,19 +76,6 @@ export async function cliInit(options: CliInitOptions) {
   const canUseNetwork = options.canUseNetwork ?? true;
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
-
-  // Validate conflicting options
-  if (options.fromPath && options.type) {
-    throw new ToolkitError('Cannot specify both --from-path and template name. Use either --from-path for custom templates or specify a built-in template name.');
-  }
-
-  if (options.fromPath && options.libVersion) {
-    throw new ToolkitError('Cannot specify --lib-version with --from-path. Custom templates do not process version placeholders.');
-  }
-
-  if (options.fromPath && options.stackName) {
-    throw new ToolkitError('Cannot specify --stack-name with --from-path. Custom templates do not process stack name placeholders.');
-  }
 
   // Step 1: Load template
   let template: InitTemplate;
@@ -136,17 +125,12 @@ async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
  * Load a built-in template by name
  * @param ioHelper - IO helper for user interaction
  * @param type - Template type name
- * @default - Throws error requiring template specification
+ * @default undefined
  * @param language - Programming language filter
- * @default - Uses all available languages for template filtering
+ * @default undefined
  * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
-  if (!type && !language) {
-    await printAvailableTemplates(ioHelper, language);
-    throw new ToolkitError('No template specified. Please specify a template name.');
-  }
-
   if (!type) {
     await printAvailableTemplates(ioHelper, language);
     throw new ToolkitError('No template specified. Please specify a template name.');
@@ -167,7 +151,7 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
  * @param ioHelper - IO helper for user interaction
  * @param template - The template to resolve language for
  * @param requestedLanguage - User-requested language (optional)
- * @default - Auto-detects for single-language templates or throws error
+ * @default undefined
  * @returns Promise resolving to the selected language
  */
 async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
@@ -197,7 +181,7 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
 async function getLanguageDirectories(templatePath: string): Promise<string[]> {
   const cdkSupportedLanguages = ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'];
   const languageExtensions: Record<string, string[]> = {
-    typescript: ['.ts'],
+    typescript: ['.ts', '.js'],
     javascript: ['.js'],
     python: ['.py'],
     java: ['.java'],
@@ -225,9 +209,6 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
     const validationResults = await Promise.all(languageValidationPromises);
     return validationResults.filter((languageName): languageName is string => languageName !== null);
   } catch (error: any) {
-    if (error instanceof ToolkitError) {
-      throw error;
-    }
     throw new ToolkitError(`Cannot read template directory '${templatePath}': ${error.message}`);
   }
 }
@@ -255,12 +236,6 @@ async function hasLanguageFiles(directoryPath: string, extensions: string[]): Pr
         }
       }
     } catch (error: any) {
-      // Skip directories that can't be read (permissions, broken symlinks, etc.)
-      // but continue searching other directories
-      if (error.code === 'ENOENT' || error.code === 'EACCES' || error.code === 'ENOTDIR') {
-        continue;
-      }
-      // Re-throw unexpected errors
       throw error;
     }
   }
@@ -644,7 +619,7 @@ async function assertIsEmptyDirectory(workDir: string) {
     }
   } catch (e: any) {
     if (e.code === 'ENOENT') {
-      await fs.mkdirp(workDir);
+      throw new ToolkitError(`Directory does not exist: ${workDir}. Please create the directory first.`);
     } else {
       throw e;
     }
