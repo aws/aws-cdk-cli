@@ -613,8 +613,8 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
     await execute(ioHelper, 'git', ['init'], { cwd: workDir });
     await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
     await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
-  } catch {
-    await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
+  } catch (error: any) {
+    await ioHelper.defaults.warn(`Unable to initialize git repository for your project: ${error.message}`);
   }
 }
 
@@ -661,8 +661,8 @@ async function postInstallJava(ioHelper: IoHelper, canUseNetwork: boolean, cwd: 
   await ioHelper.defaults.info("Executing 'mvn package'");
   try {
     await execute(ioHelper, 'mvn', ['package'], { cwd });
-  } catch {
-    await ioHelper.defaults.warn('Unable to package compiled code as JAR');
+  } catch (error: any) {
+    await ioHelper.defaults.warn(`Unable to package compiled code as JAR: ${error.message}`);
     await ioHelper.defaults.warn(mvnPackageWarning);
   }
 }
@@ -673,8 +673,8 @@ async function postInstallPython(ioHelper: IoHelper, cwd: string) {
   await ioHelper.defaults.info(`Executing ${chalk.green('Creating virtualenv...')}`);
   try {
     await execute(ioHelper, python, ['-m venv', '.venv'], { cwd });
-  } catch {
-    await ioHelper.defaults.warn('Unable to create virtualenv automatically');
+  } catch (error: any) {
+    await ioHelper.defaults.warn(`Unable to create virtualenv automatically: ${error.message}`);
     await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
   }
 }
