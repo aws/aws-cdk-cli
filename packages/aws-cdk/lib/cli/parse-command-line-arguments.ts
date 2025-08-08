@@ -396,6 +396,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: ['i'],
           desc: 'Interactive option for the flags command',
           requiresArg: false,
+        })
+        .option('safe', {
+          default: undefined,
+          type: 'boolean',
+          desc: "Enable all feature flags that do not impact the user's application",
+          requiresArg: false,
         }),
     )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>

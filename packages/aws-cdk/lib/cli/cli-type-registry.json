@@ -373,6 +373,11 @@
           ],
           "desc": "Interactive option for the flags command",
           "requiresArg": false
+        },
+        "safe": {
+          "type": "boolean",
+          "desc": "Enable all feature flags that do not impact the user's application",
+          "requiresArg": false
         }
       }
     },

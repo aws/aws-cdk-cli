@@ -103,6 +103,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         recommended: args.recommended,
         default: args.default,
         interactive: args.interactive,
+        safe: args.safe,
         FLAGNAME: args.FLAGNAME,
       };
       break;
@@ -383,6 +384,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     recommended: config.flags?.recommended,
     default: config.flags?.default,
     interactive: config.flags?.interactive,
+    safe: config.flags?.safe,
   };
   const deployOptions = {
     all: config.deploy?.all,
