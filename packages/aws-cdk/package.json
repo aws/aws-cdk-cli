@@ -120,6 +120,7 @@
     "chalk": "^4",
     "chokidar": "^3",
     "decamelize": "^5",
+    "enquirer": "^2.4.1",
     "fs-extra": "^9",
     "glob": "^11.0.3",
     "minimatch": "10.0.3",

@@ -102,6 +102,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         unconfigured: args.unconfigured,
         recommended: args.recommended,
         default: args.default,
+        interactive: args.interactive,
         FLAGNAME: args.FLAGNAME,
       };
       break;
@@ -381,6 +382,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     unconfigured: config.flags?.unconfigured,
     recommended: config.flags?.recommended,
     default: config.flags?.default,
+    interactive: config.flags?.interactive,
   };
   const deployOptions = {
     all: config.deploy?.all,

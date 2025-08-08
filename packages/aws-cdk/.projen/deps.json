@@ -354,6 +354,10 @@
       "type": "runtime"
     },
     {
+      "name": "enquirer",
+      "type": "runtime"
+    },
+    {
       "name": "fs-extra",
       "version": "^9",
       "type": "runtime"
