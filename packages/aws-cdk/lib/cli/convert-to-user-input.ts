@@ -243,6 +243,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         list: args.list,
         generateOnly: args.generateOnly,
         libVersion: args.libVersion,
+        fromPath: args.fromPath,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -477,6 +478,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     list: config.init?.list,
     generateOnly: config.init?.generateOnly,
     libVersion: config.init?.libVersion,
+    fromPath: config.init?.fromPath,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,

@@ -519,6 +519,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
+            fromPath: args['from-path'],
           });
         }
       case 'migrate':
