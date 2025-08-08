@@ -28,6 +28,7 @@ interface FlagOperationsParams {
   flagName?: string[];
   default?: boolean;
   unconfigured?: boolean;
+  safe?: boolean
 }
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
@@ -42,6 +43,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     flagName: options.FLAGNAME,
     default: options.default,
     unconfigured: options.unconfigured,
+    safe: options.safe
   };
 
   const interactiveOptions = Object.values(FlagsMenuOptions);
@@ -80,6 +82,12 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     } else if (answer == FlagsMenuOptions.EXIT) {
       return;
     }
+    return;
+  }
+
+  // safe means unconfigured -> recommended SAFELY...
+  if (options.safe) {
+    await setSafeFlags(params);
     return;
   }
 
@@ -221,9 +229,105 @@ async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
   }
 }
 
+/**
+ * Test if a single feature flag can be safely set without causing CloudFormation template changes
+ */
+async function testFlagSafety(
+  flag: FeatureFlag,
+  baseContextValues: Record<string, any>,
+  toolkit: Toolkit,
+  app: string,
+  allStacks: any[]
+): Promise<boolean> {
+  const testContext = new MemoryContext(baseContextValues);
+  const newValue = toBooleanValue(flag.recommendedValue);
+
+  await testContext.update({ [flag.name]: newValue });
+
+  const testSource = await toolkit.fromCdkApp(app, {
+    contextStore: testContext,
+    outdir: path.join(process.cwd(), `test-${flag.name}`),
+  });
+
+  const testCx = await toolkit.synth(testSource);
+
+  for (const stack of allStacks) {
+    const templatePath = stack.templateFullPath;
+
+    const diff = await toolkit.diff(testCx, {
+      method: DiffMethod.LocalFile(templatePath),
+      stacks: {
+        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+        patterns: [stack.hierarchicalId],
+      },
+    });
+
+    for (const stackDiff of Object.values(diff)) {
+      if (stackDiff.differenceCount > 0) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
+  const { flagData, toolkit, ioHelper } = params;
+
+  const unconfiguredFlags = flagData.filter(flag =>
+    flag.userValue === undefined && isBooleanFlag(flag)
+  );
+
+  if (unconfiguredFlags.length === 0) {
+    await ioHelper.defaults.info('No unconfigured feature flags found.');
+    return;
+  }
+
+  const baseContext = new CdkAppMultiContext(process.cwd());
+  const baseContextValues = await baseContext.read();
+
+  const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
+  const app = cdkJson.app;
+
+  const baseSource = await toolkit.fromCdkApp(app, {
+    contextStore: baseContext,
+    outdir: path.join(process.cwd(), 'baseline'),
+  });
+
+  const baseCx = await toolkit.synth(baseSource);
+  const baseAssembly = baseCx.cloudAssembly;
+  const allStacks = baseAssembly.stacksRecursively;
+
+  const safetyResults = await Promise.all(
+    unconfiguredFlags.map(async (flag) => {
+      const isSafe = await testFlagSafety(flag, baseContextValues, toolkit, app, allStacks);
+      const testDir = path.join(process.cwd(), `test-${flag.name}`);
+      await fs.remove(testDir);
+      return { flag, isSafe };
+    })
+  );
+
+  const safeFlags = safetyResults.filter(result => result.isSafe).map(result => result.flag);
+
+  const baselineDir = path.join(process.cwd(), 'baseline');
+  await fs.remove(baselineDir);
+
+  if (safeFlags.length > 0) {
+    await ioHelper.defaults.info(`Safe flags that can be set without template changes:`);
+    for (const flag of safeFlags) {
+      await ioHelper.defaults.info(`  - ${flag.name} → ${flag.recommendedValue}`);
+    }
+    const flagNames = safeFlags.map(flag => flag.name);
+    await handleUserResponse(params, flagNames);
+  } else {
+    await ioHelper.defaults.info('No flags can be safely set without causing template changes.');
+  }
+}
+
 async function prototypeChanges(
   params: FlagOperationsParams,
-  flagNames: string[],
+  flagNames: string[]
 ): Promise<boolean> {
   const { flagData, toolkit, ioHelper, recommended, value } = params;
   const baseContext = new CdkAppMultiContext(process.cwd());
@@ -337,7 +441,7 @@ async function handleUserResponse(
 }
 
 async function modifyValues(params: FlagOperationsParams, flagNames: string[]): Promise<void> {
-  const { flagData, ioHelper, value, recommended } = params;
+  const { flagData, ioHelper, value, recommended, safe } = params;
   const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
   const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
   const cdkJson = JSON.parse(cdkJsonContent);
@@ -350,7 +454,7 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
   } else {
     for (const flagName of flagNames) {
       const flag = flagData.find(f => f.name === flagName);
-      const newValue = recommended
+      const newValue = recommended || safe
         ? toBooleanValue(flag!.recommendedValue)
         : String(flag!.unconfiguredBehavesLike?.v2) === 'true';
       cdkJson.context[flagName] = newValue;
