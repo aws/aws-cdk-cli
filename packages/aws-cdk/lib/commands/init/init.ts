@@ -538,7 +538,7 @@ async function listDirectory(dirPath: string) {
  * Print available templates to the user
  * @param ioHelper - IO helper for user interaction
  * @param language - Programming language filter
- * @default - Shows all available templates
+ * @default undefined
  */
 export async function printAvailableTemplates(ioHelper: IoHelper, language?: string) {
   await ioHelper.defaults.info('Available templates:');
@@ -569,7 +569,7 @@ export async function printAvailableTemplates(ioHelper: IoHelper, language?: str
  * @param migrate - Whether this is a migration project
  * @default undefined
  * @param cdkVersion - Version of the CDK to use
- * @default - Uses built-in CDK version
+ * @default undefined
  */
 async function initializeProject(
   ioHelper: IoHelper,
