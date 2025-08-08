@@ -309,6 +309,30 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
   });
 
+  cliTest('custom template with multiple languages fails if language not provided', async (workDir) => {
+    // Create a custom template with both TypeScript and Python
+    const templateDir = path.join(workDir, 'custom-template');
+    const tsDir = path.join(templateDir, 'typescript');
+    const pyDir = path.join(templateDir, 'python');
+    await fs.mkdirp(tsDir);
+    await fs.mkdirp(pyDir);
+
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello TS!");');
+    await fs.writeFile(path.join(pyDir, 'app.py'), 'print("Hello Python!")');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    // Don't specify language - should fail since multiple languages are available
+    await expect(cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    })).rejects.toThrow(/No language was selected/);
+  });
+
   cliTest('custom template path does not exist throws error', async (workDir) => {
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);

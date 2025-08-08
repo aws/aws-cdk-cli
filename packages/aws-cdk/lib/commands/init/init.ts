@@ -24,7 +24,7 @@ export interface CliInitOptions {
 
   /**
    * Programming language for the project
-   * @default undefined
+   * @default - Optional/auto-detected if template supports only one language, otherwise required
    */
   readonly language?: string;
 
@@ -123,12 +123,6 @@ async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
 
 /**
  * Load a built-in template by name
- * @param ioHelper - IO helper for user interaction
- * @param type - Template type name
- * @default undefined
- * @param language - Programming language filter
- * @default undefined
- * @returns Promise resolving to the loaded InitTemplate
  */
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
   if (!type) {
@@ -205,7 +199,7 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
         }
       });
 
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Limited to supported CDK languages (7 max)
     const validationResults = await Promise.all(languageValidationPromises);
     return validationResults.filter((languageName): languageName is string => languageName !== null);
   } catch (error: any) {
@@ -262,7 +256,7 @@ interface TemplateInitInfo {
 }
 
 enum TemplateType {
-  BUILTIN = 'builtin',
+  BUILT_IN = 'builtin',
   CUSTOM = 'custom',
 }
 
@@ -271,7 +265,7 @@ export class InitTemplate {
     const basePath = path.join(templatesDir, name);
     const languages = await listDirectory(basePath);
     const initInfo = await fs.readJson(path.join(basePath, INFO_DOT_JSON));
-    return new InitTemplate(basePath, name, languages, initInfo, TemplateType.BUILTIN);
+    return new InitTemplate(basePath, name, languages, initInfo, TemplateType.BUILT_IN);
   }
 
   public static async fromPath(templatePath: string) {
@@ -287,7 +281,7 @@ export class InitTemplate {
     return new InitTemplate(basePath, name, languages, null, TemplateType.CUSTOM);
   }
 
-  public readonly description: string;
+  public readonly description?: string;
   public readonly aliases = new Set<string>();
   public readonly templateType: TemplateType;
 
@@ -298,10 +292,11 @@ export class InitTemplate {
     initInfo: TemplateInitInfo | null,
     templateType: TemplateType,
   ) {
-    this.description = initInfo?.description ?? 'Custom template';
     this.templateType = templateType;
-    if (initInfo?.aliases) {
-      for (const alias of initInfo.aliases) {
+    // Only built-in templates have descriptions and aliases from info.json
+    if (templateType === TemplateType.BUILT_IN && initInfo) {
+      this.description = initInfo.description;
+      for (const alias of initInfo.aliases || []) {
         this.aliases.add(alias);
       }
     }
@@ -318,11 +313,11 @@ export class InitTemplate {
   /**
    * Creates a new instance of this ``InitTemplate`` for a given language to a specified folder.
    *
-   * @param language    - the language to instantiate this template with
+   * @param language - the language to instantiate this template with
    * @param targetDirectory - the directory where the template is to be instantiated into
-   * @param stackName - Name of the stack
+   * @param stackName
    * @default undefined
-   * @param libVersion - Version of the CDK library to use
+   * @param libVersion
    * @default undefined
    */
   public async install(ioHelper: IoHelper, language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
@@ -363,7 +358,7 @@ export class InitTemplate {
               const template = await fs.readFile(fullPath, { encoding: 'utf-8' });
               await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo));
             });
-            // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+            /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Processing a small, known set of template files
             await Promise.all(fileProcessingPromises);
           },
           placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo),
@@ -496,7 +491,7 @@ export async function availableInitTemplates(): Promise<InitTemplate[]> {
     const templatePromises = templateNames.map(templateName =>
       InitTemplate.fromName(templatesDir, templateName),
     );
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Built-in templates are limited in number
     return await Promise.all(templatePromises);
   } catch (error: any) {
     // Return empty array if templates directory doesn't exist or can't be read
@@ -546,7 +541,7 @@ export async function printAvailableTemplates(ioHelper: IoHelper, language?: str
     if (language && template.languages.indexOf(language) === -1) {
       continue;
     }
-    await ioHelper.defaults.info(`* ${chalk.green(template.name)}: ${template.description}`);
+    await ioHelper.defaults.info(`* ${chalk.green(template.name)}: ${template.description!}`);
     const languageArg = language
       ? chalk.bold(language)
       : template.languages.length > 1
@@ -556,21 +551,6 @@ export async function printAvailableTemplates(ioHelper: IoHelper, language?: str
   }
 }
 
-/**
- * Initialize a new CDK project
- * @param ioHelper - IO helper for user interaction
- * @param template - Template to use for initialization
- * @param language - Programming language for the project
- * @param canUseNetwork - Whether network access is available
- * @param generateOnly - Whether to only generate files without post-install steps
- * @param workDir - Working directory for the project
- * @param stackName - Name of the stack
- * @default undefined
- * @param migrate - Whether this is a migration project
- * @default undefined
- * @param cdkVersion - Version of the CDK to use
- * @default undefined
- */
 async function initializeProject(
   ioHelper: IoHelper,
   template: InitTemplate,
@@ -599,12 +579,10 @@ async function initializeProject(
   }
 
   if (!generateOnly) {
-    // Step 3: Initialize Git repository
+    // Step 3: Initialize Git repository and create initial commit
     await initializeGitRepository(ioHelper, workDir);
 
-    // Step 4: Create initial commit (already done in initializeGitRepository)
-
-    // Step 5: Post-install steps
+    // Step 4: Post-install steps
     await postInstall(ioHelper, language, canUseNetwork, workDir);
   }
 
@@ -635,8 +613,8 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
     await execute(ioHelper, 'git', ['init'], { cwd: workDir });
     await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
     await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
-  } catch (error: any) {
-    await ioHelper.defaults.warn(`Unable to initialize git repository for your project: ${error.message}`);
+  } catch {
+    await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
   }
 }
 
@@ -683,8 +661,8 @@ async function postInstallJava(ioHelper: IoHelper, canUseNetwork: boolean, cwd: 
   await ioHelper.defaults.info("Executing 'mvn package'");
   try {
     await execute(ioHelper, 'mvn', ['package'], { cwd });
-  } catch (error: any) {
-    await ioHelper.defaults.warn(`Unable to package compiled code as JAR: ${error.message}`);
+  } catch {
+    await ioHelper.defaults.warn('Unable to package compiled code as JAR');
     await ioHelper.defaults.warn(mvnPackageWarning);
   }
 }
@@ -695,8 +673,8 @@ async function postInstallPython(ioHelper: IoHelper, cwd: string) {
   await ioHelper.defaults.info(`Executing ${chalk.green('Creating virtualenv...')}`);
   try {
     await execute(ioHelper, python, ['-m venv', '.venv'], { cwd });
-  } catch (error: any) {
-    await ioHelper.defaults.warn(`Unable to create virtualenv automatically: ${error.message}`);
+  } catch {
+    await ioHelper.defaults.warn('Unable to create virtualenv automatically');
     await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
   }
 }
