@@ -505,8 +505,11 @@
                     "type": "string"
                 },
                 "flags": {
-                    "$ref": "#/definitions/Record<string,FeatureFlag>",
-                    "description": "Information about every feature flag supported by this library."
+                    "description": "Information about every feature flag supported by this library.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/FeatureFlag"
+                    }
                 }
             },
             "required": [
@@ -514,8 +517,38 @@
                 "module"
             ]
         },
-        "Record<string,FeatureFlag>": {
-            "type": "object"
+        "FeatureFlag": {
+            "description": "A single feature flag",
+            "type": "object",
+            "properties": {
+                "recommendedValue": {
+                    "description": "The library-recommended value for this flag, if any\n\nIt is possible that there is no recommended value. (Default - No recommended value.)"
+                },
+                "userValue": {
+                    "description": "The value configured by the user\n\nThis is the value configured at the root of the tree. Users may also have\nconfigured values at specific locations in the tree; we don't report on\nthose. (Default - Not configured by the user)"
+                },
+                "explanation": {
+                    "description": "Explanation about the purpose of this flag that can be shown to the user. (Default - No description)",
+                    "type": "string"
+                },
+                "unconfiguredBehavesLike": {
+                    "description": "The value of the flag that produces the same behavior as when the flag is not configured at all\n\nThe structure of this field is a historical accident. The type of this field\nshould have been boolean, which should have contained the default value for\nthe flag appropriate for the *current* version of the CDK library. We are\nnot rectifying this accident because doing so\n\nInstead, the canonical way to access this value is by evaluating\n`unconfiguredBehavesLike?.v2 ?? false`.",
+                    "default": false,
+                    "$ref": "#/definitions/UnconfiguredBehavesLike"
+                }
+            }
+        },
+        "UnconfiguredBehavesLike": {
+            "type": "object",
+            "properties": {
+                "v1": {
+                    "description": "Historical accident, don't use.\n\nThis value may be present, but it should never be used. The actual value is\nin the `v2` field, regardless of the version of the CDK library. (Default - ignore)"
+                },
+                "v2": {
+                    "description": "The value of the flag that produces the same behavior as when the flag is not configured at all\n\nEven though it is called 'v2', this is the official name of this field. In\nany future versions of CDK (v3, v4, ...), this field will still be called 'v2'.\n\nThe structure of this field is a historical accident. See the comment on\n`unconfiguredBehavesLike` for more information.",
+                    "default": false
+                }
+            }
         },
         "MissingContext": {
             "description": "Represents a missing piece of context.",

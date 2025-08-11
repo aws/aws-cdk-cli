@@ -238,7 +238,7 @@ export interface FeatureFlagReportProperties {
   /**
    * Information about every feature flag supported by this library.
    */
-  readonly flags: Record<string, FeatureFlag>;
+  readonly flags: { [flagName: string]: FeatureFlag };
 }
 
 /**
