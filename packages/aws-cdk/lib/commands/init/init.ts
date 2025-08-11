@@ -315,12 +315,10 @@ export class InitTemplate {
    *
    * @param language - the language to instantiate this template with
    * @param targetDirectory - the directory where the template is to be instantiated into
-   * /* eslint-disable jsdoc/require-param-description */
-   * @param stackName
+   * @param stackName - the name of the stack to create
    * @default undefined
-   * @param libVersion
+   * @param libVersion - the version of the CDK library to use
    * @default undefined
-   * /* eslint-enable jsdoc/require-param-description */
    */
   public async install(ioHelper: IoHelper, language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
     if (this.languages.indexOf(language) === -1) {
