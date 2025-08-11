@@ -1318,7 +1318,7 @@ export interface InitOptions {
   readonly generateOnly?: boolean;
 
   /**
-   * The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.
+   * The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.
    *
    * aliases: V
    *
