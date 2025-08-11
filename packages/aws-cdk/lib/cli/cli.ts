@@ -513,6 +513,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.list) {
           return printAvailableTemplates(ioHelper, language);
         } else {
+          // Gate custom template support with unstable flag
+          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
+            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          }
           return cliInit({
             ioHelper,
             type: args.TEMPLATE,
