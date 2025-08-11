@@ -273,6 +273,7 @@ async function testFlagSafety(
 }
 
 async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
+  const startTime = Date.now();
   const { flagData, toolkit, ioHelper } = params;
 
   const unconfiguredFlags = flagData.filter(flag =>
@@ -299,16 +300,21 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
   const baseAssembly = baseCx.cloudAssembly;
   const allStacks = baseAssembly.stacksRecursively;
 
-  const safetyResults = await Promise.all(
-    unconfiguredFlags.map(async (flag) => {
-      const isSafe = await testFlagSafety(flag, baseContextValues, toolkit, app, allStacks);
-      const testDir = path.join(process.cwd(), `test-${flag.name}`);
-      await fs.remove(testDir);
-      return { flag, isSafe };
-    })
-  );
+  const safeFlags: FeatureFlag[] = [];
+  const unsafeFlags: FeatureFlag[] = [];
 
-  const safeFlags = safetyResults.filter(result => result.isSafe).map(result => result.flag);
+  for (const flag of unconfiguredFlags) {
+
+    const isSafe = await testFlagSafety(flag, baseContextValues, toolkit, app, allStacks);
+
+    if (isSafe) {
+      safeFlags.push(flag);
+    } else {
+      unsafeFlags.push(flag);
+    }
+    const testDir = path.join(process.cwd(), `test-${flag.name}`);
+    await fs.remove(testDir);
+  }
 
   const baselineDir = path.join(process.cwd(), 'baseline');
   await fs.remove(baselineDir);
@@ -318,6 +324,9 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
     for (const flag of safeFlags) {
       await ioHelper.defaults.info(`  - ${flag.name} → ${flag.recommendedValue}`);
     }
+    const endTime = Date.now();
+    const duration = (endTime - startTime) / 1000;
+    await ioHelper.defaults.info(`${duration.toFixed(2)} seconds`);
     const flagNames = safeFlags.map(flag => flag.name);
     await handleUserResponse(params, flagNames);
   } else {
