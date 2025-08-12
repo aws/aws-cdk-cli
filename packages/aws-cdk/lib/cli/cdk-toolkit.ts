@@ -1059,13 +1059,13 @@ export class CdkToolkit {
   ): Promise<any> {
     const stacks = await this.selectStacksForDiff(stackNames, exclusively, autoValidate);
 
-    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable, this.ioHost.asIoHelper());
-
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
       if (!quiet) {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
+
+      await displayFlagsMessage(this.toolkit, this.props.cloudExecutable);
       return undefined;
     }
 
@@ -1075,6 +1075,7 @@ export class CdkToolkit {
       `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
     );
 
+    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable);
     return undefined;
   }
 
@@ -2111,14 +2112,13 @@ async function askUserConfirmation(
     }
   });
 }
-export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable,
-  ioHelper: IoHelper): Promise<void> {
+export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable): Promise<void> {
   let numUnconfigured = (await toolkit.flags(cloudExecutable))
     .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
     .filter(flag => flag.userValue === undefined).length;
 
   if (numUnconfigured > 0) {
-    await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
+    process.stderr.write(`You currently have ${numUnconfigured} unconfigured feature flag(s) that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
   }
 }
 
