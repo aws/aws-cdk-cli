@@ -284,6 +284,120 @@ async function testFlagSafety(
   return true;
 }
 
+async function batchTestFlags(
+  flags: FeatureFlag[],
+  baseContextValues: Record<string, any>,
+  toolkit: Toolkit,
+  app: string,
+  allStacks: any[]
+): Promise<{ safeFlags: FeatureFlag[], unsafeFlags: FeatureFlag[] }> {
+  if (flags.length === 0) {
+    return { safeFlags: [], unsafeFlags: [] };
+  }
+
+  const allFlagsContext = { ...baseContextValues };
+  flags.forEach(flag => {
+    allFlagsContext[flag.name] = toBooleanValue(flag.recommendedValue);
+  });
+
+  const allSafe = await testBatch(allFlagsContext, toolkit, app, allStacks, 'batch-all');
+  
+  if (allSafe) {
+    return { safeFlags: flags, unsafeFlags: [] };
+  }
+
+  return await isolateUnsafeFlags(flags, baseContextValues, toolkit, app, allStacks);
+}
+
+async function testBatch(
+  contextValues: Record<string, any>,
+  toolkit: Toolkit,
+  app: string,
+  allStacks: any[],
+  outdir: string
+): Promise<boolean> {
+  const testContext = new MemoryContext(contextValues);
+  const testSource = await toolkit.fromCdkApp(app, {
+    contextStore: testContext,
+    outdir: path.join(process.cwd(), outdir),
+  });
+
+  const testCx = await toolkit.synth(testSource);
+
+  for (const stack of allStacks) {
+    const templatePath = stack.templateFullPath;
+    const diff = await toolkit.diff(testCx, {
+      method: DiffMethod.LocalFile(templatePath),
+      stacks: {
+        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+        patterns: [stack.hierarchicalId],
+      },
+    });
+
+    for (const stackDiff of Object.values(diff)) {
+      if (stackDiff.differenceCount > 0) {
+        await fs.remove(path.join(process.cwd(), outdir));
+        return false;
+      }
+    }
+  }
+
+  await fs.remove(path.join(process.cwd(), outdir));
+  return true;
+}
+
+async function isolateUnsafeFlags(
+  flags: FeatureFlag[],
+  baseContextValues: Record<string, any>,
+  toolkit: Toolkit,
+  app: string,
+  allStacks: any[]
+): Promise<{ safeFlags: FeatureFlag[], unsafeFlags: FeatureFlag[] }> {
+  if (flags.length === 1) {
+    const isSafe = await testFlagSafety(flags[0], baseContextValues, toolkit, app, allStacks);
+    await fs.remove(path.join(process.cwd(), `test-${flags[0].name}`));
+    return isSafe 
+      ? { safeFlags: flags, unsafeFlags: [] }
+      : { safeFlags: [], unsafeFlags: flags };
+  }
+
+  const mid = Math.floor(flags.length / 2);
+  const leftFlags = flags.slice(0, mid);
+  const rightFlags = flags.slice(mid);
+
+  const leftContext = { ...baseContextValues };
+  leftFlags.forEach(flag => {
+    leftContext[flag.name] = toBooleanValue(flag.recommendedValue);
+  });
+  const leftSafe = await testBatch(leftContext, toolkit, app, allStacks, `batch-left-${Date.now()}`);
+
+  const rightContext = { ...baseContextValues };
+  rightFlags.forEach(flag => {
+    rightContext[flag.name] = toBooleanValue(flag.recommendedValue);
+  });
+  const rightSafe = await testBatch(rightContext, toolkit, app, allStacks, `batch-right-${Date.now()}`);
+
+  const results = { safeFlags: [] as FeatureFlag[], unsafeFlags: [] as FeatureFlag[] };
+
+  if (leftSafe) {
+    results.safeFlags.push(...leftFlags);
+  } else {
+    const leftResult = await isolateUnsafeFlags(leftFlags, baseContextValues, toolkit, app, allStacks);
+    results.safeFlags.push(...leftResult.safeFlags);
+    results.unsafeFlags.push(...leftResult.unsafeFlags);
+  }
+
+  if (rightSafe) {
+    results.safeFlags.push(...rightFlags);
+  } else {
+    const rightResult = await isolateUnsafeFlags(rightFlags, baseContextValues, toolkit, app, allStacks);
+    results.safeFlags.push(...rightResult.safeFlags);
+    results.unsafeFlags.push(...rightResult.unsafeFlags);
+  }
+
+  return results;
+}
+
 async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
   const startTime = Date.now();
   const { flagData, toolkit, ioHelper } = params;
@@ -312,21 +426,7 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
   const baseAssembly = baseCx.cloudAssembly;
   const allStacks = baseAssembly.stacksRecursively;
 
-  const safeFlags: FeatureFlag[] = [];
-  const unsafeFlags: FeatureFlag[] = [];
-
-  for (const flag of unconfiguredFlags) {
-
-    const isSafe = await testFlagSafety(flag, baseContextValues, toolkit, app, allStacks);
-
-    if (isSafe) {
-      safeFlags.push(flag);
-    } else {
-      unsafeFlags.push(flag);
-    }
-    const testDir = path.join(process.cwd(), `test-${flag.name}`);
-    await fs.remove(testDir);
-  }
+  const { safeFlags, unsafeFlags } = await batchTestFlags(unconfiguredFlags, baseContextValues, toolkit, app, allStacks);
 
   const baselineDir = path.join(process.cwd(), 'baseline');
   await fs.remove(baselineDir);
