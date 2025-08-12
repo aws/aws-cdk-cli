@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import * as os from 'os';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -65,6 +66,12 @@ export interface CliInitOptions {
    */
   readonly fromPath?: string;
 
+  /**
+   * Git repository URL containing templates
+   * @default undefined
+   */
+  readonly fromGitUrl?: string;
+
   readonly ioHelper: IoHelper;
 }
 
@@ -77,36 +84,50 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
+  // Step 0: Ensure target directory is empty before any operations
+  await assertIsEmptyDirectory(workDir);
+
   // Step 1: Load template
   let template: InitTemplate;
-  if (options.fromPath) {
-    template = await loadLocalTemplate(options.fromPath);
-  } else {
-    template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+  let gitTempDir: string | undefined;
+
+  try {
+    if (options.fromPath) {
+      template = await loadLocalTemplate(options.fromPath);
+    } else if (options.fromGitUrl) {
+      const result = await loadGitTemplate(ioHelper, options.fromGitUrl, canUseNetwork);
+      template = result.template;
+      gitTempDir = result.tempDir;
+    } else {
+      template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+    }
+
+    // Step 2: Resolve language
+    const language = await resolveLanguage(ioHelper, template, options.language);
+
+    // Step 3: Initialize project following standard process
+    await initializeProject(
+      ioHelper,
+      template,
+      language,
+      canUseNetwork,
+      generateOnly,
+      workDir,
+      options.stackName,
+      options.migrate,
+      options.libVersion,
+    );
+  } catch (error) {
+    // Clean up Git temp directory on any error
+    if (gitTempDir) {
+      await fs.remove(gitTempDir).catch(() => {
+        // Ignore cleanup errors - temporary directory will be cleaned up by OS
+      });
+    }
+    throw error;
   }
-
-  // Step 2: Resolve language
-  const language = await resolveLanguage(ioHelper, template, options.language);
-
-  // Step 3: Initialize project following standard process
-  await initializeProject(
-    ioHelper,
-    template,
-    language,
-    canUseNetwork,
-    generateOnly,
-    workDir,
-    options.stackName,
-    options.migrate,
-    options.libVersion,
-  );
 }
 
-/**
- * Load a local custom template from file system path
- * @param templatePath - Path to the local template directory
- * @returns Promise resolving to the loaded InitTemplate
- */
 async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
   try {
     const template = await InitTemplate.fromPath(templatePath);
@@ -121,9 +142,35 @@ async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
   }
 }
 
-/**
- * Load a built-in template by name
- */
+async function loadGitTemplate(ioHelper: IoHelper, gitUrl: string, canUseNetwork: boolean): Promise<{ template: InitTemplate; tempDir: string }> {
+  if (!canUseNetwork) {
+    throw new ToolkitError('Cannot clone Git repository: network access is disabled');
+  }
+
+  let clonedRepoPath: string | undefined;
+  try {
+    clonedRepoPath = await fs.mkdtemp(path.join(os.tmpdir(), 'cdk-init-git-'));
+
+    await ioHelper.defaults.info(`Cloning template from Git repository: ${gitUrl}`);
+    await execute(ioHelper, 'git', ['clone', '--depth', '1', gitUrl, clonedRepoPath], { cwd: process.cwd() });
+    await validateGitRepositoryStructure(clonedRepoPath);
+
+    const template = await InitTemplate.fromPath(clonedRepoPath);
+    return { template, tempDir: clonedRepoPath };
+  } catch (error: any) {
+    // Clean up on error
+    if (clonedRepoPath) {
+      await fs.remove(clonedRepoPath).catch(() => {
+        // Ignore cleanup errors - temporary directory will be cleaned up by OS
+      });
+    }
+    if (error.message.includes('git clone')) {
+      throw new ToolkitError(`Failed to clone Git repository: ${gitUrl}. Please ensure the URL is correct and accessible.`);
+    }
+    throw new ToolkitError(`Failed to load template from Git URL: ${gitUrl}. ${error.message}`);
+  }
+}
+
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
   if (!type) {
     await printAvailableTemplates(ioHelper, language);
@@ -140,18 +187,70 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
   return template;
 }
 
+async function validateGitRepositoryStructure(repoPath: string): Promise<void> {
+  const cdkSupportedLanguages = ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'];
+
+  const entries = await fs.readdir(repoPath, { withFileTypes: true });
+  const directories = entries.filter(entry => entry.isDirectory());
+
+  const languageDirectories = directories.filter(dir => cdkSupportedLanguages.includes(dir.name));
+  const possibleTemplateDirectories = directories.filter(dir =>
+    !cdkSupportedLanguages.includes(dir.name) &&
+    !dir.name.startsWith('.') &&
+    dir.name !== 'node_modules',
+  );
+
+  if (languageDirectories.length === 0) {
+    if (possibleTemplateDirectories.length > 0) {
+      throw new ToolkitError(
+        'This Git repository appears to contain template directories rather than language directories at the root level. ' +
+        'Use of --template-path is not yet supported. ' +
+        'Please use a repository with language directories (typescript, javascript, python, java, csharp, fsharp, go) at the root level.',
+      );
+    } else {
+      throw new ToolkitError(
+        'Git repository must contain language directories at the root level. ' +
+        'Supported languages: typescript, javascript, python, java, csharp, fsharp, go',
+      );
+    }
+  }
+
+  // Validate language directories contain appropriate files in parallel
+  const validationPromises = languageDirectories.map(async (langDir) => {
+    const langPath = path.join(repoPath, langDir.name);
+    const hasValidFiles = await hasLanguageFiles(langPath, getLanguageExtensions(langDir.name));
+    if (!hasValidFiles) {
+      throw new ToolkitError(
+        `Language directory '${langDir.name}' does not contain valid files for that language type.`,
+      );
+    }
+  });
+
+  /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Limited to supported CDK languages (7 max)
+  await Promise.all(validationPromises);
+}
+
+function getLanguageExtensions(language: string): string[] {
+  const languageExtensions: Record<string, string[]> = {
+    typescript: ['.ts', '.js'],
+    javascript: ['.js'],
+    python: ['.py'],
+    java: ['.java'],
+    csharp: ['.cs'],
+    fsharp: ['.fs'],
+    go: ['.go'],
+  };
+
+  return languageExtensions[language] || [];
+}
+
 /**
- * Resolve the programming language for the template
- * @param ioHelper - IO helper for user interaction
- * @param template - The template to resolve language for
- * @param requestedLanguage - User-requested language (optional)
- * @default undefined
- * @returns Promise resolving to the selected language
+ * @param requestedLanguage - User-requested language
+ * @default - Auto-detected if template supports only one language, otherwise required
  */
 async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
   let language = requestedLanguage;
 
-  // Auto-detect language for single-language templates
   if (!language && template.languages.length === 1) {
     language = template.languages[0];
     await ioHelper.defaults.info(
@@ -531,7 +630,6 @@ async function listDirectory(dirPath: string) {
 
 /**
  * Print available templates to the user
- * @param ioHelper - IO helper for user interaction
  * @param language - Programming language filter
  * @default undefined
  */
@@ -562,10 +660,7 @@ async function initializeProject(
   migrate?: boolean,
   cdkVersion?: string,
 ) {
-  // Step 1: Ensure target directory is empty
-  await assertIsEmptyDirectory(workDir);
-
-  // Step 2: Copy template files
+  // Step 1: Copy template files
   await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
   await template.install(ioHelper, language, workDir, stackName, cdkVersion);
 
