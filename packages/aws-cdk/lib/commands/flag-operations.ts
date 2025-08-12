@@ -18,44 +18,27 @@ enum FlagsMenuOptions {
   EXIT = 'Exit',
 }
 
-/**
- * Parameters for the flags command operations. 
- * Parameters are set according to the command the user runs.
- */
-
 interface FlagOperationsParams {
   flagData: FeatureFlag[];
   toolkit: Toolkit;
   ioHelper: IoHelper;
 
-  /**
-   * Whether or not the user ran the --recommended option.
-   */
+  /** User ran --recommended option */
   recommended?: boolean;
-  
-  /**
-   * Whether or not the user ran the --all option.
-   */
+
+  /** User ran --all option */
   all?: boolean;
 
-  /**
-   * Whether or not the user added a --value field.
-   */
+  /** User provided --value field */
   value?: string;
 
-  /**
-   * Whether or not the user added a FLAGNAME field.
-   */
+  /** User provided FLAGNAME field */
   flagName?: string[];
 
-  /**
-   * Whether or not the user ran the --default option.
-   */
+  /** User ran --default option */
   default?: boolean;
 
-  /**
-   * Whether or not the user ran the --unconfigured option.
-   */
+  /** User ran --unconfigured option */
   unconfigured?: boolean;
 }
 
@@ -470,11 +453,12 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
   const { flagData, ioHelper, flagName, all } = params;
 
   if (flagName && flagName.length > 0) {
-    const searchTerm = flagName[0];
-    const matchingFlags = flagData.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchingFlags = flagData.filter(f =>
+      flagName.some(searchTerm => f.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    );
 
     if (matchingFlags.length === 0) {
-      await ioHelper.defaults.error(`Flag matching "${searchTerm}" not found.`);
+      await ioHelper.defaults.error(`Flag matching "${flagName.join(', ')}" not found.`);
       return;
     }
 
@@ -487,7 +471,7 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
       return;
     }
 
-    await ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${searchTerm}":`);
+    await ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagName.join(', ')}":`);
     await displayFlagTable(matchingFlags, ioHelper);
     return;
   }

@@ -198,7 +198,7 @@ describe('displayFlags', () => {
     expect(plainTextOutput).not.toContain('matching');
   });
 
-  test(`returns "Flag not found" if user enters non-matching substring`, async () => {
+  test('returns "Flag not found" if user enters non-matching substring', async () => {
     const params = {
       flagData: mockFlagsData,
       toolkit: createMockToolkit(),
@@ -208,7 +208,7 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain(`Flag matching \"qwerty\" not found.`);
+    expect(plainTextOutput).toContain('Flag matching \"qwerty\" not found.');
   });
 
   test('returns all matching flags if user enters common substring', async () => {
@@ -224,6 +224,21 @@ describe('displayFlags', () => {
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
     expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
     expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
+  });
+
+  test('returns all matching flags if user enters multiple substrings', async () => {
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      flagName: ['matching', 'test'],
+    };
+    await displayFlags(params);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/s3:anotherFlag');
   });
 });
 
@@ -273,7 +288,7 @@ describe('handleFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain(`Flag matching \"@aws-cdk/core:nonExistentFlag\" not found.`);
+    expect(plainTextOutput).toContain('Flag matching \"@aws-cdk/core:nonExistentFlag\" not found.');
   });
 
   test('calls prototypeChanges when set option is true with valid flag', async () => {
