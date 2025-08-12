@@ -1075,7 +1075,7 @@ export class CdkToolkit {
       `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
     );
 
-    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable); 
+    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable);
     return undefined;
   }
 

@@ -1,17 +1,12 @@
 import { Toolkit } from '@aws-cdk/toolkit-lib';
-import { asIoHelper } from '../../lib/api-private';
 import { displayFlagsMessage } from '../../lib/cli/cdk-toolkit';
-import { TestIoHost } from '../_helpers/io-host';
 
 describe('displayFlagsMessage', () => {
-  let ioHost: TestIoHost;
-  let ioHelper: any;
   let mockToolkit: jest.Mocked<Toolkit>;
   let mockCloudExecutable: any;
+  let stderrWriteSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    ioHost = new TestIoHost();
-    ioHelper = asIoHelper(ioHost, 'synth');
     mockCloudExecutable = {};
 
     mockToolkit = {
@@ -19,6 +14,7 @@ describe('displayFlagsMessage', () => {
     } as any;
 
     jest.spyOn(Toolkit.prototype, 'flags').mockImplementation(mockToolkit.flags);
+    stderrWriteSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
@@ -52,14 +48,11 @@ describe('displayFlagsMessage', () => {
 
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
 
-    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable, ioHelper);
+    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
-    expect(ioHost.notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'You currently have 1 unconfigured feature flags that may require attention to keep your application up-to-date. Run \'cdk flags\' to learn more.',
-        level: 'info',
-      }),
+    expect(stderrWriteSpy).toHaveBeenCalledWith(
+      'You currently have 1 unconfigured feature flag(s) that may require attention to keep your application up-to-date. Run \'cdk flags\' to learn more.',
     );
   });
   test('does not display a message when user has no unconfigured flags', async () => {
@@ -74,10 +67,10 @@ describe('displayFlagsMessage', () => {
     ];
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
 
-    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable, ioHelper);
+    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
-    expect(ioHost.notifySpy).not.toHaveBeenCalled();
+    expect(stderrWriteSpy).not.toHaveBeenCalled();
   });
 });
 
