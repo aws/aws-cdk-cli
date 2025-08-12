@@ -7,15 +7,44 @@ import { StackSelectionStrategy } from '../api';
 import type { IoHelper } from '../api-private';
 import type { FlagsOptions } from '../cli/user-input';
 
+/**
+ * Parameters for the flags command operations. 
+ * Parameters are set according to the command the user runs.
+ */
+
 interface FlagOperationsParams {
   flagData: FeatureFlag[];
   toolkit: Toolkit;
   ioHelper: IoHelper;
+
+  /**
+   * Whether or not the user ran the --recommended option.
+   */
   recommended?: boolean;
+  
+  /**
+   * Whether or not the user ran the --all option.
+   */
   all?: boolean;
+
+  /**
+   * Whether or not the user added a --value field.
+   */
   value?: string;
+
+  /**
+   * Whether or not the user added a FLAGNAME field.
+   */
   flagName?: string[];
+
+  /**
+   * Whether or not the user ran the --default option.
+   */
   default?: boolean;
+
+  /**
+   * Whether or not the user ran the --unconfigured option.
+   */
   unconfigured?: boolean;
 }
 
@@ -314,7 +343,7 @@ function formatTable(headers: string[], rows: string[][]): string {
   return table;
 }
 
-function getFlagPriority(flag: FeatureFlag): number {
+function getFlagSortOrder(flag: FeatureFlag): number {
   if (flag.userValue === undefined) {
     return 3;
   } else if (isUserValueEqualToRecommended(flag)) {
@@ -328,11 +357,11 @@ async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promi
   const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
 
   const sortedFlags = [...flags].sort((a, b) => {
-    const priorityA = getFlagPriority(a);
-    const priorityB = getFlagPriority(b);
+    const orderA = getFlagSortOrder(a);
+    const orderB = getFlagSortOrder(b);
 
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
+    if (orderA !== orderB) {
+      return orderA - orderB;
     }
     if (a.module !== b.module) {
       return a.module.localeCompare(b.module);
@@ -367,7 +396,7 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
     const matchingFlags = flagData.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (matchingFlags.length === 0) {
-      await ioHelper.defaults.error('Flag not found.');
+      await ioHelper.defaults.error(`Flag matching "${searchTerm}" not found.`);
       return;
     }
 
