@@ -154,9 +154,13 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
   // Auto-detect language for single-language templates
   if (!language && template.languages.length === 1) {
     language = template.languages[0];
-    await ioHelper.defaults.info(
-      `No --language was provided, but '${template.name}' supports only '${language}', so defaulting to --language=${language}`,
-    );
+    // Only show auto-detection message for built-in templates
+    // Local templates are inherently single-language for testing purposes
+    if (template.templateType !== TemplateType.CUSTOM) {
+      await ioHelper.defaults.info(
+        `No --language was provided, but '${template.name}' supports only '${language}', so defaulting to --language=${language}`,
+      );
+    }
   }
 
   if (!language) {
