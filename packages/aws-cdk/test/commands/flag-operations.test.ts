@@ -8,7 +8,6 @@ import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { FlagsOptions } from '../../lib/cli/user-input';
 import { displayFlags, handleFlags } from '../../lib/commands/flag-operations';
-import { options } from 'yargs';
 
 jest.mock('enquirer', () => ({
   Select: jest.fn(),
@@ -483,15 +482,15 @@ describe('handleFlags', () => {
   });
 
   test('displays notice when user is on incompatible version', async () => {
-    const mockFlagsData: FeatureFlag[] = [];
+    const mockNoFlagsData: FeatureFlag[] = [];
 
     const options: FlagsOptions = {};
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await handleFlags(mockNoFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain(`The 'cdk flags' command is not compatible with the AWS CDK library used by your application. Please upgrade to the latest version.`);
-  })
+    expect(plainTextOutput).toContain('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to the latest version.');
+  });
 });
 
 describe('modifyValues', () => {
