@@ -44,6 +44,12 @@ interface FlagOperationsParams {
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
+
+  if (flagData.length == 0) {
+    await ioHelper.defaults.error('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
+    return;
+  }
+
   let params = {
     flagData,
     toolkit,

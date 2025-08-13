@@ -457,6 +457,17 @@ describe('handleFlags', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
+
+  test('displays notice when user is on incompatible version', async () => {
+    const mockNoFlagsData: FeatureFlag[] = [];
+
+    const options: FlagsOptions = {};
+
+    await handleFlags(mockNoFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
+  });
 });
 
 describe('modifyValues', () => {
