@@ -48,4 +48,8 @@ describe(canCollectTelemetry, () => {
   test('returns false if no-version-reporting is set', async () => {
     expect(canCollectTelemetry({ 'version-reporting': false }, context)).toBeFalsy();
   });
+
+  test('special case for cli-telemetry --disable', async () => {
+    expect(canCollectTelemetry({ _: 'cli-telemetry', disable: true }, context)).toBeFalsy();
+  });
 });

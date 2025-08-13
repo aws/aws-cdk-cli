@@ -202,6 +202,8 @@ export class CliIoHost implements IIoHost {
       } catch (e: any) {
         await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
       }
+    } else {
+      await this.asIoHelper().defaults.trace('Endpoint Telemetry NOT connected');
     }
 
     if (sinks.length > 0) {
