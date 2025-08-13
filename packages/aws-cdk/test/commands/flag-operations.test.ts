@@ -42,6 +42,14 @@ const mockFlagsData: FeatureFlag[] = [
     userValue: 'true',
     explanation: 'Flag that matches recommendation',
   },
+  {
+    module: 'different-module',
+    name: '@aws-cdk/core:anotherMatchingFlag',
+    recommendedValue: 'true',
+    userValue: 'true',
+    explanation: 'Flag that matches recommendation',
+    unconfiguredBehavesLike: { v2: 'true' },
+  },
 ];
 
 function createMockToolkit(): jest.Mocked<Toolkit> {
@@ -121,8 +129,8 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
   });
 
   test('handles null user values correctly', async () => {
@@ -181,6 +189,19 @@ describe('displayFlags', () => {
     expect(plainTextOutput).toContain('different-module');
   });
 
+  test('does not display flag when unconfigured behavior is the same as recommended behavior', async () => {
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: mockToolkit,
+      ioHelper,
+      all: true,
+    };
+    await displayFlags(params);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anotherMatchingFlag');
+  });
+
   test('displays single flag details when only one substring match is found', async () => {
     const params = {
       flagData: mockFlagsData,
@@ -221,9 +242,10 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
   });
 
   test('returns all matching flags if user enters multiple substrings', async () => {
@@ -236,9 +258,10 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
-    expect(plainTextOutput).not.toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
   });
 });
 
@@ -264,8 +287,8 @@ describe('handleFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
   });
 
   test('displays only differing flags when no specific options are provided', async () => {
@@ -275,9 +298,9 @@ describe('handleFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).not.toContain('@aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:matchingFlag');
   });
 
   test('handles flag not found for specific flag query', async () => {

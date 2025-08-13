@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { formatTable } from '@aws-cdk/cloudformation-diff';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -372,38 +373,6 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
   await fs.writeFile(cdkJsonPath, JSON.stringify(cdkJson, null, 2), 'utf-8');
 }
 
-function formatTable(headers: string[], rows: string[][]): string {
-  const columnWidths = [
-    Math.max(headers[0].length, ...rows.map(row => row[0].length)),
-    Math.max(headers[1].length, ...rows.map(row => row[1].length)),
-    Math.max(headers[2].length, ...rows.map(row => row[2].length)),
-  ];
-
-  const createSeparator = () => {
-    return '+' + columnWidths.map(width => '-'.repeat(width + 2)).join('+') + '+';
-  };
-
-  const formatRow = (values: string[]) => {
-    return '|' + values.map((value, i) => ` ${value.padEnd(columnWidths[i])} `).join('|') + '|';
-  };
-
-  const separator = createSeparator();
-  let table = separator + '\n';
-  table += formatRow(headers) + '\n';
-  table += separator + '\n';
-
-  rows.forEach(row => {
-    if (row[1] === '' && row[2] === '') {
-      table += ` ${row[0].padEnd(columnWidths[0])} \n`;
-    } else {
-      table += formatRow(row) + '\n';
-    }
-  });
-
-  table += separator;
-  return table;
-}
-
 function getFlagSortOrder(flag: FeatureFlag): number {
   if (flag.userValue === undefined) {
     return 3;
@@ -415,9 +384,9 @@ function getFlagSortOrder(flag: FeatureFlag): number {
 }
 
 async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
-  const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
+  const filteredFlags = flags.filter(flag => flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue);
 
-  const sortedFlags = [...flags].sort((a, b) => {
+  const sortedFlags = [...filteredFlags].sort((a, b) => {
     const orderA = getFlagSortOrder(a);
     const orderB = getFlagSortOrder(b);
 
@@ -431,6 +400,7 @@ async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promi
   });
 
   const rows: string[][] = [];
+  rows.push(['Feature Flag Name', 'Recommended Value', 'User Value']);
   let currentModule = '';
 
   sortedFlags.forEach((flag) => {
@@ -439,13 +409,13 @@ async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promi
       currentModule = flag.module;
     }
     rows.push([
-      flag.name,
+      `  ${flag.name}`,
       String(flag.recommendedValue),
       flag.userValue === undefined ? '<unset>' : String(flag.userValue),
     ]);
   });
 
-  const formattedTable = formatTable(headers, rows);
+  const formattedTable = formatTable(rows, undefined, true);
   await ioHelper.defaults.info(formattedTable);
 }
 
