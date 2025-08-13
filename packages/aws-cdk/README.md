@@ -1248,7 +1248,7 @@ Run `cdk flags` to see a report of your feature flag configurations that differ 
 2. flags that are not configured at all
 
 ```shell
-$ cdk flags 
+$ cdk flags --unstable=flags
     Feature Flag                              Recommended                  User
   * @aws-cdk/...                              true                         false
   * @aws-cdk/...                              true                         false
@@ -1262,7 +1262,7 @@ Alternatively, you can also run `cdk flags --all` to see a report of all feature
 3. flags that are not configured at all
 
 ```shell
-$ cdk flags --all
+$ cdk flags --unstable=flags --all 
     Feature Flag                              Recommended                  User
     @aws-cdk/...                              true                         true
   * @aws-cdk/...                              true                         false
@@ -1277,7 +1277,7 @@ To start, you can run `cdk flags -interactive`  (or `cdk flags --i`) to view the
 #### Use the interactive menu
 
 ```shell
-$ cdk flags -i
+$ cdk flags --unstable=flags -interactive
     MENU ---------------------------------------------
     > Set all flags to recommended values 
       Set unconfigured flags to recommended values
@@ -1289,7 +1289,7 @@ $ cdk flags -i
  The first option, `set all flags to recommended values`, is equivalent to the command `cdk flags --set --recommended --all`. This option changes every single feature flag to our recommended value, overwriting existing configured values. To keep feature flag configuration up-to-date with the latest CDK feature flag configurations, use this command.
 
 ```shell
-$ cdk flags --set --recommended --all
+$ cdk flags --unstable=flags --set --recommended --all
     Feature Flag                              Recommended Value            User Value
   * @aws-cdk/...                              true                         false
   * @aws-cdk/...                              true                         false
@@ -1317,7 +1317,7 @@ $ cdk flags --set --recommended --all
 The second option, `set unconfigured flags to recommended values`, is equivalent to the command `cdk flags --set --recommended --unconfigured`. If you would prefer your existing configured flags untouched, this option only changes the unconfigured feature flags to our recommended values.
 
 ```shell
-$ cdk flags --set --recommended --unconfigured
+$ cdk flags --unstable=flags --set --recommended --unconfigured
     Feature Flag                              Recommended Value            User Value
   * @aws-cdk/...                              true                         <unset>
   * @aws-cdk/...                              true                         <unset>
@@ -1344,7 +1344,7 @@ $ cdk flags --set --recommended --unconfigured
 The third option, `set unconfigured flags to their implied configuration`, is equivalent to the command `cdk flags --set --default --unconfigured`. If you want to ensure the unconfigured flags do not interfere with your application, this option changes the unconfigured feature flags to its default values. For example, if `@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021` is unconfigured, it leads to the notification appearing after running `cdk synth`. However, if you set the flag to its default state (false), it will be configured, turned off, and have no impact on your application whatsoever.
 
 ```shell
-$ cdk flags --set --default --unconfigured
+$ cdk flags --unstable=flags --set --default --unconfigured
     Feature Flag                              Recommended Value            User Value
   * @aws-cdk/...                              true                         <unset>
   * @aws-cdk/...                              true                         <unset>
@@ -1354,7 +1354,7 @@ $ cdk flags --set --default --unconfigured
   Resynthesizing...
 ```
 
-The fourth option, `modify a specific flag`, asks you which flag you want to modify. You are shown a list of all feature flags that you can choose from. Use this command if there is a specific bug fix you would like to incorporate into your application.
+The fourth option, `modify a specific flag`, asks you which flag you want to modify. You are shown a list of all feature flags that you can choose from. Use this command if there is a specific feature flag you would like to configure in your application.
 
 ```shell
   Select which flag you would like to modify.
@@ -1383,7 +1383,7 @@ The fourth option, `modify a specific flag`, asks you which flag you want to mod
 To achieve the same result, you can also run `cdk flags --set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"`.
 
 ```shell
-$ cdk flags --set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
+$ cdk flags --unstable=flags --set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
   Synthesizing...
     Resources
     [~] AWS::CloudFront::Distribution MyDistribution
@@ -1404,7 +1404,7 @@ $ cdk flags --set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --
 Besides running `cdk flags` and `cdk flags --all` to view your feature flag configuration, you can also utilize `cdk flags "#FLAGNAME#"` to inspect a specific feature flag and find out what a specific flag does. This can be helpful in cases where you want to understand a particular flag and its impact on your application. 
 
 ```shell
-$ cdk flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
+$ cdk flags --unstable=flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
     Description: Enable this feature flag to have cloudfront distributions use the security policy TLSv1.2_2021 by default.
     Recommended Value: true
     User Value: true
@@ -1415,7 +1415,7 @@ $ cdk flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
 You can also run `cdk flags #substring#` to view all matching feature flags. If there is only one feature flag that matches that substring, specific details will be displayed. 
 
 ```shell
-$ cdk flags ebs
+$ cdk flags --unstable=flags ebs
 @aws-cdk/aws-ec2:ebsDefaultGp3Volume
     Description: When enabled, the default volume type of the EBS volume will be GP3
     Recommended Value: true
@@ -1426,7 +1426,7 @@ If there are multiple flags matching the substring, a table with all matching fl
 that contain any of those substrings will be returned.
 
 ```shell
-$ cdk flags s3 lambda
+$ cdk flags --unstable=flags s3 lambda
     Feature Flag                              Recommended                  User
   * @aws-cdk/s3...                            true                         false
   * @aws-cdk/lambda...                        true                         false
@@ -1438,7 +1438,7 @@ $ cdk flags s3 lambda
 If you need to modify the value of this flag and want to make sure you’re setting it to a correct and supported state, run `cdk flags --set "#FLAGNAME#" --value="#state#"` as shown in the previous section.
 
 ```shell
-$ cdk flags --set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
+$ cdk flags --unstable=flags--set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
   Synthesizing...
     Resources
     [~] AWS::CloudFront::Distribution MyDistribution
