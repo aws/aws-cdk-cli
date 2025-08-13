@@ -1,20 +1,21 @@
 import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { displayFlagsMessage } from '../../lib/cli/cdk-toolkit';
+import { TestIoHost } from '../_helpers/io-host';
 
 describe('displayFlagsMessage', () => {
   let mockToolkit: jest.Mocked<Toolkit>;
   let mockCloudExecutable: any;
-  let stderrWriteSpy: jest.SpyInstance;
+  let ioHost: TestIoHost;
 
   beforeEach(() => {
     mockCloudExecutable = {};
+    ioHost = new TestIoHost();
 
     mockToolkit = {
       flags: jest.fn(),
     } as any;
 
     jest.spyOn(Toolkit.prototype, 'flags').mockImplementation(mockToolkit.flags);
-    stderrWriteSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
@@ -48,12 +49,12 @@ describe('displayFlagsMessage', () => {
 
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
 
-    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable);
+    await displayFlagsMessage(ioHost.asHelper(), mockToolkit as any, mockCloudExecutable);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
-    expect(stderrWriteSpy).toHaveBeenCalledWith(
-      'You currently have 1 unconfigured feature flag(s) that may require attention to keep your application up-to-date. Run \'cdk flags\' to learn more.',
-    );
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('1 feature flags are not configured'),
+    }));
   });
   test('does not display a message when user has no unconfigured flags', async () => {
     const mockFlagsData = [
@@ -67,10 +68,10 @@ describe('displayFlagsMessage', () => {
     ];
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
 
-    await displayFlagsMessage(mockToolkit as any, mockCloudExecutable);
+    await displayFlagsMessage(ioHost.asHelper(), mockToolkit as any, mockCloudExecutable);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
-    expect(stderrWriteSpy).not.toHaveBeenCalled();
+    expect(ioHost.notifySpy).not.toHaveBeenCalled();
   });
 });
 
