@@ -50,6 +50,6 @@ describe(canCollectTelemetry, () => {
   });
 
   test('special case for cli-telemetry --disable', async () => {
-    expect(canCollectTelemetry({ _: 'cli-telemetry', disable: true }, context)).toBeFalsy();
+    expect(canCollectTelemetry({ _: ['cli-telemetry'], disable: true }, context)).toBeFalsy();
   });
 });
