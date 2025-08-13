@@ -30,6 +30,7 @@ describe('displayFlagsMessage', () => {
         recommendedValue: 'true',
         explanation: 'Test flag',
         module: 'aws-cdk-lib',
+        unconfiguredBehavesLike: { v2: true },
       },
       {
         name: '@aws-cdk/s3:anotherFlag',
@@ -37,6 +38,7 @@ describe('displayFlagsMessage', () => {
         recommendedValue: 'false',
         explanation: 'Another test flag',
         module: 'aws-cdk-lib',
+        unconfiguredBehavesLike: { v2: true },
       },
       {
         name: '@aws-cdk/core:enableStackNameDuplicates',
@@ -44,6 +46,7 @@ describe('displayFlagsMessage', () => {
         recommendedValue: 'true',
         explanation: 'Obsolete flag',
         module: 'aws-cdk-lib',
+        unconfiguredBehavesLike: { v2: true },
       },
     ];
 
@@ -56,14 +59,16 @@ describe('displayFlagsMessage', () => {
       message: expect.stringContaining('1 feature flags are not configured'),
     }));
   });
+
   test('does not display a message when user has no unconfigured flags', async () => {
     const mockFlagsData = [
       {
         name: '@aws-cdk/s3:anotherFlag',
-        userValue: 'false',
-        recommendedValue: 'false',
+        userValue: false,
+        recommendedValue: false,
         explanation: 'Another test flag',
         module: 'aws-cdk-lib',
+        unconfiguredBehavesLike: { v2: true },
       },
     ];
     mockToolkit.flags.mockResolvedValue(mockFlagsData);
@@ -71,6 +76,24 @@ describe('displayFlagsMessage', () => {
     await displayFlagsMessage(ioHost.asHelper(), mockToolkit as any, mockCloudExecutable);
 
     expect(mockToolkit.flags).toHaveBeenCalledWith(mockCloudExecutable);
+    expect(ioHost.notifySpy).not.toHaveBeenCalled();
+  });
+
+  test('does not display a message when unconfigured behaviors is the same as recommended behavior', async () => {
+    const mockFlagsData = [
+      {
+        name: '@aws-cdk/s3:anotherFlag',
+        // userValue is undefined, meaning it is unconfigured
+        recommendedValue: false,
+        explanation: 'Another test flag',
+        module: 'aws-cdk-lib',
+        unconfiguredBehavesLike: { v2: false },
+      },
+    ];
+    mockToolkit.flags.mockResolvedValue(mockFlagsData);
+
+    await displayFlagsMessage(ioHost.asHelper(), mockToolkit as any, mockCloudExecutable);
+
     expect(ioHost.notifySpy).not.toHaveBeenCalled();
   });
 });
