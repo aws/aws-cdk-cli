@@ -345,11 +345,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Confirm via manual prompt before deletion',
           })
-          .option('bootstrap-stack-name', {
+          .option('toolkit-stack-name', {
             default: undefined,
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
+            alias: 'bootstrap-stack-name',
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>

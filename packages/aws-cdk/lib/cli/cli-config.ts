@@ -110,7 +110,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'rollback-buffer-days': { type: 'number', desc: 'Delete assets that have been marked as isolated for this many days', default: 0 },
           'created-buffer-days': { type: 'number', desc: 'Never delete assets younger than this (in days)', default: 1 },
           'confirm': { type: 'boolean', desc: 'Confirm via manual prompt before deletion', default: true },
-          'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true },
+          'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true, alias: 'bootstrap-stack-name' },
         },
       },
       'flags': {

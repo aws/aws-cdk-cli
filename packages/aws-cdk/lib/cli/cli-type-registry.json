@@ -322,10 +322,11 @@
           "desc": "Confirm via manual prompt before deletion",
           "default": true
         },
-        "bootstrap-stack-name": {
+        "toolkit-stack-name": {
           "type": "string",
           "desc": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\"",
-          "requiresArg": true
+          "requiresArg": true,
+          "alias": "bootstrap-stack-name"
         }
       }
     },

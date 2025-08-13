@@ -89,7 +89,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         rollbackBufferDays: args.rollbackBufferDays,
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
-        bootstrapStackName: args.bootstrapStackName,
+        toolkitStackName: args.toolkitStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
@@ -373,7 +373,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     rollbackBufferDays: config.gc?.rollbackBufferDays,
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
-    bootstrapStackName: config.gc?.bootstrapStackName,
+    toolkitStackName: config.gc?.toolkitStackName,
   };
   const flagsOptions = {
     value: config.flags?.value,
