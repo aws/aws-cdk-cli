@@ -1065,7 +1065,7 @@ export class CdkToolkit {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
 
-      await displayFlagsMessage(this.toolkit, this.props.cloudExecutable);
+      await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
       return undefined;
     }
 
@@ -1075,7 +1075,7 @@ export class CdkToolkit {
       `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
     );
 
-    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable);
+    await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
     return undefined;
   }
 
@@ -2112,13 +2112,14 @@ async function askUserConfirmation(
     }
   });
 }
-export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable): Promise<void> {
+
+export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToolkit, cloudExecutable: CloudExecutable): Promise<void> {
   let numUnconfigured = (await toolkit.flags(cloudExecutable))
     .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
     .filter(flag => flag.userValue === undefined).length;
 
   if (numUnconfigured > 0) {
-    process.stderr.write(`You currently have ${numUnconfigured} unconfigured feature flag(s) that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
+    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk --unstable=flags flags' to learn more.`);
   }
 }
 
