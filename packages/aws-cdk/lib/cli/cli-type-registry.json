@@ -365,6 +365,14 @@
           "type": "boolean",
           "desc": "Change flags to default state",
           "requiresArg": false
+        },
+        "interactive": {
+          "type": "boolean",
+          "alias": [
+            "i"
+          ],
+          "desc": "Interactive option for the flags command",
+          "requiresArg": false
         }
       }
     },
