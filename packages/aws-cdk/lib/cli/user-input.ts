@@ -674,6 +674,13 @@ export interface FlagsOptions {
   readonly safe?: boolean;
 
   /**
+   * Maximum number of simultaneous synths to execute.
+   *
+   * @default - 4
+   */
+  readonly concurrency?: number;
+
+  /**
    * Positional argument for flags
    */
   readonly FLAGNAME?: Array<string>;

@@ -5,6 +5,7 @@ import * as chalk from 'chalk';
 // @ts-ignore
 import { Select } from 'enquirer';
 import * as fs from 'fs-extra';
+import PQueue from 'p-queue';
 import { StackSelectionStrategy } from '../api';
 import type { IoHelper } from '../api-private';
 import type { FlagsOptions } from '../cli/user-input';
@@ -40,7 +41,8 @@ interface FlagOperationsParams {
 
   /** User ran --unconfigured option */
   unconfigured?: boolean;
-  safe?: boolean
+  safe?: boolean;
+  concurrency?: number;
 }
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
@@ -55,7 +57,8 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     flagName: options.FLAGNAME,
     default: options.default,
     unconfigured: options.unconfigured,
-    safe: options.safe
+    safe: options.safe,
+    concurrency: options.concurrency,
   };
 
   const interactiveOptions = Object.values(FlagsMenuOptions);
@@ -97,7 +100,6 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     return;
   }
 
-  // safe means unconfigured -> recommended SAFELY...
   if (options.safe) {
     await setSafeFlags(params);
     return;
@@ -241,19 +243,15 @@ async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
   }
 }
 
-/**
- * Test if a single feature flag can be safely set without causing CloudFormation template changes
- */
 async function testFlagSafety(
   flag: FeatureFlag,
   baseContextValues: Record<string, any>,
   toolkit: Toolkit,
   app: string,
-  allStacks: any[]
+  allStacks: any[],
 ): Promise<boolean> {
   const testContext = new MemoryContext(baseContextValues);
   const newValue = toBooleanValue(flag.recommendedValue);
-
   await testContext.update({ [flag.name]: newValue });
 
   const testSource = await toolkit.fromCdkApp(app, {
@@ -265,7 +263,6 @@ async function testFlagSafety(
 
   for (const stack of allStacks) {
     const templatePath = stack.templateFullPath;
-
     const diff = await toolkit.diff(testCx, {
       method: DiffMethod.LocalFile(templatePath),
       stacks: {
@@ -280,33 +277,7 @@ async function testFlagSafety(
       }
     }
   }
-
   return true;
-}
-
-async function batchTestFlags(
-  flags: FeatureFlag[],
-  baseContextValues: Record<string, any>,
-  toolkit: Toolkit,
-  app: string,
-  allStacks: any[]
-): Promise<{ safeFlags: FeatureFlag[], unsafeFlags: FeatureFlag[] }> {
-  if (flags.length === 0) {
-    return { safeFlags: [], unsafeFlags: [] };
-  }
-
-  const allFlagsContext = { ...baseContextValues };
-  flags.forEach(flag => {
-    allFlagsContext[flag.name] = toBooleanValue(flag.recommendedValue);
-  });
-
-  const allSafe = await testBatch(allFlagsContext, toolkit, app, allStacks, 'batch-all');
-  
-  if (allSafe) {
-    return { safeFlags: flags, unsafeFlags: [] };
-  }
-
-  return await isolateUnsafeFlags(flags, baseContextValues, toolkit, app, allStacks);
 }
 
 async function testBatch(
@@ -314,7 +285,7 @@ async function testBatch(
   toolkit: Toolkit,
   app: string,
   allStacks: any[],
-  outdir: string
+  outdir: string,
 ): Promise<boolean> {
   const testContext = new MemoryContext(contextValues);
   const testSource = await toolkit.fromCdkApp(app, {
@@ -341,7 +312,6 @@ async function testBatch(
       }
     }
   }
-
   await fs.remove(path.join(process.cwd(), outdir));
   return true;
 }
@@ -351,59 +321,93 @@ async function isolateUnsafeFlags(
   baseContextValues: Record<string, any>,
   toolkit: Toolkit,
   app: string,
-  allStacks: any[]
-): Promise<{ safeFlags: FeatureFlag[], unsafeFlags: FeatureFlag[] }> {
-  if (flags.length === 1) {
-    const isSafe = await testFlagSafety(flags[0], baseContextValues, toolkit, app, allStacks);
-    await fs.remove(path.join(process.cwd(), `test-${flags[0].name}`));
-    return isSafe 
-      ? { safeFlags: flags, unsafeFlags: [] }
-      : { safeFlags: [], unsafeFlags: flags };
+  allStacks: any[],
+  queue: PQueue,
+): Promise<FeatureFlag[]> {
+  const safeFlags: FeatureFlag[] = [];
+
+  async function processBatch(batch: FeatureFlag[], contextValues: Record<string, any>): Promise<void> {
+    if (batch.length === 1) {
+      const isSafe = await testFlagSafety(batch[0], contextValues, toolkit, app, allStacks);
+      await fs.remove(path.join(process.cwd(), `test-${batch[0].name}`));
+      if (isSafe) safeFlags.push(batch[0]);
+      return;
+    }
+
+    const batchContext = { ...contextValues };
+    batch.forEach(flag => {
+      batchContext[flag.name] = toBooleanValue(flag.recommendedValue);
+    });
+
+    const isSafeBatch = await testBatch(
+      batchContext,
+      toolkit,
+      app,
+      allStacks,
+      `batch-${Date.now()}-${Math.random()}`,
+    );
+
+    if (isSafeBatch) {
+      safeFlags.push(...batch);
+      return;
+    }
+
+    const mid = Math.floor(batch.length / 2);
+    const left = batch.slice(0, mid);
+    const right = batch.slice(mid);
+
+    void queue.add(() => processBatch(left, contextValues));
+    void queue.add(() => processBatch(right, contextValues));
   }
 
-  const mid = Math.floor(flags.length / 2);
-  const leftFlags = flags.slice(0, mid);
-  const rightFlags = flags.slice(mid);
+  void queue.add(() => processBatch(flags, baseContextValues));
 
-  const leftContext = { ...baseContextValues };
-  leftFlags.forEach(flag => {
-    leftContext[flag.name] = toBooleanValue(flag.recommendedValue);
+  await queue.onIdle();
+
+  return safeFlags;
+}
+
+async function batchTestFlags(
+  flags: FeatureFlag[],
+  baseContextValues: Record<string, any>,
+  toolkit: Toolkit,
+  app: string,
+  allStacks: any[],
+  queue: PQueue,
+): Promise<FeatureFlag[]> {
+  if (flags.length === 0) {
+    return [];
+  }
+
+  const allFlagsContext = { ...baseContextValues };
+  flags.forEach(flag => {
+    allFlagsContext[flag.name] = toBooleanValue(flag.recommendedValue);
   });
-  const leftSafe = await testBatch(leftContext, toolkit, app, allStacks, `batch-left-${Date.now()}`);
 
-  const rightContext = { ...baseContextValues };
-  rightFlags.forEach(flag => {
-    rightContext[flag.name] = toBooleanValue(flag.recommendedValue);
-  });
-  const rightSafe = await testBatch(rightContext, toolkit, app, allStacks, `batch-right-${Date.now()}`);
-
-  const results = { safeFlags: [] as FeatureFlag[], unsafeFlags: [] as FeatureFlag[] };
-
-  if (leftSafe) {
-    results.safeFlags.push(...leftFlags);
-  } else {
-    const leftResult = await isolateUnsafeFlags(leftFlags, baseContextValues, toolkit, app, allStacks);
-    results.safeFlags.push(...leftResult.safeFlags);
-    results.unsafeFlags.push(...leftResult.unsafeFlags);
+  const allSafe = await testBatch(allFlagsContext, toolkit, app, allStacks, 'batch-all');
+  if (allSafe) {
+    return flags;
   }
 
-  if (rightSafe) {
-    results.safeFlags.push(...rightFlags);
-  } else {
-    const rightResult = await isolateUnsafeFlags(rightFlags, baseContextValues, toolkit, app, allStacks);
-    results.safeFlags.push(...rightResult.safeFlags);
-    results.unsafeFlags.push(...rightResult.unsafeFlags);
-  }
-
-  return results;
+  return isolateUnsafeFlags(flags, baseContextValues, toolkit, app, allStacks, queue);
 }
 
 async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
   const startTime = Date.now();
-  const { flagData, toolkit, ioHelper } = params;
+  const { flagData, toolkit, ioHelper, concurrency } = params;
+
+  const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
+  const app = cdkJson.app;
+
+  const isUsingTsNode = app.includes('ts-node');
+  if (isUsingTsNode && !app.includes('-T') && !app.includes('--transpileOnly')) {
+    await ioHelper.defaults.info('You are currently running with ts-node. Adding --transpileOnly may make this operation faster.');
+  }
 
   const unconfiguredFlags = flagData.filter(flag =>
-    flag.userValue === undefined && isBooleanFlag(flag)
+    flag.userValue === undefined &&
+    isBooleanFlag(flag) &&
+    (flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue),
   );
 
   if (unconfiguredFlags.length === 0) {
@@ -414,9 +418,6 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
   const baseContext = new CdkAppMultiContext(process.cwd());
   const baseContextValues = await baseContext.read();
 
-  const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
-  const app = cdkJson.app;
-
   const baseSource = await toolkit.fromCdkApp(app, {
     contextStore: baseContext,
     outdir: path.join(process.cwd(), 'baseline'),
@@ -426,21 +427,22 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
   const baseAssembly = baseCx.cloudAssembly;
   const allStacks = baseAssembly.stacksRecursively;
 
-  const { safeFlags, unsafeFlags } = await batchTestFlags(unconfiguredFlags, baseContextValues, toolkit, app, allStacks);
+  const queue = new PQueue({ concurrency: concurrency });
 
-  const baselineDir = path.join(process.cwd(), 'baseline');
-  await fs.remove(baselineDir);
+  const safeFlags = await batchTestFlags(unconfiguredFlags, baseContextValues, toolkit, app, allStacks, queue);
+
+  await fs.remove(path.join(process.cwd(), 'baseline'));
 
   if (safeFlags.length > 0) {
-    await ioHelper.defaults.info(`Safe flags that can be set without template changes:`);
+    await ioHelper.defaults.info('Safe flags that can be set without template changes:');
     for (const flag of safeFlags) {
-      await ioHelper.defaults.info(`  - ${flag.name} → ${flag.recommendedValue}`);
+      await ioHelper.defaults.info(`- ${flag.name} -> ${flag.recommendedValue}`);
     }
-    const endTime = Date.now();
-    const duration = (endTime - startTime) / 1000;
+
+    const duration = (Date.now() - startTime) / 1000;
     await ioHelper.defaults.info(`${duration.toFixed(2)} seconds`);
-    const flagNames = safeFlags.map(flag => flag.name);
-    await handleUserResponse(params, flagNames);
+
+    await handleUserResponse(params, safeFlags.map(flag => flag.name));
   } else {
     await ioHelper.defaults.info('No flags can be safely set without causing template changes.');
   }
@@ -448,7 +450,7 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
 
 async function prototypeChanges(
   params: FlagOperationsParams,
-  flagNames: string[]
+  flagNames: string[],
 ): Promise<boolean> {
   const { flagData, toolkit, ioHelper, recommended, value } = params;
   const baseContext = new CdkAppMultiContext(process.cwd());
@@ -567,7 +569,7 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
   const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
   const cdkJson = JSON.parse(cdkJsonContent);
 
-  if (flagNames.length == 1) {
+  if (flagNames.length == 1 && !safe) {
     const boolValue = toBooleanValue(value);
     cdkJson.context[String(flagNames[0])] = boolValue;
 

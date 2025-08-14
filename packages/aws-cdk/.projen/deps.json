@@ -376,6 +376,11 @@
       "type": "runtime"
     },
     {
+      "name": "p-queue",
+      "version": "^6",
+      "type": "runtime"
+    },
+    {
       "name": "promptly",
       "type": "runtime"
     },
