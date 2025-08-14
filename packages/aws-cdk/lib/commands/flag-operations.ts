@@ -393,7 +393,6 @@ async function batchTestFlags(
 }
 
 async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
-  const startTime = Date.now();
   const { flagData, toolkit, ioHelper, concurrency } = params;
 
   const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
@@ -438,9 +437,6 @@ async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
     for (const flag of safeFlags) {
       await ioHelper.defaults.info(`- ${flag.name} -> ${flag.recommendedValue}`);
     }
-
-    const duration = (Date.now() - startTime) / 1000;
-    await ioHelper.defaults.info(`${duration.toFixed(2)} seconds`);
 
     await handleUserResponse(params, safeFlags.map(flag => flag.name));
   } else {

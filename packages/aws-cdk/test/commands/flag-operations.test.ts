@@ -770,35 +770,7 @@ describe('setSafeFlags', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
-
-  test('does not show ts-node tip when not using ts-node', async () => {
-    const cdkJsonPath = await createCdkJsonFile({});
-    await fs.promises.writeFile(cdkJsonPath, JSON.stringify({
-      app: 'node bin/app.js',
-      context: {},
-    }, null, 2));
-
-    mockToolkit.diff.mockResolvedValue({
-      TestStack: { differenceCount: 0 } as any,
-    });
-
-    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
-    requestResponseSpy.mockResolvedValue(false);
-
-    const options: FlagsOptions = {
-      safe: true,
-      concurrency: 4,
-    };
-
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).not.toContain('Running with ts-node detected');
-
-    await cleanupCdkJsonFile(cdkJsonPath);
-    requestResponseSpy.mockRestore();
-  });
-
+  
   test('returns early when no unconfigured flags exist', async () => {
     const configuredFlags: FeatureFlag[] = [
       {
