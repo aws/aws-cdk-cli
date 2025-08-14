@@ -206,9 +206,9 @@ export class CdkToolkit {
   }
 
   public async acknowledge(noticeId: string) {
-    const acks = this.props.configuration.context.get('acknowledged-issue-numbers') ?? [];
-    acks.push(Number(noticeId));
-    this.props.configuration.context.set('acknowledged-issue-numbers', acks);
+    const acks = new Set(this.props.configuration.context.get('acknowledged-issue-numbers') ?? []);
+    acks.add(Number(noticeId));
+    this.props.configuration.context.set('acknowledged-issue-numbers', Array.from(acks));
     await this.props.configuration.saveContext();
   }
 
