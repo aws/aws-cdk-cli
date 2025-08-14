@@ -39,32 +39,9 @@ async function main() {
 
   // Read the domain to fetch from stdin
   let endpoint = fs.readFileSync(0, { encoding: 'utf-8' }).trim();
-
-  const deadline = Date.now() + 60_000; // 60 seconds timeout
-  let lastError: Error | undefined;
-
-  while (Date.now() < deadline) {
-    try {
-      const credentials = await fetchDockerLoginCredentials(new DefaultAwsClient(), config, endpoint);
-      // Write the credentials back to stdout
-      fs.writeFileSync(1, JSON.stringify(credentials));
-      return;
-    } catch (e: any) {
-      lastError = e;
-      
-      // Retry on AccessDenied errors due to eventual consistency in AWS IAM.
-      // Newly created roles and policies may take time to propagate across regions.
-      if (e.name === 'AccessDenied') {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-        continue;
-      }
-      
-      // For other errors, throw immediately
-      throw e;
-    }
-  }
-
-  throw lastError;
+  const credentials = await fetchDockerLoginCredentials(new DefaultAwsClient(), config, endpoint);
+  // Write the credentials back to stdout
+  fs.writeFileSync(1, JSON.stringify(credentials));
 }
 
 main().catch((e) => {
