@@ -84,7 +84,7 @@ async function testDockerCredential(fixture: TestFixture, credSource: DockerDoma
 
   await fixture.cdkAssets.makeCliAvailable();
   let output: string = '';
-  
+
   await retry(process.stdout, 'Getting docker credentials', retry.forSeconds(60), async () => {
     output = await fixture.shell(['docker-credential-cdk-assets', 'get'], {
       modEnv: {
