@@ -599,11 +599,17 @@ export interface GcOptions {
   /**
    * The name of the CDK toolkit stack, if different from the default "CDKToolkit"
    *
-   * aliases: bootstrap-stack-name
-   *
    * @default - undefined
    */
   readonly toolkitStackName?: string;
+
+  /**
+   * The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)
+   *
+   * @deprecated use --toolkit-stack-name
+   * @default - undefined
+   */
+  readonly bootstrapStackName?: string;
 
   /**
    * Positional argument for gc

@@ -350,7 +350,15 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
-            alias: 'bootstrap-stack-name',
+            conflicts: 'bootstrap-stack-name',
+          })
+          .option('bootstrap-stack-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)',
+            deprecated: 'use --toolkit-stack-name',
+            requiresArg: true,
+            conflicts: 'toolkit-stack-name',
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>

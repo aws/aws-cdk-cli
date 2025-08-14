@@ -90,6 +90,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
         toolkitStackName: args.toolkitStackName,
+        bootstrapStackName: args.bootstrapStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
@@ -374,6 +375,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
     toolkitStackName: config.gc?.toolkitStackName,
+    bootstrapStackName: config.gc?.bootstrapStackName,
   };
   const flagsOptions = {
     value: config.flags?.value,
