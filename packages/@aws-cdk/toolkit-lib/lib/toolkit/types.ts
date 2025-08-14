@@ -123,5 +123,5 @@ export interface FeatureFlag {
   readonly recommendedValue: unknown;
   readonly userValue?: unknown;
   readonly explanation?: string;
-  readonly unconfiguredBehavesLike?: { [key: string]: any };
+  readonly unconfiguredBehavesLike?: { v2?: any };
 }
