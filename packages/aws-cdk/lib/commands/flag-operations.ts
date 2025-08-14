@@ -23,11 +23,23 @@ interface FlagOperationsParams {
   flagData: FeatureFlag[];
   toolkit: Toolkit;
   ioHelper: IoHelper;
+
+  /** User ran --recommended option */
   recommended?: boolean;
+
+  /** User ran --all option */
   all?: boolean;
+
+  /** User provided --value field */
   value?: string;
+
+  /** User provided FLAGNAME field */
   flagName?: string[];
+
+  /** User ran --default option */
   default?: boolean;
+
+  /** User ran --unconfigured option */
   unconfigured?: boolean;
   safe?: boolean;
   concurrency?: number;
@@ -603,49 +615,25 @@ function formatTable(headers: string[], rows: string[][]): string {
   return table;
 }
 
-export async function displayFlags(params: FlagOperationsParams): Promise<void> {
-  const { flagData, ioHelper, flagName, all } = params;
-  if (flagName && flagName.length > 0) {
-    const flag = flagData.find(f => f.name === flagName![0]);
-    if (!flag) {
-      await ioHelper.defaults.error('Flag not found.');
-      return;
-    }
-
-    await ioHelper.defaults.info(`Description: ${flag.explanation}`);
-    await ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
-    await ioHelper.defaults.info(`User value: ${flag.userValue}`);
-    return;
-  }
-
-  const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
-  const rows: string[][] = [];
-
-  const getFlagPriority = (flag: FeatureFlag): number => {
-    if (flag.userValue === undefined) {
-      return 3;
-    } else if (isUserValueEqualToRecommended(flag)) {
-      return 1;
-    } else {
-      return 2;
-    }
-  };
-
-  let flagsToDisplay: FeatureFlag[];
-  if (all) {
-    flagsToDisplay = flagData;
+function getFlagSortOrder(flag: FeatureFlag): number {
+  if (flag.userValue === undefined) {
+    return 3;
+  } else if (isUserValueEqualToRecommended(flag)) {
+    return 1;
   } else {
-    flagsToDisplay = flagData.filter(flag =>
-      flag.userValue === undefined || !isUserValueEqualToRecommended(flag),
-    );
+    return 2;
   }
+}
 
-  const sortedFlags = [...flagsToDisplay].sort((a, b) => {
-    const priorityA = getFlagPriority(a);
-    const priorityB = getFlagPriority(b);
+async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
+  const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
 
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
+  const sortedFlags = [...flags].sort((a, b) => {
+    const orderA = getFlagSortOrder(a);
+    const orderB = getFlagSortOrder(b);
+
+    if (orderA !== orderB) {
+      return orderA - orderB;
     }
     if (a.module !== b.module) {
       return a.module.localeCompare(b.module);
@@ -653,7 +641,9 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
     return a.name.localeCompare(b.name);
   });
 
+  const rows: string[][] = [];
   let currentModule = '';
+
   sortedFlags.forEach((flag) => {
     if (flag.module !== currentModule) {
       rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
@@ -668,6 +658,45 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
 
   const formattedTable = formatTable(headers, rows);
   await ioHelper.defaults.info(formattedTable);
+}
+
+export async function displayFlags(params: FlagOperationsParams): Promise<void> {
+  const { flagData, ioHelper, flagName, all } = params;
+
+  if (flagName && flagName.length > 0) {
+    const matchingFlags = flagData.filter(f =>
+      flagName.some(searchTerm => f.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    );
+
+    if (matchingFlags.length === 0) {
+      await ioHelper.defaults.error(`Flag matching "${flagName.join(', ')}" not found.`);
+      return;
+    }
+
+    if (matchingFlags.length === 1) {
+      const flag = matchingFlags[0];
+      await ioHelper.defaults.info(`Flag name: ${flag.name}`);
+      await ioHelper.defaults.info(`Description: ${flag.explanation}`);
+      await ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
+      await ioHelper.defaults.info(`User value: ${flag.userValue}`);
+      return;
+    }
+
+    await ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagName.join(', ')}":`);
+    await displayFlagTable(matchingFlags, ioHelper);
+    return;
+  }
+
+  let flagsToDisplay: FeatureFlag[];
+  if (all) {
+    flagsToDisplay = flagData;
+  } else {
+    flagsToDisplay = flagData.filter(flag =>
+      flag.userValue === undefined || !isUserValueEqualToRecommended(flag),
+    );
+  }
+
+  await displayFlagTable(flagsToDisplay, ioHelper);
 }
 
 function isUserValueEqualToRecommended(flag: FeatureFlag): boolean {
