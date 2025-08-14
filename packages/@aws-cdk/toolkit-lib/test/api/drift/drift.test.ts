@@ -295,6 +295,87 @@ describe('detectStackDrift', () => {
       level: 'trace',
     }));
   });
+
+  test('handles UNKNOWN stack drift status', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const statusReason = 'Unable to check drift for some resources';
+    const expectedDriftResults = { StackResourceDrifts: [], $metadata: {} };
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'UNKNOWN',
+      DetectionStatusReason: statusReason,
+    });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Stack drift status is UNKNOWN'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining(statusReason),
+      level: 'trace',
+    }));
+  });
+
+  test('handles resources with UNKNOWN drift status', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const driftStatusReason = 'Insufficient permissions to check drift';
+    const expectedDriftResults = {
+      StackResourceDrifts: [
+        {
+          StackId: 'stack-id',
+          LogicalResourceId: 'MyResource1',
+          ResourceType: 'AWS::S3::Bucket',
+          StackResourceDriftStatus: 'UNKNOWN',
+          DriftStatusReason: driftStatusReason,
+          Timestamp: new Date(),
+        },
+      ],
+      $metadata: {},
+    };
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'UNKNOWN',
+    });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Some resources have UNKNOWN drift status'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('MyResource1'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining(driftStatusReason),
+      level: 'trace',
+    }));
+  });
 });
 
 describe('formatStackDrift', () => {

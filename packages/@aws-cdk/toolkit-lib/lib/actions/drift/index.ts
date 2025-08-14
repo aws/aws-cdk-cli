@@ -35,6 +35,11 @@ export interface FormattedDrift {
    * Resources that have been deleted (drift)
    */
   readonly deleted?: string;
+
+  /**
+   * Resources that have UNKNOWN drift status
+   */
+  readonly unknown?: string;
 }
 
 /**
