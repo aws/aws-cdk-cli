@@ -104,6 +104,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         default: args.default,
         interactive: args.interactive,
         safe: args.safe,
+        concurrency: args.concurrency,
         FLAGNAME: args.FLAGNAME,
       };
       break;
@@ -385,6 +386,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     default: config.flags?.default,
     interactive: config.flags?.interactive,
     safe: config.flags?.safe,
+    concurrency: config.flags?.concurrency,
   };
   const deployOptions = {
     all: config.deploy?.all,

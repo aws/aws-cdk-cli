@@ -402,6 +402,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: "Enable all feature flags that do not impact the user's application",
           requiresArg: false,
+        })
+        .option('concurrency', {
+          default: 4,
+          type: 'number',
+          desc: 'Maximum number of simultaneous synths to execute.',
+          requiresArg: true,
         }),
     )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>

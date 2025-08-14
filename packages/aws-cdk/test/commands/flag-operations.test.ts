@@ -676,3 +676,165 @@ describe('interactive prompts lead to the correct function calls', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
   });
 });
+
+describe('setSafeFlags', () => {
+  beforeEach(() => {
+    setupMockToolkitForPrototyping(mockToolkit);
+    jest.clearAllMocks();
+  });
+
+  test('shows ts-node performance tip when ts-node is detected in cdk.json app command', async () => {
+    const cdkJsonPath = await createCdkJsonFile({});
+    await fs.promises.writeFile(cdkJsonPath, JSON.stringify({
+      app: 'npx ts-node --prefer-ts-exts bin/app.ts',
+      context: {},
+    }, null, 2));
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 0 } as any,
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('You are currently running with ts-node. Adding --transpileOnly may make this operation faster.');
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('does not show ts-node tip when not using ts-node', async () => {
+    const cdkJsonPath = await createCdkJsonFile({});
+    await fs.promises.writeFile(cdkJsonPath, JSON.stringify({
+      app: 'node bin/app.js',
+      context: {},
+    }, null, 2));
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 0 } as any,
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).not.toContain('Running with ts-node detected');
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('returns early when no unconfigured flags exist', async () => {
+    const configuredFlags: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:configuredFlag',
+        recommendedValue: 'true',
+        userValue: 'true',
+        explanation: 'Already configured flag',
+      },
+    ];
+
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    await handleFlags(configuredFlags, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('No unconfigured feature flags found.');
+    expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+  });
+
+  test('identifies safe flags that can be set without template changes', async () => {
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 0 } as any,
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Safe flags that can be set without template changes:');
+    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag -> false');
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('handles case where no flags are safe to set', async () => {
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 1 } as any,
+    });
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('No flags can be safely set without causing template changes.');
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+  });
+
+  test('applies safe flags when user confirms', async () => {
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 0 } as any,
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+    const updatedJson = JSON.parse(updatedContent);
+
+    expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
+    expect(requestResponseSpy).toHaveBeenCalled();
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+});

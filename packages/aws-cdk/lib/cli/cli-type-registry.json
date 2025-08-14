@@ -378,6 +378,12 @@
           "type": "boolean",
           "desc": "Enable all feature flags that do not impact the user's application",
           "requiresArg": false
+        },
+        "concurrency": {
+          "type": "number",
+          "desc": "Maximum number of simultaneous synths to execute.",
+          "default": 4,
+          "requiresArg": true
         }
       }
     },

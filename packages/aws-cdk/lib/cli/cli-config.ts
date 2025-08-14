@@ -128,6 +128,7 @@ export async function makeConfig(): Promise<CliConfig> {
           default: { type: 'boolean', desc: 'Change flags to default state', requiresArg: false },
           interactive: { type: 'boolean', alias: ['i'], desc: 'Interactive option for the flags command', requiresArg: false },
           safe: { type: 'boolean', desc: 'Enable all feature flags that do not impact the user\'s application', requiresArg: false },
+          concurrency: { type: 'number', desc: 'Maximum number of simultaneous synths to execute.', default: 4, requiresArg: true },
         },
       },
       'deploy': {
