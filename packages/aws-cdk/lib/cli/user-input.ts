@@ -601,6 +601,14 @@ export interface GcOptions {
    *
    * @default - undefined
    */
+  readonly toolkitStackName?: string;
+
+  /**
+   * The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)
+   *
+   * @deprecated use --toolkit-stack-name
+   * @default - undefined
+   */
   readonly bootstrapStackName?: string;
 
   /**
