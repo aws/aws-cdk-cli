@@ -130,6 +130,15 @@ async function loadLocalTemplate(fromPath: string, templatePath?: string): Promi
     const template = await InitTemplate.fromPath(actualTemplatePath);
 
     if (template.languages.length === 0) {
+      // Check if this might be a multi-template repository
+      if (!templatePath) {
+        const availableTemplates = await findPotentialTemplates(fromPath);
+        if (availableTemplates.length > 0) {
+          throw new ToolkitError(
+            'Use --template-path to specify which template to use.',
+          );
+        }
+      }
       throw new ToolkitError('Custom template must contain at least one language directory');
     }
 
@@ -188,6 +197,32 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
   }
 
   return language;
+}
+
+/**
+ * Find potential template directories in a multi-template repository
+ * @param repositoryPath - Path to the repository root
+ * @returns Promise resolving to array of potential template directory names
+ */
+async function findPotentialTemplates(repositoryPath: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(repositoryPath, { withFileTypes: true });
+    const potentialTemplates: string[] = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        const templatePath = path.join(repositoryPath, entry.name);
+        const languages = await getLanguageDirectories(templatePath);
+        if (languages.length > 0) {
+          potentialTemplates.push(entry.name);
+        }
+      }
+    }
+
+    return potentialTemplates;
+  } catch (error: any) {
+    return [];
+  }
 }
 
 /**
