@@ -7,12 +7,15 @@ import * as table from 'table';
  *
  * First row is considered the table header.
  */
-export function formatTable(cells: string[][], columns: number | undefined): string {
+export function formatTable(cells: string[][], columns: number | undefined, noHorizontalLines?: boolean): string {
   return table.table(cells, {
     border: TABLE_BORDER_CHARACTERS,
     columns: buildColumnConfig(columns !== undefined ? calculateColumnWidths(cells, columns) : undefined),
     drawHorizontalLine: (line) => {
       // Numbering like this: [line 0] [header = row[0]] [line 1] [row 1] [line 2] [content 2] [line 3]
+      if (noHorizontalLines) {
+        return line < 2 || line === cells.length;
+      }
       return (line < 2 || line === cells.length) || lineBetween(cells[line - 1], cells[line]);
     },
   }).trimRight();
