@@ -781,7 +781,7 @@ describe('setSafeFlags', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
-  
+
   test('returns early when no unconfigured flags exist', async () => {
     const configuredFlags: FeatureFlag[] = [
       {
