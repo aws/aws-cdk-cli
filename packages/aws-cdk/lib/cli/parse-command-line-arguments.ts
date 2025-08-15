@@ -828,9 +828,15 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('from-path', {
           default: undefined,
           type: 'string',
-          desc: 'Path to a local custom template directory',
+          desc: 'Path to a local custom template directory or multi-template repository',
           requiresArg: true,
           conflicts: ['lib-version'],
+        })
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a specific template within a multi-template repository (used with --from-path)',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>

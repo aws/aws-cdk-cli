@@ -1327,11 +1327,18 @@ export interface InitOptions {
   readonly libVersion?: string;
 
   /**
-   * Path to a local custom template directory
+   * Path to a local custom template directory or multi-template repository
    *
    * @default - undefined
    */
   readonly fromPath?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository (used with --from-path)
+   *
+   * @default - undefined
+   */
+  readonly templatePath?: string;
 
   /**
    * Positional argument for init

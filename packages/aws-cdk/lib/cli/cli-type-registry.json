@@ -834,11 +834,16 @@
         },
         "from-path": {
           "type": "string",
-          "desc": "Path to a local custom template directory",
+          "desc": "Path to a local custom template directory or multi-template repository",
           "requiresArg": true,
           "conflicts": [
             "lib-version"
           ]
+        },
+        "template-path": {
+          "type": "string",
+          "desc": "Path to a specific template within a multi-template repository (used with --from-path)",
+          "requiresArg": true
         }
       }
     },

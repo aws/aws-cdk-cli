@@ -307,7 +307,7 @@ describe('constructs version', () => {
 
     expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
-    
+
     const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
     expect(packageJson.name).toBe('single-lang-project');
   });
@@ -501,7 +501,7 @@ describe('constructs version', () => {
 
     expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
-    
+
     const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
     expect(packageJson.name).toBe('single-lang-project');
   });
@@ -510,7 +510,7 @@ describe('constructs version', () => {
     // Create a multi-template repository with comprehensive language support
     const repoDir = path.join(workDir, 'cdk-templates');
     const templateDir = path.join(repoDir, 'multi-lang-template');
-    
+
     // Create language directories for all supported CDK languages
     const languages = {
       typescript: { file: 'app.ts', content: 'console.log("TypeScript!");' },
@@ -546,7 +546,7 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(tsProjectDir, 'app.ts'))).toBeTruthy();
     expect(await fs.pathExists(path.join(tsProjectDir, 'app.js'))).toBeFalsy();
     expect(await fs.pathExists(path.join(tsProjectDir, 'app.py'))).toBeFalsy();
-    
+
     const tsContent = await fs.readFile(path.join(tsProjectDir, 'app.ts'), 'utf8');
     expect(tsContent).toBe('console.log("TypeScript!");');
 
@@ -567,7 +567,7 @@ describe('constructs version', () => {
     // Verify only Python files were created
     expect(await fs.pathExists(path.join(pyProjectDir, 'app.py'))).toBeTruthy();
     expect(await fs.pathExists(path.join(pyProjectDir, 'app.ts'))).toBeFalsy();
-    
+
     const pyContent = await fs.readFile(path.join(pyProjectDir, 'app.py'), 'utf8');
     expect(pyContent).toBe('print("Python!")');
   });
