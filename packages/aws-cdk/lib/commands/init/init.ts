@@ -65,6 +65,12 @@ export interface CliInitOptions {
    */
   readonly fromPath?: string;
 
+  /**
+   * Path to a specific template within a multi-template repository
+   * @default undefined
+   */
+  readonly templatePath?: string;
+
   readonly ioHelper: IoHelper;
 }
 
@@ -80,7 +86,7 @@ export async function cliInit(options: CliInitOptions) {
   // Step 1: Load template
   let template: InitTemplate;
   if (options.fromPath) {
-    template = await loadLocalTemplate(options.fromPath);
+    template = await loadLocalTemplate(options.fromPath, options.templatePath);
   } else {
     template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
   }
@@ -104,12 +110,24 @@ export async function cliInit(options: CliInitOptions) {
 
 /**
  * Load a local custom template from file system path
- * @param templatePath - Path to the local template directory
+ * @param fromPath - Path to the local template directory or multi-template repository
+ * @param templatePath - Optional path to a specific template within a multi-template repository
  * @returns Promise resolving to the loaded InitTemplate
  */
-async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
+async function loadLocalTemplate(fromPath: string, templatePath?: string): Promise<InitTemplate> {
   try {
-    const template = await InitTemplate.fromPath(templatePath);
+    let actualTemplatePath = fromPath;
+
+    // If templatePath is provided, it's a multi-template repository
+    if (templatePath) {
+      actualTemplatePath = path.join(fromPath, templatePath);
+
+      if (!await fs.pathExists(actualTemplatePath)) {
+        throw new ToolkitError(`Template path does not exist: ${actualTemplatePath}`);
+      }
+    }
+
+    const template = await InitTemplate.fromPath(actualTemplatePath);
 
     if (template.languages.length === 0) {
       throw new ToolkitError('Custom template must contain at least one language directory');
@@ -117,7 +135,8 @@ async function loadLocalTemplate(templatePath: string): Promise<InitTemplate> {
 
     return template;
   } catch (error: any) {
-    throw new ToolkitError(`Failed to load template from path: ${templatePath}. ${error.message}`);
+    const displayPath = templatePath ? `${fromPath}/${templatePath}` : fromPath;
+    throw new ToolkitError(`Failed to load template from path: ${displayPath}. ${error.message}`);
   }
 }
 
