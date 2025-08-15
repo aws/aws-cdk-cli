@@ -1157,6 +1157,7 @@ const cli = configureProject(
       'glob',
       'minimatch',
       'p-limit@^3',
+      'p-queue@^6',
       'promptly',
       'proxy-agent',
       'semver',

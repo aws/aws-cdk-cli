@@ -125,6 +125,7 @@
     "glob": "^11.0.3",
     "minimatch": "10.0.3",
     "p-limit": "^3",
+    "p-queue": "^6",
     "promptly": "^3.2.0",
     "proxy-agent": "^6.5.0",
     "semver": "^7.7.2",
