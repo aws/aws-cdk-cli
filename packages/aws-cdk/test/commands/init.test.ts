@@ -32,7 +32,7 @@ describe('constructs version', () => {
     // Check that tsconfig.json and lib/ got created in the current directory
     expect(await fs.pathExists(path.join(workDir, 'tsconfig.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
-  })
+  });
 
   cliTest('can override requested version with environment variable', async (workDir) => {
     await cliInit({
