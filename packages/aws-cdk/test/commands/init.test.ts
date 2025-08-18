@@ -22,6 +22,18 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
   });
 
+  cliTest("when type is 'lib' and language is not specified, it default language to TypeScript", async (workDir) => {
+    await cliInit({
+      ioHelper,
+      type: 'lib',
+      workDir,
+    });
+
+    // Check that tsconfig.json and lib/ got created in the current directory
+    expect(await fs.pathExists(path.join(workDir, 'tsconfig.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
+  })
+
   cliTest('can override requested version with environment variable', async (workDir) => {
     await cliInit({
       ioHelper,
