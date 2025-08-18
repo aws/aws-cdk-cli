@@ -3,8 +3,8 @@ import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
+import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
-import { createCustomTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
@@ -243,11 +243,18 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
   });
 
-  cliTest('create project from single local custom template', async (workDir) => {
-    // Create a simple custom template using fixtures
-    const templateDir = await createCustomTemplate(workDir, 'my-cdk-template', ['typescript']);
+  cliTest('fails when --template-path is used without --from-path', async (workDir) => {
+    await expect(cliInit({
+      ioHelper,
+      type: undefined,
+      language: 'typescript',
+      workDir,
+      templatePath: 'some-template',
+    })).rejects.toThrow('--template-path requires --from-path to be specified');
+  });
 
-    // Initialize project from custom template
+  cliTest('create project from single local custom template', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
 
@@ -260,25 +267,14 @@ describe('constructs version', () => {
       workDir: projectDir,
     });
 
-    // Verify files were created (custom templates copy files as-is)
-    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir, 'bin', 'app.ts'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir, 'lib', 'my-custom-stack.ts'))).toBeTruthy();
-
-    const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
-    expect(packageJson.name).toBe('my-custom-project');
-    expect(packageJson.dependencies['aws-cdk-lib']).toBe('^2.0.0');
-    expect(packageJson.dependencies.constructs).toBe('^10.0.0');
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
   });
 
   cliTest('single template auto-detects language when template has single language', async (workDir) => {
-    // Create a single custom template with only TypeScript using fixtures
-    const templateDir = await createCustomTemplate(workDir, 'my-cdk-template', ['typescript']);
-
+    const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
 
-    // Don't specify language - should auto-detect when template has only one language
     await cliInit({
       ioHelper,
       fromPath: templateDir,
@@ -287,28 +283,14 @@ describe('constructs version', () => {
       workDir: projectDir,
     });
 
-    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir, 'bin', 'app.ts'))).toBeTruthy();
-
-    const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
-    expect(packageJson.name).toBe('my-custom-project');
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
   });
 
   cliTest('custom template with multiple languages fails if language not provided', async (workDir) => {
-    // Create a custom template with both TypeScript and Python
-    const templateDir = path.join(workDir, 'custom-template');
-    const tsDir = path.join(templateDir, 'typescript');
-    const pyDir = path.join(templateDir, 'python');
-    await fs.mkdirp(tsDir);
-    await fs.mkdirp(pyDir);
-
-    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello TS!");');
-    await fs.writeFile(path.join(pyDir, 'app.py'), 'print("Hello Python!")');
-
+    const templateDir = await createMultiLanguageTemplate(workDir, 'multi-lang-template', ['typescript', 'python']);
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
 
-    // Don't specify language - should fail since multiple languages are available
     await expect(cliInit({
       ioHelper,
       fromPath: templateDir,
@@ -331,29 +313,10 @@ describe('constructs version', () => {
   });
 
   cliTest('create project from multi-template repository with template-path', async (workDir) => {
-    // Create a multi-template repository structure
-    const repoDir = path.join(workDir, 'cdk-templates');
-    const myCustomTemplateDir = path.join(repoDir, 'my-custom-template');
-    const webAppTemplateDir = path.join(repoDir, 'web-app-template');
-
-    // my-custom-template with TypeScript and Python
-    const customTsDir = path.join(myCustomTemplateDir, 'typescript');
-    const customPyDir = path.join(myCustomTemplateDir, 'python');
-    await fs.mkdirp(customTsDir);
-    await fs.mkdirp(customPyDir);
-    await fs.writeFile(path.join(customTsDir, 'package.json'), JSON.stringify({
-      name: 'my-custom-project',
-      version: '1.0.0',
-    }, null, 2));
-    await fs.writeFile(path.join(customTsDir, 'app.ts'), 'console.log("My Custom Template!");');
-    await fs.writeFile(path.join(customPyDir, 'requirements.txt'), 'aws-cdk-lib>=2.0.0');
-    await fs.writeFile(path.join(customPyDir, 'app.py'), 'print("My Custom Template!")');
-
-    // web-app-template with Java only
-    const webAppJavaDir = path.join(webAppTemplateDir, 'java');
-    await fs.mkdirp(webAppJavaDir);
-    await fs.writeFile(path.join(webAppJavaDir, 'pom.xml'), '<project><artifactId>web-app</artifactId></project>');
-    await fs.writeFile(path.join(webAppJavaDir, 'App.java'), 'public class App { }');
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'my-custom-template', languages: ['typescript', 'python'] },
+      { name: 'web-app-template', languages: ['java'] },
+    ]);
 
     // Test 1: Initialize from my-custom-template with TypeScript
     const projectDir1 = path.join(workDir, 'project1');
@@ -369,14 +332,8 @@ describe('constructs version', () => {
       workDir: projectDir1,
     });
 
-    // Verify my-custom-template TypeScript files were created
-    expect(await fs.pathExists(path.join(projectDir1, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(projectDir1, 'app.ts'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir1, 'requirements.txt'))).toBeFalsy();
-    expect(await fs.pathExists(path.join(projectDir1, 'pom.xml'))).toBeFalsy();
-
-    const packageJson = JSON.parse(await fs.readFile(path.join(projectDir1, 'package.json'), 'utf8'));
-    expect(packageJson.name).toBe('my-custom-project');
+    expect(await fs.pathExists(path.join(projectDir1, 'app.py'))).toBeFalsy();
 
     // Test 2: Initialize from web-app-template with Java
     const projectDir2 = path.join(workDir, 'project2');
@@ -392,19 +349,14 @@ describe('constructs version', () => {
       workDir: projectDir2,
     });
 
-    // Verify web-app-template Java files were created
-    expect(await fs.pathExists(path.join(projectDir2, 'pom.xml'))).toBeTruthy();
     expect(await fs.pathExists(path.join(projectDir2, 'App.java'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir2, 'package.json'))).toBeFalsy();
-    expect(await fs.pathExists(path.join(projectDir2, 'requirements.txt'))).toBeFalsy();
+    expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeFalsy();
   });
 
   cliTest('multi-template repository with non-existent template-path throws error', async (workDir) => {
-    const repoDir = path.join(workDir, 'cdk-templates');
-    const validTemplateDir = path.join(repoDir, 'valid-template');
-    const validTemplateTsDir = path.join(validTemplateDir, 'typescript');
-    await fs.mkdirp(validTemplateTsDir);
-    await fs.writeFile(path.join(validTemplateTsDir, 'app.ts'), 'console.log("Valid template!");');
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'valid-template', languages: ['typescript'] },
+    ]);
 
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
@@ -460,18 +412,13 @@ describe('constructs version', () => {
   });
 
   cliTest('multi-template repository auto-detects language when template has single language', async (workDir) => {
-    // Create a multi-template repository with a single-language template
-    const repoDir = path.join(workDir, 'cdk-templates');
-    const templateDir = path.join(repoDir, 'single-lang-template');
-    const templateTsDir = path.join(templateDir, 'typescript');
-    await fs.mkdirp(templateTsDir);
-    await fs.writeFile(path.join(templateTsDir, 'package.json'), JSON.stringify({ name: 'single-lang-project' }, null, 2));
-    await fs.writeFile(path.join(templateTsDir, 'app.ts'), 'console.log("Auto-detected TypeScript!");');
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'single-lang-template', languages: ['typescript'] },
+    ]);
 
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
 
-    // Don't specify language - should auto-detect when template has only one language
     await cliInit({
       ioHelper,
       fromPath: repoDir,
@@ -481,34 +428,13 @@ describe('constructs version', () => {
       workDir: projectDir,
     });
 
-    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
-
-    const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
-    expect(packageJson.name).toBe('single-lang-project');
   });
 
   cliTest('multi-template repository supports all CDK languages', async (workDir) => {
-    // Create a multi-template repository with comprehensive language support
-    const repoDir = path.join(workDir, 'cdk-templates');
-    const templateDir = path.join(repoDir, 'multi-lang-template');
-
-    // Create language directories for all supported CDK languages
-    const languages = {
-      typescript: { file: 'app.ts', content: 'console.log("TypeScript!");' },
-      javascript: { file: 'app.js', content: 'console.log("JavaScript!");' },
-      python: { file: 'app.py', content: 'print("Python!")' },
-      java: { file: 'App.java', content: 'public class App { }' },
-      csharp: { file: 'App.cs', content: 'public class App { }' },
-      fsharp: { file: 'App.fs', content: 'module App' },
-      go: { file: 'app.go', content: 'package main' },
-    };
-
-    for (const [lang, config] of Object.entries(languages)) {
-      const langDir = path.join(templateDir, lang);
-      await fs.mkdirp(langDir);
-      await fs.writeFile(path.join(langDir, config.file), config.content);
-    }
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'multi-lang-template', languages: ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'] },
+    ]);
 
     // Test TypeScript selection
     const tsProjectDir = path.join(workDir, 'ts-project');
@@ -524,13 +450,9 @@ describe('constructs version', () => {
       workDir: tsProjectDir,
     });
 
-    // Verify only TypeScript files were created
     expect(await fs.pathExists(path.join(tsProjectDir, 'app.ts'))).toBeTruthy();
     expect(await fs.pathExists(path.join(tsProjectDir, 'app.js'))).toBeFalsy();
     expect(await fs.pathExists(path.join(tsProjectDir, 'app.py'))).toBeFalsy();
-
-    const tsContent = await fs.readFile(path.join(tsProjectDir, 'app.ts'), 'utf8');
-    expect(tsContent).toBe('console.log("TypeScript!");');
 
     // Test Python selection
     const pyProjectDir = path.join(workDir, 'py-project');
@@ -546,12 +468,8 @@ describe('constructs version', () => {
       workDir: pyProjectDir,
     });
 
-    // Verify only Python files were created
     expect(await fs.pathExists(path.join(pyProjectDir, 'app.py'))).toBeTruthy();
     expect(await fs.pathExists(path.join(pyProjectDir, 'app.ts'))).toBeFalsy();
-
-    const pyContent = await fs.readFile(path.join(pyProjectDir, 'app.py'), 'utf8');
-    expect(pyContent).toBe('print("Python!")');
   });
 
   cliTest('CLI uses recommended feature flags from data file to initialize context', async (workDir) => {

@@ -52,6 +52,7 @@ export async function renderYargs(config: CliConfig, helpers: CliHelpers): Promi
     disabledEsLintRules: [
       EsLintRules.MAX_LEN, // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found
       '@typescript-eslint/consistent-type-imports', // (ironically) typewriter does not support type imports
+      '@cdklabs/no-throw-default-error', // generated check functions throw proper Error objects
     ],
   }).render(scope);
 
@@ -84,6 +85,8 @@ function makeYargs(config: CliConfig, helpers: CliHelpers): Statement {
   // we must compute global options first, as they are not part of an argument to a command call
   yargsExpr = makeOptions(yargsExpr, config.globalOptions, helpers);
 
+  let checkFunctions: string[] = [];
+
   for (const command of Object.keys(config.commands)) {
     const commandFacts = config.commands[command];
     const commandArg = commandFacts.arg
@@ -110,6 +113,16 @@ function makeYargs(config: CliConfig, helpers: CliHelpers): Statement {
     }
 
     yargsExpr = yargsExpr.callMethod('command', ...commandCallArgs);
+
+    // Collect check functions to add at global level
+    if (commandFacts.check) {
+      checkFunctions.push(commandFacts.check);
+    }
+  }
+
+  // Add check functions at global level
+  for (const checkFunction of checkFunctions) {
+    yargsExpr = yargsExpr.callMethod('check', code.expr.directCode(checkFunction));
   }
 
   return code.stmt.ret(makeEpilogue(yargsExpr, helpers));

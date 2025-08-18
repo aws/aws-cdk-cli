@@ -1,62 +1,82 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
-const FIXTURES_DIR = path.join(__dirname, '.');
-
-/**
- * Helper function to create a custom template structure for testing
- */
-export async function createCustomTemplate(baseDir: string, templateName: string, languages: string[]): Promise<string> {
+export async function createSingleLanguageTemplate(baseDir: string, templateName: string, language: string): Promise<string> {
   const templateDir = path.join(baseDir, templateName);
-  
-  for (const language of languages) {
-    const langDir = path.join(templateDir, language);
-    await fs.mkdirp(langDir);
-    
-    // Copy appropriate fixtures based on language
-    if (language === 'typescript') {
-      await copyTypescriptFixtures(langDir);
-    }
-    // Add other languages as needed
-  }
-  
+  const langDir = path.join(templateDir, language);
+  await fs.mkdirp(langDir);
+
+  const fileContent = getLanguageFileContent(language);
+  const fileName = getLanguageFileName(language);
+
+  await fs.writeFile(path.join(langDir, fileName), fileContent);
   return templateDir;
 }
 
-/**
- * Copy TypeScript template fixtures to the specified directory
- */
-async function copyTypescriptFixtures(targetDir: string): Promise<void> {
-  // Create directory structure
-  await fs.mkdirp(path.join(targetDir, 'bin'));
-  await fs.mkdirp(path.join(targetDir, 'lib'));
-  
-  // Copy fixture files
-  await fs.copy(
-    path.join(FIXTURES_DIR, 'package.json'),
-    path.join(targetDir, 'package.json')
-  );
-  
-  await fs.copy(
-    path.join(FIXTURES_DIR, 'app.ts'),
-    path.join(targetDir, 'bin', 'app.ts')
-  );
-  
-  await fs.copy(
-    path.join(FIXTURES_DIR, 'stack.ts'),
-    path.join(targetDir, 'lib', 'my-custom-stack.ts')
-  );
+export async function createMultiLanguageTemplate(baseDir: string, templateName: string, languages: string[]): Promise<string> {
+  const templateDir = path.join(baseDir, templateName);
+
+  for (const language of languages) {
+    const langDir = path.join(templateDir, language);
+    await fs.mkdirp(langDir);
+
+    const fileContent = getLanguageFileContent(language);
+    const fileName = getLanguageFileName(language);
+
+    await fs.writeFile(path.join(langDir, fileName), fileContent);
+  }
+
+  return templateDir;
 }
 
-/**
- * Create a multi-template repository structure for testing
- */
-export async function createMultiTemplateRepository(baseDir: string): Promise<string> {
-  const repoDir = path.join(baseDir, 'multi-template-repo');
-  
-  // Create multiple templates
-  await createCustomTemplate(repoDir, 'template1', ['typescript']);
-  await createCustomTemplate(repoDir, 'template2', ['typescript']);
-  
+export async function createMultiTemplateRepository(baseDir: string, templates: Array<{ name: string; languages: string[] }>): Promise<string> {
+  const repoDir = path.join(baseDir, 'template-repo');
+
+  for (const template of templates) {
+    await createMultiLanguageTemplate(repoDir, template.name, template.languages);
+  }
+
   return repoDir;
+}
+
+function getLanguageFileContent(language: string): string {
+  switch (language) {
+    case 'typescript':
+      return 'console.log("TypeScript template");';
+    case 'javascript':
+      return 'console.log("JavaScript template");';
+    case 'python':
+      return 'print("Python template")';
+    case 'java':
+      return 'public class App { }';
+    case 'csharp':
+      return 'public class App { }';
+    case 'fsharp':
+      return 'module App';
+    case 'go':
+      return 'package main';
+    default:
+      return `// ${language} template`;
+  }
+}
+
+function getLanguageFileName(language: string): string {
+  switch (language) {
+    case 'typescript':
+      return 'app.ts';
+    case 'javascript':
+      return 'app.js';
+    case 'python':
+      return 'app.py';
+    case 'java':
+      return 'App.java';
+    case 'csharp':
+      return 'App.cs';
+    case 'fsharp':
+      return 'App.fs';
+    case 'go':
+      return 'app.go';
+    default:
+      return 'app.txt';
+  }
 }

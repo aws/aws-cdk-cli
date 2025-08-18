@@ -66,7 +66,8 @@ export interface CliInitOptions {
   readonly fromPath?: string;
 
   /**
-   * Path to a specific template within a multi-template repository
+   * Path to a specific template within a multi-template repository.
+   * This parameter requires --from-path to be specified.
    * @default undefined
    */
   readonly templatePath?: string;
