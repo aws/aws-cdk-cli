@@ -238,7 +238,7 @@ export interface FeatureFlagReportProperties {
   /**
    * Information about every feature flag supported by this library.
    */
-  readonly flags: Record<string, FeatureFlag>;
+  readonly flags: { [flagName: string]: FeatureFlag };
 }
 
 /**
@@ -273,11 +273,44 @@ export interface FeatureFlag {
   readonly explanation?: string;
 
   /**
-   * The value of the flag if it is unconfigured
+   * The value of the flag that produces the same behavior as when the flag is not configured at all
    *
-   * @default - No value
+   *The structure of this field is a historical accident. The type of this field
+   *should have been boolean, which should have contained the default value for
+   *the flag appropriate for the *current* version of the CDK library. We are
+   *not rectifying this accident because doing so
+   *
+   * Instead, the canonical way to access this value is by evaluating
+   * `unconfiguredBehavesLike?.v2 ?? false`.
+   *
+   * @default false
    */
-  readonly unconfiguredBehavesLike?: { [key: string]: any };
+  readonly unconfiguredBehavesLike?: UnconfiguredBehavesLike;
+}
+
+export interface UnconfiguredBehavesLike {
+  /**
+   * Historical accident, don't use.
+   *
+   * This value may be present, but it should never be used. The actual value is
+   * in the `v2` field, regardless of the version of the CDK library.
+   *
+   * @default - ignore
+   */
+  readonly v1?: any;
+
+  /**
+   * The value of the flag that produces the same behavior as when the flag is not configured at all
+   *
+   * Even though it is called 'v2', this is the official name of this field. In
+   * any future versions of CDK (v3, v4, ...), this field will still be called 'v2'.
+   *
+   * The structure of this field is a historical accident. See the comment on
+   * `unconfiguredBehavesLike` for more information.
+   *
+   * @default false
+   */
+  readonly v2?: any;
 }
 
 /**
