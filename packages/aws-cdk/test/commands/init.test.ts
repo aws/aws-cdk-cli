@@ -4,6 +4,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
 import { TestIoHost } from '../_helpers/io-host';
+import { createCustomTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
@@ -243,22 +244,8 @@ describe('constructs version', () => {
   });
 
   cliTest('create project from single local custom template', async (workDir) => {
-    // Create a simple custom template
-    const templateDir = path.join(workDir, 'my-cdk-template');
-    const tsDir = path.join(templateDir, 'typescript');
-    await fs.mkdirp(tsDir);
-
-    // Create template files (custom templates don't process placeholders)
-    await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({
-      name: 'my-custom-project',
-      version: '1.0.0',
-      dependencies: {
-        'aws-cdk-lib': '^2.0.0',
-        'constructs': '^10.0.0',
-      },
-    }, null, 2));
-
-    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello from custom template!");');
+    // Create a simple custom template using fixtures
+    const templateDir = await createCustomTemplate(workDir, 'my-cdk-template', ['typescript']);
 
     // Initialize project from custom template
     const projectDir = path.join(workDir, 'my-project');
@@ -275,23 +262,18 @@ describe('constructs version', () => {
 
     // Verify files were created (custom templates copy files as-is)
     expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'bin', 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'lib', 'my-custom-stack.ts'))).toBeTruthy();
 
     const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
     expect(packageJson.name).toBe('my-custom-project');
-
-    const appTs = await fs.readFile(path.join(projectDir, 'app.ts'), 'utf8');
-    expect(appTs).toBe('console.log("Hello from custom template!");');
+    expect(packageJson.dependencies['aws-cdk-lib']).toBe('^2.0.0');
+    expect(packageJson.dependencies.constructs).toBe('^10.0.0');
   });
 
   cliTest('single template auto-detects language when template has single language', async (workDir) => {
-    // Create a single custom template with only TypeScript
-    const templateDir = path.join(workDir, 'my-cdk-template');
-    const tsDir = path.join(templateDir, 'typescript');
-    await fs.mkdirp(tsDir);
-
-    await fs.writeFile(path.join(tsDir, 'package.json'), JSON.stringify({ name: 'single-lang-project' }, null, 2));
-    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Auto-detected single template!");');
+    // Create a single custom template with only TypeScript using fixtures
+    const templateDir = await createCustomTemplate(workDir, 'my-cdk-template', ['typescript']);
 
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
@@ -306,10 +288,10 @@ describe('constructs version', () => {
     });
 
     expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'bin', 'app.ts'))).toBeTruthy();
 
     const packageJson = JSON.parse(await fs.readFile(path.join(projectDir, 'package.json'), 'utf8'));
-    expect(packageJson.name).toBe('single-lang-project');
+    expect(packageJson.name).toBe('my-custom-project');
   });
 
   cliTest('custom template with multiple languages fails if language not provided', async (workDir) => {
