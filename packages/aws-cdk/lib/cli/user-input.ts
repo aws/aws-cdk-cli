@@ -676,6 +676,8 @@ export interface FlagsOptions {
   /**
    * Maximum number of simultaneous synths to execute.
    *
+   * aliases: conc
+   *
    * @default - 4
    */
   readonly concurrency?: number;

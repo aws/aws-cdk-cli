@@ -43,9 +43,12 @@ interface FlagOperationsParams {
   unconfigured?: boolean;
   safe?: boolean;
   concurrency?: number;
+
+  /** User provided --app option */
+  app?: string;
 }
 
-export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
+export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions & { app?: string }, toolkit: Toolkit) {
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
 
   if (flagData.length == 0) {
@@ -65,6 +68,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
     unconfigured: options.unconfigured,
     safe: options.safe,
     concurrency: options.concurrency,
+    app: options.app,
   };
 
   const interactiveOptions = Object.values(FlagsMenuOptions);
@@ -249,41 +253,82 @@ async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
   }
 }
 
-async function testFlagSafety(
-  flag: FeatureFlag,
+async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
+  const { flagData, toolkit, ioHelper, concurrency, app: appOption } = params;
+
+  const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
+  const app = appOption || cdkJson.app;
+
+  const isUsingTsNode = app.includes('ts-node');
+
+  if (isUsingTsNode && !app.includes('-T') && !app.includes('--transpileOnly')) {
+    await ioHelper.defaults.info('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
+  }
+
+  const unconfiguredFlags = flagData.filter(flag =>
+    flag.userValue === undefined &&
+    isBooleanFlag(flag) &&
+    (flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue),
+  );
+
+  if (unconfiguredFlags.length === 0) {
+    await ioHelper.defaults.info('No unconfigured feature flags found.');
+    return;
+  }
+
+  const baseContext = new CdkAppMultiContext(process.cwd());
+  const baseContextValues = await baseContext.read();
+
+  const baseSource = await toolkit.fromCdkApp(app, {
+    contextStore: baseContext,
+    outdir: path.join(process.cwd(), 'baseline'),
+  });
+
+  const baseCx = await toolkit.synth(baseSource);
+  const baseAssembly = baseCx.cloudAssembly;
+  const allStacks = baseAssembly.stacksRecursively;
+
+  const queue = new PQueue({ concurrency: concurrency });
+
+  const safeFlags = await batchTestFlags(unconfiguredFlags, baseContextValues, toolkit, app, allStacks, queue);
+
+  await fs.remove(path.join(process.cwd(), 'baseline'));
+
+  if (safeFlags.length > 0) {
+    await ioHelper.defaults.info('Safe flags that can be set without template changes:');
+    for (const flag of safeFlags) {
+      await ioHelper.defaults.info(`- ${flag.name} -> ${flag.recommendedValue}`);
+    }
+
+    await handleUserResponse(params, safeFlags.map(flag => flag.name));
+  } else {
+    await ioHelper.defaults.info('No flags can be safely set without causing template changes.');
+  }
+}
+
+async function batchTestFlags(
+  flags: FeatureFlag[],
   baseContextValues: Record<string, any>,
   toolkit: Toolkit,
   app: string,
   allStacks: any[],
-): Promise<boolean> {
-  const testContext = new MemoryContext(baseContextValues);
-  const newValue = toBooleanValue(flag.recommendedValue);
-  await testContext.update({ [flag.name]: newValue });
+  queue: PQueue,
+): Promise<FeatureFlag[]> {
+  if (flags.length === 0) {
+    return [];
+  }
 
-  const testSource = await toolkit.fromCdkApp(app, {
-    contextStore: testContext,
-    outdir: path.join(process.cwd(), `test-${flag.name}`),
+  const allFlagsContext = { ...baseContextValues };
+  flags.forEach(flag => {
+    allFlagsContext[flag.name] = toBooleanValue(flag.recommendedValue);
   });
 
-  const testCx = await toolkit.synth(testSource);
-
-  for (const stack of allStacks) {
-    const templatePath = stack.templateFullPath;
-    const diff = await toolkit.diff(testCx, {
-      method: DiffMethod.LocalFile(templatePath),
-      stacks: {
-        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-        patterns: [stack.hierarchicalId],
-      },
-    });
-
-    for (const stackDiff of Object.values(diff)) {
-      if (stackDiff.differenceCount > 0) {
-        return false;
-      }
-    }
+  const allSafe = await testBatch(allFlagsContext, toolkit, app, allStacks, 'batch-all');
+  if (allSafe) {
+    return flags;
   }
-  return true;
+
+  return isolateUnsafeFlags(flags, baseContextValues, toolkit, app, allStacks, queue);
 }
 
 async function testBatch(
@@ -373,81 +418,41 @@ async function isolateUnsafeFlags(
   return safeFlags;
 }
 
-async function batchTestFlags(
-  flags: FeatureFlag[],
+async function testFlagSafety(
+  flag: FeatureFlag,
   baseContextValues: Record<string, any>,
   toolkit: Toolkit,
   app: string,
   allStacks: any[],
-  queue: PQueue,
-): Promise<FeatureFlag[]> {
-  if (flags.length === 0) {
-    return [];
-  }
+): Promise<boolean> {
+  const testContext = new MemoryContext(baseContextValues);
+  const newValue = toBooleanValue(flag.recommendedValue);
+  await testContext.update({ [flag.name]: newValue });
 
-  const allFlagsContext = { ...baseContextValues };
-  flags.forEach(flag => {
-    allFlagsContext[flag.name] = toBooleanValue(flag.recommendedValue);
+  const testSource = await toolkit.fromCdkApp(app, {
+    contextStore: testContext,
+    outdir: path.join(process.cwd(), `test-${flag.name}`),
   });
 
-  const allSafe = await testBatch(allFlagsContext, toolkit, app, allStacks, 'batch-all');
-  if (allSafe) {
-    return flags;
-  }
+  const testCx = await toolkit.synth(testSource);
 
-  return isolateUnsafeFlags(flags, baseContextValues, toolkit, app, allStacks, queue);
-}
+  for (const stack of allStacks) {
+    const templatePath = stack.templateFullPath;
+    const diff = await toolkit.diff(testCx, {
+      method: DiffMethod.LocalFile(templatePath),
+      stacks: {
+        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+        patterns: [stack.hierarchicalId],
+      },
+    });
 
-async function setSafeFlags(params: FlagOperationsParams): Promise<void> {
-  const { flagData, toolkit, ioHelper, concurrency } = params;
-
-  const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
-  const app = cdkJson.app;
-
-  const isUsingTsNode = app.includes('ts-node');
-  if (isUsingTsNode && !app.includes('-T') && !app.includes('--transpileOnly')) {
-    await ioHelper.defaults.info('You are currently running with ts-node. Adding --transpileOnly may make this operation faster.');
-  }
-
-  const unconfiguredFlags = flagData.filter(flag =>
-    flag.userValue === undefined &&
-    isBooleanFlag(flag) &&
-    (flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue),
-  );
-
-  if (unconfiguredFlags.length === 0) {
-    await ioHelper.defaults.info('No unconfigured feature flags found.');
-    return;
-  }
-
-  const baseContext = new CdkAppMultiContext(process.cwd());
-  const baseContextValues = await baseContext.read();
-
-  const baseSource = await toolkit.fromCdkApp(app, {
-    contextStore: baseContext,
-    outdir: path.join(process.cwd(), 'baseline'),
-  });
-
-  const baseCx = await toolkit.synth(baseSource);
-  const baseAssembly = baseCx.cloudAssembly;
-  const allStacks = baseAssembly.stacksRecursively;
-
-  const queue = new PQueue({ concurrency: concurrency });
-
-  const safeFlags = await batchTestFlags(unconfiguredFlags, baseContextValues, toolkit, app, allStacks, queue);
-
-  await fs.remove(path.join(process.cwd(), 'baseline'));
-
-  if (safeFlags.length > 0) {
-    await ioHelper.defaults.info('Safe flags that can be set without template changes:');
-    for (const flag of safeFlags) {
-      await ioHelper.defaults.info(`- ${flag.name} -> ${flag.recommendedValue}`);
+    for (const stackDiff of Object.values(diff)) {
+      if (stackDiff.differenceCount > 0) {
+        return false;
+      }
     }
-
-    await handleUserResponse(params, safeFlags.map(flag => flag.name));
-  } else {
-    await ioHelper.defaults.info('No flags can be safely set without causing template changes.');
   }
+  return true;
 }
 
 async function prototypeChanges(

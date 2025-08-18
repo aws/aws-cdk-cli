@@ -406,6 +406,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('concurrency', {
           default: 4,
           type: 'number',
+          alias: ['conc'],
           desc: 'Maximum number of simultaneous synths to execute.',
           requiresArg: true,
         }),

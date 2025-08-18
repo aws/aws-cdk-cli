@@ -776,7 +776,32 @@ describe('setSafeFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('You are currently running with ts-node. Adding --transpileOnly may make this operation faster.');
+    expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('shows ts-node performance tip when user supplies --app option with ts-node', async () => {
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 0 } as any,
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const options: FlagsOptions & { app?: string } = {
+      safe: true,
+      concurrency: 4,
+      app: 'npx ts-node bin/app.ts',
+    };
+
+    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
