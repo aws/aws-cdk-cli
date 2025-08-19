@@ -28,32 +28,32 @@ export function generateStackDefinitions(
     } else {
       delete localTemplate.Resources?.CDKMetadata;
     }
-
-    // For every resource in the local template, take the Metadata['aws:cdk:path'] from the corresponding resource in the deployed template.
-    // A corresponding resource is one that the local maps to (using the `mappings` parameter). If there is no entry mapping the local
-    // resource, use the same id
-    // TODO Remove this logic once CloudFormation starts allowing changes to the construct path.
-    //  But we need it for now, otherwise we won't be able to refactor anything.
-    for (const [logicalId, localResource] of Object.entries(localTemplate.Resources ?? {})) {
-      const mapping = mappings.find(
-        (m) => m.destination.stackName === localStack.stackName && m.destination.logicalResourceId === logicalId,
-      );
-
-      if (mapping != null) {
-        const deployed = deployedStackMap.get(mapping.source.stackName)!;
-        const deployedResource = deployed.template?.Resources?.[mapping.source.logicalResourceId]!;
-        if (deployedResource.Metadata != null || localResource.Metadata != null) {
-          localResource.Metadata = localResource.Metadata ?? {};
-          localResource.Metadata['aws:cdk:path'] = deployedResource?.Metadata?.['aws:cdk:path'];
-        }
-      }
-    }
   }
 
   const stacksToProcess = localStacks.filter((localStack) => {
     const deployedStack = deployedStackMap.get(localStack.stackName);
     return !deployedStack || !deepEqual(localStack.template, deployedStack.template);
   });
+
+  // Now, for every stack name that appears in the mappings, but is not present in the local stacks,
+  // we need to take its (deployed) template and remove all the resources that appear in the sources
+  // part of the mappings. For example, if the mappings contains an entry like:
+  //  - StackB.Foo -> StackA.Bar
+  // and StackB does not exist locally, we need to take StackB's template, and remove the resource Foo,
+  // and include this modified template for StackB in the stack definitions.
+  for (let mapping of mappings) {
+    const stackName = mapping.source.stackName;
+    if (!localStacks.some(s => s.stackName === stackName)) {
+      const deployedStack = deployedStackMap.get(stackName);
+      delete deployedStack?.template.Resources?.[mapping.source.logicalResourceId];
+
+      delete deployedStack?.template.Outputs;
+
+      if (deployedStack && !stacksToProcess.some(s => s.stackName === stackName)) {
+        stacksToProcess.push(deployedStack);
+      }
+    }
+  }
 
   // For stacks created by the refactor, CloudFormation does not allow Rules or Parameters
   for (const stack of stacksToProcess) {
