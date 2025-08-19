@@ -243,8 +243,6 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
   });
 
-
-
   cliTest('create project from single local custom template', async (workDir) => {
     const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
     const projectDir = path.join(workDir, 'my-project');
