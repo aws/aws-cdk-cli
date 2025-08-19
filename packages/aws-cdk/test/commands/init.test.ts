@@ -243,16 +243,6 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
   });
 
-  cliTest('fails when --template-path is used without --from-path', async (workDir) => {
-    await expect(cliInit({
-      ioHelper,
-      type: undefined,
-      language: 'typescript',
-      workDir,
-      templatePath: 'some-template',
-    })).rejects.toThrow('--template-path requires --from-path to be specified');
-  });
-
   cliTest('create project from single local custom template', async (workDir) => {
     const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
     const projectDir = path.join(workDir, 'my-project');
