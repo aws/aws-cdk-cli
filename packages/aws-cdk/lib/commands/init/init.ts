@@ -84,8 +84,6 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
-
-
   // Step 1: Load template
   let template: InitTemplate;
   if (options.fromPath) {
