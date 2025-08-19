@@ -395,7 +395,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: ['i'],
           desc: 'Interactive option for the flags command',
-          requiresArg: false,
         })
         .option('safe', {
           default: undefined,
@@ -406,7 +405,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('concurrency', {
           default: 4,
           type: 'number',
-          alias: ['conc'],
+          alias: ['t'],
           desc: 'Maximum number of simultaneous synths to execute.',
           requiresArg: true,
         }),

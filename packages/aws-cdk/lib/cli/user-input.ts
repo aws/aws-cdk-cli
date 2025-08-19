@@ -676,7 +676,7 @@ export interface FlagsOptions {
   /**
    * Maximum number of simultaneous synths to execute.
    *
-   * aliases: conc
+   * aliases: t
    *
    * @default - 4
    */

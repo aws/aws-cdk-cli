@@ -7,7 +7,7 @@ import { Select } from 'enquirer';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { FlagsOptions } from '../../lib/cli/user-input';
-import { displayFlags, handleFlags } from '../../lib/commands/flag-operations';
+import { DetermineSafeFlags } from '../../lib/commands/flag-operations';
 
 jest.mock('enquirer', () => ({
   Select: jest.fn(),
@@ -24,22 +24,22 @@ const mockFlagsData: FeatureFlag[] = [
   {
     module: 'aws-cdk-lib',
     name: '@aws-cdk/core:testFlag',
-    recommendedValue: 'true',
-    userValue: 'false',
+    recommendedValue: true,
+    userValue: false,
     explanation: 'Test flag for unit tests',
   },
   {
     module: 'aws-cdk-lib',
     name: '@aws-cdk/s3:anotherFlag',
-    recommendedValue: 'false',
+    recommendedValue: false,
     userValue: undefined,
     explanation: 'Another test flag',
   },
   {
     module: 'different-module',
     name: '@aws-cdk/core:matchingFlag',
-    recommendedValue: 'true',
-    userValue: 'true',
+    recommendedValue: true,
+    userValue: true,
     explanation: 'Flag that matches recommendation',
   },
 ];
@@ -112,13 +112,9 @@ function output() {
 
 describe('displayFlags', () => {
   test('displays multiple feature flags', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: mockToolkit,
-      ioHelper,
-      all: true,
-    };
-    await displayFlags(params);
+    const options = { all: true };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -126,26 +122,18 @@ describe('displayFlags', () => {
   });
 
   test('handles null user values correctly', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: mockToolkit,
-      ioHelper,
-      all: true,
-    };
-    await displayFlags(params);
+    const options = { all: true };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('<unset>');
   });
 
   test('handles mixed data types in flag values', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: mockToolkit,
-      ioHelper,
-      all: true,
-    };
-    await displayFlags(params);
+    const options = { all: true };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('true');
@@ -153,13 +141,9 @@ describe('displayFlags', () => {
   });
 
   test('displays single flag by name', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: mockToolkit,
-      ioHelper,
-      flagName: ['@aws-cdk/core:testFlag'],
-    };
-    await displayFlags(params);
+    const options = { FLAGNAME: ['@aws-cdk/core:testFlag'] };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Description: Test flag for unit tests');
@@ -168,13 +152,9 @@ describe('displayFlags', () => {
   });
 
   test('groups flags by module', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: mockToolkit,
-      ioHelper,
-      all: true,
-    };
-    await displayFlags(params);
+    const options = { all: true };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('aws-cdk-lib');
@@ -182,13 +162,9 @@ describe('displayFlags', () => {
   });
 
   test('displays single flag details when only one substring match is found', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: createMockToolkit(),
-      ioHelper,
-      flagName: ['s3'],
-    };
-    await displayFlags(params);
+    const options = { FLAGNAME: ['s3'] };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, createMockToolkit());
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Description: Another test flag');
@@ -199,26 +175,18 @@ describe('displayFlags', () => {
   });
 
   test('returns "Flag not found" if user enters non-matching substring', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: createMockToolkit(),
-      ioHelper,
-      flagName: ['qwerty'],
-    };
-    await displayFlags(params);
+    const options = { FLAGNAME: ['qwerty'] };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, createMockToolkit());
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Flag matching \"qwerty\" not found.');
   });
 
   test('returns all matching flags if user enters common substring', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: createMockToolkit(),
-      ioHelper,
-      flagName: ['flag'],
-    };
-    await displayFlags(params);
+    const options = { FLAGNAME: ['flag'] };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, createMockToolkit());
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -227,13 +195,9 @@ describe('displayFlags', () => {
   });
 
   test('returns all matching flags if user enters multiple substrings', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: createMockToolkit(),
-      ioHelper,
-      flagName: ['matching', 'test'],
-    };
-    await displayFlags(params);
+    const options = { FLAGNAME: ['matching', 'test'] };
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, createMockToolkit());
+    await flagOperations.displayFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -248,7 +212,8 @@ describe('handleFlags', () => {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Description: Test flag for unit tests');
@@ -261,7 +226,8 @@ describe('handleFlags', () => {
       all: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -272,7 +238,8 @@ describe('handleFlags', () => {
     const options: FlagsOptions = {
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -285,7 +252,8 @@ describe('handleFlags', () => {
       FLAGNAME: ['@aws-cdk/core:nonExistentFlag'],
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Flag matching \"@aws-cdk/core:nonExistentFlag\" not found.');
@@ -305,7 +273,8 @@ describe('handleFlags', () => {
       value: 'true',
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -326,17 +295,15 @@ describe('handleFlags', () => {
 
     setupMockToolkitForPrototyping(mockToolkit);
 
-    setupMockToolkitForPrototyping(mockToolkit);
-
     const options: FlagsOptions = {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
       set: true,
       value: 'true',
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
-    expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(1);
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(1);
     expect(mockToolkit.synth).not.toHaveBeenCalled();
     expect(mockToolkit.diff).not.toHaveBeenCalled();
@@ -361,7 +328,8 @@ describe('handleFlags', () => {
       value: 'true',
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const finalContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const finalJson = JSON.parse(finalContent);
@@ -398,7 +366,8 @@ describe('handleFlags', () => {
       value: 'true',
     };
 
-    await handleFlags(nonBooleanFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(nonBooleanFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
     expect(mockToolkit.synth).not.toHaveBeenCalled();
@@ -445,7 +414,8 @@ describe('handleFlags', () => {
       default: true,
     };
 
-    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -463,7 +433,8 @@ describe('handleFlags', () => {
 
     const options: FlagsOptions = {};
 
-    await handleFlags(mockNoFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockNoFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
@@ -487,7 +458,8 @@ describe('modifyValues', () => {
       value: 'true',
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -516,7 +488,8 @@ describe('modifyValues', () => {
       recommended: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -546,7 +519,8 @@ describe('modifyValues', () => {
       recommended: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -582,7 +556,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -615,7 +590,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -646,7 +622,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -679,7 +656,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -706,7 +684,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
     expect(mockToolkit.synth).not.toHaveBeenCalled();
@@ -730,7 +709,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     expect(Select).toHaveBeenCalledWith({
       name: 'option',
@@ -773,7 +753,8 @@ describe('setSafeFlags', () => {
       concurrency: 4,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
@@ -798,7 +779,8 @@ describe('setSafeFlags', () => {
       app: 'npx ts-node bin/app.ts',
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
@@ -825,10 +807,11 @@ describe('setSafeFlags', () => {
       concurrency: 4,
     };
 
-    await handleFlags(configuredFlags, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(configuredFlags, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('No unconfigured feature flags found.');
+    expect(plainTextOutput).toContain('All feature flags are configured.');
     expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
 
     await cleanupCdkJsonFile(cdkJsonPath);
@@ -849,10 +832,11 @@ describe('setSafeFlags', () => {
       concurrency: 4,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Safe flags that can be set without template changes:');
+    expect(plainTextOutput).toContain('Flags that can be set without template changes:');
     expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag -> false');
 
     await cleanupCdkJsonFile(cdkJsonPath);
@@ -871,10 +855,11 @@ describe('setSafeFlags', () => {
       concurrency: 4,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('No flags can be safely set without causing template changes.');
+    expect(plainTextOutput).toContain('No more flags can be set without causing template changes.');
 
     await cleanupCdkJsonFile(cdkJsonPath);
   });
@@ -894,11 +879,11 @@ describe('setSafeFlags', () => {
       concurrency: 4,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.handleFlags();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
-
     expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
     expect(requestResponseSpy).toHaveBeenCalled();
 

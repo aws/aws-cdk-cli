@@ -371,8 +371,7 @@
           "alias": [
             "i"
           ],
-          "desc": "Interactive option for the flags command",
-          "requiresArg": false
+          "desc": "Interactive option for the flags command"
         },
         "safe": {
           "type": "boolean",
@@ -382,7 +381,7 @@
         "concurrency": {
           "type": "number",
           "alias": [
-            "conc"
+            "t"
           ],
           "desc": "Maximum number of simultaneous synths to execute.",
           "default": 4,
