@@ -8,6 +8,7 @@ interface YargsCommand {
 export interface CliAction extends YargsCommand {
   options?: { [optionName: string]: CliOption };
   check?: string;
+  implies?: { [key: string]: string };
 }
 
 interface YargsArg {

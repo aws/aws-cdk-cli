@@ -398,7 +398,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository (requires --from-path)', requiresArg: true },
         },
-        check: '(argv: any) => { if (argv.templatePath && !argv.fromPath) { throw new Error("--template-path requires --from-path to be specified"); } return true; }',
+        implies: { 'template-path': 'from-path' },
       },
       'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',
