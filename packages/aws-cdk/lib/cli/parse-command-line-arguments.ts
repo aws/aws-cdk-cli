@@ -832,10 +832,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
           conflicts: ['lib-version'],
         })
+        .option('from-git-url', {
+          default: undefined,
+          type: 'string',
+          desc: 'Git repository URL to clone and use as template source',
+          requiresArg: true,
+          conflicts: ['lib-version', 'from-path'],
+        })
         .option('template-path', {
           default: undefined,
           type: 'string',
-          desc: 'Path to a specific template within a multi-template repository (used with --from-path)',
+          desc: 'Path to a specific template within a multi-template repository (requires --from-path)',
           requiresArg: true,
         }),
     )

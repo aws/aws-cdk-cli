@@ -1334,7 +1334,14 @@ export interface InitOptions {
   readonly fromPath?: string;
 
   /**
-   * Path to a specific template within a multi-template repository (used with --from-path)
+   * Git repository URL to clone and use as template source
+   *
+   * @default - undefined
+   */
+  readonly fromGitUrl?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository (requires --from-path)
    *
    * @default - undefined
    */
