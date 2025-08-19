@@ -52,7 +52,6 @@ export async function renderYargs(config: CliConfig, helpers: CliHelpers): Promi
     disabledEsLintRules: [
       EsLintRules.MAX_LEN, // the default disabled rules result in 'Definition for rule 'prettier/prettier' was not found
       '@typescript-eslint/consistent-type-imports', // (ironically) typewriter does not support type imports
-      '@cdklabs/no-throw-default-error', // generated check functions throw proper Error objects
     ],
   }).render(scope);
 
@@ -110,6 +109,13 @@ function makeYargs(config: CliConfig, helpers: CliHelpers): Statement {
 
     if (commandFacts.options) {
       commandCallArgs.push(optionsExpr);
+    }
+
+    // Add implies calls if present
+    if (commandFacts.implies) {
+      for (const [key, value] of Object.entries(commandFacts.implies)) {
+        optionsExpr = optionsExpr.callMethod('implies', lit(key), lit(value));
+      }
     }
 
     yargsExpr = yargsExpr.callMethod('command', ...commandCallArgs);
