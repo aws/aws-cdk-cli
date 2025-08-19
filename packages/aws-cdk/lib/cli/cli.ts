@@ -514,8 +514,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           return printAvailableTemplates(ioHelper, language);
         } else {
           // Gate custom template support with unstable flag
-          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
-            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          if ((args['from-path'] || args['from-git-url']) && !configuration.settings.get(['unstable']).includes('init')) {
+            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-git-url=https://github.com/user/template.git --unstable=init\'');
           }
           return cliInit({
             ioHelper,
@@ -525,6 +525,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
             fromPath: args['from-path'],
+            fromGitUrl: args['from-git-url'],
             templatePath: args['template-path'],
           });
         }

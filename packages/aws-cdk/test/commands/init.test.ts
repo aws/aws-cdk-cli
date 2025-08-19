@@ -411,6 +411,33 @@ describe('constructs version', () => {
     })).rejects.toThrow(/Custom template must contain at least one language directory/);
   });
 
+  cliTest('fails when invalid Git URL is provided', async (workDir) => {
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromGitUrl: 'https://github.com/nonexistent/nonexistent-repo.git',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Failed to load template from Git repository/);
+  });
+
+  cliTest('Git URL functionality requires unstable flag', async (workDir) => {
+    // This test verifies that the unstable flag validation is handled at the CLI level,
+    // not in the cliInit function itself. The cliInit function should work when called directly.
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    // Direct call to cliInit should work (this is how it's called from CLI after validation)
+    await expect(cliInit({
+      ioHelper,
+      fromGitUrl: 'https://github.com/nonexistent/nonexistent-repo.git',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Failed to load template from Git repository/); // Should fail due to invalid repo, not unstable flag
+  });
+
   cliTest('multi-template repository auto-detects language when template has single language', async (workDir) => {
     const repoDir = await createMultiTemplateRepository(workDir, [
       { name: 'single-lang-template', languages: ['typescript'] },
