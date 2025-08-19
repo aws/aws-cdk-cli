@@ -7,6 +7,7 @@ import type { MissingContext, UpdatedContext } from '../../../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
 import type { DriftResultPayload } from '../../../payloads/drift';
+import type { FeatureFlagChangeRequest } from '../../../payloads/flags';
 import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
@@ -429,6 +430,13 @@ export const IO = {
     code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',
     interface: 'ErrorPayload',
+  }),
+
+  // flags (93xxx)
+  CDK_TOOLKIT_I9300: make.info<FeatureFlagChangeRequest>({
+    code: 'CDK_TOOLKIT_I9300',
+    description: 'Confirm the feature flag configuration changes',
+    interface: 'FeatureFlagChangeRequest',
   }),
 
   // Notices

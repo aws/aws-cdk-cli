@@ -13,7 +13,7 @@ import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { deserializeStructure, formatErrorMessage } from '../../../util';
-import { mappingsByEnvironment } from '../../refactor/index';
+import { mappingsByEnvironment } from '../../refactor/private/mapping-helpers';
 
 export function prepareDiff(
   ioHelper: IoHelper,

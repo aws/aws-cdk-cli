@@ -34,6 +34,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     noColor: args.noColor,
     ci: args.ci,
     unstable: args.unstable,
+    telemetryFile: args.telemetryFile,
   };
   let commandOptions;
   switch (args._[0] as Command) {
@@ -88,13 +89,23 @@ export function convertYargsToUserInput(args: any): UserInput {
         rollbackBufferDays: args.rollbackBufferDays,
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
+        toolkitStackName: args.toolkitStackName,
         bootstrapStackName: args.bootstrapStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
 
     case 'flags':
-      commandOptions = {};
+      commandOptions = {
+        value: args.value,
+        set: args.set,
+        all: args.all,
+        unconfigured: args.unconfigured,
+        recommended: args.recommended,
+        default: args.default,
+        interactive: args.interactive,
+        FLAGNAME: args.FLAGNAME,
+      };
       break;
 
     case 'deploy':
@@ -285,6 +296,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         enable: args.enable,
         disable: args.disable,
+        status: args.status,
       };
       break;
   }
@@ -325,6 +337,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     noColor: config.noColor,
     ci: config.ci,
     unstable: config.unstable,
+    telemetryFile: config.telemetryFile,
   };
   const listOptions = {
     long: config.list?.long,
@@ -362,9 +375,18 @@ export function convertConfigToUserInput(config: any): UserInput {
     rollbackBufferDays: config.gc?.rollbackBufferDays,
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
+    toolkitStackName: config.gc?.toolkitStackName,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
-  const flagsOptions = {};
+  const flagsOptions = {
+    value: config.flags?.value,
+    set: config.flags?.set,
+    all: config.flags?.all,
+    unconfigured: config.flags?.unconfigured,
+    recommended: config.flags?.recommended,
+    default: config.flags?.default,
+    interactive: config.flags?.interactive,
+  };
   const deployOptions = {
     all: config.deploy?.all,
     buildExclude: config.deploy?.buildExclude,
@@ -490,6 +512,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,
     disable: config.cliTelemetry?.disable,
+    status: config.cliTelemetry?.status,
   };
   const userInput: UserInput = {
     globalOptions,

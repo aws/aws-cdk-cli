@@ -271,6 +271,13 @@ export interface FeatureFlag {
    * @default - No description
    */
   readonly explanation?: string;
+
+  /**
+   * The value of the flag if it is unconfigured
+   *
+   * @default - No value
+   */
+  readonly unconfiguredBehavesLike?: { [key: string]: any };
 }
 
 /**

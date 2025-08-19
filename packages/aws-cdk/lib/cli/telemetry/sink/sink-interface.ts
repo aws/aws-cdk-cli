@@ -1,4 +1,4 @@
-import type { TelemetrySchema } from './schema';
+import type { TelemetrySchema } from '../schema';
 
 /**
  * All Telemetry Clients are Sinks.

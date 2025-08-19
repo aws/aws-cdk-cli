@@ -102,7 +102,8 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('version-reporting', {
       default: undefined,
       type: 'boolean',
-      desc: 'Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      alias: 'telemetry',
     })
     .option('path-metadata', {
       default: undefined,
@@ -154,6 +155,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       default: [],
       nargs: 1,
       requiresArg: true,
+    })
+    .option('telemetry-file', {
+      default: undefined,
+      type: 'string',
+      desc: 'Send telemetry data to a local file.',
     })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
@@ -339,14 +345,68 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Confirm via manual prompt before deletion',
           })
-          .option('bootstrap-stack-name', {
+          .option('toolkit-stack-name', {
             default: undefined,
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
+            conflicts: 'bootstrap-stack-name',
+          })
+          .option('bootstrap-stack-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)',
+            deprecated: 'use --toolkit-stack-name',
+            requiresArg: true,
+            conflicts: 'toolkit-stack-name',
           }),
     )
-    .command('flags', 'View and toggle feature flags.')
+    .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
+      yargs
+        .option('value', {
+          default: undefined,
+          type: 'string',
+          desc: 'The value the user would like to set the feature flag configuration to',
+          requiresArg: true,
+        })
+        .option('set', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Signifies the user would like to modify their feature flag configuration',
+          requiresArg: false,
+        })
+        .option('all', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify or view all feature flags',
+          requiresArg: false,
+        })
+        .option('unconfigured', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify unconfigured feature flags',
+          requiresArg: false,
+        })
+        .option('recommended', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to recommended states',
+          requiresArg: false,
+        })
+        .option('default', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to default state',
+          requiresArg: false,
+        })
+        .option('interactive', {
+          default: undefined,
+          type: 'boolean',
+          alias: ['i'],
+          desc: 'Interactive option for the flags command',
+          requiresArg: false,
+        }),
+    )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {
@@ -931,6 +991,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Disable anonymous telemetry',
           conflicts: 'enable',
+        })
+        .option('status', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Report telemetry opt-in/out status',
+          conflicts: ['enable', 'disable'],
         }),
     )
     .version(helpers.cliVersion())

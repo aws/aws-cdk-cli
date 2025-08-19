@@ -3,7 +3,7 @@ import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
-import { parseMappingGroups, PermissionChangeType, Toolkit, ToolkitError, mappingsByEnvironment } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -32,6 +32,7 @@ import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
+import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
@@ -54,6 +55,7 @@ import {
 } from '../commands/migrate';
 import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
 import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
+import { OBSOLETE_FLAGS } from '../obsolete-flags';
 import {
   deserializeStructure,
   formatErrorMessage,
@@ -63,6 +65,10 @@ import {
   serializeStructure,
   validateSnsTopicArn,
 } from '../util';
+import { canCollectTelemetry } from './telemetry/collect-telemetry';
+import { cdkCliErrorName } from './telemetry/error';
+import { CLI_PRIVATE_SPAN } from './telemetry/messages';
+import type { ErrorDetails } from './telemetry/schema';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -190,7 +196,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor'],
+      unstableFeatures: ['refactor', 'flags'],
     });
   }
 
@@ -200,10 +206,21 @@ export class CdkToolkit {
   }
 
   public async acknowledge(noticeId: string) {
-    const acks = this.props.configuration.context.get('acknowledged-issue-numbers') ?? [];
-    acks.push(Number(noticeId));
-    this.props.configuration.context.set('acknowledged-issue-numbers', acks);
+    const acks = new Set(this.props.configuration.context.get('acknowledged-issue-numbers') ?? []);
+    acks.add(Number(noticeId));
+    this.props.configuration.context.set('acknowledged-issue-numbers', Array.from(acks));
     await this.props.configuration.saveContext();
+  }
+
+  public async cliTelemetryStatus(versionReporting: boolean = true) {
+    // recreate the version-reporting property in args rather than bring the entire args object over
+    const args = { ['version-reporting']: versionReporting };
+    const canCollect = canCollectTelemetry(args, this.props.configuration.context);
+    if (canCollect) {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
+    } else {
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
+    }
   }
 
   public async cliTelemetry(enable: boolean) {
@@ -506,12 +523,15 @@ export class CdkToolkit {
       const stackIndex = stacks.indexOf(stack) + 1;
       await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
       const startDeployTime = new Date().getTime();
-
       let tags = options.tags;
       if (!tags || tags.length === 0) {
         tags = tagsForStack(stack);
       }
 
+      // There is already a startDeployTime constant, but that does not work with telemetry.
+      // We should integrate the two in the future
+      const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+      let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
         let deployResult: SuccessfulDeployStackResult | undefined;
@@ -625,10 +645,18 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        throw new ToolkitError(
+        const wrappedError = new ToolkitError(
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
         );
+
+        error = {
+          name: cdkCliErrorName(wrappedError.name),
+        };
+
+        throw wrappedError;
       } finally {
+        await deploySpan.end({ error });
+
         if (options.cloudWatchLogMonitor) {
           const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
           options.cloudWatchLogMonitor.addLogGroups(
@@ -988,29 +1016,20 @@ export class CdkToolkit {
     }
 
     if (options.showDeps) {
-      const stackDeps = [];
-
-      for (const stack of stacks) {
-        stackDeps.push({
-          id: stack.id,
-          dependencies: stack.dependencies,
-        });
-      }
-
+      const stackDeps = stacks.map(stack => ({
+        id: stack.id,
+        dependencies: stack.dependencies,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), stackDeps, options.json ?? false);
       return 0;
     }
 
     if (options.long) {
-      const long = [];
-
-      for (const stack of stacks) {
-        long.push({
-          id: stack.id,
-          name: stack.name,
-          environment: stack.environment,
-        });
-      }
+      const long = stacks.map(stack => ({
+        id: stack.id,
+        name: stack.name,
+        environment: stack.environment,
+      }));
       await printSerializedObject(this.ioHost.asIoHelper(), long, options.json ?? false);
       return 0;
     }
@@ -1019,7 +1038,6 @@ export class CdkToolkit {
     for (const stack of stacks) {
       await this.ioHost.asIoHelper().defaults.result(stack.id);
     }
-
     return 0; // exit-code
   }
 
@@ -1046,6 +1064,8 @@ export class CdkToolkit {
       if (!quiet) {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
+
+      await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
       return undefined;
     }
 
@@ -1055,6 +1075,7 @@ export class CdkToolkit {
       `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
     );
 
+    await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
     return undefined;
   }
 
@@ -1262,7 +1283,7 @@ export class CdkToolkit {
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
-      return 1;
+      throw e;
     }
 
     return 0;
@@ -1898,7 +1919,6 @@ export interface GarbageCollectionOptions {
    */
   readonly confirm?: boolean;
 }
-
 export interface MigrateOptions {
   /**
    * The name assigned to the generated stack. This is also used to get
@@ -2103,6 +2123,34 @@ async function askUserConfirmation(
       throw new ToolkitError('Aborted by user');
     }
   });
+}
+
+/**
+ * Display a warning if there are flags that are different from the recommended value
+ *
+ * This happens if both of the following are true:
+ *
+ * - The user didn't configure the value
+ * - The default value for the flag (unconfiguredBehavesLike) is different from the recommended value
+ */
+export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToolkit, cloudExecutable: CloudExecutable): Promise<void> {
+  const flags = await toolkit.flags(cloudExecutable);
+
+  // The "unconfiguredBehavesLike" information got added later. If none of the flags have this information,
+  // we don't have enough information to reliably display this information without scaring users, so don't do anything.
+  if (flags.every(flag => flag.unconfiguredBehavesLike === undefined)) {
+    return;
+  }
+
+  const unconfiguredFlags = flags
+    .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
+    .filter(flag => (flag.unconfiguredBehavesLike?.v2 ?? false) !== flag.recommendedValue)
+    .filter(flag => flag.userValue === undefined);
+
+  const numUnconfigured = unconfiguredFlags.length;
+  if (numUnconfigured > 0) {
+    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk --unstable=flags flags' to learn more.`);
+  }
 }
 
 /**

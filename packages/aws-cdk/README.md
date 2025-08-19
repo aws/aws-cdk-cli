@@ -11,26 +11,27 @@
 
 The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
-| Command                               | Description                                                                       |
-| ------------------------------------- | --------------------------------------------------------------------------------- |
-| [`cdk docs`](#cdk-docs)               | Access the online documentation                                                   |
-| [`cdk init`](#cdk-init)               | Start a new CDK project (app or library)                                          |
-| [`cdk list`](#cdk-list)               | List stacks and their dependencies in an application                              |
-| [`cdk synth`](#cdk-synth)             | Synthesize a CDK app to CloudFormation template(s)                                |
-| [`cdk diff`](#cdk-diff)               | Diff stacks against current state                                                 |
-| [`cdk deploy`](#cdk-deploy)           | Deploy a stack into an AWS account                                                |
-| [`cdk rollback`](#cdk-rollback)       | Roll back a failed deployment                                                     |
-| [`cdk import`](#cdk-import)           | Import existing AWS resources into a CDK stack                                    |
-| [`cdk migrate`](#cdk-migrate)         | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
-| [`cdk watch`](#cdk-watch)             | Watches a CDK app for deployable and hotswappable changes                         |
-| [`cdk destroy`](#cdk-destroy)         | Deletes a stack from an AWS account                                               |
-| [`cdk bootstrap`](#cdk-bootstrap)     | Deploy a toolkit stack to support deploying large stacks & artifacts              |
-| [`cdk gc`](#cdk-gc)                   | Garbage collect assets associated with the bootstrapped stack                     |
-| [`cdk doctor`](#cdk-doctor)           | Inspect the environment and produce information useful for troubleshooting        |
-| [`cdk acknowledge`](#cdk-acknowledge) | Acknowledge (and hide) a notice by issue number                                   |
-| [`cdk notices`](#cdk-notices)         | List all relevant notices for the application                                     |
-| [`cdk refactor`](#cdk-refactor)       | Moves resources between stacks or within the same stack                           |
-| [`cdk drift`](#cdk-drift)             | Detect drifts in the given CloudFormation stack(s)                                |
+| Command                                   | Description                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| [`cdk docs`](#cdk-docs)                   | Access the online documentation                                                   |
+| [`cdk init`](#cdk-init)                   | Start a new CDK project (app or library)                                          |
+| [`cdk list`](#cdk-list)                   | List stacks and their dependencies in an application                              |
+| [`cdk synth`](#cdk-synth)                 | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk diff`](#cdk-diff)                   | Diff stacks against current state                                                 |
+| [`cdk deploy`](#cdk-deploy)               | Deploy a stack into an AWS account                                                |
+| [`cdk rollback`](#cdk-rollback)           | Roll back a failed deployment                                                     |
+| [`cdk import`](#cdk-import)               | Import existing AWS resources into a CDK stack                                    |
+| [`cdk migrate`](#cdk-migrate)             | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
+| [`cdk watch`](#cdk-watch)                 | Watches a CDK app for deployable and hotswappable changes                         |
+| [`cdk destroy`](#cdk-destroy)             | Deletes a stack from an AWS account                                               |
+| [`cdk bootstrap`](#cdk-bootstrap)         | Deploy a toolkit stack to support deploying large stacks & artifacts              |
+| [`cdk gc`](#cdk-gc)                       | Garbage collect assets associated with the bootstrapped stack                     |
+| [`cdk doctor`](#cdk-doctor)               | Inspect the environment and produce information useful for troubleshooting        |
+| [`cdk acknowledge`](#cdk-acknowledge)     | Acknowledge (and hide) a notice by issue number                                   |
+| [`cdk notices`](#cdk-notices)             | List all relevant notices for the application                                     |
+| [`cdk refactor`](#cdk-refactor)           | Moves resources between stacks or within the same stack                           |
+| [`cdk drift`](#cdk-drift)                 | Detect drifts in the given CloudFormation stack(s)                                |
+| [`cdk cli-telemetry`](#cdk-cli-telemetry) | Enable or disable cli telemetry collection                                        |
 
 ## Common topics
 
@@ -1217,6 +1218,174 @@ $ # Detect drift against the currently-deployed stack with the verbose flag enab
 $ cdk drift --verbose 
 ```
 
+### `cdk cli-telemetry`
+
+Enables or disables cli telemetry collection for your local CDK App. Records your
+choice in `cdk.context.json`. You can also set your preference manually under the `context` key in your
+`~/.cdk.json` file or `<app-root>/cdk.json` file.
+
+```bash
+$ # Disable telemetry
+$ cdk cli-telemetry --disable
+
+$ # Enable telemetry
+$ cdk cli-telemetry --enable
+```
+
+You can also check the current status on whether your CDK App is opted in or out of
+cli telemetry collection. Note that this takes into account all methods of disabling
+cli telemetry, including environment variables and
+[context values](https://docs.aws.amazon.com/cdk/v2/guide/context.html)
+that can be set in many different ways (such as `~/.cdk.json`).
+
+```bash
+$ # Check the current status of telemetry
+$ cdk cli-telemetry --status
+```
+### `cdk flags` 
+
+View and modify your feature flag configurations.
+
+Run `cdk flags` to see a report of your feature flag configurations that differ from our recommended states. Unconfigured flags will be labelled with `<unset>` to show that flag currently has no value. The flags are displayed to you in the following order:
+
+1. flags whose states do not match our recommended values
+2. flags that are not configured at all
+
+```shell
+$ cdk flags --unstable=flags
+    Feature Flag                              Recommended                  User
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+```
+
+Alternatively, you can also run `cdk flags --all` to see a report of all feature flags in the following order:
+
+1. flags whose states match our recommended values
+2. flags whose states do not match our recommended values
+3. flags that are not configured at all
+
+```shell
+$ cdk flags --unstable=flags --all 
+    Feature Flag                              Recommended                  User
+    @aws-cdk/...                              true                         true
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+```
+
+### Modifying your feature flag values
+
+To modify your feature flags interactively, you can run `cdk flags --interactive`  (or `cdk flags -i`) to view a list of menu options.
+
+ To change every single feature flag to our recommended value and potentially overwrite existing configured values, run `cdk flags --set --recommended --all`. To keep feature flag configuration up-to-date with the latest CDK feature flag configurations, use this command.
+
+```shell
+$ cdk flags --unstable=flags --set --recommended --all
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+    Resources
+    [~] AWS::S3::Bucket MyBucket
+    └─ [~] Properties
+        └─ [~] Encryption
+                ... 
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+If you would prefer your existing configured flags untouched, this option only changes the unconfigured feature flags to our recommended values, run `cdk flags --set --recommended --unconfigured`. This only changes the unconfigured feature flags to our recommended values.
+
+```shell
+$ cdk flags --unstable=flags --set --recommended --unconfigured
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         <unset>
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+    Resources
+    [~] AWS::S3::Bucket MyBucket
+    └─ [~] Properties
+        └─ [~] Encryption
+            ├─ [-] None
+            └─ [+] ServerSideEncryptionConfiguration:
+                    - ...
+            ...
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+If you want to ensure the unconfigured flags do not interfere with your application, `cdk flags --set --default --unconfigured` changes the unconfigured feature flags to its default values. For example, if `@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021` is unconfigured, it leads to the notification appearing after running `cdk synth`. However, if you set the flag to its default state (false), it will be configured, turned off, and have no impact on your application whatsoever.
+
+```shell
+$ cdk flags --unstable=flags --set --default --unconfigured
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         <unset>
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+  
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+### Inspect a specific feature flag
+
+#### View more information about a flag
+
+Besides running `cdk flags` and `cdk flags --all` to view your feature flag configuration, you can also utilize `cdk flags "#FLAGNAME#"` to inspect a specific feature flag and find out what a specific flag does. This can be helpful in cases where you want to understand a particular flag and its impact on your application. 
+
+```shell
+$ cdk flags --unstable=flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
+    Description: Enable this feature flag to have cloudfront distributions use the security policy TLSv1.2_2021 by default.
+    Recommended Value: true
+    User Value: true
+```
+
+#### Filter flags by substring
+
+You can also run `cdk flags #substring#` to view all matching feature flags. If there is only one feature flag that matches that substring, specific details will be displayed. 
+
+```shell
+$ cdk flags --unstable=flags ebs
+@aws-cdk/aws-ec2:ebsDefaultGp3Volume
+    Description: When enabled, the default volume type of the EBS volume will be GP3
+    Recommended Value: true
+    User Value: true
+```
+
+If there are multiple flags matching the substring, a table with all matching flags will be displayed. If you enter multiple substrings, all matching flags
+that contain any of those substrings will be returned.
+
+```shell
+$ cdk flags --unstable=flags s3 lambda
+    Feature Flag                              Recommended                  User
+  * @aws-cdk/s3...                            true                         false
+  * @aws-cdk/lambda...                        true                         false
+  * @aws-cdk/lambda...                        true                         <unset>
+```
+
+#### Modify a particular flag
+
+If you need to modify the value of this flag and want to make sure you’re setting it to a correct and supported state, run `cdk flags --set "#FLAGNAME#" --value="#state#"`.
+
+```shell
+$ cdk flags --unstable=flags--set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
+  Synthesizing...
+    Resources
+    [~] AWS::CloudFront::Distribution MyDistribution
+    └─ [~] Properties
+        └─ [~] DefaultSecurityPolicy
+            ├─ [-] TLSv1.0
+            └─ [+] TLSv1.2_2021
+                    - ...
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...   
+```
+
 ## Global Options
 
 ### `unstable`
@@ -1231,6 +1400,20 @@ cdk gc --unstable=gc
 
 The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
 is aware of the caveats in place for the feature.
+
+### `telemetry-file`
+
+Send your telemetry data to a local file (note that `--telemetry-file` is unstable, and must
+be passed in conjunction with `--unstable=telemetry`).
+
+```bash
+cdk list --telemetry-file=my/file/path --unstable=telemetry
+```
+
+The supplied path must be a non existing file. If the file exists, it will fail to log telemetry
+data but the command itself will continue uninterrupted.
+
+> Note: The file will be written to regardless of your opt-out status.
 
 ## Notices
 

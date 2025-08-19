@@ -1,10 +1,22 @@
+import * as os from 'os';
+import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
+import * as fs from 'fs-extra';
+import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
 
 let passThrough: PassThrough;
+
+// Store original process.on
+const originalProcessOn = process.on;
+
+// Mock process.on to be a no-op function that returns process for chaining
+process.on = jest.fn().mockImplementation(function() {
+  return process;
+}) as any;
 
 const ioHost = CliIoHost.instance({
   logLevel: 'trace',
@@ -54,6 +66,11 @@ describe('CliIoHost', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    // Restore original process.on
+    process.on = originalProcessOn;
   });
 
   describe('stream selection', () => {
@@ -259,6 +276,131 @@ describe('CliIoHost', () => {
       }));
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.white('info message') + '\n');
+    });
+  });
+
+  describe('telemetry', () => {
+    let telemetryIoHost: CliIoHost;
+    let telemetryEmitSpy: jest.SpyInstance;
+    let telemetryDir: string;
+
+    beforeEach(async () => {
+      // Create a telemetry file to satisfy requirements; we are not asserting on the file contents
+      telemetryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'telemetry'));
+      const telemetryFilePath = path.join(telemetryDir, 'telemetry-file.json');
+
+      // Create a new instance with telemetry enabled
+      telemetryIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+      }, true);
+      await telemetryIoHost.startTelemetry({ '_': 'init', 'telemetry-file': telemetryFilePath }, new Context());
+
+      expect(telemetryIoHost.telemetry).toBeDefined();
+
+      telemetryEmitSpy = jest.spyOn(telemetryIoHost.telemetry!, 'emit')
+        .mockImplementation(async () => Promise.resolve());
+    });
+
+    afterEach(() => {
+      fs.rmdirSync(telemetryDir, { recursive: true });
+      jest.restoreAllMocks();
+    });
+
+    test('emit telemetry on SYNTH event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I1001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'SYNTH',
+        duration: 123,
+      }));
+    });
+
+    test('emit telemetry on INVOKE event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'INVOKE',
+        duration: 123,
+      }));
+    });
+
+    test('do not emit telemetry on non telemetry codes', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2000', // only I2001, I1001 are valid
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was not called
+      expect(telemetryEmitSpy).not.toHaveBeenCalled();
+    });
+
+    test('emit telemetry with error name', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+          error: {
+            name: 'MyError',
+            message: 'Some message',
+          },
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'INVOKE',
+        duration: 123,
+        error: {
+          name: 'MyError',
+          message: 'Some message',
+        },
+      }));
     });
   });
 
