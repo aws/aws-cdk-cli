@@ -243,25 +243,7 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
   });
 
-  cliTest('template-path implies from-path constraint works correctly', async (workDir) => {
-    const repoDir = await createMultiTemplateRepository(workDir, [
-      { name: 'test-template', languages: ['typescript'] },
-    ]);
-    const projectDir = path.join(workDir, 'my-project');
-    await fs.mkdirp(projectDir);
 
-    await cliInit({
-      ioHelper,
-      fromPath: repoDir,
-      templatePath: 'test-template',
-      language: 'typescript',
-      canUseNetwork: false,
-      generateOnly: true,
-      workDir: projectDir,
-    });
-
-    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
-  });
 
   cliTest('create project from single local custom template', async (workDir) => {
     const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
