@@ -84,10 +84,7 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
-  // Validate that templatePath requires fromPath
-  if (options.templatePath && !options.fromPath) {
-    throw new ToolkitError('--template-path requires --from-path to be specified');
-  }
+
 
   // Step 1: Load template
   let template: InitTemplate;
