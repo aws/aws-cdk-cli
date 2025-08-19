@@ -572,6 +572,65 @@ describe('modifyValues', () => {
   });
 });
 
+describe('checkDefaultBehavior', () => {
+  test('calls setMultipleFlags when unconfiguredBehavesLike is present', async () => {
+    const flagsWithUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:testFlag',
+        recommendedValue: 'true',
+        userValue: undefined,
+        explanation: 'Test flag',
+        unconfiguredBehavesLike: { v2: 'true' },
+      },
+    ];
+
+    const cdkJsonPath = await createCdkJsonFile({});
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      set: true,
+      all: true,
+      default: true,
+    };
+
+    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+
+    expect(mockToolkit.fromCdkApp).toHaveBeenCalled();
+    expect(mockToolkit.synth).toHaveBeenCalled();
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('shows error when unconfiguredBehavesLike is not present', async () => {
+    const flagsWithoutUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:testFlag',
+        recommendedValue: 'true',
+        userValue: undefined,
+        explanation: 'Test flag',
+      },
+    ];
+
+    const options: FlagsOptions = {
+      set: true,
+      all: true,
+      default: true,
+    };
+
+    await handleFlags(flagsWithoutUnconfiguredBehavior, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('The --default options are not compatible with the AWS CDK library used by your application.');
+    expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
+  });
+});
+
 describe('interactive prompts lead to the correct function calls', () => {
   beforeEach(() => {
     setupMockToolkitForPrototyping(mockToolkit);
@@ -654,11 +713,30 @@ describe('interactive prompts lead to the correct function calls', () => {
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
 
+    const flagsWithUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:testFlag',
+        recommendedValue: 'true',
+        userValue: 'false',
+        explanation: 'Test flag for unit tests',
+        unconfiguredBehavesLike: { v2: 'true' },
+      },
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/s3:anotherFlag',
+        recommendedValue: 'false',
+        userValue: undefined,
+        explanation: 'Another test flag',
+        unconfiguredBehavesLike: { v2: 'false' },
+      },
+    ];
+
     const options: FlagsOptions = {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
