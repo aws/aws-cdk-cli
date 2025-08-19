@@ -846,7 +846,9 @@
           "requiresArg": true
         }
       },
-      "check": "(argv: any) => { if (argv.templatePath && !argv.fromPath) { throw new Error(\"--template-path requires --from-path to be specified\"); } return true; }"
+      "implies": {
+        "template-path": "from-path"
+      }
     },
     "migrate": {
       "description": "Migrate existing AWS resources into a CDK app",

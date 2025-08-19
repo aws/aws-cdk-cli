@@ -2,7 +2,7 @@
 // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
-/* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports, @cdklabs/no-throw-default-error */
+/* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
 
@@ -973,12 +973,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           conflicts: ['enable', 'disable'],
         }),
     )
-    .check((argv: any) => {
-      if (argv.templatePath && !argv.fromPath) {
-        throw new Error('--template-path requires --from-path to be specified');
-      }
-      return true;
-    })
     .version(helpers.cliVersion())
     .demandCommand(1, '')
     .recommendCommands()
