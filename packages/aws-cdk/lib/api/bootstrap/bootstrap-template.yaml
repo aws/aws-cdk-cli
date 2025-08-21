@@ -753,7 +753,7 @@ Resources:
       Type: String
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
-      Value: '28'
+      Value: '29'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
