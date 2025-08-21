@@ -227,6 +227,10 @@
           "type": "boolean",
           "desc": "Block public access configuration on CDK toolkit bucket (enabled by default) "
         },
+        "deny-external-id": {
+          "type": "boolean",
+          "desc": "Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) "
+        },
         "tags": {
           "type": "array",
           "alias": "t",

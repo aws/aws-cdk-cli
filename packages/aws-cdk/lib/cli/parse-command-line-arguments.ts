@@ -240,6 +240,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ',
         })
+        .option('deny-external-id', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ',
+        })
         .option('tags', {
           type: 'array',
           alias: 't',

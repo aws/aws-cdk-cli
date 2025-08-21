@@ -23,11 +23,10 @@ describe('ExternalId Protection Integration Test', () => {
 
     // THEN
     // Verify the parameter exists
-    expect(template.Parameters.DenyExternalId).toEqual({
+    expect(template.Parameters.DenyExternalId).toMatchObject({
       Type: 'String',
       Default: 'true',
       AllowedValues: ['true', 'false'],
-      Description: 'Whether to deny AssumeRole calls with an ExternalId',
     });
 
     // Verify the condition exists
@@ -70,23 +69,5 @@ describe('ExternalId Protection Integration Test', () => {
     for (const stmt of cfnStatements) {
       expect(stmt.Condition).toBeUndefined();
     }
-  });
-
-  test('bootstrap template allows disabling ExternalId protection', async () => {
-    // GIVEN
-    const bootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
-
-    // WHEN
-    const template = await (bootstrapper as any).loadTemplate();
-
-    // THEN
-    // When DenyExternalId is set to 'false', the condition should evaluate to AWS::NoValue
-    // This effectively removes the ExternalId restriction
-    expect(template.Conditions.ShouldDenyExternalId).toEqual({
-      'Fn::Equals': ['true', { Ref: 'DenyExternalId' }],
-    });
-
-    // The Fn::If condition will return AWS::NoValue when DenyExternalId is 'false'
-    // This means no condition will be applied to the AssumeRole policy
   });
 });

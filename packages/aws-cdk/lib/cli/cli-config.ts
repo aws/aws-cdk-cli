@@ -84,6 +84,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
           'qualifier': { type: 'string', desc: 'String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default.', default: undefined },
           'public-access-block-configuration': { type: 'boolean', desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ', default: undefined },
+          'deny-external-id': { type: 'boolean', desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ', default: undefined },
           'tags': { type: 'array', alias: 't', desc: 'Tags to add for the stack (KEY=VALUE)', default: [] },
           'execute': { type: 'boolean', desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)', default: true },
           'trust': { type: 'array', desc: 'The AWS account IDs that should be trusted to perform deployments into this environment (may be repeated, modern bootstrapping only)', default: [] },
