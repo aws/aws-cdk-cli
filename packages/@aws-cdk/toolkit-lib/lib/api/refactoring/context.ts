@@ -138,7 +138,7 @@ export class RefactoringContext {
     const roleArns = new Set(
       this.localStacks
         .filter((s) => s.environment.account === env.account && s.environment.region === env.region)
-        .map((s) => s.assumeRole),
+        .map((s) => s.assumeRoleArn),
     );
 
     if (roleArns.size === 0) {

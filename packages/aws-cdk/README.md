@@ -1196,8 +1196,6 @@ that is not already occupied by any resource.
 
 
 #### Limitations
-- To refactor resources that have custom tags, you need to use a custom that has permission to set tags to the resources 
-in question. To pass this custom role to the `cdk refactor` command, use the `--role-arn` option.
 - A refactor cannot leave a stack empty. This is a CloudFormation API limitation, that also applies to deployments.
 - New stacks created during the refactor won't have the `CDKMetadata` resource, since the API only allows resources to be
   moved between stacks, not created.

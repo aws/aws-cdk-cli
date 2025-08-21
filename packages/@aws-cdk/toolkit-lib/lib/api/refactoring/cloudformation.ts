@@ -22,7 +22,7 @@ export interface CloudFormationStack {
   readonly environment: cxapi.Environment;
   readonly stackName: string;
   readonly template: CloudFormationTemplate;
-  readonly assumeRole?: string;
+  readonly assumeRoleArn?: string;
 }
 
 /**
