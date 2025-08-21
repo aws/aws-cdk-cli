@@ -56,6 +56,11 @@ Parameters:
     Description: Describe the provenance of the resources in this bootstrap
       stack. Change this when you customize the template. To prevent accidents,
       the CDK CLI will not overwrite bootstrap stacks with a different variant.
+  DenyExternalId:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Just here to make the test pass.
 Conditions:
   HasTrustedAccounts:
     Fn::Not:
