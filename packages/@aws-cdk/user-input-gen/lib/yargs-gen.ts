@@ -109,6 +109,13 @@ function makeYargs(config: CliConfig, helpers: CliHelpers): Statement {
       commandCallArgs.push(optionsExpr);
     }
 
+    // Add implies calls if present
+    if (commandFacts.implies) {
+      for (const [key, value] of Object.entries(commandFacts.implies)) {
+        optionsExpr = optionsExpr.callMethod('implies', lit(key), lit(value));
+      }
+    }
+
     yargsExpr = yargsExpr.callMethod('command', ...commandCallArgs);
   }
 
