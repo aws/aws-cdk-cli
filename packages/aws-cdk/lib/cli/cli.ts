@@ -338,6 +338,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),
             cloudFormationExecutionPolicies: arrayFromYargs(args.cloudformationExecutionPolicies),
+            denyExternalId: args.denyExternalId,
           },
         });
 

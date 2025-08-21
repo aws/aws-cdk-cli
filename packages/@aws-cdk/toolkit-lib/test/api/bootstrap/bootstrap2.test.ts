@@ -642,4 +642,84 @@ describe('Bootstrapping v2', () => {
       },
     );
   });
+
+  describe('ExternalId protection', () => {
+    test('denyExternalId parameter defaults to true', async () => {
+      // GIVEN
+      const mockSdk = new MockSdkProvider();
+      (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack({
+        Outputs: [
+          { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+        ],
+      })));
+
+      // WHEN
+      await bootstrapper.bootstrapEnvironment(env, mockSdk, {
+        parameters: {},
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            DenyExternalId: 'true',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('denyExternalId parameter can be set to false', async () => {
+      // GIVEN
+      const mockSdk2 = new MockSdkProvider();
+      (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack({
+        Outputs: [
+          { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+        ],
+      })));
+
+      // WHEN
+      await bootstrapper.bootstrapEnvironment(env, mockSdk2, {
+        parameters: {
+          denyExternalId: false,
+        },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            DenyExternalId: 'false',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('bootstrap template contains ExternalId conditions', async () => {
+      // GIVEN
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+
+      // WHEN
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      // THEN
+      expect(template.Parameters.DenyExternalId).toBeDefined();
+      expect(template.Parameters.DenyExternalId.Default).toBe('true');
+      expect(template.Conditions.ShouldDenyExternalId).toBeDefined();
+
+      // Check that roles have the ExternalId condition
+      const filePublishingRole = template.Resources.FilePublishingRole;
+      expect(filePublishingRole.Properties.AssumeRolePolicyDocument.Statement).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            Action: 'sts:AssumeRole',
+            Condition: expect.objectContaining({
+              'Fn::If': expect.arrayContaining(['ShouldDenyExternalId']),
+            }),
+          }),
+        ]),
+      );
+    });
+  });
 });

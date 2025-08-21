@@ -146,4 +146,11 @@ export interface BootstrappingParameters {
    * @default - No value, optional argument
    */
   readonly customPermissionsBoundary?: string;
+
+  /**
+   * Whether to deny AssumeRole calls with an ExternalId
+   *
+   * @default true
+   */
+  readonly denyExternalId?: boolean;
 }

@@ -228,6 +228,7 @@ export class Bootstrapper {
             ? 'true'
             : 'false',
         InputPermissionsBoundary: policyName,
+        DenyExternalId: params.denyExternalId === false ? 'false' : 'true',
       },
       {
         ...options,

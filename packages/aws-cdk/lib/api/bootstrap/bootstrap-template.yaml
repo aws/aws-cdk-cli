@@ -56,6 +56,18 @@ Parameters:
     Description: Describe the provenance of the resources in this bootstrap
       stack. Change this when you customize the template. To prevent accidents,
       the CDK CLI will not overwrite bootstrap stacks with a different variant.
+  DenyExternalId:
+    # By default, CDK Bootstrap roles are not designed to be deputized.
+    # Deputized means that you give an external entity access to assume roles on
+    # your behalf. They will supply an ExternalId to avoid Confused Deputy
+    # attacks (https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html).
+    #
+    # AssumeRole calls with ExternalIds will be denied by default, set this to 'false'
+    # if you need this functionality for some reason.
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Whether to deny AssumeRole calls with an ExternalId. This prevents calls that are intended to be deputized from accidentally assuming CDK Roles.
 Conditions:
   HasTrustedAccounts:
     Fn::Not:
@@ -109,6 +121,10 @@ Conditions:
     Fn::Equals:
       - 'true'
       - Ref: PublicAccessBlockConfiguration
+  ShouldDenyExternalId:
+    Fn::Equals:
+      - 'true'
+      - Ref: DenyExternalId
 Resources:
   FileAssetsBucketEncryptionKey:
     Type: AWS::KMS::Key
@@ -308,6 +324,12 @@ Resources:
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
               - Action: sts:AssumeRole
@@ -315,6 +337,12 @@ Resources:
                 Principal:
                   AWS:
                     Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}
@@ -338,6 +366,12 @@ Resources:
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
               - Action: sts:AssumeRole
@@ -345,6 +379,12 @@ Resources:
                 Principal:
                   AWS:
                     Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-image-publishing-role-${AWS::AccountId}-${AWS::Region}
@@ -368,6 +408,12 @@ Resources:
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccountsForLookup
               - Action: sts:AssumeRole
@@ -375,6 +421,12 @@ Resources:
                 Principal:
                   AWS:
                     Ref: TrustedAccountsForLookup
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
               - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
@@ -383,6 +435,12 @@ Resources:
                 Principal:
                   AWS:
                     Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-lookup-role-${AWS::AccountId}-${AWS::Region}
@@ -483,6 +541,12 @@ Resources:
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
               - Action: sts:AssumeRole
@@ -490,6 +554,12 @@ Resources:
                 Principal:
                   AWS:
                     Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
               - Ref: AWS::NoValue
       Policies:
         - PolicyDocument:
