@@ -1284,64 +1284,6 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('CDK path in Metadata is preserved', () => {
-    const deployedStack: CloudFormationStack = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Metadata: {
-              'aws:cdk:path': 'Stack1/Bucket1/Resource',
-            },
-          },
-        },
-      },
-    };
-
-    const localStack: CloudFormationStack = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {
-          Bucket2: {
-            Type: 'AWS::S3::Bucket',
-            Metadata: {
-              // Here the CDK path is consistent with the new logical ID...
-              'aws:cdk:path': 'Stack1/Bucket2/Resource',
-            },
-          },
-        },
-      },
-    };
-
-    const mappings: ResourceMapping[] = [
-      new ResourceMapping(
-        new ResourceLocation(deployedStack, 'Bucket1'),
-        new ResourceLocation(deployedStack, 'Bucket2'),
-      ),
-    ];
-
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
-    expect(result).toEqual([
-      {
-        StackName: 'Stack1',
-        TemplateBody: JSON.stringify({
-          Resources: {
-            Bucket2: {
-              Type: 'AWS::S3::Bucket',
-              Metadata: {
-                // ...but we keep the original CDK path from the deployed stack, to make CloudFormation happy.
-                'aws:cdk:path': 'Stack1/Bucket1/Resource',
-              },
-            },
-          },
-        }),
-      },
-    ]);
-  });
-
   test('stack definitions come from the local templates', () => {
     const deployedStack: CloudFormationStack = {
       environment,

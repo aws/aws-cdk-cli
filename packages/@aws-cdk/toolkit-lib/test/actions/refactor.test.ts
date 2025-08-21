@@ -742,7 +742,7 @@ describe('refactor execution', () => {
                 Type: 'AWS::S3::Bucket',
                 UpdateReplacePolicy: 'Retain',
                 DeletionPolicy: 'Retain',
-                Metadata: { 'aws:cdk:path': 'Stack1/OldLogicalID/Resource' },
+                Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
               },
             },
             Parameters: {
