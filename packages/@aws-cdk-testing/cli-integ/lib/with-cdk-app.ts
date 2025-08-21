@@ -313,6 +313,11 @@ export interface CdkModernBootstrapCommandOptions extends CommonCdkBootstrapComm
   readonly customPermissionsBoundary?: string;
 
   /**
+   * @default true
+   */
+  readonly denyExternalId?: boolean;
+
+  /**
    * @default undefined
    */
   readonly usePreviousParameters?: boolean;
@@ -509,6 +514,10 @@ export class TestFixture extends ShellHelper {
     } else if (options.examplePermissionsBoundary !== undefined) {
       args.push('--example-permissions-boundary');
     }
+    if (options.denyExternalId !== undefined) {
+      args.push(options.denyExternalId ? '--deny-external-id' : '--no-deny-external-id');
+    }
+
     if (options.usePreviousParameters === false) {
       args.push('--no-previous-parameters');
     }
