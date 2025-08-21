@@ -295,6 +295,87 @@ describe('detectStackDrift', () => {
       level: 'trace',
     }));
   });
+
+  test('handles UNKNOWN stack drift status', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const statusReason = 'Unable to check drift for some resources';
+    const expectedDriftResults = { StackResourceDrifts: [], $metadata: {} };
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'UNKNOWN',
+      DetectionStatusReason: statusReason,
+    });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Stack drift status is UNKNOWN'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining(statusReason),
+      level: 'trace',
+    }));
+  });
+
+  test('handles resources with UNKNOWN drift status', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const driftStatusReason = 'Insufficient permissions to check drift';
+    const expectedDriftResults = {
+      StackResourceDrifts: [
+        {
+          StackId: 'stack-id',
+          LogicalResourceId: 'MyResource1',
+          ResourceType: 'AWS::S3::Bucket',
+          StackResourceDriftStatus: 'UNKNOWN',
+          DriftStatusReason: driftStatusReason,
+          Timestamp: new Date(),
+        },
+      ],
+      $metadata: {},
+    };
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'UNKNOWN',
+    });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Some resources have UNKNOWN drift status'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('MyResource1'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining(driftStatusReason),
+      level: 'trace',
+    }));
+  });
 });
 
 describe('formatStackDrift', () => {
@@ -579,5 +660,150 @@ describe('formatStackDrift', () => {
     expect(result.deleted).toContain('AWS::IAM::Role');
     expect(result.deleted).toContain('Resource2');
     expect(result.summary).toContain('2 resources have drifted');
+  });
+
+  test('formatting with UNKNOWN drift status', () => {
+    // GIVEN
+    const templateWithMultipleResources = {
+      template: {
+        Resources: {
+          Resource1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              BucketName: 'expected-name',
+            },
+          },
+          Resource2: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              RoleName: 'test-role',
+            },
+          },
+          Resource3: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Handler: 'index.handler',
+              Runtime: 'nodejs20.x',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'Resource1',
+        PhysicalResourceId: 'physical-id-1',
+        ResourceType: 'AWS::S3::Bucket',
+        PropertyDifferences: [{
+          PropertyPath: '/BucketName',
+          ExpectedValue: 'expected-name',
+          ActualValue: 'actual-name',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'UNKNOWN',
+        LogicalResourceId: 'Resource2',
+        PhysicalResourceId: 'physical-id-2',
+        ResourceType: 'AWS::IAM::Role',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'IN_SYNC',
+        LogicalResourceId: 'Resource3',
+        PhysicalResourceId: 'physical-id-3',
+        ResourceType: 'AWS::Lambda::Function',
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: templateWithMultipleResources,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(1); // Only MODIFIED counts as drift, UNKNOWN does not
+    expect(result.modified).toContain('Modified Resources');
+    expect(result.modified).toContain('AWS::S3::Bucket');
+    expect(result.modified).toContain('Resource1');
+    expect(result.summary).toContain('1 resource has drifted');
+
+    // UNKNOWN resources should be treated as unchecked, not as drift
+    expect(result.unchecked).toContain('AWS::IAM::Role');
+    expect(result.unchecked).toContain('Resource2');
+  });
+
+  test('formatting with only UNKNOWN drift status', () => {
+    // GIVEN
+    const templateWithUnknownResources = {
+      template: {
+        Resources: {
+          Resource1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              BucketName: 'test-bucket',
+            },
+          },
+          Resource2: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              RoleName: 'test-role',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'UNKNOWN',
+        LogicalResourceId: 'Resource1',
+        PhysicalResourceId: 'physical-id-1',
+        ResourceType: 'AWS::S3::Bucket',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'UNKNOWN',
+        LogicalResourceId: 'Resource2',
+        PhysicalResourceId: 'physical-id-2',
+        ResourceType: 'AWS::IAM::Role',
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: templateWithUnknownResources,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(0); // UNKNOWN resources do not count as drift
+    expect(result.summary).toContain('No drift detected');
+
+    // All UNKNOWN resources should be in the unchecked section
+    expect(result.unchecked).toBeDefined();
+    expect(result.unchecked).toContain('AWS::S3::Bucket');
+    expect(result.unchecked).toContain('Resource1');
+    expect(result.unchecked).toContain('AWS::IAM::Role');
+    expect(result.unchecked).toContain('Resource2');
   });
 });

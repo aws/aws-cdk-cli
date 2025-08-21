@@ -41,7 +41,7 @@ interface DriftFormatterOutput {
   readonly unchanged?: string;
 
   /**
-   * Resources that were not checked for drift
+   * Resources that were not checked for drift or have an UNKNOWN drift status
    */
   readonly unchecked?: string;
 
@@ -98,12 +98,9 @@ export class DriftFormatter {
   public formatStackDrift(): DriftFormatterOutput {
     const formatterOutput = this.formatStackDriftChanges(this.buildLogicalToPathMap());
 
-    // we are only interested in actual drifts and always ignore the metadata resource
+    // we are only interested in actual drifts (and ignore the metadata resource)
     const actualDrifts = this.resourceDriftResults.filter(d =>
-      d.StackResourceDriftStatus === 'MODIFIED' ||
-      d.StackResourceDriftStatus === 'DELETED' ||
-      d.ResourceType === 'AWS::CDK::Metadata',
-    );
+      d.StackResourceDriftStatus === 'MODIFIED' || d.StackResourceDriftStatus === 'DELETED');
 
     // must output the stack name if there are drifts
     const stackHeader = format(`Stack ${chalk.bold(this.stackName)}\n`);
@@ -114,6 +111,10 @@ export class DriftFormatter {
         numResourcesWithDrift: 0,
         numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
         stackHeader,
+        unchanged: formatterOutput.unchanged,
+        unchecked: formatterOutput.unchecked,
+        modified: formatterOutput.modified,
+        deleted: formatterOutput.deleted,
         summary: finalResult,
       };
     }
@@ -172,19 +173,18 @@ export class DriftFormatter {
       unchanged += this.printSectionFooter();
     }
 
-    // Process all unchecked resources
-    if (this.allStackResources) {
-      const uncheckedResources = Array.from(this.allStackResources.keys()).filter((logicalId) => {
-        return !drifts.find((drift) => drift.LogicalResourceId === logicalId);
-      });
-      if (uncheckedResources.length > 0) {
-        unchecked = this.printSectionHeader('Unchecked Resources');
-        for (const logicalId of uncheckedResources) {
-          const resourceType = this.allStackResources.get(logicalId);
-          unchecked += `${CONTEXT} ${this.formatValue(resourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, logicalId)}\n`;
-        }
-        unchecked += this.printSectionFooter();
+    // Process all unchecked and unknown resources
+    const uncheckedResources = Array.from(this.allStackResources.keys()).filter((logicalId) => {
+      const drift = drifts.find((d) => d.LogicalResourceId === logicalId);
+      return !drift || drift.StackResourceDriftStatus === StackResourceDriftStatus.UNKNOWN;
+    });
+    if (uncheckedResources.length > 0) {
+      unchecked = this.printSectionHeader('Unchecked Resources');
+      for (const logicalId of uncheckedResources) {
+        const resourceType = this.allStackResources.get(logicalId);
+        unchecked += `${CONTEXT} ${this.formatValue(resourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, logicalId)}\n`;
       }
+      unchecked += this.printSectionFooter();
     }
 
     // Process modified resources

@@ -39,10 +39,34 @@ export async function detectStackDrift(
     );
   }
 
-  // Get the drift results
-  return cfn.describeStackResourceDrifts({
+  // Handle UNKNOWN stack drift status
+  if (driftStatus?.StackDriftStatus === 'UNKNOWN') {
+    await ioHelper.defaults.trace(
+      'Stack drift status is UNKNOWN. This may occur when CloudFormation is unable to detect drift for at least one resource and all other resources are IN_SYNC.\n' +
+      `Reason: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
+    );
+  }
+
+  // Get the drift results, including resources with UNKNOWN status
+  const driftResults = await cfn.describeStackResourceDrifts({
     StackName: stackName,
   });
+
+  // Log warning for any resources with UNKNOWN status
+  const unknownResources = driftResults.StackResourceDrifts?.filter(
+    drift => drift.StackResourceDriftStatus === 'UNKNOWN',
+  );
+
+  if (unknownResources && unknownResources.length > 0) {
+    await ioHelper.defaults.trace(
+      'Some resources have UNKNOWN drift status. This may be due to insufficient permissions or throttling:\n' +
+      unknownResources.map(r =>
+        `  - ${r.LogicalResourceId}: ${r.DriftStatusReason || 'No reason provided'}`,
+      ).join('\n'),
+    );
+  }
+
+  return driftResults;
 }
 
 /**
@@ -69,7 +93,7 @@ async function waitForDriftDetection(
     }
 
     if (response.DetectionStatus === 'DETECTION_FAILED') {
-      throw new ToolkitError(`Drift detection failed: ${response.DetectionStatusReason}`);
+      throw new ToolkitError(`Drift detection failed: ${response.DetectionStatusReason || 'No reason provided'}`);
     }
 
     if (Date.now() > deadline) {
