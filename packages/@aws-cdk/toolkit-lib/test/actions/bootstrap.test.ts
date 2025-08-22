@@ -232,10 +232,6 @@ describe('bootstrap', () => {
           ParameterKey: 'PublicAccessBlockConfiguration',
           ParameterValue: 'true',
         },
-        {
-          ParameterKey: 'DenyExternalId',
-          ParameterValue: 'true',
-        },
       ]));
       expectSuccessfulBootstrap();
     });
@@ -358,10 +354,6 @@ describe('bootstrap', () => {
         },
         {
           ParameterKey: 'PublicAccessBlockConfiguration',
-          ParameterValue: 'true',
-        },
-        {
-          ParameterKey: 'DenyExternalId',
           ParameterValue: 'true',
         },
       ]));

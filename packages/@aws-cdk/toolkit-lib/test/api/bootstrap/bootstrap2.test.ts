@@ -646,7 +646,7 @@ describe('Bootstrapping v2', () => {
   });
 
   describe('ExternalId protection', () => {
-    test('denyExternalId parameter defaults to true', async () => {
+    test('denyExternalId parameter is not present by default', async () => {
       // GIVEN
       const mockSdk = new MockSdkProvider();
       (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack({
@@ -663,7 +663,7 @@ describe('Bootstrapping v2', () => {
       // THEN
       expect(mockDeployStack).toHaveBeenCalledWith(
         expect.objectContaining({
-          parameters: expect.objectContaining({
+          parameters: expect.not.objectContaining({
             DenyExternalId: 'true',
           }),
         }),
@@ -671,7 +671,7 @@ describe('Bootstrapping v2', () => {
       );
     });
 
-    test('denyExternalId parameter can be set to false', async () => {
+    test.each([false, true])('denyExternalId parameter can be set to %p', async (param) => {
       // GIVEN
       const mockSdk2 = new MockSdkProvider();
       (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack({
@@ -683,7 +683,7 @@ describe('Bootstrapping v2', () => {
       // WHEN
       await bootstrapper.bootstrapEnvironment(env, mockSdk2, {
         parameters: {
-          denyExternalId: false,
+          denyExternalId: param,
         },
       });
 
@@ -691,7 +691,7 @@ describe('Bootstrapping v2', () => {
       expect(mockDeployStack).toHaveBeenCalledWith(
         expect.objectContaining({
           parameters: expect.objectContaining({
-            DenyExternalId: 'false',
+            DenyExternalId: `${param}`,
           }),
         }),
         expect.anything(),
