@@ -5,6 +5,7 @@
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
+import { LANGUAGES } from './cli';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {
@@ -846,7 +847,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: ['csharp', 'fsharp', 'go', 'java', 'javascript', 'python', 'typescript'],
+          choices: Object.keys(LANGUAGES)
         })
         .option('list', {
           default: undefined,
