@@ -11,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { FeatureFlag, DeployResult, DestroyResult, RollbackResult } from './types';
+import type { DeployResult, DestroyResult, FeatureFlag, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -68,6 +68,7 @@ import {
 import type { CloudFormationStack } from '../api/refactoring/cloudformation';
 import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
+import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -1059,10 +1060,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
     const sdkProvider = await this.sdkProvider('refactor');
     const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
@@ -1075,6 +1072,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           environment,
           deployedStacks,
           localStacks,
+          assumeRoleArn: options.roleArn,
           overrides: getOverrides(environment, deployedStacks, localStacks),
         });
 
@@ -1092,6 +1090,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
+        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
           refactorMessage += '\n' + formatAmbiguousMappings(paths);
@@ -1099,8 +1099,27 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
+
+        if (options.dryRun || context.mappings.length === 0 || context.ambiguousPaths.length > 0) {
+          // Nothing left to do.
+          continue;
+        }
+
+        // In interactive mode (TTY) we need confirmation before proceeding
+        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+          await ioHelper.defaults.info(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+          continue;
+        }
+
+        await ioHelper.defaults.info('Refactoring...');
+        await context.execute(stackDefinitions, sdkProvider, ioHelper);
+        await ioHelper.defaults.info('✅  Stack refactor complete');
       } catch (e: any) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(e.message, { error: e }));
+        const message = `❌  Refactor failed: ${formatError(e)}`;
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
+
+        // Also debugging the error, because the API does not always return a user-friendly message
+        await ioHelper.defaults.debug(e.message);
       }
     }
 
@@ -1108,38 +1127,58 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const mappingGroup = options.overrides
         ?.find(g => g.region === environment.region && g.account === environment.account);
 
-      let overrides: ResourceMapping[] = [];
-      if (mappingGroup != null) {
-        overrides = Object.entries(mappingGroup.resources ?? {}).map(([source, destination]) => {
-          const sourceStack = findStack(source, deployedStacks);
-          const sourceLogicalId = source.split('.')[1];
+      return mappingGroup == null
+        ? []
+        : Object.entries(mappingGroup.resources ?? {})
+          .map(([source, destination]) => new ResourceMapping(
+            getResourceLocation(source, deployedStacks),
+            getResourceLocation(destination, localStacks),
+          ));
+    }
 
-          const destinationStack = findStack(destination, localStacks);
-          const destinationLogicalId = destination.split('.')[1];
+    function getResourceLocation(location: string, stacks: CloudFormationStack[]): ResourceLocation {
+      for (let stack of stacks) {
+        const [stackName, logicalId] = location.split('.');
+        if (stackName != null && logicalId != null && stack.stackName === stackName && stack.template.Resources?.[logicalId] != null) {
+          return new ResourceLocation(stack, logicalId);
+        } else {
+          const resourceEntry = Object
+            .entries(stack.template.Resources ?? {})
+            .find(([_, r]) => r.Metadata?.['aws:cdk:path'] === location);
+          if (resourceEntry != null) {
+            return new ResourceLocation(stack, resourceEntry[0]);
+          }
+        }
+      }
+      throw new ToolkitError(`Cannot find resource in location ${location}`);
+    }
 
-          return new ResourceMapping(
-            new ResourceLocation(sourceStack, sourceLogicalId),
-            new ResourceLocation(destinationStack, destinationLogicalId),
-          );
-        });
+    async function confirm(force: boolean): Promise<boolean> {
+      // 'force' is set to true is the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
       }
 
-      return overrides;
+      const question = 'Do you wish to refactor these resources?';
+      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        responseDescription: '[Y]es/[n]o',
+      }, 'y'));
+      return ['y', 'yes'].includes(response.toLowerCase());
+    }
 
-      function findStack(location: string, stacks: CloudFormationStack[]): CloudFormationStack {
-        const result = stacks.find(stack => {
-          const [stackName, logicalId] = location.split('.');
-          if (stackName == null || logicalId == null) {
-            throw new ToolkitError(`Invalid location '${location}'`);
-          }
-          return stack.stackName === stackName && stack.template.Resources?.[logicalId] != null;
-        });
-
-        if (result == null) {
-          throw new ToolkitError(`Cannot find resource in location ${location}`);
+    function formatError(error: any): string {
+      try {
+        const payload = JSON.parse(error.message);
+        const messages: string[] = [];
+        if (payload.reason?.StatusReason) {
+          messages.push(`Refactor creation: [${payload.reason?.Status}] ${payload.reason.StatusReason}`);
         }
-
-        return result;
+        if (payload.reason?.ExecutionStatusReason) {
+          messages.push(`Refactor execution: [${payload.reason?.Status}] ${payload.reason.ExecutionStatusReason}`);
+        }
+        return messages.length > 0 ? messages.join('\n') : 'Unknown error';
+      } catch (e) {
+        return formatErrorMessage(error);
       }
     }
   }

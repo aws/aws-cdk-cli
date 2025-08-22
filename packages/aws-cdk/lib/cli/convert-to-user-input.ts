@@ -289,6 +289,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         dryRun: args.dryRun,
         overrideFile: args.overrideFile,
         revert: args.revert,
+        force: args.force,
       };
       break;
 
@@ -508,6 +509,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     dryRun: config.refactor?.dryRun,
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
+    force: config.refactor?.force,
   };
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,

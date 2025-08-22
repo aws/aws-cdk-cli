@@ -35,6 +35,8 @@ export function formatAmbiguousMappings(
   formatter.print('Detected ambiguities:');
   formatter.print(tables.join('\n\n'));
   formatter.print(' ');
+  formatter.print(chalk.yellow('Please provide an override file to resolve these ambiguous mappings.'));
+  formatter.print(' ');
 
   function renderTable([removed, added]: [string[], string[]]) {
     return formatTable([['', 'Resource'], renderRemoval(removed), renderAddition(added)], undefined);

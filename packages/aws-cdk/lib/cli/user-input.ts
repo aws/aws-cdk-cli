@@ -1548,6 +1548,13 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly revert?: boolean;
+
+  /**
+   * Whether to do the refactor without asking for confirmation
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
 }
 
 /**

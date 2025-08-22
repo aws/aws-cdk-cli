@@ -333,6 +333,10 @@
       "type": "runtime"
     },
     {
+      "name": "fast-deep-equal",
+      "type": "runtime"
+    },
+    {
       "name": "fs-extra",
       "version": "^9",
       "type": "runtime"

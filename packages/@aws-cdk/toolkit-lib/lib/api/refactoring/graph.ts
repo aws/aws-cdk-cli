@@ -56,15 +56,17 @@ export class ResourceGraph {
       }
       if ('Fn::ImportValue' in value) {
         const exp = exports[value['Fn::ImportValue']];
-        const v = exp.value;
-        if ('Fn::GetAtt' in v) {
-          const id = Array.isArray(v['Fn::GetAtt']) ? v['Fn::GetAtt'][0] : v['Fn::GetAtt'].split('.')[0];
-          return [`${exp.stackName}.${id}`];
+        if (exp != null) {
+          const v = exp.value;
+          if ('Fn::GetAtt' in v) {
+            const id = Array.isArray(v['Fn::GetAtt']) ? v['Fn::GetAtt'][0] : v['Fn::GetAtt'].split('.')[0];
+            return [`${exp.stackName}.${id}`];
+          }
+          if ('Ref' in v) {
+            return [`${exp.stackName}.${v.Ref}`];
+          }
+          return [`${exp.stackName}.${v}`];
         }
-        if ('Ref' in v) {
-          return [`${exp.stackName}.${v.Ref}`];
-        }
-        return [`${exp.stackName}.${v}`];
       }
       const result: string[] = [];
       if ('DependsOn' in value) {

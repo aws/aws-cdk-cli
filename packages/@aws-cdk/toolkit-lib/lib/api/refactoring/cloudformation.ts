@@ -1,5 +1,6 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { ResourceMapping as CfnResourceMapping } from '@aws-sdk/client-cloudformation';
 
 export interface CloudFormationResource {
   Type: string;
@@ -13,12 +14,15 @@ export interface CloudFormationTemplate {
     [logicalId: string]: CloudFormationResource;
   };
   Outputs?: Record<string, any>;
+  Rules?: Record<string, any>;
+  Parameters?: Record<string, any>;
 }
 
 export interface CloudFormationStack {
   readonly environment: cxapi.Environment;
   readonly stackName: string;
   readonly template: CloudFormationTemplate;
+  readonly assumeRoleArn?: string;
 }
 
 /**
@@ -54,6 +58,10 @@ export class ResourceLocation {
   public equalTo(other: ResourceLocation): boolean {
     return this.logicalResourceId === other.logicalResourceId && this.stack.stackName === other.stack.stackName;
   }
+
+  public get stackName(): string {
+    return this.stack.stackName;
+  }
 }
 
 /**
@@ -70,6 +78,19 @@ export class ResourceMapping {
       type: this.source.getType(),
       sourcePath: this.source.toPath(),
       destinationPath: this.destination.toPath(),
+    };
+  }
+
+  public toCloudFormation(): CfnResourceMapping {
+    return {
+      Source: {
+        StackName: this.source.stack.stackName,
+        LogicalResourceId: this.source.logicalResourceId,
+      },
+      Destination: {
+        StackName: this.destination.stack.stackName,
+        LogicalResourceId: this.destination.logicalResourceId,
+      },
     };
   }
 }

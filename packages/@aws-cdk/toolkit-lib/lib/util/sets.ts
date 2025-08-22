@@ -12,3 +12,7 @@ export function equalSets<A>(a: Set<A>, b: Set<A>) {
   }
   return true;
 }
+
+export function setDiff<A>(a: Set<A>, b: Set<A>) {
+  return new Set(Array.from(a).filter(x => !b.has(x)));
+}
