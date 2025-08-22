@@ -111,10 +111,7 @@ export class DriftFormatter {
         numResourcesWithDrift: 0,
         numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
         stackHeader,
-        unchanged: formatterOutput.unchanged,
         unchecked: formatterOutput.unchecked,
-        modified: formatterOutput.modified,
-        deleted: formatterOutput.deleted,
         summary: finalResult,
       };
     }
