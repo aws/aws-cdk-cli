@@ -1814,6 +1814,7 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
     'deps',
     'dev-deps',
     'docs',
+    'bootstrap',
     'integ-testing',
     'toolkit-lib',
     ...repoProject.subprojects

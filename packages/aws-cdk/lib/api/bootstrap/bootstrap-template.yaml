@@ -332,7 +332,9 @@ Resources:
                 - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -374,7 +376,9 @@ Resources:
                 - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -416,7 +420,9 @@ Resources:
                 - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccountsForLookup
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -430,7 +436,9 @@ Resources:
               - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -549,7 +557,9 @@ Resources:
                 - Ref: AWS::NoValue
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
