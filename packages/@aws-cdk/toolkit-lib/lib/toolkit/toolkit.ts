@@ -1290,14 +1290,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         const properties = report.properties as FeatureFlagReportProperties;
         const moduleName = properties.module;
 
-        return Object.entries(properties.flags).map(([flagName, flagInfo]) => ({
-          module: moduleName,
-          name: flagName,
-          recommendedValue: flagInfo.recommendedValue,
-          userValue: flagInfo.userValue ?? undefined,
-          explanation: flagInfo.explanation ?? '',
-          unconfiguredBehavesLike: flagInfo.unconfiguredBehavesLike,
-        }));
+        return Object.entries(properties.flags).map(([flagName, flagInfo]) => {
+          return {
+            module: moduleName,
+            name: flagName,
+            recommendedValue: isBoolean(flagInfo.recommendedValue) ? toBooleanValue(flagInfo.recommendedValue) : flagInfo.recommendedValue,
+            userValue: isBoolean(flagInfo.userValue) ? toBooleanValue(flagInfo.userValue) : flagInfo.userValue,
+            explanation: flagInfo.explanation ?? '',
+            unconfiguredBehavesLike: flagInfo.unconfiguredBehavesLike,
+          };
+        });
       });
   }
 
@@ -1307,3 +1309,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
   }
 }
+
+function isBoolean(value: unknown): boolean {
+  return typeof value === 'boolean' || value === 'true' || value === 'false';
+}
+
+function toBooleanValue(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  return false;
+}
+
