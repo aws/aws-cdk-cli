@@ -66,6 +66,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         bootstrapCustomerKey: args.bootstrapCustomerKey,
         qualifier: args.qualifier,
         publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
+        denyExternalId: args.denyExternalId,
         tags: args.tags,
         execute: args.execute,
         trust: args.trust,
@@ -89,6 +90,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         rollbackBufferDays: args.rollbackBufferDays,
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
+        toolkitStackName: args.toolkitStackName,
         bootstrapStackName: args.bootstrapStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
@@ -99,6 +101,10 @@ export function convertYargsToUserInput(args: any): UserInput {
         value: args.value,
         set: args.set,
         all: args.all,
+        unconfigured: args.unconfigured,
+        recommended: args.recommended,
+        default: args.default,
+        interactive: args.interactive,
         FLAGNAME: args.FLAGNAME,
       };
       break;
@@ -352,6 +358,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrapCustomerKey: config.bootstrap?.bootstrapCustomerKey,
     qualifier: config.bootstrap?.qualifier,
     publicAccessBlockConfiguration: config.bootstrap?.publicAccessBlockConfiguration,
+    denyExternalId: config.bootstrap?.denyExternalId,
     tags: config.bootstrap?.tags,
     execute: config.bootstrap?.execute,
     trust: config.bootstrap?.trust,
@@ -371,12 +378,17 @@ export function convertConfigToUserInput(config: any): UserInput {
     rollbackBufferDays: config.gc?.rollbackBufferDays,
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
+    toolkitStackName: config.gc?.toolkitStackName,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
   const flagsOptions = {
     value: config.flags?.value,
     set: config.flags?.set,
     all: config.flags?.all,
+    unconfigured: config.flags?.unconfigured,
+    recommended: config.flags?.recommended,
+    default: config.flags?.default,
+    interactive: config.flags?.interactive,
   };
   const deployOptions = {
     all: config.deploy?.all,

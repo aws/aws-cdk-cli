@@ -227,6 +227,10 @@
           "type": "boolean",
           "desc": "Block public access configuration on CDK toolkit bucket (enabled by default) "
         },
+        "deny-external-id": {
+          "type": "boolean",
+          "desc": "Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) "
+        },
         "tags": {
           "type": "array",
           "alias": "t",
@@ -322,10 +326,18 @@
           "desc": "Confirm via manual prompt before deletion",
           "default": true
         },
-        "bootstrap-stack-name": {
+        "toolkit-stack-name": {
           "type": "string",
           "desc": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\"",
-          "requiresArg": true
+          "requiresArg": true,
+          "conflicts": "bootstrap-stack-name"
+        },
+        "bootstrap-stack-name": {
+          "type": "string",
+          "desc": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\" (deprecated, use --toolkit-stack-name)",
+          "deprecated": "use --toolkit-stack-name",
+          "requiresArg": true,
+          "conflicts": "toolkit-stack-name"
         }
       }
     },
@@ -349,6 +361,29 @@
         "all": {
           "type": "boolean",
           "desc": "Modify or view all feature flags",
+          "requiresArg": false
+        },
+        "unconfigured": {
+          "type": "boolean",
+          "desc": "Modify unconfigured feature flags",
+          "requiresArg": false
+        },
+        "recommended": {
+          "type": "boolean",
+          "desc": "Change flags to recommended states",
+          "requiresArg": false
+        },
+        "default": {
+          "type": "boolean",
+          "desc": "Change flags to default state",
+          "requiresArg": false
+        },
+        "interactive": {
+          "type": "boolean",
+          "alias": [
+            "i"
+          ],
+          "desc": "Interactive option for the flags command",
           "requiresArg": false
         }
       }

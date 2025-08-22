@@ -240,6 +240,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ',
         })
+        .option('deny-external-id', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ',
+        })
         .option('tags', {
           type: 'array',
           alias: 't',
@@ -345,11 +350,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Confirm via manual prompt before deletion',
           })
-          .option('bootstrap-stack-name', {
+          .option('toolkit-stack-name', {
             default: undefined,
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
+            conflicts: 'bootstrap-stack-name',
+          })
+          .option('bootstrap-stack-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)',
+            deprecated: 'use --toolkit-stack-name',
+            requiresArg: true,
+            conflicts: 'toolkit-stack-name',
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
@@ -370,6 +384,31 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'boolean',
           desc: 'Modify or view all feature flags',
+          requiresArg: false,
+        })
+        .option('unconfigured', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify unconfigured feature flags',
+          requiresArg: false,
+        })
+        .option('recommended', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to recommended states',
+          requiresArg: false,
+        })
+        .option('default', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to default state',
+          requiresArg: false,
+        })
+        .option('interactive', {
+          default: undefined,
+          type: 'boolean',
+          alias: ['i'],
+          desc: 'Interactive option for the flags command',
           requiresArg: false,
         }),
     )

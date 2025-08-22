@@ -154,16 +154,12 @@ async function loadLocalTemplate(fromPath: string, templatePath?: string): Promi
  * Load a built-in template by name
  */
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
-  if (!type) {
-    await printAvailableTemplates(ioHelper, language);
-    throw new ToolkitError('No template specified. Please specify a template name.');
-  }
+  const templateType = type || 'default'; // "default" is the default type (and maps to "app")
 
-  const template = (await availableInitTemplates()).find((t) => t.hasName(type));
-
+  const template = (await availableInitTemplates()).find((t) => t.hasName(templateType));
   if (!template) {
     await printAvailableTemplates(ioHelper, language);
-    throw new ToolkitError(`Unknown init template: ${type}`);
+    throw new ToolkitError(`Unknown init template: ${templateType}`);
   }
 
   return template;
@@ -178,26 +174,23 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
  * @returns Promise resolving to the selected language
  */
 async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
-  let language = requestedLanguage;
-
-  // Auto-detect language for single-language templates
-  if (!language && template.languages.length === 1) {
-    language = template.languages[0];
+  if (requestedLanguage) {
+    return requestedLanguage;
+  }
+  if (template.languages.length === 1) {
+    const templateLanguage = template.languages[0];
     // Only show auto-detection message for built-in templates
-    // Local templates are inherently single-language for testing purposes
     if (template.templateType !== TemplateType.CUSTOM) {
-      await ioHelper.defaults.info(
-        `No --language was provided, but '${template.name}' supports only '${language}', so defaulting to --language=${language}`,
+      await ioHelper.defaults.warn(
+        `No --language was provided, but '${template.name}' supports only '${templateLanguage}', so defaulting to --language=${templateLanguage}`,
       );
     }
+    return templateLanguage;
   }
-
-  if (!language) {
-    await ioHelper.defaults.info(`Available languages for ${chalk.green(template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
-    throw new ToolkitError('No language was selected');
-  }
-
-  return language;
+  await ioHelper.defaults.info(
+    `Available languages for ${chalk.green(template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
+  );
+  throw new ToolkitError('No language was selected');
 }
 
 /**
@@ -687,6 +680,12 @@ async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: 
       return postInstallJava(ioHelper, canUseNetwork, workDir);
     case 'python':
       return postInstallPython(ioHelper, workDir);
+    case 'go':
+      return postInstallGo(ioHelper, canUseNetwork, workDir);
+    case 'csharp':
+    case 'fsharp':
+      // .NET languages don't need post-install steps for custom templates
+      return;
   }
 }
 
@@ -735,6 +734,20 @@ async function postInstallPython(ioHelper: IoHelper, cwd: string) {
   } catch {
     await ioHelper.defaults.warn('Unable to create virtualenv automatically');
     await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
+  }
+}
+
+async function postInstallGo(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  if (!canUseNetwork) {
+    await ioHelper.defaults.warn('Please run \'go mod tidy\'!');
+    return;
+  }
+
+  await ioHelper.defaults.info(`Executing ${chalk.green('go mod tidy')}...`);
+  try {
+    await execute(ioHelper, 'go', ['mod', 'tidy'], { cwd });
+  } catch (e: any) {
+    await ioHelper.defaults.warn('\'go mod tidy\' failed: ' + formatErrorMessage(e));
   }
 }
 

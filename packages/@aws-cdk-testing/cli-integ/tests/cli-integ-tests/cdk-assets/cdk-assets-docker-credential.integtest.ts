@@ -5,13 +5,13 @@ import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 // eslint-disable-next-line import/no-relative-packages
 import type { DockerDomainCredentialSource } from '../../../../../@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
 import type { TestFixture } from '../../../lib';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withDefaultFixture, withRetry, retry } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
-  withDefaultFixture(async (fixture) => {
+  withRetry(withDefaultFixture(async (fixture) => {
     const caller = await fixture.aws.sts.send(new GetCallerIdentityCommand({}));
 
     const roleArn = await fixture.aws.temporaryRole('ecr-repo-role', [
@@ -35,7 +35,7 @@ integTest(
       // This role must have permissions to call `ecr:GetAuthorizationToken`
       assumeRoleArn: roleArn,
     });
-  }),
+  })),
 );
 
 /*
@@ -83,13 +83,17 @@ async function testDockerCredential(fixture: TestFixture, credSource: DockerDoma
   fs.writeFileSync(input, `${domain}\n`);
 
   await fixture.cdkAssets.makeCliAvailable();
-  const output = await fixture.shell(['docker-credential-cdk-assets', 'get'], {
-    modEnv: {
-      ...fixture.cdkShellEnv(),
-      CDK_DOCKER_CREDS_FILE: credsFilePath,
-    },
-    stdio: [fs.openSync(input, 'r')],
-    captureStderr: false,
+  let output: string = '';
+
+  await retry(process.stdout, 'Getting docker credentials', retry.forSeconds(60), async () => {
+    output = await fixture.shell(['docker-credential-cdk-assets', 'get'], {
+      modEnv: {
+        ...fixture.cdkShellEnv(),
+        CDK_DOCKER_CREDS_FILE: credsFilePath,
+      },
+      stdio: [fs.openSync(input, 'r')],
+      captureStderr: false,
+    });
   });
 
   const response = JSON.parse(output);

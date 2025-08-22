@@ -23,6 +23,18 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
   });
 
+  cliTest("when type is 'lib' and language is not specified, it default language to TypeScript", async (workDir) => {
+    await cliInit({
+      ioHelper,
+      type: 'lib',
+      workDir,
+    });
+
+    // Check that tsconfig.json and lib/ got created in the current directory
+    expect(await fs.pathExists(path.join(workDir, 'tsconfig.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
+  });
+
   cliTest('can override requested version with environment variable', async (workDir) => {
     await cliInit({
       ioHelper,
@@ -582,14 +594,13 @@ describe('constructs version', () => {
     const config = await makeConfig();
     expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
 
-    // Test that template-path functionality requires from-path to work
+    // Test that template-path functionality works when from-path is provided
     const repoDir = await createMultiTemplateRepository(workDir, [
       { name: 'implies-test', languages: ['typescript'] },
     ]);
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
 
-    // Test that template-path works when from-path is provided (satisfying the implication)
     await cliInit({
       ioHelper,
       fromPath: repoDir,
@@ -601,19 +612,6 @@ describe('constructs version', () => {
     });
 
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
-
-    // Test that template-path without from-path fails at the function level
-    const projectDir2 = path.join(workDir, 'my-project-2');
-    await fs.mkdirp(projectDir2);
-
-    await expect(cliInit({
-      ioHelper,
-      templatePath: 'implies-test', // template-path without from-path
-      language: 'typescript',
-      canUseNetwork: false,
-      generateOnly: true,
-      workDir: projectDir2,
-    })).rejects.toThrow(); // Should fail because template-path requires from-path
   });
 
   cliTest('hook files are ignored during template copy', async (workDir) => {

@@ -462,6 +462,13 @@ export interface BootstrapOptions {
   readonly publicAccessBlockConfiguration?: boolean;
 
   /**
+   * Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default)
+   *
+   * @default - undefined
+   */
+  readonly denyExternalId?: boolean;
+
+  /**
    * Tags to add for the stack (KEY=VALUE)
    *
    * aliases: t
@@ -601,6 +608,14 @@ export interface GcOptions {
    *
    * @default - undefined
    */
+  readonly toolkitStackName?: string;
+
+  /**
+   * The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)
+   *
+   * @deprecated use --toolkit-stack-name
+   * @default - undefined
+   */
   readonly bootstrapStackName?: string;
 
   /**
@@ -635,6 +650,36 @@ export interface FlagsOptions {
    * @default - undefined
    */
   readonly all?: boolean;
+
+  /**
+   * Modify unconfigured feature flags
+   *
+   * @default - undefined
+   */
+  readonly unconfigured?: boolean;
+
+  /**
+   * Change flags to recommended states
+   *
+   * @default - undefined
+   */
+  readonly recommended?: boolean;
+
+  /**
+   * Change flags to default state
+   *
+   * @default - undefined
+   */
+  readonly default?: boolean;
+
+  /**
+   * Interactive option for the flags command
+   *
+   * aliases: i
+   *
+   * @default - undefined
+   */
+  readonly interactive?: boolean;
 
   /**
    * Positional argument for flags

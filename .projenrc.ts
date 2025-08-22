@@ -5,6 +5,7 @@ import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import type { Job } from 'projen/lib/github/workflows-model';
 import { AdcPublishing } from './projenrc/adc-publishing';
+import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
@@ -290,6 +291,7 @@ const repoProject = new yarn.Monorepo({
 
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
+new BootstrapTemplateProtection(repoProject);
 
 // Eslint for projen config
 // @ts-ignore
@@ -1152,6 +1154,7 @@ const cli = configureProject(
       'chalk@^4',
       'chokidar@^3',
       'decamelize@^5', // Non-ESM
+      'enquirer',
       'fs-extra@^9',
       'glob',
       'minimatch',
@@ -1813,6 +1816,7 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
     'deps',
     'dev-deps',
     'docs',
+    'bootstrap',
     'integ-testing',
     'toolkit-lib',
     ...repoProject.subprojects
