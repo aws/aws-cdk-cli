@@ -529,6 +529,161 @@ describe('constructs version', () => {
   },
   // This is a lot to test, and it can be slow-ish, especially when ran with other tests.
   30_000);
+
+  cliTest('unstable flag functionality works correctly', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+    
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+    
+    // Test that unstable flags are accepted during actual init
+    const { stderr } = await execAsync(`node ${cdkBin} init app --language typescript --unstable feature1 --unstable feature2 --generate-only`, {
+      cwd: projectDir,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' }
+    });
+    
+    // Should complete without error
+    expect(stderr).not.toContain('error');
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    
+    const templateDir = await createSingleLanguageTemplate(workDir, 'conflict-test', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+    
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+    
+    // Test that using both flags together causes an error
+    await expect(execAsync(`node ${cdkBin} init app --language typescript --lib-version 2.0.0 --from-path ${templateDir} --generate-only`, {
+      cwd: projectDir,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' }
+    })).rejects.toThrow();
+  });
+
+  cliTest('template-path implies from-path validation works', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    
+    // Test that the implication is properly configured
+    const { makeConfig } = await import('../../lib/cli/cli-config');
+    const config = await makeConfig();
+    expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
+    
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'implies-test', languages: ['typescript'] },
+    ]);
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+    
+    // Test CLI enforcement: template-path without from-path should fail
+    await expect(execAsync(`node ${cdkBin} init app --language typescript --template-path implies-test --generate-only`, {
+      cwd: projectDir,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' }
+    })).rejects.toThrow();
+    
+    // Test success case: template-path WITH from-path should work
+    const { stderr } = await execAsync(`node ${cdkBin} init app --language typescript --from-path ${repoDir} --template-path implies-test --generate-only`, {
+      cwd: projectDir,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' }
+    });
+    
+    expect(stderr).not.toContain('error');
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('hook files are ignored during template copy', async (workDir) => {
+    const templateDir = path.join(workDir, 'template-with-hooks');
+    const tsDir = path.join(templateDir, 'typescript');
+    await fs.mkdirp(tsDir);
+
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello CDK");');
+    await fs.writeFile(path.join(tsDir, 'package.json'), '{}');
+    await fs.writeFile(path.join(tsDir, 'setup.hook.js'), 'console.log("setup hook");');
+    await fs.writeFile(path.join(tsDir, 'build.hook.d.ts'), 'export {};');
+    await fs.writeFile(path.join(tsDir, 'deploy.hook.sh'), '#!/bin/bash\necho "deploy"');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'setup.hook.js'))).toBeFalsy();
+    expect(await fs.pathExists(path.join(projectDir, 'build.hook.d.ts'))).toBeFalsy();
+    expect(await fs.pathExists(path.join(projectDir, 'deploy.hook.sh'))).toBeFalsy();
+  });
+
+  cliTest('handles file permission failures gracefully', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'permission-test-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await fs.chmod(projectDir, 0o444);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromPath: templateDir,
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir: projectDir,
+      })).rejects.toThrow();
+    } finally {
+      await fs.chmod(projectDir, 0o755);
+    }
+  });
+
+  cliTest('handles relative vs absolute paths correctly', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'path-test-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: path.resolve(templateDir),
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+
+    await fs.remove(projectDir);
+    await fs.mkdirp(projectDir);
+
+    const relativePath = path.relative(process.cwd(), templateDir);
+    await cliInit({
+      ioHelper,
+      fromPath: relativePath,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
 });
 
 test('when no version number is present (e.g., local development), the v2 templates are chosen by default', async () => {
