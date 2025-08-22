@@ -1334,7 +1334,7 @@ export interface InitOptions {
   readonly fromPath?: string;
 
   /**
-   * Path to a specific template within a multi-template repository (requires --from-path)
+   * Path to a specific template within a multi-template repository
    *
    * @default - undefined
    */

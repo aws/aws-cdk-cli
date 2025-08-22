@@ -534,34 +534,45 @@ describe('constructs version', () => {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
-    
     const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
-    
-    // Test that unstable flags are accepted during actual init
-    const { stderr } = await execAsync(`node ${cdkBin} init app --language typescript --unstable feature1 --unstable feature2 --generate-only`, {
-      cwd: workDir,
-      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' }
+
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'unstable-test', languages: ['typescript'] },
+    ]);
+    const projectDir1 = path.join(workDir, 'project-without-unstable');
+    const projectDir2 = path.join(workDir, 'project-with-unstable');
+    await fs.mkdirp(projectDir1);
+    await fs.mkdirp(projectDir2);
+
+    // Test that template-path fails WITHOUT --unstable=init flag
+    await expect(execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --generate-only`, {
+      cwd: projectDir1,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+    })).rejects.toThrow();
+
+    // Test that template-path succeeds WITH --unstable=init flag
+    const { stderr } = await execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --unstable init --generate-only`, {
+      cwd: projectDir2,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
     });
-    
-    // Should complete without error
+
     expect(stderr).not.toContain('error');
-    expect(await fs.pathExists(path.join(workDir, 'cdk.json'))).toBeTruthy();
-    expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeTruthy();
   });
 
   cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
-    
+
     const templateDir = await createSingleLanguageTemplate(workDir, 'conflict-test', 'typescript');
-    
+
     const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
-    
+
     // Test that using both flags together causes an error
     await expect(execAsync(`node ${cdkBin} init app --language typescript --lib-version 2.0.0 --from-path ${templateDir} --generate-only`, {
       cwd: workDir,
-      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' }
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
     })).rejects.toThrow();
   });
 
@@ -570,15 +581,15 @@ describe('constructs version', () => {
     const { makeConfig } = await import('../../lib/cli/cli-config');
     const config = await makeConfig();
     expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
-    
-    // Test functional behavior: template-path works when from-path is provided
+
+    // Test that template-path functionality requires from-path to work
     const repoDir = await createMultiTemplateRepository(workDir, [
       { name: 'implies-test', languages: ['typescript'] },
     ]);
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
-    
-    // This should work - using template-path WITH from-path (satisfies implication)
+
+    // Test that template-path works when from-path is provided (satisfying the implication)
     await cliInit({
       ioHelper,
       fromPath: repoDir,
@@ -588,8 +599,21 @@ describe('constructs version', () => {
       generateOnly: true,
       workDir: projectDir,
     });
-    
+
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+
+    // Test that template-path without from-path fails at the function level
+    const projectDir2 = path.join(workDir, 'my-project-2');
+    await fs.mkdirp(projectDir2);
+
+    await expect(cliInit({
+      ioHelper,
+      templatePath: 'implies-test', // template-path without from-path
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir2,
+    })).rejects.toThrow(); // Should fail because template-path requires from-path
   });
 
   cliTest('hook files are ignored during template copy', async (workDir) => {
