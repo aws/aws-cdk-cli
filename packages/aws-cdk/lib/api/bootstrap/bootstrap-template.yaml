@@ -334,7 +334,6 @@ Resources:
               - HasTrustedAccounts
               - Action:
                   - sts:AssumeRole
-                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -345,6 +344,15 @@ Resources:
                     - "Null":
                         "sts:ExternalId": "true"
                     - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}
@@ -378,7 +386,6 @@ Resources:
               - HasTrustedAccounts
               - Action:
                   - sts:AssumeRole
-                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -389,6 +396,15 @@ Resources:
                     - "Null":
                         "sts:ExternalId": "true"
                     - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-image-publishing-role-${AWS::AccountId}-${AWS::Region}
@@ -422,7 +438,6 @@ Resources:
               - HasTrustedAccountsForLookup
               - Action:
                   - sts:AssumeRole
-                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -435,10 +450,18 @@ Resources:
                     - Ref: AWS::NoValue
               - Ref: AWS::NoValue
           - Fn::If:
+              - HasTrustedAccountsForLookup
+              - Action:
+                  - sts:TagSession
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccountsForLookup
+              - Ref: AWS::NoValue
+          - Fn::If:
               - HasTrustedAccounts
               - Action:
                   - sts:AssumeRole
-                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -449,6 +472,15 @@ Resources:
                     - "Null":
                         "sts:ExternalId": "true"
                     - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-lookup-role-${AWS::AccountId}-${AWS::Region}
@@ -559,7 +591,6 @@ Resources:
               - HasTrustedAccounts
               - Action:
                   - sts:AssumeRole
-                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -570,6 +601,15 @@ Resources:
                     - "Null":
                         "sts:ExternalId": "true"
                     - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
               - Ref: AWS::NoValue
       Policies:
         - PolicyDocument:

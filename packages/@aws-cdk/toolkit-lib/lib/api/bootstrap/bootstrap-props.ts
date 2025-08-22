@@ -150,7 +150,7 @@ export interface BootstrappingParameters {
   /**
    * Whether to deny AssumeRole calls with an ExternalId
    *
-   * @default true
+   * @default - template default (true)
    */
   readonly denyExternalId?: boolean;
 }
