@@ -645,6 +645,86 @@ describe('Bootstrapping v2', () => {
     );
   });
 
+  describe('ExternalId protection', () => {
+    test('denyExternalId parameter is not present by default', async () => {
+      // GIVEN
+      const mockSdk = new MockSdkProvider();
+      (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack({
+        Outputs: [
+          { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+        ],
+      })));
+
+      // WHEN
+      await bootstrapper.bootstrapEnvironment(env, mockSdk, {
+        parameters: {},
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.not.objectContaining({
+            DenyExternalId: 'true',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test.each([false, true])('denyExternalId parameter can be set to %p', async (param) => {
+      // GIVEN
+      const mockSdk2 = new MockSdkProvider();
+      (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack({
+        Outputs: [
+          { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+        ],
+      })));
+
+      // WHEN
+      await bootstrapper.bootstrapEnvironment(env, mockSdk2, {
+        parameters: {
+          denyExternalId: param,
+        },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            DenyExternalId: `${param}`,
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('bootstrap template contains ExternalId conditions', async () => {
+      // GIVEN
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+
+      // WHEN
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      // THEN
+      expect(template.Parameters.DenyExternalId).toBeDefined();
+      expect(template.Parameters.DenyExternalId.Default).toBe('true');
+      expect(template.Conditions.ShouldDenyExternalId).toBeDefined();
+
+      // Check that roles have the ExternalId condition
+      const filePublishingRole = template.Resources.FilePublishingRole;
+      expect(filePublishingRole.Properties.AssumeRolePolicyDocument.Statement).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            Action: 'sts:AssumeRole',
+            Condition: expect.objectContaining({
+              'Fn::If': expect.arrayContaining(['ShouldDenyExternalId']),
+            }),
+          }),
+        ]),
+      );
+    });
+  });
+
   describe('contains sts:TagSession on trusted accounts', () => {
     let template: Template;
 
@@ -659,7 +739,7 @@ describe('Bootstrapping v2', () => {
         'Fn::If': Match.arrayWith([
           conditionName,
           Match.objectLike({
-            Action: Match.arrayWith(['sts:AssumeRole', 'sts:TagSession']),
+            Action: Match.arrayWith(['sts:TagSession']),
           }),
         ]),
       });
@@ -680,23 +760,14 @@ describe('Bootstrapping v2', () => {
       template = Template.fromJSON(rawTemplate);
     });
 
-    test('in the FilePublishingRole', async () => {
+    test.each([
+      ['FilePublishingRole', 'file-publishing-role'],
+      ['ImagePublishingRole', 'image-publishing-role'],
+      ['DeploymentActionRole', 'deploy-role'],
+    ])('in the %p', async (_, roleName) => {
       template.hasResource('AWS::IAM::Role', {
         Properties: {
-          RoleName: iamRoleName('file-publishing-role'),
-          AssumeRolePolicyDocument: {
-            Statement: Match.arrayWith([
-              statementWithCondition('HasTrustedAccounts'),
-            ]),
-          },
-        },
-      });
-    });
-
-    test('in the ImagePublishingRole', async () => {
-      template.hasResource('AWS::IAM::Role', {
-        Properties: {
-          RoleName: iamRoleName('image-publishing-role'),
+          RoleName: iamRoleName(roleName),
           AssumeRolePolicyDocument: {
             Statement: Match.arrayWith([
               statementWithCondition('HasTrustedAccounts'),
@@ -713,19 +784,6 @@ describe('Bootstrapping v2', () => {
           AssumeRolePolicyDocument: {
             Statement: Match.arrayWith([
               statementWithCondition('HasTrustedAccountsForLookup'),
-              statementWithCondition('HasTrustedAccounts'),
-            ]),
-          },
-        },
-      });
-    });
-
-    test('in the DeploymentActionRole', async () => {
-      template.hasResource('AWS::IAM::Role', {
-        Properties: {
-          RoleName: iamRoleName('deploy-role'),
-          AssumeRolePolicyDocument: {
-            Statement: Match.arrayWith([
               statementWithCondition('HasTrustedAccounts'),
             ]),
           },

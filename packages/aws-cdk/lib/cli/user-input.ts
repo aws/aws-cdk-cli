@@ -462,6 +462,13 @@ export interface BootstrapOptions {
   readonly publicAccessBlockConfiguration?: boolean;
 
   /**
+   * Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default)
+   *
+   * @default - undefined
+   */
+  readonly denyExternalId?: boolean;
+
+  /**
    * Tags to add for the stack (KEY=VALUE)
    *
    * aliases: t
