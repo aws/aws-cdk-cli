@@ -396,7 +396,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'generate-only': { type: 'boolean', default: false, desc: 'If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project' },
           'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
-          'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository (requires --from-path)', requiresArg: true },
+          'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
         },
         implies: { 'template-path': 'from-path' },
       },
