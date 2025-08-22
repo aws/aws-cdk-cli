@@ -689,7 +689,6 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
  */
 function getCompletedLanguage(language?: keyof typeof LANGUAGES): string | undefined {
   return language && LANGUAGES[language];
-
 }
 
 /* c8 ignore start */ // we never call this in unit tests
