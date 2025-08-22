@@ -874,7 +874,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('template-path', {
           default: undefined,
           type: 'string',
-          desc: 'Path to a specific template within a multi-template repository (requires --from-path)',
+          desc: 'Path to a specific template within a multi-template repository',
           requiresArg: true,
         }),
     )
