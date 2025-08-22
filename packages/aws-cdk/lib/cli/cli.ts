@@ -687,7 +687,7 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
  * Returns the completed language name for a given language key.
  * @example getCompletedLanguage('ts') // returns 'typescript'
  */
-function getCompletedLanguage(language?: keyof typeof LANGUAGES): string | undefined {
+function getCompletedLanguage(language?: keyof typeof LANGUAGES) {
   return language && LANGUAGES[language];
 }
 
