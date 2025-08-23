@@ -75,11 +75,11 @@ $ # List the available template types & languages
 $ cdk init --list
 Available templates:
 * app: Template for a CDK Application
-   └─ cdk init app --language=[csharp|fsharp|java|javascript|python|typescript]
+   └─ cdk init app --language=[csharp|cs|fsharp|fs|java|javascript|js|python|py|typescript|ts]
 * lib: Template for a CDK Construct Library
    └─ cdk init lib --language=typescript
 * sample-app: Example CDK Application with some constructs
-   └─ cdk init sample-app --language=[csharp|fsharp|java|javascript|python|typescript]
+   └─ cdk init sample-app --language=[csharp|cs|fsharp|fs|java|javascript|js|python|py|typescript|ts]
 
 $ # Create a new library application in typescript
 $ cdk init lib --language=typescript
