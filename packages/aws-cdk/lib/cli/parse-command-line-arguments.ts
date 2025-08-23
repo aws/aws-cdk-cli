@@ -191,28 +191,25 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Display stack dependency information for each stack',
         }),
     )
-    .command(
-      ['synth [STACKS..]', 'synthesize [STACKS..]'],
-      'Synthesizes and prints the CloudFormation template for this stack',
-      (yargs: Argv) =>
-        yargs
-          .option('exclusively', {
-            default: undefined,
-            type: 'boolean',
-            alias: 'e',
-            desc: "Only synthesize requested stacks, don't include dependencies",
-          })
-          .option('validation', {
-            default: true,
-            type: 'boolean',
-            desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)',
-          })
-          .option('quiet', {
-            default: false,
-            type: 'boolean',
-            alias: 'q',
-            desc: 'Do not output CloudFormation Template to stdout',
-          }),
+    .command(['synth [STACKS..]', 'synthesize [STACKS..]'], 'Synthesizes and prints the CloudFormation template for this stack', (yargs: Argv) =>
+      yargs
+        .option('exclusively', {
+          default: undefined,
+          type: 'boolean',
+          alias: 'e',
+          desc: "Only synthesize requested stacks, don't include dependencies",
+        })
+        .option('validation', {
+          default: true,
+          type: 'boolean',
+          desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)',
+        })
+        .option('quiet', {
+          default: false,
+          type: 'boolean',
+          alias: 'q',
+          desc: 'Do not output CloudFormation Template to stdout',
+        }),
     )
     .command('bootstrap [ENVIRONMENTS..]', 'Deploys the CDK toolkit stack into an AWS environment', (yargs: Argv) =>
       yargs
