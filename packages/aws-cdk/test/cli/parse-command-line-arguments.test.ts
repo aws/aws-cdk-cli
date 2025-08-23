@@ -53,8 +53,24 @@ describe('cdk init', () => {
     ['py', 'python'],
     ['typescript', 'typescript'],
     ['ts', 'typescript'],
-  ])('return %l when %l set in cdk init -language', async (shortLanguage, completeLanguage) => {
-    const argv = await parseCommandLineArguments(['init', '--language', shortLanguage]);
+  ])('return %l when %l set in cdk init -language', async (lang, completeLang) => {
+    const argv = await parseCommandLineArguments(['init', '--language', lang]);
+    expect(argv.language).toBe(completeLang);
+  });
+});
+
+describe('cdk migrate', () => {
+  test.each([
+    ['csharp', 'csharp'],
+    ['cs', 'csharp'],
+    ['go', 'go'],
+    ['java', 'java'],
+    ['python', 'python'],
+    ['py', 'python'],
+    ['typescript', 'typescript'],
+    ['ts', 'typescript'],
+  ])('return %l when %l set in cdk migrate -language', async (lang, completeLanguage) => {
+    const argv = await parseCommandLineArguments(['migrate', '--stack-name', 'exampleStack', '--language', lang]);
     expect(argv.language).toBe(completeLanguage);
   });
 });

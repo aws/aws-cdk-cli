@@ -6,7 +6,7 @@
 import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
 
-const LANGUAGES = {
+const SUPPORTED_LANGUAGES = {
   csharp: 'csharp',
   cs: 'csharp',
   fsharp: 'fsharp',
@@ -191,25 +191,28 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Display stack dependency information for each stack',
         }),
     )
-    .command(['synth [STACKS..]', 'synthesize [STACKS..]'], 'Synthesizes and prints the CloudFormation template for this stack', (yargs: Argv) =>
-      yargs
-        .option('exclusively', {
-          default: undefined,
-          type: 'boolean',
-          alias: 'e',
-          desc: "Only synthesize requested stacks, don't include dependencies",
-        })
-        .option('validation', {
-          default: true,
-          type: 'boolean',
-          desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)',
-        })
-        .option('quiet', {
-          default: false,
-          type: 'boolean',
-          alias: 'q',
-          desc: 'Do not output CloudFormation Template to stdout',
-        }),
+    .command(
+      ['synth [STACKS..]', 'synthesize [STACKS..]'],
+      'Synthesizes and prints the CloudFormation template for this stack',
+      (yargs: Argv) =>
+        yargs
+          .option('exclusively', {
+            default: undefined,
+            type: 'boolean',
+            alias: 'e',
+            desc: "Only synthesize requested stacks, don't include dependencies",
+          })
+          .option('validation', {
+            default: true,
+            type: 'boolean',
+            desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)',
+          })
+          .option('quiet', {
+            default: false,
+            type: 'boolean',
+            alias: 'q',
+            desc: 'Do not output CloudFormation Template to stdout',
+          }),
     )
     .command('bootstrap [ENVIRONMENTS..]', 'Deploys the CDK toolkit stack into an AWS environment', (yargs: Argv) =>
       yargs
@@ -861,7 +864,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: Object.keys(LANGUAGES),
+          choices: Object.keys(SUPPORTED_LANGUAGES),
         })
         .option('list', {
           default: undefined,
@@ -894,7 +897,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project',
-          choices: ['typescript', 'go', 'java', 'python', 'csharp'],
+          choices: Object.keys(SUPPORTED_LANGUAGES).filter((v) => {
+            const lang = SUPPORTED_LANGUAGES[v as keyof typeof SUPPORTED_LANGUAGES];
+            return lang !== 'fsharp' && lang !== 'javascript';
+          }),
         })
         .option('account', {
           default: undefined,
@@ -1034,10 +1040,10 @@ function parseLanguageOption<T>(argv: T): T {
     return argv;
   }
   if ('language' in argv && typeof argv.language === 'string') {
-    return { ...argv, language: LANGUAGES[argv.language as keyof typeof LANGUAGES] };
+    return { ...argv, language: SUPPORTED_LANGUAGES[argv.language as keyof typeof SUPPORTED_LANGUAGES] };
   }
   if ('l' in argv && typeof argv.l === 'string') {
-    return { ...argv, language: LANGUAGES[argv.l as keyof typeof LANGUAGES] };
+    return { ...argv, language: SUPPORTED_LANGUAGES[argv.l as keyof typeof SUPPORTED_LANGUAGES] };
   }
   return argv;
 }
