@@ -1039,8 +1039,5 @@ function parseLanguageOption<T>(argv: T): T {
   if ('language' in argv && typeof argv.language === 'string') {
     return { ...argv, language: SUPPORTED_LANGUAGES[argv.language as keyof typeof SUPPORTED_LANGUAGES] };
   }
-  if ('l' in argv && typeof argv.l === 'string') {
-    return { ...argv, language: SUPPORTED_LANGUAGES[argv.l as keyof typeof SUPPORTED_LANGUAGES] };
-  }
   return argv;
 }
