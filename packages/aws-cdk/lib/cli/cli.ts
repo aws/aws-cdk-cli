@@ -40,21 +40,6 @@ if (!process.stdout.isTTY) {
   process.env.FORCE_COLOR = '0';
 }
 
-export const LANGUAGES = {
-  csharp: 'csharp',
-  cs: 'csharp',
-  fsharp: 'fsharp',
-  fs: 'fsharp',
-  go: 'go',
-  java: 'java',
-  javascript: 'javascript',
-  js: 'javascript',
-  python: 'python',
-  py: 'python',
-  typescript: 'typescript',
-  ts: 'typescript',
-} as const;
-
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
   const cmd = argv._[0];
@@ -527,7 +512,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
       case 'init':
         ioHost.currentAction = 'init';
-        const language = getCompletedLanguage(configuration.settings.get(['language']));
+        const language = configuration.settings.get(['language']);
         if (args.list) {
           return printAvailableTemplates(ioHelper, language);
         } else {
@@ -546,7 +531,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           stackName: args['stack-name'],
           fromPath: args['from-path'],
           fromStack: args['from-stack'],
-          language: getCompletedLanguage(args.language),
+          language: args.language,
           outputPath: args['output-path'],
           fromScan: getMigrateScanType(args['from-scan']),
           filter: args.filter,
@@ -681,14 +666,6 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
   }
 
   return hotswapMode;
-}
-
-/**
- * Returns the completed language name for a given language key.
- * @example getCompletedLanguage('ts') // returns 'typescript'
- */
-function getCompletedLanguage(language?: keyof typeof LANGUAGES) {
-  return language && LANGUAGES[language];
 }
 
 /* c8 ignore start */ // we never call this in unit tests

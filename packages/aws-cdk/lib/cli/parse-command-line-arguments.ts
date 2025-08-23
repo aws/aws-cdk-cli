@@ -5,11 +5,25 @@
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
-import { LANGUAGES } from './cli';
+
+const LANGUAGES = {
+  csharp: 'csharp',
+  cs: 'csharp',
+  fsharp: 'fsharp',
+  fs: 'fsharp',
+  go: 'go',
+  java: 'java',
+  javascript: 'javascript',
+  js: 'javascript',
+  python: 'python',
+  py: 'python',
+  typescript: 'typescript',
+  ts: 'typescript',
+} as const;
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {
-  return yargs
+  const argv = yargs
     .env('CDK')
     .usage('Usage: cdk -a <cdk-app> COMMAND')
     .option('app', {
@@ -847,7 +861,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: Object.keys(LANGUAGES)
+          choices: Object.keys(LANGUAGES),
         })
         .option('list', {
           default: undefined,
@@ -1009,5 +1023,21 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'If your app has a single stack, there is no need to specify the stack name\n\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
     )
     .parse(args);
+
+  const parsedArgv = parseLanguageOption(argv);
+  return parsedArgv;
 } // eslint-disable-next-line @typescript-eslint/no-require-imports
 const yargs = require('yargs');
+
+function parseLanguageOption<T>(argv: T): T {
+  if (typeof argv !== 'object' || argv === null) {
+    return argv;
+  }
+  if ('language' in argv && typeof argv.language === 'string') {
+    return { ...argv, language: LANGUAGES[argv.language as keyof typeof LANGUAGES] };
+  }
+  if ('l' in argv && typeof argv.l === 'string') {
+    return { ...argv, language: LANGUAGES[argv.l as keyof typeof LANGUAGES] };
+  }
+  return argv;
+}
