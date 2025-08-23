@@ -38,3 +38,23 @@ describe('cdk docs', () => {
     expect(argv.browser).toBe(browser);
   });
 });
+
+describe('cdk init', () => {
+  test.each([
+    ['csharp', 'csharp'],
+    ['cs', 'csharp'],
+    ['fsharp', 'fsharp'],
+    ['fs', 'fsharp'],
+    ['go', 'go'],
+    ['java', 'java'],
+    ['javascript', 'javascript'],
+    ['js', 'javascript'],
+    ['python', 'python'],
+    ['py', 'python'],
+    ['typescript', 'typescript'],
+    ['ts', 'typescript'],
+  ])('return %l when %l set in cdk init -language', async (shortLanguage, completeLanguage) => {
+    const argv = await parseCommandLineArguments(['init', '--language', shortLanguage]);
+    expect(argv.language).toBe(completeLanguage);
+  });
+});
