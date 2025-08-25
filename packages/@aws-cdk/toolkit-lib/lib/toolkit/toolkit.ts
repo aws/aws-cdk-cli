@@ -1306,7 +1306,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           return {
             ...baseFlag,
             unconfiguredBehavesLike: {
-              v2: flagInfo.unconfiguredBehavesLike?.v2 === true ? true : false,
+              v2: flagInfo.unconfiguredBehavesLike?.v2 ?? false,
             },
           };
         }

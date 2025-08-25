@@ -87,7 +87,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
         default: true,
         unconfigured: true,
       };
-      await checkDefaultBehavior(params);
+      await setMultipleFlagsIfSupported(params);
     } else if (answer == FlagsMenuOptions.MODIFY_SPECIFIC_FLAG) {
       await setFlag(params, true);
     } else if (answer == FlagsMenuOptions.EXIT) {
@@ -167,7 +167,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.set && options.all && options.default) {
-    await checkDefaultBehavior(params);
+    await setMultipleFlagsIfSupported(params);
   }
 
   if (options.set && options.unconfigured && options.recommended) {
@@ -176,23 +176,20 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.set && options.unconfigured && options.default) {
-    await checkDefaultBehavior(params);
+    await setMultipleFlagsIfSupported(params);
   }
 }
 
 /**
- * Checks if the `unconfiguredBehavesLike` field is populated
- *
- * @returns true if --default options can be run
+ * Sets flag configurations to default values if `unconfiguredBehavesLike` is populated
  */
-async function checkDefaultBehavior(params: FlagOperationsParams) {
+async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
   const { flagData, ioHelper } = params;
   if (flagData[0].unconfiguredBehavesLike) {
     await setMultipleFlags(params);
     return;
   }
   await ioHelper.defaults.error('The --default options are not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
-  return;
 }
 
 async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
