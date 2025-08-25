@@ -84,6 +84,12 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
+  // Show available templates if no type and no language provided (main branch logic)
+  if (!options.fromPath && !options.type && !options.language) {
+    await printAvailableTemplates(ioHelper);
+    return;
+  }
+
   // Step 1: Load template
   let template: InitTemplate;
   if (options.fromPath) {
@@ -93,7 +99,7 @@ export async function cliInit(options: CliInitOptions) {
   }
 
   // Step 2: Resolve language
-  const language = await resolveLanguage(ioHelper, template, options.language);
+  const language = await resolveLanguage(ioHelper, template, options.language, options.type);
 
   // Step 3: Initialize project following standard process
   await initializeProject(
@@ -170,27 +176,30 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
  * @param ioHelper - IO helper for user interaction
  * @param template - The template to resolve language for
  * @param requestedLanguage - User-requested language (optional)
+ * @param type - The template type name for messages
  * @default undefined
  * @returns Promise resolving to the selected language
  */
-async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
-  if (requestedLanguage) {
-    return requestedLanguage;
-  }
-  if (template.languages.length === 1) {
-    const templateLanguage = template.languages[0];
-    // Only show auto-detection message for built-in templates
-    if (template.templateType !== TemplateType.CUSTOM) {
-      await ioHelper.defaults.warn(
-        `No --language was provided, but '${template.name}' supports only '${templateLanguage}', so defaulting to --language=${templateLanguage}`,
-      );
+async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string, type?: string): Promise<string> {
+  return await (async () => {
+    if (requestedLanguage) {
+      return requestedLanguage;
     }
-    return templateLanguage;
-  }
-  await ioHelper.defaults.info(
-    `Available languages for ${chalk.green(template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
-  );
-  throw new ToolkitError('No language was selected');
+    if (template.languages.length === 1) {
+      const templateLanguage = template.languages[0];
+      // Only show auto-detection message for built-in templates
+      if (template.templateType !== TemplateType.CUSTOM) {
+        await ioHelper.defaults.warn(
+          `No --language was provided, but '${type || template.name}' supports only '${templateLanguage}', so defaulting to --language=${templateLanguage}`,
+        );
+      }
+      return templateLanguage;
+    }
+    await ioHelper.defaults.info(
+      `Available languages for ${chalk.green(type || template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
+    );
+    throw new ToolkitError('No language was selected');
+  })();
 }
 
 /**
@@ -683,9 +692,9 @@ async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: 
     case 'go':
       return postInstallGo(ioHelper, canUseNetwork, workDir);
     case 'csharp':
+      return postInstallCSharp(ioHelper, canUseNetwork, workDir);
     case 'fsharp':
-      // .NET languages don't need post-install steps for custom templates
-      return;
+      return postInstallFSharp(ioHelper, canUseNetwork, workDir);
   }
 }
 
@@ -710,30 +719,66 @@ async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean,
 }
 
 async function postInstallJava(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
-  const mvnPackageWarning = "Please run 'mvn package'!";
-  if (!canUseNetwork) {
-    await ioHelper.defaults.warn(mvnPackageWarning);
-    return;
-  }
+  // Check if this is a Gradle or Maven project
+  const hasGradleBuild = await fs.pathExists(path.join(cwd, 'build.gradle'));
+  const hasMavenPom = await fs.pathExists(path.join(cwd, 'pom.xml'));
 
-  await ioHelper.defaults.info("Executing 'mvn package'");
-  try {
-    await execute(ioHelper, 'mvn', ['package'], { cwd });
-  } catch {
-    await ioHelper.defaults.warn('Unable to package compiled code as JAR');
-    await ioHelper.defaults.warn(mvnPackageWarning);
+  if (hasGradleBuild) {
+    // Gradle project
+    const gradleWarning = "Please run './gradlew build'!";
+    if (!canUseNetwork) {
+      await ioHelper.defaults.warn(gradleWarning);
+      return;
+    }
+
+    await ioHelper.defaults.info("Executing './gradlew build'");
+    try {
+      await execute(ioHelper, './gradlew', ['build'], { cwd });
+    } catch {
+      await ioHelper.defaults.warn('Unable to build Gradle project');
+      await ioHelper.defaults.warn(gradleWarning);
+    }
+  } else if (hasMavenPom) {
+    // Maven project
+    const mvnPackageWarning = "Please run 'mvn package'!";
+    if (!canUseNetwork) {
+      await ioHelper.defaults.warn(mvnPackageWarning);
+      return;
+    }
+
+    await ioHelper.defaults.info("Executing 'mvn package'");
+    try {
+      await execute(ioHelper, 'mvn', ['package'], { cwd });
+    } catch {
+      await ioHelper.defaults.warn('Unable to package compiled code as JAR');
+      await ioHelper.defaults.warn(mvnPackageWarning);
+    }
+  } else {
+    // No recognized build file
+    await ioHelper.defaults.warn('No build.gradle or pom.xml found. Please set up your build system manually.');
   }
 }
 
 async function postInstallPython(ioHelper: IoHelper, cwd: string) {
   const python = pythonExecutable();
-  await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
-  await ioHelper.defaults.info(`Executing ${chalk.green('Creating virtualenv...')}`);
-  try {
-    await execute(ioHelper, python, ['-m venv', '.venv'], { cwd });
-  } catch {
-    await ioHelper.defaults.warn('Unable to create virtualenv automatically');
-    await ioHelper.defaults.warn(`Please run '${python} -m venv .venv'!`);
+
+  // Check if requirements.txt exists
+  const hasRequirements = await fs.pathExists(path.join(cwd, 'requirements.txt'));
+
+  if (hasRequirements) {
+    await ioHelper.defaults.info(`Executing ${chalk.green('Creating virtualenv...')}`);
+    try {
+      await execute(ioHelper, python, ['-m', 'venv', '.venv'], { cwd });
+      await ioHelper.defaults.info(`Executing ${chalk.green('Installing dependencies...')}`);
+      // Install dependencies in the virtual environment
+      const pipPath = process.platform === 'win32' ? '.venv\\Scripts\\pip' : '.venv/bin/pip';
+      await execute(ioHelper, pipPath, ['install', '-r', 'requirements.txt'], { cwd });
+    } catch {
+      await ioHelper.defaults.warn('Unable to create virtualenv or install dependencies automatically');
+      await ioHelper.defaults.warn(`Please run '${python} -m venv .venv && .venv/bin/pip install -r requirements.txt'!`);
+    }
+  } else {
+    await ioHelper.defaults.warn('No requirements.txt found. Please set up your Python environment manually.');
   }
 }
 
@@ -749,6 +794,29 @@ async function postInstallGo(ioHelper: IoHelper, canUseNetwork: boolean, cwd: st
   } catch (e: any) {
     await ioHelper.defaults.warn('\'go mod tidy\' failed: ' + formatErrorMessage(e));
   }
+}
+
+async function postInstallCSharp(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  const dotnetWarning = "Please run 'dotnet restore && dotnet build'!";
+  if (!canUseNetwork) {
+    await ioHelper.defaults.warn(dotnetWarning);
+    return;
+  }
+
+  await ioHelper.defaults.info(`Executing ${chalk.green('dotnet restore')}...`);
+  try {
+    await execute(ioHelper, 'dotnet', ['restore'], { cwd });
+    await ioHelper.defaults.info(`Executing ${chalk.green('dotnet build')}...`);
+    await execute(ioHelper, 'dotnet', ['build'], { cwd });
+  } catch (e: any) {
+    await ioHelper.defaults.warn('Unable to restore/build .NET project: ' + formatErrorMessage(e));
+    await ioHelper.defaults.warn(dotnetWarning);
+  }
+}
+
+async function postInstallFSharp(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  // F# uses the same build system as C#
+  return postInstallCSharp(ioHelper, canUseNetwork, cwd);
 }
 
 /**
