@@ -181,7 +181,7 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
  * @returns Promise resolving to the selected language
  */
 async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string, type?: string): Promise<string> {
-  return await (async () => {
+  return (async () => {
     if (requestedLanguage) {
       return requestedLanguage;
     }
