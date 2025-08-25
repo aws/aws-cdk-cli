@@ -34,7 +34,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^1.3.3",
+    "@cdklabs/eslint-plugin": "^1.3.4",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^16",
