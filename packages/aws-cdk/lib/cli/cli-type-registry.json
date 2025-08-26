@@ -718,6 +718,10 @@
           "alias": "e",
           "desc": "Only destroy requested stacks, don't include dependees"
         },
+        "no-wait": {
+          "type": "boolean",
+          "desc": "Whether or not to wait for the stack to finish deleting"
+        },
         "force": {
           "type": "boolean",
           "alias": "f",

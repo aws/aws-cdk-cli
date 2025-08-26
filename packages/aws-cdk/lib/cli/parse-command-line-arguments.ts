@@ -749,6 +749,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'e',
           desc: "Only destroy requested stacks, don't include dependees",
         })
+        .option('no-wait', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Whether or not to wait for the stack to finish deleting',
+        })
         .option('force', {
           default: undefined,
           type: 'boolean',

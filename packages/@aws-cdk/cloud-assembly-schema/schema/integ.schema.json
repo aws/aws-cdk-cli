@@ -347,6 +347,11 @@
                     "default": false,
                     "type": "boolean"
                 },
+                "noWait": {
+                    "description": "Whether or not to wait for the stack to finish deleting\nThis functionality does not work for stacks which have dependent stacks",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "stacks": {
                     "description": "List of stacks to deploy\n\nRequried if `all` is not set (Default - [])",
                     "type": "array",

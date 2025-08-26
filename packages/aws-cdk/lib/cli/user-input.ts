@@ -1163,6 +1163,13 @@ export interface DestroyOptions {
   readonly exclusively?: boolean;
 
   /**
+   * Whether or not to wait for the stack to finish deleting
+   *
+   * @default - undefined
+   */
+  readonly noWait?: boolean;
+
+  /**
    * Do not ask for confirmation before destroying the stacks
    *
    * aliases: f

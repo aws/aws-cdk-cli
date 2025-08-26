@@ -191,6 +191,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
     await this.toolkit.destroy(cx, {
       roleArn: options.roleArn,
       stacks: this.stackSelector(options),
+      noWait: options.noWait,
     });
   }
 

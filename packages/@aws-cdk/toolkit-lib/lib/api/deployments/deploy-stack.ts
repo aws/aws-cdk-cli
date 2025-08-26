@@ -690,6 +690,7 @@ export interface DestroyStackOptions {
   sdk: SDK;
   roleArn?: string;
   deployName?: string;
+  noWait?: boolean;
 }
 
 export interface DestroyStackResult {
@@ -710,24 +711,29 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
   if (!currentStack.exists) {
     return {};
   }
-  const monitor = new StackActivityMonitor({
-    cfn,
-    stack: options.stack,
-    stackName: deployName,
-    ioHelper: ioHelper,
-  });
-  await monitor.start();
+  let monitor;
+  if (!options.noWait) {
+    monitor = new StackActivityMonitor({
+      cfn,
+      stack: options.stack,
+      stackName: deployName,
+      ioHelper: ioHelper,
+    });
+    await monitor.start();
+  }
 
   try {
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
-    const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
-    if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
+    if (!options.noWait) {
+      const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
+      if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
+        throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
+      }
     }
 
     return { stackArn: currentStack.stackId };
   } catch (e: any) {
-    throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
+    throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor?.errors));
   } finally {
     if (monitor) {
       await monitor.stop();

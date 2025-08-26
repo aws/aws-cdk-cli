@@ -334,9 +334,10 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
-          all: { type: 'boolean', default: false, desc: 'Destroy all available stacks' },
-          exclusively: { type: 'boolean', alias: 'e', desc: 'Only destroy requested stacks, don\'t include dependees' },
-          force: { type: 'boolean', alias: 'f', desc: 'Do not ask for confirmation before destroying the stacks' },
+          'all': { type: 'boolean', default: false, desc: 'Destroy all available stacks' },
+          'exclusively': { type: 'boolean', alias: 'e', desc: 'Only destroy requested stacks, don\'t include dependees' },
+          'no-wait': { type: 'boolean', desc: 'Whether or not to wait for the stack to finish deleting' },
+          'force': { type: 'boolean', alias: 'f', desc: 'Do not ask for confirmation before destroying the stacks' },
         },
       },
       'diff': {
