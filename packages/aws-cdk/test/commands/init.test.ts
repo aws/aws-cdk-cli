@@ -66,20 +66,22 @@ describe('constructs version', () => {
     })).rejects.toThrow(/No language/);
   });
 
-  cliTest('specifying language without template type creates default app template with specified language', async (workDir) => {
+  cliTest('cdk init --language defaults to app template with specified language', async (workDir) => {
     await cliInit({
       ioHelper,
-      language: 'python',
+      language: 'typescript',
       canUseNetwork: false,
       generateOnly: true,
       workDir,
     });
 
-    // Verify that an app template was created with the specified language (Python)
-    expect(await fs.pathExists(path.join(workDir, 'requirements.txt'))).toBeTruthy();
-    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('Applying project template app for python'),
-    }));
+    // Verify app template structure was created
+    expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
+    
+    // Verify it uses the specified language (TypeScript)
+    const binFiles = await fs.readdir(path.join(workDir, 'bin'));
+    expect(binFiles.some(file => file.endsWith('.ts'))).toBeTruthy();
   });
 
   cliTest('create a TypeScript app project', async (workDir) => {
