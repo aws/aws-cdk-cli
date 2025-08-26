@@ -1,6 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import { formatTable } from '@aws-cdk/cloudformation-diff';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -121,7 +122,7 @@ export class DetermineSafeFlags {
       } else if (answer == FlagsMenuOptions.UNCONFIGURED_TO_DEFAULT) {
         this.params.default = true;
         this.params.unconfigured = true;
-        await this.setMultipleFlags();
+        await this.setMultipleFlagsIfSupported();
       } else if (answer == FlagsMenuOptions.MODIFY_SPECIFIC_FLAG) {
         await this.setFlag(true);
       } else if (answer == FlagsMenuOptions.EXIT) {
@@ -206,9 +207,8 @@ export class DetermineSafeFlags {
     }
 
     if (this.params.set && this.params.all && this.params.default) {
-      await this.setMultipleFlags();
-      return;
-    }
+      await this.setMultipleFlagsIfSupported();
+      }
 
     if (this.params.set && this.params.unconfigured && this.params.recommended) {
       await this.setMultipleFlags();
@@ -216,9 +216,20 @@ export class DetermineSafeFlags {
     }
 
     if (this.params.set && this.params.unconfigured && this.params.default) {
+    await setMultipleFlagsIfSupported(params);
+  }
+}
+
+/**
+ * Sets flag configurations to default values if `unconfiguredBehavesLike` is populated
+ */
+async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
+  const { flagData, ioHelper } = params;
+  if (flagData[0].unconfiguredBehavesLike) {
       await this.setMultipleFlags();
       return;
     }
+  await ioHelper.defaults.error('The --default options are not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
   }
 
   /**
@@ -580,37 +591,6 @@ export class DetermineSafeFlags {
     await fs.writeFile(cdkJsonPath, JSON.stringify(cdkJson, null, 2), 'utf-8');
   }
 
-  private formatTable(headers: string[], rows: string[][]): string {
-    const columnWidths = [
-      Math.max(headers[0].length, ...rows.map(row => row[0].length)),
-      Math.max(headers[1].length, ...rows.map(row => row[1].length)),
-      Math.max(headers[2].length, ...rows.map(row => row[2].length)),
-    ];
-
-    const createSeparator = () => {
-      return '+' + columnWidths.map(width => '-'.repeat(width + 2)).join('+') + '+';
-    };
-
-    const formatRow = (values: string[]) => {
-      return '|' + values.map((value, i) => ` ${value.padEnd(columnWidths[i])} `).join('|') + '|';
-    };
-
-    const separator = createSeparator();
-    let table = separator + '\n';
-    table += formatRow(headers) + '\n';
-    table += separator + '\n';
-
-    rows.forEach(row => {
-      if (row[1] === '' && row[2] === '') {
-        table += ` ${row[0].padEnd(columnWidths[0])} \n`;
-      } else {
-        table += formatRow(row) + '\n';
-      }
-    });
-
-    table += separator;
-    return table;
-  }
 
   private getFlagSortOrder(flag: FeatureFlag): number {
     if (flag.userValue === undefined) {
@@ -622,8 +602,8 @@ export class DetermineSafeFlags {
     }
   }
 
-  private async displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
-    const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
+async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
+  const filteredFlags = flags.filter(flag => flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue);
 
     const sortedFlags = [...flags].sort((a, b) => {
       const orderA = this.getFlagSortOrder(a);
@@ -638,24 +618,25 @@ export class DetermineSafeFlags {
       return a.name.localeCompare(b.name);
     });
 
-    const rows: string[][] = [];
-    let currentModule = '';
+  const rows: string[][] = [];
+  rows.push(['Feature Flag Name', 'Recommended Value', 'User Value']);
+  let currentModule = '';
 
-    sortedFlags.forEach((flag) => {
-      if (flag.module !== currentModule) {
-        rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
-        currentModule = flag.module;
-      }
-      rows.push([
-        flag.name,
-        String(flag.recommendedValue),
-        flag.userValue === undefined ? '<unset>' : String(flag.userValue),
-      ]);
-    });
+  sortedFlags.forEach((flag) => {
+    if (flag.module !== currentModule) {
+      rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
+      currentModule = flag.module;
+    }
+    rows.push([
+      `  ${flag.name}`,
+      String(flag.recommendedValue),
+      flag.userValue === undefined ? '<unset>' : String(flag.userValue),
+    ]);
+  });
 
-    const formattedTable = this.formatTable(headers, rows);
-    await ioHelper.defaults.info(formattedTable);
-  }
+  const formattedTable = formatTable(rows, undefined, true);
+  await ioHelper.defaults.info(formattedTable);
+}
 
   public async displayFlags(): Promise<void> {
     const { flagName, all } = this.params;

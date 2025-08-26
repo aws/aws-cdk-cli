@@ -52,21 +52,28 @@ export async function cliInit(options: CliInitOptions) {
     await printAvailableTemplates(ioHelper, options.language);
     throw new ToolkitError(`Unknown init template: ${type}`);
   }
-  if (!options.language && template.languages.length === 1) {
-    const language = template.languages[0];
-    await ioHelper.defaults.warn(
-      `No --language was provided, but '${type}' supports only '${language}', so defaulting to --language=${language}`,
+
+  const language = await (async () => {
+    if (options.language) {
+      return options.language;
+    }
+    if (template.languages.length === 1) {
+      const templateLanguage = template.languages[0];
+      await ioHelper.defaults.warn(
+        `No --language was provided, but '${type}' supports only '${templateLanguage}', so defaulting to --language=${templateLanguage}`,
+      );
+      return templateLanguage;
+    }
+    await ioHelper.defaults.info(
+      `Available languages for ${chalk.green(type)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
     );
-  }
-  if (!options.language) {
-    await ioHelper.defaults.info(`Available languages for ${chalk.green(type)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
     throw new ToolkitError('No language was selected');
-  }
+  })();
 
   await initializeProject(
     ioHelper,
     template,
-    options.language,
+    language,
     canUseNetwork,
     generateOnly,
     workDir,

@@ -276,28 +276,14 @@ export class AwsClients {
   }
 
   public async waitForAssumeRole(roleArn: string) {
-    // Wait until the role has replicated
-    const deadline = Date.now() + 60_000;
-    let lastError: Error | undefined;
-    while (Date.now() < deadline) {
-      try {
-        await this.sts.send(new AssumeRoleCommand({
-          RoleArn: roleArn,
-          RoleSessionName: 'test-existence',
-        }));
-        return;
-      } catch (e: any) {
-        lastError = e;
-
-        if (e.name === 'AccessDenied') {
-          continue;
-        }
-
-        throw e;
-      }
-    }
-
-    throw new Error(`Timed out waiting for role ${roleArn} to become assumable: ${lastError}`);
+    await retryOnMatchingErrors(
+      () => this.sts.send(new AssumeRoleCommand({
+        RoleArn: roleArn,
+        RoleSessionName: 'test-existence',
+      })),
+      ['AccessDenied'],
+      retry.forSeconds(60),
+    );
   }
 
   public async deleteRole(name: string) {
@@ -379,6 +365,36 @@ export function outputFromStack(key: string, stack: Stack): string | undefined {
 
 export async function sleep(ms: number) {
   return new Promise((ok) => setTimeout(ok, ms));
+}
+
+/**
+ * Retry an async operation with error filtering until a deadline is hit.
+ *
+ * Use `retry.forSeconds()` to construct a deadline relative to right now.
+ *
+ * Only retries on errors with matching names in errorNames array.
+ */
+export async function retryOnMatchingErrors<T>(
+  operation: () => Promise<T>,
+  errorNames: string[],
+  deadline: Date,
+  interval: number = 5000,
+): Promise<T> {
+  let i = 0;
+  while (true) {
+    try {
+      i++;
+      return await operation();
+    } catch (e: any) {
+      if (Date.now() > deadline.getTime()) {
+        throw new Error(`Operation did not succeed after ${i} attempts: ${e}`);
+      }
+      if (!errorNames.includes(e.name)) {
+        throw e;
+      }
+      await sleep(interval);
+    }
+  }
 }
 
 function chainableCredentials(region: string): AwsCredentialIdentityProvider {

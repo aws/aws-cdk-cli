@@ -66,6 +66,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         bootstrapCustomerKey: args.bootstrapCustomerKey,
         qualifier: args.qualifier,
         publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
+        denyExternalId: args.denyExternalId,
         tags: args.tags,
         execute: args.execute,
         trust: args.trust,
@@ -89,6 +90,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         rollbackBufferDays: args.rollbackBufferDays,
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
+        toolkitStackName: args.toolkitStackName,
         bootstrapStackName: args.bootstrapStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
@@ -356,6 +358,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrapCustomerKey: config.bootstrap?.bootstrapCustomerKey,
     qualifier: config.bootstrap?.qualifier,
     publicAccessBlockConfiguration: config.bootstrap?.publicAccessBlockConfiguration,
+    denyExternalId: config.bootstrap?.denyExternalId,
     tags: config.bootstrap?.tags,
     execute: config.bootstrap?.execute,
     trust: config.bootstrap?.trust,
@@ -375,6 +378,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     rollbackBufferDays: config.gc?.rollbackBufferDays,
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
+    toolkitStackName: config.gc?.toolkitStackName,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
   const flagsOptions = {
