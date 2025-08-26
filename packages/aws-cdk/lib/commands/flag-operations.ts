@@ -21,15 +21,11 @@ enum FlagsMenuOptions {
   EXIT = 'Exit',
 }
 
-interface HandleFlagsOptions extends FlagsOptions {
+interface executeFlagOperationsOptions extends FlagsOptions {
   app?: string;
 }
 
 interface FlagOperationsParams {
-  flagData: FeatureFlag[];
-  toolkit: Toolkit;
-  ioHelper: IoHelper;
-
   /** User ran --recommended option */
   recommended?: boolean;
 
@@ -51,7 +47,7 @@ interface FlagOperationsParams {
   /** User ran --safe option */
   safe?: boolean;
 
-  /** User provided the number of threads to run the --safe operation with
+  /** User provided the number of jobs to run the --safe operation with
    * @default 4
    */
   concurrency?: number;
@@ -68,12 +64,19 @@ interface FlagOperationsParams {
 
 export class DetermineSafeFlags {
   private readonly params: FlagOperationsParams;
+  private readonly flags: FeatureFlag[];
+  private readonly toolkit: Toolkit;
+  private readonly ioHelper: IoHelper;
+  private app!: string;
+  private baseContextValues!: Record<string, any>;
+  private allStacks!: CloudFormationStackArtifact[];
+  private queue!: PQueue;
 
-  constructor(flagData: FeatureFlag[], ioHelper: IoHelper, options: HandleFlagsOptions, toolkit: Toolkit) {
+  constructor(flagData: FeatureFlag[], ioHelper: IoHelper, options: executeFlagOperationsOptions, toolkit: Toolkit) {
+    this.flags = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name)),
+    this.toolkit = toolkit;
+    this.ioHelper = ioHelper;
     this.params = {
-      flagData: flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name)),
-      toolkit,
-      ioHelper,
       recommended: options.recommended,
       all: options.all,
       value: options.value,
@@ -91,9 +94,9 @@ export class DetermineSafeFlags {
   /**
    * Main entry point for handling flag operations based on user options.
    */
-  public async handleFlags(): Promise<void> {
-    if (this.params.flagData.length == 0) {
-      await this.params.ioHelper.defaults.error('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
+  public async executeFlagOperations(): Promise<void> {
+    if (this.flags.length == 0) {
+      await this.ioHelper.defaults.error('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
       return;
     }
 
@@ -133,47 +136,47 @@ export class DetermineSafeFlags {
     }
 
     if (this.params.flagName && this.params.all) {
-      await this.params.ioHelper.defaults.error('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
+      await this.ioHelper.defaults.error('Error: Cannot use both --all and a specific flag name. Please use either --all to show all flags or specify a single flag name.');
       return;
     }
 
     if ((this.params.value || this.params.recommended || this.params.default || this.params.unconfigured) && !this.params.set) {
-      await this.params.ioHelper.defaults.error('Error: This option can only be used with --set.');
+      await this.ioHelper.defaults.error('Error: This option can only be used with --set.');
       return;
     }
 
     if (this.params.value && !this.params.flagName) {
-      await this.params.ioHelper.defaults.error('Error: --value requires a specific flag name. Please specify a flag name when providing a value.');
+      await this.ioHelper.defaults.error('Error: --value requires a specific flag name. Please specify a flag name when providing a value.');
       return;
     }
 
     if (this.params.recommended && this.params.default) {
-      await this.params.ioHelper.defaults.error('Error: Cannot use both --recommended and --default. Please choose one option.');
+      await this.ioHelper.defaults.error('Error: Cannot use both --recommended and --default. Please choose one option.');
       return;
     }
 
     if (this.params.unconfigured && this.params.all) {
-      await this.params.ioHelper.defaults.error('Error: Cannot use both --unconfigured and --all. Please choose one option.');
+      await this.ioHelper.defaults.error('Error: Cannot use both --unconfigured and --all. Please choose one option.');
       return;
     }
 
     if (this.params.unconfigured && this.params.flagName) {
-      await this.params.ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works on multiple flags.');
+      await this.ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works on multiple flags.');
       return;
     }
 
     if (this.params.set && this.params.flagName && !this.params.value) {
-      await this.params.ioHelper.defaults.error('Error: When setting a specific flag, you must provide a --value.');
+      await this.ioHelper.defaults.error('Error: When setting a specific flag, you must provide a --value.');
       return;
     }
 
     if (this.params.set && this.params.all && !this.params.recommended && !this.params.default) {
-      await this.params.ioHelper.defaults.error('Error: When using --set with --all, you must specify either --recommended or --default.');
+      await this.ioHelper.defaults.error('Error: When using --set with --all, you must specify either --recommended or --default.');
       return;
     }
 
     if (this.params.set && this.params.unconfigured && !this.params.recommended && !this.params.default) {
-      await this.params.ioHelper.defaults.error('Error: When using --set with --unconfigured, you must specify either --recommended or --default.');
+      await this.ioHelper.defaults.error('Error: When using --set with --unconfigured, you must specify either --recommended or --default.');
       return;
     }
 
@@ -222,12 +225,12 @@ export class DetermineSafeFlags {
    * Sets a single flag value, either interactively or from provided parameters.
    */
   private async setFlag(interactive?: boolean) {
-    const { flagData, ioHelper, flagName } = this.params;
+    const { flagName } = this.params;
     let updatedFlagName = flagName;
     let updatedValue = this.params.value;
 
     if (interactive) {
-      const allFlagNames = flagData.filter(flag => this.isBooleanFlag(flag) == true).map(flag => flag.name);
+      const allFlagNames = this.flags.filter(flag => this.isBooleanFlag(flag) == true).map(flag => flag.name);
 
       const prompt = new Select({
         name: 'flag',
@@ -249,15 +252,15 @@ export class DetermineSafeFlags {
       this.params.value = updatedValue;
       this.params.flagName = updatedFlagName;
     } else {
-      const flag = flagData.find(f => f.name === flagName![0]);
+      const flag = this.flags.find(f => f.name === flagName![0]);
 
       if (!flag) {
-        await ioHelper.defaults.error('Flag not found.');
+        await this.ioHelper.defaults.error('Flag not found.');
         return;
       }
 
       if (!this.isBooleanFlag(flag)) {
-        await ioHelper.defaults.error(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
+        await this.ioHelper.defaults.error(`Flag '${flagName}' is not a boolean flag. Only boolean flags are currently supported.`);
         return;
       }
     }
@@ -273,55 +276,56 @@ export class DetermineSafeFlags {
    * Identifies and sets flags that can be safely changed without causing template differences.
    */
   private async setSafeFlags(): Promise<void> {
-    const { flagData, toolkit, ioHelper, concurrency, app: appOption } = this.params;
+    const { concurrency, app: appOption } = this.params;
 
     const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
-    const app = appOption || cdkJson.app;
+    this.app = appOption || cdkJson.app;
 
-    const isUsingTsNode = app.includes('ts-node');
+    const isUsingTsNode = this.app.includes('ts-node');
 
-    if (isUsingTsNode && !app.includes('-T') && !app.includes('--transpileOnly')) {
-      await ioHelper.defaults.info('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
+    if (isUsingTsNode && !this.app.includes('-T') && !this.app.includes('--transpileOnly')) {
+      await this.ioHelper.defaults.info('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
     }
 
-    const unconfiguredFlags = flagData.filter(flag =>
+    const unconfiguredFlags = this.flags.filter(flag =>
       flag.userValue === undefined &&
       this.isBooleanFlag(flag) &&
       (flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue),
     );
 
     if (unconfiguredFlags.length === 0) {
-      await ioHelper.defaults.info('All feature flags are configured.');
+      await this.ioHelper.defaults.info('All feature flags are configured.');
       return;
     }
 
     const baseContext = new CdkAppMultiContext(process.cwd());
-    const baseContextValues = await baseContext.read();
+    this.baseContextValues = await baseContext.read();
 
-    const baseSource = await toolkit.fromCdkApp(app, {
+    const baselineTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-baseline-'));
+    const baseSource = await this.toolkit.fromCdkApp(this.app, {
       contextStore: baseContext,
-      outdir: fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-baseline-')),
+      outdir: baselineTempDir,
     });
 
-    const baseCx = await toolkit.synth(baseSource);
+    const baseCx = await this.toolkit.synth(baseSource);
     const baseAssembly = baseCx.cloudAssembly;
-    const allStacks = baseAssembly.stacksRecursively;
+    this.allStacks = baseAssembly.stacksRecursively;
 
-    const queue = new PQueue({ concurrency: concurrency });
+    this.queue = new PQueue({ concurrency: concurrency });
 
-    const safeFlags = await this.batchTestFlags(unconfiguredFlags, baseContextValues, app, allStacks, queue);
+    const safeFlags = await this.batchTestFlags(unconfiguredFlags);
 
-    await fs.remove(path.join(process.cwd(), 'baseline'));
+    await fs.remove(baselineTempDir);
 
     if (safeFlags.length > 0) {
-      await ioHelper.defaults.info('Flags that can be set without template changes:');
+      await this.ioHelper.defaults.info('Flags that can be set without template changes:');
       for (const flag of safeFlags) {
-        await ioHelper.defaults.info(`- ${flag.name} -> ${flag.recommendedValue}`);
+        await this.ioHelper.defaults.info(`- ${flag.name} -> ${flag.recommendedValue}`);
       }
 
       await this.handleUserResponse(safeFlags.map(flag => flag.name));
     } else {
-      await ioHelper.defaults.info('No more flags can be set without causing template changes.');
+      await this.ioHelper.defaults.info('No more flags can be set without causing template changes.');
     }
   }
 
@@ -330,28 +334,22 @@ export class DetermineSafeFlags {
    *
    * @returns array of flags that can be set to recommended values without template changes
    */
-  private async batchTestFlags(
-    flags: FeatureFlag[],
-    baseContextValues: Record<string, any>,
-    app: string,
-    allStacks: CloudFormationStackArtifact[],
-    queue: PQueue,
-  ): Promise<FeatureFlag[]> {
+  private async batchTestFlags(flags: FeatureFlag[]): Promise<FeatureFlag[]> {
     if (flags.length === 0) {
       return [];
     }
 
-    const allFlagsContext = { ...baseContextValues };
+    const allFlagsContext = { ...this.baseContextValues };
     flags.forEach(flag => {
       allFlagsContext[flag.name] = flag.recommendedValue;
     });
 
-    const allSafe = await this.testBatch(allFlagsContext, this.params.toolkit, app, allStacks);
+    const allSafe = await this.testBatch(allFlagsContext);
     if (allSafe) {
       return flags;
     }
 
-    return this.isolateUnsafeFlags(flags, baseContextValues, app, allStacks, queue);
+    return this.isolateUnsafeFlags(flags);
   }
 
   /**
@@ -361,23 +359,20 @@ export class DetermineSafeFlags {
    */
   private async testBatch(
     contextValues: Record<string, any>,
-    toolkit: Toolkit,
-    app: string,
-    allStacks: CloudFormationStackArtifact[],
   ): Promise<boolean> {
     const testContext = new MemoryContext(contextValues);
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-test-'));
-    const testSource = await toolkit.fromCdkApp(app, {
+    const testSource = await this.toolkit.fromCdkApp(this.app, {
       contextStore: testContext,
       outdir: tempDir,
     });
 
-    const testCx = await toolkit.synth(testSource);
+    const testCx = await this.toolkit.synth(testSource);
 
     try {
-      for (const stack of allStacks) {
+      for (const stack of this.allStacks) {
         const templatePath = stack.templateFullPath;
-        const diff = await toolkit.diff(testCx, {
+        const diff = await this.toolkit.diff(testCx, {
           method: DiffMethod.LocalFile(templatePath),
           stacks: {
             strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
@@ -402,25 +397,15 @@ export class DetermineSafeFlags {
    *
    * @returns array of safe flags that don't cause template changes
    */
-  private async isolateUnsafeFlags(
-    flags: FeatureFlag[],
-    baseContextValues: Record<string, any>,
-    app: string,
-    allStacks: CloudFormationStackArtifact[],
-    queue: PQueue,
-  ): Promise<FeatureFlag[]> {
+  private async isolateUnsafeFlags(flags: FeatureFlag[]): Promise<FeatureFlag[]> {
     const safeFlags: FeatureFlag[] = [];
 
     async function processBatch(thisRef: DetermineSafeFlags, batch: FeatureFlag[], contextValues: Record<string, any>): Promise<void> {
       if (batch.length === 1) {
         const isSafe = await thisRef.testBatch(
           { ...contextValues, [batch[0].name]: batch[0].recommendedValue },
-          thisRef.params.toolkit,
-          app,
-          allStacks,
         );
 
-        await fs.remove(path.join(process.cwd(), `test-${batch[0].name}`));
         if (isSafe) safeFlags.push(batch[0]);
         return;
       }
@@ -430,12 +415,7 @@ export class DetermineSafeFlags {
         batchContext[flag.name] = flag.recommendedValue;
       });
 
-      const isSafeBatch = await thisRef.testBatch(
-        batchContext,
-        thisRef.params.toolkit,
-        app,
-        allStacks,
-      );
+      const isSafeBatch = await thisRef.testBatch(batchContext);
 
       if (isSafeBatch) {
         safeFlags.push(...batch);
@@ -446,13 +426,13 @@ export class DetermineSafeFlags {
       const left = batch.slice(0, mid);
       const right = batch.slice(mid);
 
-      void queue.add(() => processBatch(thisRef, left, contextValues));
-      void queue.add(() => processBatch(thisRef, right, contextValues));
+      void thisRef.queue.add(() => processBatch(thisRef, left, contextValues));
+      void thisRef.queue.add(() => processBatch(thisRef, right, contextValues));
     }
 
-    void queue.add(() => processBatch(this, flags, baseContextValues));
+    void this.queue.add(() => processBatch(this, flags, this.baseContextValues));
 
-    await queue.onIdle();
+    await this.queue.onIdle();
 
     return safeFlags;
   }
@@ -461,7 +441,7 @@ export class DetermineSafeFlags {
    * Shows a preview of template changes that would result from setting flags.
    */
   private async prototypeChanges(flagNames: string[]): Promise<boolean> {
-    const { flagData, toolkit, ioHelper, recommended, value } = this.params;
+    const { recommended, value } = this.params;
     const baseContext = new CdkAppMultiContext(process.cwd());
     const baseContextValues = await baseContext.read();
     const memoryContext = new MemoryContext(baseContextValues);
@@ -469,7 +449,7 @@ export class DetermineSafeFlags {
     const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
     const app = cdkJson.app;
 
-    const source = await toolkit.fromCdkApp(app, {
+    const source = await this.toolkit.fromCdkApp(app, {
       contextStore: baseContext,
       outdir: fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-original-')),
     });
@@ -479,15 +459,15 @@ export class DetermineSafeFlags {
     if (flagNames.length === 1 && value !== undefined) {
       const flagName = flagNames[0];
       if (baseContextValues[flagName] == boolValue) {
-        await ioHelper.defaults.info('Flag is already set to the specified value. No changes needed.');
+        await this.ioHelper.defaults.info('Flag is already set to the specified value. No changes needed.');
         return false;
       }
       updateObj[flagName] = boolValue;
     } else {
       for (const flagName of flagNames) {
-        const flag = flagData.find(f => f.name === flagName);
+        const flag = this.flags.find(f => f.name === flagName);
         if (!flag) {
-          await ioHelper.defaults.error(`Flag ${flagName} not found.`);
+          await this.ioHelper.defaults.error(`Flag ${flagName} not found.`);
           return false;
         }
         const newValue = recommended
@@ -498,20 +478,20 @@ export class DetermineSafeFlags {
     }
 
     await memoryContext.update(updateObj);
-    const cx = await toolkit.synth(source);
+    const cx = await this.toolkit.synth(source);
     const assembly = cx.cloudAssembly;
 
-    const modifiedSource = await toolkit.fromCdkApp(app, {
+    const modifiedSource = await this.toolkit.fromCdkApp(app, {
       contextStore: memoryContext,
       outdir: fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-temp-')),
     });
 
-    const modifiedCx = await toolkit.synth(modifiedSource);
+    const modifiedCx = await this.toolkit.synth(modifiedSource);
     const allStacks = assembly.stacksRecursively;
 
     for (const stack of allStacks) {
       const templatePath = stack.templateFullPath;
-      await toolkit.diff(modifiedCx, {
+      await this.toolkit.diff(modifiedCx, {
         method: DiffMethod.LocalFile(templatePath),
         stacks: {
           strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
@@ -526,14 +506,14 @@ export class DetermineSafeFlags {
    * Sets multiple flags to their recommended or default values.
    */
   private async setMultipleFlags() {
-    const { flagData, all } = this.params;
+    const { all } = this.params;
     let flagsToSet;
     if (all) {
-      flagsToSet = flagData.filter(flag => flag.userValue === undefined || !this.isUserValueEqualToRecommended(flag))
+      flagsToSet = this.flags.filter(flag => flag.userValue === undefined || !this.isUserValueEqualToRecommended(flag))
         .filter(flag => this.isBooleanFlag(flag))
         .map(flag => flag.name);
     } else {
-      flagsToSet = flagData.filter(flag =>
+      flagsToSet = this.flags.filter(flag =>
         flag.userValue === undefined)
         .filter(flag => this.isBooleanFlag(flag))
         .map(flag => flag.name);
@@ -549,8 +529,7 @@ export class DetermineSafeFlags {
    * Prompts user for confirmation and applies flag changes if accepted.
    */
   private async handleUserResponse(flagNames: string[]): Promise<void> {
-    const { ioHelper } = this.params;
-    const userAccepted = await ioHelper.requestResponse({
+    const userAccepted = await this.ioHelper.requestResponse({
       time: new Date(),
       level: 'info',
       code: 'CDK_TOOLKIT_I9300',
@@ -563,9 +542,9 @@ export class DetermineSafeFlags {
     });
     if (userAccepted) {
       await this.modifyValues(flagNames);
-      await ioHelper.defaults.info('Flag value(s) updated successfully.');
+      await this.ioHelper.defaults.info('Flag value(s) updated successfully.');
     } else {
-      await ioHelper.defaults.info('Operation cancelled');
+      await this.ioHelper.defaults.info('Operation cancelled');
     }
 
     const originalDir = path.join(process.cwd(), 'original');
@@ -579,7 +558,7 @@ export class DetermineSafeFlags {
    * Updates cdk.json with new flag values.
    */
   private async modifyValues(flagNames: string[]): Promise<void> {
-    const { flagData, ioHelper, value, recommended, safe } = this.params;
+    const { value, recommended, safe } = this.params;
     const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
     const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
     const cdkJson = JSON.parse(cdkJsonContent);
@@ -588,10 +567,10 @@ export class DetermineSafeFlags {
       const boolValue = value === 'true';
       cdkJson.context[String(flagNames[0])] = boolValue;
 
-      await ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
+      await this.ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
     } else {
       for (const flagName of flagNames) {
-        const flag = flagData.find(f => f.name === flagName);
+        const flag = this.flags.find(f => f.name === flagName);
         const newValue = recommended || safe
           ? flag!.recommendedValue as boolean
           : String(flag!.unconfiguredBehavesLike?.v2) === 'true';
@@ -679,42 +658,42 @@ export class DetermineSafeFlags {
   }
 
   public async displayFlags(): Promise<void> {
-    const { flagData, ioHelper, flagName, all } = this.params;
+    const { flagName, all } = this.params;
 
     if (flagName && flagName.length > 0) {
-      const matchingFlags = flagData.filter(f =>
+      const matchingFlags = this.flags.filter(f =>
         flagName.some(searchTerm => f.name.toLowerCase().includes(searchTerm.toLowerCase())),
       );
 
       if (matchingFlags.length === 0) {
-        await ioHelper.defaults.error(`Flag matching "${flagName.join(', ')}" not found.`);
+        await this.ioHelper.defaults.error(`Flag matching "${flagName.join(', ')}" not found.`);
         return;
       }
 
       if (matchingFlags.length === 1) {
         const flag = matchingFlags[0];
-        await ioHelper.defaults.info(`Flag name: ${flag.name}`);
-        await ioHelper.defaults.info(`Description: ${flag.explanation}`);
-        await ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
-        await ioHelper.defaults.info(`User value: ${flag.userValue}`);
+        await this.ioHelper.defaults.info(`Flag name: ${flag.name}`);
+        await this.ioHelper.defaults.info(`Description: ${flag.explanation}`);
+        await this.ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
+        await this.ioHelper.defaults.info(`User value: ${flag.userValue}`);
         return;
       }
 
-      await ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagName.join(', ')}":`);
-      await this.displayFlagTable(matchingFlags, ioHelper);
+      await this.ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagName.join(', ')}":`);
+      await this.displayFlagTable(matchingFlags, this.ioHelper);
       return;
     }
 
     let flagsToDisplay: FeatureFlag[];
     if (all) {
-      flagsToDisplay = flagData;
+      flagsToDisplay = this.flags;
     } else {
-      flagsToDisplay = flagData.filter(flag =>
+      flagsToDisplay = this.flags.filter(flag =>
         flag.userValue === undefined || !this.isUserValueEqualToRecommended(flag),
       );
     }
 
-    await this.displayFlagTable(flagsToDisplay, ioHelper);
+    await this.displayFlagTable(flagsToDisplay, this.ioHelper);
   }
 
   private isUserValueEqualToRecommended(flag: FeatureFlag): boolean {
@@ -728,3 +707,4 @@ export class DetermineSafeFlags {
       recommended === 'false';
   }
 }
+

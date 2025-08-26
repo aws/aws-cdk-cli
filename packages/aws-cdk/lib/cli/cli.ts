@@ -464,7 +464,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
         const flagsData = await toolkit.flags(cloudExecutable);
         const handler = new DetermineSafeFlags(flagsData, ioHelper, args, toolkit);
-        return handler.handleFlags();
+        return handler.executeFlagOperations();
 
       case 'synthesize':
       case 'synth':

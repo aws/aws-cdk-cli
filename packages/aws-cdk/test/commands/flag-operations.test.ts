@@ -206,14 +206,14 @@ describe('displayFlags', () => {
   });
 });
 
-describe('handleFlags', () => {
+describe('executeFlagOperations', () => {
   test('displays specific flag when FLAGNAME is provided without set option', async () => {
     const options: FlagsOptions = {
       FLAGNAME: ['@aws-cdk/core:testFlag'],
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Description: Test flag for unit tests');
@@ -227,7 +227,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -239,7 +239,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
@@ -253,7 +253,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Flag matching \"@aws-cdk/core:nonExistentFlag\" not found.');
@@ -274,7 +274,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -302,7 +302,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(1);
     expect(mockToolkit.synth).not.toHaveBeenCalled();
@@ -329,7 +329,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const finalContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const finalJson = JSON.parse(finalContent);
@@ -367,7 +367,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(nonBooleanFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
     expect(mockToolkit.synth).not.toHaveBeenCalled();
@@ -415,7 +415,7 @@ describe('handleFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -434,7 +434,7 @@ describe('handleFlags', () => {
     const options: FlagsOptions = {};
 
     const flagOperations = new DetermineSafeFlags(mockNoFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
@@ -459,7 +459,7 @@ describe('modifyValues', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -489,7 +489,7 @@ describe('modifyValues', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -520,7 +520,7 @@ describe('modifyValues', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
@@ -557,7 +557,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -591,7 +591,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -623,7 +623,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -657,7 +657,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
@@ -685,7 +685,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
     expect(mockToolkit.synth).not.toHaveBeenCalled();
@@ -710,7 +710,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     expect(Select).toHaveBeenCalledWith({
       name: 'option',
@@ -754,7 +754,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
@@ -780,7 +780,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
@@ -808,7 +808,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(configuredFlags, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('All feature flags are configured.');
@@ -833,7 +833,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Flags that can be set without template changes:');
@@ -856,7 +856,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('No more flags can be set without causing template changes.');
@@ -880,7 +880,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.handleFlags();
+    await flagOperations.executeFlagOperations();
 
     const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const updatedJson = JSON.parse(updatedContent);
