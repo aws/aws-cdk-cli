@@ -66,6 +66,22 @@ describe('constructs version', () => {
     })).rejects.toThrow(/No language/);
   });
 
+  cliTest('specifying language without template type creates default app template with specified language', async (workDir) => {
+    await cliInit({
+      ioHelper,
+      language: 'python',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir,
+    });
+
+    // Verify that an app template was created with the specified language (Python)
+    expect(await fs.pathExists(path.join(workDir, 'requirements.txt'))).toBeTruthy();
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Applying project template app for python'),
+    }));
+  });
+
   cliTest('create a TypeScript app project', async (workDir) => {
     await cliInit({
       ioHelper,
