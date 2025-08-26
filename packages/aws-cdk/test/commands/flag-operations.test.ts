@@ -38,25 +38,9 @@ const mockFlagsData: FeatureFlag[] = [
   {
     module: 'different-module',
     name: '@aws-cdk/core:matchingFlag',
-    recommendedValue: 'true',
-    userValue: 'true',
+    recommendedValue: true,
+    userValue: true,
     explanation: 'Flag that matches recommendation',
-  },
-  {
-    module: 'different-module',
-    name: '@aws-cdk/core:anotherMatchingFlag',
-    recommendedValue: 'true',
-    userValue: 'true',
-    explanation: 'Flag that matches recommendation',
-    unconfiguredBehavesLike: { v2: 'true' },
-  },
-  {
-    module: 'different-module',
-    name: '@aws-cdk/core:anotherMatchingFlag',
-    recommendedValue: 'true',
-    userValue: 'true',
-    explanation: 'Flag that matches recommendation',
-    unconfiguredBehavesLike: { v2: 'true' },
   },
 ];
 
@@ -133,8 +117,8 @@ describe('displayFlags', () => {
     await flagOperations.displayFlags();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
   });
 
   test('handles null user values correctly', async () => {
@@ -177,19 +161,6 @@ describe('displayFlags', () => {
     expect(plainTextOutput).toContain('different-module');
   });
 
-  test('does not display flag when unconfigured behavior is the same as recommended behavior', async () => {
-    const params = {
-      flagData: mockFlagsData,
-      toolkit: mockToolkit,
-      ioHelper,
-      all: true,
-    };
-    await displayFlags(params);
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anotherMatchingFlag');
-  });
-
   test('displays single flag details when only one substring match is found', async () => {
     const options = { FLAGNAME: ['s3'] };
     const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, createMockToolkit());
@@ -218,10 +189,9 @@ describe('displayFlags', () => {
     await flagOperations.displayFlags();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).toContain('  @aws-cdk/core:matchingFlag');
-    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
   });
 
   test('returns all matching flags if user enters multiple substrings', async () => {
@@ -230,10 +200,9 @@ describe('displayFlags', () => {
     await flagOperations.displayFlags();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('  @aws-cdk/core:matchingFlag');
-    expect(plainTextOutput).not.toContain('  @aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/s3:anotherFlag');
   });
 });
 
@@ -590,7 +559,8 @@ describe('checkDefaultBehavior', () => {
       default: true,
     };
 
-    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+    await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalled();
     expect(mockToolkit.synth).toHaveBeenCalled();
@@ -616,7 +586,8 @@ describe('checkDefaultBehavior', () => {
       default: true,
     };
 
-    await handleFlags(flagsWithoutUnconfiguredBehavior, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(flagsWithoutUnconfiguredBehavior, ioHelper, options, mockToolkit);
+    await flagOperations.executeFlagOperations();
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('The --default options are not compatible with the AWS CDK library used by your application.');
@@ -731,7 +702,7 @@ describe('interactive prompts lead to the correct function calls', () => {
       interactive: true,
     };
 
-    const flagOperations = new DetermineSafeFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    const flagOperations = new DetermineSafeFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
     await flagOperations.executeFlagOperations();
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);

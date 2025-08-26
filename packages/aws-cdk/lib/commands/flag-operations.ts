@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import { formatTable } from '@aws-cdk/cloudformation-diff';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -208,7 +208,8 @@ export class DetermineSafeFlags {
 
     if (this.params.set && this.params.all && this.params.default) {
       await this.setMultipleFlagsIfSupported();
-      }
+      return;
+    }
 
     if (this.params.set && this.params.unconfigured && this.params.recommended) {
       await this.setMultipleFlags();
@@ -216,20 +217,21 @@ export class DetermineSafeFlags {
     }
 
     if (this.params.set && this.params.unconfigured && this.params.default) {
-    await setMultipleFlagsIfSupported(params);
+      await this.setMultipleFlagsIfSupported();
+      return;
+    }
   }
-}
 
-/**
- * Sets flag configurations to default values if `unconfiguredBehavesLike` is populated
- */
-async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
-  const { flagData, ioHelper } = params;
-  if (flagData[0].unconfiguredBehavesLike) {
+  /**
+   * Sets flag configurations to default values if `unconfiguredBehavesLike` is populated
+   */
+  private async setMultipleFlagsIfSupported(): Promise<void> {
+    const supported = this.flags.some(f => f.unconfiguredBehavesLike);
+    if (supported) {
       await this.setMultipleFlags();
       return;
     }
-  await ioHelper.defaults.error('The --default options are not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
+    await this.ioHelper.defaults.error('The --default options are not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
   }
 
   /**
@@ -300,9 +302,7 @@ async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
 
     const unconfiguredFlags = this.flags.filter(flag =>
       flag.userValue === undefined &&
-      this.isBooleanFlag(flag) &&
-      (flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue),
-    );
+      this.isBooleanFlag(flag));
 
     if (unconfiguredFlags.length === 0) {
       await this.ioHelper.defaults.info('All feature flags are configured.');
@@ -321,7 +321,6 @@ async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
     const baseCx = await this.toolkit.synth(baseSource);
     const baseAssembly = baseCx.cloudAssembly;
     this.allStacks = baseAssembly.stacksRecursively;
-
     this.queue = new PQueue({ concurrency: concurrency });
 
     const safeFlags = await this.batchTestFlags(unconfiguredFlags);
@@ -591,7 +590,6 @@ async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
     await fs.writeFile(cdkJsonPath, JSON.stringify(cdkJson, null, 2), 'utf-8');
   }
 
-
   private getFlagSortOrder(flag: FeatureFlag): number {
     if (flag.userValue === undefined) {
       return 3;
@@ -602,9 +600,7 @@ async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
     }
   }
 
-async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
-  const filteredFlags = flags.filter(flag => flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue);
-
+  private async displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
     const sortedFlags = [...flags].sort((a, b) => {
       const orderA = this.getFlagSortOrder(a);
       const orderB = this.getFlagSortOrder(b);
@@ -618,25 +614,25 @@ async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promi
       return a.name.localeCompare(b.name);
     });
 
-  const rows: string[][] = [];
-  rows.push(['Feature Flag Name', 'Recommended Value', 'User Value']);
-  let currentModule = '';
+    const rows: string[][] = [];
+    rows.push(['Feature Flag Name', 'Recommended Value', 'User Value']);
+    let currentModule = '';
 
-  sortedFlags.forEach((flag) => {
-    if (flag.module !== currentModule) {
-      rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
-      currentModule = flag.module;
-    }
-    rows.push([
-      `  ${flag.name}`,
-      String(flag.recommendedValue),
-      flag.userValue === undefined ? '<unset>' : String(flag.userValue),
-    ]);
-  });
+    sortedFlags.forEach((flag) => {
+      if (flag.module !== currentModule) {
+        rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
+        currentModule = flag.module;
+      }
+      rows.push([
+        `  ${flag.name}`,
+        String(flag.recommendedValue),
+        flag.userValue === undefined ? '<unset>' : String(flag.userValue),
+      ]);
+    });
 
-  const formattedTable = formatTable(rows, undefined, true);
-  await ioHelper.defaults.info(formattedTable);
-}
+    const formattedTable = formatTable(rows, undefined, true);
+    await ioHelper.defaults.info(formattedTable);
+  }
 
   public async displayFlags(): Promise<void> {
     const { flagName, all } = this.params;
@@ -688,4 +684,3 @@ async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promi
       recommended === 'false';
   }
 }
-

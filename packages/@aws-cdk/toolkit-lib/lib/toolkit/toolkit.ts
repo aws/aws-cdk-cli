@@ -1325,17 +1325,3 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 }
 
-function isBoolean(value: unknown): boolean {
-  return typeof value === 'boolean' || value === 'true' || value === 'false';
-}
-
-function toBooleanValue(value: unknown): boolean {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true';
-  }
-  return false;
-}
-
