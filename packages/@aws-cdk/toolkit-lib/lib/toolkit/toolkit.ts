@@ -1281,7 +1281,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'flags');
     await using assembly = await assemblyFromSource(ioHelper, cx);
-    const artifacts = Object.values(assembly.cloudAssembly.manifest.artifacts!);
+    const artifacts = Object.values(assembly.cloudAssembly.manifest.artifacts ?? {});
     const featureFlagReports = artifacts.filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT);
 
     const flags = featureFlagReports.flatMap(report => {
