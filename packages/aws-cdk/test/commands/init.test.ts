@@ -78,7 +78,7 @@ describe('constructs version', () => {
     // Verify app template structure was created
     expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
-    
+
     // Verify it uses the specified language (TypeScript)
     const binFiles = await fs.readdir(path.join(workDir, 'bin'));
     expect(binFiles.some(file => file.endsWith('.ts'))).toBeTruthy();
