@@ -724,6 +724,7 @@ test('check available init languages', async () => {
   const langs = await availableInitLanguages();
   expect(langs.length).toBeGreaterThan(0);
   expect(langs).toContain('typescript');
+  expect(langs).toContain('ts');
 });
 
 test('exercise printing available templates', async () => {

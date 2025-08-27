@@ -8,6 +8,7 @@ import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
+import { getLanguageAlias } from '../language';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -569,7 +570,9 @@ export async function availableInitLanguages(): Promise<string[]> {
   const result = new Set<string>();
   for (const template of templates) {
     for (const language of template.languages) {
+      const alias = getLanguageAlias(language);
       result.add(language);
+      alias && result.add(alias);
     }
   }
   return [...result];
