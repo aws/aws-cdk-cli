@@ -1,8 +1,8 @@
+import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { TestIoHost } from '../_helpers/io-host';
-import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 
 // Store original version module exports so we don't conflict with other tests
 const originalVersion = jest.requireActual('../../lib/cli/version');
