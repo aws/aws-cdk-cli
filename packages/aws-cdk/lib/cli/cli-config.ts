@@ -84,6 +84,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
           'qualifier': { type: 'string', desc: 'String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default.', default: undefined },
           'public-access-block-configuration': { type: 'boolean', desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ', default: undefined },
+          'deny-external-id': { type: 'boolean', desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ', default: undefined },
           'tags': { type: 'array', alias: 't', desc: 'Tags to add for the stack (KEY=VALUE)', default: [] },
           'execute': { type: 'boolean', desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)', default: true },
           'trust': { type: 'array', desc: 'The AWS account IDs that should be trusted to perform deployments into this environment (may be repeated, modern bootstrapping only)', default: [] },
@@ -110,7 +111,8 @@ export async function makeConfig(): Promise<CliConfig> {
           'rollback-buffer-days': { type: 'number', desc: 'Delete assets that have been marked as isolated for this many days', default: 0 },
           'created-buffer-days': { type: 'number', desc: 'Never delete assets younger than this (in days)', default: 1 },
           'confirm': { type: 'boolean', desc: 'Confirm via manual prompt before deletion', default: true },
-          'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true },
+          'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true, conflicts: 'bootstrap-stack-name' },
+          'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)', deprecated: 'use --toolkit-stack-name', requiresArg: true, conflicts: 'toolkit-stack-name' }, // TODO: remove when garbage collection is GA
         },
       },
       'flags': {
@@ -398,8 +400,11 @@ export async function makeConfig(): Promise<CliConfig> {
           'language': { type: 'string', alias: 'l', desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)', choices: await availableInitLanguages() },
           'list': { type: 'boolean', desc: 'List the available templates' },
           'generate-only': { type: 'boolean', default: false, desc: 'If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project' },
-          'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.' },
+          'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
+          'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
+          'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
         },
+        implies: { 'template-path': 'from-path' },
       },
       'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',

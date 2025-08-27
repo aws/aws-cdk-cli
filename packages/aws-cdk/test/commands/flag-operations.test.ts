@@ -42,6 +42,14 @@ const mockFlagsData: FeatureFlag[] = [
     userValue: 'true',
     explanation: 'Flag that matches recommendation',
   },
+  {
+    module: 'different-module',
+    name: '@aws-cdk/core:anotherMatchingFlag',
+    recommendedValue: 'true',
+    userValue: 'true',
+    explanation: 'Flag that matches recommendation',
+    unconfiguredBehavesLike: { v2: 'true' },
+  },
 ];
 
 function createMockToolkit(): jest.Mocked<Toolkit> {
@@ -121,8 +129,8 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
   });
 
   test('handles null user values correctly', async () => {
@@ -181,6 +189,19 @@ describe('displayFlags', () => {
     expect(plainTextOutput).toContain('different-module');
   });
 
+  test('does not display flag when unconfigured behavior is the same as recommended behavior', async () => {
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: mockToolkit,
+      ioHelper,
+      all: true,
+    };
+    await displayFlags(params);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anotherMatchingFlag');
+  });
+
   test('displays single flag details when only one substring match is found', async () => {
     const params = {
       flagData: mockFlagsData,
@@ -221,9 +242,10 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
   });
 
   test('returns all matching flags if user enters multiple substrings', async () => {
@@ -236,9 +258,10 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/core:matchingFlag');
-    expect(plainTextOutput).not.toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
   });
 });
 
@@ -264,8 +287,8 @@ describe('handleFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
   });
 
   test('displays only differing flags when no specific options are provided', async () => {
@@ -275,9 +298,9 @@ describe('handleFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('@aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('@aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).not.toContain('@aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:matchingFlag');
   });
 
   test('handles flag not found for specific flag query', async () => {
@@ -457,6 +480,17 @@ describe('handleFlags', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
+
+  test('displays notice when user is on incompatible version', async () => {
+    const mockNoFlagsData: FeatureFlag[] = [];
+
+    const options: FlagsOptions = {};
+
+    await handleFlags(mockNoFlagsData, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
+  });
 });
 
 describe('modifyValues', () => {
@@ -549,6 +583,65 @@ describe('modifyValues', () => {
   });
 });
 
+describe('checkDefaultBehavior', () => {
+  test('calls setMultipleFlags when unconfiguredBehavesLike is present', async () => {
+    const flagsWithUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:testFlag',
+        recommendedValue: 'true',
+        userValue: undefined,
+        explanation: 'Test flag',
+        unconfiguredBehavesLike: { v2: 'true' },
+      },
+    ];
+
+    const cdkJsonPath = await createCdkJsonFile({});
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      set: true,
+      all: true,
+      default: true,
+    };
+
+    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
+
+    expect(mockToolkit.fromCdkApp).toHaveBeenCalled();
+    expect(mockToolkit.synth).toHaveBeenCalled();
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('shows error when unconfiguredBehavesLike is not present', async () => {
+    const flagsWithoutUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:testFlag',
+        recommendedValue: 'true',
+        userValue: undefined,
+        explanation: 'Test flag',
+      },
+    ];
+
+    const options: FlagsOptions = {
+      set: true,
+      all: true,
+      default: true,
+    };
+
+    await handleFlags(flagsWithoutUnconfiguredBehavior, ioHelper, options, mockToolkit);
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('The --default options are not compatible with the AWS CDK library used by your application.');
+    expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
+  });
+});
+
 describe('interactive prompts lead to the correct function calls', () => {
   beforeEach(() => {
     setupMockToolkitForPrototyping(mockToolkit);
@@ -631,11 +724,30 @@ describe('interactive prompts lead to the correct function calls', () => {
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
 
+    const flagsWithUnconfiguredBehavior: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:testFlag',
+        recommendedValue: 'true',
+        userValue: 'false',
+        explanation: 'Test flag for unit tests',
+        unconfiguredBehavesLike: { v2: 'true' },
+      },
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/s3:anotherFlag',
+        recommendedValue: 'false',
+        userValue: undefined,
+        explanation: 'Another test flag',
+        unconfiguredBehavesLike: { v2: 'false' },
+      },
+    ];
+
     const options: FlagsOptions = {
       interactive: true,
     };
 
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
+    await handleFlags(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);

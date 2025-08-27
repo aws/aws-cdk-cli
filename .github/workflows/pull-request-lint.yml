@@ -33,6 +33,7 @@ jobs:
             revert
           scopes: |-
             aws-cdk
+            bootstrap
             cdk-assets
             cdk-assets-lib
             cdk-cli-wrapper

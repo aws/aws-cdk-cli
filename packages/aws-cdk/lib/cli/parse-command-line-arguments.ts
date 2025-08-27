@@ -240,6 +240,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ',
         })
+        .option('deny-external-id', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ',
+        })
         .option('tags', {
           type: 'array',
           alias: 't',
@@ -345,11 +350,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Confirm via manual prompt before deletion',
           })
-          .option('bootstrap-stack-name', {
+          .option('toolkit-stack-name', {
             default: undefined,
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
+            conflicts: 'bootstrap-stack-name',
+          })
+          .option('bootstrap-stack-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)',
+            deprecated: 'use --toolkit-stack-name',
+            requiresArg: true,
+            conflicts: 'toolkit-stack-name',
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
@@ -848,7 +862,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           alias: 'V',
-          desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
+          desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.',
+        })
+        .option('from-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a local custom template directory or multi-template repository',
+          requiresArg: true,
+          conflicts: ['lib-version'],
+        })
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a specific template within a multi-template repository',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>

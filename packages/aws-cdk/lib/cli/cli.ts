@@ -338,6 +338,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),
             cloudFormationExecutionPolicies: arrayFromYargs(args.cloudformationExecutionPolicies),
+            denyExternalId: args.denyExternalId,
           },
         });
 
@@ -442,12 +443,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (!configuration.settings.get(['unstable']).includes('gc')) {
           throw new ToolkitError('Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
         }
+        if (args.bootstrapStackName) {
+          await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
+        }
         return cli.garbageCollect(args.ENVIRONMENTS, {
           action: args.action,
           type: args.type,
           rollbackBufferDays: args['rollback-buffer-days'],
           createdBufferDays: args['created-buffer-days'],
-          bootstrapStackName: args.bootstrapStackName,
+          bootstrapStackName: args.toolkitStackName ?? args.bootstrapStackName,
           confirm: args.confirm,
         });
 
@@ -512,6 +516,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.list) {
           return printAvailableTemplates(ioHelper, language);
         } else {
+          // Gate custom template support with unstable flag
+          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
+            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          }
           return cliInit({
             ioHelper,
             type: args.TEMPLATE,
@@ -519,6 +527,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
+            fromPath: args['from-path'],
+            templatePath: args['template-path'],
           });
         }
       case 'migrate':

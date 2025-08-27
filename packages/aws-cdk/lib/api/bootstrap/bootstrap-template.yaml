@@ -56,6 +56,18 @@ Parameters:
     Description: Describe the provenance of the resources in this bootstrap
       stack. Change this when you customize the template. To prevent accidents,
       the CDK CLI will not overwrite bootstrap stacks with a different variant.
+  DenyExternalId:
+    # By default, CDK Bootstrap roles are not designed to be deputized.
+    # Deputized means that you give an external entity access to assume roles on
+    # your behalf. They will supply an ExternalId to avoid Confused Deputy
+    # attacks (https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html).
+    #
+    # AssumeRole calls with ExternalIds will be denied by default, set this to 'false'
+    # if you need this functionality for some reason.
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Whether to deny AssumeRole calls with an ExternalId. This prevents calls that are intended to be deputized from accidentally assuming CDK Roles.
 Conditions:
   HasTrustedAccounts:
     Fn::Not:
@@ -109,6 +121,10 @@ Conditions:
     Fn::Equals:
       - 'true'
       - Ref: PublicAccessBlockConfiguration
+  ShouldDenyExternalId:
+    Fn::Equals:
+      - 'true'
+      - Ref: DenyExternalId
 Resources:
   FileAssetsBucketEncryptionKey:
     Type: AWS::KMS::Key
@@ -296,21 +312,45 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          # allows this role to be assumed with session tags.
-          # see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_permissions-required
-          - Action: sts:TagSession
-            Effect: Allow
-            Principal:
-              AWS:
-                Ref: AWS::AccountId
+          # AssumeRole for same account (no ExternalId)
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
+          # TagSession for same account
+          - Action: sts:TagSession
+            Effect: Allow
+            Principal:
+              AWS:
+                Ref: AWS::AccountId
+          # AssumeRole for regular Trust account (no ExternalId)
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          # TagSession for regular Trust
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -326,21 +366,45 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          # allows this role to be assumed with session tags.
-          # see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_permissions-required
-          - Action: sts:TagSession
-            Effect: Allow
-            Principal:
-              AWS:
-                Ref: AWS::AccountId
+          # AssumeRole for same account (no ExternalId)
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
+          # TagSession for same account
+          - Action: sts:TagSession
+            Effect: Allow
+            Principal:
+              AWS:
+                Ref: AWS::AccountId
+          # AssumeRole for Trusted account (no ExternalId)
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          # TagSession for Trusted account
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -356,29 +420,71 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          # allows this role to be assumed with session tags.
-          # see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_permissions-required
-          - Action: sts:TagSession
-            Effect: Allow
-            Principal:
-              AWS:
-                Ref: AWS::AccountId
+          # AssumeRole for same account (no ExternalId)
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
+          # TagSession for same account
+          - Action: sts:TagSession
+            Effect: Allow
+            Principal:
+              AWS:
+                Ref: AWS::AccountId
+          # Assume Role for Lookup Trust (no ExternalId)
           - Fn::If:
               - HasTrustedAccountsForLookup
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccountsForLookup
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          # TagSession for Lookup Trust
+          - Fn::If:
+              - HasTrustedAccountsForLookup
+              - Action:
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
                     Ref: TrustedAccountsForLookup
               - Ref: AWS::NoValue
+          # Assume Role for regular Trust (no ExternalId)
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          # TagSession for regular Trust
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -471,21 +577,45 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          # allows this role to be assumed with session tags.
-          # see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_permissions-required
-          - Action: sts:TagSession
-            Effect: Allow
-            Principal:
-              AWS:
-                Ref: AWS::AccountId
+          # AssumeRole for same account (no ExternalId)
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
               AWS:
                 Ref: AWS::AccountId
+            Condition:
+              Fn::If:
+                - ShouldDenyExternalId
+                - "Null":
+                    "sts:ExternalId": "true"
+                - Ref: AWS::NoValue
+          # TagSession for same account
+          - Action: sts:TagSession
+            Effect: Allow
+            Principal:
+              AWS:
+                Ref: AWS::AccountId
+          # AssumeRole for Trusted accounts (no ExternalId)
           - Fn::If:
               - HasTrustedAccounts
-              - Action: sts:AssumeRole
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Principal:
+                  AWS:
+                    Ref: TrustedAccounts
+                Condition:
+                  Fn::If:
+                    - ShouldDenyExternalId
+                    - "Null":
+                        "sts:ExternalId": "true"
+                    - Ref: AWS::NoValue
+              - Ref: AWS::NoValue
+          # TagSession for Trusted accounts
+          - Fn::If:
+              - HasTrustedAccounts
+              - Action:
+                  - sts:TagSession
                 Effect: Allow
                 Principal:
                   AWS:
@@ -683,7 +813,7 @@ Resources:
       Type: String
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
-      Value: '28'
+      Value: '29'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
