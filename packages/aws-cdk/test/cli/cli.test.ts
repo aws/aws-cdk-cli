@@ -48,14 +48,14 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         verbose: args.includes('-v')
           ? args.filter((arg: string) => arg === '-v').length
           : args.includes('--verbose')
-          ? parseInt(args[args.indexOf('--verbose') + 1]) || true
-          : undefined,
+            ? parseInt(args[args.indexOf('--verbose') + 1]) || true
+            : undefined,
       });
     }
     if (args.includes('migrate')) {
       return Promise.resolve({
-        _: ['migrate'],
-        language: 'typescript',
+        '_': ['migrate'],
+        'language': 'typescript',
         'stack-name': 'sampleStack',
       });
     }

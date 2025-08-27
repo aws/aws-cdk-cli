@@ -845,12 +845,17 @@
           "desc": "The language to be used for the new project (default can be configured in ~/.cdk.json)",
           "choices": [
             "csharp",
+            "cs",
             "fsharp",
+            "fs",
             "go",
             "java",
             "javascript",
+            "js",
             "python",
-            "typescript"
+            "py",
+            "typescript",
+            "ts"
           ]
         },
         "list": {
@@ -901,10 +906,13 @@
           "desc": "The language to be used for the new project",
           "choices": [
             "typescript",
+            "ts",
             "go",
             "java",
             "python",
-            "csharp"
+            "py",
+            "csharp",
+            "cs"
           ]
         },
         "account": {
