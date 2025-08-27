@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import * as os from 'os';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -66,9 +67,14 @@ export interface CliInitOptions {
   readonly fromPath?: string;
 
   /**
-   * Path to a specific template within a multi-template repository.
-   * This parameter requires --from-path to be specified.
+   * Git repository URL to clone and use as template source
    * @default undefined
+   */
+  readonly fromGitUrl?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository
+   * @default - Optional/auto-detected if repository contains only one template, otherwise required
    */
   readonly templatePath?: string;
 
@@ -85,27 +91,75 @@ export async function cliInit(options: CliInitOptions) {
   const workDir = options.workDir ?? process.cwd();
 
   // Show available templates if no type and no language provided (main branch logic)
-  if (!options.fromPath && !options.type && !options.language) {
+  if (!options.fromPath && !options.fromGitUrl && !options.type && !options.language) {
     await printAvailableTemplates(ioHelper);
     return;
   }
 
-  // Step 1: Load template
-  let template: InitTemplate;
-  if (options.fromPath) {
-    template = await loadLocalTemplate(options.fromPath, options.templatePath);
-  } else {
-    template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+  // Validate mutually exclusive options
+  const customSources = [options.fromPath, options.fromGitUrl].filter(Boolean);
+  if (customSources.length > 1) {
+    throw new ToolkitError('Only one custom template source can be specified at a time');
   }
 
-  // Step 2: Resolve language
-  const language = await resolveLanguage(ioHelper, template, options.language, options.type);
+  // Handle custom template sources if referenced in command
+  if (customSources.length > 0) {
+    let template: InitTemplate;
+    try {
+      if (options.fromPath) {
+        template = await loadLocalTemplate(options.fromPath, options.templatePath);
+      } else if (options.fromGitUrl) {
+        template = await loadGitTemplate(options.fromGitUrl, options.templatePath);
+      } else {
+        throw new ToolkitError('Invalid template source configuration');
+      }
+    } catch (error: any) {
+      if (error instanceof ToolkitError) {
+        throw error;
+      }
+      throw new ToolkitError(`Failed to load custom template: ${error.message}`);
+    }
 
-  // Step 3: Initialize project following standard process
+    const language = await resolveLanguage(ioHelper, template, options.language);
+    try {
+      await initializeProject(
+        ioHelper,
+        template,
+        language,
+        canUseNetwork,
+        generateOnly,
+        workDir,
+        options.stackName,
+        options.migrate,
+        options.libVersion,
+      );
+    } finally {
+      // Clean up temporary template files (only git templates have cleanup)
+      if (template.cleanup) {
+        await template.cleanup();
+      }
+    }
+    return;
+  }
+
+  // If not custom template, handle built-in templates
+  const template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
+
+  if (!options.language && template.languages.length === 1) {
+    const language = template.languages[0];
+    await ioHelper.defaults.warn(
+      `No --language was provided, but '${options.type || 'default'}' supports only '${language}', so defaulting to --language=${language}`,
+    );
+  }
+  if (!options.language) {
+    await ioHelper.defaults.info(`Available languages for ${chalk.green(options.type || 'default')}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
+    throw new ToolkitError('No language was selected');
+  }
+
   await initializeProject(
     ioHelper,
     template,
-    language,
+    options.language,
     canUseNetwork,
     generateOnly,
     workDir,
@@ -157,6 +211,29 @@ async function loadLocalTemplate(fromPath: string, templatePath?: string): Promi
 }
 
 /**
+ * Load a template from a Git repository URL
+ * @param gitUrl - Git repository URL to clone
+ * @param templatePath - Optional path to a specific template within the repository
+ * @returns Promise resolving to the loaded InitTemplate
+ */
+async function loadGitTemplate(gitUrl: string, templatePath?: string): Promise<InitTemplate> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cdk-init-git-'));
+
+  try {
+    // Clone repository (defaults to main/master branch)
+    await executeGitCommand('git', ['clone', '--depth', '1', gitUrl, tempDir]);
+
+    // Loading template from tempDir using local custom template logic
+    return await loadLocalTemplate(tempDir, templatePath);
+  } catch (error: any) {
+    const displayPath = templatePath ? `${gitUrl}/${templatePath}` : gitUrl;
+    throw new ToolkitError(`Failed to load template from Git repository: ${displayPath}. ${error.message}`);
+  } finally {
+    await fs.remove(tempDir).catch(() => {});
+  }
+}
+
+/**
  * Load a built-in template by name
  */
 async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
@@ -176,30 +253,51 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
  * @param ioHelper - IO helper for user interaction
  * @param template - The template to resolve language for
  * @param requestedLanguage - User-requested language (optional)
- * @param type - The template type name for messages
  * @default undefined
  * @returns Promise resolving to the selected language
  */
-async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string, type?: string): Promise<string> {
-  return (async () => {
-    if (requestedLanguage) {
-      return requestedLanguage;
+async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string): Promise<string> {
+  // Validate inputs
+  if (!template || !template.languages || !Array.isArray(template.languages)) {
+    throw new ToolkitError('Invalid template: missing language information');
+  }
+
+  if (template.languages.length === 0) {
+    throw new ToolkitError('Template does not support any languages');
+  }
+
+  let language = requestedLanguage;
+
+  // Validate requested language if provided
+  if (language) {
+    if (typeof language !== 'string' || language.trim() === '') {
+      throw new ToolkitError('Language must be a non-empty string');
     }
-    if (template.languages.length === 1) {
-      const templateLanguage = template.languages[0];
-      // Only show auto-detection message for built-in templates
-      if (template.templateType !== TemplateType.CUSTOM) {
-        await ioHelper.defaults.warn(
-          `No --language was provided, but '${type || template.name}' supports only '${templateLanguage}', so defaulting to --language=${templateLanguage}`,
-        );
-      }
-      return templateLanguage;
+    language = language.trim().toLowerCase();
+
+    if (!template.languages.includes(language)) {
+      await ioHelper.defaults.info(`Available languages for ${chalk.green(template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
+      throw new ToolkitError(`Language '${language}' is not supported by this template`);
     }
-    await ioHelper.defaults.info(
-      `Available languages for ${chalk.green(type || template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
-    );
-    throw new ToolkitError('No language was selected');
-  })();
+
+    return language;
+  }
+
+  // Auto-detect language for single-language templates
+  if (template.languages.length === 1) {
+    language = template.languages[0];
+    // Only show auto-detection message for built-in templates
+    if (template.templateType !== TemplateType.CUSTOM) {
+      await ioHelper.defaults.info(
+        `No --language was provided, but '${template.name}' supports only '${language}', so defaulting to --language=${language}`,
+      );
+    }
+    return language;
+  }
+
+  // Multiple languages available, user must choose
+  await ioHelper.defaults.info(`Available languages for ${chalk.green(template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
+  throw new ToolkitError('No language was selected. Please specify --language with one of the supported languages');
 }
 
 /**
@@ -326,7 +424,7 @@ export class InitTemplate {
     const basePath = path.join(templatesDir, name);
     const languages = await listDirectory(basePath);
     const initInfo = await fs.readJson(path.join(basePath, INFO_DOT_JSON));
-    return new InitTemplate(basePath, name, languages, initInfo, TemplateType.BUILT_IN);
+    return new InitTemplate(basePath, name, languages, initInfo, TemplateType.BUILT_IN, false);
   }
 
   public static async fromPath(templatePath: string) {
@@ -339,12 +437,26 @@ export class InitTemplate {
     const languages = await getLanguageDirectories(basePath);
     const name = path.basename(basePath);
 
-    return new InitTemplate(basePath, name, languages, null, TemplateType.CUSTOM);
+    return new InitTemplate(basePath, name, languages, null, TemplateType.CUSTOM, false);
+  }
+
+  public static async fromTemporaryPath(templatePath: string, customName?: string) {
+    const basePath = path.resolve(templatePath);
+
+    if (!await fs.pathExists(basePath)) {
+      throw new ToolkitError(`Template path does not exist: ${basePath}`);
+    }
+
+    const languages = await getLanguageDirectories(basePath);
+    const name = customName || path.basename(basePath);
+
+    return new InitTemplate(basePath, name, languages, null, TemplateType.CUSTOM, true);
   }
 
   public readonly description?: string;
   public readonly aliases = new Set<string>();
   public readonly templateType: TemplateType;
+  private readonly isTemporary: boolean;
 
   constructor(
     private readonly basePath: string,
@@ -352,8 +464,10 @@ export class InitTemplate {
     public readonly languages: string[],
     initInfo: TemplateInitInfo | null,
     templateType: TemplateType,
+    isTemporary: boolean,
   ) {
     this.templateType = templateType;
+    this.isTemporary = isTemporary;
     // Only built-in templates have descriptions and aliases from info.json
     if (templateType === TemplateType.BUILT_IN && initInfo) {
       this.description = initInfo.description;
@@ -497,6 +611,15 @@ export class InitTemplate {
     };
 
     await fs.writeJson(cdkJson, config, { spaces: 2 });
+  }
+
+  /**
+   * Clean up temporary template directory if this template was loaded from a temporary source
+   */
+  public async cleanup() {
+    if (this.isTemporary) {
+      await fs.remove(this.basePath).catch(() => {});
+    }
   }
 }
 
@@ -841,6 +964,46 @@ async function isInGitRepository(dir: string) {
  */
 function isRoot(dir: string) {
   return path.dirname(dir) === dir;
+}
+
+/**
+ * Execute a Git command with error handling
+ * @param cmd - Command to execute (should be 'git')
+ * @param args - Command arguments
+ * @returns Promise resolving to stdout
+ */
+async function executeGitCommand(cmd: string, args: string[]): Promise<string> {
+  // Security: Only allow git commands
+  if (cmd !== 'git') {
+    throw new ToolkitError('Only git commands are allowed');
+  }
+
+  // Security: Validate git arguments to prevent command injection
+  const allowedGitCommands = ['clone', 'checkout', 'branch', 'tag'];
+  if (args.length === 0 || !allowedGitCommands.includes(args[0])) {
+    throw new ToolkitError(`Git command not allowed: ${args[0]}`);
+  }
+
+  const child = childProcess.spawn(cmd, args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let stdout = '';
+  let stderr = '';
+
+  child.stdout?.on('data', (chunk) => (stdout += chunk.toString()));
+  child.stderr?.on('data', (chunk) => (stderr += chunk.toString()));
+
+  return new Promise<string>((resolve, reject) => {
+    child.once('error', (err) => reject(new ToolkitError(`Failed to execute git command: ${err.message}`)));
+    child.once('exit', (status) => {
+      if (status === 0) {
+        resolve(stdout);
+      } else {
+        reject(new ToolkitError(`Git command failed: ${stderr || stdout}`));
+      }
+    });
+  });
 }
 
 /**
