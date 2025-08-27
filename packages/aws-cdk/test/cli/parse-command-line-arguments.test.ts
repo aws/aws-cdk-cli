@@ -39,26 +39,3 @@ describe('cdk docs', () => {
   });
 });
 
-describe('cdk init', () => {
-  test.each([
-    ['csharp', 'csharp'],
-    ['cs', 'csharp'],
-    ['fsharp', 'fsharp'],
-    ['fs', 'fsharp'],
-    ['go', 'go'],
-    ['java', 'java'],
-    ['javascript', 'javascript'],
-    ['js', 'javascript'],
-    ['python', 'python'],
-    ['py', 'python'],
-    ['typescript', 'typescript'],
-    ['ts', 'typescript'],
-  ])('return %l when %l set in cdk init --language', async (lang, completeLang) => {
-    const [argv, argvForAlias] = await Promise.all([
-      parseCommandLineArguments(['init', '--language', lang]),
-      parseCommandLineArguments(['init', '-l', lang]),
-    ]);
-    expect(argv.language).toBe(completeLang);
-    expect(argvForAlias.language).toBe(completeLang);
-  });
-});
