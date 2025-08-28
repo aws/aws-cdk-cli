@@ -19,10 +19,9 @@ export interface DestroyOptions extends DefaultCdkOptions {
   readonly exclusively?: boolean;
 
   /**
-   * Whether or not to wait for the stack to finish deleting
-   * This functionality does not work for stacks which have dependent stacks
+   * Skip waiting for the stack to finish deleting
    *
    * @default false
    */
-  readonly noWait?: boolean;
+  readonly skipAwaitDeletion?: boolean;
 }

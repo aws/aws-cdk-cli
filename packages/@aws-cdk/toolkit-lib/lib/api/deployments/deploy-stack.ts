@@ -690,7 +690,7 @@ export interface DestroyStackOptions {
   sdk: SDK;
   roleArn?: string;
   deployName?: string;
-  noWait?: boolean;
+  skipAwaitDeletion?: boolean;
 }
 
 export interface DestroyStackResult {
@@ -712,7 +712,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     return {};
   }
   let monitor;
-  if (!options.noWait) {
+  if (!options.skipAwaitDeletion) {
     monitor = new StackActivityMonitor({
       cfn,
       stack: options.stack,
@@ -720,11 +720,13 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
       ioHelper: ioHelper,
     });
     await monitor.start();
+  } else {
+    await ioHelper.defaults.debug(chalk.bold(format('Monitoring of stack deletion for %s will be skipped - subsequent actions may take place before the stack deletion is finished', deployName)));
   }
 
   try {
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
-    if (!options.noWait) {
+    if (!options.skipAwaitDeletion) {
       const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
       if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
         throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);

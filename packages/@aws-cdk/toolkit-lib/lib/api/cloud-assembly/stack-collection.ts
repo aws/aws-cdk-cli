@@ -34,6 +34,36 @@ export class StackCollection {
     return this.stackArtifacts.map(s => s.hierarchicalId);
   }
 
+  public hasDependents(stack: cxapi.CloudFormationStackArtifact): boolean {
+    const cache: { [key: string]: boolean } = {};
+    const checkDependencies = (currentStack: cxapi.CloudFormationStackArtifact) => {
+      if (cache[currentStack.id]) // already checked dependencies for this stack
+        return false;
+
+      cache[currentStack.id] = true;
+      const dependencies = currentStack.dependencies.filter(dep => !dep.id.includes('.assets'));
+      if (dependencies.some(dep => dep.id === stack.id)) // currentStack depends on stack
+        return true;
+
+      for (const dep of dependencies) {
+        if (checkDependencies(this.assembly.stackById(dep.id).firstStack))
+          return true;
+      }
+      return false;
+    }
+
+    for (const currentStack of this.stackArtifacts) {
+      if (currentStack.id === stack.id)
+        continue;
+
+      if (checkDependencies(currentStack)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   public withDependencies(): StackDetails[] {
     const allData: StackDetails[] = [];
 

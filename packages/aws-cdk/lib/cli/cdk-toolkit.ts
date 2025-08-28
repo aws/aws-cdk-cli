@@ -993,8 +993,9 @@ export class CdkToolkit {
           stack,
           deployName: stack.stackName,
           roleArn: options.roleArn,
-          // only allow noWait in cases where there are no dependent stacks
-          noWait: options.noWait && action === 'destroy' && stack.dependencies.some(dep => !dep.id.includes('.assets')),
+          skipAwaitDeletion: options.skipAwaitDeletion
+            // if the stack has dependent stacks, ignore skipAwaitDeletion
+            || (action === 'destroy' && stacks.hasDependents(stack)),
         });
         await this.ioHost.asIoHelper().defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
       } catch (e) {
@@ -1875,9 +1876,9 @@ export interface DestroyOptions {
   fromDeploy?: boolean;
 
   /**
-   * Whether to wait for the stack to finish deleting.
+   * Skip waiting for the stack to finish deleting
    */
-  noWait?: boolean;
+  skipAwaitDeletion?: boolean;
 }
 
 /**

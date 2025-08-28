@@ -1195,8 +1195,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
-            // only allow noWait in cases where there are no dependent stacks
-            noWait: options.noWait && action === 'destroy' && stack.dependencies.some(dep => !dep.id.includes('.assets')),
+            skipAwaitDeletion: options.skipAwaitDeletion
+              // if the stack has dependent stacks, ignore skipAwaitDeletion
+              || (action === 'destroy' && stacks.hasDependents(stack)),
           });
 
           ret.stacks.push({

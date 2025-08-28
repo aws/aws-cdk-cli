@@ -347,8 +347,8 @@
                     "default": false,
                     "type": "boolean"
                 },
-                "noWait": {
-                    "description": "Whether or not to wait for the stack to finish deleting\nThis functionality does not work for stacks which have dependent stacks",
+                "skipAwaitDeletion": {
+                    "description": "Skip waiting for the stack to finish deleting",
                     "default": false,
                     "type": "boolean"
                 },
