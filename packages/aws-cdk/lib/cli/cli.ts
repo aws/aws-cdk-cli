@@ -121,7 +121,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
    * systems, even though technically we maybe could.
    */
   const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
-  
+
   // Determine if notices should be displayed based on CLI args and configuration
   let shouldDisplayNotices: boolean;
   if (argv.notices !== undefined) {
@@ -132,7 +132,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     const configNotices = configuration.settings.get(['notices']);
     if (configNotices !== undefined) {
       // Consider string "false" to be falsy in this context
-      shouldDisplayNotices = configNotices !== "false" && Boolean(configNotices);
+      shouldDisplayNotices = configNotices !== 'false' && Boolean(configNotices);
     } else {
       // Default autodetection behavior
       shouldDisplayNotices = isSafeToWriteNotices;

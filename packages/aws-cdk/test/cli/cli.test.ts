@@ -1,8 +1,8 @@
+import { Notices } from '../../lib/api/notices';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { TestIoHost } from '../_helpers/io-host';
-import { Notices } from '../../lib/api/notices';
 
 // Store original version module exports so we don't conflict with other tests
 const originalVersion = jest.requireActual('../../lib/cli/version');
@@ -106,13 +106,13 @@ describe('notices configuration tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock the Notices.create method
     mockNoticesCreate = jest.spyOn(Notices, 'create').mockReturnValue({
       refresh: jest.fn().mockResolvedValue(undefined),
       display: jest.fn(),
     } as any);
-    
+
     // Set up version module for our tests
     jest.mock('../../lib/cli/version', () => ({
       ...originalVersion,
@@ -130,170 +130,170 @@ describe('notices configuration tests', () => {
 
   test('should send notices to "stderr" when passing --notices flag in CLI', async () => {
     await exec(['--notices', 'version']);
-    
+
     expect(mockNoticesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        "ioHost": expect.objectContaining({
-          "noticesDestination": "stderr",
+        ioHost: expect.objectContaining({
+          noticesDestination: 'stderr',
         }),
-      })
+      }),
     );
   });
 
   test('should send notices to "drop" when passing --no-notices in CLI', async () => {
     await exec(['--no-notices', 'version']);
-    
+
     expect(mockNoticesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        "ioHost": expect.objectContaining({
-          "noticesDestination": "drop",
+        ioHost: expect.objectContaining({
+          noticesDestination: 'drop',
         }),
-      })
+      }),
     );
   });
 
-    test('should send notices to "drop" when notices: false in settings and no CLI flag is provided', async () => {
-      // Mock configuration to return notices: false
-      const mockConfig = {
-        loadConfigFiles: jest.fn().mockResolvedValue(undefined),
-        settings: {
-          get: jest.fn().mockImplementation((key: string[]) => {
-            if (key[0] === 'notices') return false;
-            return undefined;
-          }),
-        },
-        context: {
-          get: jest.fn().mockReturnValue([]),
-        },
-      };
-
-      (Configuration as any).mockImplementation(() => mockConfig);
-      Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
-
-      await exec(['version']);
-
-      expect(mockNoticesCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          "ioHost": expect.objectContaining({
-            "noticesDestination": "drop",
-          }),
-        })
-      );
-    });
-
-    test.each([
-      { 
-        envVar: 'TEAMCITY_VERSION', 
-        description: 'TeamCity',
-        scenarios: [
-          { 
-            name: 'should send notices to "drop" by default when no settings or CLI flags are provided',
-            configNotices: undefined,
-            cliArgs: ['version'],
-            expectedDestination: 'drop'
-          },
-          {
-            name: 'should send notices to "stderr" when config setting notices=true',
-            configNotices: true,
-            cliArgs: ['version'],
-            expectedDestination: 'stderr'
-          },
-          {
-            name: 'should send notices to "stderr" when passing --notices CLI flag',
-            configNotices: undefined,
-            cliArgs: ['--notices', 'version'],
-            expectedDestination: 'stderr'
-          },
-          {
-            name: 'should send notices to "drop"  when passing --no-notices CLI flag, even when config has notices=true',
-            configNotices: true,
-            cliArgs: ['--no-notices', 'version'],
-            expectedDestination: 'drop'
-          }
-        ]
+  test('should send notices to "drop" when notices: false in settings and no CLI flag is provided', async () => {
+    // Mock configuration to return notices: false
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'notices') return false;
+          return undefined;
+        }),
       },
-      { 
-        envVar: 'TF_BUILD', 
-        description: 'Azure DevOps',
-        scenarios: [
-          { 
-            name: 'should send notices to "drop" when no settings or CLI flags are provided',
-            configNotices: undefined,
-            cliArgs: ['version'],
-            expectedDestination: 'drop'
-          },
-          {
-            name: 'should send notices to "stderr" config setting notices=true',
-            configNotices: true,
-            cliArgs: ['version'],
-            expectedDestination: 'stderr'
-          },
-          {
-            name: 'should send notices to "stderr" --notices CLI flag',
-            configNotices: undefined,
-            cliArgs: ['--notices', 'version'],
-            expectedDestination: 'stderr'
-          },
-          {
-            name: 'should send notices to "drop" when passing --no-notices CLI flag, even when config has notices=true',
-            configNotices: true,
-            cliArgs: ['--no-notices', 'version'],
-            expectedDestination: 'drop'
-          }
-        ]
+      context: {
+        get: jest.fn().mockReturnValue([]),
       },
-    ])('CI environment with $description', async ({ envVar, scenarios }) => {
-      for (const scenario of scenarios) {
-        // Store original environment variables
-        const originalCI = process.env.CI;
-        const originalEnvVar = process.env[envVar];
+    };
 
-        // Set CI environment variables
-        process.env.CI = '1';
-        process.env[envVar] = '1';
+    (Configuration as any).mockImplementation(() => mockConfig);
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
 
-        try {
-          // Mock configuration
-          const mockConfig = {
-            loadConfigFiles: jest.fn().mockResolvedValue(undefined),
-            settings: {
-              get: jest.fn().mockImplementation((key: string[]) => {
-                if (key[0] === 'notices') return scenario.configNotices;
-                return undefined;
-              }),
-            },
-            context: {
-              get: jest.fn().mockReturnValue([]),
-            },
-          };
+    await exec(['version']);
 
-          (Configuration as any).mockImplementation(() => mockConfig);
-          Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
+    expect(mockNoticesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ioHost: expect.objectContaining({
+          noticesDestination: 'drop',
+        }),
+      }),
+    );
+  });
 
-          await exec(scenario.cliArgs);
+  test.each([
+    {
+      envVar: 'TEAMCITY_VERSION',
+      description: 'TeamCity',
+      scenarios: [
+        {
+          name: 'should send notices to "drop" by default when no settings or CLI flags are provided',
+          configNotices: undefined,
+          cliArgs: ['version'],
+          expectedDestination: 'drop',
+        },
+        {
+          name: 'should send notices to "stderr" when config setting notices=true',
+          configNotices: true,
+          cliArgs: ['version'],
+          expectedDestination: 'stderr',
+        },
+        {
+          name: 'should send notices to "stderr" when passing --notices CLI flag',
+          configNotices: undefined,
+          cliArgs: ['--notices', 'version'],
+          expectedDestination: 'stderr',
+        },
+        {
+          name: 'should send notices to "drop"  when passing --no-notices CLI flag, even when config has notices=true',
+          configNotices: true,
+          cliArgs: ['--no-notices', 'version'],
+          expectedDestination: 'drop',
+        },
+      ],
+    },
+    {
+      envVar: 'TF_BUILD',
+      description: 'Azure DevOps',
+      scenarios: [
+        {
+          name: 'should send notices to "drop" when no settings or CLI flags are provided',
+          configNotices: undefined,
+          cliArgs: ['version'],
+          expectedDestination: 'drop',
+        },
+        {
+          name: 'should send notices to "stderr" config setting notices=true',
+          configNotices: true,
+          cliArgs: ['version'],
+          expectedDestination: 'stderr',
+        },
+        {
+          name: 'should send notices to "stderr" --notices CLI flag',
+          configNotices: undefined,
+          cliArgs: ['--notices', 'version'],
+          expectedDestination: 'stderr',
+        },
+        {
+          name: 'should send notices to "drop" when passing --no-notices CLI flag, even when config has notices=true',
+          configNotices: true,
+          cliArgs: ['--no-notices', 'version'],
+          expectedDestination: 'drop',
+        },
+      ],
+    },
+  ])('CI environment with $description', async ({ envVar, scenarios }) => {
+    for (const scenario of scenarios) {
+      // Store original environment variables
+      const originalCI = process.env.CI;
+      const originalEnvVar = process.env[envVar];
 
-          expect(mockNoticesCreate).toHaveBeenCalledWith(
-            expect.objectContaining({
-              "ioHost": expect.objectContaining({
-                "noticesDestination": scenario.expectedDestination,
-              }),
-            })
-          );
-        } finally {
-          // Restore original environment variables
-          if (originalCI !== undefined) {
-            process.env.CI = originalCI;
-          } else {
-            delete process.env.CI;
-          }
-          if (originalEnvVar !== undefined) {
-            process.env[envVar] = originalEnvVar;
-          } else {
-            delete process.env[envVar];
-          }
+      // Set CI environment variables
+      process.env.CI = '1';
+      process.env[envVar] = '1';
+
+      try {
+        // Mock configuration
+        const mockConfig = {
+          loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+          settings: {
+            get: jest.fn().mockImplementation((key: string[]) => {
+              if (key[0] === 'notices') return scenario.configNotices;
+              return undefined;
+            }),
+          },
+          context: {
+            get: jest.fn().mockReturnValue([]),
+          },
+        };
+
+        (Configuration as any).mockImplementation(() => mockConfig);
+        Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
+
+        await exec(scenario.cliArgs);
+
+        expect(mockNoticesCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ioHost: expect.objectContaining({
+              noticesDestination: scenario.expectedDestination,
+            }),
+          }),
+        );
+      } finally {
+        // Restore original environment variables
+        if (originalCI !== undefined) {
+          process.env.CI = originalCI;
+        } else {
+          delete process.env.CI;
+        }
+        if (originalEnvVar !== undefined) {
+          process.env[envVar] = originalEnvVar;
+        } else {
+          delete process.env[envVar];
         }
       }
-    });
+    }
+  });
 
   test('should read notices=true setting from configuration', async () => {
     // Mock configuration to return notices: true
@@ -309,18 +309,18 @@ describe('notices configuration tests', () => {
         get: jest.fn().mockReturnValue([]),
       },
     };
-    
+
     (Configuration as any).mockImplementation(() => mockConfig);
     Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
 
     await exec(['version']);
-    
+
     expect(mockNoticesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        "ioHost": expect.objectContaining({
-          "noticesDestination": "stderr",
+        ioHost: expect.objectContaining({
+          noticesDestination: 'stderr',
         }),
-      })
+      }),
     );
   });
 
@@ -338,18 +338,18 @@ describe('notices configuration tests', () => {
         get: jest.fn().mockReturnValue([]),
       },
     };
-    
+
     (Configuration as any).mockImplementation(() => mockConfig);
     Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
 
     await exec(['--no-notices', 'version']);
-    
+
     expect(mockNoticesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        "ioHost": expect.objectContaining({
-          "noticesDestination": "drop",
+        ioHost: expect.objectContaining({
+          noticesDestination: 'drop',
         }),
-      })
+      }),
     );
   });
 
@@ -378,18 +378,18 @@ describe('notices configuration tests', () => {
         get: jest.fn().mockReturnValue([]),
       },
     };
-    
+
     (Configuration as any).mockImplementation(() => mockConfig);
     Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
 
     await exec(['version']);
-    
+
     expect(mockNoticesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        "ioHost": expect.objectContaining({
-          "noticesDestination": expected,
+        ioHost: expect.objectContaining({
+          noticesDestination: expected,
         }),
-      })
+      }),
     );
   });
 });
