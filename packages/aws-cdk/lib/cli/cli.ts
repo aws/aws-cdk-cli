@@ -121,7 +121,23 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
    * systems, even though technically we maybe could.
    */
   const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
-  const shouldDisplayNotices = isSafeToWriteNotices && (configuration.settings.get(['notices']) !== false);
+  
+  // Determine if notices should be displayed based on CLI args and configuration
+  let shouldDisplayNotices: boolean;
+  if (argv.notices !== undefined) {
+    // CLI argument takes precedence
+    shouldDisplayNotices = argv.notices;
+  } else {
+    // Fall back to configuration file setting, then autodetection
+    const configNotices = configuration.settings.get(['notices']);
+    if (configNotices !== undefined) {
+      // Consider string "false" to be falsy in this context
+      shouldDisplayNotices = configNotices !== "false" && Boolean(configNotices);
+    } else {
+      // Default autodetection behavior
+      shouldDisplayNotices = isSafeToWriteNotices;
+    }
+  }
 
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
