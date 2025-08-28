@@ -1278,29 +1278,46 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Retrieve feature flag information from the cloud assembly
    */
-
   public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
     this.requireUnstableFeature('flags');
 
     const ioHelper = asIoHelper(this.ioHost, 'flags');
     await using assembly = await assemblyFromSource(ioHelper, cx);
-    const artifacts = assembly.cloudAssembly.manifest.artifacts;
+    const artifacts = Object.values(assembly.cloudAssembly.manifest.artifacts ?? {});
+    const featureFlagReports = artifacts.filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT);
 
-    return Object.values(artifacts!)
-      .filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT)
-      .flatMap(report => {
-        const properties = report.properties as FeatureFlagReportProperties;
-        const moduleName = properties.module;
+    const flags = featureFlagReports.flatMap(report => {
+      const properties = report.properties as FeatureFlagReportProperties;
+      const moduleName = properties.module;
 
-        return Object.entries(properties.flags).map(([flagName, flagInfo]) => ({
+      const flagsWithUnconfiguredBehavesLike = Object.entries(properties.flags)
+        .filter(([_, flagInfo]) => flagInfo.unconfiguredBehavesLike != undefined);
+
+      const shouldIncludeUnconfiguredBehavesLike = flagsWithUnconfiguredBehavesLike.length > 0;
+
+      return Object.entries(properties.flags).map(([flagName, flagInfo]) => {
+        const baseFlag = {
           module: moduleName,
           name: flagName,
           recommendedValue: flagInfo.recommendedValue,
           userValue: flagInfo.userValue ?? undefined,
           explanation: flagInfo.explanation ?? '',
-          unconfiguredBehavesLike: flagInfo.unconfiguredBehavesLike,
-        }));
+        };
+
+        if (shouldIncludeUnconfiguredBehavesLike) {
+          return {
+            ...baseFlag,
+            unconfiguredBehavesLike: {
+              v2: flagInfo.unconfiguredBehavesLike?.v2 ?? false,
+            },
+          };
+        }
+
+        return baseFlag;
       });
+    });
+
+    return flags;
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
