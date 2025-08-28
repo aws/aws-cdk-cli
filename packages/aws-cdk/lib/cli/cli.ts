@@ -141,7 +141,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
-  await ioHost.asIoHelper().defaults.info(`in exec: set noticesDestination to ${ioHost.noticesDestination}`);
   const notices = Notices.create({
     ioHost,
     context: configuration.context,
@@ -510,11 +509,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
       case 'notices':
-        await ioHost.asIoHelper().defaults.info('setting currentAction to notices');
         ioHost.currentAction = 'notices';
         // If the user explicitly asks for notices, they are now the primary output
         // of the command and they should go to stdout.
-        await ioHost.asIoHelper().defaults.info('setting noticesDestination to stdout');
         ioHost.noticesDestination = 'stdout';
 
         // This is a valid command, but we're postponing its execution because displaying
