@@ -135,7 +135,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       requiresArg: true,
     })
     .option('notices', {
-      default: helpers.shouldDisplayNotices(),
+      default: undefined,
       type: 'boolean',
       desc: 'Show relevant notices',
     })

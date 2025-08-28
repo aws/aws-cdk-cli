@@ -4,6 +4,7 @@ import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@a
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -33,6 +34,7 @@ import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
+import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
 if (!process.stdout.isTTY) {
@@ -109,9 +111,21 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
-  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  /**
+   * The default value for displaying (and refreshing) notices on all commands.
+   *
+   * If the user didn't supply either `--notices` or `--no-notices`, we do
+   * autodetection. The autodetection currently is: do write notices if we are
+   * not on CI, or are on a CI system where we know that writing to stderr is
+   * safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+   * systems, even though technically we maybe could.
+   */
+  const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
+  const shouldDisplayNotices = isSafeToWriteNotices && (configuration.settings.get(['notices']) !== false);
+
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
+  await ioHost.asIoHelper().defaults.info(`in exec: set noticesDestination to ${ioHost.noticesDestination}`);
   const notices = Notices.create({
     ioHost,
     context: configuration.context,
@@ -193,7 +207,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
-    } else if (cmd !== 'version') {
+    } else if (shouldDisplayNotices && cmd !== 'version') {
       await notices.display();
     }
   }
@@ -480,9 +494,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
       case 'notices':
+        await ioHost.asIoHelper().defaults.info('setting currentAction to notices');
         ioHost.currentAction = 'notices';
         // If the user explicitly asks for notices, they are now the primary output
         // of the command and they should go to stdout.
+        await ioHost.asIoHelper().defaults.info('setting noticesDestination to stdout');
         ioHost.noticesDestination = 'stdout';
 
         // This is a valid command, but we're postponing its execution because displaying
