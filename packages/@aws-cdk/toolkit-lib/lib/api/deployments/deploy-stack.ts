@@ -723,8 +723,8 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
   } else {
     await ioHelper.defaults.info(
       chalk.bold(
-        format('Monitoring of stack deletion for %s will be skipped - subsequent actions may take place before the stack deletion is finished', deployName)
-      )
+        format('Monitoring of stack deletion for %s will be skipped - subsequent actions may take place before the stack deletion is finished', deployName),
+      ),
     );
   }
 
