@@ -32,7 +32,6 @@ integTest(
               json: false,
               debug: false,
               staging: true,
-              notices: true,
               ['no-color']: false,
               ci: expect.anything(), // changes based on where this is called
               validation: true,
@@ -81,7 +80,6 @@ integTest(
               json: false,
               debug: false,
               staging: true,
-              notices: true,
               ['no-color']: false,
               ci: expect.anything(), // changes based on where this is called
               validation: true,
