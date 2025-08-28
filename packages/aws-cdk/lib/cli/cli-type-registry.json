@@ -872,7 +872,17 @@
           "desc": "Path to a local custom template directory or multi-template repository",
           "requiresArg": true,
           "conflicts": [
-            "lib-version"
+            "lib-version",
+            "from-git-url"
+          ]
+        },
+        "from-git-url": {
+          "type": "string",
+          "desc": "Git repository URL to clone custom template from",
+          "requiresArg": true,
+          "conflicts": [
+            "lib-version",
+            "from-path"
           ]
         },
         "template-path": {
@@ -880,9 +890,6 @@
           "desc": "Path to a specific template within a multi-template repository",
           "requiresArg": true
         }
-      },
-      "implies": {
-        "template-path": "from-path"
       }
     },
     "migrate": {

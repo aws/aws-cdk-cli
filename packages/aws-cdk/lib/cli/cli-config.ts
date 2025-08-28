@@ -405,7 +405,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'from-git-url': { type: 'string', desc: 'Git repository URL to clone custom template from', requiresArg: true, conflicts: ['lib-version', 'from-path'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
         },
-        //implies: { 'template-path': 'from-path' },
+
       },
       'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',

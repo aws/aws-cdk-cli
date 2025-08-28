@@ -606,30 +606,19 @@ describe('constructs version', () => {
     })).rejects.toThrow();
   });
 
-  cliTest('template-path implies from-path validation works', async (workDir) => {
-    // Test that the implication is properly configured
-    const { makeConfig } = await import('../../lib/cli/cli-config');
-    const config = await makeConfig();
-    expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
-
-    // Test that template-path functionality works when from-path is provided
-    const repoDir = await createMultiTemplateRepository(workDir, [
-      { name: 'implies-test', languages: ['typescript'] },
-    ]);
+  cliTest('template-path validation requires from-path or from-git-url', async (workDir) => {
     const projectDir = path.join(workDir, 'my-project');
     await fs.mkdirp(projectDir);
 
-    await cliInit({
+    // Test that template-path fails when used without from-path or from-git-url
+    await expect(cliInit({
       ioHelper,
-      fromPath: repoDir,
-      templatePath: 'implies-test',
+      templatePath: 'some-template',
       language: 'typescript',
       canUseNetwork: false,
       generateOnly: true,
       workDir: projectDir,
-    });
-
-    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    })).rejects.toThrow('--template-path can only be used with --from-path or --from-git-url');
   });
 
   cliTest('hook files are ignored during template copy', async (workDir) => {
