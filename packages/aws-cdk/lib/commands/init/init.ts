@@ -84,7 +84,7 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
-  // Show available templates if no type and no language provided (main branch logic)
+  // Show available templates only if no fromPath, type, or language provided
   if (!options.fromPath && !options.type && !options.language) {
     await printAvailableTemplates(ioHelper);
     return;
@@ -299,6 +299,24 @@ async function hasLanguageFiles(directoryPath: string, extensions: string[]): Pr
 }
 
 /**
+ * Get file extensions for a specific language
+ * @param language - The programming language
+ * @returns Array of file extensions for the language
+ */
+function getLanguageExtensions(language: string): string[] {
+  const languageExtensions: Record<string, string[]> = {
+    typescript: ['.ts', '.js'],
+    javascript: ['.js'],
+    python: ['.py'],
+    java: ['.java'],
+    csharp: ['.cs'],
+    fsharp: ['.fs'],
+    go: ['.go'],
+  };
+  return languageExtensions[language] || [];
+}
+
+/**
  * Returns the name of the Python executable for this OS
  * @returns The Python executable name for the current platform
  */
@@ -336,10 +354,33 @@ export class InitTemplate {
       throw new ToolkitError(`Template path does not exist: ${basePath}`);
     }
 
-    const languages = await getLanguageDirectories(basePath);
+    let actualBasePath = basePath;
+    let languages = await getLanguageDirectories(basePath);
+
+    // Auto-detect single language templates
+    if (languages.length === 0) {
+      const entries = await fs.readdir(basePath, { withFileTypes: true });
+      const languageDirs = entries.filter(entry =>
+        entry.isDirectory() &&
+        ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'].includes(entry.name),
+      );
+
+      if (languageDirs.length === 1) {
+        // Validate that the language directory contains appropriate files
+        const langDir = languageDirs[0].name;
+        const langDirPath = path.join(basePath, langDir);
+        const hasValidFiles = await hasLanguageFiles(langDirPath, getLanguageExtensions(langDir));
+
+        if (hasValidFiles) {
+          actualBasePath = path.join(basePath, langDir);
+          languages = [langDir];
+        }
+      }
+    }
+
     const name = path.basename(basePath);
 
-    return new InitTemplate(basePath, name, languages, null, TemplateType.CUSTOM);
+    return new InitTemplate(actualBasePath, name, languages, null, TemplateType.CUSTOM);
   }
 
   public readonly description?: string;
@@ -400,7 +441,13 @@ export class InitTemplate {
       projectInfo.versions['aws-cdk-lib'] = libVersion;
     }
 
-    const sourceDirectory = path.join(this.basePath, language);
+    let sourceDirectory = path.join(this.basePath, language);
+
+    // For auto-detected single language templates, use basePath directly
+    if (this.templateType === TemplateType.CUSTOM && this.languages.length === 1 &&
+        path.basename(this.basePath) === language) {
+      sourceDirectory = this.basePath;
+    }
 
     if (this.templateType === TemplateType.CUSTOM) {
       // For custom templates, copy files without processing placeholders
