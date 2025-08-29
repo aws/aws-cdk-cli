@@ -127,6 +127,12 @@
     "telemetry-file": {
       "type": "string",
       "desc": "Send telemetry data to a local file."
+    },
+    "yes": {
+      "type": "boolean",
+      "alias": "y",
+      "desc": "Skip interactive prompts",
+      "default": false
     }
   },
   "commands": {
@@ -537,12 +543,6 @@
         "ignore-no-stacks": {
           "type": "boolean",
           "desc": "Whether to deploy if the app contains no stacks",
-          "default": false
-        },
-        "yes": {
-          "type": "boolean",
-          "alias": "y",
-          "desc": "Skip interactive prompts",
           "default": false
         }
       },

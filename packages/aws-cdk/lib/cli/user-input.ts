@@ -327,6 +327,13 @@ export interface GlobalOptions {
    * @default - undefined
    */
   readonly telemetryFile?: string;
+
+  /**
+   * Skip interactive prompts
+   *
+   * @default - false
+   */
+  readonly yes?: boolean;
 }
 
 /**
@@ -901,15 +908,6 @@ export interface DeployOptions {
    * @default - false
    */
   readonly ignoreNoStacks?: boolean;
-
-  /**
-   * Skip interactive prompts
-   *
-   * aliases: y
-   *
-   * @default - false
-   */
-  readonly yes?: boolean;
 
   /**
    * Positional argument for deploy

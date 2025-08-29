@@ -161,6 +161,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'string',
       desc: 'Send telemetry data to a local file.',
     })
+    .option('yes', {
+      default: false,
+      type: 'boolean',
+      alias: 'y',
+      desc: 'Skip interactive prompts',
+    })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
         .option('long', {
@@ -575,12 +581,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to deploy if the app contains no stacks',
-        })
-        .option('yes', {
-          default: false,
-          type: 'boolean',
-          alias: 'y',
-          desc: 'Skip interactive prompts',
         }),
     )
     .command('rollback [STACKS..]', 'Rolls back the stack(s) named STACKS to their last stable state', (yargs: Argv) =>

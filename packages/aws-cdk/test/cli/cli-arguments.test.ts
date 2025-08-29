@@ -35,6 +35,7 @@ describe('yargs', () => {
         unstable: [],
         notices: expect.any(Boolean),
         output: undefined,
+        yes: false,
       },
       deploy: {
         STACKS: undefined,
@@ -63,7 +64,6 @@ describe('yargs', () => {
         tags: undefined,
         toolkitStackName: undefined,
         watch: undefined,
-        yes: false,
       },
     });
   });

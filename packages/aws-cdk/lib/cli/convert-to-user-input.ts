@@ -35,6 +35,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     ci: args.ci,
     unstable: args.unstable,
     telemetryFile: args.telemetryFile,
+    yes: args.yes,
   };
   let commandOptions;
   switch (args._[0] as Command) {
@@ -139,7 +140,6 @@ export function convertYargsToUserInput(args: any): UserInput {
         assetParallelism: args.assetParallelism,
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
-        yes: args.yes,
         STACKS: args.STACKS,
       };
       break;
@@ -341,6 +341,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     ci: config.ci,
     unstable: config.unstable,
     telemetryFile: config.telemetryFile,
+    yes: config.yes,
   };
   const listOptions = {
     long: config.list?.long,
@@ -420,7 +421,6 @@ export function convertConfigToUserInput(config: any): UserInput {
     assetParallelism: config.deploy?.assetParallelism,
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
-    yes: config.deploy?.yes,
   };
   const rollbackOptions = {
     all: config.rollback?.all,

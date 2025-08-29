@@ -44,6 +44,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'ci': { type: 'boolean', desc: 'Force CI detection. If CI=true then logs will be sent to stdout instead of stderr', default: YARGS_HELPERS.isCI() },
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
       'telemetry-file': { type: 'string', desc: 'Send telemetry data to a local file.', default: undefined },
+      'yes': { type: 'boolean', alias: 'y', desc: 'Skip interactive prompts', default: false },
     },
     commands: {
       'list': {
@@ -207,7 +208,6 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
-          'yes': { type: 'boolean', alias: 'y', desc: 'Skip interactive prompts', default: false },
         },
         arg: {
           name: 'STACKS',
