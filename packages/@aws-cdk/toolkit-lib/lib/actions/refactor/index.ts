@@ -24,6 +24,16 @@ export interface RefactorOptions {
    * A list of names of additional deployed stacks to be included in the comparison.
    */
   readonly additionalStackNames?: string[];
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
+
+  /**
+   * Role to assume in the target environment before performing the refactor.
+   */
+  roleArn?: string;
 }
 
 export interface MappingGroup {

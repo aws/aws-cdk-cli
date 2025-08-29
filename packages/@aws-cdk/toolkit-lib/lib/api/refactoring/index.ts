@@ -25,6 +25,12 @@ interface StackGroup {
   deployedStacks: CloudFormationStack[];
 }
 
+interface StackGroup {
+  environment: cxapi.Environment;
+  localStacks: CloudFormationStack[];
+  deployedStacks: CloudFormationStack[];
+}
+
 export async function usePrescribedMappings(
   mappingGroups: MappingGroup[],
   sdkProvider: SdkProvider,

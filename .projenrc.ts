@@ -834,6 +834,7 @@ const toolkitLib = configureProject(
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
+      'fast-deep-equal',
       'fs-extra@^9',
       'glob',
       'minimatch',
