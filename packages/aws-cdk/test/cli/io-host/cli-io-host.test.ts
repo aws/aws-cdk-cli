@@ -494,6 +494,47 @@ describe('CliIoHost', () => {
       });
     });
 
+    describe('non-interactive mode', () => {
+      const nonInteractiveIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+        nonInteractive: true,
+        isCI: false,
+        isTTY: true,
+      }, true);
+
+      test('it does not prompt the user and return true', async () => {
+        // WHEN
+        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'test message',
+          defaultResponse: true,
+        }));
+
+        // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toBe(true);
+      });
+
+      test('approvalToolkitCodes also skip', async () => {
+        // WHEN
+        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
+        }));
+
+        // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toBe(true);
+      });
+    });
+
     describe('non-promptable data', () => {
       test('logs messages and returns default unchanged', async () => {
         const response = await ioHost.requestResponse(plainMessage({

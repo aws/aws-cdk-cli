@@ -327,6 +327,13 @@ export interface GlobalOptions {
    * @default - undefined
    */
   readonly telemetryFile?: string;
+
+  /**
+   * Skip interactive prompts. If yes=true then the operation will proceed without confirmation.
+   *
+   * @default - false
+   */
+  readonly yes?: boolean;
 }
 
 /**

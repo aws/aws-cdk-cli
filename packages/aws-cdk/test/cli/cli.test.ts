@@ -79,6 +79,10 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
     }
 
+    if (args.includes('--yes')) {
+      result = { ...result, yes: true };
+    }
+
     return Promise.resolve(result);
   }),
 }));
@@ -480,4 +484,24 @@ describe('gc command tests', () => {
     );
     expect(gcSpy).toHaveBeenCalled();
   });
+});
+
+test('when --yes option is provided, CliIoHost is in non-interactive mode', async () => {
+  // GIVEN
+  const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+  const execSpy = jest.spyOn(CliIoHost, 'instance');
+
+  // WHEN
+  await exec(['deploy', '--yes']);
+
+  // THEN
+  expect(execSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      nonInteractive: true,
+    }),
+    true,
+  );
+
+  migrateSpy.mockRestore();
+  execSpy.mockRestore();
 });
