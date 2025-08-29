@@ -81,6 +81,14 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
+
+  /**
+   * Whether the CLI is running in non-interactive mode.
+   * When true, the CLI will not prompt for user input and will use default responses.
+   * 
+   * @default false
+   */
+  readonly nonInteractive?: boolean;
 }
 
 /**
@@ -160,6 +168,8 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  private readonly nonInteractive;
+
   public telemetry?: TelemetrySession;
 
   private constructor(props: CliIoHostProps = {}) {
@@ -170,6 +180,7 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+    this.nonInteractive = props.nonInteractive ?? false;
   }
 
   public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
@@ -394,6 +405,12 @@ export class CliIoHost implements IIoHost {
    * default response from the input message will be used.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
+    // In non-interactive mode, we do not prompt the user and just return the default response
+    if(this.nonInteractive) {
+      await this.notify(msg);
+      return msg.defaultResponse;
+    }
+    
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
       await this.notify(msg);
