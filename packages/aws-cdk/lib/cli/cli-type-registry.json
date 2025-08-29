@@ -538,6 +538,12 @@
           "type": "boolean",
           "desc": "Whether to deploy if the app contains no stacks",
           "default": false
+        },
+        "yes": {
+          "type": "boolean",
+          "alias": "y",
+          "desc": "Skip interactive prompts",
+          "default": false
         }
       },
       "arg": {

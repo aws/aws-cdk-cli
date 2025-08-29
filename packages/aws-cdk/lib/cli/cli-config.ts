@@ -207,6 +207,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
+          'yes': { type: 'boolean', alias: 'y', desc: 'Skip interactive prompts', default: false },
         },
         arg: {
           name: 'STACKS',

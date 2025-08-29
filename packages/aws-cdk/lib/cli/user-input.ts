@@ -903,6 +903,15 @@ export interface DeployOptions {
   readonly ignoreNoStacks?: boolean;
 
   /**
+   * Skip interactive prompts
+   *
+   * aliases: y
+   *
+   * @default - false
+   */
+  readonly yes?: boolean;
+
+  /**
    * Positional argument for deploy
    */
   readonly STACKS?: Array<string>;

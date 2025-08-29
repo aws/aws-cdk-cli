@@ -63,6 +63,7 @@ describe('yargs', () => {
         tags: undefined,
         toolkitStackName: undefined,
         watch: undefined,
+        yes: false,
       },
     });
   });
