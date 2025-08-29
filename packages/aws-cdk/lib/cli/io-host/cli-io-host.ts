@@ -85,7 +85,7 @@ export interface CliIoHostProps {
   /**
    * Whether the CLI is running in non-interactive mode.
    * When true, the CLI will not prompt for user input and will use default responses.
-   * 
+   *
    * @default false
    */
   readonly nonInteractive?: boolean;
@@ -406,11 +406,11 @@ export class CliIoHost implements IIoHost {
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
     // In non-interactive mode, we do not prompt the user and just return the default response
-    if(this.nonInteractive) {
+    if (this.nonInteractive) {
       await this.notify(msg);
       return msg.defaultResponse;
     }
-    
+
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
       await this.notify(msg);
