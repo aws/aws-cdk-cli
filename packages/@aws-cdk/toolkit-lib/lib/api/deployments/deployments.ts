@@ -277,6 +277,7 @@ export interface DestroyStackOptions {
   stack: cxapi.CloudFormationStackArtifact;
   deployName?: string;
   roleArn?: string;
+  skipAwaitDeletion?: boolean;
 }
 
 export interface StackExistsOptions {
@@ -586,6 +587,7 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
+      skipAwaitDeletion: options.skipAwaitDeletion,
     }, this.ioHelper);
   }
 

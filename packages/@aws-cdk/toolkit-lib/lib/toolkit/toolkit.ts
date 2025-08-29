@@ -1195,6 +1195,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
+            skipAwaitDeletion: options.skipAwaitDeletion
+              // if the stack has dependent stacks, ignore skipAwaitDeletion
+              || (action === 'destroy' && stacks.hasDependents(stack)),
           });
 
           ret.stacks.push({

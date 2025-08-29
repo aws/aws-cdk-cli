@@ -347,6 +347,11 @@
                     "default": false,
                     "type": "boolean"
                 },
+                "skipAwaitDeletion": {
+                    "description": "Skip waiting for the stack to finish deleting",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "stacks": {
                     "description": "List of stacks to deploy\n\nRequried if `all` is not set (Default - [])",
                     "type": "array",

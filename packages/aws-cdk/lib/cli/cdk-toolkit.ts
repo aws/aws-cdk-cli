@@ -993,6 +993,9 @@ export class CdkToolkit {
           stack,
           deployName: stack.stackName,
           roleArn: options.roleArn,
+          skipAwaitDeletion: options.skipAwaitDeletion
+            // if the stack has dependent stacks, ignore skipAwaitDeletion
+            || (action === 'destroy' && stacks.hasDependents(stack)),
         });
         await this.ioHost.asIoHelper().defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
       } catch (e) {
@@ -1871,6 +1874,11 @@ export interface DestroyOptions {
    * Whether the destroy request came from a deploy.
    */
   fromDeploy?: boolean;
+
+  /**
+   * Skip waiting for the stack to finish deleting
+   */
+  skipAwaitDeletion?: boolean;
 }
 
 /**

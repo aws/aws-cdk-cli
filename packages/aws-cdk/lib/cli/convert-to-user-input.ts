@@ -191,6 +191,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         all: args.all,
         exclusively: args.exclusively,
+        skipAwaitDeletion: args.skipAwaitDeletion,
         force: args.force,
         STACKS: args.STACKS,
       };
@@ -455,6 +456,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const destroyOptions = {
     all: config.destroy?.all,
     exclusively: config.destroy?.exclusively,
+    skipAwaitDeletion: config.destroy?.skipAwaitDeletion,
     force: config.destroy?.force,
   };
   const diffOptions = {

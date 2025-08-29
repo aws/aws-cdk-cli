@@ -17,4 +17,11 @@ export interface DestroyOptions extends DefaultCdkOptions {
    * @default false
    */
   readonly exclusively?: boolean;
+
+  /**
+   * Skip waiting for the stack to finish deleting
+   *
+   * @default false
+   */
+  readonly skipAwaitDeletion?: boolean;
 }
