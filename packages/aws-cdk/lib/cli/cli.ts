@@ -25,7 +25,7 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
-import { DetermineSafeFlags } from '../commands/flag-operations';
+import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
@@ -467,8 +467,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
-        const handler = new DetermineSafeFlags(flagsData, ioHelper, args, toolkit);
-        return handler.executeFlagOperations();
+        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit);
+        return handler.processFlagsCommand();
 
       case 'synthesize':
       case 'synth':

@@ -419,7 +419,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('concurrency', {
           default: 4,
           type: 'number',
-          alias: ['t'],
+          alias: ['n'],
           desc: 'Maximum number of simultaneous synths to execute.',
           requiresArg: true,
         }),

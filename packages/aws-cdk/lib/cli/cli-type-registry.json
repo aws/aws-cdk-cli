@@ -393,7 +393,7 @@
         "concurrency": {
           "type": "number",
           "alias": [
-            "t"
+            "n"
           ],
           "desc": "Maximum number of simultaneous synths to execute.",
           "default": 4,
