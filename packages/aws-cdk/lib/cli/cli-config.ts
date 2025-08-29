@@ -405,7 +405,14 @@ export async function makeConfig(): Promise<CliConfig> {
           'from-git-url': { type: 'string', desc: 'Git repository URL to clone custom template from', requiresArg: true, conflicts: ['lib-version', 'from-path'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
         },
-
+        check: (argv: any) => {
+          if (argv['template-path'] && !argv['from-path'] && !argv['from-git-url']) {
+            const error = new Error('--template-path can only be used with --from-path or --from-git-url');
+            error.name = 'ValidationError';
+            throw error;
+          }
+          return true;
+        },
       },
       'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',

@@ -91,11 +91,6 @@ export async function cliInit(options: CliInitOptions) {
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
 
-  // Validate that if template-path is provided, exactly one custom template source must be provided
-  if (options.templatePath && !options.fromPath && !options.fromGitUrl) {
-    throw new ToolkitError('--template-path can only be used with --from-path or --from-git-url');
-  }
-
   // Show available templates if no type and no language provided (main branch logic)
   if (!options.fromPath && !options.fromGitUrl && !options.type && !options.language) {
     await printAvailableTemplates(ioHelper);

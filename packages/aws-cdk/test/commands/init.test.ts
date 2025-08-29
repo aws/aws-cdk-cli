@@ -607,18 +607,24 @@ describe('constructs version', () => {
   });
 
   cliTest('template-path validation requires from-path or from-git-url', async (workDir) => {
-    const projectDir = path.join(workDir, 'my-project');
-    await fs.mkdirp(projectDir);
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+
+    const emptyDir = path.join(workDir, 'empty-project');
+    await fs.mkdirp(emptyDir);
 
     // Test that template-path fails when used without from-path or from-git-url
-    await expect(cliInit({
-      ioHelper,
-      templatePath: 'some-template',
-      language: 'typescript',
-      canUseNetwork: false,
-      generateOnly: true,
-      workDir: projectDir,
-    })).rejects.toThrow('--template-path can only be used with --from-path or --from-git-url');
+    try {
+      await execAsync(`node ${cdkBin} init --template-path some-template --language typescript --generate-only`, {
+        cwd: emptyDir,
+        env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+      });
+      throw new Error('Expected command to fail but it succeeded');
+    } catch (error: any) {
+      expect(error.stderr || error.message).toContain('--template-path can only be used with --from-path or --from-git-url');
+    }
   });
 
   cliTest('hook files are ignored during template copy', async (workDir) => {
