@@ -1176,7 +1176,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         if (payload.reason?.ExecutionStatusReason) {
           messages.push(`Refactor execution: [${payload.reason?.Status}] ${payload.reason.ExecutionStatusReason}`);
         }
-        return messages.length > 0 ? messages.join('\n') : 'Unknown error';
+        return messages.length > 0 ? messages.join('\n') : `Unknown error (Stack refactor ID: ${payload.reason?.StackRefactorId ?? 'unknown'})`;
       } catch (e) {
         return formatErrorMessage(error);
       }
