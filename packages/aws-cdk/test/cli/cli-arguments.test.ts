@@ -35,6 +35,7 @@ describe('yargs', () => {
         unstable: [],
         notices: expect.any(Boolean),
         output: undefined,
+        yes: false,
       },
       deploy: {
         STACKS: undefined,
