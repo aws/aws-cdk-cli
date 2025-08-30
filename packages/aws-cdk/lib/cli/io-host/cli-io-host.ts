@@ -405,11 +405,6 @@ export class CliIoHost implements IIoHost {
    * default response from the input message will be used.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-    // In non-interactive mode, we do not prompt the user and just return the default response
-    if (this.nonInteractive) {
-      return msg.defaultResponse;
-    }
-
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
       await this.notify(msg);
@@ -437,6 +432,11 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+      }
+
+      // In non-interactive mode, always return success (true).
+      if (this.nonInteractive) {
+        return true;
       }
 
       // Special approval prompt

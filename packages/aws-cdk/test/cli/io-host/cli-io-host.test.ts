@@ -498,51 +498,40 @@ describe('CliIoHost', () => {
       const nonInteractiveIoHost = CliIoHost.instance({
         logLevel: 'trace',
         nonInteractive: true,
+        isCI: false,
+        isTTY: true,
       }, true);
 
-      test('returns default response for boolean prompts', async () => {
+      test('it does not prompt the user and return true', async () => {
         // WHEN
         const response = await nonInteractiveIoHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
-          message: 'Continue?',
+          message: 'test message',
           defaultResponse: true,
         }));
 
         // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toBe(true);
       });
 
-      test('returns default response for string prompts', async () => {
+      test('approvalToolkitCodes also skip', async () => {
         // WHEN
         const response = await nonInteractiveIoHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
-          code: 'CDK_TOOLKIT_I0001',
-          message: 'Favorite animal',
-          defaultResponse: 'cat',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: true,
         }));
 
         // THEN
-        expect(response).toBe('cat');
-      });
-
-      test('returns default response for number prompts', async () => {
-        // WHEN
-        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
-          time: new Date(),
-          level: 'info',
-          action: 'synth',
-          code: 'CDK_TOOLKIT_I0001',
-          message: 'How many would you like?',
-          defaultResponse: 1,
-        }));
-
-        // THEN
-        expect(response).toBe(1);
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toBe(true);
       });
     });
 
