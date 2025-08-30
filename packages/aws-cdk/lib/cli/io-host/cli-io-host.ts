@@ -84,7 +84,7 @@ export interface CliIoHostProps {
 
   /**
    * Whether the CLI is running in non-interactive mode.
-   * When true, the CLI will not prompt for user input and will use default responses.
+   * When true, operation will proceed without confirmation.
    *
    * @default false
    */
