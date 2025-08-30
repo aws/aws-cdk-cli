@@ -494,6 +494,58 @@ describe('CliIoHost', () => {
       });
     });
 
+    describe('non-interactive mode', () => {
+      const nonInteractiveIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+        nonInteractive: true,
+      }, true);
+
+      test('returns default response for boolean prompts', async () => {
+        // WHEN
+        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'Continue?',
+          defaultResponse: true,
+        }));
+
+        // THEN
+        expect(response).toBe(true);
+      });
+
+      test('returns default response for string prompts', async () => {
+        // WHEN
+        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'Favorite animal',
+          defaultResponse: 'cat',
+        }));
+
+        // THEN
+        expect(response).toBe('cat');
+      });
+
+      test('returns default response for number prompts', async () => {
+        // WHEN
+        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'How many would you like?',
+          defaultResponse: 1,
+        }));
+
+        // THEN
+        expect(response).toBe(1);
+      });
+    });
+
     describe('non-promptable data', () => {
       test('logs messages and returns default unchanged', async () => {
         const response = await ioHost.requestResponse(plainMessage({

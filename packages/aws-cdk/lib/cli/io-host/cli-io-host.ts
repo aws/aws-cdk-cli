@@ -168,7 +168,7 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  private readonly nonInteractive;
+  private readonly nonInteractive: boolean;
 
   public telemetry?: TelemetrySession;
 
@@ -407,7 +407,6 @@ export class CliIoHost implements IIoHost {
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
     // In non-interactive mode, we do not prompt the user and just return the default response
     if (this.nonInteractive) {
-      await this.notify(msg);
       return msg.defaultResponse;
     }
 
