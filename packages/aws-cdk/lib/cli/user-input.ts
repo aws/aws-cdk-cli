@@ -329,7 +329,7 @@ export interface GlobalOptions {
   readonly telemetryFile?: string;
 
   /**
-   * Skip interactive prompts
+   * Skip interactive prompts. If yes=true then the operation will proceed without confirmation.
    *
    * @default - false
    */
