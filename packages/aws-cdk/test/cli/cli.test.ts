@@ -131,11 +131,14 @@ test('should convert language alias to full language name', async () => {
 });
 
 test('when --yes option is provided, CliIoHost is in non-interactive mode', async () => {
+  // GIVEN
   const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
   const execSpy = jest.spyOn(CliIoHost, 'instance');
 
+  // WHEN
   await exec(['deploy', '--yes']);
 
+  // THEN
   expect(execSpy).toHaveBeenCalledWith(
     expect.objectContaining({
       nonInteractive: true,
