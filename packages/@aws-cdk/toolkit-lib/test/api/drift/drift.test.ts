@@ -1011,62 +1011,6 @@ describe('formatStackDrift', () => {
     expect(result.numResourcesUnchecked).toBe(1); // MyBucket is unchecked
   });
 
-  test('formatValue handles null and undefined values', () => {
-    // GIVEN
-    const mockTemplate = {
-      template: {
-        Resources: {
-          MyResource: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-        },
-      },
-      templateFile: 'template.json',
-      stackName: 'test-stack',
-      findMetadataByType: () => [],
-    } as any;
-
-    const mockDriftedResources: StackResourceDrift[] = [
-      {
-        StackId: 'some:stack:arn',
-        StackResourceDriftStatus: 'MODIFIED',
-        LogicalResourceId: 'MyResource',
-        PhysicalResourceId: 'physical-id',
-        ResourceType: 'AWS::S3::Bucket',
-        PropertyDifferences: [
-          {
-            PropertyPath: '/NullProperty',
-            ExpectedValue: null,
-            ActualValue: 'some-value',
-            DifferenceType: 'NOT_EQUAL',
-          },
-          {
-            PropertyPath: '/ObjectProperty',
-            ExpectedValue: { key: 'value' },
-            ActualValue: { key: 'new-value' },
-            DifferenceType: 'NOT_EQUAL',
-          },
-        ],
-        Timestamp: new Date(Date.now()),
-      },
-    ];
-
-    // WHEN
-    const formatter = new DriftFormatter({
-      stack: mockTemplate,
-      resourceDrifts: mockDriftedResources,
-    });
-    const result = formatter.formatStackDrift();
-
-    // THEN
-    expect(result.numResourcesWithDrift).toBe(1);
-    expect(result.modified).toBeDefined();
-    // The formatter should handle null values and JSON stringify objects
-    expect(result.modified).toContain('NullProperty');
-    expect(result.modified).toContain('ObjectProperty');
-  });
-
   test('formatTreeDiff handles ADDITION and REMOVAL differences', () => {
     // GIVEN
     const mockTemplate = {

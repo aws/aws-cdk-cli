@@ -163,7 +163,7 @@ export class DriftFormatter {
 
       for (const drift of unchangedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        unchanged += `${CONTEXT} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        unchanged += `${CONTEXT} ${chalk.cyan(drift.ResourceType)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
       }
       unchanged += this.printSectionFooter();
     }
@@ -177,7 +177,7 @@ export class DriftFormatter {
       unchecked = this.printSectionHeader('Unchecked Resources');
       for (const logicalId of uncheckedResources) {
         const resourceType = this.allStackResources.get(logicalId);
-        unchecked += `${CONTEXT} ${this.formatValue(resourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, logicalId)}\n`;
+        unchecked += `${CONTEXT} ${chalk.cyan(resourceType)} ${this.formatLogicalId(logicalToPathMap, logicalId)}\n`;
       }
       unchecked += this.printSectionFooter();
     }
@@ -191,7 +191,7 @@ export class DriftFormatter {
 
       for (const drift of modifiedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        modified += `${UPDATE} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        modified += `${UPDATE} ${chalk.cyan(drift.ResourceType)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
         if (drift.PropertyDifferences) {
           const propDiffs = drift.PropertyDifferences;
           for (let i = 0; i < propDiffs.length; i++) {
@@ -213,7 +213,7 @@ export class DriftFormatter {
       deleted = this.printSectionHeader('Deleted Resources');
       for (const drift of deletedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        deleted += `${REMOVAL} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        deleted += `${REMOVAL} ${chalk.cyan(drift.ResourceType)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
       }
       deleted += this.printSectionFooter();
     }
@@ -248,16 +248,6 @@ export class DriftFormatter {
     return `${normalizedPath} ${chalk.gray(logicalId)}`;
   }
 
-  private formatValue(value: any, colorFn: (str: string) => string): string {
-    if (value == null) {
-      return '';
-    }
-    if (typeof value === 'string') {
-      return colorFn(value);
-    }
-    return colorFn(JSON.stringify(value));
-  }
-
   private printSectionHeader(title: string): string {
     return `${chalk.underline(chalk.bold(title))}\n`;
   }
@@ -266,7 +256,7 @@ export class DriftFormatter {
     return '\n';
   }
 
-  private formatTreeDiff(propertyPath: string, difference: Difference<any>, isLast: boolean): string {
+  private formatTreeDiff(propertyPath: string, difference: Difference<string>, isLast: boolean): string {
     let result = format(' %s─ %s %s\n', isLast ? '└' : '├',
       difference.isAddition ? ADDITION :
         difference.isRemoval ? REMOVAL :
@@ -274,8 +264,8 @@ export class DriftFormatter {
       propertyPath,
     );
     if (difference.isUpdate) {
-      result += format('     ├─ %s %s\n', REMOVAL, this.formatValue(difference.oldValue, chalk.red));
-      result += format('     └─ %s %s\n', ADDITION, this.formatValue(difference.newValue, chalk.green));
+      result += format('     ├─ %s %s\n', REMOVAL, chalk.red(difference.oldValue));
+      result += format('     └─ %s %s\n', ADDITION, chalk.green(difference.newValue));
     }
     return result;
   }
