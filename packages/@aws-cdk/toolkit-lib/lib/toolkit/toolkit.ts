@@ -1056,10 +1056,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
     await using assembly = await assemblyFromSource(ioHelper, cx);
-    return await this._refactor(assembly, ioHelper, options);
+    return await this._refactor(assembly, ioHelper, cx, options);
   }
 
-  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
+  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
     const sdkProvider = await this.sdkProvider('refactor');
     const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
@@ -1114,6 +1114,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await ioHelper.defaults.info('Refactoring...');
         await context.execute(stackDefinitions, sdkProvider, ioHelper);
         await ioHelper.defaults.info('✅  Stack refactor complete');
+
+        await ioHelper.defaults.info('Deploying updated stacks to finalize refactor...');
+        await this.deploy(cx, {
+          stacks: ALL_STACKS,
+          forceDeployment: true,
+        });
       } catch (e: any) {
         const message = `❌  Refactor failed: ${formatError(e)}`;
         await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
