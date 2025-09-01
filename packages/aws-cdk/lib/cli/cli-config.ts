@@ -4,6 +4,7 @@ import { CliHelpers, type CliConfig } from '@aws-cdk/user-input-gen';
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import { StackActivityProgress } from '../commands/deploy';
 import { availableInitLanguages } from '../commands/init';
+import { getLanguageAlias } from '../commands/language';
 
 export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
 
@@ -400,14 +401,23 @@ export async function makeConfig(): Promise<CliConfig> {
           'language': { type: 'string', alias: 'l', desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)', choices: await availableInitLanguages() },
           'list': { type: 'boolean', desc: 'List the available templates' },
           'generate-only': { type: 'boolean', default: false, desc: 'If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project' },
-          'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.' },
+          'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
+          'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
+          'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
         },
+        implies: { 'template-path': 'from-path' },
       },
       'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',
         options: {
           'stack-name': { type: 'string', alias: 'n', desc: 'The name assigned to the stack created in the new project. The name of the app will be based off this name as well.', requiresArg: true },
-          'language': { type: 'string', default: 'typescript', alias: 'l', desc: 'The language to be used for the new project', choices: cdk_from_cfn.supported_languages() },
+          'language': {
+            type: 'string',
+            default: 'typescript',
+            alias: 'l',
+            desc: 'The language to be used for the new project',
+            choices: [...new Set(cdk_from_cfn.supported_languages().flatMap((lang) => [lang, getLanguageAlias(lang)]))],
+          },
           'account': { type: 'string', desc: 'The account to retrieve the CloudFormation stack template from' },
           'region': { type: 'string', desc: 'The region to retrieve the CloudFormation stack template from' },
           'from-path': { type: 'string', desc: 'The path to the CloudFormation template to migrate. Use this for locally stored templates' },
