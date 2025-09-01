@@ -844,5 +844,8 @@ Outputs:
   BootstrapVersion:
     Description: The version of the bootstrap resources that are currently mastered
       in this stack
-    Value:
-      Fn::GetAtt: [CdkBootstrapVersion, Value]
+    # This value is purposely duplicated here from the AWS::SSM::Parameter value we define above.
+    # {Fn::GetAtt} on an SSM Parameter is eventually consistent, and can fail with "parameter
+    # doesn't exist" even after just having been created. To reduce our deploy failure rate, we
+    # duplicate the value here and use a build-time test to ensure the two values are the same.
+    Value: '29'

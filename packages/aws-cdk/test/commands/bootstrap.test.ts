@@ -1,5 +1,8 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { Bootstrapper } from '../../lib/api/bootstrap';
 import { exec } from '../../lib/cli/cli';
+import { deserializeStructure } from '@aws-cdk/toolkit-lib/lib/util';
 
 beforeEach(() => {
   jest.clearAllMocks();
