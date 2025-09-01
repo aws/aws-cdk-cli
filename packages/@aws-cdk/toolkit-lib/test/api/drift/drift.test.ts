@@ -1086,7 +1086,7 @@ describe('formatStackDrift', () => {
           path: '/MyStack/MyConstruct/Resource',
         },
         {
-          type: 'aws:cdk:logicalId', 
+          type: 'aws:cdk:logicalId',
           data: 'AnotherResource',
           path: '/MyStack/AnotherConstruct/Default',
         },
