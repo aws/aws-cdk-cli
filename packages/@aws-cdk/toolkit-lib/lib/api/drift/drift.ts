@@ -1,6 +1,7 @@
-import { format } from 'util';
+import { format } from 'node:util';
 import type { DescribeStackDriftDetectionStatusCommandOutput, DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { formatReason } from '../../util/string-manipulation';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 
@@ -29,21 +30,11 @@ export async function detectStackDrift(
   // Wait for drift detection to complete
   const driftStatus = await waitForDriftDetection(cfn, ioHelper, driftDetection.StackDriftDetectionId!);
 
-  if (!driftStatus) {
-    throw new ToolkitError('Drift detection took too long to complete. Aborting');
-  }
-
-  if (driftStatus?.DetectionStatus === 'DETECTION_FAILED') {
-    throw new ToolkitError(
-      `Failed to detect drift: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
-    );
-  }
-
   // Handle UNKNOWN stack drift status
   if (driftStatus?.StackDriftStatus === 'UNKNOWN') {
     await ioHelper.defaults.trace(
       'Stack drift status is UNKNOWN. This may occur when CloudFormation is unable to detect drift for at least one resource and all other resources are IN_SYNC.\n' +
-      `Reason: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
+      `Reason: ${formatReason(driftStatus.DetectionStatusReason)}`,
     );
   }
 
@@ -61,7 +52,7 @@ export async function detectStackDrift(
     await ioHelper.defaults.trace(
       'Some resources have UNKNOWN drift status. This may be due to insufficient permissions or throttling:\n' +
       unknownResources.map(r =>
-        `  - ${r.LogicalResourceId}: ${r.DriftStatusReason || 'No reason provided'}`,
+        `  - ${r.LogicalResourceId}: ${formatReason(r.DriftStatusReason)}`,
       ).join('\n'),
     );
   }
@@ -93,7 +84,7 @@ async function waitForDriftDetection(
     }
 
     if (response.DetectionStatus === 'DETECTION_FAILED') {
-      throw new ToolkitError(`Drift detection failed: ${response.DetectionStatusReason || 'No reason provided'}`);
+      throw new ToolkitError(`Drift detection failed: ${formatReason(response.DetectionStatusReason)}`);
     }
 
     if (Date.now() > deadline) {

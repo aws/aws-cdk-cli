@@ -100,7 +100,8 @@ export class DriftFormatter {
 
     // we are only interested in actual drifts (and ignore the metadata resource)
     const actualDrifts = this.resourceDriftResults.filter(d =>
-      d.StackResourceDriftStatus === 'MODIFIED' || d.StackResourceDriftStatus === 'DELETED');
+      (d.StackResourceDriftStatus === 'MODIFIED' || d.StackResourceDriftStatus === 'DELETED')
+      && d.ResourceType !== 'AWS::CDK::Metadata');
 
     // must output the stack name if there are drifts
     const stackHeader = format(`Stack ${chalk.bold(this.stackName)}\n`);
@@ -138,11 +139,8 @@ export class DriftFormatter {
   }
 
   /**
-   * Renders stack drift information to the given stream
+   * Renders stack drift information
    *
-   * @param driftResults - The stack resource drifts from CloudFormation
-   * @param allStackResources - A map of all stack resources
-   * @param verbose - Whether to output more verbose text (include undrifted resources)
    * @param logicalToPathMap - A map from logical ID to construct path
    */
   private formatStackDriftChanges(
@@ -184,14 +182,15 @@ export class DriftFormatter {
       unchecked += this.printSectionFooter();
     }
 
-    // Process modified resources
-    const modifiedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.MODIFIED);
+    // Process modified resources (exclude AWS::CDK::Metadata)
+    const modifiedResources = drifts.filter(d =>
+      d.StackResourceDriftStatus === StackResourceDriftStatus.MODIFIED
+      && d.ResourceType !== 'AWS::CDK::Metadata');
     if (modifiedResources.length > 0) {
       modified = this.printSectionHeader('Modified Resources');
 
       for (const drift of modifiedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        if (modified === undefined) modified = '';
         modified += `${UPDATE} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
         if (drift.PropertyDifferences) {
           const propDiffs = drift.PropertyDifferences;
@@ -206,8 +205,10 @@ export class DriftFormatter {
       modified += this.printSectionFooter();
     }
 
-    // Process deleted resources
-    const deletedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.DELETED);
+    // Process deleted resources (exclude AWS::CDK::Metadata)
+    const deletedResources = drifts.filter(d =>
+      d.StackResourceDriftStatus === StackResourceDriftStatus.DELETED
+      && d.ResourceType !== 'AWS::CDK::Metadata');
     if (deletedResources.length > 0) {
       deleted = this.printSectionHeader('Deleted Resources');
       for (const drift of deletedResources) {
