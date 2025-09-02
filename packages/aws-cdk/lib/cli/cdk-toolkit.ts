@@ -2137,7 +2137,7 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
 
   const numUnconfigured = unconfiguredFlags.length;
   if (numUnconfigured > 0) {
-    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk --unstable=flags flags' to learn more.`);
+    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
   }
 }
 
