@@ -1200,9 +1200,8 @@ that is not already occupied by any resource.
 - New stacks created during the refactor won't have the `CDKMetadata` resource, since the API only allows resources to be
   moved between stacks, not created.
 - During the refactor execution, CloudFormation may need to call some service APIs on your behalf. To make sure that the 
-  execution will succeed, the IAM role used during refactoring must have the necessary permissions. You can do this by
-  either using the `--role-arn` option, or by making sure that the IAM user or role you are using has the necessary
-  permissions. The easiest way to do this is to use a role with the `AdministratorAccess` managed policy.
+  execution will succeed, the IAM role used during refactoring must have the necessary permissions. To pass a role to the
+  command, use the `--role-arn` option. The easiest way to do this is to use a role with the `AdministratorAccess` managed policy.
 
 ### `cdk drift`
 
