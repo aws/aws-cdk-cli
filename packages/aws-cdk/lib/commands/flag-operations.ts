@@ -128,7 +128,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.unconfigured && options.FLAGNAME) {
-    await ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works on multiple flags.');
+    await ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with all flags.');
     return;
   }
 
@@ -144,6 +144,11 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
 
   if (options.set && options.unconfigured && !options.recommended && !options.default) {
     await ioHelper.defaults.error('Error: When using --set with --unconfigured, you must specify either --recommended or --default.');
+    return;
+  }
+
+  if (options.set && !options.all && !options.unconfigured && !options.FLAGNAME) {
+    await ioHelper.defaults.error('Error: When using --set, you must specify either --all, --unconfigured, or provide a specific flag name.');
     return;
   }
 
