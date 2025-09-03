@@ -83,7 +83,6 @@ export class RefactoringContext {
     const mappings = this.mappings;
 
     const input = {
-      EnableStackCreation: true,
       ResourceMappings: mappings.map((m) => m.toCloudFormation()),
       StackDefinitions: stackDefinitions,
     };

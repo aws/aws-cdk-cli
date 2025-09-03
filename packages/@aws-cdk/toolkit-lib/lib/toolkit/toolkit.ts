@@ -1067,6 +1067,30 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     for (let { environment, localStacks, deployedStacks } of groups) {
       await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
+      const newStacks = localStacks.filter(s => !deployedStacks.map(t => t.stackName).includes(s.stackName));
+      if (newStacks.length > 0) {
+        /*
+         When the CloudFormation stack refactor operation creates a new stack, and the resources being moved to that
+         new stack have references to other resources, CloudFormation needs to do what they call "collapsing the
+         template". The details don't really matter, except that, in the process, it calls some service APIs, to read
+         the resources being moved. The role it uses to call these APIs internally is the role the user called the
+         stack refactoring API with, which in our case is the CloudFormation deployment role, from the bootstrap stack,
+         by default.
+
+         The problem is that this role does not have permissions to read all resource types. In this case,
+         CloudFormation will roll back the refactor operation. Since this is an implementation detail of the API, that
+         the user cannot know about, and didn't ask for, it will be very surprising. So we've decided to block this use
+         case until CloudFormation supports passing a different role to use for these read operations, as is the case
+         with deployment.
+         */
+
+        let message = `The following stack${newStacks.length === 1 ? ' is' : 's are'} new: ${newStacks.map(s => s.stackName).join(', ')}\n`;
+        message += 'Creation of new stacks is not yet supported by the refactor command. ';
+        message += 'Please deploy any new stacks separately before refactoring your stacks.';
+        await ioHelper.defaults.error(chalk.red(message));
+        continue;
+      }
+
       try {
         const context = new RefactoringContext({
           environment,

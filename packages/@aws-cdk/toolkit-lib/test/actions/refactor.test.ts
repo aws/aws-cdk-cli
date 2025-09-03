@@ -726,7 +726,6 @@ describe('refactor execution', () => {
 
     // THEN
     expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateStackRefactorCommand, {
-      EnableStackCreation: true,
       ResourceMappings: [
         {
           Destination: { LogicalResourceId: 'MyBucketF68F3FF0', StackName: 'Stack1' },
@@ -774,6 +773,56 @@ describe('refactor execution', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringMatching(/Stack refactor complete/),
+      }),
+    );
+  });
+
+  test('new stacks are not allowed', async () => {
+    // GIVEN
+    givenDeployedStackWithResources('Stack1', {
+      OldLogicalID: {
+        Type: 'AWS::S3::Bucket',
+        UpdateReplacePolicy: 'Retain',
+        DeletionPolicy: 'Retain',
+        Metadata: {
+          'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
+        },
+      },
+    });
+
+    mockSTSClient.on(GetCallerIdentityCommand).resolves({
+      Account: '333333333333',
+      Arn: 'arn:aws:sts::333333333333:assumed-role/role-name/role-session-name',
+    });
+
+    mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+      Stacks: [
+        {
+          StackName: 'CDKToolkit',
+          CreationTime: new Date(),
+          StackStatus: 'UPDATE_COMPLETE',
+          Outputs: [
+            {
+              OutputKey: 'BootstrapVersion',
+              OutputValue: '28',
+            },
+          ],
+        },
+      ],
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-different-stacks');
+    await toolkit.refactor(cx, {
+      dryRun: false,
+    });
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringMatching(
+          'Creation of new stacks is not yet supported by the refactor command. ' +
+          'Please deploy any new stacks separately before refactoring your stacks.',
+        ),
       }),
     );
   });
