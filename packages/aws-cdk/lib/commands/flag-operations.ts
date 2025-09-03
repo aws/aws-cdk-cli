@@ -128,7 +128,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.unconfigured && options.FLAGNAME) {
-    await ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with all flags.');
+    await ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with multiple flags.');
     return;
   }
 

@@ -649,7 +649,7 @@ describe('handleFlags', () => {
     await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with all flags.');
+    expect(plainTextOutput).toContain('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with multiple flags.');
   });
 
   test('shows error when setting a flag without providing a value', async () => {
