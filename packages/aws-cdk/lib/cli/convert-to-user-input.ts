@@ -66,6 +66,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         bootstrapCustomerKey: args.bootstrapCustomerKey,
         qualifier: args.qualifier,
         publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
+        denyExternalId: args.denyExternalId,
         tags: args.tags,
         execute: args.execute,
         trust: args.trust,
@@ -244,6 +245,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         list: args.list,
         generateOnly: args.generateOnly,
         libVersion: args.libVersion,
+        fromPath: args.fromPath,
+        templatePath: args.templatePath,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -356,6 +359,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrapCustomerKey: config.bootstrap?.bootstrapCustomerKey,
     qualifier: config.bootstrap?.qualifier,
     publicAccessBlockConfiguration: config.bootstrap?.publicAccessBlockConfiguration,
+    denyExternalId: config.bootstrap?.denyExternalId,
     tags: config.bootstrap?.tags,
     execute: config.bootstrap?.execute,
     trust: config.bootstrap?.trust,
@@ -480,6 +484,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     list: config.init?.list,
     generateOnly: config.init?.generateOnly,
     libVersion: config.init?.libVersion,
+    fromPath: config.init?.fromPath,
+    templatePath: config.init?.templatePath,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,

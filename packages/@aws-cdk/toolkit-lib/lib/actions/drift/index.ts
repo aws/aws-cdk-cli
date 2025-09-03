@@ -22,7 +22,7 @@ export interface FormattedDrift {
   readonly unchanged?: string;
 
   /**
-   * Resources that were not checked for drift
+   * Resources that were not checked for drift or have an UNKNOWN drift status
    */
   readonly unchecked?: string;
 

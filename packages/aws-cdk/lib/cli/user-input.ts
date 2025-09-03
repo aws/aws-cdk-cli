@@ -462,6 +462,13 @@ export interface BootstrapOptions {
   readonly publicAccessBlockConfiguration?: boolean;
 
   /**
+   * Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default)
+   *
+   * @default - undefined
+   */
+  readonly denyExternalId?: boolean;
+
+  /**
    * Tags to add for the stack (KEY=VALUE)
    *
    * aliases: t
@@ -1356,13 +1363,27 @@ export interface InitOptions {
   readonly generateOnly?: boolean;
 
   /**
-   * The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.
+   * The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.
    *
    * aliases: V
    *
    * @default - undefined
    */
   readonly libVersion?: string;
+
+  /**
+   * Path to a local custom template directory or multi-template repository
+   *
+   * @default - undefined
+   */
+  readonly fromPath?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository
+   *
+   * @default - undefined
+   */
+  readonly templatePath?: string;
 
   /**
    * Positional argument for init
