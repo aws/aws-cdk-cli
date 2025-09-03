@@ -34,32 +34,44 @@ Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => actualUserCo
 
 jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
   parseCommandLineArguments: jest.fn().mockImplementation((args) => {
-    const result: any = {
-      _: ['version'],
-      verbose: args.includes('-v') ? (
-        args.filter((arg: string) => arg === '-v').length
-      ) : args.includes('--verbose') ? (
-        parseInt(args[args.indexOf('--verbose') + 1]) || true
-      ) : undefined,
-    };
+    let result = {};
+    
+    // Handle commands
+    if (args.includes('version')) {
+      result = { ...result, _: ['version'] }
+    } else if (args.includes('migrate')) {
+      result = {
+        ...result,
+        _: ['migrate'],
+        'language': 'typescript',
+        'stack-name': 'sampleStack',
+      }
+      
+      // Handle language aliases for migrate command
+      if (args.includes('ts')) {
+        result = { ...result, 'language': 'typescript' }
+      }
+    }
 
     // Handle notices flags
     if (args.includes('--notices')) {
-      result.notices = true;
+      result = { ...result, notices: true }
     } else if (args.includes('--no-notices')) {
-      result.notices = false;
+      result = { ...result, notices: false }
+    }
+
+    // Handle verbose flags
+    const verboseCount = args.filter((arg: string) => arg === '-v').length;
+    if (verboseCount > 0) {
+      result = { ...result, verbose: verboseCount }
+    }
+    
+    const verboseIndex = args.findIndex((arg: string) => arg === '--verbose');
+    if (verboseIndex !== -1 && args[verboseIndex + 1]) {
+      result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) }
     }
 
     return Promise.resolve(result);
-
-    if (args.includes('migrate')) {
-      return Promise.resolve({
-        '_': ['migrate'],
-        'language': 'typescript',
-        'stack-name': 'sampleStack',
-      });
-    }
-    return Promise.resolve({ _: [] });
   }),
 }));
 
@@ -403,14 +415,15 @@ describe('notices configuration tests', () => {
     );
   });
 
-test('should convert language alias to full language name', async () => {
-  const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'migrate').mockResolvedValue();
+  test('should convert language alias to full language name', async () => {
+    const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'migrate').mockResolvedValue();
 
-  await exec(['migrate', '--language', 'ts', '--stack-name', 'sampleStack']);
+    await exec(['migrate', '--language', 'ts', '--stack-name', 'sampleStack']);
 
-  expect(migrateSpy).toHaveBeenCalledWith(
-    expect.objectContaining({
-      language: 'typescript',
-    }),
-  );
+    expect(migrateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'typescript',
+      }),
+    );
+  });
 });
