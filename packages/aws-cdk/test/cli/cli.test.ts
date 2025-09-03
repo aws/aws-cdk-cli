@@ -1,5 +1,5 @@
-import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { Notices } from '../../lib/api/notices';
+import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
@@ -35,40 +35,40 @@ Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => actualUserCo
 jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
   parseCommandLineArguments: jest.fn().mockImplementation((args) => {
     let result = {};
-    
+
     // Handle commands
     if (args.includes('version')) {
-      result = { ...result, _: ['version'] }
+      result = { ...result, _: ['version'] };
     } else if (args.includes('migrate')) {
       result = {
         ...result,
-        _: ['migrate'],
+        '_': ['migrate'],
         'language': 'typescript',
         'stack-name': 'sampleStack',
-      }
-      
+      };
+
       // Handle language aliases for migrate command
       if (args.includes('ts')) {
-        result = { ...result, 'language': 'typescript' }
+        result = { ...result, language: 'typescript' };
       }
     }
 
     // Handle notices flags
     if (args.includes('--notices')) {
-      result = { ...result, notices: true }
+      result = { ...result, notices: true };
     } else if (args.includes('--no-notices')) {
-      result = { ...result, notices: false }
+      result = { ...result, notices: false };
     }
 
     // Handle verbose flags
     const verboseCount = args.filter((arg: string) => arg === '-v').length;
     if (verboseCount > 0) {
-      result = { ...result, verbose: verboseCount }
+      result = { ...result, verbose: verboseCount };
     }
-    
+
     const verboseIndex = args.findIndex((arg: string) => arg === '--verbose');
     if (verboseIndex !== -1 && args[verboseIndex + 1]) {
-      result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) }
+      result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
     }
 
     return Promise.resolve(result);
