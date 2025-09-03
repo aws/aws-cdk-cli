@@ -193,7 +193,7 @@ describe('displayFlags', () => {
     // This test targets the sorting logic in displayFlagTable:
     // if (a.module !== b.module) { return a.module.localeCompare(b.module); }
     // return a.name.localeCompare(b.name);
-    
+
     const flagsForSortingTest: FeatureFlag[] = [
       {
         module: 'z-module',
@@ -234,17 +234,17 @@ describe('displayFlags', () => {
     await displayFlags(params);
 
     const plainTextOutput = output();
-    
+
     // Verify that modules are sorted alphabetically (a-module before z-module)
     const aModuleIndex = plainTextOutput.indexOf('Module: a-module');
     const zModuleIndex = plainTextOutput.indexOf('Module: z-module');
     expect(aModuleIndex).toBeLessThan(zModuleIndex);
-    
+
     // Verify that within a-module, flags are sorted alphabetically (flagA before flagZ)
     const flagAIndex = plainTextOutput.indexOf('@aws-cdk/a:flagA');
     const flagZIndex = plainTextOutput.indexOf('@aws-cdk/a:flagZ');
     expect(flagAIndex).toBeLessThan(flagZIndex);
-    
+
     // Verify that within z-module, flags are sorted alphabetically (flagA before flagB)
     const zFlagAIndex = plainTextOutput.indexOf('@aws-cdk/z:flagA');
     const zFlagBIndex = plainTextOutput.indexOf('@aws-cdk/z:flagB');
@@ -801,7 +801,7 @@ describe('handleFlags', () => {
   test('shows error when flag is not found during prototypeChanges', async () => {
     // This test targets the validation in prototypeChanges function:
     // if (!flag) { await ioHelper.defaults.error(`Flag ${flagName} not found.`); return false; }
-    
+
     const cdkJsonPath = await createCdkJsonFile({});
 
     setupMockToolkitForPrototyping(mockToolkit);
@@ -810,7 +810,7 @@ describe('handleFlags', () => {
     // We'll mock the internal flag lookup to simulate a missing flag during the prototyping process
     const originalFind = Array.prototype.find;
     let findCallCount = 0;
-    
+
     // Mock Array.find to return undefined for the second call (simulating missing flag in prototypeChanges)
     Array.prototype.find = function(this: any[], callback: any) {
       findCallCount++;
