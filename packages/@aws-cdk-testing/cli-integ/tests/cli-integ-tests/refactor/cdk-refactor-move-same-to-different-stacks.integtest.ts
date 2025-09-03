@@ -4,7 +4,8 @@ import { integTest, withSpecificFixture } from '../../../lib';
 integTest(
   'cdk refactor - moves a referenced resource to a different stack',
   withSpecificFixture('refactoring', async (fixture) => {
-    // First, deploy a stack
+    // First, deploy the stacks
+    await fixture.cdkDeploy('bucket-stack');
     const originalStackArn = await fixture.cdkDeploy('basic');
     const originalStackInfo = getStackInfoFromArn(originalStackArn);
     const stackPrefix = originalStackInfo.name.replace(/-basic$/, '');

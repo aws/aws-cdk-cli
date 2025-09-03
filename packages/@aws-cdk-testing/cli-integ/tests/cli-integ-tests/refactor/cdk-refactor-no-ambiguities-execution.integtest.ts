@@ -4,7 +4,8 @@ import { integTest, withSpecificFixture } from '../../../lib';
 integTest(
   'cdk refactor - detects refactoring changes and executes the refactor',
   withSpecificFixture('refactoring', async (fixture) => {
-    // First, deploy a stack
+    // First, deploy the stacks
+    await fixture.cdkDeploy('bucket-stack');
     const stackArn = await fixture.cdkDeploy('basic', {
       modEnv: {
         BASIC_QUEUE_LOGICAL_ID: 'OldName',
