@@ -1,3 +1,4 @@
+import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { Notices } from '../../lib/api/notices';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -50,6 +51,15 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
     }
 
     return Promise.resolve(result);
+
+    if (args.includes('migrate')) {
+      return Promise.resolve({
+        '_': ['migrate'],
+        'language': 'typescript',
+        'stack-name': 'sampleStack',
+      });
+    }
+    return Promise.resolve({ _: [] });
   }),
 }));
 
@@ -392,4 +402,15 @@ describe('notices configuration tests', () => {
       }),
     );
   });
+
+test('should convert language alias to full language name', async () => {
+  const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'migrate').mockResolvedValue();
+
+  await exec(['migrate', '--language', 'ts', '--stack-name', 'sampleStack']);
+
+  expect(migrateSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      language: 'typescript',
+    }),
+  );
 });

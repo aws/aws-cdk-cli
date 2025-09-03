@@ -36,6 +36,7 @@ import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
+import { getLanguageFromAlias } from '../commands/language';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -44,6 +45,8 @@ if (!process.stdout.isTTY) {
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
+  argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
   const cmd = argv._[0];
 
   // if one -v, log at a DEBUG level
