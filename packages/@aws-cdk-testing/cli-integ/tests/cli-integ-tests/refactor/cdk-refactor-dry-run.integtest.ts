@@ -28,13 +28,14 @@ integTest(
 );
 
 integTest(
-  'no refactoring changes detected',
+  'cdk refactor - no refactoring changes detected',
   withSpecificFixture('refactoring', async (fixture) => {
     const modEnv = {
       BASIC_QUEUE_LOGICAL_ID: 'OldName',
     };
 
-    // First, deploy a stack
+    // First, deploy the stacks
+    await fixture.cdkDeploy('bucket-stack');
     await fixture.cdkDeploy('basic', { modEnv });
 
     // Then see if the refactoring tool detects the change
