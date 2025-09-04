@@ -42,3 +42,11 @@ function millisecondsToSeconds(num: number): number {
 export function lowerCaseFirstCharacter(str: string): string {
   return str.length > 0 ? `${str[0].toLowerCase()}${str.slice(1)}` : str;
 }
+
+/**
+ * Returns the provided reason or a default fallback message if the reason is undefined, null, or empty.
+ * This is commonly used for AWS API responses that may not always provide a reason field.
+ */
+export function formatReason(reason: string | undefined | null, fallback: string = 'No reason provided'): string {
+  return reason?.trim() || fallback;
+}

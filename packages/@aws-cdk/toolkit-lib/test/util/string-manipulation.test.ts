@@ -1,4 +1,4 @@
-import { padLeft, padRight, formatTime } from '../../lib/util/string-manipulation';
+import { padLeft, padRight, formatTime, formatReason } from '../../lib/util/string-manipulation';
 
 describe('string-manipulation', () => {
   describe('padLeft', () => {
@@ -68,6 +68,36 @@ describe('string-manipulation', () => {
 
     test('handles decimal precision correctly', () => {
       expect(formatTime(1500)).toBe(1.5);
+    });
+  });
+
+  describe('formatReason', () => {
+    test.each([
+      ['Something went wrong', undefined, 'Something went wrong'],
+      ['Error occurred', undefined, 'Error occurred'],
+      ['  Valid reason  ', undefined, 'Valid reason'],
+    ])('returns the reason when provided: %s', (reason, fallback, expected) => {
+      expect(formatReason(reason, fallback)).toBe(expected);
+    });
+
+    test.each([
+      [undefined, undefined, 'No reason provided'],
+      [null, undefined, 'No reason provided'],
+      ['', undefined, 'No reason provided'],
+      ['   ', undefined, 'No reason provided'],
+    ])('returns default fallback for invalid reasons: %s', (reason, fallback, expected) => {
+      expect(formatReason(reason, fallback)).toBe(expected);
+    });
+
+    test.each([
+      [undefined, 'Custom fallback message', 'Custom fallback message'],
+      [null, 'Custom fallback message', 'Custom fallback message'],
+      ['', 'Custom fallback message', 'Custom fallback message'],
+      ['   ', 'Custom fallback message', 'Custom fallback message'],
+      [undefined, 'no reason provided', 'no reason provided'],
+      [null, 'Unknown error', 'Unknown error'],
+    ])('returns custom fallback when provided: reason=%s, fallback=%s', (reason, fallback, expected) => {
+      expect(formatReason(reason, fallback)).toBe(expected);
     });
   });
 });

@@ -295,10 +295,154 @@ describe('detectStackDrift', () => {
       level: 'trace',
     }));
   });
+
+  test('handles UNKNOWN stack drift status', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const statusReason = 'Unable to check drift for some resources';
+    const expectedDriftResults = { StackResourceDrifts: [], $metadata: {} };
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'UNKNOWN',
+      DetectionStatusReason: statusReason,
+    });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Stack drift status is UNKNOWN'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining(statusReason),
+      level: 'trace',
+    }));
+  });
+
+  test('handles resources with UNKNOWN drift status', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'test-detection-id';
+    const driftStatusReason = 'Insufficient permissions to check drift';
+    const expectedDriftResults = {
+      StackResourceDrifts: [
+        {
+          StackId: 'stack-id',
+          LogicalResourceId: 'MyResource1',
+          ResourceType: 'AWS::S3::Bucket',
+          StackResourceDriftStatus: 'UNKNOWN',
+          DriftStatusReason: driftStatusReason,
+          Timestamp: new Date(),
+        },
+      ],
+      $metadata: {},
+    };
+
+    mockCfn.detectStackDrift.mockResolvedValue({
+      StackDriftDetectionId: driftDetectionId,
+    });
+
+    mockCfn.describeStackDriftDetectionStatus.mockResolvedValue({
+      DetectionStatus: 'DETECTION_COMPLETE',
+      StackDriftStatus: 'UNKNOWN',
+    });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Some resources have UNKNOWN drift status'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('MyResource1'),
+      level: 'trace',
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining(driftStatusReason),
+      level: 'trace',
+    }));
+  });
+
+  test('sends periodic check-in message during drift detection wait', async () => {
+    // GIVEN
+    const stackName = 'test-stack';
+    const driftDetectionId = 'drift-detection-id';
+    const expectedDriftResults = { StackResourceDrifts: [], $metadata: {} };
+
+    mockCfn.detectStackDrift.mockResolvedValue({ StackDriftDetectionId: driftDetectionId });
+
+    // Mock Date.now to simulate time progression that triggers check-in message
+    const originalDateNow = Date.now;
+    const startTime = 1000;
+    const timeBetweenOutputs = 10_000;
+
+    const mockDateNow = jest.fn()
+      .mockReturnValueOnce(startTime) // deadline calculation
+      .mockReturnValueOnce(startTime) // checkIn calculation
+      .mockReturnValueOnce(startTime + timeBetweenOutputs + 1000) // First status check - after checkIn
+      .mockReturnValueOnce(startTime + timeBetweenOutputs + 1000) // deadline check
+      .mockReturnValueOnce(startTime + timeBetweenOutputs + 1000) // checkIn comparison - triggers message
+      .mockReturnValue(startTime + timeBetweenOutputs + 2000); // All subsequent calls
+
+    Date.now = mockDateNow;
+
+    // First call returns IN_PROGRESS, second call returns COMPLETE
+    mockCfn.describeStackDriftDetectionStatus
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
+      .mockResolvedValueOnce({ DetectionStatus: 'DETECTION_COMPLETE', StackDriftStatus: 'IN_SYNC' });
+
+    mockCfn.describeStackResourceDrifts.mockResolvedValue(expectedDriftResults);
+
+    // WHEN
+    await detectStackDrift(mockCfn, ioHelper, stackName);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Waiting for drift detection to complete...'),
+      level: 'trace',
+    }));
+
+    // Restore original Date.now
+    Date.now = originalDateNow;
+  });
 });
 
 describe('formatStackDrift', () => {
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
+
+  // Helper function to create template with metadata
+  function createTemplateWithMetadata(resources: Record<string, any>) {
+    return {
+      template: {
+        Resources: {
+          ...resources,
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: {
+              Analytics: 'placeholder-string',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+  }
 
   beforeEach(() => {
     mockNewTemplate = {
@@ -579,5 +723,407 @@ describe('formatStackDrift', () => {
     expect(result.deleted).toContain('AWS::IAM::Role');
     expect(result.deleted).toContain('Resource2');
     expect(result.summary).toContain('2 resources have drifted');
+  });
+
+  test('formatting with UNKNOWN drift status', () => {
+    // GIVEN
+    const templateWithMultipleResources = {
+      template: {
+        Resources: {
+          Resource1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              BucketName: 'expected-name',
+            },
+          },
+          Resource2: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              RoleName: 'test-role',
+            },
+          },
+          Resource3: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Handler: 'index.handler',
+              Runtime: 'nodejs20.x',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'Resource1',
+        PhysicalResourceId: 'physical-id-1',
+        ResourceType: 'AWS::S3::Bucket',
+        PropertyDifferences: [{
+          PropertyPath: '/BucketName',
+          ExpectedValue: 'expected-name',
+          ActualValue: 'actual-name',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'UNKNOWN',
+        LogicalResourceId: 'Resource2',
+        PhysicalResourceId: 'physical-id-2',
+        ResourceType: 'AWS::IAM::Role',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'IN_SYNC',
+        LogicalResourceId: 'Resource3',
+        PhysicalResourceId: 'physical-id-3',
+        ResourceType: 'AWS::Lambda::Function',
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: templateWithMultipleResources,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(1); // Only MODIFIED counts as drift, UNKNOWN does not
+    expect(result.modified).toContain('Modified Resources');
+    expect(result.modified).toContain('AWS::S3::Bucket');
+    expect(result.modified).toContain('Resource1');
+    expect(result.summary).toContain('1 resource has drifted');
+
+    // UNKNOWN resources should be treated as unchecked, not as drift
+    expect(result.unchecked).toContain('AWS::IAM::Role');
+    expect(result.unchecked).toContain('Resource2');
+  });
+
+  test('formatting with only UNKNOWN drift status', () => {
+    // GIVEN
+    const templateWithUnknownResources = {
+      template: {
+        Resources: {
+          Resource1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              BucketName: 'test-bucket',
+            },
+          },
+          Resource2: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              RoleName: 'test-role',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'UNKNOWN',
+        LogicalResourceId: 'Resource1',
+        PhysicalResourceId: 'physical-id-1',
+        ResourceType: 'AWS::S3::Bucket',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'UNKNOWN',
+        LogicalResourceId: 'Resource2',
+        PhysicalResourceId: 'physical-id-2',
+        ResourceType: 'AWS::IAM::Role',
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: templateWithUnknownResources,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(0); // UNKNOWN resources do not count as drift
+    expect(result.summary).toContain('No drift detected');
+
+    // All UNKNOWN resources should be in the unchecked section
+    expect(result.unchecked).toBeDefined();
+    expect(result.unchecked).toContain('AWS::S3::Bucket');
+    expect(result.unchecked).toContain('Resource1');
+    expect(result.unchecked).toContain('AWS::IAM::Role');
+    expect(result.unchecked).toContain('Resource2');
+  });
+
+  test('filters out AWS::CDK::Metadata resources from drift count', () => {
+    // GIVEN
+    const templateWithMetadata = createTemplateWithMetadata({
+      MyBucket: {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: 'test-bucket',
+        },
+      },
+    });
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'MyBucket',
+        PhysicalResourceId: 'physical-bucket-id',
+        ResourceType: 'AWS::S3::Bucket',
+        PropertyDifferences: [{
+          PropertyPath: '/BucketName',
+          ExpectedValue: 'test-bucket',
+          ActualValue: 'actual-bucket-name',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'CDKMetadata',
+        PhysicalResourceId: 'physical-metadata-id',
+        ResourceType: 'AWS::CDK::Metadata',
+        PropertyDifferences: [{
+          PropertyPath: '/Analytics',
+          ExpectedValue: 'placeholder-string',
+          ActualValue: 'different-analytics-value',
+          DifferenceType: 'NOT_EQUAL',
+        }],
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: templateWithMetadata,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    // Only the S3 bucket should count as drift, not the CDK metadata resource
+    expect(result.numResourcesWithDrift).toBe(1);
+    expect(result.summary).toContain('1 resource has drifted');
+
+    // The modified section should contain the S3 bucket but not the CDK metadata
+    expect(result.modified).toContain('AWS::S3::Bucket');
+    expect(result.modified).toContain('MyBucket');
+    expect(result.modified).not.toContain('AWS::CDK::Metadata');
+    expect(result.modified).not.toContain('CDKMetadata');
+  });
+
+  test('filters out AWS::CDK::Metadata resources from deleted resources section', () => {
+    // GIVEN
+    const templateWithMetadata = createTemplateWithMetadata({
+      MyRole: {
+        Type: 'AWS::IAM::Role',
+        Properties: {
+          RoleName: 'test-role',
+        },
+      },
+    });
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'DELETED',
+        LogicalResourceId: 'MyRole',
+        PhysicalResourceId: 'physical-role-id',
+        ResourceType: 'AWS::IAM::Role',
+        Timestamp: new Date(Date.now()),
+      },
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'DELETED',
+        LogicalResourceId: 'CDKMetadata',
+        PhysicalResourceId: 'physical-metadata-id',
+        ResourceType: 'AWS::CDK::Metadata',
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: templateWithMetadata,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    // Only the IAM role should count as drift, not the CDK metadata resource
+    expect(result.numResourcesWithDrift).toBe(1);
+    expect(result.summary).toContain('1 resource has drifted');
+
+    // The deleted section should contain the IAM role but not the CDK metadata
+    expect(result.deleted).toContain('AWS::IAM::Role');
+    expect(result.deleted).toContain('MyRole');
+    expect(result.deleted).not.toContain('AWS::CDK::Metadata');
+    expect(result.deleted).not.toContain('CDKMetadata');
+  });
+
+  test('handles empty resource drift results', () => {
+    // GIVEN
+    const mockTemplate = {
+      template: {
+        Resources: {
+          MyBucket: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              BucketName: 'test-bucket',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: mockTemplate,
+      resourceDrifts: [], // Empty array
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(0);
+    expect(result.summary).toContain('No drift detected');
+    expect(result.numResourcesUnchecked).toBe(1); // MyBucket is unchecked
+  });
+
+  test('formatTreeDiff handles ADDITION and REMOVAL differences', () => {
+    // GIVEN
+    const mockTemplate = {
+      template: {
+        Resources: {
+          MyResource: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'MyResource',
+        PhysicalResourceId: 'physical-id',
+        ResourceType: 'AWS::S3::Bucket',
+        PropertyDifferences: [
+          {
+            PropertyPath: '/AddedProperty',
+            ExpectedValue: undefined,
+            ActualValue: 'new-value',
+            DifferenceType: 'ADD',
+          },
+          {
+            PropertyPath: '/RemovedProperty',
+            ExpectedValue: 'old-value',
+            ActualValue: undefined,
+            DifferenceType: 'REMOVE',
+          },
+        ],
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: mockTemplate,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(1);
+    expect(result.modified).toBeDefined();
+    expect(result.modified).toContain('AddedProperty');
+    expect(result.modified).toContain('RemovedProperty');
+  });
+
+  test('formatLogicalId handles path normalization', () => {
+    // GIVEN
+    const mockTemplate = {
+      template: {
+        Resources: {
+          MyResource: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [
+        {
+          type: 'aws:cdk:logicalId',
+          data: 'MyResource',
+          path: '/MyStack/MyConstruct/Resource',
+        },
+        {
+          type: 'aws:cdk:logicalId',
+          data: 'AnotherResource',
+          path: '/MyStack/AnotherConstruct/Default',
+        },
+      ],
+    } as any;
+
+    const mockDriftedResources: StackResourceDrift[] = [
+      {
+        StackId: 'some:stack:arn',
+        StackResourceDriftStatus: 'MODIFIED',
+        LogicalResourceId: 'MyResource',
+        PhysicalResourceId: 'physical-id',
+        ResourceType: 'AWS::S3::Bucket',
+        PropertyDifferences: [
+          {
+            PropertyPath: '/BucketName',
+            ExpectedValue: 'old-name',
+            ActualValue: 'new-name',
+            DifferenceType: 'NOT_EQUAL',
+          },
+        ],
+        Timestamp: new Date(Date.now()),
+      },
+    ];
+
+    // WHEN
+    const formatter = new DriftFormatter({
+      stack: mockTemplate,
+      resourceDrifts: mockDriftedResources,
+    });
+    const result = formatter.formatStackDrift();
+
+    // THEN
+    expect(result.numResourcesWithDrift).toBe(1);
+    expect(result.modified).toBeDefined();
+    // Should normalize path by removing leading slash and "Resource"/"Default" suffixes
+    expect(result.modified).toContain('MyConstruct');
+    expect(result.modified).toContain('MyResource'); // logical ID should still be present
   });
 });

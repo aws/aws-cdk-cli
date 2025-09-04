@@ -41,7 +41,7 @@ interface DriftFormatterOutput {
   readonly unchanged?: string;
 
   /**
-   * Resources that were not checked for drift
+   * Resources that were not checked for drift or have an UNKNOWN drift status
    */
   readonly unchecked?: string;
 
@@ -98,12 +98,10 @@ export class DriftFormatter {
   public formatStackDrift(): DriftFormatterOutput {
     const formatterOutput = this.formatStackDriftChanges(this.buildLogicalToPathMap());
 
-    // we are only interested in actual drifts and always ignore the metadata resource
+    // we are only interested in actual drifts (and ignore the metadata resource)
     const actualDrifts = this.resourceDriftResults.filter(d =>
-      d.StackResourceDriftStatus === 'MODIFIED' ||
-      d.StackResourceDriftStatus === 'DELETED' ||
-      d.ResourceType === 'AWS::CDK::Metadata',
-    );
+      (d.StackResourceDriftStatus === 'MODIFIED' || d.StackResourceDriftStatus === 'DELETED')
+      && d.ResourceType !== 'AWS::CDK::Metadata');
 
     // must output the stack name if there are drifts
     const stackHeader = format(`Stack ${chalk.bold(this.stackName)}\n`);
@@ -114,6 +112,7 @@ export class DriftFormatter {
         numResourcesWithDrift: 0,
         numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
         stackHeader,
+        unchecked: formatterOutput.unchecked,
         summary: finalResult,
       };
     }
@@ -140,11 +139,8 @@ export class DriftFormatter {
   }
 
   /**
-   * Renders stack drift information to the given stream
+   * Renders stack drift information
    *
-   * @param driftResults - The stack resource drifts from CloudFormation
-   * @param allStackResources - A map of all stack resources
-   * @param verbose - Whether to output more verbose text (include undrifted resources)
    * @param logicalToPathMap - A map from logical ID to construct path
    */
   private formatStackDriftChanges(
@@ -167,35 +163,35 @@ export class DriftFormatter {
 
       for (const drift of unchangedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        unchanged += `${CONTEXT} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        unchanged += `${CONTEXT} ${chalk.cyan(drift.ResourceType)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
       }
       unchanged += this.printSectionFooter();
     }
 
-    // Process all unchecked resources
-    if (this.allStackResources) {
-      const uncheckedResources = Array.from(this.allStackResources.keys()).filter((logicalId) => {
-        return !drifts.find((drift) => drift.LogicalResourceId === logicalId);
-      });
-      if (uncheckedResources.length > 0) {
-        unchecked = this.printSectionHeader('Unchecked Resources');
-        for (const logicalId of uncheckedResources) {
-          const resourceType = this.allStackResources.get(logicalId);
-          unchecked += `${CONTEXT} ${this.formatValue(resourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, logicalId)}\n`;
-        }
-        unchecked += this.printSectionFooter();
+    // Process all unchecked and unknown resources
+    const uncheckedResources = Array.from(this.allStackResources.keys()).filter((logicalId) => {
+      const drift = drifts.find((d) => d.LogicalResourceId === logicalId);
+      return !drift || drift.StackResourceDriftStatus === StackResourceDriftStatus.UNKNOWN;
+    });
+    if (uncheckedResources.length > 0) {
+      unchecked = this.printSectionHeader('Unchecked Resources');
+      for (const logicalId of uncheckedResources) {
+        const resourceType = this.allStackResources.get(logicalId);
+        unchecked += `${CONTEXT} ${chalk.cyan(resourceType)} ${this.formatLogicalId(logicalToPathMap, logicalId)}\n`;
       }
+      unchecked += this.printSectionFooter();
     }
 
-    // Process modified resources
-    const modifiedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.MODIFIED);
+    // Process modified resources (exclude AWS::CDK::Metadata)
+    const modifiedResources = drifts.filter(d =>
+      d.StackResourceDriftStatus === StackResourceDriftStatus.MODIFIED
+      && d.ResourceType !== 'AWS::CDK::Metadata');
     if (modifiedResources.length > 0) {
       modified = this.printSectionHeader('Modified Resources');
 
       for (const drift of modifiedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        if (modified === undefined) modified = '';
-        modified += `${UPDATE} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        modified += `${UPDATE} ${chalk.cyan(drift.ResourceType)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
         if (drift.PropertyDifferences) {
           const propDiffs = drift.PropertyDifferences;
           for (let i = 0; i < propDiffs.length; i++) {
@@ -209,13 +205,15 @@ export class DriftFormatter {
       modified += this.printSectionFooter();
     }
 
-    // Process deleted resources
-    const deletedResources = drifts.filter(d => d.StackResourceDriftStatus === StackResourceDriftStatus.DELETED);
+    // Process deleted resources (exclude AWS::CDK::Metadata)
+    const deletedResources = drifts.filter(d =>
+      d.StackResourceDriftStatus === StackResourceDriftStatus.DELETED
+      && d.ResourceType !== 'AWS::CDK::Metadata');
     if (deletedResources.length > 0) {
       deleted = this.printSectionHeader('Deleted Resources');
       for (const drift of deletedResources) {
         if (!drift.LogicalResourceId || !drift.ResourceType) continue;
-        deleted += `${REMOVAL} ${this.formatValue(drift.ResourceType, chalk.cyan)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
+        deleted += `${REMOVAL} ${chalk.cyan(drift.ResourceType)} ${this.formatLogicalId(logicalToPathMap, drift.LogicalResourceId)}\n`;
       }
       deleted += this.printSectionFooter();
     }
@@ -250,16 +248,6 @@ export class DriftFormatter {
     return `${normalizedPath} ${chalk.gray(logicalId)}`;
   }
 
-  private formatValue(value: any, colorFn: (str: string) => string): string {
-    if (value == null) {
-      return '';
-    }
-    if (typeof value === 'string') {
-      return colorFn(value);
-    }
-    return colorFn(JSON.stringify(value));
-  }
-
   private printSectionHeader(title: string): string {
     return `${chalk.underline(chalk.bold(title))}\n`;
   }
@@ -268,7 +256,7 @@ export class DriftFormatter {
     return '\n';
   }
 
-  private formatTreeDiff(propertyPath: string, difference: Difference<any>, isLast: boolean): string {
+  private formatTreeDiff(propertyPath: string, difference: Difference<string>, isLast: boolean): string {
     let result = format(' %s─ %s %s\n', isLast ? '└' : '├',
       difference.isAddition ? ADDITION :
         difference.isRemoval ? REMOVAL :
@@ -276,8 +264,8 @@ export class DriftFormatter {
       propertyPath,
     );
     if (difference.isUpdate) {
-      result += format('     ├─ %s %s\n', REMOVAL, this.formatValue(difference.oldValue, chalk.red));
-      result += format('     └─ %s %s\n', ADDITION, this.formatValue(difference.newValue, chalk.green));
+      result += format('     ├─ %s %s\n', REMOVAL, chalk.red(difference.oldValue));
+      result += format('     └─ %s %s\n', ADDITION, chalk.green(difference.newValue));
     }
     return result;
   }

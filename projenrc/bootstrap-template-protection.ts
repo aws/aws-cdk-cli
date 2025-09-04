@@ -25,11 +25,13 @@ export class BootstrapTemplateProtection extends Component {
       pullRequest: {
         types: ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled'],
       },
+      mergeGroup: {},
     });
 
     workflow.addJob('check-bootstrap-template', {
       name: 'Check Bootstrap Template Changes',
       runsOn: ['ubuntu-latest'],
+      if: "(github.event_name == 'pull_request' || github.event_name == 'pull_request_target')",
       permissions: {
         contents: gh.workflows.JobPermission.READ,
         pullRequests: gh.workflows.JobPermission.WRITE,

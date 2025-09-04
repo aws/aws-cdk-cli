@@ -1,6 +1,7 @@
-import { format } from 'util';
+import { format } from 'node:util';
 import type { DescribeStackDriftDetectionStatusCommandOutput, DescribeStackResourceDriftsCommandOutput } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { formatReason } from '../../util/string-manipulation';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 
@@ -29,20 +30,34 @@ export async function detectStackDrift(
   // Wait for drift detection to complete
   const driftStatus = await waitForDriftDetection(cfn, ioHelper, driftDetection.StackDriftDetectionId!);
 
-  if (!driftStatus) {
-    throw new ToolkitError('Drift detection took too long to complete. Aborting');
-  }
-
-  if (driftStatus?.DetectionStatus === 'DETECTION_FAILED') {
-    throw new ToolkitError(
-      `Failed to detect drift: ${driftStatus.DetectionStatusReason || 'No reason provided'}`,
+  // Handle UNKNOWN stack drift status
+  if (driftStatus?.StackDriftStatus === 'UNKNOWN') {
+    await ioHelper.defaults.trace(
+      'Stack drift status is UNKNOWN. This may occur when CloudFormation is unable to detect drift for at least one resource and all other resources are IN_SYNC.\n' +
+      `Reason: ${formatReason(driftStatus.DetectionStatusReason)}`,
     );
   }
 
-  // Get the drift results
-  return cfn.describeStackResourceDrifts({
+  // Get the drift results, including resources with UNKNOWN status
+  const driftResults = await cfn.describeStackResourceDrifts({
     StackName: stackName,
   });
+
+  // Log warning for any resources with UNKNOWN status
+  const unknownResources = driftResults.StackResourceDrifts?.filter(
+    drift => drift.StackResourceDriftStatus === 'UNKNOWN',
+  );
+
+  if (unknownResources && unknownResources.length > 0) {
+    await ioHelper.defaults.trace(
+      'Some resources have UNKNOWN drift status. This may be due to insufficient permissions or throttling:\n' +
+      unknownResources.map(r =>
+        `  - ${r.LogicalResourceId}: ${formatReason(r.DriftStatusReason)}`,
+      ).join('\n'),
+    );
+  }
+
+  return driftResults;
 }
 
 /**
@@ -69,7 +84,7 @@ async function waitForDriftDetection(
     }
 
     if (response.DetectionStatus === 'DETECTION_FAILED') {
-      throw new ToolkitError(`Drift detection failed: ${response.DetectionStatusReason}`);
+      throw new ToolkitError(`Drift detection failed: ${formatReason(response.DetectionStatusReason)}`);
     }
 
     if (Date.now() > deadline) {

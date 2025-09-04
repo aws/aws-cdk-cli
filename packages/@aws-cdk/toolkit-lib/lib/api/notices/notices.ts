@@ -150,7 +150,7 @@ export class Notices {
    * Refresh the list of notices this instance is aware of.
    *
    * This method throws an error if the data source fails to fetch notices.
-   * When using, consider if execution should halt immdiately or if catching the rror and continuing is more appropriate
+   * When using, consider if execution should halt immdiately or if catching the error and continuing is more appropriate
    *
    * @throws on failure to refresh the data source
    */

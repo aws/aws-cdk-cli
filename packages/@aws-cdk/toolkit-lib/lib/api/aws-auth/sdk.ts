@@ -579,8 +579,6 @@ export class SDK {
 
   public readonly config: ConfigurationOptions;
 
-  protected readonly logger?: ISdkLogger;
-
   private readonly accountCache;
 
   /**
@@ -618,9 +616,8 @@ export class SDK {
       requestHandler,
       retryStrategy: new ConfiguredRetryStrategy(7, (attempt) => 300 * (2 ** attempt)),
       customUserAgent: defaultCliUserAgent(),
-      logger,
+      logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
-    this.logger = logger;
     this.currentRegion = region;
   }
 
@@ -1075,3 +1072,24 @@ export class SDK {
 }
 
 const CURRENT_ACCOUNT_KEY = Symbol('current_account_key');
+
+/**
+ * Make the SDK logger safe against raw function invocations
+ *
+ * The SDK expects the logger to be an object with a number of functions, but it
+ * doesn't necessarily keep 'this' bound all the time; sometimes it will copy
+ * functions off of the object and call them from a variable.
+ *
+ * By how JavaScript works, this drops the 'this' reference. Make sure 'this' is
+ * bound at all times.
+ *
+ * @see https://github.com/aws/aws-sdk-js-v3/issues/7297
+ */
+function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
+  return {
+    debug: logger.debug.bind(logger),
+    info: logger.info.bind(logger),
+    warn: logger.warn.bind(logger),
+    error: logger.error.bind(logger),
+  };
+}
