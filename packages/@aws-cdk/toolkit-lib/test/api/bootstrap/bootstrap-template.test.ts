@@ -2,25 +2,25 @@ import { Bootstrapper } from '../../../lib/api/bootstrap';
 import type { IIoHost } from '../../../lib/api/io';
 import { asIoHelper } from '../../../lib/api/io/private';
 
-describe('ExternalId Protection Integration Test', () => {
-  let ioHost: IIoHost;
-  let ioHelper: any;
+let ioHost: IIoHost;
+let ioHelper: any;
+let template: any;
 
-  beforeEach(() => {
-    ioHost = {
-      notify: jest.fn(),
-      requestResponse: jest.fn(),
-    };
-    ioHelper = asIoHelper(ioHost, 'bootstrap');
-  });
+beforeEach(async () => {
+  ioHost = {
+    notify: jest.fn(),
+    requestResponse: jest.fn(),
+  };
+  ioHelper = asIoHelper(ioHost, 'bootstrap');
 
-  test('bootstrap template denies AssumeRole with ExternalId by default', async () => {
-    // GIVEN
-    const bootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+  // GIVEN
+  const bootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+  // WHEN
+  template = await (bootstrapper as any).loadTemplate();
+});
 
-    // WHEN
-    const template = await (bootstrapper as any).loadTemplate();
-
+describe('bootstrap template', () => {
+  test('denies AssumeRole with ExternalId by default', async () => {
     // THEN
     // Verify the parameter exists
     expect(template.Parameters.DenyExternalId).toMatchObject({
@@ -69,5 +69,9 @@ describe('ExternalId Protection Integration Test', () => {
     for (const stmt of cfnStatements) {
       expect(stmt.Condition).toBeUndefined();
     }
+  });
+
+  test('has the same values for BootstrapVersion Parameter and Output', async () => {
+    expect(template.Outputs.BootstrapVersion.Value).toEqual(template.Resources.CdkBootstrapVersion.Properties.Value);
   });
 });
