@@ -81,6 +81,14 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
+
+  /**
+   * Whether the CLI is running in non-interactive mode.
+   * When true, operation will proceed without confirmation.
+   *
+   * @default false
+   */
+  readonly nonInteractive?: boolean;
 }
 
 /**
@@ -160,6 +168,8 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  private readonly nonInteractive: boolean;
+
   public telemetry?: TelemetrySession;
 
   private constructor(props: CliIoHostProps = {}) {
@@ -170,6 +180,7 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+    this.nonInteractive = props.nonInteractive ?? false;
   }
 
   public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
@@ -421,6 +432,11 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+      }
+
+      // In non-interactive mode, always return success (true).
+      if (this.nonInteractive) {
+        return true;
       }
 
       // Special approval prompt
