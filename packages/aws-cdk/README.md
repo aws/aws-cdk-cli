@@ -1194,6 +1194,28 @@ locations for a given environment. Resource locations are in the format
 resource currently deployed, while the destination must refer to a location
 that is not already occupied by any resource.
 
+#### How resources are compared
+
+To determine if a resource was moved or renamed, the CLI computes a digest
+for each resource, both in the deployed stacks and in the local stacks, and
+then compares the digests. 
+
+Conceptually, the digest is computed as:
+
+```
+digest(resource) = hash(type + properties + dependencies.map(d))
+```
+
+where hash is a cryptographic hash function. In other words, the digest of a 
+resource is computed from its type, its own properties (that is, excluding 
+properties that refer to other resources), and the digests of each of its 
+dependencies. The digest of a resource, defined recursively this way, remains 
+stable even if one or more of its dependencies gets renamed. Since the 
+resources in a CloudFormation template form a directed acyclic graph, this 
+function is well-defined.
+
+Resources that have the same digest, but different locations, are considered to be
+the same resource, and therefore to have been moved or renamed.
 
 #### Limitations
 - A refactor cannot leave a stack empty. This is a CloudFormation API limitation, 
