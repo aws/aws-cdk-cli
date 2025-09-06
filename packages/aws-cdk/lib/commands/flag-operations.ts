@@ -477,6 +477,13 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
   }
 
   await displayFlagTable(flagsToDisplay, ioHelper);
+
+  // Add helpful message after empty table when not using --all
+  if (!all && flagsToDisplay.length === 0) {
+    await ioHelper.defaults.info('');
+    await ioHelper.defaults.info('✅ All feature flags are already set to their recommended values.');
+    await ioHelper.defaults.info('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
+  }
 }
 
 function isUserValueEqualToRecommended(flag: FeatureFlag): boolean {

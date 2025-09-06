@@ -325,6 +325,68 @@ describe('displayFlags', () => {
     expect(plainTextOutput).not.toContain('  @aws-cdk/s3:anotherFlag');
     expect(plainTextOutput).not.toContain('  @aws-cdk/core:anothermatchingFlag');
   });
+
+  test('displays empty table message when all flags are set to recommended values', async () => {
+    // Create test data where all flags are set to their recommended values
+    const allRecommendedFlagsData: FeatureFlag[] = [
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:flag1',
+        recommendedValue: 'true',
+        userValue: 'true',
+        explanation: 'Flag 1 set to recommended value',
+      },
+      {
+        module: 'aws-cdk-lib',
+        name: '@aws-cdk/core:flag2',
+        recommendedValue: 'false',
+        userValue: 'false',
+        explanation: 'Flag 2 set to recommended value',
+      },
+    ];
+
+    const params = {
+      flagData: allRecommendedFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      // Not using --all, so it should filter to only show non-recommended flags
+    };
+    await displayFlags(params);
+
+    const plainTextOutput = output();
+    // Should still show the table headers for API consistency
+    expect(plainTextOutput).toContain('Feature Flag Name');
+    expect(plainTextOutput).toContain('Recommended Value');
+    // Should show helpful message after the empty table
+    expect(plainTextOutput).toContain('✅ All feature flags are already set to their recommended values.');
+    expect(plainTextOutput).toContain('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
+    // Should not show the actual flag names since they're filtered out
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:flag1');
+    expect(plainTextOutput).not.toContain('  @aws-cdk/core:flag2');
+  });
+
+  test('does not show empty table message when some flags are not set to recommended values', async () => {
+    // Use the original mockFlagsData which has mixed flag states
+    // @aws-cdk/core:testFlag has userValue 'false' but recommendedValue 'true'
+    // @aws-cdk/s3:anotherFlag has userValue undefined (not set to recommended)
+    const params = {
+      flagData: mockFlagsData,
+      toolkit: createMockToolkit(),
+      ioHelper,
+      // Not using --all, so it should show flags that need attention
+    };
+    await displayFlags(params);
+
+    const plainTextOutput = output();
+    // Should show the table with flags that need attention
+    expect(plainTextOutput).toContain('Feature Flag Name');
+    expect(plainTextOutput).toContain('Recommended Value');
+    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
+    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    // Should NOT show the helpful message since there are flags to display
+    expect(plainTextOutput).not.toContain('✅ All feature flags are already set to their recommended values.');
+    expect(plainTextOutput).not.toContain('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
+  });
 });
 
 describe('handleFlags', () => {
