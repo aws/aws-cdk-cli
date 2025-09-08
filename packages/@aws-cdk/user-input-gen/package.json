@@ -36,7 +36,7 @@
     "@types/lodash.clonedeep": "^4.5.9",
     "@types/node": "^17",
     "@types/prettier": "^2",
-    "@types/semver": "^7.7.0",
+    "@types/semver": "^7.7.1",
     "@types/yarnpkg__lockfile": "^1.1.9",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
