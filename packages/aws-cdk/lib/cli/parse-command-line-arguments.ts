@@ -858,7 +858,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: ['csharp', 'fsharp', 'go', 'java', 'javascript', 'python', 'typescript'],
+          choices: ['csharp', 'cs', 'fsharp', 'fs', 'go', 'java', 'javascript', 'js', 'python', 'py', 'typescript', 'ts'],
         })
         .option('list', {
           default: undefined,
@@ -874,7 +874,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           alias: 'V',
-          desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
+          desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.',
+        })
+        .option('from-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a local custom template directory or multi-template repository',
+          requiresArg: true,
+          conflicts: ['lib-version'],
+        })
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a specific template within a multi-template repository',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
@@ -891,7 +904,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project',
-          choices: ['typescript', 'go', 'java', 'python', 'csharp'],
+          choices: ['typescript', 'ts', 'go', 'java', 'python', 'py', 'csharp', 'cs'],
         })
         .option('account', {
           default: undefined,

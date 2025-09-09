@@ -34,6 +34,7 @@ import { ProxyAgentProvider } from './proxy-agent';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
+import { getLanguageFromAlias } from '../commands/language';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -42,6 +43,8 @@ if (!process.stdout.isTTY) {
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
+  argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
   const cmd = argv._[0];
 
   // if one -v, log at a DEBUG level
@@ -517,6 +520,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.list) {
           return printAvailableTemplates(ioHelper, language);
         } else {
+          // Gate custom template support with unstable flag
+          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
+            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          }
           return cliInit({
             ioHelper,
             type: args.TEMPLATE,
@@ -524,6 +531,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
+            fromPath: args['from-path'],
+            templatePath: args['template-path'],
           });
         }
       case 'migrate':

@@ -1,3 +1,4 @@
+import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
@@ -40,14 +41,26 @@ jest.mock('../../lib/api/notices', () => ({
 }));
 
 jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
-  parseCommandLineArguments: jest.fn().mockImplementation((args) => Promise.resolve({
-    _: ['version'],
-    verbose: args.includes('-v') ? (
-      args.filter((arg: string) => arg === '-v').length
-    ) : args.includes('--verbose') ? (
-      parseInt(args[args.indexOf('--verbose') + 1]) || true
-    ) : undefined,
-  })),
+  parseCommandLineArguments: jest.fn().mockImplementation((args) => {
+    if (args.includes('version')) {
+      return Promise.resolve({
+        _: ['version'],
+        verbose: args.includes('-v')
+          ? args.filter((arg: string) => arg === '-v').length
+          : args.includes('--verbose')
+            ? parseInt(args[args.indexOf('--verbose') + 1]) || true
+            : undefined,
+      });
+    }
+    if (args.includes('migrate')) {
+      return Promise.resolve({
+        '_': ['migrate'],
+        'language': 'typescript',
+        'stack-name': 'sampleStack',
+      });
+    }
+    return Promise.resolve({ _: [] });
+  }),
 }));
 
 describe('exec verbose flag tests', () => {
@@ -96,4 +109,16 @@ describe('exec verbose flag tests', () => {
     await exec(['--verbose', '3', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
+});
+
+test('should convert language alias to full language name', async () => {
+  const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'migrate').mockResolvedValue();
+
+  await exec(['migrate', '--language', 'ts', '--stack-name', 'sampleStack']);
+
+  expect(migrateSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      language: 'typescript',
+    }),
+  );
 });

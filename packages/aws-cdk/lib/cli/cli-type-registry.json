@@ -858,12 +858,17 @@
           "desc": "The language to be used for the new project (default can be configured in ~/.cdk.json)",
           "choices": [
             "csharp",
+            "cs",
             "fsharp",
+            "fs",
             "go",
             "java",
             "javascript",
+            "js",
             "python",
-            "typescript"
+            "py",
+            "typescript",
+            "ts"
           ]
         },
         "list": {
@@ -878,8 +883,24 @@
         "lib-version": {
           "type": "string",
           "alias": "V",
-          "desc": "The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built."
+          "desc": "The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built."
+        },
+        "from-path": {
+          "type": "string",
+          "desc": "Path to a local custom template directory or multi-template repository",
+          "requiresArg": true,
+          "conflicts": [
+            "lib-version"
+          ]
+        },
+        "template-path": {
+          "type": "string",
+          "desc": "Path to a specific template within a multi-template repository",
+          "requiresArg": true
         }
+      },
+      "implies": {
+        "template-path": "from-path"
       }
     },
     "migrate": {
@@ -898,10 +919,13 @@
           "desc": "The language to be used for the new project",
           "choices": [
             "typescript",
+            "ts",
             "go",
             "java",
             "python",
-            "csharp"
+            "py",
+            "csharp",
+            "cs"
           ]
         },
         "account": {
