@@ -536,8 +536,8 @@ function extractPromptInfo(msg: IoRequest<any, any>): {
 const styleMap: Record<IoMessageLevel, (str: string) => string> = {
   error: chalk.red,
   warn: chalk.yellow,
-  result: chalk.white,
-  info: chalk.white,
+  result: chalk.reset,
+  info: chalk.reset,
   debug: chalk.gray,
   trace: chalk.gray,
 };
