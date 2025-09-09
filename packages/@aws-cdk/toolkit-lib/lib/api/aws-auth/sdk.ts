@@ -50,6 +50,7 @@ import type {
   CreateGeneratedTemplateCommandOutput,
   CreateStackCommandInput,
   CreateStackCommandOutput,
+  CreateStackRefactorCommandInput,
   DeleteChangeSetCommandInput,
   DeleteChangeSetCommandOutput,
   DeleteGeneratedTemplateCommandInput,
@@ -97,6 +98,9 @@ import type {
   DetectStackResourceDriftCommandInput,
   DetectStackResourceDriftCommandOutput,
   DescribeStackResourceDriftsCommandInput,
+  ExecuteStackRefactorCommandInput,
+  DescribeStackRefactorCommandInput,
+  CreateStackRefactorCommandOutput, ExecuteStackRefactorCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateListStacks,
@@ -105,6 +109,7 @@ import {
   CreateChangeSetCommand,
   CreateGeneratedTemplateCommand,
   CreateStackCommand,
+  CreateStackRefactorCommand,
   DeleteChangeSetCommand,
   DeleteGeneratedTemplateCommand,
   DeleteStackCommand,
@@ -115,6 +120,7 @@ import {
   DescribeStackResourcesCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
+  ExecuteStackRefactorCommand,
   GetGeneratedTemplateCommand,
   GetTemplateCommand,
   GetTemplateSummaryCommand,
@@ -132,6 +138,8 @@ import {
   DescribeStackResourceDriftsCommand,
   DetectStackDriftCommand,
   DetectStackResourceDriftCommand,
+  waitUntilStackRefactorCreateComplete,
+  waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
 import type {
   FilterLogEventsCommandInput,
@@ -460,6 +468,10 @@ export interface ICloudFormationClient {
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
+  createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
+  executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
+  waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
+  waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -579,8 +591,6 @@ export class SDK {
 
   public readonly config: ConfigurationOptions;
 
-  protected readonly logger?: ISdkLogger;
-
   private readonly accountCache;
 
   /**
@@ -618,9 +628,8 @@ export class SDK {
       requestHandler,
       retryStrategy: new ConfiguredRetryStrategy(7, (attempt) => 300 * (2 ** attempt)),
       customUserAgent: defaultCliUserAgent(),
-      logger,
+      logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
-    this.logger = logger;
     this.currentRegion = region;
   }
 
@@ -765,6 +774,34 @@ export class SDK {
           stackResources.push(...(page?.StackSummaries || []));
         }
         return stackResources;
+      },
+      createStackRefactor: (input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput> => {
+        return client.send(new CreateStackRefactorCommand(input));
+      },
+      executeStackRefactor: (input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput> => {
+        return client.send(new ExecuteStackRefactorCommand(input));
+      },
+      waitUntilStackRefactorCreateComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorCreateComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
+      },
+      waitUntilStackRefactorExecuteComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorExecuteComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
       },
     };
   }
@@ -1075,3 +1112,24 @@ export class SDK {
 }
 
 const CURRENT_ACCOUNT_KEY = Symbol('current_account_key');
+
+/**
+ * Make the SDK logger safe against raw function invocations
+ *
+ * The SDK expects the logger to be an object with a number of functions, but it
+ * doesn't necessarily keep 'this' bound all the time; sometimes it will copy
+ * functions off of the object and call them from a variable.
+ *
+ * By how JavaScript works, this drops the 'this' reference. Make sure 'this' is
+ * bound at all times.
+ *
+ * @see https://github.com/aws/aws-sdk-js-v3/issues/7297
+ */
+function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
+  return {
+    debug: logger.debug.bind(logger),
+    info: logger.info.bind(logger),
+    warn: logger.warn.bind(logger),
+    error: logger.error.bind(logger),
+  };
+}

@@ -4,6 +4,7 @@ import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@a
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -33,7 +34,9 @@ import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
+import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
+import { getLanguageFromAlias } from '../commands/language';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -42,6 +45,8 @@ if (!process.stdout.isTTY) {
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
+  argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
   const cmd = argv._[0];
 
   // if one -v, log at a DEBUG level
@@ -109,7 +114,34 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
-  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  /**
+   * The default value for displaying (and refreshing) notices on all commands.
+   *
+   * If the user didn't supply either `--notices` or `--no-notices`, we do
+   * autodetection. The autodetection currently is: do write notices if we are
+   * not on CI, or are on a CI system where we know that writing to stderr is
+   * safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+   * systems, even though technically we maybe could.
+   */
+  const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
+
+  // Determine if notices should be displayed based on CLI args and configuration
+  let shouldDisplayNotices: boolean;
+  if (argv.notices !== undefined) {
+    // CLI argument takes precedence
+    shouldDisplayNotices = argv.notices;
+  } else {
+    // Fall back to configuration file setting, then autodetection
+    const configNotices = configuration.settings.get(['notices']);
+    if (configNotices !== undefined) {
+      // Consider string "false" to be falsy in this context
+      shouldDisplayNotices = configNotices !== 'false' && Boolean(configNotices);
+    } else {
+      // Default autodetection behavior
+      shouldDisplayNotices = isSafeToWriteNotices;
+    }
+  }
+
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
@@ -193,7 +225,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
-    } else if (cmd !== 'version') {
+    } else if (shouldDisplayNotices && cmd !== 'version') {
       await notices.display();
     }
   }
@@ -306,6 +338,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           revert: args.revert,
           stacks: selector,
           additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
+          force: args.force ?? false,
+          roleArn: args.roleArn,
         });
 
       case 'bootstrap':

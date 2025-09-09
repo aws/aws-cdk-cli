@@ -135,7 +135,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       requiresArg: true,
     })
     .option('notices', {
-      default: helpers.shouldDisplayNotices(),
+      default: undefined,
       type: 'boolean',
       desc: 'Show relevant notices',
     })
@@ -846,7 +846,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: ['csharp', 'fsharp', 'go', 'java', 'javascript', 'python', 'typescript'],
+          choices: ['csharp', 'cs', 'fsharp', 'fs', 'go', 'java', 'javascript', 'js', 'python', 'py', 'typescript', 'ts'],
         })
         .option('list', {
           default: undefined,
@@ -892,7 +892,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project',
-          choices: ['typescript', 'go', 'java', 'python', 'csharp'],
+          choices: ['typescript', 'ts', 'go', 'java', 'python', 'py', 'csharp', 'cs'],
         })
         .option('account', {
           default: undefined,
@@ -989,6 +989,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          desc: 'Whether to do the refactor without asking for confirmation',
         }),
     )
     .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>

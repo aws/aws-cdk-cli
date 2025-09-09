@@ -98,7 +98,7 @@ export class Formatter {
   }
 
   public print(fmt: string, ...args: any[]) {
-    this.stream.write(chalk.white(format(fmt, ...args)) + '\n');
+    this.stream.write(chalk.reset(format(fmt, ...args)) + '\n');
   }
 
   public warning(fmt: string, ...args: any[]) {
@@ -204,7 +204,7 @@ export class Formatter {
     if (diff.isRemoval) {
       return REMOVAL;
     }
-    return chalk.white('[?]');
+    return chalk.reset('[?]');
   }
 
   /**

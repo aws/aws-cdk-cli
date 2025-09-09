@@ -1276,8 +1276,10 @@ export class CdkToolkit {
           patterns: patterns,
           strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
+        force: options.force,
         additionalStackNames: options.additionalStackNames,
         overrides: readOverrides(options.overrideFile, options.revert),
+        roleArn: options.roleArn,
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
@@ -2021,11 +2023,16 @@ export interface RefactorOptions {
   overrideFile?: string;
 
   /**
-   * Modifies the behavior of the `mappingFile` option by swapping source and
+   * Modifies the behavior of the `overrideFile` option by swapping source and
    * destination locations. This is useful when you want to undo a refactor
    * that was previously applied.
    */
   revert?: boolean;
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
 
   /**
    * Criteria for selecting stacks to compare with the deployed stacks in the
@@ -2037,6 +2044,11 @@ export interface RefactorOptions {
    * A list of names of additional deployed stacks to be included in the comparison.
    */
   additionalStackNames?: string[];
+
+  /**
+   * Role to assume in the target environment before performing the refactor.
+   */
+  roleArn?: string;
 }
 
 /**
@@ -2137,7 +2149,7 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
 
   const numUnconfigured = unconfiguredFlags.length;
   if (numUnconfigured > 0) {
-    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk --unstable=flags flags' to learn more.`);
+    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
   }
 }
 
