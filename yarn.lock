@@ -4634,9 +4634,9 @@
     minimatch "^9.0.5"
 
 "@tybys/wasm-util@^0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@tybys/wasm-util/-/wasm-util-0.10.0.tgz#2fd3cd754b94b378734ce17058d0507c45c88369"
-  integrity sha512-VyyPYFlOMNylG45GoAe0xDoLwWuowvf92F9kySqzYh8vmYm7D2u4iUJKa1tOUpS70Ku13ASrOkS4ScXFsTaCNQ==
+  version "0.10.1"
+  resolved "https://registry.yarnpkg.com/@tybys/wasm-util/-/wasm-util-0.10.1.tgz#ecddd3205cf1e2d5274649ff0eedd2991ed7f414"
+  integrity sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==
   dependencies:
     tslib "^2.4.0"
 
@@ -6127,10 +6127,10 @@ cdk-from-cfn@^0.245.0:
   resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.245.0.tgz#6cb99170a61775d142493a3d13b0497b16edae99"
   integrity sha512-bRybOGt+4jwSQlsuJxb8g6qM4sdjFfW7NIEwSceAJL4inRh4pPhAbsZjmlTyBRPwQ3YUDGYI/VhKrkyMvXnxBw==
 
-cdklabs-projen-project-types@^0.3.4:
-  version "0.3.4"
-  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.3.4.tgz#92a7d94e52414a1519f314a49b546a76decd14b6"
-  integrity sha512-hppRJWMg7+o8Lq89Ba0YT1u8zuJ4zMwU2GTC+7sUupCsglDqblO1gti8ITMXP1QZgHils/i0x3M7zxiIKiuG9A==
+cdklabs-projen-project-types@^0.3.5:
+  version "0.3.5"
+  resolved "https://registry.yarnpkg.com/cdklabs-projen-project-types/-/cdklabs-projen-project-types-0.3.5.tgz#79a6bc45989782fcf58eb50ff1d1f30d1830ab25"
+  integrity sha512-vZvJX/42ovCOslyYtXENaaupJkTI+4Eaxjfa2+0oxZp5vyaNZBLD02bHH7Pfm74mwQbSpACADxyUK/+UY4eVdA==
   dependencies:
     yaml "^2.8.1"
 
