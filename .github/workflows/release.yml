@@ -234,6 +234,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -258,6 +259,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -298,6 +300,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
       - uses: actions/setup-java@v5
@@ -344,6 +347,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -376,8 +381,7 @@ jobs:
         run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+          PYPI_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-pypi
   aws-cdk-cloud-assembly-schema_release_nuget:
     name: "@aws-cdk/cloud-assembly-schema: Publish to NuGet Gallery"
@@ -385,6 +389,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -425,6 +430,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -469,6 +475,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -493,6 +500,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -511,7 +519,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cli-plugin-contract_release_github:
     name: "@aws-cdk/cli-plugin-contract: Publish to GitHub Releases"
@@ -521,6 +529,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -545,6 +554,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -563,7 +573,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cdk-assets-lib_release_github:
     name: "@aws-cdk/cdk-assets-lib: Publish to GitHub Releases"
@@ -573,6 +583,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -597,6 +608,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -615,7 +627,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   cdk-assets_release_github:
     name: "cdk-assets: Publish to GitHub Releases"
@@ -625,6 +637,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -649,6 +662,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -667,7 +681,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-toolkit-lib_release_github:
     name: "@aws-cdk/toolkit-lib: Publish to GitHub Releases"
@@ -677,6 +691,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -701,6 +716,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -719,7 +735,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk_release_github:
     name: "aws-cdk: Publish to GitHub Releases"
@@ -729,6 +745,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -753,6 +770,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -771,7 +789,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cli-lib-alpha_release_github:
     name: "@aws-cdk/cli-lib-alpha: Publish to GitHub Releases"
@@ -785,6 +803,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -809,6 +828,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -849,6 +869,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
       - uses: actions/setup-java@v5
@@ -895,6 +916,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -927,8 +950,7 @@ jobs:
         run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
       - name: Release
         env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+          PYPI_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-pypi
   aws-cdk-cli-lib-alpha_release_nuget:
     name: "@aws-cdk/cli-lib-alpha: Publish to NuGet Gallery"
@@ -936,6 +958,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -976,6 +999,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1020,6 +1044,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1044,6 +1069,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1062,7 +1088,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-integ-runner_release_github:
     name: "@aws-cdk/integ-runner: Publish to GitHub Releases"
@@ -1072,6 +1098,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1096,6 +1123,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1114,7 +1142,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-testing-cli-integ_release_github:
     name: "@aws-cdk-testing/cli-integ: Publish to GitHub Releases"
@@ -1124,6 +1152,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1148,6 +1177,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' }}
     steps:
       - uses: actions/setup-node@v5
@@ -1166,7 +1196,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   standalone_release_adc:
     name: "standalone: publish to ADC"
