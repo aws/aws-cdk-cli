@@ -245,6 +245,7 @@ const repoProject = new yarn.Monorepo({
   releaseOptions: {
     publishToNpm: true,
     releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
+    nodeVersion: '24.x'
   },
 
   depsUpgradeOptions: {
