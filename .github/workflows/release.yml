@@ -292,7 +292,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cloud-assembly-schema_release_maven:
     name: "@aws-cdk/cloud-assembly-schema: Publish to Maven Central"
@@ -861,7 +861,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cli-lib-alpha_release_maven:
     name: "@aws-cdk/cli-lib-alpha: Publish to Maven Central"

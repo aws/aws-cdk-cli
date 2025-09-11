@@ -270,6 +270,7 @@ export class JsiiBuild extends pj.Component {
       registry: tsProject.package.npmRegistry,
       npmTokenSecret: tsProject.package.npmTokenSecret,
       npmProvenance: tsProject.package.npmProvenance,
+      trustedPublishing: true,
       // No support for CodeArtifact here
       // codeArtifactOptions: tsProject.codeArtifactOptions,
     };
@@ -477,10 +478,10 @@ export class JsiiBuild extends pj.Component {
     target: JsiiPacmakTarget,
     packTask: pj.Task,
   ): {
-      publishTools: Tools;
-      bootstrapSteps: Array<Step>;
-      packagingSteps: Array<Step>;
-    } {
+    publishTools: Tools;
+    bootstrapSteps: Array<Step>;
+    packagingSteps: Array<Step>;
+  } {
     const bootstrapSteps: Array<Step> = [];
     const packagingSteps: Array<Step> = [];
 
