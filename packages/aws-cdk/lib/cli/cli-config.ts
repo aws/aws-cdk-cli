@@ -493,6 +493,10 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: 'Whether to do the refactor without asking for confirmation',
           },
         },
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
       },
       'cli-telemetry': {
         description: 'Enable or disable anonymous telemetry',

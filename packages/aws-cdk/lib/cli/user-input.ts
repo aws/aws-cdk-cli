@@ -1569,6 +1569,11 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly force?: boolean;
+
+  /**
+   * Positional argument for refactor
+   */
+  readonly STACKS?: Array<string>;
 }
 
 /**

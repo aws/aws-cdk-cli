@@ -966,7 +966,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('refactor', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
+    .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
         .option('additional-stack-name', {
           type: 'array',

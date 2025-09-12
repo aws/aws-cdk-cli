@@ -292,6 +292,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         overrideFile: args.overrideFile,
         revert: args.revert,
         force: args.force,
+        STACKS: args.STACKS,
       };
       break;
 

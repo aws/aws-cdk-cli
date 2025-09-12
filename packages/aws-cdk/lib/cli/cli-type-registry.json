@@ -1015,6 +1015,10 @@
           "default": false,
           "desc": "Whether to do the refactor without asking for confirmation"
         }
+      },
+      "arg": {
+        "name": "STACKS",
+        "variadic": true
       }
     },
     "cli-telemetry": {
