@@ -27,6 +27,7 @@ import {
   BackgroundStackRefresh,
   ProgressPrinter,
 } from '../../../lib/api/garbage-collection';
+import { refreshStacks } from '../../../lib/api/garbage-collection/stack-refresh';
 import { mockBootstrapStack, mockCloudFormationClient, mockECRClient, mockS3Client, MockSdk, MockSdkProvider } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
@@ -1048,3 +1049,50 @@ function yearsInTheFuture(years: number): Date {
   d.setFullYear(d.getFullYear() + years);
   return d;
 }
+
+describe('Skip & Ignore Stacks', () => {
+  const mockIoHelper = { defaults: { debug: jest.fn(), warn: jest.fn() } };
+  test('skips stacks matching ignore patterns by the user', async () => {
+    // One stack matches the ignore pattern and one does not
+    const mockCfn = {
+      listStacks: jest.fn().mockResolvedValue({
+        StackSummaries: [
+          { StackName: 'StackSet-DGApp-123', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }, // Will be filtered out
+          { StackName: 'DGAppStack2', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }, // Will be processed
+        ],
+      }),
+      getTemplateSummary: jest.fn().mockResolvedValue({ Parameters: [] }),
+      getTemplate: jest.fn().mockResolvedValue({ TemplateBody: '{}' }),
+    };
+
+    const mockActiveAssets = { rememberStack: jest.fn() };
+
+    // Apply ignore pattern 'StackSet-*'
+    await refreshStacks(mockCfn as any, mockIoHelper as any, mockActiveAssets as any, undefined, ['StackSet-*']);
+
+    // Make sure only the non-matched stack is processed
+    expect(mockCfn.getTemplateSummary).toHaveBeenCalledTimes(1);
+    expect(mockCfn.getTemplateSummary).toHaveBeenCalledWith({ StackName: 'DGAppStack2' });
+  });
+
+  test('skips unauthorized stacks when the flag is true', async () => {
+    // Mock stack which throws an AccessDenied error
+    const mockCfn = {
+      listStacks: jest.fn().mockResolvedValue({
+        StackSummaries: [
+          { StackName: 'UnauthorizedStack', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() },
+        ],
+      }),
+      getTemplateSummary: jest.fn().mockRejectedValue({ name: 'AccessDenied' }),
+    };
+
+    const mockActiveAssets = { rememberStack: jest.fn() };
+
+    await expect(
+      refreshStacks(mockCfn as any, mockIoHelper as any, mockActiveAssets as any, undefined, [], true),
+    ).resolves.not.toThrow();
+
+    expect(mockCfn.getTemplateSummary).toHaveBeenCalledWith({ StackName: 'UnauthorizedStack' });
+    expect(mockIoHelper.defaults.warn).toHaveBeenCalledWith('Skipping unauthorized stack: UnauthorizedStack');
+  });
+});

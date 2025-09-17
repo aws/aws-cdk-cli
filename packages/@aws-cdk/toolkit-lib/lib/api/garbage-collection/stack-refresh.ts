@@ -1,4 +1,5 @@
 import type { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
+import { minimatch } from 'minimatch';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
@@ -36,7 +37,13 @@ async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | unde
  * - stacks in DELETE_COMPLETE or DELETE_IN_PROGRESS stage
  * - stacks that are using a different bootstrap qualifier
  */
-async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHelper, qualifier?: string) {
+async function fetchAllStackTemplates(
+  cfn: ICloudFormationClient,
+  ioHelper: IoHelper,
+  qualifier?: string,
+  ignoreStacks?: string[],
+  skipUnauthorizedStacks?: boolean,
+) {
   const stackNames: string[] = [];
   await paginateSdkCall(async (nextToken) => {
     const stacks = await cfn.listStacks({ NextToken: nextToken });
@@ -56,25 +63,41 @@ async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHe
 
   const templates: string[] = [];
   for (const stack of stackNames) {
-    let summary;
-    summary = await cfn.getTemplateSummary({
-      StackName: stack,
-    });
-
-    if (bootstrapFilter(summary.Parameters, qualifier)) {
-      // This stack is definitely bootstrapped to a different qualifier so we can safely ignore it
-      continue;
-    } else {
-      const template = await cfn.getTemplate({
+    // Skip stacks matching user-inputted ignore patterns
+    if (ignoreStacks && ignoreStacks.length>0) {
+      const shouldSkip = ignoreStacks.some(pattern => minimatch(stack, pattern));
+      if (shouldSkip) {
+        await ioHelper.defaults.debug(`Skipping stack ${stack}`);
+        continue;
+      }
+    }
+    try {
+      let summary;
+      summary = await cfn.getTemplateSummary({
         StackName: stack,
       });
 
-      templates.push((template.TemplateBody ?? '') + JSON.stringify(summary?.Parameters));
+      if (bootstrapFilter(summary.Parameters, qualifier)) {
+        // This stack is definitely bootstrapped to a different qualifier so we can safely ignore it
+        continue;
+      } else {
+        const template = await cfn.getTemplate({
+          StackName: stack,
+        });
+
+        templates.push((template.TemplateBody ?? '') + JSON.stringify(summary?.Parameters));
+      }
+    } catch (error: any) {
+      // Skip stacks with access denied errors whenever the flag is enabled
+      if ((error.name == 'AccessDenied') && skipUnauthorizedStacks) {
+        await ioHelper.defaults.warn(`Skipping unauthorized stack: ${stack}`);
+        continue;
+      }
+      // To account for non-access related errors
+      throw error;
     }
   }
-
   await ioHelper.defaults.debug('Done parsing through stacks');
-
   return templates;
 }
 
@@ -97,9 +120,16 @@ function bootstrapFilter(parameters?: ParameterDeclaration[], qualifier?: string
           splitBootstrapVersion[2] != qualifier);
 }
 
-export async function refreshStacks(cfn: ICloudFormationClient, ioHelper: IoHelper, activeAssets: ActiveAssetCache, qualifier?: string) {
+export async function refreshStacks(
+  cfn: ICloudFormationClient,
+  ioHelper: IoHelper,
+  activeAssets: ActiveAssetCache,
+  qualifier?: string,
+  ignoreStacks?: string[],
+  skipUnauthorizedStacks?: boolean,
+) {
   try {
-    const stacks = await fetchAllStackTemplates(cfn, ioHelper, qualifier);
+    const stacks = await fetchAllStackTemplates(cfn, ioHelper, qualifier, ignoreStacks, skipUnauthorizedStacks);
     for (const stack of stacks) {
       activeAssets.rememberStack(stack);
     }

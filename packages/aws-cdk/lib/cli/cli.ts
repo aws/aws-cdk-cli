@@ -487,6 +487,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           createdBufferDays: args['created-buffer-days'],
           bootstrapStackName: args.toolkitStackName ?? args.bootstrapStackName,
           confirm: args.confirm,
+          ignoreStacks: args['ignore-stacks'],
+          skipUnauthorizedStacks: args['skip-unauthorized-stacks'],
         });
 
       case 'flags':
