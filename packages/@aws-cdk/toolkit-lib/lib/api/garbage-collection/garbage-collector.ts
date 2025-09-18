@@ -219,7 +219,12 @@ export class GarbageCollector {
     const activeAssets = new ActiveAssetCache();
 
     // Grab stack templates first
-    await refreshStacks(cfn, this.ioHelper, activeAssets, qualifier);
+    await refreshStacks({
+      cfn,
+      ioHelper: this.ioHelper,
+      activeAssets,
+      qualifier,
+    });
     // Start the background refresh
     const backgroundStackRefresh = new BackgroundStackRefresh({
       cfn,
