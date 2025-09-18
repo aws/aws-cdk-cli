@@ -11,6 +11,7 @@ jobs:
     runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: read
+    environment: integ-approval
     env:
       CI: "true"
       DEBUG: "true"
@@ -23,7 +24,6 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: Fetch tags from origin repo
         run: |-
-          echo "Test"
           git remote add upstream https://github.com/aws/aws-cdk-cli.git
           git fetch upstream 'refs/tags/*:refs/tags/*'
       - name: Setup Node.js
