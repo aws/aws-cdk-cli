@@ -7,6 +7,7 @@ import { Select } from 'enquirer';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { FlagsOptions } from '../../lib/cli/user-input';
+import { displayFlags, handleFlags } from '../../lib/commands/flag-operations';
 import { FlagCommandHandler } from '../../lib/commands/flags/flags';
 
 jest.mock('enquirer', () => ({
