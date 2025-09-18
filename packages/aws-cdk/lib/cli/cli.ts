@@ -4,6 +4,7 @@ import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@a
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -33,7 +34,9 @@ import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
+import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
+import { getLanguageFromAlias } from '../commands/language';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -42,6 +45,8 @@ if (!process.stdout.isTTY) {
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
+  argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
   const cmd = argv._[0];
 
   // if one -v, log at a DEBUG level
@@ -109,7 +114,34 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
-  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  /**
+   * The default value for displaying (and refreshing) notices on all commands.
+   *
+   * If the user didn't supply either `--notices` or `--no-notices`, we do
+   * autodetection. The autodetection currently is: do write notices if we are
+   * not on CI, or are on a CI system where we know that writing to stderr is
+   * safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+   * systems, even though technically we maybe could.
+   */
+  const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
+
+  // Determine if notices should be displayed based on CLI args and configuration
+  let shouldDisplayNotices: boolean;
+  if (argv.notices !== undefined) {
+    // CLI argument takes precedence
+    shouldDisplayNotices = argv.notices;
+  } else {
+    // Fall back to configuration file setting, then autodetection
+    const configNotices = configuration.settings.get(['notices']);
+    if (configNotices !== undefined) {
+      // Consider string "false" to be falsy in this context
+      shouldDisplayNotices = configNotices !== 'false' && Boolean(configNotices);
+    } else {
+      // Default autodetection behavior
+      shouldDisplayNotices = isSafeToWriteNotices;
+    }
+  }
+
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
@@ -193,7 +225,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
-    } else if (cmd !== 'version') {
+    } else if (shouldDisplayNotices && cmd !== 'version') {
       await notices.display();
     }
   }
@@ -306,6 +338,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           revert: args.revert,
           stacks: selector,
           additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
+          force: args.force ?? false,
+          roleArn: args.roleArn,
         });
 
       case 'bootstrap':
@@ -338,6 +372,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),
             cloudFormationExecutionPolicies: arrayFromYargs(args.cloudformationExecutionPolicies),
+            denyExternalId: args.denyExternalId,
           },
         });
 
@@ -442,12 +477,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (!configuration.settings.get(['unstable']).includes('gc')) {
           throw new ToolkitError('Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
         }
+        if (args.bootstrapStackName) {
+          await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
+        }
         return cli.garbageCollect(args.ENVIRONMENTS, {
           action: args.action,
           type: args.type,
           rollbackBufferDays: args['rollback-buffer-days'],
           createdBufferDays: args['created-buffer-days'],
-          bootstrapStackName: args.bootstrapStackName,
+          bootstrapStackName: args.toolkitStackName ?? args.bootstrapStackName,
           confirm: args.confirm,
         });
 
@@ -512,6 +550,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.list) {
           return printAvailableTemplates(ioHelper, language);
         } else {
+          // Gate custom template support with unstable flag
+          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
+            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          }
           return cliInit({
             ioHelper,
             type: args.TEMPLATE,
@@ -519,6 +561,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
+            fromPath: args['from-path'],
+            templatePath: args['template-path'],
           });
         }
       case 'migrate':

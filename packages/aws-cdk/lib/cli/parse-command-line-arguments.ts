@@ -135,7 +135,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       requiresArg: true,
     })
     .option('notices', {
-      default: helpers.shouldDisplayNotices(),
+      default: undefined,
       type: 'boolean',
       desc: 'Show relevant notices',
     })
@@ -239,6 +239,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'boolean',
           desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ',
+        })
+        .option('deny-external-id', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ',
         })
         .option('tags', {
           type: 'array',
@@ -345,11 +350,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Confirm via manual prompt before deletion',
           })
-          .option('bootstrap-stack-name', {
+          .option('toolkit-stack-name', {
             default: undefined,
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
+            conflicts: 'bootstrap-stack-name',
+          })
+          .option('bootstrap-stack-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)',
+            deprecated: 'use --toolkit-stack-name',
+            requiresArg: true,
+            conflicts: 'toolkit-stack-name',
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
@@ -832,7 +846,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: ['csharp', 'fsharp', 'go', 'java', 'javascript', 'python', 'typescript'],
+          choices: ['csharp', 'cs', 'fsharp', 'fs', 'go', 'java', 'javascript', 'js', 'python', 'py', 'typescript', 'ts'],
         })
         .option('list', {
           default: undefined,
@@ -848,7 +862,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           alias: 'V',
-          desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
+          desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.',
+        })
+        .option('from-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a local custom template directory or multi-template repository',
+          requiresArg: true,
+          conflicts: ['lib-version'],
+        })
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a specific template within a multi-template repository',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
@@ -865,7 +892,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project',
-          choices: ['typescript', 'go', 'java', 'python', 'csharp'],
+          choices: ['typescript', 'ts', 'go', 'java', 'python', 'py', 'csharp', 'cs'],
         })
         .option('account', {
           default: undefined,
@@ -939,7 +966,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('refactor', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
+    .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
         .option('additional-stack-name', {
           type: 'array',
@@ -962,6 +989,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          desc: 'Whether to do the refactor without asking for confirmation',
         }),
     )
     .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>

@@ -45,6 +45,7 @@ jspm_packages/
 !/aws-cdk-cli.code-workspace
 /.nx
 !/nx.json
+!/.github/workflows/bootstrap-template-protection.yml
 !/.eslintrc.json
 !/.github/dependabot.yml
 !/.github/workflows/integ.yml

@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { formatTable } from '@aws-cdk/cloudformation-diff';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -22,16 +23,34 @@ interface FlagOperationsParams {
   flagData: FeatureFlag[];
   toolkit: Toolkit;
   ioHelper: IoHelper;
+
+  /** User ran --recommended option */
   recommended?: boolean;
+
+  /** User ran --all option */
   all?: boolean;
+
+  /** User provided --value field */
   value?: string;
+
+  /** User provided FLAGNAME field */
   flagName?: string[];
+
+  /** User ran --default option */
   default?: boolean;
+
+  /** User ran --unconfigured option */
   unconfigured?: boolean;
 }
 
 export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
   flagData = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
+
+  if (flagData.length == 0) {
+    await ioHelper.defaults.error('The \'cdk flags\' command is not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
+    return;
+  }
+
   let params = {
     flagData,
     toolkit,
@@ -74,7 +93,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
         default: true,
         unconfigured: true,
       };
-      await setMultipleFlags(params);
+      await setMultipleFlagsIfSupported(params);
     } else if (answer == FlagsMenuOptions.MODIFY_SPECIFIC_FLAG) {
       await setFlag(params, true);
     } else if (answer == FlagsMenuOptions.EXIT) {
@@ -109,7 +128,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.unconfigured && options.FLAGNAME) {
-    await ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works on multiple flags.');
+    await ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with multiple flags.');
     return;
   }
 
@@ -125,6 +144,11 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
 
   if (options.set && options.unconfigured && !options.recommended && !options.default) {
     await ioHelper.defaults.error('Error: When using --set with --unconfigured, you must specify either --recommended or --default.');
+    return;
+  }
+
+  if (options.set && !options.all && !options.unconfigured && !options.FLAGNAME) {
+    await ioHelper.defaults.error('Error: When using --set, you must specify either --all, --unconfigured, or provide a specific flag name.');
     return;
   }
 
@@ -154,8 +178,7 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.set && options.all && options.default) {
-    await setMultipleFlags(params);
-    return;
+    await setMultipleFlagsIfSupported(params);
   }
 
   if (options.set && options.unconfigured && options.recommended) {
@@ -164,9 +187,20 @@ export async function handleFlags(flagData: FeatureFlag[], ioHelper: IoHelper, o
   }
 
   if (options.set && options.unconfigured && options.default) {
+    await setMultipleFlagsIfSupported(params);
+  }
+}
+
+/**
+ * Sets flag configurations to default values if `unconfiguredBehavesLike` is populated
+ */
+async function setMultipleFlagsIfSupported(params: FlagOperationsParams) {
+  const { flagData, ioHelper } = params;
+  if (flagData[0].unconfiguredBehavesLike) {
     await setMultipleFlags(params);
     return;
   }
+  await ioHelper.defaults.error('The --default options are not compatible with the AWS CDK library used by your application. Please upgrade to 2.212.0 or above.');
 }
 
 async function setFlag(params: FlagOperationsParams, interactive?: boolean) {
@@ -360,65 +394,78 @@ async function modifyValues(params: FlagOperationsParams, flagNames: string[]): 
   await fs.writeFile(cdkJsonPath, JSON.stringify(cdkJson, null, 2), 'utf-8');
 }
 
-function formatTable(headers: string[], rows: string[][]): string {
-  const columnWidths = [
-    Math.max(headers[0].length, ...rows.map(row => row[0].length)),
-    Math.max(headers[1].length, ...rows.map(row => row[1].length)),
-    Math.max(headers[2].length, ...rows.map(row => row[2].length)),
-  ];
+function getFlagSortOrder(flag: FeatureFlag): number {
+  if (flag.userValue === undefined) {
+    return 3;
+  } else if (isUserValueEqualToRecommended(flag)) {
+    return 1;
+  } else {
+    return 2;
+  }
+}
 
-  const createSeparator = () => {
-    return '+' + columnWidths.map(width => '-'.repeat(width + 2)).join('+') + '+';
-  };
+async function displayFlagTable(flags: FeatureFlag[], ioHelper: IoHelper): Promise<void> {
+  const filteredFlags = flags.filter(flag => flag.unconfiguredBehavesLike?.v2 !== flag.recommendedValue);
 
-  const formatRow = (values: string[]) => {
-    return '|' + values.map((value, i) => ` ${value.padEnd(columnWidths[i])} `).join('|') + '|';
-  };
+  const sortedFlags = [...filteredFlags].sort((a, b) => {
+    const orderA = getFlagSortOrder(a);
+    const orderB = getFlagSortOrder(b);
 
-  const separator = createSeparator();
-  let table = separator + '\n';
-  table += formatRow(headers) + '\n';
-  table += separator + '\n';
-
-  rows.forEach(row => {
-    if (row[1] === '' && row[2] === '') {
-      table += ` ${row[0].padEnd(columnWidths[0])} \n`;
-    } else {
-      table += formatRow(row) + '\n';
+    if (orderA !== orderB) {
+      return orderA - orderB;
     }
+    if (a.module !== b.module) {
+      return a.module.localeCompare(b.module);
+    }
+    return a.name.localeCompare(b.name);
   });
 
-  table += separator;
-  return table;
+  const rows: string[][] = [];
+  rows.push(['Feature Flag Name', 'Recommended Value', 'User Value']);
+  let currentModule = '';
+
+  sortedFlags.forEach((flag) => {
+    if (flag.module !== currentModule) {
+      rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
+      currentModule = flag.module;
+    }
+    rows.push([
+      `  ${flag.name}`,
+      String(flag.recommendedValue),
+      flag.userValue === undefined ? '<unset>' : String(flag.userValue),
+    ]);
+  });
+
+  const formattedTable = formatTable(rows, undefined, true);
+  await ioHelper.defaults.info(formattedTable);
 }
 
 export async function displayFlags(params: FlagOperationsParams): Promise<void> {
   const { flagData, ioHelper, flagName, all } = params;
+
   if (flagName && flagName.length > 0) {
-    const flag = flagData.find(f => f.name === flagName![0]);
-    if (!flag) {
-      await ioHelper.defaults.error('Flag not found.');
+    const matchingFlags = flagData.filter(f =>
+      flagName.some(searchTerm => f.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    );
+
+    if (matchingFlags.length === 0) {
+      await ioHelper.defaults.error(`Flag matching "${flagName.join(', ')}" not found.`);
       return;
     }
 
-    await ioHelper.defaults.info(`Description: ${flag.explanation}`);
-    await ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
-    await ioHelper.defaults.info(`User value: ${flag.userValue}`);
+    if (matchingFlags.length === 1) {
+      const flag = matchingFlags[0];
+      await ioHelper.defaults.info(`Flag name: ${flag.name}`);
+      await ioHelper.defaults.info(`Description: ${flag.explanation}`);
+      await ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
+      await ioHelper.defaults.info(`User value: ${flag.userValue}`);
+      return;
+    }
+
+    await ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagName.join(', ')}":`);
+    await displayFlagTable(matchingFlags, ioHelper);
     return;
   }
-
-  const headers = ['Feature Flag Name', 'Recommended Value', 'User Value'];
-  const rows: string[][] = [];
-
-  const getFlagPriority = (flag: FeatureFlag): number => {
-    if (flag.userValue === undefined) {
-      return 3;
-    } else if (isUserValueEqualToRecommended(flag)) {
-      return 1;
-    } else {
-      return 2;
-    }
-  };
 
   let flagsToDisplay: FeatureFlag[];
   if (all) {
@@ -429,34 +476,14 @@ export async function displayFlags(params: FlagOperationsParams): Promise<void> 
     );
   }
 
-  const sortedFlags = [...flagsToDisplay].sort((a, b) => {
-    const priorityA = getFlagPriority(a);
-    const priorityB = getFlagPriority(b);
+  await displayFlagTable(flagsToDisplay, ioHelper);
 
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
-    }
-    if (a.module !== b.module) {
-      return a.module.localeCompare(b.module);
-    }
-    return a.name.localeCompare(b.name);
-  });
-
-  let currentModule = '';
-  sortedFlags.forEach((flag) => {
-    if (flag.module !== currentModule) {
-      rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
-      currentModule = flag.module;
-    }
-    rows.push([
-      flag.name,
-      String(flag.recommendedValue),
-      flag.userValue === undefined ? '<unset>' : String(flag.userValue),
-    ]);
-  });
-
-  const formattedTable = formatTable(headers, rows);
-  await ioHelper.defaults.info(formattedTable);
+  // Add helpful message after empty table when not using --all
+  if (!all && flagsToDisplay.length === 0) {
+    await ioHelper.defaults.info('');
+    await ioHelper.defaults.info('✅ All feature flags are already set to their recommended values.');
+    await ioHelper.defaults.info('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
+  }
 }
 
 function isUserValueEqualToRecommended(flag: FeatureFlag): boolean {

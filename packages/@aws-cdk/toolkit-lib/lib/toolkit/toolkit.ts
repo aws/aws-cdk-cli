@@ -11,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { FeatureFlag, DeployResult, DestroyResult, RollbackResult } from './types';
+import type { DeployResult, DestroyResult, FeatureFlag, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -68,6 +68,7 @@ import {
 import type { CloudFormationStack } from '../api/refactoring/cloudformation';
 import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
+import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
@@ -1055,14 +1056,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
     await using assembly = await assemblyFromSource(ioHelper, cx);
-    return await this._refactor(assembly, ioHelper, options);
+    return await this._refactor(assembly, ioHelper, cx, options);
   }
 
-  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
+  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
     const sdkProvider = await this.sdkProvider('refactor');
     const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
@@ -1070,11 +1067,36 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     for (let { environment, localStacks, deployedStacks } of groups) {
       await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
 
+      const newStacks = localStacks.filter(s => !deployedStacks.map(t => t.stackName).includes(s.stackName));
+      if (newStacks.length > 0) {
+        /*
+         When the CloudFormation stack refactor operation creates a new stack, and the resources being moved to that
+         new stack have references to other resources, CloudFormation needs to do what they call "collapsing the
+         template". The details don't really matter, except that, in the process, it calls some service APIs, to read
+         the resources being moved. The role it uses to call these APIs internally is the role the user called the
+         stack refactoring API with, which in our case is the CloudFormation deployment role, from the bootstrap stack,
+         by default.
+
+         The problem is that this role does not have permissions to read all resource types. In this case,
+         CloudFormation will roll back the refactor operation. Since this is an implementation detail of the API, that
+         the user cannot know about, and didn't ask for, it will be very surprising. So we've decided to block this use
+         case until CloudFormation supports passing a different role to use for these read operations, as is the case
+         with deployment.
+         */
+
+        let message = `The following stack${newStacks.length === 1 ? ' is' : 's are'} new: ${newStacks.map(s => s.stackName).join(', ')}\n`;
+        message += 'Creation of new stacks is not yet supported by the refactor command. ';
+        message += 'Please deploy any new stacks separately before refactoring your stacks.';
+        await ioHelper.defaults.error(chalk.red(message));
+        continue;
+      }
+
       try {
         const context = new RefactoringContext({
           environment,
           deployedStacks,
           localStacks,
+          assumeRoleArn: options.roleArn,
           overrides: getOverrides(environment, deployedStacks, localStacks),
         });
 
@@ -1092,6 +1114,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
+        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
           refactorMessage += '\n' + formatAmbiguousMappings(paths);
@@ -1099,8 +1123,33 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
+
+        if (options.dryRun || context.mappings.length === 0 || context.ambiguousPaths.length > 0) {
+          // Nothing left to do.
+          continue;
+        }
+
+        // In interactive mode (TTY) we need confirmation before proceeding
+        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+          await ioHelper.defaults.info(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+          continue;
+        }
+
+        await ioHelper.defaults.info('Refactoring...');
+        await context.execute(stackDefinitions, sdkProvider, ioHelper);
+        await ioHelper.defaults.info('✅  Stack refactor complete');
+
+        await ioHelper.defaults.info('Deploying updated stacks to finalize refactor...');
+        await this.deploy(cx, {
+          stacks: ALL_STACKS,
+          forceDeployment: true,
+        });
       } catch (e: any) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(e.message, { error: e }));
+        const message = `❌  Refactor failed: ${formatError(e)}`;
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
+
+        // Also debugging the error, because the API does not always return a user-friendly message
+        await ioHelper.defaults.debug(e.message);
       }
     }
 
@@ -1108,38 +1157,58 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const mappingGroup = options.overrides
         ?.find(g => g.region === environment.region && g.account === environment.account);
 
-      let overrides: ResourceMapping[] = [];
-      if (mappingGroup != null) {
-        overrides = Object.entries(mappingGroup.resources ?? {}).map(([source, destination]) => {
-          const sourceStack = findStack(source, deployedStacks);
-          const sourceLogicalId = source.split('.')[1];
+      return mappingGroup == null
+        ? []
+        : Object.entries(mappingGroup.resources ?? {})
+          .map(([source, destination]) => new ResourceMapping(
+            getResourceLocation(source, deployedStacks),
+            getResourceLocation(destination, localStacks),
+          ));
+    }
 
-          const destinationStack = findStack(destination, localStacks);
-          const destinationLogicalId = destination.split('.')[1];
+    function getResourceLocation(location: string, stacks: CloudFormationStack[]): ResourceLocation {
+      for (let stack of stacks) {
+        const [stackName, logicalId] = location.split('.');
+        if (stackName != null && logicalId != null && stack.stackName === stackName && stack.template.Resources?.[logicalId] != null) {
+          return new ResourceLocation(stack, logicalId);
+        } else {
+          const resourceEntry = Object
+            .entries(stack.template.Resources ?? {})
+            .find(([_, r]) => r.Metadata?.['aws:cdk:path'] === location);
+          if (resourceEntry != null) {
+            return new ResourceLocation(stack, resourceEntry[0]);
+          }
+        }
+      }
+      throw new ToolkitError(`Cannot find resource in location ${location}`);
+    }
 
-          return new ResourceMapping(
-            new ResourceLocation(sourceStack, sourceLogicalId),
-            new ResourceLocation(destinationStack, destinationLogicalId),
-          );
-        });
+    async function confirm(force: boolean): Promise<boolean> {
+      // 'force' is set to true is the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
       }
 
-      return overrides;
+      const question = 'Do you wish to refactor these resources?';
+      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        responseDescription: '[Y]es/[n]o',
+      }, 'y'));
+      return ['y', 'yes'].includes(response.toLowerCase());
+    }
 
-      function findStack(location: string, stacks: CloudFormationStack[]): CloudFormationStack {
-        const result = stacks.find(stack => {
-          const [stackName, logicalId] = location.split('.');
-          if (stackName == null || logicalId == null) {
-            throw new ToolkitError(`Invalid location '${location}'`);
-          }
-          return stack.stackName === stackName && stack.template.Resources?.[logicalId] != null;
-        });
-
-        if (result == null) {
-          throw new ToolkitError(`Cannot find resource in location ${location}`);
+    function formatError(error: any): string {
+      try {
+        const payload = JSON.parse(error.message);
+        const messages: string[] = [];
+        if (payload.reason?.StatusReason) {
+          messages.push(`Refactor creation: [${payload.reason?.Status}] ${payload.reason.StatusReason}`);
         }
-
-        return result;
+        if (payload.reason?.ExecutionStatusReason) {
+          messages.push(`Refactor execution: [${payload.reason?.Status}] ${payload.reason.ExecutionStatusReason}`);
+        }
+        return messages.length > 0 ? messages.join('\n') : `Unknown error (Stack refactor ID: ${payload.reason?.StackRefactorId ?? 'unknown'})`;
+      } catch (e) {
+        return formatErrorMessage(error);
       }
     }
   }
@@ -1276,29 +1345,46 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Retrieve feature flag information from the cloud assembly
    */
-
   public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
     this.requireUnstableFeature('flags');
 
     const ioHelper = asIoHelper(this.ioHost, 'flags');
     await using assembly = await assemblyFromSource(ioHelper, cx);
-    const artifacts = assembly.cloudAssembly.manifest.artifacts;
+    const artifacts = Object.values(assembly.cloudAssembly.manifest.artifacts ?? {});
+    const featureFlagReports = artifacts.filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT);
 
-    return Object.values(artifacts!)
-      .filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT)
-      .flatMap(report => {
-        const properties = report.properties as FeatureFlagReportProperties;
-        const moduleName = properties.module;
+    const flags = featureFlagReports.flatMap(report => {
+      const properties = report.properties as FeatureFlagReportProperties;
+      const moduleName = properties.module;
 
-        return Object.entries(properties.flags).map(([flagName, flagInfo]) => ({
+      const flagsWithUnconfiguredBehavesLike = Object.entries(properties.flags)
+        .filter(([_, flagInfo]) => flagInfo.unconfiguredBehavesLike != undefined);
+
+      const shouldIncludeUnconfiguredBehavesLike = flagsWithUnconfiguredBehavesLike.length > 0;
+
+      return Object.entries(properties.flags).map(([flagName, flagInfo]) => {
+        const baseFlag = {
           module: moduleName,
           name: flagName,
           recommendedValue: flagInfo.recommendedValue,
           userValue: flagInfo.userValue ?? undefined,
           explanation: flagInfo.explanation ?? '',
-          unconfiguredBehavesLike: flagInfo.unconfiguredBehavesLike,
-        }));
+        };
+
+        if (shouldIncludeUnconfiguredBehavesLike) {
+          return {
+            ...baseFlag,
+            unconfiguredBehavesLike: {
+              v2: flagInfo.unconfiguredBehavesLike?.v2 ?? false,
+            },
+          };
+        }
+
+        return baseFlag;
       });
+    });
+
+    return flags;
   }
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {

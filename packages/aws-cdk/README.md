@@ -75,11 +75,11 @@ $ # List the available template types & languages
 $ cdk init --list
 Available templates:
 * app: Template for a CDK Application
-   └─ cdk init app --language=[csharp|fsharp|java|javascript|python|typescript]
+   └─ cdk init app --language=[csharp|cs|fsharp|fs|java|javascript|js|python|py|typescript|ts]
 * lib: Template for a CDK Construct Library
    └─ cdk init lib --language=typescript
 * sample-app: Example CDK Application with some constructs
-   └─ cdk init sample-app --language=[csharp|fsharp|java|javascript|python|typescript]
+   └─ cdk init sample-app --language=[csharp|cs|fsharp|fs|java|javascript|js|python|py|typescript|ts]
 
 $ # Create a new library application in typescript
 $ cdk init lib --language=typescript
@@ -1131,12 +1131,16 @@ apply the refactor on your CloudFormation stacks. But for now, only the dry-run
 mode is supported.
 
 If your application has more than one stack, and you want the `refactor`
-command to consider only a subset of them, you can pass a list of stack
-patterns as a parameter:
+command to consider only a subset of them, you can specify the stacks you
+want, both local and deployed:
 
 ```shell
-$ cdk refactor Web* --unstable=refactor --dry-run 
+$ cdk refactor --local-stack Foo --local-stack Bar --deployed-stack Foo --unstable=refactor --dry-run 
 ```
+
+This is useful if, for example, you have more than one CDK application deployed
+to a given environment, and you want to only include the deployed stacks that
+belong to the application that you are refactoring.
 
 The pattern language is the same as the one used in the `cdk deploy` command.
 However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
@@ -1190,6 +1194,34 @@ locations for a given environment. Resource locations are in the format
 resource currently deployed, while the destination must refer to a location
 that is not already occupied by any resource.
 
+#### How resources are compared
+
+To determine if a resource was moved or renamed, the CLI computes a digest
+for each resource, both in the deployed stacks and in the local stacks, and
+then compares the digests. 
+
+Conceptually, the digest is computed as:
+
+```
+digest(resource) = hash(type + properties + dependencies.map(d))
+```
+
+where hash is a cryptographic hash function. In other words, the digest of a 
+resource is computed from its type, its own properties (that is, excluding 
+properties that refer to other resources), and the digests of each of its 
+dependencies. The digest of a resource, defined recursively this way, remains 
+stable even if one or more of its dependencies gets renamed. Since the 
+resources in a CloudFormation template form a directed acyclic graph, this 
+function is well-defined.
+
+Resources that have the same digest, but different locations, are considered to be
+the same resource, and therefore to have been moved or renamed.
+
+#### Limitations
+- A refactor cannot leave a stack empty. This is a CloudFormation API limitation, 
+  that also applies to deployments.
+- Creation of new stacks during a refactor is not supported. If you need to
+  create a new stack, do it in a separate deployment, previous to refactoring.
 
 ### `cdk drift`
 
@@ -1237,6 +1269,149 @@ that can be set in many different ways (such as `~/.cdk.json`).
 ```bash
 $ # Check the current status of telemetry
 $ cdk cli-telemetry --status
+```
+### `cdk flags` 
+
+View and modify your feature flag configurations.
+
+Run `cdk flags` to see a report of your feature flag configurations that differ from our recommended states. Unconfigured flags will be labelled with `<unset>` to show that flag currently has no value. The flags are displayed to you in the following order:
+
+1. flags whose states do not match our recommended values
+2. flags that are not configured at all
+
+```shell
+$ cdk flags --unstable=flags
+    Feature Flag                              Recommended                  User
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+```
+
+Alternatively, you can also run `cdk flags --all` to see a report of all feature flags in the following order:
+
+1. flags whose states match our recommended values
+2. flags whose states do not match our recommended values
+3. flags that are not configured at all
+
+```shell
+$ cdk flags --unstable=flags --all 
+    Feature Flag                              Recommended                  User
+    @aws-cdk/...                              true                         true
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+```
+
+### Modifying your feature flag values
+
+To modify your feature flags interactively, you can run `cdk flags --interactive`  (or `cdk flags -i`) to view a list of menu options.
+
+ To change every single feature flag to our recommended value and potentially overwrite existing configured values, run `cdk flags --set --recommended --all`. To keep feature flag configuration up-to-date with the latest CDK feature flag configurations, use this command.
+
+```shell
+$ cdk flags --unstable=flags --set --recommended --all
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+    Resources
+    [~] AWS::S3::Bucket MyBucket
+    └─ [~] Properties
+        └─ [~] Encryption
+                ... 
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+If you would prefer your existing configured flags untouched, this option only changes the unconfigured feature flags to our recommended values, run `cdk flags --set --recommended --unconfigured`. This only changes the unconfigured feature flags to our recommended values.
+
+```shell
+$ cdk flags --unstable=flags --set --recommended --unconfigured
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         <unset>
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+    Resources
+    [~] AWS::S3::Bucket MyBucket
+    └─ [~] Properties
+        └─ [~] Encryption
+            ├─ [-] None
+            └─ [+] ServerSideEncryptionConfiguration:
+                    - ...
+            ...
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+If you want to ensure the unconfigured flags do not interfere with your application, `cdk flags --set --default --unconfigured` changes the unconfigured feature flags to its default values. For example, if `@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021` is unconfigured, it leads to the notification appearing after running `cdk synth`. However, if you set the flag to its default state (false), it will be configured, turned off, and have no impact on your application whatsoever.
+
+```shell
+$ cdk flags --unstable=flags --set --default --unconfigured
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         <unset>
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+  
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+### Inspect a specific feature flag
+
+#### View more information about a flag
+
+Besides running `cdk flags` and `cdk flags --all` to view your feature flag configuration, you can also utilize `cdk flags "#FLAGNAME#"` to inspect a specific feature flag and find out what a specific flag does. This can be helpful in cases where you want to understand a particular flag and its impact on your application. 
+
+```shell
+$ cdk flags --unstable=flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
+    Description: Enable this feature flag to have cloudfront distributions use the security policy TLSv1.2_2021 by default.
+    Recommended Value: true
+    User Value: true
+```
+
+#### Filter flags by substring
+
+You can also run `cdk flags #substring#` to view all matching feature flags. If there is only one feature flag that matches that substring, specific details will be displayed. 
+
+```shell
+$ cdk flags --unstable=flags ebs
+@aws-cdk/aws-ec2:ebsDefaultGp3Volume
+    Description: When enabled, the default volume type of the EBS volume will be GP3
+    Recommended Value: true
+    User Value: true
+```
+
+If there are multiple flags matching the substring, a table with all matching flags will be displayed. If you enter multiple substrings, all matching flags
+that contain any of those substrings will be returned.
+
+```shell
+$ cdk flags --unstable=flags s3 lambda
+    Feature Flag                              Recommended                  User
+  * @aws-cdk/s3...                            true                         false
+  * @aws-cdk/lambda...                        true                         false
+  * @aws-cdk/lambda...                        true                         <unset>
+```
+
+#### Modify a particular flag
+
+If you need to modify the value of this flag and want to make sure you’re setting it to a correct and supported state, run `cdk flags --set "#FLAGNAME#" --value="#state#"`.
+
+```shell
+$ cdk flags --unstable=flags--set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
+  Synthesizing...
+    Resources
+    [~] AWS::CloudFront::Distribution MyDistribution
+    └─ [~] Properties
+        └─ [~] DefaultSecurityPolicy
+            ├─ [-] TLSv1.0
+            └─ [+] TLSv1.2_2021
+                    - ...
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...   
 ```
 
 ## Global Options

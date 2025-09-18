@@ -5,6 +5,7 @@ import * as pj from 'projen';
 import { Stability } from 'projen/lib/cdk';
 import type { Job } from 'projen/lib/github/workflows-model';
 import { AdcPublishing } from './projenrc/adc-publishing';
+import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
@@ -244,6 +245,7 @@ const repoProject = new yarn.Monorepo({
   releaseOptions: {
     publishToNpm: true,
     releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
+    nodeVersion: '24.x',
   },
 
   depsUpgradeOptions: {
@@ -290,6 +292,7 @@ const repoProject = new yarn.Monorepo({
 
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
+new BootstrapTemplateProtection(repoProject);
 
 // Eslint for projen config
 // @ts-ignore
@@ -339,6 +342,8 @@ function genericCdkProps(props: GenericProps = {}) {
     authorUrl: 'https://aws.amazon.com',
     authorOrganization: true,
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
+    releaseEnvironment: 'releasing',
+    npmTrustedPublishing: true,
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,
@@ -413,6 +418,7 @@ new JsiiBuild(cloudAssemblySchema, {
   publishToPypi: {
     distName: 'aws-cdk.cloud-assembly-schema',
     module: 'aws_cdk.cloud_assembly_schema',
+    trustedPublishing: true,
   },
   pypiClassifiers: [
     'Framework :: AWS CDK',
@@ -832,6 +838,7 @@ const toolkitLib = configureProject(
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^3',
+      'fast-deep-equal',
       'fs-extra@^9',
       'glob',
       'minimatch',
@@ -1408,6 +1415,7 @@ new JsiiBuild(cliLibAlpha, {
   publishToPypi: {
     distName: 'aws-cdk.cli-lib-alpha',
     module: 'aws_cdk.cli_lib_alpha',
+    trustedPublishing: true,
   },
   pypiClassifiers: [
     'Framework :: AWS CDK',
@@ -1814,6 +1822,7 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
     'deps',
     'dev-deps',
     'docs',
+    'bootstrap',
     'integ-testing',
     'toolkit-lib',
     ...repoProject.subprojects

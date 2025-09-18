@@ -206,9 +206,9 @@ export class CdkToolkit {
   }
 
   public async acknowledge(noticeId: string) {
-    const acks = this.props.configuration.context.get('acknowledged-issue-numbers') ?? [];
-    acks.push(Number(noticeId));
-    this.props.configuration.context.set('acknowledged-issue-numbers', acks);
+    const acks = new Set(this.props.configuration.context.get('acknowledged-issue-numbers') ?? []);
+    acks.add(Number(noticeId));
+    this.props.configuration.context.set('acknowledged-issue-numbers', Array.from(acks));
     await this.props.configuration.saveContext();
   }
 
@@ -1059,13 +1059,13 @@ export class CdkToolkit {
   ): Promise<any> {
     const stacks = await this.selectStacksForDiff(stackNames, exclusively, autoValidate);
 
-    await displayFlagsMessage(this.toolkit, this.props.cloudExecutable, this.ioHost.asIoHelper());
-
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
       if (!quiet) {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
+
+      await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
       return undefined;
     }
 
@@ -1075,6 +1075,7 @@ export class CdkToolkit {
       `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
     );
 
+    await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
     return undefined;
   }
 
@@ -1275,8 +1276,10 @@ export class CdkToolkit {
           patterns: patterns,
           strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
         },
+        force: options.force,
         additionalStackNames: options.additionalStackNames,
         overrides: readOverrides(options.overrideFile, options.revert),
+        roleArn: options.roleArn,
       });
     } catch (e) {
       await this.ioHost.asIoHelper().defaults.error((e as Error).message);
@@ -2020,11 +2023,16 @@ export interface RefactorOptions {
   overrideFile?: string;
 
   /**
-   * Modifies the behavior of the `mappingFile` option by swapping source and
+   * Modifies the behavior of the `overrideFile` option by swapping source and
    * destination locations. This is useful when you want to undo a refactor
    * that was previously applied.
    */
   revert?: boolean;
+
+  /**
+   * Whether to do the refactor without prompting the user for confirmation.
+   */
+  force?: boolean;
 
   /**
    * Criteria for selecting stacks to compare with the deployed stacks in the
@@ -2036,6 +2044,11 @@ export interface RefactorOptions {
    * A list of names of additional deployed stacks to be included in the comparison.
    */
   additionalStackNames?: string[];
+
+  /**
+   * Role to assume in the target environment before performing the refactor.
+   */
+  roleArn?: string;
 }
 
 /**
@@ -2111,14 +2124,32 @@ async function askUserConfirmation(
     }
   });
 }
-export async function displayFlagsMessage(toolkit: InternalToolkit, cloudExecutable: CloudExecutable,
-  ioHelper: IoHelper): Promise<void> {
-  let numUnconfigured = (await toolkit.flags(cloudExecutable))
-    .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
-    .filter(flag => flag.userValue === undefined).length;
 
+/**
+ * Display a warning if there are flags that are different from the recommended value
+ *
+ * This happens if both of the following are true:
+ *
+ * - The user didn't configure the value
+ * - The default value for the flag (unconfiguredBehavesLike) is different from the recommended value
+ */
+export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToolkit, cloudExecutable: CloudExecutable): Promise<void> {
+  const flags = await toolkit.flags(cloudExecutable);
+
+  // The "unconfiguredBehavesLike" information got added later. If none of the flags have this information,
+  // we don't have enough information to reliably display this information without scaring users, so don't do anything.
+  if (flags.every(flag => flag.unconfiguredBehavesLike === undefined)) {
+    return;
+  }
+
+  const unconfiguredFlags = flags
+    .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
+    .filter(flag => (flag.unconfiguredBehavesLike?.v2 ?? false) !== flag.recommendedValue)
+    .filter(flag => flag.userValue === undefined);
+
+  const numUnconfigured = unconfiguredFlags.length;
   if (numUnconfigured > 0) {
-    await ioHelper.defaults.info(`You currently have ${numUnconfigured} unconfigured feature flags that may require attention to keep your application up-to-date. Run 'cdk flags' to learn more.`);
+    await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
   }
 }
 

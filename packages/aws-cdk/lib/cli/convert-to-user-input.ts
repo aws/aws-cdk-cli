@@ -66,6 +66,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         bootstrapCustomerKey: args.bootstrapCustomerKey,
         qualifier: args.qualifier,
         publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
+        denyExternalId: args.denyExternalId,
         tags: args.tags,
         execute: args.execute,
         trust: args.trust,
@@ -89,6 +90,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         rollbackBufferDays: args.rollbackBufferDays,
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
+        toolkitStackName: args.toolkitStackName,
         bootstrapStackName: args.bootstrapStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
@@ -243,6 +245,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         list: args.list,
         generateOnly: args.generateOnly,
         libVersion: args.libVersion,
+        fromPath: args.fromPath,
+        templatePath: args.templatePath,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -287,6 +291,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         dryRun: args.dryRun,
         overrideFile: args.overrideFile,
         revert: args.revert,
+        force: args.force,
+        STACKS: args.STACKS,
       };
       break;
 
@@ -354,6 +360,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrapCustomerKey: config.bootstrap?.bootstrapCustomerKey,
     qualifier: config.bootstrap?.qualifier,
     publicAccessBlockConfiguration: config.bootstrap?.publicAccessBlockConfiguration,
+    denyExternalId: config.bootstrap?.denyExternalId,
     tags: config.bootstrap?.tags,
     execute: config.bootstrap?.execute,
     trust: config.bootstrap?.trust,
@@ -373,6 +380,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     rollbackBufferDays: config.gc?.rollbackBufferDays,
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
+    toolkitStackName: config.gc?.toolkitStackName,
     bootstrapStackName: config.gc?.bootstrapStackName,
   };
   const flagsOptions = {
@@ -477,6 +485,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     list: config.init?.list,
     generateOnly: config.init?.generateOnly,
     libVersion: config.init?.libVersion,
+    fromPath: config.init?.fromPath,
+    templatePath: config.init?.templatePath,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,
@@ -504,6 +514,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     dryRun: config.refactor?.dryRun,
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
+    force: config.refactor?.force,
   };
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,

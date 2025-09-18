@@ -227,6 +227,10 @@
           "type": "boolean",
           "desc": "Block public access configuration on CDK toolkit bucket (enabled by default) "
         },
+        "deny-external-id": {
+          "type": "boolean",
+          "desc": "Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) "
+        },
         "tags": {
           "type": "array",
           "alias": "t",
@@ -322,10 +326,18 @@
           "desc": "Confirm via manual prompt before deletion",
           "default": true
         },
-        "bootstrap-stack-name": {
+        "toolkit-stack-name": {
           "type": "string",
           "desc": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\"",
-          "requiresArg": true
+          "requiresArg": true,
+          "conflicts": "bootstrap-stack-name"
+        },
+        "bootstrap-stack-name": {
+          "type": "string",
+          "desc": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\" (deprecated, use --toolkit-stack-name)",
+          "deprecated": "use --toolkit-stack-name",
+          "requiresArg": true,
+          "conflicts": "toolkit-stack-name"
         }
       }
     },
@@ -833,12 +845,17 @@
           "desc": "The language to be used for the new project (default can be configured in ~/.cdk.json)",
           "choices": [
             "csharp",
+            "cs",
             "fsharp",
+            "fs",
             "go",
             "java",
             "javascript",
+            "js",
             "python",
-            "typescript"
+            "py",
+            "typescript",
+            "ts"
           ]
         },
         "list": {
@@ -853,8 +870,24 @@
         "lib-version": {
           "type": "string",
           "alias": "V",
-          "desc": "The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built."
+          "desc": "The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built."
+        },
+        "from-path": {
+          "type": "string",
+          "desc": "Path to a local custom template directory or multi-template repository",
+          "requiresArg": true,
+          "conflicts": [
+            "lib-version"
+          ]
+        },
+        "template-path": {
+          "type": "string",
+          "desc": "Path to a specific template within a multi-template repository",
+          "requiresArg": true
         }
+      },
+      "implies": {
+        "template-path": "from-path"
       }
     },
     "migrate": {
@@ -873,10 +906,13 @@
           "desc": "The language to be used for the new project",
           "choices": [
             "typescript",
+            "ts",
             "go",
             "java",
             "python",
-            "csharp"
+            "py",
+            "csharp",
+            "cs"
           ]
         },
         "account": {
@@ -973,7 +1009,16 @@
           "type": "boolean",
           "default": false,
           "desc": "If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided."
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "desc": "Whether to do the refactor without asking for confirmation"
         }
+      },
+      "arg": {
+        "name": "STACKS",
+        "variadic": true
       }
     },
     "cli-telemetry": {

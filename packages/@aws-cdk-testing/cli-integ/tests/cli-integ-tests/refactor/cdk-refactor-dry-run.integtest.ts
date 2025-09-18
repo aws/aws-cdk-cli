@@ -1,9 +1,10 @@
 import { integTest, withSpecificFixture } from '../../../lib';
 
 integTest(
-  'detects refactoring changes and prints the result',
+  'cdk refactor - detects refactoring changes and prints the result',
   withSpecificFixture('refactoring', async (fixture) => {
-    // First, deploy a stack
+    // First, deploy the stacks
+    await fixture.cdkDeploy('bucket-stack');
     await fixture.cdkDeploy('basic', {
       modEnv: {
         BASIC_QUEUE_LOGICAL_ID: 'OldName',
@@ -14,8 +15,8 @@ integTest(
     const stdErr = await fixture.cdkRefactor({
       options: ['--dry-run', '--unstable=refactor'],
       allowErrExit: true,
-      // Making sure the synthesized stack has the new name
-      // so that a refactor is detected
+      // Making sure the synthesized stack has a queue with
+      // the new name so that a refactor is detected
       modEnv: {
         BASIC_QUEUE_LOGICAL_ID: 'NewName',
       },
@@ -27,13 +28,14 @@ integTest(
 );
 
 integTest(
-  'no refactoring changes detected',
+  'cdk refactor - no refactoring changes detected',
   withSpecificFixture('refactoring', async (fixture) => {
     const modEnv = {
       BASIC_QUEUE_LOGICAL_ID: 'OldName',
     };
 
-    // First, deploy a stack
+    // First, deploy the stacks
+    await fixture.cdkDeploy('bucket-stack');
     await fixture.cdkDeploy('basic', { modEnv });
 
     // Then see if the refactoring tool detects the change
@@ -44,6 +46,38 @@ integTest(
     });
 
     expect(stdErr).toContain('Nothing to refactor');
+  }),
+);
+
+integTest(
+  'cdk refactor - filters stacks by pattern',
+  withSpecificFixture('refactoring-multiple-envs', async (fixture) => {
+    // First, deploy the stacks
+    await fixture.cdkDeploy('gamma-stack', {
+      modEnv: {
+        BUCKET_ID: 'OldName',
+      },
+    });
+    await fixture.cdkDeploy('prod-stack', {
+      modEnv: {
+        BUCKET_ID: 'OldName',
+      },
+    });
+
+    // Then see if the refactoring tool detects the change
+    const stdErr = await fixture.cdkRefactor({
+      options: ['*-gamma-stack', '--dry-run', '--unstable=refactor'],
+      allowErrExit: true,
+      captureStderr: true,
+      // Making sure the synthesized stack has a queue with
+      // the new name so that a refactor is detected
+      modEnv: {
+        BUCKET_ID: 'NewName',
+      },
+    });
+
+    const numberOfEnvironments = (stdErr.match(/Resource Type/g) || []).length;
+    expect(numberOfEnvironments).toEqual(1);
   }),
 );
 
