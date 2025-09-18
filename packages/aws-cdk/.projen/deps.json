@@ -290,18 +290,6 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-sdk/middleware-endpoint",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/util-retry",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-sdk/util-waiter",
-      "type": "runtime"
-    },
-    {
       "name": "@smithy/middleware-endpoint",
       "type": "runtime"
     },
