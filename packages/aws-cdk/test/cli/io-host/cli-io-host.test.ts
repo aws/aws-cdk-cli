@@ -84,7 +84,7 @@ describe('CliIoHost', () => {
         message: 'test message',
       }));
 
-      expect(mockStderr).toHaveBeenCalledWith(chalk.white('test message') + '\n');
+      expect(mockStderr).toHaveBeenCalledWith(chalk.reset('test message') + '\n');
       expect(mockStdout).not.toHaveBeenCalled();
     });
 
@@ -112,7 +112,7 @@ describe('CliIoHost', () => {
         message: 'result message',
       }));
 
-      expect(mockStdout).toHaveBeenCalledWith(chalk.white('result message') + '\n');
+      expect(mockStdout).toHaveBeenCalledWith(chalk.reset('result message') + '\n');
       expect(mockStderr).not.toHaveBeenCalled();
     });
   });
@@ -184,7 +184,7 @@ describe('CliIoHost', () => {
     test.each([
       ['error', 'red', false],
       ['warn', 'yellow', false],
-      ['info', 'white', false],
+      ['info', 'reset', false],
       ['debug', 'gray', true],
       ['trace', 'gray', true],
     ] as Array<[IoMessageLevel, typeof chalk.ForegroundColor, boolean]>)('outputs %ss in %s color ', async (level, color, shouldAddTime) => {
@@ -229,7 +229,7 @@ describe('CliIoHost', () => {
         message: 'ci message',
       }));
 
-      expect(mockStdout).toHaveBeenCalledWith(chalk.white('ci message') + '\n');
+      expect(mockStdout).toHaveBeenCalledWith(chalk.reset('ci message') + '\n');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
@@ -275,7 +275,7 @@ describe('CliIoHost', () => {
         message: 'info message',
       }));
 
-      expect(mockStderr).toHaveBeenCalledWith(chalk.white('info message') + '\n');
+      expect(mockStderr).toHaveBeenCalledWith(chalk.reset('info message') + '\n');
     });
   });
 
@@ -505,7 +505,7 @@ describe('CliIoHost', () => {
           defaultResponse: [1, 2, 3],
         }));
 
-        expect(mockStderr).toHaveBeenCalledWith(chalk.white('test message') + '\n');
+        expect(mockStderr).toHaveBeenCalledWith(chalk.reset('test message') + '\n');
         expect(response).toEqual([1, 2, 3]);
       });
     });

@@ -1131,12 +1131,16 @@ apply the refactor on your CloudFormation stacks. But for now, only the dry-run
 mode is supported.
 
 If your application has more than one stack, and you want the `refactor`
-command to consider only a subset of them, you can pass a list of stack
-patterns as a parameter:
+command to consider only a subset of them, you can specify the stacks you
+want, both local and deployed:
 
 ```shell
-$ cdk refactor Web* --unstable=refactor --dry-run 
+$ cdk refactor --local-stack Foo --local-stack Bar --deployed-stack Foo --unstable=refactor --dry-run 
 ```
+
+This is useful if, for example, you have more than one CDK application deployed
+to a given environment, and you want to only include the deployed stacks that
+belong to the application that you are refactoring.
 
 The pattern language is the same as the one used in the `cdk deploy` command.
 However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
@@ -1190,6 +1194,34 @@ locations for a given environment. Resource locations are in the format
 resource currently deployed, while the destination must refer to a location
 that is not already occupied by any resource.
 
+#### How resources are compared
+
+To determine if a resource was moved or renamed, the CLI computes a digest
+for each resource, both in the deployed stacks and in the local stacks, and
+then compares the digests. 
+
+Conceptually, the digest is computed as:
+
+```
+digest(resource) = hash(type + properties + dependencies.map(d))
+```
+
+where hash is a cryptographic hash function. In other words, the digest of a 
+resource is computed from its type, its own properties (that is, excluding 
+properties that refer to other resources), and the digests of each of its 
+dependencies. The digest of a resource, defined recursively this way, remains 
+stable even if one or more of its dependencies gets renamed. Since the 
+resources in a CloudFormation template form a directed acyclic graph, this 
+function is well-defined.
+
+Resources that have the same digest, but different locations, are considered to be
+the same resource, and therefore to have been moved or renamed.
+
+#### Limitations
+- A refactor cannot leave a stack empty. This is a CloudFormation API limitation, 
+  that also applies to deployments.
+- Creation of new stacks during a refactor is not supported. If you need to
+  create a new stack, do it in a separate deployment, previous to refactoring.
 
 ### `cdk drift`
 

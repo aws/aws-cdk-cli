@@ -391,6 +391,13 @@ export class FlagOperations {
       flag.userValue === undefined || !this.isUserValueEqualToRecommended(flag));
 
     await this.displayFlagTable(flagsToDisplay);
+
+    // Add helpful message after empty table when not using --all
+    if (!all && flagsToDisplay.length === 0) {
+      await this.ioHelper.defaults.info('');
+      await this.ioHelper.defaults.info('✅ All feature flags are already set to their recommended values.');
+      await this.ioHelper.defaults.info('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
+    }
   }
 
   /** Displays detailed information for specific flags matching the given names */

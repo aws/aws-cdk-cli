@@ -270,6 +270,7 @@ export class JsiiBuild extends pj.Component {
       registry: tsProject.package.npmRegistry,
       npmTokenSecret: tsProject.package.npmTokenSecret,
       npmProvenance: tsProject.package.npmProvenance,
+      trustedPublishing: true,
       // No support for CodeArtifact here
       // codeArtifactOptions: tsProject.codeArtifactOptions,
     };

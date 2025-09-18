@@ -39,7 +39,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'role-arn': { type: 'string', alias: 'r', desc: 'ARN of Role to use when invoking CloudFormation', default: undefined, requiresArg: true },
       'staging': { type: 'boolean', desc: 'Copy assets to the output directory (use --no-staging to disable the copy of assets which allows local debugging via the SAM CLI to reference the original source files)', default: true },
       'output': { type: 'string', alias: 'o', desc: 'Emits the synthesized cloud assembly into a directory (default: cdk.out)', requiresArg: true },
-      'notices': { type: 'boolean', desc: 'Show relevant notices', default: YARGS_HELPERS.shouldDisplayNotices() },
+      'notices': { type: 'boolean', desc: 'Show relevant notices' },
       'no-color': { type: 'boolean', desc: 'Removes colors and other style from console output', default: false },
       'ci': { type: 'boolean', desc: 'Force CI detection. If CI=true then logs will be sent to stdout instead of stderr', default: YARGS_HELPERS.isCI() },
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
@@ -489,6 +489,15 @@ export async function makeConfig(): Promise<CliConfig> {
             default: false,
             desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
           },
+          'force': {
+            type: 'boolean',
+            default: false,
+            desc: 'Whether to do the refactor without asking for confirmation',
+          },
+        },
+        arg: {
+          name: 'STACKS',
+          variadic: true,
         },
       },
       'cli-telemetry': {

@@ -71,7 +71,7 @@ export class FlagValidator {
   /** Validates that --unconfigured is not used with specific flag names */
   private async validateUnconfiguredUsage(params: FlagOperationsParams): Promise<boolean> {
     if (params.unconfigured && params.FLAGNAME) {
-      await this.ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works on multiple flags.');
+      await this.ioHelper.defaults.error('Error: Cannot use --unconfigured with a specific flag name. --unconfigured works with multiple flags.');
       return false;
     }
     return true;
@@ -89,6 +89,10 @@ export class FlagValidator {
     }
     if (params.set && params.unconfigured && !params.recommended && !params.default) {
       await this.ioHelper.defaults.error('Error: When using --set with --unconfigured, you must specify either --recommended or --default.');
+      return false;
+    }
+    if (params.set && !params.all && !params.unconfigured && !params.FLAGNAME) {
+      await this.ioHelper.defaults.error('Error: When using --set, you must specify either --all, --unconfigured, or provide a specific flag name.');
       return false;
     }
     return true;
