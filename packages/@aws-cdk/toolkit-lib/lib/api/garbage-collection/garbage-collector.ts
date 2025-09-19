@@ -178,6 +178,18 @@ interface GarbageCollectorProps {
    * @default true
    */
   readonly confirm?: boolean;
+
+  /**
+   *
+   * @default []
+   */
+  readonly ignoreStacks?: string[];
+
+  /**
+   *
+   * @default false
+   */
+  readonly skipUnauthorizedStacks?: boolean;
 }
 
 /**
@@ -219,7 +231,7 @@ export class GarbageCollector {
     const activeAssets = new ActiveAssetCache();
 
     // Grab stack templates first
-    await refreshStacks(cfn, this.ioHelper, activeAssets, qualifier);
+    await refreshStacks(cfn, this.ioHelper, activeAssets, qualifier, this.props.ignoreStacks, this.props.skipUnauthorizedStacks);
     // Start the background refresh
     const backgroundStackRefresh = new BackgroundStackRefresh({
       cfn,

@@ -1918,6 +1918,18 @@ export interface GarbageCollectionOptions {
    * @default false
    */
   readonly confirm?: boolean;
+
+  /**
+   *
+   * @default []
+   */
+  readonly ignoreStacks?: string[];
+
+  /**
+   *
+   * @default false
+   */
+  readonly skipUnauthorizedStacks?: boolean;
 }
 export interface MigrateOptions {
   /**
