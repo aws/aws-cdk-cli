@@ -606,30 +606,25 @@ describe('constructs version', () => {
     })).rejects.toThrow();
   });
 
-  cliTest('template-path implies from-path validation works', async (workDir) => {
-    // Test that the implication is properly configured
-    const { makeConfig } = await import('../../lib/cli/cli-config');
-    const config = await makeConfig();
-    expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
+  cliTest('template-path validation requires from-path or from-git-url', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
 
-    // Test that template-path functionality works when from-path is provided
-    const repoDir = await createMultiTemplateRepository(workDir, [
-      { name: 'implies-test', languages: ['typescript'] },
-    ]);
-    const projectDir = path.join(workDir, 'my-project');
-    await fs.mkdirp(projectDir);
+    const emptyDir = path.join(workDir, 'empty-project');
+    await fs.mkdirp(emptyDir);
 
-    await cliInit({
-      ioHelper,
-      fromPath: repoDir,
-      templatePath: 'implies-test',
-      language: 'typescript',
-      canUseNetwork: false,
-      generateOnly: true,
-      workDir: projectDir,
-    });
-
-    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    // Test that template-path fails when used without from-path or from-git-url
+    try {
+      await execAsync(`node ${cdkBin} init --template-path some-template --language typescript --generate-only`, {
+        cwd: emptyDir,
+        env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+      });
+      throw new Error('Expected command to fail but it succeeded');
+    } catch (error: any) {
+      expect(error.stderr || error.message).toContain('--template-path can only be used with --from-path or --from-git-url');
+    }
   });
 
   cliTest('hook files are ignored during template copy', async (workDir) => {
