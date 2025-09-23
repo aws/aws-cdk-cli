@@ -364,6 +364,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
             deprecated: 'use --toolkit-stack-name',
             requiresArg: true,
             conflicts: 'toolkit-stack-name',
+          })
+          .option('skip-unauthorized-stacks-when-noncdk', {
+            type: 'array',
+            desc: 'Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection. You must explicitly specify non-CDK stack names - CDK stacks will be rejected.',
+            default: [],
+            requiresArg: true,
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>

@@ -178,6 +178,14 @@ interface GarbageCollectorProps {
    * @default true
    */
   readonly confirm?: boolean;
+
+  /**
+   * Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection.
+   * You must explicitly specify non-CDK stack names - CDK stacks will be rejected to prevent accidental asset deletion.
+   *
+   * @default undefined
+   */
+  readonly skipUnauthorizedStacksWhenNonCdk?: string[];
 }
 
 /**
@@ -191,6 +199,7 @@ export class GarbageCollector {
   private bootstrapStackName: string;
   private confirm: boolean;
   private ioHelper: IoHelper;
+  private skipUnauthorizedStacksWhenNonCdk?: string[];
 
   public constructor(readonly props: GarbageCollectorProps) {
     this.ioHelper = props.ioHelper;
@@ -201,6 +210,7 @@ export class GarbageCollector {
     this.permissionToDelete = ['delete-tagged', 'full'].includes(props.action);
     this.permissionToTag = ['tag', 'full'].includes(props.action);
     this.confirm = props.confirm ?? true;
+    this.skipUnauthorizedStacksWhenNonCdk = props.skipUnauthorizedStacksWhenNonCdk;
 
     this.bootstrapStackName = props.bootstrapStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
   }
@@ -224,6 +234,7 @@ export class GarbageCollector {
       ioHelper: this.ioHelper,
       activeAssets,
       qualifier,
+      skipUnauthorizedStacksWhenNonCdk: this.skipUnauthorizedStacksWhenNonCdk,
     });
     // Start the background refresh
     const backgroundStackRefresh = new BackgroundStackRefresh({
@@ -231,6 +242,7 @@ export class GarbageCollector {
       ioHelper: this.ioHelper,
       activeAssets,
       qualifier,
+      skipUnauthorizedStacksWhenNonCdk: this.skipUnauthorizedStacksWhenNonCdk,
     });
     backgroundStackRefresh.start();
 
