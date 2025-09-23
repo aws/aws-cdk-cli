@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import * as os from 'os';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -67,9 +68,15 @@ export interface CliInitOptions {
   readonly fromPath?: string;
 
   /**
-   * Path to a specific template within a multi-template repository.
-   * This parameter requires --from-path to be specified.
+   * Git repository URL to clone and use as template source
    * @default undefined
+   */
+  readonly fromGitUrl?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository.
+   * This parameter requires --from-path or --from-git-url to be specified.
+   * @default undefined - Optional/auto-detected if repository contains only one template, otherwise required
    */
   readonly templatePath?: string;
 
@@ -86,15 +93,21 @@ export async function cliInit(options: CliInitOptions) {
   const workDir = options.workDir ?? process.cwd();
 
   // Show available templates if no type and no language provided (main branch logic)
-  if (!options.fromPath && !options.type && !options.language) {
+  if (!options.fromPath && !options.fromGitUrl && !options.type && !options.language) {
     await printAvailableTemplates(ioHelper);
     return;
   }
 
   // Step 1: Load template
   let template: InitTemplate;
+  let gitTempDir: string | undefined;
+
   if (options.fromPath) {
     template = await loadLocalTemplate(options.fromPath, options.templatePath);
+  } else if (options.fromGitUrl) {
+    const result = await loadGitTemplate(options.fromGitUrl, options.templatePath);
+    template = result.template;
+    gitTempDir = result.tempDir;
   } else {
     template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
   }
@@ -103,17 +116,25 @@ export async function cliInit(options: CliInitOptions) {
   const language = await resolveLanguage(ioHelper, template, options.language, options.type);
 
   // Step 3: Initialize project following standard process
-  await initializeProject(
-    ioHelper,
-    template,
-    language,
-    canUseNetwork,
-    generateOnly,
-    workDir,
-    options.stackName,
-    options.migrate,
-    options.libVersion,
-  );
+  try {
+    await initializeProject(
+      ioHelper,
+      template,
+      language,
+      canUseNetwork,
+      generateOnly,
+      workDir,
+      options.stackName,
+      options.migrate,
+      options.libVersion,
+    );
+  } finally {
+    // Clean up git temp directory if it exists
+    if (gitTempDir) {
+      await fs.remove(gitTempDir).catch(() => {
+      });
+    }
+  }
 }
 
 /**
@@ -154,6 +175,34 @@ async function loadLocalTemplate(fromPath: string, templatePath?: string): Promi
   } catch (error: any) {
     const displayPath = templatePath ? `${fromPath}/${templatePath}` : fromPath;
     throw new ToolkitError(`Failed to load template from path: ${displayPath}. ${error.message}`);
+  }
+}
+
+/**
+ * Load a template from a Git repository URL
+ * @param gitUrl - Git repository URL to clone
+ * @param templatePath - Optional path to a specific template within the repository
+ * @returns Promise resolving to the loaded InitTemplate and tempDir for cleanup
+ */
+async function loadGitTemplate(gitUrl: string, templatePath?: string): Promise<{ template: InitTemplate; tempDir: string }> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cdk-init-git-'));
+
+  try {
+    // Clone repository (defaults to main/master branch)
+    await executeGitCommand('git', ['clone', '--depth', '1', gitUrl, tempDir]);
+
+    // Now that we have the repository locally, use the same logic as loadLocalTemplate
+    const template = await loadLocalTemplate(tempDir, templatePath);
+
+    return { template, tempDir };
+  } catch (error: any) {
+    await fs.remove(tempDir).catch(() => {
+    });
+    if (error.message?.includes('not found') || error.code === 'ENOENT') {
+      throw new ToolkitError('Git is not installed or not available in PATH. Please install Git to use --from-git-url.');
+    }
+    const displayPath = templatePath ? `${gitUrl}/${templatePath}` : gitUrl;
+    throw new ToolkitError(`Failed to load template from Git repository: ${displayPath}. ${error.message}`);
   }
 }
 
@@ -844,6 +893,36 @@ async function isInGitRepository(dir: string) {
  */
 function isRoot(dir: string) {
   return path.dirname(dir) === dir;
+}
+
+/**
+ * Execute a Git command with error handling
+ * @param cmd - Command to execute
+ * @param args - Command arguments
+ * @returns Promise resolving to stdout
+ */
+async function executeGitCommand(cmd: string, args: string[]): Promise<string> {
+  const child = childProcess.spawn(cmd, args, {
+    shell: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let stdout = '';
+  let stderr = '';
+
+  child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
+  child.stderr.on('data', (chunk) => (stderr += chunk.toString()));
+
+  return new Promise<string>((resolve, reject) => {
+    child.once('error', (err) => reject(err));
+    child.once('exit', (status) => {
+      if (status === 0) {
+        resolve(stdout);
+      } else {
+        reject(new ToolkitError(`Git command failed: ${stderr || stdout}`));
+      }
+    });
+  });
 }
 
 /**
