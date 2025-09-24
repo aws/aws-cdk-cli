@@ -61,7 +61,7 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { ChangeSetStatus, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
 import type { Template, SdkProvider } from '../../lib/api';
@@ -643,6 +643,492 @@ describe('deploy', () => {
 
     expect(cloudExecutable.hasApp).toEqual(false);
     expect(mockSynthesize).not.toHaveBeenCalled();
+  });
+
+  describe('RequireApproval.ANYCHANGE', () => {
+    let toolkit: CdkToolkit;
+    let mockDeployments: Deployments;
+
+    beforeEach(() => {
+      mockDeployments = new FakeCloudFormation({
+        'Test-Stack-A': { Foo: 'Bar' },
+        'Test-Stack-B': { Baz: 'Zinga!' },
+        'Test-Stack-C': { Baz: 'Zinga!' },
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+    });
+
+    test('creates change set, shows diff, prompts for approval, and deploys changes', async () => {
+      const mockDeployStack = jest.spyOn(mockDeployments, 'deployStack');
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set', changeSetName: 'test-change-set' },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'change-set', changeSetName: 'test-change-set', execute: false },
+        }),
+      );
+      expect(requestSpy).toHaveBeenCalled();
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'change-set', changeSetName: 'test-change-set', executeExistingChangeSet: true },
+        }),
+      );
+      expect(mockDeployStack).toHaveBeenCalledTimes(2);
+    });
+
+    test('deletes change set when there are no changes', async () => {
+      // GIVEN
+      const mockDeployStack = jest.spyOn(mockDeployments, 'deployStack');
+      const mockDeleteChangeSet = jest.spyOn(mockDeployments, 'deleteChangeSet');
+      jest.spyOn(mockDeployments, 'describeChangeSet').mockResolvedValue({
+        ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-change-set/12345',
+        ChangeSetName: 'cdk-change-set',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Test-Stack-A-Display-Name/12345',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: "The submitted information didn't contain changes. Submit different information to create a change set.",
+        $metadata: {},
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN
+      expect(mockDeleteChangeSet).toHaveBeenCalled();
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+    });
+
+    test('deletes change set when user rejects', async () => {
+      // GIVEN
+      const mockDeleteChangeSet = jest.spyOn(mockDeployments, 'deleteChangeSet');
+      requestSpy.mockRejectedValue(new Error('Aborted by user'));
+
+      // WHEN
+      const result = toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN
+      await expect(result).rejects.toThrow('Aborted by user');
+      expect(mockDeleteChangeSet).toHaveBeenCalled();
+    });
+
+    // Test that verifies the behavior when deleteChangeSet fails during a no-changes scenario.
+    // The deleteChangeSet method in cdk-toolkit.ts catches errors and logs them as debug messages
+    // rather than propagating them, ensuring that change set cleanup failures don't break deployments.
+    test('continues deployment when change set deletion fails (no changes scenario)', async () => {
+      // GIVEN
+      const mockDeleteChangeSet = jest.spyOn(mockDeployments, 'deleteChangeSet').mockRejectedValue(new Error('Failed to delete change set'));
+      jest.spyOn(mockDeployments, 'describeChangeSet').mockResolvedValue({
+        ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-change-set/12345',
+        ChangeSetName: 'cdk-change-set',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Test-Stack-A-Display-Name/12345',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: "The submitted information didn't contain changes. Submit different information to create a change set.",
+        $metadata: {},
+      });
+
+      // WHEN - deployment should complete successfully despite change set deletion failure
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN - verify deleteChangeSet was called but error was caught and didn't break deployment
+      expect(mockDeleteChangeSet).toHaveBeenCalled();
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'debug',
+        message: expect.stringContaining('Failed to cleanup change set'),
+      }));
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'debug',
+        message: expect.stringContaining('cdk-change-set'),
+      }));
+    });
+
+    // Test that verifies the behavior when deleteChangeSet fails after user rejects the deployment.
+    // Even if the change set cleanup fails, the original user rejection error should be propagated,
+    // not the deletion failure. This ensures proper error handling and user feedback.
+    test('continues with user rejection when change set deletion fails', async () => {
+      // GIVEN
+      const mockDeleteChangeSet = jest.spyOn(mockDeployments, 'deleteChangeSet').mockRejectedValue(new Error('Failed to delete change set'));
+      requestSpy.mockRejectedValue(new Error('Aborted by user'));
+
+      // WHEN
+      const result = toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN - deployment should still be rejected by user (not by change set deletion failure)
+      await expect(result).rejects.toThrow('Aborted by user');
+      expect(mockDeleteChangeSet).toHaveBeenCalled();
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'debug',
+        message: expect.stringContaining('Failed to cleanup change set'),
+      }));
+    });
+  });
+
+  // Tests for RequireApproval.BROADENING mode, which prompts for approval only when
+  // security-sensitive changes broaden permissions. This is the default approval mode.
+  // It checks if IAM or security group changes expand permissions and requires user confirmation
+  // only for those broadening changes, while allowing non-broadening changes to proceed automatically.
+  describe('RequireApproval.BROADENING', () => {
+    let toolkit: CdkToolkit;
+    let mockDeployments: Deployments;
+
+    beforeEach(() => {
+      mockDeployments = new FakeCloudFormation({
+        'Test-Stack-A': { Foo: 'Bar' },
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+    });
+
+    test('prompts for approval when security changes broaden permissions', async () => {
+      // GIVEN - mock readCurrentTemplate to return a template without IAM resources
+      jest.spyOn(mockDeployments, 'readCurrentTemplate').mockResolvedValue({
+        Resources: {},
+      });
+
+      // Mock the stack to have IAM resources (broadening change)
+      const stackWithIAM = {
+        ...MockStack.MOCK_STACK_A,
+        template: {
+          Resources: {
+            MyRole: {
+              Type: 'AWS::IAM::Role',
+              Properties: {
+                AssumeRolePolicyDocument: {
+                  Version: '2012-10-17',
+                  Statement: [
+                    {
+                      Effect: 'Allow',
+                      Principal: { Service: 'lambda.amazonaws.com' },
+                      Action: 'sts:AssumeRole',
+                    },
+                  ],
+                },
+                ManagedPolicyArns: ['arn:aws:iam::aws:policy/AdministratorAccess'],
+              },
+            },
+          },
+        },
+      };
+
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [stackWithIAM],
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.BROADENING,
+      });
+
+      // THEN - verify that user was prompted for approval
+      expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+        data: expect.objectContaining({
+          permissionChangeType: 'broadening',
+        }),
+      }));
+    });
+
+    // Verifies that when IAM permissions are reduced (narrowing change), no approval is required
+    test('does not prompt for approval when changes are non-broadening', async () => {
+      // GIVEN - mock readCurrentTemplate to return a template with existing IAM resources
+      jest.spyOn(mockDeployments, 'readCurrentTemplate').mockResolvedValue({
+        Resources: {
+          MyRole: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              AssumeRolePolicyDocument: {
+                Version: '2012-10-17',
+                Statement: [
+                  {
+                    Effect: 'Allow',
+                    Principal: { Service: 'lambda.amazonaws.com' },
+                    Action: 'sts:AssumeRole',
+                  },
+                ],
+              },
+              ManagedPolicyArns: ['arn:aws:iam::aws:policy/AdministratorAccess'],
+            },
+          },
+        },
+      });
+
+      // New template removes the managed policy (narrowing, not broadening)
+      const stackWithReducedPermissions = {
+        ...MockStack.MOCK_STACK_A,
+        template: {
+          Resources: {
+            MyRole: {
+              Type: 'AWS::IAM::Role',
+              Properties: {
+                AssumeRolePolicyDocument: {
+                  Version: '2012-10-17',
+                  Statement: [
+                    {
+                      Effect: 'Allow',
+                      Principal: { Service: 'lambda.amazonaws.com' },
+                      Action: 'sts:AssumeRole',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      };
+
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [stackWithReducedPermissions],
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.BROADENING,
+      });
+
+      // THEN - verify that user was NOT prompted (no broadening changes)
+      expect(requestSpy).not.toHaveBeenCalled();
+    });
+
+    // Verifies that when there are no IAM or security changes, no approval is required
+    test('does not prompt for approval when there are no IAM changes', async () => {
+      // GIVEN - mock readCurrentTemplate to return empty template
+      jest.spyOn(mockDeployments, 'readCurrentTemplate').mockResolvedValue({
+        Resources: {},
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.BROADENING,
+      });
+
+      // THEN - verify that user was NOT prompted (no security changes)
+      expect(requestSpy).not.toHaveBeenCalled();
+    });
+
+    // Verifies the complete flow: prompt for approval → user accepts → deployment proceeds
+    test('deploys successfully when user approves broadening changes', async () => {
+      // GIVEN
+      const mockDeployStack = jest.spyOn(mockDeployments, 'deployStack');
+      jest.spyOn(mockDeployments, 'readCurrentTemplate').mockResolvedValue({
+        Resources: {},
+      });
+
+      const stackWithIAM = {
+        ...MockStack.MOCK_STACK_A,
+        template: {
+          Resources: {
+            MyRole: {
+              Type: 'AWS::IAM::Role',
+              Properties: {
+                AssumeRolePolicyDocument: {
+                  Version: '2012-10-17',
+                  Statement: [
+                    {
+                      Effect: 'Allow',
+                      Principal: { Service: 's3.amazonaws.com' },
+                      Action: 'sts:AssumeRole',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      };
+
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [stackWithIAM],
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+
+      // WHEN - user approves the deployment
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.BROADENING,
+      });
+
+      // THEN - deployment should proceed
+      expect(requestSpy).toHaveBeenCalled();
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+    });
+
+    // Verifies the complete flow: prompt for approval → user rejects → deployment is cancelled
+    test('rejects deployment when user denies broadening changes', async () => {
+      // GIVEN
+      const mockDeployStack = jest.spyOn(mockDeployments, 'deployStack');
+      jest.spyOn(mockDeployments, 'readCurrentTemplate').mockResolvedValue({
+        Resources: {},
+      });
+      requestSpy.mockRejectedValue(new Error('User rejected'));
+
+      const stackWithIAM = {
+        ...MockStack.MOCK_STACK_A,
+        template: {
+          Resources: {
+            MyRole: {
+              Type: 'AWS::IAM::Role',
+              Properties: {
+                AssumeRolePolicyDocument: {
+                  Version: '2012-10-17',
+                  Statement: [
+                    {
+                      Effect: 'Allow',
+                      Principal: { Service: 's3.amazonaws.com' },
+                      Action: 'sts:AssumeRole',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      };
+
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [stackWithIAM],
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+
+      // WHEN
+      const result = toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.BROADENING,
+      });
+
+      // THEN - deployment should be rejected
+      await expect(result).rejects.toThrow('User rejected');
+      expect(requestSpy).toHaveBeenCalled();
+      expect(mockDeployStack).not.toHaveBeenCalled();
+    });
+
+    // Verifies that the security diff is displayed to the user before requesting approval,
+    // allowing them to review the specific IAM changes that are broadening permissions
+    test('displays security diff when prompting for broadening changes', async () => {
+      // GIVEN
+      jest.spyOn(mockDeployments, 'readCurrentTemplate').mockResolvedValue({
+        Resources: {},
+      });
+
+      const stackWithIAM = {
+        ...MockStack.MOCK_STACK_A,
+        template: {
+          Resources: {
+            MyRole: {
+              Type: 'AWS::IAM::Role',
+              Properties: {
+                AssumeRolePolicyDocument: {
+                  Version: '2012-10-17',
+                  Statement: [
+                    {
+                      Effect: 'Allow',
+                      Principal: { Service: 'lambda.amazonaws.com' },
+                      Action: 'sts:AssumeRole',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      };
+
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [stackWithIAM],
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.BROADENING,
+      });
+
+      // THEN - verify security diff was displayed
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'info',
+        message: expect.stringContaining('MyRole'),
+      }));
+      expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          motivation: expect.stringContaining('--require-approval'),
+          permissionChangeType: 'broadening',
+        }),
+      }));
+    });
   });
 
   describe('readCurrentTemplate', () => {
@@ -1933,6 +2419,29 @@ class FakeCloudFormation extends Deployments {
       default:
         throw new Error(`not an expected mock stack: ${stack.stackName}`);
     }
+  }
+
+  public describeChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<any> {
+    return Promise.resolve({
+      ChangeSetId: `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${changeSetName}/12345`,
+      ChangeSetName: changeSetName,
+      StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${stack.stackName}/12345`,
+      Status: 'CREATE_COMPLETE',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'TestResource',
+            ResourceType: 'AWS::S3::Bucket',
+          },
+        },
+      ],
+    });
+  }
+
+  public deleteChangeSet(_stack: cxapi.CloudFormationStackArtifact, _changeSetName: string): Promise<void> {
+    return Promise.resolve();
   }
 }
 

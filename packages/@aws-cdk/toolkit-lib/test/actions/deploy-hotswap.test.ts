@@ -19,6 +19,12 @@ jest.mock('../../lib/api/deployments', () => {
       resolveEnvironment: jest.fn().mockResolvedValue({}),
       isSingleAssetPublished: jest.fn().mockResolvedValue(true),
       readCurrentTemplate: jest.fn().mockResolvedValue({ Resources: {} }),
+      describeChangeSet: jest.fn().mockResolvedValue({
+        ChangeSetName: 'test-changeset',
+        Changes: [],
+        Status: 'CREATE_COMPLETE',
+      }),
+      deleteChangeSet: jest.fn().mockResolvedValue({}),
     })),
   };
 });

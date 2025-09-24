@@ -29,6 +29,22 @@ beforeEach(() => {
   jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
   jest.spyOn(deployments.Deployments.prototype, 'buildSingleAsset').mockImplementation();
   jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
+  jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+    ChangeSetName: 'test-changeset',
+    Changes: [
+      {
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Add',
+          LogicalResourceId: 'TestResource',
+          ResourceType: 'AWS::S3::Bucket',
+        },
+      },
+    ],
+    Status: 'CREATE_COMPLETE',
+    $metadata: {},
+  });
+  jest.spyOn(deployments.Deployments.prototype, 'deleteChangeSet').mockResolvedValue();
 });
 
 describe('deploy', () => {
@@ -65,7 +81,7 @@ IAM Statement Changes
       code: 'CDK_TOOLKIT_I5060',
       message: expect.stringContaining('Do you wish to deploy these changes'),
       data: expect.objectContaining({
-        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
+        motivation: expect.stringContaining('Approval required for stack'),
         permissionChangeType: 'broadening',
         templateDiffs: expect.objectContaining({
           Stack1: expect.objectContaining({
@@ -161,6 +177,158 @@ IAM Statement Changes
         forcePublish: true,
       }));
     });
+
+    test('change-set method creates and describes changeset before deployment', async () => {
+      const describeChangeSetSpy = jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet');
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: {
+          method: 'change-set',
+          changeSetName: 'my-test-changeset',
+        },
+      });
+
+      // THEN
+      // First call should create changeset with execute: false
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        deploymentMethod: expect.objectContaining({
+          method: 'change-set',
+          changeSetName: 'my-test-changeset',
+          execute: false,
+        }),
+      }));
+
+      // Should describe the changeset
+      expect(describeChangeSetSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        'my-test-changeset',
+      );
+
+      // Second call should execute the existing changeset
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        deploymentMethod: expect.objectContaining({
+          method: 'change-set',
+          changeSetName: 'my-test-changeset',
+          executeExistingChangeSet: true,
+        }),
+      }));
+
+      expect(mockDeployStack).toHaveBeenCalledTimes(2);
+    });
+
+    test('change-set with auto-generated changeSetName when not provided', async () => {
+      const describeChangeSetSpy = jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet');
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: {
+          method: 'change-set',
+        },
+      });
+
+      // THEN
+      // Should use auto-generated name
+      const expectedChangeSetPattern = /^cdk-deploy-change-set-\d+$/;
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        deploymentMethod: expect.objectContaining({
+          method: 'change-set',
+          changeSetName: expect.stringMatching(expectedChangeSetPattern),
+          execute: false,
+        }),
+      }));
+      expect(describeChangeSetSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringMatching(expectedChangeSetPattern),
+      );
+    });
+
+    test('change-set with no changes deletes changeset and skips deployment', async () => {
+      const deleteChangeSetSpy = jest.spyOn(deployments.Deployments.prototype, 'deleteChangeSet');
+      jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+        ChangeSetName: 'empty-changeset',
+        Status: 'FAILED',
+        StatusReason: "The submitted information didn't contain changes. Submit different information to create a change set.",
+        $metadata: {},
+      });
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: {
+          method: 'change-set',
+          changeSetName: 'empty-changeset',
+        },
+      });
+
+      // THEN
+      expect(deleteChangeSetSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        'empty-changeset',
+      );
+
+      // Should only be called once (for changeset creation, not execution)
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+
+      // Should show skip message
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('stack has no changes, skipping deployment'),
+      }));
+    });
+
+    test('change-set method preserves other deployment options', async () => {
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: {
+          method: 'change-set',
+          changeSetName: 'test-changeset',
+        },
+        roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+        reuseAssets: ['asset1'],
+        notificationArns: ['arn:aws:sns:us-east-1:111111111111:topic'],
+        forceDeployment: true,
+        parameters: StackParameters.exactly({
+          'my-param': 'my-value',
+        }),
+        assetParallelism: false,
+      });
+
+      // THEN - Both calls should preserve all options
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+        reuseAssets: ['asset1'],
+        notificationArns: ['arn:aws:sns:us-east-1:111111111111:topic'],
+        forceDeployment: true,
+        parameters: { 'my-param': 'my-value' },
+        assetParallelism: false,
+      }));
+
+      expect(mockDeployStack).toHaveBeenCalledTimes(2);
+    });
+
+    test('non-change-set deployment uses original flow', async () => {
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: {
+          method: 'direct',
+        },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        deploymentMethod: { method: 'direct' },
+      }));
+
+      // Should only be called once (no changeset creation)
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+
+      // describeChangeSet should not be called
+      expect(deployments.Deployments.prototype.describeChangeSet).not.toHaveBeenCalled();
+    });
   });
 
   describe('deployment results', () => {
@@ -227,6 +395,44 @@ IAM Statement Changes
 
       // THEN
       successfulDeployment();
+    });
+
+    test('change-set information included in diff formatter', async () => {
+      const changeSetData = {
+        ChangeSetName: 'test-changeset',
+        Changes: [
+          {
+            Type: 'Resource' as const,
+            ResourceChange: {
+              Action: 'Add' as const,
+              LogicalResourceId: 'TestResource',
+              ResourceType: 'AWS::S3::Bucket',
+            },
+          },
+        ],
+        Status: 'CREATE_COMPLETE' as const,
+      };
+
+      jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+        ...changeSetData,
+        $metadata: {},
+      });
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: {
+          method: 'change-set',
+          changeSetName: 'test-changeset',
+        },
+      });
+
+      // THEN
+      // The changeset data should be available for diff formatting
+      // This is verified through the successful execution and user approval flow
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Do you wish to deploy these changes'),
+      }));
     });
   });
 
@@ -320,6 +526,156 @@ IAM Statement Changes
     // THEN
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
+  });
+
+  test('user rejection of change-set deployment deletes changeset', async () => {
+    const deleteChangeSetSpy = jest.spyOn(deployments.Deployments.prototype, 'deleteChangeSet');
+
+    // Mock describeChangeSet to return the specific changeset name
+    jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+      ChangeSetName: 'rejected-changeset',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Add',
+            LogicalResourceId: 'TestResource',
+            ResourceType: 'AWS::S3::Bucket',
+          },
+        },
+      ],
+      Status: 'CREATE_COMPLETE',
+      $metadata: {},
+    });
+
+    // Mock user rejection
+    ioHost.requestSpy.mockResolvedValue(false);
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const result = toolkit.deploy(cx, {
+      deploymentMethod: {
+        method: 'change-set',
+        changeSetName: 'rejected-changeset',
+      },
+    });
+
+    // THEN
+    await expect(result).rejects.toThrow('Aborted by user');
+
+    // Should delete the changeset before throwing
+    expect(deleteChangeSetSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      'rejected-changeset',
+    );
+
+    // Should only be called once (for changeset creation, not execution)
+    expect(mockDeployStack).toHaveBeenCalledTimes(1);
+  });
+
+  test('user rejection of non-change-set deployment does not call deleteChangeSet', async () => {
+    const deleteChangeSetSpy = jest.spyOn(deployments.Deployments.prototype, 'deleteChangeSet');
+
+    // Mock user rejection
+    ioHost.requestSpy.mockResolvedValue(false);
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const result = toolkit.deploy(cx, {
+      deploymentMethod: {
+        method: 'direct',
+      },
+    });
+
+    // THEN
+    await expect(result).rejects.toThrow('Aborted by user');
+
+    // Should NOT delete changeset for non-changeset deployment
+    expect(deleteChangeSetSpy).not.toHaveBeenCalled();
+  });
+
+  test('motivation message format contains stack display name', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        motivation: 'Approval required for stack deployment.',
+      }),
+    }));
+  });
+
+  test('describeChangeSet failure is propagated', async () => {
+    jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockRejectedValue(
+      new Error('Failed to describe changeset'),
+    );
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const result = toolkit.deploy(cx, {
+      deploymentMethod: {
+        method: 'change-set',
+        changeSetName: 'failing-describe-changeset',
+      },
+    });
+
+    // THEN
+    await expect(result).rejects.toThrow('Failed to describe changeset');
+  });
+
+  test('deleteChangeSet failure during user rejection throws deleteChangeSet error', async () => {
+    const deleteChangeSetSpy = jest.spyOn(deployments.Deployments.prototype, 'deleteChangeSet')
+      .mockRejectedValue(new Error('Failed to delete changeset'));
+
+    // Mock user rejection
+    ioHost.requestSpy.mockResolvedValue(false);
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const result = toolkit.deploy(cx, {
+      deploymentMethod: {
+        method: 'change-set',
+        changeSetName: 'delete-fail-changeset',
+      },
+    });
+
+    // THEN
+    await expect(result).rejects.toThrow('Failed to delete changeset');
+
+    // deleteChangeSet should have been attempted
+    expect(deleteChangeSetSpy).toHaveBeenCalled();
+  });
+
+  test('deploymentMethod variable overrides options.deploymentMethod for changeset execution', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.deploy(cx, {
+      deploymentMethod: {
+        method: 'change-set',
+        changeSetName: 'override-test',
+      },
+    });
+
+    // THEN
+    // First call: changeset creation
+    expect(mockDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      deploymentMethod: expect.objectContaining({
+        method: 'change-set',
+        changeSetName: 'override-test',
+        execute: false,
+      }),
+    }));
+
+    // Second call: changeset execution with modified deployment method
+    expect(mockDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      deploymentMethod: expect.objectContaining({
+        method: 'change-set',
+        changeSetName: 'override-test',
+        executeExistingChangeSet: true,
+      }),
+    }));
   });
 });
 

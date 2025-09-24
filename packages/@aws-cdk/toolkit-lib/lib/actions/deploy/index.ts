@@ -35,6 +35,41 @@ export interface ChangeSetDeployment {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Whether to execute an existing change set instead of creating a new one.
+   * When true, the specified changeSetName must exist and will be executed directly.
+   * When false or undefined, a new change set will be created.
+   *
+   * This is useful for secure change set review workflows where:
+   * 1. A change set is created with `execute: false`
+   * 2. The change set is reviewed by authorized personnel
+   * 3. The same change set is executed using this option to ensure
+   *    the exact changes that were reviewed are deployed
+   *
+   * @example
+   * // Step 1: Create change set for review
+   * deployStack(\{
+   *   deploymentMethod: \{
+   *     method: 'change-set',
+   *     changeSetName: 'my-review-changeset',
+   *     execute: false
+   *   \}
+   * \});
+   *
+   * // Step 2: Execute the reviewed change set
+   * deployStack(\{
+   *   deploymentMethod: \{
+   *     method: 'change-set',
+   *     changeSetName: 'my-review-changeset',
+   *     executeExistingChangeSet: true,
+   *     execute: true
+   *   \}
+   * \});
+   *
+   * @default false
+   */
+  readonly executeExistingChangeSet?: boolean;
 }
 
 /**
