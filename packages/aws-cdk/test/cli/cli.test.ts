@@ -51,6 +51,12 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('ts')) {
         result = { ...result, language: 'typescript' };
       }
+    } else if (args.includes('--yes')) {
+      return Promise.resolve({
+        _: ['deploy'],
+        yes: true,
+        parameters: [{}],
+      });
     }
 
     // Handle notices flags
@@ -426,4 +432,24 @@ describe('notices configuration tests', () => {
       }),
     );
   });
+});
+
+test('when --yes option is provided, CliIoHost is in non-interactive mode', async () => {
+  // GIVEN
+  const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+  const execSpy = jest.spyOn(CliIoHost, 'instance');
+
+  // WHEN
+  await exec(['deploy', '--yes']);
+
+  // THEN
+  expect(execSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      nonInteractive: true,
+    }),
+    true,
+  );
+
+  migrateSpy.mockRestore();
+  execSpy.mockRestore();
 });
