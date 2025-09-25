@@ -477,6 +477,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (!configuration.settings.get(['unstable']).includes('gc')) {
           throw new ToolkitError('Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
         }
+        // roleArn is defined for when cloudformation is invoked
+        // This conflicts with direct sdk calls existing in the gc command to s3 and ecr
         if (args.roleArn) {
           throw new ToolkitError('The --role-arn option is not supported for the gc command');
         }
