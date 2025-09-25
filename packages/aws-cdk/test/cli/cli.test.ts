@@ -427,3 +427,32 @@ describe('notices configuration tests', () => {
     );
   });
 });
+
+describe('gc command validation tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('should throw error when --role-arn is provided with gc command', async () => {
+    // Mock configuration to include 'gc' in unstable features
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['gc'];
+          return undefined;
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    (Configuration as any).mockImplementation(() => mockConfig);
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
+
+    await expect(exec(['gc', '--role-arn', 'arn:aws:iam::123456789012:role/TestRole', '--unstable=gc']))
+      .rejects
+      .toThrow('The --role-arn option is not supported for the gc command');
+  });
+});
