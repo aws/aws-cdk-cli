@@ -4,6 +4,7 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -485,26 +486,6 @@ export class CdkToolkit {
         return;
       }
 
-      if (requireApproval !== RequireApproval.NEVER) {
-        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        const formatter = new DiffFormatter({
-          templateInfo: {
-            oldTemplate: currentTemplate,
-            newTemplate: stack,
-          },
-        });
-        const securityDiff = formatter.formatSecurityDiff();
-        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
-          await askUserConfirmation(
-            this.ioHost,
-            concurrency,
-            '"--require-approval" is enabled and stack includes security-sensitive updates',
-            'Do you wish to deploy these changes',
-          );
-        }
-      }
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -520,13 +501,96 @@ export class CdkToolkit {
         }
       }
 
-      const stackIndex = stacks.indexOf(stack) + 1;
-      await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
-      const startDeployTime = new Date().getTime();
       let tags = options.tags;
       if (!tags || tags.length === 0) {
         tags = tagsForStack(stack);
       }
+
+      let deploymentMethod: DeploymentMethod | undefined;
+
+      switch (requireApproval) {
+        case RequireApproval.BROADENING: {
+          const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
+          const formatter = new DiffFormatter({
+            templateInfo: {
+              oldTemplate: currentTemplate,
+              newTemplate: stack,
+            },
+          });
+          const securityDiff = formatter.formatSecurityDiff();
+          if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
+            await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
+            await askUserConfirmation(
+              this.ioHost,
+              concurrency,
+              '"--require-approval" is enabled and stack includes security-sensitive updates',
+              'Do you wish to deploy these changes',
+            );
+          }
+          break;
+        }
+
+        case RequireApproval.ANYCHANGE: {
+          let changeSet: DescribeChangeSetCommandOutput | undefined;
+          if (options.deploymentMethod?.method === 'change-set') {
+            // Create a CloudFormation change set
+            const changeSetName = options.deploymentMethod?.changeSetName || `cdk-change-set-${Date.now()}`;
+            const r = await this.props.deployments.deployStack({
+              stack,
+              deployName: stack.stackName,
+              roleArn: options.roleArn,
+              toolkitStackName: options.toolkitStackName,
+              reuseAssets: options.reuseAssets,
+              notificationArns,
+              tags,
+              deploymentMethod: { method: 'change-set' as const, changeSetName, execute: false },
+              forceDeployment: options.force,
+              parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+              usePreviousParameters: options.usePreviousParameters,
+              extraUserAgent: options.extraUserAgent,
+              assetParallelism: options.assetParallelism,
+              ignoreNoStacks: options.ignoreNoStacks,
+            });
+            if (r.type !== 'did-deploy-stack') {
+              throw new ToolkitError(`Unable to create CloudFormation change set for stack: '${stack.stackName}', ${r.type}`);
+            }
+
+            // Describe the change set to be presented to the user
+            changeSet = await this.props.deployments.describeChangeSet(stack, changeSetName);
+            if (changeSet.ChangeSetName && (changeSet.Changes === undefined || changeSet.Changes.length === 0)) {
+              await this.ioHost.asIoHelper().defaults.info('No changes');
+              await this.deleteChangeSet(stack, changeSet.ChangeSetName);
+              return;
+            }
+
+            // Adjust the deployment method for the subsequent deployment to execute the existing change set
+            deploymentMethod = { ...options.deploymentMethod, changeSetName, executeExistingChangeSet: true };
+          }
+
+          // Present the diff to the user
+          const oldTemplate = await this.props.deployments.readCurrentTemplate(stack);
+          const formatter = new DiffFormatter({ templateInfo: { oldTemplate, newTemplate: stack, changeSet } });
+          const diff = formatter.formatStackDiff();
+          await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
+
+          // Prompt the user to confirm deployment
+          try {
+            const motivation = `Change set created for stack "${stack.displayName}"`;
+            const question = 'Do you wish to deploy these changes';
+            await askUserConfirmation(this.ioHost, concurrency, motivation, question);
+          } catch (e: unknown) {
+            if (e instanceof ToolkitError && e.message === 'Aborted by user' && changeSet?.ChangeSetName) {
+              await this.deleteChangeSet(stack, changeSet.ChangeSetName);
+            }
+            throw e;
+          }
+          break;
+        }
+      }
+
+      const stackIndex = stacks.indexOf(stack) + 1;
+      await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
+      const startDeployTime = new Date().getTime();
 
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
@@ -553,7 +617,7 @@ export class CdkToolkit {
             tags,
             execute: options.execute,
             changeSetName: options.changeSetName,
-            deploymentMethod: options.deploymentMethod,
+            deploymentMethod: deploymentMethod ?? options.deploymentMethod,
             forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.usePreviousParameters,
@@ -1468,6 +1532,19 @@ export class CdkToolkit {
       roleArn: options.roleArn,
       stackName: assetNode.parentStack.stackName,
     }));
+  }
+
+  /**
+   * Delete a change set (with CLI-appropriate error handling)
+   */
+  private async deleteChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<void> {
+    try {
+      await this.props.deployments.deleteChangeSet(stack, changeSetName);
+    } catch (error) {
+      // Log but don't throw - change set cleanup failure shouldn't break deployment
+      const ioHelper = asIoHelper(this.ioHost, 'deploy');
+      await ioHelper.defaults.debug(`Failed to cleanup change set ${changeSetName} for stack ${stack.displayName}: ${error}`);
+    }
   }
 }
 

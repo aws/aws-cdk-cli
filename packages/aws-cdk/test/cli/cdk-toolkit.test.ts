@@ -61,7 +61,7 @@ import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { ChangeSetStatus, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
 import * as promptly from 'promptly';
@@ -645,6 +645,116 @@ describe('deploy', () => {
 
     expect(cloudExecutable.hasApp).toEqual(false);
     expect(mockSynthesize).not.toHaveBeenCalled();
+  });
+
+  describe('RequireApproval.ANYCHANGE', () => {
+    let toolkit: CdkToolkit;
+    let mockDeployments: Deployments;
+    const mockConfirm = jest.spyOn(promptly, 'confirm');
+
+    beforeEach(() => {
+      mockDeployments = new FakeCloudFormation({
+        'Test-Stack-A': { Foo: 'Bar' },
+        'Test-Stack-B': { Baz: 'Zinga!' },
+        'Test-Stack-C': { Baz: 'Zinga!' },
+      });
+
+      toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockDeployments,
+      });
+
+      mockConfirm.mockResolvedValue(true);
+    });
+
+    test('creates change set, shows diff, prompts for approval, and deploys changes', async () => {
+      const mockDeployStack = jest.spyOn(mockDeployments, 'deployStack');
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set', changeSetName: 'test-change-set' },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'change-set', changeSetName: 'test-change-set', execute: false },
+        }),
+      );
+      expect(mockConfirm).toHaveBeenCalled();
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'change-set', changeSetName: 'test-change-set', executeExistingChangeSet: true },
+        }),
+      );
+      expect(mockDeployStack).toHaveBeenCalledTimes(2);
+    });
+
+    test('deletes change set when there are no changes', async () => {
+      // GIVEN
+      const mockDeployStack = jest.spyOn(mockDeployments, 'deployStack');
+      const mockDeleteChangeSet = jest.spyOn(mockDeployments, 'deleteChangeSet');
+      jest.spyOn(mockDeployments, 'describeChangeSet').mockResolvedValue({
+        ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-change-set/12345',
+        ChangeSetName: 'cdk-change-set',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Test-Stack-A-Display-Name/12345',
+        Status: ChangeSetStatus.CREATE_COMPLETE,
+        Changes: [],
+        $metadata: {},
+      });
+
+      // WHEN
+      await toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN
+      expect(mockDeleteChangeSet).toHaveBeenCalled();
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+    });
+
+    test('deletes change set when user rejects', async () => {
+      // GIVEN
+      const mockDeleteChangeSet = jest.spyOn(mockDeployments, 'deleteChangeSet');
+      mockConfirm.mockResolvedValue(false);
+
+      // WHEN
+      const result = toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN
+      await expect(result).rejects.toThrow('Aborted by user');
+      expect(mockDeleteChangeSet).toHaveBeenCalled();
+    });
+
+    test('handles change set creation failure gracefully', async () => {
+      // GIVEN
+      jest.spyOn(mockDeployments, 'deployStack').mockResolvedValue({
+        type: 'failpaused-need-rollback-first',
+        status: 'boom!',
+        reason: 'not-norollback',
+      });
+
+      // WHEN
+      const result = toolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' } as DeploymentMethod,
+      });
+
+      // THEN
+      await expect(result).rejects.toThrow("Unable to create CloudFormation change set for stack: 'Test-Stack-A'");
+    });
   });
 
   describe('readCurrentTemplate', () => {
@@ -1941,6 +2051,29 @@ class FakeCloudFormation extends Deployments {
       default:
         throw new Error(`not an expected mock stack: ${stack.stackName}`);
     }
+  }
+
+  public describeChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<any> {
+    return Promise.resolve({
+      ChangeSetId: `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${changeSetName}/12345`,
+      ChangeSetName: changeSetName,
+      StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${stack.stackName}/12345`,
+      Status: 'CREATE_COMPLETE',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'TestResource',
+            ResourceType: 'AWS::S3::Bucket',
+          },
+        },
+      ],
+    });
+  }
+
+  public deleteChangeSet(_stack: cxapi.CloudFormationStackArtifact, _changeSetName: string): Promise<void> {
+    return Promise.resolve();
   }
 }
 
