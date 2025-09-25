@@ -51,6 +51,14 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('ts')) {
         result = { ...result, language: 'typescript' };
       }
+    } else if (args.includes('gc')) {
+      result = { ...result, _: ['gc'] };
+
+      // Handle role-arn flag for gc command validation testing
+      // This simulates parser behavior to test that the CLI properly rejects roleArn
+      if (args.includes('--role-arn')) {
+        result = { ...result, roleArn: 'arn:aws:iam::123456789012:role/TestRole' };
+      }
     }
 
     // Handle notices flags
@@ -425,5 +433,37 @@ describe('notices configuration tests', () => {
         language: 'typescript',
       }),
     );
+  });
+});
+
+describe('gc command validation tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  /**
+   * Tests that the gc does not support roleArn
+   */
+  test('should throw error when --role-arn is provided with gc command', async () => {
+    // Mock configuration to include 'gc' in unstable features
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['gc'];
+          return undefined;
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    (Configuration as any).mockImplementation(() => mockConfig);
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => mockConfig);
+    // Expects an error to be thrown when roleArn is used with gc
+    await expect(exec(['gc', '--role-arn', 'arn:aws:iam::123456789012:role/TestRole', '--unstable=gc']))
+      .rejects
+      .toThrow('The --role-arn option is not supported for the gc command');
   });
 });
