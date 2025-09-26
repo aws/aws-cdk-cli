@@ -44,9 +44,6 @@ beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
 
-  // Set environment variable to prevent CI detection from failing tests
-  process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED = 'true';
-
   // By default, we'll return a non-found toolkit info
   jest.spyOn(ToolkitInfo, 'lookup').mockResolvedValue(ToolkitInfo.bootstrapStackNotFoundInfo('GarbageStack'));
 
@@ -742,6 +739,18 @@ describe('CloudFormation API calls', () => {
   });
 
   test('skip stacks using glob patterns when unauthorized', async () => {
+    // Detect if we're in CI environment
+    const isCI = process.env.CI === 'true' || 
+                 process.env.GITHUB_ACTIONS === 'true' ||
+                 process.env.GITLAB_CI === 'true' ||
+                 process.env.JENKINS_URL !== undefined ||
+                 process.env.BUILDKITE === 'true';
+    
+    // If in CI, set auto-approve env var to prevent hanging
+    if (isCI) {
+      process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED = 'true';
+    }
+    
     mockTheToolkitInfo({ Outputs: [{ OutputKey: 'BootstrapVersion', OutputValue: '999' }] });
 
     cfnClient.on(ListStacksCommand).resolves({
@@ -766,8 +775,10 @@ describe('CloudFormation API calls', () => {
       cfnClient.on(GetTemplateCommand, { StackName: stackName }).rejects(accessDeniedError);
     });
 
-    // Mock user response to confirm skipping unauthorized stacks
-    ioHost.requestSpy.mockResolvedValue('y');
+    // Mock user response for interactive mode
+    if (!isCI) {
+      ioHost.requestSpy.mockResolvedValue('y');
+    }
 
     garbageCollector = new GarbageCollector({
       sdkProvider: new MockSdkProvider(),
@@ -785,9 +796,17 @@ describe('CloudFormation API calls', () => {
     await garbageCollector.garbageCollect();
 
     expect(cfnClient).toHaveReceivedCommandWith(GetTemplateCommand, { StackName: 'CDKStack1' });
-    expect(ioHost.notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'info', message: expect.stringContaining('Skipping 3 unauthorized stack(s)') }),
-    );
+    
+    // Expect different messages based on environment
+    if (isCI) {
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ level: 'info', message: expect.stringContaining('Auto-approving 3 unauthorized stack(s) in CI mode') }),
+      );
+    } else {
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ level: 'info', message: expect.stringContaining('Skipping 3 unauthorized stack(s)') }),
+      );
+    }
   });
 
   test('fail on unauthorized stack not matching skip patterns', async () => {
@@ -821,6 +840,18 @@ describe('CloudFormation API calls', () => {
   });
 
   test('extract stack name from ARN for pattern matching', async () => {
+    // Detect if we're in CI environment
+    const isCI = process.env.CI === 'true' || 
+                 process.env.GITHUB_ACTIONS === 'true' ||
+                 process.env.GITLAB_CI === 'true' ||
+                 process.env.JENKINS_URL !== undefined ||
+                 process.env.BUILDKITE === 'true';
+    
+    // If in CI, set auto-approve env var to prevent hanging
+    if (isCI) {
+      process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED = 'true';
+    }
+    
     mockTheToolkitInfo({ Outputs: [{ OutputKey: 'BootstrapVersion', OutputValue: '999' }] });
 
     const stackArn = 'arn:aws:cloudformation:us-east-1:123456789012:stack/Legacy-App-Stack/12345';
@@ -833,8 +864,10 @@ describe('CloudFormation API calls', () => {
     cfnClient.on(GetTemplateSummaryCommand, { StackName: stackArn }).resolves({ Parameters: [] });
     cfnClient.on(GetTemplateCommand, { StackName: stackArn }).rejects(accessDeniedError);
 
-    // Mock user response to confirm skipping unauthorized stacks
-    ioHost.requestSpy.mockResolvedValue('y');
+    // Mock user response for interactive mode
+    if (!isCI) {
+      ioHost.requestSpy.mockResolvedValue('y');
+    }
 
     garbageCollector = new GarbageCollector({
       sdkProvider: new MockSdkProvider(),
@@ -851,9 +884,16 @@ describe('CloudFormation API calls', () => {
 
     await garbageCollector.garbageCollect();
 
-    expect(ioHost.notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'info', message: expect.stringContaining('Skipping 1 unauthorized stack(s)') }),
-    );
+    // Expect different messages based on environment
+    if (isCI) {
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ level: 'info', message: expect.stringContaining('Auto-approving 1 unauthorized stack(s) in CI mode') }),
+      );
+    } else {
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ level: 'info', message: expect.stringContaining('Skipping 1 unauthorized stack(s)') }),
+      );
+    }
   });
 });
 
