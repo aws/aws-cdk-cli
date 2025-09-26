@@ -44,6 +44,9 @@ beforeEach(() => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
 
+  // Set environment variable to prevent CI detection from failing tests
+  process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED = 'true';
+
   // By default, we'll return a non-found toolkit info
   jest.spyOn(ToolkitInfo, 'lookup').mockResolvedValue(ToolkitInfo.bootstrapStackNotFoundInfo('GarbageStack'));
 
@@ -59,6 +62,8 @@ beforeEach(() => {
 
 afterEach(() => {
   stderrMock.mockReset();
+  // Clean up environment variable
+  delete process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED;
 });
 
 function mockTheToolkitInfo(stackProps: Partial<Stack>) {
