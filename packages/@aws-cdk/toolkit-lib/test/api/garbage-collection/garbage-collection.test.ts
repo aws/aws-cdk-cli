@@ -761,6 +761,9 @@ describe('CloudFormation API calls', () => {
       cfnClient.on(GetTemplateCommand, { StackName: stackName }).rejects(accessDeniedError);
     });
 
+    // Mock user response to confirm skipping unauthorized stacks
+    ioHost.requestSpy.mockResolvedValue('y');
+
     garbageCollector = new GarbageCollector({
       sdkProvider: new MockSdkProvider(),
       ioHelper: ioHost.asHelper('gc'),
@@ -778,7 +781,7 @@ describe('CloudFormation API calls', () => {
 
     expect(cfnClient).toHaveReceivedCommandWith(GetTemplateCommand, { StackName: 'CDKStack1' });
     expect(ioHost.notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'warn', message: expect.stringContaining("Skipping unauthorized stack 'Legacy-App-Stack'") }),
+      expect.objectContaining({ level: 'info', message: expect.stringContaining('Skipping 3 unauthorized stack(s)') }),
     );
   });
 
@@ -825,6 +828,9 @@ describe('CloudFormation API calls', () => {
     cfnClient.on(GetTemplateSummaryCommand, { StackName: stackArn }).resolves({ Parameters: [] });
     cfnClient.on(GetTemplateCommand, { StackName: stackArn }).rejects(accessDeniedError);
 
+    // Mock user response to confirm skipping unauthorized stacks
+    ioHost.requestSpy.mockResolvedValue('y');
+
     garbageCollector = new GarbageCollector({
       sdkProvider: new MockSdkProvider(),
       ioHelper: ioHost.asHelper('gc'),
@@ -841,7 +847,7 @@ describe('CloudFormation API calls', () => {
     await garbageCollector.garbageCollect();
 
     expect(ioHost.notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'warn', message: expect.stringContaining('Skipping unauthorized stack') }),
+      expect.objectContaining({ level: 'info', message: expect.stringContaining('Skipping 1 unauthorized stack(s)') }),
     );
   });
 });

@@ -181,7 +181,7 @@ interface GarbageCollectorProps {
 
   /**
    * Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection.
-   * You must explicitly specify non-CDK stack names - CDK stacks will be rejected to prevent accidental asset deletion.
+   * You must explicitly specify non-CDK stack names
    *
    * @default undefined
    */

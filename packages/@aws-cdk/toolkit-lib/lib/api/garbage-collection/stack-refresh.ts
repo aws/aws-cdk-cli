@@ -12,6 +12,9 @@ export class ActiveAssetCache {
   }
 
   public contains(asset: string): boolean {
+    // To reduce computation if asset is null or undefined
+    if (!asset) return false;
+
     for (const stack of this.stacks) {
       if (stack.includes(asset)) {
         return true;
@@ -50,6 +53,66 @@ async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | unde
 }
 
 /**
+ * Handle unauthorized stacks by asking user if they want to skip them all
+ */
+async function handleUnauthorizedStacks(unauthorizedStacks: string[], ioHelper: IoHelper): Promise<void> {
+  if (unauthorizedStacks.length === 0) {
+    return;
+  }
+
+  // Auto-approve in CI environments
+  if (process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED === 'true') {
+    await ioHelper.defaults.info(`Auto-approving ${unauthorizedStacks.length} unauthorized stack(s) in CI mode`);
+    return;
+  }
+
+  // Detect CI environment and fail fast to prevent hanging
+  const isCI = process.env.CI === 'true' ||
+               process.env.GITHUB_ACTIONS === 'true' ||
+               process.env.GITLAB_CI === 'true' ||
+               process.env.JENKINS_URL !== undefined ||
+               process.env.BUILDKITE === 'true';
+
+  if (isCI) {
+    throw new ToolkitError(
+      `Found ${unauthorizedStacks.length} unauthorized stack(s) in CI environment. ` +
+      'Set CDK_GC_AUTO_APPROVE_UNAUTHORIZED=true to auto-approve or configure --skip-unauthorized-stacks-when-noncdk.',
+    );
+  }
+
+  try {
+    const stackList = unauthorizedStacks.join(', ');
+    const message = `Found ${unauthorizedStacks.length} unauthorized stack(s): ${stackList}\nDo you want to skip all these stacks?`;
+
+    // Ask user if they want to proceed
+    const response = await ioHelper.requestResponse({
+      time: new Date(),
+      level: 'info',
+      code: 'CDK_TOOLKIT_I9210',
+      message,
+      data: {
+        stacks: unauthorizedStacks,
+        count: unauthorizedStacks.length,
+        responseDescription: '[y]es/[n]o',
+      },
+      defaultResponse: 'y',
+    });
+
+    // Throw error is user response is not yes or y
+    if (!response || !['y', 'yes'].includes(response.toLowerCase())) {
+      throw new ToolkitError('Operation cancelled by user due to unauthorized stacks');
+    }
+
+    await ioHelper.defaults.info(`Skipping ${unauthorizedStacks.length} unauthorized stack(s)`);
+  } catch (error) {
+    if (error instanceof ToolkitError) {
+      throw error;
+    }
+    throw new ToolkitError(`Failed to handle unauthorized stacks: ${error}`);
+  }
+}
+
+/**
  * Fetches all relevant stack templates from CloudFormation. It ignores the following stacks:
  * - stacks in DELETE_COMPLETE or DELETE_IN_PROGRESS stage
  * - stacks that are using a different bootstrap qualifier
@@ -79,6 +142,8 @@ async function fetchAllStackTemplates(
   await ioHelper.defaults.debug(`Parsing through ${stackNames.length} stacks`);
 
   const templates: string[] = [];
+  const unauthorizedStacks: string[] = [];
+
   for (const stack of stackNames) {
     try {
       let summary;
@@ -100,9 +165,7 @@ async function fetchAllStackTemplates(
       // Check if this is a CloudFormation access denied error
       if (error.name === 'AccessDenied') {
         if (shouldSkipStack(stack, skipUnauthorizedStacksWhenNonCdk)) {
-          await ioHelper.defaults.warn(
-            `Skipping unauthorized stack '${stack}' as specified in --skip-unauthorized-stacks-when-noncdk`,
-          );
+          unauthorizedStacks.push(stack);
           continue;
         }
 
@@ -116,6 +179,8 @@ async function fetchAllStackTemplates(
       throw error;
     }
   }
+
+  await handleUnauthorizedStacks(unauthorizedStacks, ioHelper);
 
   await ioHelper.defaults.debug('Done parsing through stacks');
 
