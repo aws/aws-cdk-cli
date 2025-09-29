@@ -35,6 +35,8 @@ export function integTest(
 ): void {
   const runner = shouldSkip(name) ? test.skip : test;
 
+  jest.retryTimes(20);
+
   runner(name, async () => {
     const output = new MemoryStream();
 

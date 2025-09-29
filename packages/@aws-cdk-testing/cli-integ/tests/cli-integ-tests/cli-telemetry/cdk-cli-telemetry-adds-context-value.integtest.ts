@@ -44,6 +44,7 @@ integTest(
         ...context,
         ['cli-telemetry']: false,
       });
+      throw new Error('Expected to fail');
     } finally {
       await fs.unlink(contextFile);
     }
