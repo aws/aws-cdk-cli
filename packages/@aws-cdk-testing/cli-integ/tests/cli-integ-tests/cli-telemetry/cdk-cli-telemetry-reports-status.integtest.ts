@@ -17,7 +17,6 @@ integTest(
       await fs.writeFile(userContextFile, JSON.stringify({ context: { 'cli-telemetry': false } }));
       const output2 = await fixture.cdk(['cli-telemetry', '--status']);
       expect(output2).toContain('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
-      throw new Error('Expected to fail');
     } finally {
       await fs.unlink(userContextFile);
     }
