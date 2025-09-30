@@ -494,6 +494,30 @@ describe('bootstrap', () => {
     await realDispose();
   });
 
+  describe('forceDeployment option', () => {
+    test('accepts forceDeployment option in BootstrapOptions', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      const cx = await builderFixture(toolkit, 'stack-with-asset');
+      const bootstrapEnvs = BootstrapEnvironments.fromCloudAssemblySource(cx);
+
+      // WHEN
+      const result = await toolkit.bootstrap(bootstrapEnvs, {
+        forceDeployment: true,
+      });
+
+      // THEN
+      expectValidBootstrapResult(result);
+      expectSuccessfulBootstrap();
+    });
+  });
+
   describe('error handling', () => {
     test('returns correct BootstrapResult for successful bootstraps', async () => {
     // GIVEN
