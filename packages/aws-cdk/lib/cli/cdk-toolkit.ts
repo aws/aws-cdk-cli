@@ -2,18 +2,17 @@ import * as path from 'path';
 import { format } from 'util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import type { DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
-import * as promptly from 'promptly';
 import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, tagsForStack } from '../../lib/api-private';
+import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
+import { asIoHelper, cfnApi, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -73,12 +72,6 @@ import type { ErrorDetails } from './telemetry/schema';
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
 const pLimit: typeof import('p-limit') = require('p-limit');
-
-let TESTING = false;
-
-export function markTesting() {
-  TESTING = true;
-}
 
 export interface CdkToolkitProps {
   /**
@@ -495,12 +488,16 @@ export class CdkToolkit {
         });
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
+          const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates';
           await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
           await askUserConfirmation(
             this.ioHost,
-            concurrency,
-            '"--require-approval" is enabled and stack includes security-sensitive updates',
-            'Do you wish to deploy these changes',
+            IO.CDK_TOOLKIT_I5060.req(`${motivation}: 'Do you wish to deploy these changes'`, {
+              motivation,
+              concurrency,
+              permissionChangeType: securityDiff.permissionChangeType,
+              templateDiffs: formatter.diffs,
+            }),
           );
         }
       }
@@ -578,9 +575,10 @@ export class CdkToolkit {
               } else {
                 await askUserConfirmation(
                   this.ioHost,
-                  concurrency,
-                  motivation,
-                  `${motivation}. Roll back first and then proceed with deployment`,
+                  IO.CDK_TOOLKIT_I5050.req(`${motivation}. Roll back first and then proceed with deployment`, {
+                    motivation,
+                    concurrency,
+                  }),
                 );
               }
 
@@ -604,9 +602,10 @@ export class CdkToolkit {
               } else {
                 await askUserConfirmation(
                   this.ioHost,
-                  concurrency,
-                  motivation,
-                  `${motivation}. Perform a regular deployment`,
+                  IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a regular deployment`, {
+                    concurrency,
+                    motivation,
+                  }),
                 );
               }
 
@@ -970,33 +969,33 @@ export class CdkToolkit {
   }
 
   public async destroy(options: DestroyOptions) {
-    let stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
+    const ioHelper = this.ioHost.asIoHelper();
 
     // The stacks will have been ordered for deployment, so reverse them for deletion.
-    stacks = stacks.reversed();
+    const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
 
     if (!options.force) {
-      // eslint-disable-next-line @stylistic/max-len
-      const confirmed = await promptly.confirm(
-        `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))} (y/n)?`,
-      );
+      const motivation = 'Destroying stacks is an irreversible action';
+      const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
       if (!confirmed) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
         return;
       }
     }
 
     const action = options.fromDeploy ? 'deploy' : 'destroy';
     for (const [index, stack] of stacks.stackArtifacts.entries()) {
-      await this.ioHost.asIoHelper().defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), index + 1, stacks.stackCount);
+      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), index + 1, stacks.stackCount);
       try {
         await this.props.deployments.destroyStack({
           stack,
           deployName: stack.stackName,
           roleArn: options.roleArn,
         });
-        await this.ioHost.asIoHelper().defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
+        await ioHelper.defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
       } catch (e) {
-        await this.ioHost.asIoHelper().defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
+        await ioHelper.defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
         throw e;
       }
     }
@@ -2103,22 +2102,10 @@ function buildParameterMap(
  */
 async function askUserConfirmation(
   ioHost: CliIoHost,
-  concurrency: number,
-  motivation: string,
-  question: string,
+  req: ActionLessRequest<ConfirmationRequest, boolean>,
 ) {
   await ioHost.withCorkedLogging(async () => {
-    // only talk to user if STDIN is a terminal (otherwise, fail)
-    if (!TESTING && !process.stdin.isTTY) {
-      throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
-    }
-
-    // only talk to user if concurrency is 1 (otherwise, fail)
-    if (concurrency > 1) {
-      throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
-    }
-
-    const confirmed = await promptly.confirm(`${chalk.cyan(question)} (y/n)?`);
+    const confirmed = await ioHost.asIoHelper().requestResponse(req);
     if (!confirmed) {
       throw new ToolkitError('Aborted by user');
     }

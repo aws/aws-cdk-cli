@@ -1190,10 +1190,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
 
       const question = 'Do you wish to refactor these resources?';
-      const response = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
-        responseDescription: '[Y]es/[n]o',
-      }, 'y'));
-      return ['y', 'yes'].includes(response.toLowerCase());
+      return ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        motivation: 'User input is needed',
+      }));
     }
 
     function formatError(error: any): string {
