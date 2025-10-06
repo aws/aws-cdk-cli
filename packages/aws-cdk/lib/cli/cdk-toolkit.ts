@@ -977,9 +977,13 @@ export class CdkToolkit {
     if (!options.force) {
       const motivation = 'Destroying stacks is an irreversible action';
       const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
-      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-      if (!confirmed) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+      try {
+        await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
+      } catch (err: unknown) {
+        if (!ToolkitError.isToolkitError(err) || err.message != 'Aborted by user') {
+          throw err; // unexpected error
+        }
+        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg(err.message));
         return;
       }
     }
@@ -2105,10 +2109,7 @@ async function askUserConfirmation(
   req: ActionLessRequest<ConfirmationRequest, boolean>,
 ) {
   await ioHost.withCorkedLogging(async () => {
-    const confirmed = await ioHost.asIoHelper().requestResponse(req);
-    if (!confirmed) {
-      throw new ToolkitError('Aborted by user');
-    }
+    await ioHost.asIoHelper().requestResponse(req);
   });
 }
 
