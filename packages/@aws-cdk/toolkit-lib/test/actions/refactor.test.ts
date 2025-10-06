@@ -854,7 +854,7 @@ describe('refactor execution', () => {
         expect.objectContaining({
           action: 'refactor',
           code: 'CDK_TOOLKIT_I8910',
-          defaultResponse: 'y',
+          defaultResponse: true,
           level: 'info',
           message: 'Do you wish to refactor these resources?',
         }),

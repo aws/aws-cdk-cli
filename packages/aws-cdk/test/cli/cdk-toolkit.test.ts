@@ -64,7 +64,6 @@ import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployment
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
-import * as promptly from 'promptly';
 import type { Template, SdkProvider } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
@@ -81,7 +80,7 @@ import {
 import { Mode } from '../../lib/api/plugin';
 import type { Tag } from '../../lib/api/tags';
 import { asIoHelper } from '../../lib/api-private';
-import { CdkToolkit, markTesting } from '../../lib/cli/cdk-toolkit';
+import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
 import { StackActivityProgress } from '../../lib/commands/deploy';
@@ -99,14 +98,13 @@ import {
 } from '../_helpers/mock-sdk';
 import { promiseWithResolvers } from '../_helpers/promises';
 
-markTesting();
-
 const defaultBootstrapSource: BootstrapSource = { source: 'default' };
 const bootstrapEnvironmentMock = jest.spyOn(Bootstrapper.prototype, 'bootstrapEnvironment');
 let cloudExecutable: MockCloudExecutable;
 let ioHost = CliIoHost.instance();
 let ioHelper = asIoHelper(ioHost, 'deploy');
 let notifySpy = jest.spyOn(ioHost, 'notify');
+let requestSpy = jest.spyOn(ioHost, 'requestResponse');
 
 beforeEach(async () => {
   jest.resetAllMocks();
@@ -1700,7 +1698,8 @@ describe('rollback', () => {
         stackArn: 'stack:arn',
       });
 
-    const mockedConfirm = jest.spyOn(promptly, 'confirm').mockResolvedValue(true);
+    // respond with yes
+    requestSpy.mockImplementationOnce(async () => true);
 
     const toolkit = new CdkToolkit({
       ioHost,
@@ -1725,9 +1724,9 @@ describe('rollback', () => {
     if (!useForce) {
       // Questions will have been asked only if --force is not specified
       if (firstResult.type === 'failpaused-need-rollback-first') {
-        expect(mockedConfirm).toHaveBeenCalledWith(expect.stringContaining('Roll back first and then proceed with deployment'));
+        expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Roll back first and then proceed with deployment')));
       } else {
-        expect(mockedConfirm).toHaveBeenCalledWith(expect.stringContaining('Perform a regular deployment'));
+        expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Perform a regular deployment')));
       }
     }
 

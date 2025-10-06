@@ -14,6 +14,10 @@ integTest('cdk destroy prompts the user for confirmation', withDefaultFixture(as
     interact: [
       { prompt: /Are you sure you want to delete/, input: 'no' },
     ],
+    modEnv: {
+      // disable coloring because it messes up prompt matching.
+      FORCE_COLOR: '0',
+    },
   });
 
   // assert we didn't destroy the stack
