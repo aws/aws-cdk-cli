@@ -23,8 +23,9 @@ afterAll(() => {
 });
 
 describe.each([
-  ['cli-wrapper', []],
+  ['cli-wrapper', ['--unstable', 'deprecated-cli-engine']],
   ['toolkit-lib', ['--unstable', 'toolkit-lib-engine']],
+  ['toolkit-lib', []], // default
 ])('Test discovery with engine %s', (_engine: string, engineArgs: string[]) => {
   const currentCwd = process.cwd();
   beforeAll(() => {
