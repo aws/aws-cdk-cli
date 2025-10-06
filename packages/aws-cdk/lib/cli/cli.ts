@@ -74,12 +74,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Debug should always imply tracing
-  if (argv.debug || argv.verbose > 2) {
-    setSdkTracing(true);
-  } else {
-    // cli-lib-alpha needs to explicitly set in case it was enabled before
-    setSdkTracing(false);
-  }
+  setSdkTracing(argv.debug || argv.verbose > 2);
 
   try {
     await checkForPlatformWarnings(ioHelper);
