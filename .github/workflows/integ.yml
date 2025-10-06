@@ -65,7 +65,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      CLI_LIB_VERSION_MIRRORS_CLI: "true"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Download build artifacts
