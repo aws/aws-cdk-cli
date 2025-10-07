@@ -1202,7 +1202,7 @@ export class CdkToolkit {
         const templateBody = readFromPath(options.fromPath!);
 
         const parsedTemplate = deserializeStructure(templateBody);
-        const templateId = parsedTemplate.Metadata?.TemplateId?.toString();
+        const templateId = parsedTemplate.Metadata?.AWSToolsMetrics?.IaC_Generator?.toString();
         if (templateId) {
           // if we have a template id, we can call describe generated template to get the resource identifiers
           // resource metadata, and template source to generate the template
