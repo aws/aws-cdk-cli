@@ -8,13 +8,16 @@ import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
-import { getLanguageAlias } from '../language';
+import type { LanguageInfo } from '../language';
+import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const camelCase = require('camelcase');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const decamelize = require('decamelize');
+
+const SUPPORTED_LANGUAGE_NAMES = SUPPORTED_LANGUAGES.map((l: LanguageInfo) => l.name);
 
 export interface CliInitOptions {
   /**
@@ -209,24 +212,24 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
  * @returns Promise resolving to array of potential template directory names
  */
 async function findPotentialTemplates(repositoryPath: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(repositoryPath, { withFileTypes: true });
-    const potentialTemplates: string[] = [];
+  const entries = await fs.readdir(repositoryPath, { withFileTypes: true });
 
-    for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+  const templateValidationPromises = entries
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map(async (entry) => {
+      try {
         const templatePath = path.join(repositoryPath, entry.name);
-        const languages = await getLanguageDirectories(templatePath);
-        if (languages.length > 0) {
-          potentialTemplates.push(entry.name);
-        }
+        const { languages } = await getLanguageDirectories(templatePath);
+        return languages.length > 0 ? entry.name : null;
+      } catch (error: any) {
+        // If we can't read a specific template directory, skip it but don't fail the entire operation
+        return null;
       }
-    }
+    });
 
-    return potentialTemplates;
-  } catch (error: any) {
-    return [];
-  }
+  /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Limited to directory entries
+  const validationResults = await Promise.all(templateValidationPromises);
+  return validationResults.filter((templateName): templateName is string => templateName !== null);
 }
 
 /**
@@ -234,27 +237,22 @@ async function findPotentialTemplates(repositoryPath: string): Promise<string[]>
  * @param templatePath - Path to the template directory
  * @returns Promise resolving to array of supported language names
  */
-async function getLanguageDirectories(templatePath: string): Promise<string[]> {
-  const cdkSupportedLanguages = ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'];
-  const languageExtensions: Record<string, string[]> = {
-    typescript: ['.ts', '.js'],
-    javascript: ['.js'],
-    python: ['.py'],
-    java: ['.java'],
-    csharp: ['.cs'],
-    fsharp: ['.fs'],
-    go: ['.go'],
-  };
-
+/**
+ * Get valid CDK language directories from a template path
+ * @param templatePath - Path to the template directory
+ * @returns Promise resolving to array of supported language names and directory entries
+ * @throws ToolkitError if directory cannot be read or validated
+ */
+async function getLanguageDirectories(templatePath: string): Promise<{ languages: string[]; entries: fs.Dirent[] }> {
   try {
     const entries = await fs.readdir(templatePath, { withFileTypes: true });
 
     const languageValidationPromises = entries
-      .filter(directoryEntry => directoryEntry.isDirectory() && cdkSupportedLanguages.includes(directoryEntry.name))
+      .filter(directoryEntry => directoryEntry.isDirectory() && SUPPORTED_LANGUAGE_NAMES.includes(directoryEntry.name))
       .map(async (directoryEntry) => {
         const languageDirectoryPath = path.join(templatePath, directoryEntry.name);
         try {
-          const hasValidLanguageFiles = await hasLanguageFiles(languageDirectoryPath, languageExtensions[directoryEntry.name]);
+          const hasValidLanguageFiles = await hasLanguageFiles(languageDirectoryPath, getLanguageExtensions(directoryEntry.name));
           return hasValidLanguageFiles ? directoryEntry.name : null;
         } catch (error: any) {
           throw new ToolkitError(`Cannot read language directory '${directoryEntry.name}': ${error.message}`);
@@ -263,7 +261,10 @@ async function getLanguageDirectories(templatePath: string): Promise<string[]> {
 
     /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Limited to supported CDK languages (7 max)
     const validationResults = await Promise.all(languageValidationPromises);
-    return validationResults.filter((languageName): languageName is string => languageName !== null);
+    return {
+      languages: validationResults.filter((languageName): languageName is string => languageName !== null),
+      entries,
+    };
   } catch (error: any) {
     throw new ToolkitError(`Cannot read template directory '${templatePath}': ${error.message}`);
   }
@@ -297,24 +298,6 @@ async function hasLanguageFiles(directoryPath: string, extensions: string[]): Pr
   }
 
   return false;
-}
-
-/**
- * Get file extensions for a specific language
- * @param language - The programming language
- * @returns Array of file extensions for the language
- */
-function getLanguageExtensions(language: string): string[] {
-  const languageExtensions: Record<string, string[]> = {
-    typescript: ['.ts', '.js'],
-    javascript: ['.js'],
-    python: ['.py'],
-    java: ['.java'],
-    csharp: ['.cs'],
-    fsharp: ['.fs'],
-    go: ['.go'],
-  };
-  return languageExtensions[language] || [];
 }
 
 /**
@@ -355,33 +338,31 @@ export class InitTemplate {
       throw new ToolkitError(`Template path does not exist: ${basePath}`);
     }
 
-    let actualBasePath = basePath;
-    let languages = await getLanguageDirectories(basePath);
+    let templateSourcePath = basePath;
+    let { languages, entries } = await getLanguageDirectories(basePath);
 
-    // Auto-detect single language templates
     if (languages.length === 0) {
-      const entries = await fs.readdir(basePath, { withFileTypes: true });
       const languageDirs = entries.filter(entry =>
         entry.isDirectory() &&
-        ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'].includes(entry.name),
+        SUPPORTED_LANGUAGE_NAMES.includes(entry.name),
       );
 
       if (languageDirs.length === 1) {
         // Validate that the language directory contains appropriate files
         const langDir = languageDirs[0].name;
-        const langDirPath = path.join(basePath, langDir);
-        const hasValidFiles = await hasLanguageFiles(langDirPath, getLanguageExtensions(langDir));
+        templateSourcePath = path.join(basePath, langDir);
+        const hasValidFiles = await hasLanguageFiles(templateSourcePath, getLanguageExtensions(langDir));
 
-        if (hasValidFiles) {
-          actualBasePath = path.join(basePath, langDir);
-          languages = [langDir];
+        if (!hasValidFiles) {
+          // If we found a language directory but it doesn't contain valid files, we should inform the user
+          throw new ToolkitError(`Found '${langDir}' directory but it doesn't contain the expected language files. Ensure the template contains ${langDir} source files.`);
         }
       }
     }
 
     const name = path.basename(basePath);
 
-    return new InitTemplate(actualBasePath, name, languages, null, TemplateType.CUSTOM);
+    return new InitTemplate(templateSourcePath, name, languages, null, TemplateType.CUSTOM);
   }
 
   public readonly description?: string;
@@ -700,18 +681,36 @@ async function initializeProject(
   await ioHelper.defaults.info('✅ All done!');
 }
 
+/**
+ * Validate that a directory exists and is empty (ignoring hidden files)
+ * @param workDir - Directory path to validate
+ * @throws ToolkitError if directory doesn't exist or is not empty
+ */
 async function assertIsEmptyDirectory(workDir: string) {
   try {
+    const stats = await fs.stat(workDir);
+    if (!stats.isDirectory()) {
+      throw new ToolkitError(`Path exists but is not a directory: ${workDir}`);
+    }
+
     const files = await fs.readdir(workDir);
-    if (files.filter((f) => !f.startsWith('.')).length !== 0) {
-      throw new ToolkitError('`cdk init` cannot be run in a non-empty directory!');
+    const visibleFiles = files.filter(f => !f.startsWith('.'));
+
+    if (visibleFiles.length > 0) {
+      throw new ToolkitError(
+        '`cdk init` cannot be run in a non-empty directory!\n' +
+        `Found ${visibleFiles.length} visible files in ${workDir}:\n` +
+        visibleFiles.map(f => `  - ${f}`).join('\n'),
+      );
     }
   } catch (e: any) {
     if (e.code === 'ENOENT') {
-      throw new ToolkitError(`Directory does not exist: ${workDir}. Please create the directory first.`);
-    } else {
-      throw e;
+      throw new ToolkitError(
+        `Directory does not exist: ${workDir}\n` +
+        'Please create the directory first using: mkdir -p ' + workDir,
+      );
     }
+    throw new ToolkitError(`Failed to validate directory ${workDir}: ${e.message}`);
   }
 }
 
