@@ -8,15 +8,22 @@ integTest(
   'cdk synth with telemetry data',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
-    await fixture.cdk(['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`]);
+
+    const synthOutput = await fixture.cdk(
+      ['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`],
+      { options: ['-vvv'] }, // force trace mode
+    );
+
+    // Check the trace that telemetry was executed successfully
+    expect(synthOutput).toContain('Telemetry Sent Successfully');
+
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['synth', '$STACKS_1'],
-            parameters: {
-              verbose: 1,
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -28,7 +35,7 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            },
+            }),
             config: {
               context: {},
             },
@@ -64,8 +71,7 @@ integTest(
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['synth', '$STACKS_1'],
-            parameters: {
-              verbose: 1,
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -77,7 +83,7 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            },
+            }),
             config: {
               context: {},
             },
