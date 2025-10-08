@@ -515,12 +515,14 @@ const RESOURCE_TYPE_ATTRIBUTES_FORMATS: {
   'AWS::IAM::Group': { Arn: iamArnFmt },
   'AWS::S3::Bucket': { Arn: s3ArnFmt },
   'AWS::Lambda::Function': { Arn: stdColonResourceArnFmt },
+  "AWS::Lambda::Url": { Arn: stdSlashResourceArnFmt },
   'AWS::Events::EventBus': {
     Arn: stdSlashResourceArnFmt,
     // the name attribute of the EventBus is the same as the Ref
     Name: (parts) => parts.resourceName,
   },
   'AWS::DynamoDB::Table': { Arn: stdSlashResourceArnFmt },
+  "AWS::DynamoDB::GlobalTable": { Arn: stdSlashResourceArnFmt },
   'AWS::AppSync::GraphQLApi': { ApiId: appsyncGraphQlApiApiIdFmt },
   'AWS::AppSync::FunctionConfiguration': {
     FunctionId: appsyncGraphQlFunctionIDFmt,
