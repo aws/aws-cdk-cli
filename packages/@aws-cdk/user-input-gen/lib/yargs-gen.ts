@@ -105,15 +105,20 @@ function makeYargs(config: CliConfig, helpers: CliHelpers): Statement {
     }
     commandCallArgs.push(lit(commandFacts.description));
 
-    if (commandFacts.options) {
-      commandCallArgs.push(optionsExpr);
-    }
-
     // Add implies calls if present
     if (commandFacts.implies) {
       for (const [key, value] of Object.entries(commandFacts.implies)) {
         optionsExpr = optionsExpr.callMethod('implies', lit(key), lit(value));
       }
+    }
+
+    // Add check function if present
+    if (commandFacts.check) {
+      optionsExpr = optionsExpr.callMethod('check', code.expr.directCode(commandFacts.check.toString()));
+    }
+
+    if (commandFacts.options || commandFacts.check) {
+      commandCallArgs.push(optionsExpr);
     }
 
     yargsExpr = yargsExpr.callMethod('command', ...commandCallArgs);

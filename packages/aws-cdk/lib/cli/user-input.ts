@@ -1402,6 +1402,13 @@ export interface InitOptions {
   readonly templatePath?: string;
 
   /**
+   * Git repository URL to clone custom template from
+   *
+   * @default - undefined
+   */
+  readonly fromGitUrl?: string;
+
+  /**
    * Positional argument for init
    */
   readonly TEMPLATE?: string;

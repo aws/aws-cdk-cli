@@ -888,6 +888,23 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Path to a specific template within a multi-template repository',
           requiresArg: true,
+        })
+        .option('from-git-url', {
+          default: undefined,
+          type: 'string',
+          desc: 'Git repository URL to clone custom template from',
+          requiresArg: true,
+          conflicts: ['lib-version', 'from-path'],
+        })
+        .check((argv) => {
+          const hasTemplatePath = Boolean(argv['template-path']);
+          const hasValidSource = Boolean(argv['from-path'] || argv['from-git-url']);
+          if (hasTemplatePath && !hasValidSource) {
+            const e = new Error('--template-path can only be used with --from-path or --from-git-url');
+            e.name = 'ValidationError';
+            throw e;
+          }
+          return true;
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>

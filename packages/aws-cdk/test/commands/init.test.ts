@@ -1,3 +1,4 @@
+import * as childProcess from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
@@ -9,7 +10,25 @@ import { TestIoHost } from '../_helpers/io-host';
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
 
-describe('constructs version', () => {
+function createMockChildProcess(exitCode?: number, signal?: string, stderr?: string) {
+  return {
+    stdout: { on: jest.fn() },
+    stderr: {
+      on: jest.fn((event, callback) => {
+        if (event === 'data' && stderr) {
+          callback(stderr);
+        }
+      }),
+    },
+    on: jest.fn((event, callback) => {
+      if (event === 'exit') {
+        setTimeout(() => callback(exitCode, signal), 10);
+      }
+    }),
+  };
+}
+
+describe('cdk init', () => {
   cliTest('shows available templates when no parameters provided', async (workDir) => {
     // Test that calling cdk init without any parameters shows available templates
     await cliInit({
@@ -729,30 +748,51 @@ describe('constructs version', () => {
     })).rejects.toThrow();
   });
 
-  cliTest('template-path implies from-path validation works', async (workDir) => {
-    // Test that the implication is properly configured
+  cliTest('template-path validation requires from-path or from-git-url', async () => {
+    // Test that the check function properly validates template-path usage
     const { makeConfig } = await import('../../lib/cli/cli-config');
     const config = await makeConfig();
-    expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
+    const checkFunction = config.commands.init.check;
 
-    // Test that template-path functionality works when from-path is provided
-    const repoDir = await createMultiTemplateRepository(workDir, [
-      { name: 'implies-test', languages: ['typescript'] },
-    ]);
-    const projectDir = path.join(workDir, 'my-project');
-    await fs.mkdirp(projectDir);
+    // Ensure check function exists
+    expect(checkFunction).toBeDefined();
 
-    await cliInit({
-      ioHelper,
-      fromPath: repoDir,
-      templatePath: 'implies-test',
-      language: 'typescript',
-      canUseNetwork: false,
-      generateOnly: true,
-      workDir: projectDir,
-    });
+    // Test that template-path without from-path or from-git-url throws error
+    expect(() => checkFunction!({
+      'template-path': 'some-template',
+    })).toThrow('--template-path can only be used with --from-path or --from-git-url');
 
-    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    // Test that template-path with from-path is valid
+    expect(checkFunction!({
+      'template-path': 'some-template',
+      'from-path': '/some/path',
+    })).toBe(true);
+
+    // Test that template-path with from-git-url is valid
+    expect(checkFunction!({
+      'template-path': 'some-template',
+      'from-git-url': 'https://github.com/user/repo.git',
+    })).toBe(true);
+
+    // Test that template-path with both from-path and from-git-url is valid
+    expect(checkFunction!({
+      'template-path': 'some-template',
+      'from-path': '/some/path',
+      'from-git-url': 'https://github.com/user/repo.git',
+    })).toBe(true);
+
+    // Test that no template-path is valid (no validation needed)
+    expect(checkFunction!({
+      'from-path': '/some/path',
+    })).toBe(true);
+
+    // Test that no template-path is valid (no validation needed)
+    expect(checkFunction!({
+      'from-git-url': 'https://github.com/user/repo.git',
+    })).toBe(true);
+
+    // Test that empty args is valid
+    expect(checkFunction!({})).toBe(true);
   });
 
   cliTest('hook files are ignored during template copy', async (workDir) => {
@@ -1308,6 +1348,635 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'cdk.json'))).toBeTruthy();
     const cdkJson = await fs.readJson(path.join(workDir, 'cdk.json'));
     expect(cdkJson.context).toHaveProperty('cdk-migrate', true);
+  });
+
+  cliTest('loads template from git repository URL', async (workDir) => {
+    // Mock git clone command to simulate successful git repository cloning
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        // Simulate successful git clone by creating template files in the target directory
+        const targetDir = args[args.length - 1]; // Last argument is the target directory
+        const tsDir = path.join(targetDir, 'typescript');
+        fs.mkdirpSync(tsDir);
+        fs.writeFileSync(path.join(tsDir, 'app.ts'), 'console.log("Git template");');
+        fs.writeFileSync(path.join(tsDir, 'package.json'), '{}');
+
+        // Return a mock child process
+        const mockChild = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'exit') {
+              setTimeout(() => callback(0), 10); // Simulate successful exit
+            }
+          }),
+        };
+        return mockChild;
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/cdk-templates.git',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'app.ts'))).toBeTruthy();
+      expect(spawnSpy).toHaveBeenCalledWith('git', ['clone', '--depth', '1', 'https://github.com/user/cdk-templates.git', expect.any(String)], expect.any(Object));
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('loads template from git repository with template path', async (workDir) => {
+    // Mock git clone command to simulate multi-template git repository
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const targetDir = args[args.length - 1];
+
+        // Create multi-template structure
+        const template1Dir = path.join(targetDir, 'web-template', 'typescript');
+        const template2Dir = path.join(targetDir, 'api-template', 'python');
+        fs.mkdirpSync(template1Dir);
+        fs.mkdirpSync(template2Dir);
+
+        fs.writeFileSync(path.join(template1Dir, 'app.ts'), 'console.log("Web template");');
+        fs.writeFileSync(path.join(template2Dir, 'app.py'), 'print("API template")');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/multi-templates.git',
+        templatePath: 'web-template',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'app.ts'))).toBeTruthy();
+      expect(spawnSpy).toHaveBeenCalledWith(
+        'git',
+        ['clone', '--depth', '1', 'https://github.com/user/multi-templates.git', expect.any(String)],
+        expect.any(Object),
+      );
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git clone failure gracefully', async (workDir) => {
+    // Mock git clone command to simulate failure
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        return createMockChildProcess(128, undefined, 'fatal: repository not found');
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/nonexistent/repo.git',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/Failed to load template from Git repository.*fatal: repository not found/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git command spawn error', async (workDir) => {
+    // Mock git clone command to simulate spawn error
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const mockChild = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'error') {
+              setTimeout(() => callback(new Error('ENOENT: git command not found')), 10);
+            }
+          }),
+          kill: jest.fn(),
+        };
+        return mockChild;
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/repo.git',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/Failed to execute Git command: ENOENT: git command not found/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('cleans up git temporary directory on success', async (workDir) => {
+    // Test that temporary directory is cleaned up after successful git template loading
+    let tempDirPath: string = '';
+    let removeCalled = false;
+
+    // Mock fs.remove to track cleanup calls
+    const mockRemove = jest.spyOn(fs, 'remove').mockImplementation(async (my_path: string) => {
+      if (my_path === tempDirPath) {
+        removeCalled = true;
+      }
+      return Promise.resolve();
+    });
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        tempDirPath = args[args.length - 1];
+        const tsDir = path.join(tempDirPath, 'typescript');
+        fs.mkdirpSync(tsDir);
+        fs.writeFileSync(path.join(tsDir, 'app.ts'), 'console.log("Git template");');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/repo.git',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(removeCalled).toBeTruthy();
+      expect(mockRemove).toHaveBeenCalledWith(tempDirPath);
+    } finally {
+      spawnSpy.mockRestore();
+      mockRemove.mockRestore();
+    }
+  });
+
+  cliTest('cleans up git temporary directory on failure', async (workDir) => {
+    // Test that temporary directory is cleaned up even when template loading fails
+    let tempDirPath: string = '';
+    let removeCalled = false;
+
+    // Mock fs.remove to track cleanup calls
+    const mockRemove = jest.spyOn(fs, 'remove').mockImplementation(async (my_path: string) => {
+      if (my_path === tempDirPath) {
+        removeCalled = true;
+      }
+      return Promise.resolve();
+    });
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        tempDirPath = args[args.length - 1];
+        // Create temp dir but don't create valid template files to cause failure
+        fs.mkdirpSync(tempDirPath);
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/repo.git',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow();
+
+      expect(removeCalled).toBeTruthy();
+      expect(mockRemove).toHaveBeenCalledWith(tempDirPath);
+    } finally {
+      spawnSpy.mockRestore();
+      mockRemove.mockRestore();
+    }
+  });
+
+  cliTest('handles git temporary directory cleanup failure', async (workDir) => {
+    // Test that cleanup failure is handled gracefully and doesn't prevent completion
+    // Mock fs.remove to simulate cleanup failure
+    const mockRemove = jest.spyOn(fs, 'remove')
+      .mockRejectedValue(new Error('Permission denied: cannot remove directory'));
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const tempDirPath = args[args.length - 1];
+        const tsDir = path.join(tempDirPath, 'typescript');
+        fs.mkdirpSync(tsDir);
+        fs.writeFileSync(path.join(tsDir, 'app.ts'), 'console.log("Git template");');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      // Should complete successfully even if cleanup fails
+      await cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/repo.git',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'app.ts'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+      mockRemove.mockRestore();
+    }
+  });
+
+  cliTest('handles git clone with signal termination', async (workDir) => {
+    // Test git command terminated by signal
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        // Using createMockChildProcess with signal termination
+        return createMockChildProcess(undefined, 'SIGTERM', 'Interrupted by signal');
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/repo.git',
+        // Remove the language parameter since we want to test git clone failure
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/Git command failed with signal SIGTERM: Interrupted by signal/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git repository initialization failure', async (workDir) => {
+    // Test git init failure during repository initialization
+    let gitInitCalled = false;
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'init') {
+        gitInitCalled = true;
+        return createMockChildProcess(1); // Simulate git init failure
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      // Should complete successfully even if git init fails
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: false,
+        workDir,
+      });
+
+      expect(gitInitCalled).toBeTruthy();
+      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('skips git initialization when already in git repository', async (workDir) => {
+    // Test that git init is skipped when already in a git repository
+    let gitInitCalled = false;
+
+    // Create a .git directory to simulate existing git repository
+    await fs.mkdirp(path.join(workDir, '.git'));
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'init') {
+        gitInitCalled = true;
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: false,
+        workDir,
+      });
+
+      expect(gitInitCalled).toBeFalsy(); // Git init should be skipped
+      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git add failure during repository initialization', async (workDir) => {
+    // Test git add failure during repository initialization
+    let commandCount = 0;
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git') {
+        commandCount++;
+        if (args[0] === 'init') {
+          return createMockChildProcess(0); // Git init succeeds
+        } else if (args[0] === 'add') {
+          return createMockChildProcess(1); // Git add fails
+        }
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      // Should complete successfully even if git add fails
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: false,
+        workDir,
+      });
+
+      expect(commandCount).toBeGreaterThan(0);
+      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git commit failure during repository initialization', async (workDir) => {
+    // Test git commit failure during repository initialization
+    let commandCount = 0;
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git') {
+        commandCount++;
+        if (args[0] === 'init' || args[0] === 'add') {
+          return createMockChildProcess(0); // Git init and add succeed
+        } else if (args[0] === 'commit') {
+          return createMockChildProcess(1); // Git commit fails
+        }
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      // Should complete successfully even if git commit fails
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: false,
+        workDir,
+      });
+
+      expect(commandCount).toBeGreaterThan(0);
+      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git commit failure during repository initialization', async (workDir) => {
+    // Test git commit failure during repository initialization
+    let commandCount = 0;
+
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git') {
+        commandCount++;
+        if (args[0] === 'init' || args[0] === 'add') {
+          return createMockChildProcess(0); // Git init and add succeed
+        } else if (args[0] === 'commit') {
+          return createMockChildProcess(1); // Git commit fails
+        }
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      // Should complete successfully even if git commit fails
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: false,
+        workDir,
+      });
+
+      expect(commandCount).toBeGreaterThan(0);
+      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles invalid git repository URL format', async (workDir) => {
+    // Test invalid git URL handling
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        return createMockChildProcess(128, undefined, 'fatal: not a git repository');
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'invalid-url-format',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/Failed to load template from Git repository.*fatal: not a git repository/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git template with invalid template path', async (workDir) => {
+    // Test git template with non-existent template path
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const tempDirPath = args[args.length - 1];
+        // Create temp dir but not the requested template path
+        fs.mkdirpSync(tempDirPath);
+        const tsDir = path.join(tempDirPath, 'other-template', 'typescript');
+        fs.mkdirpSync(tsDir);
+        fs.writeFileSync(path.join(tsDir, 'app.ts'), 'console.log("Other template");');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/repo.git',
+        templatePath: 'nonexistent-template',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/Template path does not exist/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('auto-detects language for single-language git template', async (workDir) => {
+    // Test language auto-detection for git templates with single language
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const tempDirPath = args[args.length - 1];
+        const tsDir = path.join(tempDirPath, 'typescript');
+        fs.mkdirpSync(tsDir);
+        fs.writeFileSync(path.join(tsDir, 'app.ts'), 'console.log("Single language git template");');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/single-lang-repo.git',
+        // No language specified - should auto-detect
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'app.ts'))).toBeTruthy();
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('fails when git template has multiple languages but no language specified', async (workDir) => {
+    // Test that multi-language git templates require language specification
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const tempDirPath = args[args.length - 1];
+
+        // Create multi-language template
+        const tsDir = path.join(tempDirPath, 'typescript');
+        const pyDir = path.join(tempDirPath, 'python');
+        fs.mkdirpSync(tsDir);
+        fs.mkdirpSync(pyDir);
+        fs.writeFileSync(path.join(tsDir, 'app.ts'), 'console.log("TypeScript");');
+        fs.writeFileSync(path.join(pyDir, 'app.py'), 'print("Python")');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/multi-lang-repo.git',
+        // No language specified for multi-language template
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/No language was selected/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  cliTest('handles git template loading with empty repository', async (workDir) => {
+    // Test git template loading when repository is empty or has no valid templates
+    const mockSpawn = jest.fn().mockImplementation((cmd, args, options) => {
+      if (cmd === 'git' && args[0] === 'clone') {
+        const tempDirPath = args[args.length - 1];
+        // Create empty directory (no language directories)
+        fs.mkdirpSync(tempDirPath);
+        fs.writeFileSync(path.join(tempDirPath, 'README.md'), 'Empty repository');
+
+        return createMockChildProcess(0);
+      }
+      return childProcess.spawn(cmd, args, options);
+    });
+
+    const spawnSpy = jest.spyOn(childProcess, 'spawn').mockImplementation(mockSpawn);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromGitUrl: 'https://github.com/user/empty-repo.git',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      })).rejects.toThrow(/Custom template must contain at least one language directory/);
+    } finally {
+      spawnSpy.mockRestore();
+    }
   });
 
   cliTest('handles migrate context when no cdk.json exists', async (workDir) => {
