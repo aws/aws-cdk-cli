@@ -35,6 +35,10 @@ export function integTest(
 ): void {
   const runner = shouldSkip(name) ? test.skip : test;
 
+  // we're quite a bit of sporadic failures due to environmental causes.
+  // lets retry 3 times to try and mitigate that.
+  jest.retryTimes(3);
+
   runner(name, async () => {
     const output = new MemoryStream();
 

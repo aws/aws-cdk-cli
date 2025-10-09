@@ -2,7 +2,6 @@ import * as path from 'path';
 import { yarn } from 'cdklabs-projen-project-types';
 import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
-import { Stability } from 'projen/lib/cdk';
 import type { Job } from 'projen/lib/github/workflows-model';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
@@ -98,7 +97,7 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
 
 const POWERFUL_RUNNER = 'aws-cdk_ubuntu-latest_16-core';
 
-// Ignore patterns that apply both to the CLI and to cli-lib
+// Ignore patterns that apply both to the Toolkit CLI and Library
 const ADDITIONAL_CLI_IGNORE_PATTERNS = [
   'db.json.gz',
   '.init-version.json',
@@ -1161,6 +1160,7 @@ const cli = configureProject(
       'glob',
       'minimatch',
       'p-limit@^3',
+      'p-queue@^6',
       'promptly',
       'proxy-agent',
       'semver',
@@ -1338,117 +1338,6 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('lib/init-templates/*/typescript/*/*.template.ts');
   tsconfig?.addExclude('test/integ/cli/sam_cdk_integ_app/**/*');
   tsconfig?.addExclude('vendor/**/*');
-}
-
-// #endregion
-//////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cli-lib-alpha
-
-const CLI_LIB_EXCLUDE_PATTERNS = [
-  'lib/init-templates/*/typescript/*/*.template.ts',
-];
-
-const cliLibAlpha = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps(),
-    parent: repo,
-    name: '@aws-cdk/cli-lib-alpha',
-    entrypoint: 'lib/main.js', // Bundled entrypoint
-    description: 'AWS CDK Programmatic CLI library',
-    majorVersion: 2,
-    srcdir: 'lib',
-    devDeps: ['aws-cdk-lib', cli.customizeReference({ versionType: 'exact' }), 'constructs'],
-    disableTsconfig: true,
-    nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson} append:-alpha.0`,
-    releasableCommits: transitiveToolkitPackages('@aws-cdk/cli-lib-alpha'),
-    eslintOptions: {
-      dirs: ['lib'],
-      ignorePatterns: [
-        ...CLI_LIB_EXCLUDE_PATTERNS,
-        '*.d.ts',
-      ],
-    },
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        // cli-lib-alpha cannot deal with the ts files for some reason
-        // we can revisit this once toolkit-lib work has progressed
-        moduleFileExtensions: undefined,
-      },
-    }),
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-  }),
-);
-
-// Do include all .ts files inside init-templates
-cliLibAlpha.npmignore?.addPatterns(
-  '!lib/init-templates/**/*.ts',
-  '!lib/api/bootstrap/bootstrap-template.yaml',
-);
-
-cliLibAlpha.gitignore.addPatterns(
-  ...ADDITIONAL_CLI_IGNORE_PATTERNS,
-  'lib/**/*.yaml',
-  'lib/**/*.yml',
-  'lib/init-templates/**',
-  'cdk.out',
-);
-
-new JsiiBuild(cliLibAlpha, {
-  jsiiVersion: TYPESCRIPT_VERSION,
-  publishToNuget: {
-    dotNetNamespace: 'Amazon.CDK.Cli.Lib.Alpha',
-    packageId: 'Amazon.CDK.Cli.Lib.Alpha',
-    iconUrl: 'https://raw.githubusercontent.com/aws/aws-cdk/main/logo/default-256-dark.png',
-  },
-  publishToMaven: {
-    javaPackage: 'software.amazon.awscdk.cli.lib.alpha',
-    mavenGroupId: 'software.amazon.awscdk',
-    mavenArtifactId: 'cdk-cli-lib-alpha',
-    mavenServerId: 'central-ossrh',
-  },
-  publishToPypi: {
-    distName: 'aws-cdk.cli-lib-alpha',
-    module: 'aws_cdk.cli_lib_alpha',
-    trustedPublishing: true,
-  },
-  pypiClassifiers: [
-    'Framework :: AWS CDK',
-    'Framework :: AWS CDK :: 2',
-    'Development Status :: 7 - Inactive',
-  ],
-  publishToGo: {
-    moduleName: 'github.com/aws/aws-cdk-go',
-    packageName: 'awscdkclilibalpha',
-  },
-  rosettaStrict: true,
-  rosettaDependencies: ['aws-cdk-lib@^2'],
-  stability: Stability.DEPRECATED,
-  composite: true,
-  excludeTypescript: CLI_LIB_EXCLUDE_PATTERNS,
-});
-
-// the package is deprecated
-cliLibAlpha.package.addField('deprecated', 'Deprecated in favor of @aws-cdk/toolkit-lib, a newer approach providing similar functionality to this package. Please migrate.');
-
-// clilib needs to bundle some resources, same as the CLI
-cliLibAlpha.postCompileTask.exec('node-backpack validate --external=fsevents:optional --entrypoint=lib/index.js --fix --dont-attribute "^@aws-cdk/|^cdk-assets$|^cdk-cli-wrapper$|^aws-cdk$"');
-cliLibAlpha.postCompileTask.exec('mkdir -p ./lib/api/bootstrap/ && cp ../../aws-cdk/lib/api/bootstrap/bootstrap-template.yaml ./lib/api/bootstrap/');
-for (const resourceCommand of includeCliResourcesCommands) {
-  cliLibAlpha.postCompileTask.exec(resourceCommand);
-}
-cliLibAlpha.postCompileTask.exec('cp $(node -p \'require.resolve("aws-cdk/build-info.json")\') .');
-cliLibAlpha.postCompileTask.exec('esbuild --bundle lib/index.ts --target=node18 --platform=node --external:fsevents --minify-whitespace --outfile=lib/main.js');
-cliLibAlpha.postCompileTask.exec('node ./lib/main.js >/dev/null </dev/null'); // Smoke test
-
-// Exclude takes precedence over include
-for (const tsconfig of [cliLibAlpha.tsconfigDev]) {
-  for (const pat of CLI_LIB_EXCLUDE_PATTERNS) {
-    tsconfig?.addExclude(pat);
-  }
 }
 
 // #endregion

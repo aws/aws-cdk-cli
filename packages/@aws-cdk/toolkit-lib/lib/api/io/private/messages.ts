@@ -22,7 +22,6 @@ import type {
   AssemblyData,
   ConfirmationRequest,
   ContextProviderMessageSource,
-  DataRequest,
   Duration,
   ErrorPayload,
   SingleStack,
@@ -391,7 +390,7 @@ export const IO = {
     interface: 'RefactorResult',
   }),
 
-  CDK_TOOLKIT_I8910: make.question<DataRequest>({
+  CDK_TOOLKIT_I8910: make.confirm<ConfirmationRequest>({
     code: 'CDK_TOOLKIT_I8910',
     description: 'Confirm refactor',
     interface: 'ConfirmationRequest',

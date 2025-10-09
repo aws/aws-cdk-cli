@@ -32,6 +32,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk refactor`](#cdk-refactor)           | Moves resources between stacks or within the same stack                           |
 | [`cdk drift`](#cdk-drift)                 | Detect drifts in the given CloudFormation stack(s)                                |
 | [`cdk cli-telemetry`](#cdk-cli-telemetry) | Enable or disable cli telemetry collection                                        |
+| [`cdk flags`](#cdk-flags)                 | View and modify your feature flag configurations                                  |
 
 ## Common topics
 

@@ -58,9 +58,6 @@
       "path": "packages/aws-cdk"
     },
     {
-      "path": "packages/@aws-cdk/cli-lib-alpha"
-    },
-    {
       "path": "packages/@aws-cdk/cdk-cli-wrapper"
     },
     {
