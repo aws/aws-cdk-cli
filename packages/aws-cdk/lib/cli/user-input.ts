@@ -682,6 +682,22 @@ export interface FlagsOptions {
   readonly interactive?: boolean;
 
   /**
+   * Enable all feature flags that do not impact the user's application
+   *
+   * @default - undefined
+   */
+  readonly safe?: boolean;
+
+  /**
+   * Maximum number of simultaneous synths to execute.
+   *
+   * aliases: n
+   *
+   * @default - 4
+   */
+  readonly concurrency?: number;
+
+  /**
    * Positional argument for flags
    */
   readonly FLAGNAME?: Array<string>;

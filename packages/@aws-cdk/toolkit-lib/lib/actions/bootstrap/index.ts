@@ -85,6 +85,12 @@ export interface BootstrapOptions {
    * @default true
    */
   readonly terminationProtection?: boolean;
+
+  /**
+   * Whether to force deployment if a bootstrap stack already exists
+   * @default false
+   */
+  readonly forceDeployment?: boolean;
 }
 
 /**

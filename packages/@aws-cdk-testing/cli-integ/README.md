@@ -78,7 +78,8 @@ bin/run-suite -a cli-integ-tests -t 'load old assemblies'
 
 ### Running a test suite against binaries
 
-The test suites that run the "init tests" require actual packages staged in CodeArtifact repositories to run. This requires you to do a full build, then create a CodeArtifact repository in your own account, uploading the packages there, and then running the tests in a shell configured to have NPM, Pip, Maven etc look for those packages in CodeArtifact.
+The test suites that run the "init tests" require actual packages staged in CodeArtifact repositories to run.
+This requires you to do a full build, then create a CodeArtifact repository in your own account, uploading the packages there, and then running the tests in a shell configured to have NPM, Pip, Maven etc look for those packages in CodeArtifact.
 
 ```shell
 # Build and pack all of CDK (in the `aws-cdk` repo, will take ~an hour)

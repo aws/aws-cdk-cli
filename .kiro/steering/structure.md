@@ -26,7 +26,6 @@ This repository is organized as a monorepo using Yarn workspaces. The main direc
 
 ### Support Packages
 
-- **packages/@aws-cdk/cli-lib-alpha/**: Deprecated programmatic interface for the CLI
 - **packages/@aws-cdk/cli-plugin-contract/**: TypeScript types for CLI plugins
 - **packages/@aws-cdk/cdk-cli-wrapper/**: Deprecated programmatic interface for the CLI
 - **packages/@aws-cdk/user-input-gen/**: Build tool for the CLI and toolkit-lib
