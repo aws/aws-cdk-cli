@@ -3,6 +3,7 @@ import { minimatch } from 'minimatch';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
+import { IO } from '../io/private/messages';
 
 export class ActiveAssetCache {
   private readonly stacks: Set<string> = new Set();
@@ -12,8 +13,8 @@ export class ActiveAssetCache {
   }
 
   public contains(asset: string): boolean {
-    // To reduce computation if asset is null or undefined
-    if (!asset) return false;
+    // To reduce computation if asset is empty
+    if (asset=='') return false;
 
     for (const stack of this.stacks) {
       if (stack.includes(asset)) {
@@ -60,45 +61,18 @@ async function handleUnauthorizedStacks(unauthorizedStacks: string[], ioHelper: 
     return;
   }
 
-  // Auto-approve in CI environments
-  if (process.env.CDK_GC_AUTO_APPROVE_UNAUTHORIZED === 'true') {
-    await ioHelper.defaults.info(`Auto-approving ${unauthorizedStacks.length} unauthorized stack(s) in CI mode`);
-    return;
-  }
-
-  // Detect CI environment and fail fast to prevent hanging
-  const isCI = process.env.CI === 'true' ||
-               process.env.GITHUB_ACTIONS === 'true' ||
-               process.env.GITLAB_CI === 'true' ||
-               process.env.JENKINS_URL !== undefined ||
-               process.env.BUILDKITE === 'true';
-
-  if (isCI) {
-    throw new ToolkitError(
-      `Found ${unauthorizedStacks.length} unauthorized stack(s) in CI environment. ` +
-      'Set CDK_GC_AUTO_APPROVE_UNAUTHORIZED=true to auto-approve or configure --skip-unauthorized-stacks-when-noncdk.',
-    );
-  }
-
   try {
-    const stackList = unauthorizedStacks.join(', ');
-    const message = `Found ${unauthorizedStacks.length} unauthorized stack(s): ${stackList}\nDo you want to skip all these stacks?`;
-
-    // Ask user if they want to proceed
-    const response = await ioHelper.requestResponse({
-      time: new Date(),
-      level: 'info',
-      code: 'CDK_TOOLKIT_I9210',
-      message,
-      data: {
+    // Ask user if they want to proceed. Default is no
+    // In CI environments, IoHelper automatically accepts the default response
+    const response = await ioHelper.requestResponse(
+      IO.CDK_TOOLKIT_I9211.req(`Found ${unauthorizedStacks.length} unauthorized stack(s): ${unauthorizedStacks.join(',\n')}\nDo you want to skip all these stacks? Default is 'no'`, {
         stacks: unauthorizedStacks,
         count: unauthorizedStacks.length,
         responseDescription: '[y]es/[n]o',
-      },
-      defaultResponse: 'y',
-    });
+      }, 'n'), // To account for ci/cd environments, default remains no until a --yes flag is implemented for cdk-cli
+    );
 
-    // Throw error is user response is not yes or y
+    // Throw error if user response is not yes or y
     if (!response || !['y', 'yes'].includes(response.toLowerCase())) {
       throw new ToolkitError('Operation cancelled by user due to unauthorized stacks');
     }
@@ -122,7 +96,7 @@ async function fetchAllStackTemplates(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   qualifier?: string,
-  skipUnauthorizedStacksWhenNonCdk?: string[],
+  unauthNativeCfnStacksToSkip?: string[],
 ) {
   const stackNames: string[] = [];
   await paginateSdkCall(async (nextToken) => {
@@ -164,14 +138,14 @@ async function fetchAllStackTemplates(
     } catch (error: any) {
       // Check if this is a CloudFormation access denied error
       if (error.name === 'AccessDenied') {
-        if (shouldSkipStack(stack, skipUnauthorizedStacksWhenNonCdk)) {
+        if (shouldSkipStack(stack, unauthNativeCfnStacksToSkip)) {
           unauthorizedStacks.push(stack);
           continue;
         }
 
         throw new ToolkitError(
           `Access denied when trying to access stack '${stack}'. ` +
-          'If this is a non-CDK stack that you want to skip, add it to --skip-unauthorized-stacks-when-noncdk.',
+          'If this is a native CloudFormation stack that you want to skip, add it to --unauth-native-cfn-stacks-to-skip.',
         );
       }
 
@@ -211,7 +185,7 @@ export interface RefreshStacksProps {
   readonly ioHelper: IoHelper;
   readonly activeAssets: ActiveAssetCache;
   readonly qualifier?: string;
-  readonly skipUnauthorizedStacksWhenNonCdk?: string[];
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 
 export async function refreshStacks(props: RefreshStacksProps) {
@@ -220,7 +194,7 @@ export async function refreshStacks(props: RefreshStacksProps) {
       props.cfn,
       props.ioHelper,
       props.qualifier,
-      props.skipUnauthorizedStacksWhenNonCdk,
+      props.unauthNativeCfnStacksToSkip,
     );
     for (const stack of stacks) {
       props.activeAssets.rememberStack(stack);
@@ -255,9 +229,9 @@ export interface BackgroundStackRefreshProps {
   readonly qualifier?: string;
 
   /**
-   * Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors
+   * Native CloudFormation stack names or glob patterns to skip when encountering unauthorized access errors
    */
-  readonly skipUnauthorizedStacksWhenNonCdk?: string[];
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 
 /**
@@ -286,7 +260,7 @@ export class BackgroundStackRefresh {
       ioHelper: this.props.ioHelper,
       activeAssets: this.props.activeAssets,
       qualifier: this.props.qualifier,
-      skipUnauthorizedStacksWhenNonCdk: this.props.skipUnauthorizedStacksWhenNonCdk,
+      unauthNativeCfnStacksToSkip: this.props.unauthNativeCfnStacksToSkip,
     });
     this.justRefreshedStacks();
 

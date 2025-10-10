@@ -1136,7 +1136,7 @@ export class CdkToolkit {
         action: options.action ?? 'full',
         type: options.type ?? 'all',
         confirm: options.confirm ?? true,
-        skipUnauthorizedStacksWhenNonCdk: options.skipUnauthorizedStacksWhenNonCdk,
+        unauthNativeCfnStacksToSkip: options.unauthNativeCfnStacksToSkip,
       });
       await gc.garbageCollect();
     }
@@ -1929,7 +1929,7 @@ export interface GarbageCollectionOptions {
    *
    * @default undefined
    */
-  readonly skipUnauthorizedStacksWhenNonCdk?: string[];
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 export interface MigrateOptions {
   /**

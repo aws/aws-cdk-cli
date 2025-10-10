@@ -180,12 +180,12 @@ interface GarbageCollectorProps {
   readonly confirm?: boolean;
 
   /**
-   * Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection.
-   * You must explicitly specify non-CDK stack names
+   * Native CloudFormation stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection.
+   * You must explicitly specify native CloudFormation stack names
    *
    * @default undefined
    */
-  readonly skipUnauthorizedStacksWhenNonCdk?: string[];
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 
 /**
@@ -199,7 +199,7 @@ export class GarbageCollector {
   private bootstrapStackName: string;
   private confirm: boolean;
   private ioHelper: IoHelper;
-  private skipUnauthorizedStacksWhenNonCdk?: string[];
+  private unauthNativeCfnStacksToSkip?: string[];
 
   public constructor(readonly props: GarbageCollectorProps) {
     this.ioHelper = props.ioHelper;
@@ -210,7 +210,7 @@ export class GarbageCollector {
     this.permissionToDelete = ['delete-tagged', 'full'].includes(props.action);
     this.permissionToTag = ['tag', 'full'].includes(props.action);
     this.confirm = props.confirm ?? true;
-    this.skipUnauthorizedStacksWhenNonCdk = props.skipUnauthorizedStacksWhenNonCdk;
+    this.unauthNativeCfnStacksToSkip = props.unauthNativeCfnStacksToSkip;
 
     this.bootstrapStackName = props.bootstrapStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
   }
@@ -234,7 +234,7 @@ export class GarbageCollector {
       ioHelper: this.ioHelper,
       activeAssets,
       qualifier,
-      skipUnauthorizedStacksWhenNonCdk: this.skipUnauthorizedStacksWhenNonCdk,
+      unauthNativeCfnStacksToSkip: this.unauthNativeCfnStacksToSkip,
     });
     // Start the background refresh
     const backgroundStackRefresh = new BackgroundStackRefresh({
@@ -242,7 +242,7 @@ export class GarbageCollector {
       ioHelper: this.ioHelper,
       activeAssets,
       qualifier,
-      skipUnauthorizedStacksWhenNonCdk: this.skipUnauthorizedStacksWhenNonCdk,
+      unauthNativeCfnStacksToSkip: this.unauthNativeCfnStacksToSkip,
     });
     backgroundStackRefresh.start();
 

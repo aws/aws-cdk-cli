@@ -365,7 +365,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
             requiresArg: true,
             conflicts: 'toolkit-stack-name',
           })
-          .option('skip-unauthorized-stacks-when-noncdk', {
+          .option('unauth-native-cfn-stacks-to-skip', {
             type: 'array',
             desc: 'Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection. You must explicitly specify non-CDK stack names.',
             default: [],
