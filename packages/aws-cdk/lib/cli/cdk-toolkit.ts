@@ -1136,6 +1136,7 @@ export class CdkToolkit {
         action: options.action ?? 'full',
         type: options.type ?? 'all',
         confirm: options.confirm ?? true,
+        unauthNativeCfnStacksToSkip: options.unauthNativeCfnStacksToSkip,
       });
       await gc.garbageCollect();
     }
@@ -1921,6 +1922,14 @@ export interface GarbageCollectionOptions {
    * @default false
    */
   readonly confirm?: boolean;
+
+  /**
+   * Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection.
+   * You must explicitly specify non-CDK stack names.
+   *
+   * @default undefined
+   */
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 export interface MigrateOptions {
   /**
