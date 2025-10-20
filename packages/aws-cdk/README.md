@@ -567,6 +567,187 @@ and might have breaking changes in the future.
 
 > *: `Fn::GetAtt` is only partially supported. Refer to [this implementation](https://github.com/aws/aws-cdk-cli/blob/main/packages/aws-cdk/lib/api/cloudformation/evaluate-cloudformation-template.ts#L256-L266) for supported resources and attributes.
 
+#### Understanding the Deploy Process
+
+The `cdk deploy` command follows a multi-phase process to deploy your infrastructure. This flowchart provides a high-level overview of the deployment process:
+
+```mermaid
+graph TD
+    %% Initialization Phase
+    c1["Start: cdk deploy command"]
+    c2["Parse CLI Arguments & Load Configuration"]
+    c3["Initialize CDK Toolkit"]
+    
+    %% Stack Selection Phase
+    c4["Select Target Stacks"]
+    c5["Validate Stack Selection"]
+    
+    %% Synthesis Phase
+    c6["Synthesis Phase"]
+    c7{"Missing AWS Context?"}
+    c8["Fetch Context from AWS"]
+    c9["Execute CDK Application"]
+    c10["Generate Cloud Assembly"]
+    
+    %% Asset Processing Phase
+    c11["Asset Processing Phase"]
+    c12["Analyze Asset Dependencies"]
+    c13["Build Assets in Parallel"]
+    c14["Publish Assets in Parallel"]
+    
+    %% Deployment Preparation Phase
+    c15["Deployment Preparation"]
+    c16["Check Security Approval Requirements"]
+    c17{"Approval Required?"}
+    c18["Request User Approval"]
+    
+    %% Deployment Method Selection
+    c19{"Deployment Method Selection"}
+    c20["Hotswap Deployment"]
+    c21["CloudFormation Deployment"]
+    
+    %% Hotswap Path
+    c22["Identify Hotswappable Resources"]
+    c23["Update Resources Directly via AWS APIs"]
+    
+    %% CloudFormation Path
+    c24["Create/Update CloudFormation Stack"]
+    c25["Monitor Stack Progress"]
+    c26["Wait for Stack Completion"]
+    
+    %% Completion Phase
+    c27["Collect Stack Outputs"]
+    c28["Report Deployment Status"]
+    c29["End: Deployment Complete"]
+    
+    %% Main Flow
+    c1 --> c2
+    c2 --> c3
+    c3 --> c4
+    c4 --> c5
+    c5 --> c6
+    
+    %% Synthesis Phase with Context Loop
+    c6 --> c7
+    c7 -->|"Yes"| c8
+    c8 --> c9
+    c9 --> c10
+    c10 -->|"Loop if more context needed"| c7
+    c7 -->|"No"| c11
+    
+    %% Asset Processing Phase
+    c11 --> c12
+    c12 --> c13
+    c13 --> c14
+    c14 --> c15
+    
+    %% Deployment Preparation
+    c15 --> c16
+    c16 --> c17
+    c17 -->|"Yes"| c18
+    c17 -->|"No"| c19
+    c18 --> c19
+    
+    %% Deployment Method Selection
+    c19 -->|"Hotswap Available"| c20
+    c19 -->|"Standard Deployment"| c21
+    
+    %% Hotswap Path
+    c20 --> c22
+    c22 --> c23
+    c23 --> c27
+    
+    %% CloudFormation Path
+    c21 --> c24
+    c24 --> c25
+    c25 --> c26
+    c26 --> c27
+    
+    %% Completion
+    c27 --> c28
+    c28 --> c29
+    
+    %% Phase-based Color Coding
+    %% Initialization Phase (Light Gray)
+    style c1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
+    style c2 fill:#f5f5f5,stroke:#757575,stroke-width:2px
+    style c3 fill:#f5f5f5,stroke:#757575,stroke-width:2px
+    
+    %% Stack Selection Phase (Light Cyan)
+    style c4 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+    style c5 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+    
+    %% Synthesis Phase (Light Blue)
+    style c6 fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
+    style c7 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style c8 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style c9 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style c10 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    
+    %% Asset Processing Phase (Light Purple)
+    style c11 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:3px
+    style c12 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style c13 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style c14 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    
+    %% Deployment Preparation (Light Yellow)
+    style c15 fill:#fffde7,stroke:#f57f17,stroke-width:2px
+    style c16 fill:#fffde7,stroke:#f57f17,stroke-width:2px
+    style c17 fill:#fffde7,stroke:#f57f17,stroke-width:2px
+    style c18 fill:#fffde7,stroke:#f57f17,stroke-width:2px
+    
+    %% Deployment Method Selection (Light Amber)
+    style c19 fill:#fff8e1,stroke:#ff6f00,stroke-width:2px
+    
+    %% Hotswap Deployment (Light Green)
+    style c20 fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style c22 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style c23 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    
+    %% CloudFormation Deployment (Light Red)
+    style c21 fill:#ffebee,stroke:#c62828,stroke-width:3px
+    style c24 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style c25 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style c26 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    
+    %% Completion Phase (Light Teal)
+    style c27 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style c28 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style c29 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    
+    %% Legend at Bottom
+    subgraph Legend[" "]
+        direction LR
+        L1["Initialization"]
+        L2["Stack Selection"]
+        L3["Synthesis"]
+        L4["Asset Processing"]
+        L5["Deployment Prep"]
+        L6["Hotswap"]
+        L7["CloudFormation"]
+        L8["Completion"]
+        
+        style L1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
+        style L2 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+        style L3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+        style L4 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+        style L5 fill:#fffde7,stroke:#f57f17,stroke-width:2px
+        style L6 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+        style L7 fill:#ffebee,stroke:#c62828,stroke-width:2px
+        style L8 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    end
+```
+
+**Key Phases:**
+
+- **Synthesis Phase** (light blue): Converts your CDK code into CloudFormation templates. May iterate multiple times if AWS context information (like VPC IDs or availability zones) needs to be fetched.
+
+- **Asset Processing Phase** (light purple): Builds and publishes assets (Docker images, Lambda code, files) in parallel to improve performance.
+
+- **Hotswap Deployment** (light green): Fast deployment path that updates resources directly via AWS APIs, skipping CloudFormation. Only available for certain resource types when using `--hotswap` flag.
+
+- **CloudFormation Deployment** (light red): Standard deployment path that uses CloudFormation change sets for full change tracking and rollback capabilities.
+
 ### `cdk rollback`
 
 If a deployment performed using `cdk deploy --no-rollback` fails, your
