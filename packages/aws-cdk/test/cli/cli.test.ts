@@ -51,6 +51,14 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('ts')) {
         result = { ...result, language: 'typescript' };
       }
+    } else if (args.includes('gc')) {
+      result = { ...result, _: ['gc'] };
+
+      // Handle role-arn flag for gc command validation testing
+      // This simulates parser behavior to test that the CLI properly rejects roleArn
+      if (args.includes('--role-arn')) {
+        result = { ...result, roleArn: 'arn:aws:iam::123456789012:role/TestRole' };
+      }
     }
 
     // Handle notices flags
@@ -425,5 +433,43 @@ describe('notices configuration tests', () => {
         language: 'typescript',
       }),
     );
+  });
+});
+
+describe('gc command tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('should warn when --role-arn is used with gc command', async () => {
+    const gcSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'garbageCollect').mockResolvedValue();
+    
+    // Make exec use our TestIoHost and adds properties to TestIoHost to match ClioHosr
+    const warnSpy = jest.fn();
+    (ioHost as any).defaults = { warn: warnSpy, debug: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+    
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['gc'];
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+    
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await exec(['gc', '--unstable=gc', '--role-arn', 'arn:aws:iam::123456789012:role/TestRole']);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'The --role-arn option is not supported for the gc command and will be ignored.'
+    );
+    expect(gcSpy).toHaveBeenCalled();
   });
 });

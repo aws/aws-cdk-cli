@@ -475,6 +475,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
         }
+        // roleArn is defined for when cloudformation is invoked
+        // This conflicts with direct sdk calls existing in the gc command to s3 and ecr
+        if (args.roleArn) {
+          await ioHost.defaults.warn('The --role-arn option is not supported for the gc command and will be ignored.');
+        }
         return cli.garbageCollect(args.ENVIRONMENTS, {
           action: args.action,
           type: args.type,
