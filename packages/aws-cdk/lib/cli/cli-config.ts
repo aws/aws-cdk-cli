@@ -114,6 +114,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'confirm': { type: 'boolean', desc: 'Confirm via manual prompt before deletion', default: true },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true, conflicts: 'bootstrap-stack-name' },
           'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)', deprecated: 'use --toolkit-stack-name', requiresArg: true, conflicts: 'toolkit-stack-name' }, // TODO: remove when garbage collection is GA
+          'unauth-native-cfn-stacks-to-skip': { type: 'array', desc: 'Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection. You must explicitly specify non-CDK stack names.', default: [], requiresArg: true },
         },
       },
       'flags': {

@@ -619,6 +619,13 @@ export interface GcOptions {
   readonly bootstrapStackName?: string;
 
   /**
+   * Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection. You must explicitly specify non-CDK stack names.
+   *
+   * @default - []
+   */
+  readonly unauthNativeCfnStacksToSkip?: Array<string>;
+
+  /**
    * Positional argument for gc
    */
   readonly ENVIRONMENTS?: Array<string>;
