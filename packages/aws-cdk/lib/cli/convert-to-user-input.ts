@@ -92,6 +92,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         confirm: args.confirm,
         toolkitStackName: args.toolkitStackName,
         bootstrapStackName: args.bootstrapStackName,
+        unauthNativeCfnStacksToSkip: args.unauthNativeCfnStacksToSkip,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
@@ -384,6 +385,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     confirm: config.gc?.confirm,
     toolkitStackName: config.gc?.toolkitStackName,
     bootstrapStackName: config.gc?.bootstrapStackName,
+    unauthNativeCfnStacksToSkip: config.gc?.unauthNativeCfnStacksToSkip,
   };
   const flagsOptions = {
     value: config.flags?.value,
