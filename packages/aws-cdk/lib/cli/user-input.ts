@@ -682,6 +682,22 @@ export interface FlagsOptions {
   readonly interactive?: boolean;
 
   /**
+   * Enable all feature flags that do not impact the user's application
+   *
+   * @default - undefined
+   */
+  readonly safe?: boolean;
+
+  /**
+   * Maximum number of simultaneous synths to execute.
+   *
+   * aliases: n
+   *
+   * @default - 4
+   */
+  readonly concurrency?: number;
+
+  /**
    * Positional argument for flags
    */
   readonly FLAGNAME?: Array<string>;
@@ -1562,6 +1578,18 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly revert?: boolean;
+
+  /**
+   * Whether to do the refactor without asking for confirmation
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
+
+  /**
+   * Positional argument for refactor
+   */
+  readonly STACKS?: Array<string>;
 }
 
 /**

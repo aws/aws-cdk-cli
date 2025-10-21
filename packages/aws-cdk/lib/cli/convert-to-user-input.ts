@@ -105,6 +105,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         recommended: args.recommended,
         default: args.default,
         interactive: args.interactive,
+        safe: args.safe,
+        concurrency: args.concurrency,
         FLAGNAME: args.FLAGNAME,
       };
       break;
@@ -291,6 +293,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         dryRun: args.dryRun,
         overrideFile: args.overrideFile,
         revert: args.revert,
+        force: args.force,
+        STACKS: args.STACKS,
       };
       break;
 
@@ -389,6 +393,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     recommended: config.flags?.recommended,
     default: config.flags?.default,
     interactive: config.flags?.interactive,
+    safe: config.flags?.safe,
+    concurrency: config.flags?.concurrency,
   };
   const deployOptions = {
     all: config.deploy?.all,
@@ -512,6 +518,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     dryRun: config.refactor?.dryRun,
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
+    force: config.refactor?.force,
   };
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,

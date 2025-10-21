@@ -4,6 +4,7 @@ import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@a
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -25,7 +26,7 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
-import { handleFlags } from '../commands/flag-operations';
+import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
@@ -33,7 +34,9 @@ import type { StackSelector, Synthesizer } from '../cxapp';
 import { ProxyAgentProvider } from './proxy-agent';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
+import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
+import { getLanguageFromAlias } from '../commands/language';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -42,6 +45,8 @@ if (!process.stdout.isTTY) {
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
+  argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
   const cmd = argv._[0];
 
   // if one -v, log at a DEBUG level
@@ -69,12 +74,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Debug should always imply tracing
-  if (argv.debug || argv.verbose > 2) {
-    setSdkTracing(true);
-  } else {
-    // cli-lib-alpha needs to explicitly set in case it was enabled before
-    setSdkTracing(false);
-  }
+  setSdkTracing(argv.debug || argv.verbose > 2);
 
   try {
     await checkForPlatformWarnings(ioHelper);
@@ -109,7 +109,34 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
-  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  /**
+   * The default value for displaying (and refreshing) notices on all commands.
+   *
+   * If the user didn't supply either `--notices` or `--no-notices`, we do
+   * autodetection. The autodetection currently is: do write notices if we are
+   * not on CI, or are on a CI system where we know that writing to stderr is
+   * safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+   * systems, even though technically we maybe could.
+   */
+  const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
+
+  // Determine if notices should be displayed based on CLI args and configuration
+  let shouldDisplayNotices: boolean;
+  if (argv.notices !== undefined) {
+    // CLI argument takes precedence
+    shouldDisplayNotices = argv.notices;
+  } else {
+    // Fall back to configuration file setting, then autodetection
+    const configNotices = configuration.settings.get(['notices']);
+    if (configNotices !== undefined) {
+      // Consider string "false" to be falsy in this context
+      shouldDisplayNotices = configNotices !== 'false' && Boolean(configNotices);
+    } else {
+      // Default autodetection behavior
+      shouldDisplayNotices = isSafeToWriteNotices;
+    }
+  }
+
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
@@ -193,7 +220,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
-    } else if (cmd !== 'version') {
+    } else if (shouldDisplayNotices && cmd !== 'version') {
       await notices.display();
     }
   }
@@ -306,6 +333,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           revert: args.revert,
           stacks: selector,
           additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
+          force: args.force ?? false,
+          roleArn: args.roleArn,
         });
 
       case 'bootstrap':
@@ -446,6 +475,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
         }
+        // roleArn is defined for when cloudformation is invoked
+        // This conflicts with direct sdk calls existing in the gc command to s3 and ecr
+        if (args.roleArn) {
+          await ioHost.defaults.warn('The --role-arn option is not supported for the gc command and will be ignored.');
+        }
         return cli.garbageCollect(args.ENVIRONMENTS, {
           action: args.action,
           type: args.type,
@@ -467,7 +501,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
-        return handleFlags(flagsData, ioHelper, args, toolkit);
+        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit);
+        return handler.processFlagsCommand();
 
       case 'synthesize':
       case 'synth':

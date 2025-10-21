@@ -33,7 +33,7 @@ describe('yargs', () => {
         lookups: true,
         trace: undefined,
         unstable: [],
-        notices: expect.any(Boolean),
+        notices: undefined,
         output: undefined,
       },
       deploy: {

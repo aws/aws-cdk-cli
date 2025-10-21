@@ -383,8 +383,21 @@
           "alias": [
             "i"
           ],
-          "desc": "Interactive option for the flags command",
+          "desc": "Interactive option for the flags command"
+        },
+        "safe": {
+          "type": "boolean",
+          "desc": "Enable all feature flags that do not impact the user's application",
           "requiresArg": false
+        },
+        "concurrency": {
+          "type": "number",
+          "alias": [
+            "n"
+          ],
+          "desc": "Maximum number of simultaneous synths to execute.",
+          "default": 4,
+          "requiresArg": true
         }
       }
     },
@@ -845,12 +858,17 @@
           "desc": "The language to be used for the new project (default can be configured in ~/.cdk.json)",
           "choices": [
             "csharp",
+            "cs",
             "fsharp",
+            "fs",
             "go",
             "java",
             "javascript",
+            "js",
             "python",
-            "typescript"
+            "py",
+            "typescript",
+            "ts"
           ]
         },
         "list": {
@@ -901,10 +919,13 @@
           "desc": "The language to be used for the new project",
           "choices": [
             "typescript",
+            "ts",
             "go",
             "java",
             "python",
-            "csharp"
+            "py",
+            "csharp",
+            "cs"
           ]
         },
         "account": {
@@ -1001,7 +1022,16 @@
           "type": "boolean",
           "default": false,
           "desc": "If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided."
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "desc": "Whether to do the refactor without asking for confirmation"
         }
+      },
+      "arg": {
+        "name": "STACKS",
+        "variadic": true
       }
     },
     "cli-telemetry": {
