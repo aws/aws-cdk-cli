@@ -8,6 +8,13 @@ import { getLanguageAlias } from '../commands/language';
 
 export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
 
+interface InitCommandArgs {
+  'template-path'?: string;
+  'from-path'?: string;
+  'from-git-url'?: string;
+  [key: string]: unknown;
+}
+
 /**
  * Source of truth for all CDK CLI commands. `user-input-gen` translates this into:
  *
@@ -406,8 +413,22 @@ export async function makeConfig(): Promise<CliConfig> {
           'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
+          'from-git-url': { type: 'string', desc: 'Git repository URL to clone custom template from', requiresArg: true, conflicts: ['lib-version', 'from-path'] },
         },
-        implies: { 'template-path': 'from-path' },
+        check: (argv: InitCommandArgs) => {
+          const hasTemplatePath = Boolean(argv['template-path']);
+          const hasValidSource = Boolean(argv['from-path'] || argv['from-git-url']);
+
+          if (hasTemplatePath && !hasValidSource) {
+            const e = new Error(
+              '--template-path can only be used with --from-path or --from-git-url',
+            );
+            e.name = 'ValidationError';
+            throw e;
+          }
+
+          return true;
+        },
       },
       'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',
