@@ -6,6 +6,7 @@ export * from './deployments';
 export * from './aws-auth';
 export * from './cloud-assembly';
 export * from './notices';
+export * from './resource-filter';
 
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/diff';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/io';
