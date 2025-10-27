@@ -2,10 +2,12 @@ import * as os from 'os';
 import * as fs_path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
+import { validate } from 'jsonschema';
 import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
 import type { IoHelper } from '../api-private';
+import { cdkConfigSchema } from '../schema';
 
 export const PROJECT_CONFIG = 'cdk.json';
 export { PROJECT_CONTEXT } from '../api/context';
@@ -210,6 +212,9 @@ async function settingsFromFile(ioHelper: IoHelper, fileName: string): Promise<S
   const expanded = expandHomeDir(fileName);
   if (await fs.pathExists(expanded)) {
     const data = await fs.readJson(expanded);
+
+    await validateConfigurationFile(data, fileName, ioHelper);
+
     settings = new Settings(data);
   } else {
     settings = new Settings();
@@ -407,4 +412,97 @@ async function parseStringTagsListToObject(
     }
   }
   return tags.length > 0 ? tags : undefined;
+}
+
+/**
+ * Find similar property names to suggest corrections for typos
+ */
+function getTypeCorrectionHint(expectedType: string, actualValue: any): string {
+  if (expectedType === 'boolean' && (actualValue === 'true' || actualValue === 'false')) {
+    return ` (use ${actualValue} without quotes)`;
+  }
+  if (expectedType === 'string' && typeof actualValue === 'number') {
+    return ` (use "${actualValue}" with quotes)`;
+  }
+  return '';
+}
+
+/**
+ * Validates configuration data against the CDK JSON Schema and emits warnings for issues
+ *
+ * @param data - The configuration object to validate
+ * @param fileName - The file name for error reporting
+ * @param ioHelper - IoHelper for logging warnings
+ */
+async function validateConfigurationFile(data: any, fileName: string, ioHelper: IoHelper): Promise<void> {
+  try {
+    const schema = cdkConfigSchema;
+    const result = validate(data, schema);
+
+    await handleSchemaErrors(result.errors, fileName, ioHelper);
+
+    await handleUnknownProperties(data, schema, fileName, ioHelper);
+  } catch (error) {
+    await ioHelper.defaults.debug(`Schema validation failed for ${fileName}: ${error}`);
+  }
+}
+
+/**
+ * Handles schema validation errors and emits appropriate warnings
+ */
+async function handleSchemaErrors(errors: any[], fileName: string, ioHelper: IoHelper): Promise<void> {
+  if (!errors || errors.length === 0) {
+    return;
+  }
+
+  for (const error of errors) {
+    const propertyPath = error.property?.replace('instance.', '') || 'root';
+    const propertyName = propertyPath || 'property';
+
+    if (error.name === 'type') {
+      const errorSchema = error.schema as any;
+      const expectedType = Array.isArray(errorSchema.type)
+        ? errorSchema.type.join(' or ')
+        : errorSchema.type || 'unknown';
+      const actualType = typeof error.instance;
+      const hint = getTypeCorrectionHint(expectedType, error.instance);
+
+      await ioHelper.defaults.warn(
+        `${fileName}: '${propertyName}' should be ${expectedType}, got ${actualType}${hint}`,
+      );
+    } else if (error.name === 'enum') {
+      const allowedValues = (error.schema as any).enum?.join(', ') || 'unknown';
+      await ioHelper.defaults.warn(
+        `${fileName}: '${propertyName}' must be one of: ${allowedValues}`,
+      );
+    } else if (error.name !== 'additionalProperties') {
+      // Generic fallback for other validation errors (skip additionalProperties as we handle those separately)
+      await ioHelper.defaults.warn(
+        `${fileName}: ${error.message}`,
+      );
+    }
+  }
+}
+
+/**
+ * Handles unknown properties
+ */
+async function handleUnknownProperties(
+  data: any,
+  schema: any,
+  fileName: string,
+  ioHelper: IoHelper,
+): Promise<void> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return;
+  }
+
+  const knownProperties = Object.keys(schema.properties || {});
+  const unknownProperties = Object.keys(data).filter(prop => !knownProperties.includes(prop));
+
+  for (const prop of unknownProperties) {
+    await ioHelper.defaults.warn(
+      `${fileName}: Unknown property '${prop}' (not a standard CDK property)`,
+    );
+  }
 }

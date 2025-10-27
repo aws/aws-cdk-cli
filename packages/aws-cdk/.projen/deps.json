@@ -355,6 +355,10 @@
       "type": "runtime"
     },
     {
+      "name": "jsonschema",
+      "type": "runtime"
+    },
+    {
       "name": "minimatch",
       "type": "runtime"
     },
