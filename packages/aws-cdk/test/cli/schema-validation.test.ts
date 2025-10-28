@@ -5,7 +5,6 @@ import { Configuration, PROJECT_CONFIG } from '../../lib/cli/user-configuration'
 import { cdkConfigSchema } from '../../lib/schema';
 import { TestIoHost } from '../_helpers/io-host';
 
-// mock fs deeply
 jest.mock('fs-extra');
 const mockedFs = jest.mocked(fs, { shallow: true });
 
@@ -49,13 +48,10 @@ describe('Schema Validation', () => {
 
   describe('Configuration Loading', () => {
     test('loads empty configuration without errors', async () => {
-      // GIVEN
       mockConfig({});
 
-      // WHEN
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
       expect(config).toBeDefined();
       expect(ioHost.notifySpy).not.toHaveBeenCalledWith(
         expect.objectContaining({ level: 'error' }),
@@ -63,7 +59,6 @@ describe('Schema Validation', () => {
     });
 
     test('loads configuration and preserves all provided values', async () => {
-      // GIVEN
       const testConfig = {
         app: 'test-app',
         output: 'test-output',
@@ -71,30 +66,25 @@ describe('Schema Validation', () => {
       };
       mockConfig(testConfig);
 
-      // WHEN
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
       expect(config.settings.get(['app'])).toBe('test-app');
       expect(config.settings.get(['output'])).toBe('test-output');
       expect(config.settings.get(['customProperty'])).toBe('custom-value');
     });
 
     test('handles malformed JSON gracefully', async () => {
-      // GIVEN
       mockedFs.pathExists.mockImplementation(() => true);
       mockedFs.readJSON.mockImplementation(() => {
         throw new Error('Unexpected token in JSON');
       });
 
-      // WHEN & THEN
       await expect(Configuration.fromArgsAndFiles(ioHelper)).rejects.toThrow();
     });
   });
 
   describe('Validation Behavior', () => {
     test('preserves unknown properties but generates warnings', async () => {
-      // GIVEN
       const configWithUnknownProps = {
         app: 'valid-app',
         unknownProperty: 'some-value',
@@ -102,10 +92,8 @@ describe('Schema Validation', () => {
       };
       mockConfig(configWithUnknownProps);
 
-      // WHEN
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
       expect(config.settings.get(['app'])).toBe('valid-app');
       expect(config.settings.get(['unknownProperty'])).toBe('some-value');
       expect(config.settings.get(['anotherUnknown'])).toBe(123);
@@ -120,7 +108,6 @@ describe('Schema Validation', () => {
     });
 
     test('preserves invalid property types but generates warnings', async () => {
-      // GIVEN
       const configWithInvalidTypes = {
         debug: 'true', // Should be boolean
         output: 42, // Should be string
@@ -128,10 +115,8 @@ describe('Schema Validation', () => {
       };
       mockConfig(configWithInvalidTypes);
 
-      // WHEN
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
       // Values should be preserved as-is
       expect(config.settings.get(['debug'])).toBe('true');
       expect(config.settings.get(['output'])).toBe(42);
@@ -147,7 +132,6 @@ describe('Schema Validation', () => {
     });
 
     test('does not warn for valid configurations', async () => {
-      // GIVEN
       const validConfig = {
         app: 'npx ts-node bin/app.ts',
         debug: true,
@@ -159,10 +143,10 @@ describe('Schema Validation', () => {
       };
       mockConfig(validConfig);
 
-      // WHEN
+      
       await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
+      
       expect(ioHost.notifySpy).not.toHaveBeenCalledWith(
         expect.objectContaining({ level: 'warn' }),
       );
@@ -198,10 +182,10 @@ describe('Schema Validation', () => {
       };
       mockConfig(validExtendedConfig);
 
-      // WHEN
+      
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
+      
       expect(config).toBeDefined();
       expect(ioHost.notifySpy).not.toHaveBeenCalledWith(
         expect.objectContaining({ level: 'warn' }),
@@ -224,10 +208,10 @@ describe('Schema Validation', () => {
       };
       mockConfig(configWithErrors);
 
-      // WHEN
+      
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
+      
       // Configuration should still load
       expect(config).toBeDefined();
       expect(config.settings.get(['app'])).toBe('npx ts-node --prefer-ts-exts bin/app.ts');
@@ -272,10 +256,10 @@ describe('Schema Validation', () => {
       };
       mockConfig(basicConfig);
 
-      // WHEN
+      
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
+      
       expect(config).toBeDefined();
       expect(config.settings.get(['app'])).toBe('npx ts-node --prefer-ts-exts bin/app.ts');
       expect(config.settings.get(['watch'])).toEqual(basicConfig.watch);
@@ -306,10 +290,10 @@ describe('Schema Validation', () => {
       };
       mockConfig(mixedConfig);
 
-      // WHEN
+      
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
+      
       // All values should be preserved
       expect(config.settings.get(['app'])).toBe('valid-command');
       expect(config.settings.get(['debug'])).toBe(true);
@@ -332,10 +316,10 @@ describe('Schema Validation', () => {
       };
       mockConfig(configWithAdditionalProps);
 
-      // WHEN
+      
       const config = await Configuration.fromArgsAndFiles(ioHelper);
 
-      // THEN
+      
       // Additional properties should be preserved (schema allows them)
       expect(config.settings.get(['customProperty'])).toBe('should-be-allowed');
       expect(config.settings.get(['userDefinedField'])).toEqual({ nested: 'object' });
