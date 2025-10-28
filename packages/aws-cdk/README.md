@@ -567,63 +567,53 @@ and might have breaking changes in the future.
 
 > *: `Fn::GetAtt` is only partially supported. Refer to [this implementation](https://github.com/aws/aws-cdk-cli/blob/main/packages/aws-cdk/lib/api/cloudformation/evaluate-cloudformation-template.ts#L256-L266) for supported resources and attributes.
 
-#### Understanding the Deploy Process
 
-The `cdk deploy` command follows a multi-phase process to deploy your infrastructure. This flowchart provides a high-level overview of the deployment process:
+##### Deploy flowchart
+
+The following diagrams illustrate the CDK deployment process at two levels of detail. The first diagram provides a conceptual overview suitable for understanding the high-level flow, while the second diagram shows the technical implementation details for contributors working on the CDK codebase.
+
+This flowchart provides a high-level overview of the deployment architecture and key decision points:
 
 ```mermaid
 graph TD
     %% Initialization Phase
-    c1["Start: cdk deploy command"]
-    c2["Parse CLI Arguments & Load Configuration"]
-    c3["Initialize CDK Toolkit"]
+    c1["Initialize Deployment"]
     
     %% Stack Selection Phase
-    c4["Select Target Stacks"]
-    c5["Validate Stack Selection"]
+    c4["Determine Which Stacks to Deploy"]
+    c5["Order Stacks by Dependencies"]
     
     %% Synthesis Phase
     c6["Synthesis Phase"]
-    c7{"Missing AWS Context?"}
-    c8["Fetch Context from AWS"]
-    c9["Execute CDK Application"]
-    c10["Generate Cloud Assembly"]
+    c7{"Need AWS Account Info?<br/>(VPCs, Zones, AMIs)"}
+    c8["Query AWS & Cache to<br/>cdk.context.json"]
+    c9["Run Your CDK Code"]
+    c10["Generate CloudFormation Templates"]
     
     %% Asset Processing Phase
     c11["Asset Processing Phase"]
-    c12["Analyze Asset Dependencies"]
-    c13["Build Assets in Parallel"]
-    c14["Publish Assets in Parallel"]
-    
-    %% Deployment Preparation Phase
-    c15["Deployment Preparation"]
-    c16["Check Security Approval Requirements"]
-    c17{"Approval Required?"}
-    c18["Request User Approval"]
+    c13["Package Assets<br/>(Lambda code, Docker images)"]
+    c14["Upload to S3 & ECR"]
     
     %% Deployment Method Selection
-    c19{"Deployment Method Selection"}
-    c20["Hotswap Deployment"]
-    c21["CloudFormation Deployment"]
+    c19{"Fast Deploy Available?<br/>(--hotswap flag set?)"}
+    c20["Fast Deployment Path"]
+    c21["Standard Deployment Path"]
     
     %% Hotswap Path
-    c22["Identify Hotswappable Resources"]
-    c23["Update Resources Directly via AWS APIs"]
+    c22["Identify Resources to Update"]
+    c23["Update Resources Directly<br/>(Skip CloudFormation)"]
     
     %% CloudFormation Path
-    c24["Create/Update CloudFormation Stack"]
-    c25["Monitor Stack Progress"]
-    c26["Wait for Stack Completion"]
+    c25["Deploy via CloudFormation"]
+    c27["Monitor Progress & Wait for Completion"]
     
     %% Completion Phase
-    c27["Collect Stack Outputs"]
-    c28["Report Deployment Status"]
-    c29["End: Deployment Complete"]
+    c29["Collect Outputs & Report Status"]
+    c30["End: Deployment Complete"]
     
     %% Main Flow
-    c1 --> c2
-    c2 --> c3
-    c3 --> c4
+    c1 --> c4
     c4 --> c5
     c5 --> c6
     
@@ -632,46 +622,34 @@ graph TD
     c7 -->|"Yes"| c8
     c8 --> c9
     c9 --> c10
-    c10 -->|"Loop if more context needed"| c7
+    c10 -->|"Loop if context missing<br/>(can repeat multiple times)"| c7
     c7 -->|"No"| c11
     
     %% Asset Processing Phase
-    c11 --> c12
-    c12 --> c13
+    c11 --> c13
     c13 --> c14
-    c14 --> c15
-    
-    %% Deployment Preparation
-    c15 --> c16
-    c16 --> c17
-    c17 -->|"Yes"| c18
-    c17 -->|"No"| c19
-    c18 --> c19
+    c14 --> c19
     
     %% Deployment Method Selection
-    c19 -->|"Hotswap Available"| c20
-    c19 -->|"Standard Deployment"| c21
+    c19 -->|"Yes: Fast Deploy"| c20
+    c19 -->|"No: Standard Deploy"| c21
     
     %% Hotswap Path
     c20 --> c22
     c22 --> c23
-    c23 --> c27
+    c23 --> c29
     
     %% CloudFormation Path
-    c21 --> c24
-    c24 --> c25
-    c25 --> c26
-    c26 --> c27
+    c21 --> c25
+    c25 --> c27
+    c27 --> c29
     
     %% Completion
-    c27 --> c28
-    c28 --> c29
+    c29 --> c30
     
     %% Phase-based Color Coding
     %% Initialization Phase (Light Gray)
     style c1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
-    style c2 fill:#f5f5f5,stroke:#757575,stroke-width:2px
-    style c3 fill:#f5f5f5,stroke:#757575,stroke-width:2px
     
     %% Stack Selection Phase (Light Cyan)
     style c4 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
@@ -686,15 +664,8 @@ graph TD
     
     %% Asset Processing Phase (Light Purple)
     style c11 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:3px
-    style c12 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
     style c13 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
     style c14 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    
-    %% Deployment Preparation (Light Yellow)
-    style c15 fill:#fffde7,stroke:#f57f17,stroke-width:2px
-    style c16 fill:#fffde7,stroke:#f57f17,stroke-width:2px
-    style c17 fill:#fffde7,stroke:#f57f17,stroke-width:2px
-    style c18 fill:#fffde7,stroke:#f57f17,stroke-width:2px
     
     %% Deployment Method Selection (Light Amber)
     style c19 fill:#fff8e1,stroke:#ff6f00,stroke-width:2px
@@ -706,47 +677,220 @@ graph TD
     
     %% CloudFormation Deployment (Light Red)
     style c21 fill:#ffebee,stroke:#c62828,stroke-width:3px
-    style c24 fill:#ffebee,stroke:#c62828,stroke-width:2px
     style c25 fill:#ffebee,stroke:#c62828,stroke-width:2px
-    style c26 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style c27 fill:#ffebee,stroke:#c62828,stroke-width:2px
     
     %% Completion Phase (Light Teal)
-    style c27 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-    style c28 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
     style c29 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-    
-    %% Legend at Bottom
-    subgraph Legend[" "]
-        direction LR
-        L1["Initialization"]
-        L2["Stack Selection"]
-        L3["Synthesis"]
-        L4["Asset Processing"]
-        L5["Deployment Prep"]
-        L6["Hotswap"]
-        L7["CloudFormation"]
-        L8["Completion"]
-        
-        style L1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
-        style L2 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
-        style L3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-        style L4 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-        style L5 fill:#fffde7,stroke:#f57f17,stroke-width:2px
-        style L6 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-        style L7 fill:#ffebee,stroke:#c62828,stroke-width:2px
-        style L8 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-    end
+    style c30 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
 ```
 
-**Key Phases:**
+**Legend:**
+```mermaid
+graph LR
+    L1["Initialization"] --> L2["Stack Selection"] --> L3["Synthesis"] --> L4["Asset Processing"] --> L5["Fast Deploy"] 
+    L4 --> L6["Standard Deploy"]
+    L5 --> L7["Completion"]
+    L6 --> L7
+    
+    style L1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
+    style L2 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+    style L3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style L4 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style L5 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style L6 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style L7 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+```
 
-- **Synthesis Phase** (light blue): Converts your CDK code into CloudFormation templates. May iterate multiple times if AWS context information (like VPC IDs or availability zones) needs to be fetched.
+##### Technical Implementation Details
 
-- **Asset Processing Phase** (light purple): Builds and publishes assets (Docker images, Lambda code, files) in parallel to improve performance.
+For contributors debugging or modifying the deploy command, this technical flowchart shows the exact function calls and file locations in the execution path. 
 
-- **Hotswap Deployment** (light green): Fast deployment path that updates resources directly via AWS APIs, skipping CloudFormation. Only available for certain resource types when using `--hotswap` flag.
+```mermaid
+graph TD
+    %% CLI Entry Point
+    n1["cdk deploy<br/>(User Command)"]
+    n2["cli.ts: exec()"]
+    n3["cli.ts: main()"]
+    
+    %% Deploy Method
+    n4["cdk-toolkit.ts: CdkToolkit.deploy()"]
+    n5["cdk-toolkit.ts: selectStacksForDeploy()"]
+    n6["Check if synthesis needed"]
+    
+    %% Synthesis Process
+    n7["cloud-executable.ts: doSynthesize()"]
+    n29{"Context missing?"}
+    n34["cloud-executable.ts: synthesizer()"]
+    n9["cli.ts: execProgram()"]
+    n10["childProcess.spawn()<br/>(Run CDK App)"]
+    n11["CDK App Process Started"]
+    n35["CDK App: app.synth()"]
+    n36["@aws-cdk/core: synthesize()<br/>Generate CloudFormation JSON"]
+    n12["Write templates to cdk.out/"]
+    n13["Return CloudAssembly object"]
+    
+    %% Stack Selection
+    n14["cloud-assembly.ts:<br/>assembly.selectStacks()"]
+    n15["cloud-assembly.ts:<br/>validateStacks()"]
+    n16["Return StackCollection"]
+    
+    %% Asset Processing
+    n17["cdk-toolkit.ts:<br/>ResourceMigrator.tryMigrateResources()"]
+    n18["work-graph.ts:<br/>WorkGraphBuilder.build()"]
+    n37["work-graph.ts:<br/>analyzeDeploymentOrder()"]
+    n19["work-graph.ts:<br/>workGraph.doParallel()"]
+    
+    %% Parallel Execution Nodes
+    n20["asset-build.ts: buildAsset()<br/>(Sequential: concurrency=1)"]
+    n21["asset-publishing.ts: publishAsset()<br/>(Parallel: concurrency=8)"]
+    n44["deploy-stack.ts: deployStack()<br/>(Parallel: configurable)"]
+    n45["await Promise.all()<br/>Wait for dependencies"]
+    
+    %% Deployment Process
+    n22["cdk-toolkit.ts: deployStack()"]
+    n23["deploy-stack.ts:<br/>CloudFormationStack.lookup()"]
+    n24["deploy-stack.ts:<br/>makeBodyParameter()"]
+    n25["deploy-stack.ts:<br/>publishAssets()"]
+    n38["deploy-stack.ts:<br/>requireApproval()"]
+    
+    %% Hotswap Decision
+    n30{"--hotswap flag set?"}
+    n31["hotswap-deployments.ts:<br/>tryHotswapDeployment()"]
+    
+    %% Standard CloudFormation Deployment
+    n26["deploy-stack.ts:<br/>FullCloudFormationDeployment.performDeployment()"]
+    n27["AWS SDK: CloudFormation<br/>createChangeSet() OR<br/>updateStack()"]
+    n28["CloudFormation Service"]
+    n32["deploy-stack.ts:<br/>StackActivityMonitor.start()"]
+    n33["deploy-stack.ts:<br/>waitForStackDeploy()"]
+    
+    %% Completion
+    n39["deploy-stack.ts:<br/>getStackOutputs()"]
+    n40["cdk-toolkit.ts:<br/>printStackOutputs()"]
+    
+    %% Main Flow Connections
+    n1 --> n2
+    n2 --> n3
+    n3 --> n4
+    n4 --> n5
+    n5 --> n6
+    n6 --> n7
+    n7 --> n29
+    n29 -->|"Yes"| n34
+    n34 --> n9
+    n9 --> n10
+    n10 --> n11
+    n11 --> n35
+    n35 --> n36
+    n36 --> n12
+    n12 --> n13
+    n13 -->|"Loop if context missing"| n29
+    n29 -->|"No"| n14
+    n14 --> n15
+    n15 --> n16
+    n16 --> n17
+    n17 --> n18
+    n18 --> n37
+    n37 --> n19
+    
+    %% Parallel execution from workGraph.doParallel()
+    n19 -.->|"Parallel"| n20
+    n19 -.->|"Parallel"| n21
+    n19 -.->|"Parallel"| n44
+    
+    %% Dependency relationships
+    n20 --> n45
+    n21 --> n45
+    n44 --> n45
+    n45 --> n22
+    n22 --> n23
+    n23 --> n24
+    n24 --> n25
+    n25 --> n38
+    n38 --> n30
+    n30 -->|"Yes"| n31
+    n30 -->|"No"| n26
+    n31 --> n39
+    n26 --> n27
+    n27 --> n28
+    n28 --> n32
+    n32 --> n33
+    n33 --> n39
+    n39 --> n40
+    
+    %% Simplified Color Scheme - Only 3 colors
+    %% External Systems (Light Red)
+    style n1 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style n28 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    
+    %% CDK App Process (Light Green)
+    style n10 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style n11 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style n35 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style n36 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style n12 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    
+    %% Decision Points (Light Yellow)
+    style n29 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    style n30 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    style n38 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    style n45 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    
+    %% Everything else - CDK CLI Code (Light Blue)
+    style n2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n5 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n6 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n7 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n9 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n13 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n14 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n15 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n16 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n17 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n18 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n19 fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
+    style n20 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n21 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n22 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n23 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n24 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n25 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n26 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n27 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n31 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n32 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n33 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n34 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n37 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n39 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n40 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style n44 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    
+```
 
-- **CloudFormation Deployment** (light red): Standard deployment path that uses CloudFormation change sets for full change tracking and rollback capabilities.
+**Legend (Node Categories):**
+```mermaid
+graph LR
+    L1["External Systems"]~~~L2["CDK App Process"]~~~L3["CDK CLI Code"]~~~L4["Decision Points"]
+    
+    style L1 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style L2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style L3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style L4 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+```
+
+**Parallel Execution Model:**
+
+The deploy process uses a sophisticated work graph (`workGraph.doParallel()` in `work-graph.ts`) to manage parallel execution:
+
+- **Asset Building** (concurrency: 1): Compiles Docker images, Lambda code, etc. sequentially to avoid overwhelming system resources
+- **Asset Publishing** (concurrency: 8): Uploads assets to S3/ECR in parallel for faster deployment
+- **Stack Deployment** (configurable): Deploys multiple stacks in parallel while respecting dependencies
+
+The dotted lines indicate parallel execution paths from the work graph orchestrator. All operations respect dependency relationships before proceeding (node n45 represents the synchronization point).
 
 ### `cdk rollback`
 
