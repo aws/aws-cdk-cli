@@ -794,6 +794,7 @@ const toolkitLibTsCompilerOptions = {
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
+    homepage: 'https://docs.aws.amazon.com/cdk/api/toolkit-lib',
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
