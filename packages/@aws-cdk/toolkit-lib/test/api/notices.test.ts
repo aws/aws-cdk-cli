@@ -11,6 +11,7 @@ import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
 import type { BootstrappedEnvironment, Component, Notice } from '../../lib/api/notices/types';
 import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
 import { Settings } from '../../lib/api/settings';
+import { NetworkDetector } from '../../lib/util/network-detector';
 import { TestIoHost } from '../_helpers';
 
 const BASIC_BOOTSTRAP_NOTICE = {
@@ -539,6 +540,24 @@ function parseTestComponent(x: string): Component {
 
 describe(WebsiteNoticeDataSource, () => {
   const dataSource = new WebsiteNoticeDataSource(ioHelper);
+
+  beforeEach(() => {
+    // Mock NetworkDetector to return true by default for existing tests
+    jest.spyOn(NetworkDetector, 'hasConnectivity').mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('throws error when no connectivity detected', async () => {
+    const mockHasConnectivity = jest.spyOn(NetworkDetector, 'hasConnectivity').mockResolvedValue(false);
+
+    await expect(dataSource.fetch()).rejects.toThrow('No internet connectivity detected');
+    expect(mockHasConnectivity).toHaveBeenCalledWith(undefined);
+
+    mockHasConnectivity.mockRestore();
+  });
 
   test('returns data when download succeeds', async () => {
     const result = await mockCall(200, {

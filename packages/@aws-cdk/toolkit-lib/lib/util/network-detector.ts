@@ -5,18 +5,12 @@ import { request } from 'https';
  * Detects internet connectivity by making a lightweight request to the notices endpoint
  */
 export class NetworkDetector {
-  private static readonly CACHE_DURATION_MS = 30_000; // 30 seconds
-  private static readonly TIMEOUT_MS = 500;
-  
-  private static cachedResult: boolean | undefined;
-  private static cacheExpiry: number = 0;
-
   /**
    * Check if internet connectivity is available
    */
   public static async hasConnectivity(agent?: Agent): Promise<boolean> {
     const now = Date.now();
-    
+
     // Return cached result if still valid
     if (this.cachedResult !== undefined && now < this.cacheExpiry) {
       return this.cachedResult;
@@ -33,6 +27,12 @@ export class NetworkDetector {
       return false;
     }
   }
+
+  private static readonly CACHE_DURATION_MS = 30_000; // 30 seconds
+  private static readonly TIMEOUT_MS = 500;
+
+  private static cachedResult: boolean | undefined;
+  private static cacheExpiry: number = 0;
 
   private static ping(agent?: Agent): Promise<boolean> {
     return new Promise((resolve) => {

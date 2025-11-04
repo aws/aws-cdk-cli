@@ -25,7 +25,7 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_, callback) => {
+    mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 200 });
       return mockReq;
     });
@@ -41,7 +41,7 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_, callback) => {
+    mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 500 });
       return mockReq;
     });
@@ -91,7 +91,7 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_, callback) => {
+    mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 200 });
       return mockReq;
     });
