@@ -4,6 +4,7 @@ import * as https from 'node:https';
 import type { Notice, NoticeDataSource } from './types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
+import { NetworkDetector } from '../../util/network-detector';
 import type { IoHelper } from '../io/private';
 
 /**
@@ -44,6 +45,12 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
   }
 
   async fetch(): Promise<Notice[]> {
+    // Check connectivity before attempting network request
+    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+    if (!hasConnectivity) {
+      throw new ToolkitError('No internet connectivity detected');
+    }
+
     // We are observing lots of timeouts when running in a massively parallel
     // integration test environment, so wait for a longer timeout there.
     //

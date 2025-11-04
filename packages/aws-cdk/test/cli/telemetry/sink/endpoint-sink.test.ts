@@ -3,10 +3,19 @@ import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
+import { NetworkDetector } from '@aws-cdk/toolkit-lib/lib/util/network-detector';
 
 // Mock the https module
 jest.mock('https', () => ({
   request: jest.fn(),
+}));
+
+// Mock NetworkDetector
+jest.mock('@aws-cdk/toolkit-lib', () => ({
+  ...jest.requireActual('@aws-cdk/toolkit-lib'),
+  NetworkDetector: {
+    hasConnectivity: jest.fn(),
+  },
 }));
 
 describe('EndpointTelemetrySink', () => {
@@ -14,6 +23,9 @@ describe('EndpointTelemetrySink', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+
+    // Mock NetworkDetector to return true by default for existing tests
+    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
 
     ioHost = CliIoHost.instance();
   });
@@ -311,5 +323,21 @@ describe('EndpointTelemetrySink', () => {
     expect(traceSpy).toHaveBeenCalledWith(
       expect.stringContaining('Telemetry Error: POST example.com/telemetry:'),
     );
+  });
+
+  test('skips request when no connectivity detected', async () => {
+    // GIVEN
+    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(false);
+    
+    const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
+    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
+
+    // WHEN
+    await client.emit(testEvent);
+    await client.flush();
+
+    // THEN
+    expect(NetworkDetector.hasConnectivity).toHaveBeenCalledWith(undefined);
+    expect(https.request).not.toHaveBeenCalled();
   });
 });
