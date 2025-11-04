@@ -19,7 +19,7 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
 
-const TYPESCRIPT_VERSION = '5.8';
+const TYPESCRIPT_VERSION = '5.9';
 
 /**
  * When adding an SDK dependency for a library, use this function
@@ -244,7 +244,6 @@ const repoProject = new yarn.Monorepo({
   releaseOptions: {
     publishToNpm: true,
     releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
-    nodeVersion: '24.x',
   },
 
   depsUpgradeOptions: {
@@ -794,6 +793,7 @@ const toolkitLibTsCompilerOptions = {
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
+    homepage: 'https://docs.aws.amazon.com/cdk/api/toolkit-lib',
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
@@ -1679,7 +1679,7 @@ new CdkCliIntegTestsWorkflow(repo, {
   additionalNodeVersionsToTest: [
     // 18.18 introduces `Symbol.dispose`, and we need to make sure that we work on older versions as well
     '18.17.0',
-    '20', '22',
+    '20', '22', '24',
   ],
 });
 

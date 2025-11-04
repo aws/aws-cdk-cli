@@ -164,12 +164,16 @@ jobs:
             node: "20"
           - suite: init-typescript-app
             node: "22"
+          - suite: init-typescript-app
+            node: "24"
           - suite: toolkit-lib-integ-tests
             node: 18.17.0
           - suite: toolkit-lib-integ-tests
             node: "20"
           - suite: toolkit-lib-integ-tests
             node: "22"
+          - suite: toolkit-lib-integ-tests
+            node: "24"
           - suite: tool-integrations
             node: 20
         exclude:

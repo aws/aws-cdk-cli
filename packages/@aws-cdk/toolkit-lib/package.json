@@ -71,7 +71,7 @@
     "nock": "13",
     "prettier": "^2.8",
     "ts-jest": "^29.4.4",
-    "typescript": "5.8",
+    "typescript": "5.9",
     "xml-js": "^1.6.11"
   },
   "peerDependencies": {
@@ -132,7 +132,7 @@
   },
   "main": "lib/index.js",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/aws/aws-cdk",
+  "homepage": "https://docs.aws.amazon.com/cdk/api/toolkit-lib",
   "publishConfig": {
     "access": "public"
   },
