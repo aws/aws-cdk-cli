@@ -17,3 +17,6 @@ export * from './api/cloud-assembly';
 export * from './api/io';
 export * from './api/tags';
 export * from './api/plugin';
+
+// Utilities
+export { NetworkDetector } from './util/network-detector';

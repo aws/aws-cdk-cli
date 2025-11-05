@@ -3,7 +3,7 @@ import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
-import { NetworkDetector } from '@aws-cdk/toolkit-lib/lib/util/network-detector';
+import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 
 // Mock the https module
 jest.mock('https', () => ({

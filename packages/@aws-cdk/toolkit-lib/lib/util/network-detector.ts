@@ -1,5 +1,16 @@
 import type { Agent } from 'https';
 import { request } from 'https';
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import { cdkCacheDir } from './';
+
+interface CachedConnectivity {
+  expiration: number;
+  hasConnectivity: boolean;
+}
+
+const TIME_TO_LIVE_SUCCESS = 60 * 60 * 1000; // 1 hour
+const CACHE_FILE_PATH = path.join(cdkCacheDir(), 'connection.json');
 
 /**
  * Detects internet connectivity by making a lightweight request to the notices endpoint
@@ -9,30 +20,51 @@ export class NetworkDetector {
    * Check if internet connectivity is available
    */
   public static async hasConnectivity(agent?: Agent): Promise<boolean> {
-    const now = Date.now();
+    const cachedData = await this.load();
+    const expiration = cachedData.expiration ?? 0;
 
-    // Return cached result if still valid
-    if (this.cachedResult !== undefined && now < this.cacheExpiry) {
-      return this.cachedResult;
-    }
-
-    try {
-      const connected = await this.ping(agent);
-      this.cachedResult = connected;
-      this.cacheExpiry = now + this.CACHE_DURATION_MS;
-      return connected;
-    } catch {
-      this.cachedResult = false;
-      this.cacheExpiry = now + this.CACHE_DURATION_MS;
-      return false;
+    if (Date.now() > expiration) {
+      try {
+        const connected = await this.ping(agent);
+        const updatedData = {
+          expiration: Date.now() + TIME_TO_LIVE_SUCCESS,
+          hasConnectivity: connected,
+        };
+        await this.save(updatedData);
+        return connected;
+      } catch {
+        return false;
+      }
+    } else {
+      return cachedData.hasConnectivity;
     }
   }
 
-  private static readonly CACHE_DURATION_MS = 30_000; // 30 seconds
   private static readonly TIMEOUT_MS = 500;
 
-  private static cachedResult: boolean | undefined;
-  private static cacheExpiry: number = 0;
+  private static async load(): Promise<CachedConnectivity> {
+    const defaultValue = {
+      expiration: 0,
+      hasConnectivity: false,
+    };
+
+    try {
+      return fs.existsSync(CACHE_FILE_PATH)
+        ? await fs.readJSON(CACHE_FILE_PATH) as CachedConnectivity
+        : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  private static async save(cached: CachedConnectivity): Promise<void> {
+    try {
+      await fs.ensureFile(CACHE_FILE_PATH);
+      await fs.writeJSON(CACHE_FILE_PATH, cached);
+    } catch {
+      // Silently ignore cache save errors
+    }
+  }
 
   private static ping(agent?: Agent): Promise<boolean> {
     return new Promise((resolve) => {
