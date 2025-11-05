@@ -8,10 +8,19 @@ import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 import { Funnel } from '../../../../lib/cli/telemetry/sink/funnel';
+import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 
 // Mock the https module
 jest.mock('https', () => ({
   request: jest.fn(),
+}));
+
+// Mock NetworkDetector
+jest.mock('@aws-cdk/toolkit-lib', () => ({
+  ...jest.requireActual('@aws-cdk/toolkit-lib'),
+  NetworkDetector: {
+    hasConnectivity: jest.fn(),
+  },
 }));
 
 describe('Funnel', () => {
@@ -21,6 +30,9 @@ describe('Funnel', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+
+    // Mock NetworkDetector to return true by default for all tests
+    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
 
     // Create a fresh temp directory for each test
     tempDir = path.join(os.tmpdir(), `telemetry-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);

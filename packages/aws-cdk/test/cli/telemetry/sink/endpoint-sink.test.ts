@@ -1,9 +1,9 @@
 import * as https from 'https';
+import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
-import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 
 // Mock the https module
 jest.mock('https', () => ({
@@ -328,7 +328,7 @@ describe('EndpointTelemetrySink', () => {
   test('skips request when no connectivity detected', async () => {
     // GIVEN
     (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(false);
-    
+
     const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
     const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
 
