@@ -165,7 +165,7 @@ export interface IntegrationTestsDiscoveryOptions {
    * @default false
    */
   readonly strict?: boolean;
-  
+
   /**
    * List of tests to include (or exclude if `exclude=true`)
    *

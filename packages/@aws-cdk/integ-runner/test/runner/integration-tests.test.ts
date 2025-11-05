@@ -84,7 +84,7 @@ describe('IntegrationTests Discovery', () => {
 
       test('test not found throws error only in Strict mode', async () => {
         const testNames = [`test-data/${namedTest}`, `test-data/${namedTest.replace('test1', 'nonexistent')}`];
-        
+
         await expect(() => tests.fromCliOptions({ ...cliOptions, tests: testNames })).not.toThrow();
         await expect(() => tests.fromCliOptions({ ...cliOptions, tests: testNames, strict: true }))
           .rejects.toThrow(`Strict mode: 1 test(s) not found: test-data/${namedTest.replace('test1', 'nonexistent')}`);
