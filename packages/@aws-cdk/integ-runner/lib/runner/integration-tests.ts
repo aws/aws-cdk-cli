@@ -160,6 +160,13 @@ export interface IntegrationTestsDiscoveryOptions {
   readonly exclude?: boolean;
 
   /**
+   * If this is set to true, throw an error if any specified tests are not found
+   *
+   * @default false
+   */
+  readonly strict?: boolean;
+  
+  /**
    * List of tests to include (or exclude if `exclude=true`)
    *
    * @default - all matched files
@@ -204,10 +211,12 @@ export class IntegrationTests {
     language?: string[];
     testRegex?: string[];
     tests?: string[];
+    strict?: boolean;
   }): Promise<IntegTest[]> {
     const baseOptions = {
       tests: options.tests,
       exclude: options.exclude,
+      strict: options.strict,
     };
 
     // Explicitly set both, app and test-regex
@@ -283,7 +292,7 @@ export class IntegrationTests {
    *   If they have provided a test name that we don't find, then we write out that error message.
    * - If it is a list of tests to exclude, then we discover all available tests and filter out the tests that were provided by the user.
    */
-  private filterTests(discoveredTests: IntegTest[], requestedTests?: string[], exclude?: boolean): IntegTest[] {
+  private filterTests(discoveredTests: IntegTest[], requestedTests?: string[], exclude?: boolean, strict?: boolean): IntegTest[] {
     if (!requestedTests) {
       return discoveredTests;
     }
@@ -301,6 +310,9 @@ export class IntegrationTests {
       }
       if (unmatchedPatterns.length > 0) {
         process.stderr.write(`Available tests: ${discoveredTests.map(t => t.discoveryRelativeFileName).join(' ')}\n`);
+        if (strict) {
+          throw new Error(`Strict mode: ${unmatchedPatterns.length} test(s) not found: ${unmatchedPatterns.join(', ')}`);
+        }
         return [];
       }
     }
@@ -333,7 +345,7 @@ export class IntegrationTests {
 
     const discoveredTests = ignoreUncompiledTypeScript ? this.filterUncompiledTypeScript(testCases) : testCases;
 
-    return this.filterTests(discoveredTests, options.tests, options.exclude);
+    return this.filterTests(discoveredTests, options.tests, options.exclude, options.strict);
   }
 
   private filterUncompiledTypeScript(testCases: IntegTest[]): IntegTest[] {

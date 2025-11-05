@@ -125,6 +125,15 @@ describe.each([
       '--app="node --prof {filePath}"',
     ])).rejects.toThrow('Only a single "--language" can be used with "--app". Alternatively provide both "--app" and "--test-regex" to fully customize the configuration.');
   });
+
+  test('cannot use --strict with --exclude', async () => {
+    await expect(() => cli([
+      'xxxxx.integ-test1.js',
+      '--language=javascript',
+      '--strict',
+      '--exclude',
+    ])).rejects.toThrow('Cannot use --strict with --exclude');
+  });
 });
 
 describe('CLI config file', () => {
