@@ -1,6 +1,7 @@
 import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
+import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
@@ -8,7 +9,6 @@ import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 import { Funnel } from '../../../../lib/cli/telemetry/sink/funnel';
-import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 
 // Mock the https module
 jest.mock('https', () => ({

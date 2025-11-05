@@ -30,7 +30,7 @@ describe('NetworkDetector', () => {
       end: jest.fn(),
       destroy: jest.fn(),
     };
-    
+
     mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 200 });
       return mockReq;
@@ -50,7 +50,7 @@ describe('NetworkDetector', () => {
       end: jest.fn(),
       destroy: jest.fn(),
     };
-    
+
     mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 500 });
       return mockReq;
@@ -74,7 +74,7 @@ describe('NetworkDetector', () => {
       end: jest.fn(),
       destroy: jest.fn(),
     };
-    
+
     mockRequest.mockReturnValue(mockReq);
     mockFs.existsSync.mockReturnValue(false);
 
@@ -92,7 +92,7 @@ describe('NetworkDetector', () => {
     (mockFs.readJSON as jest.Mock).mockResolvedValue(cachedData);
 
     const result = await NetworkDetector.hasConnectivity();
-    
+
     expect(result).toBe(true); // Should return cached connectivity result
     expect(mockRequest).not.toHaveBeenCalled(); // Should not make network request when cache is valid
   });
@@ -108,7 +108,7 @@ describe('NetworkDetector', () => {
       end: jest.fn(),
       destroy: jest.fn(),
     };
-    
+
     mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 200 });
       return mockReq;
@@ -120,7 +120,7 @@ describe('NetworkDetector', () => {
     (mockFs.writeJSON as jest.Mock).mockResolvedValue(undefined);
 
     const result = await NetworkDetector.hasConnectivity();
-    
+
     expect(result).toBe(true); // Should return fresh connectivity result
     expect(mockRequest).toHaveBeenCalledTimes(1); // Should make network request when cache is expired
   });
@@ -131,7 +131,7 @@ describe('NetworkDetector', () => {
       end: jest.fn(),
       destroy: jest.fn(),
     };
-    
+
     mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 200 });
       return mockReq;
@@ -141,7 +141,7 @@ describe('NetworkDetector', () => {
     (mockFs.ensureFile as jest.Mock).mockRejectedValue(new Error('Disk full'));
 
     const result = await NetworkDetector.hasConnectivity();
-    
+
     expect(result).toBe(true); // Should still return connectivity result despite cache save failure
   });
 
@@ -151,7 +151,7 @@ describe('NetworkDetector', () => {
       end: jest.fn(),
       destroy: jest.fn(),
     };
-    
+
     mockRequest.mockImplementation((_options, callback) => {
       callback({ statusCode: 200 });
       return mockReq;
@@ -163,7 +163,7 @@ describe('NetworkDetector', () => {
     (mockFs.writeJSON as jest.Mock).mockResolvedValue(undefined);
 
     const result = await NetworkDetector.hasConnectivity();
-    
+
     expect(result).toBe(true); // Should still return connectivity result despite cache load failure
   });
 });

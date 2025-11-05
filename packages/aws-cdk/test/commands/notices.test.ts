@@ -1,6 +1,6 @@
+import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 import * as nock from 'nock';
 import { exec } from '../../lib/cli/cli';
-import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 
 // Mock NetworkDetector
 jest.mock('@aws-cdk/toolkit-lib', () => ({
@@ -30,7 +30,7 @@ const BASIC_NOTICE = {
 beforeEach(() => {
   nock.cleanAll();
   jest.clearAllMocks();
-  
+
   // Mock NetworkDetector to return true by default for all tests
   (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
 });
