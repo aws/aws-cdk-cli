@@ -15,6 +15,7 @@ import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { hashObject } from './digest';
 import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { pLimit } from '../../util/concurrency';
 
 export * from './exclude';
 export * from './context';
@@ -144,8 +145,10 @@ export async function getDeployedStacks(
     };
   };
 
+  const limit = pLimit(20);
+
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  return Promise.all(summaries.map(normalize));
+  return Promise.all(summaries.map(s => limit(() => normalize(s))));
 }
 
 export function formatEnvironmentSectionHeader(environment: cxapi.Environment) {
