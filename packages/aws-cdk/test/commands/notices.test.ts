@@ -1,14 +1,12 @@
-import { NetworkDetector } from '@aws-cdk/toolkit-lib';
-import * as nock from 'nock';
-import { exec } from '../../lib/cli/cli';
-
-// Mock NetworkDetector
-jest.mock('@aws-cdk/toolkit-lib', () => ({
-  ...jest.requireActual('@aws-cdk/toolkit-lib'),
+// Mock NetworkDetector before any imports
+jest.mock('../../../@aws-cdk/toolkit-lib/lib/util/network-detector', () => ({
   NetworkDetector: {
-    hasConnectivity: jest.fn(),
+    hasConnectivity: jest.fn(() => Promise.resolve(true)),
   },
 }));
+
+import * as nock from 'nock';
+import { exec } from '../../lib/cli/cli';
 
 const NOTICES_URL = 'https://cli.cdk.dev-tools.aws.dev';
 const NOTICES_PATH = '/notices.json';
@@ -30,9 +28,6 @@ const BASIC_NOTICE = {
 beforeEach(() => {
   nock.cleanAll();
   jest.clearAllMocks();
-
-  // Mock NetworkDetector to return true by default for all tests, regardless of parameters
-  (NetworkDetector.hasConnectivity as jest.Mock).mockImplementation(() => Promise.resolve(true));
 });
 
 describe('cdk notices', () => {
