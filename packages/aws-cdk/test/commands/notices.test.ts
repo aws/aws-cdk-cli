@@ -30,7 +30,7 @@ const BASIC_NOTICE = {
 beforeEach(() => {
   nock.cleanAll();
   jest.clearAllMocks();
-  
+
   // Mock NetworkDetector to return true by default for all tests, regardless of parameters
   (NetworkDetector.hasConnectivity as jest.Mock).mockImplementation(() => Promise.resolve(true));
 });
