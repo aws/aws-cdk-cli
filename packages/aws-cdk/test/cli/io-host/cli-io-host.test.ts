@@ -494,17 +494,17 @@ describe('CliIoHost', () => {
       });
     });
 
-    describe('non-interactive mode', () => {
-      const nonInteractiveIoHost = CliIoHost.instance({
+    describe('--yes mode', () => {
+      const autoRespondingIoHost = CliIoHost.instance({
         logLevel: 'trace',
-        nonInteractive: true,
+        autoRespond: true,
         isCI: false,
         isTTY: true,
       }, true);
 
       test('it does not prompt the user and return true', async () => {
         // WHEN
-        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+        const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -518,20 +518,20 @@ describe('CliIoHost', () => {
         expect(response).toBe(true);
       });
 
-      test('approvalToolkitCodes also skip', async () => {
+      test('messages with default are skipped', async () => {
         // WHEN
-        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
+        const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
-          defaultResponse: true,
+          defaultResponse: 'foobar',
         }));
 
         // THEN
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(response).toBe(true);
+        expect(response).toBe('foobar');
       });
     });
 

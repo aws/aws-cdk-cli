@@ -59,6 +59,12 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('--role-arn')) {
         result = { ...result, roleArn: 'arn:aws:iam::123456789012:role/TestRole' };
       }
+    } else if (args.includes('deploy')) {
+      result = {
+        ...result,
+        _: ['deploy'],
+        parameters: [],
+      };
     }
 
     // Handle notices flags
@@ -486,22 +492,24 @@ describe('gc command tests', () => {
   });
 });
 
-test('when --yes option is provided, CliIoHost is in non-interactive mode', async () => {
-  // GIVEN
-  const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
-  const execSpy = jest.spyOn(CliIoHost, 'instance');
+describe('--yes', () => {
+  test('when --yes option is provided, CliIoHost is using autoRespond', async () => {
+    // GIVEN
+    const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+    const execSpy = jest.spyOn(CliIoHost, 'instance');
 
-  // WHEN
-  await exec(['deploy', '--yes']);
+    // WHEN
+    await exec(['deploy', '--yes']);
 
-  // THEN
-  expect(execSpy).toHaveBeenCalledWith(
-    expect.objectContaining({
-      nonInteractive: true,
-    }),
-    true,
-  );
+    // THEN
+    expect(execSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoRespond: true,
+      }),
+      true,
+    );
 
-  migrateSpy.mockRestore();
-  execSpy.mockRestore();
+    migrateSpy.mockRestore();
+    execSpy.mockRestore();
+  });
 });

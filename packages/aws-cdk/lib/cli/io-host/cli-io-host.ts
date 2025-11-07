@@ -83,12 +83,14 @@ export interface CliIoHostProps {
   readonly stackProgress?: StackActivityProgress;
 
   /**
-   * Whether the CLI is running in non-interactive mode.
-   * When true, operation will proceed without confirmation.
+   * Whether the CLI should attempt to automatically respond to prompts.
+   *
+   * When true, operation will usually proceed without interactive confirmation.
+   * Confirmations are responded to with yes. Other prompts will respond with the default value.
    *
    * @default false
    */
-  readonly nonInteractive?: boolean;
+  readonly autoRespond?: boolean;
 }
 
 /**
@@ -168,7 +170,7 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  private readonly nonInteractive: boolean;
+  private readonly autoRespond: boolean;
 
   public telemetry?: TelemetrySession;
 
@@ -180,7 +182,7 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
-    this.nonInteractive = props.nonInteractive ?? false;
+    this.autoRespond = props.autoRespond ?? false;
   }
 
   public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
@@ -424,6 +426,29 @@ export class CliIoHost implements IIoHost {
       const concurrency = data.concurrency ?? 0;
       const responseDescription = data.responseDescription;
 
+      // Special approval prompt
+      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
+      // If it does not, return success (true). We only check messages with codes that we are aware
+      // are requires approval codes.
+      if (this.skipApprovalStep(msg)) {
+        return true;
+      }
+
+      // In --yes mode, respond for the user if we can
+      if (this.autoRespond) {
+        // respond with yes to all confirmations
+        if (isConfirmationPrompt(msg)) {
+          // @TODO print message and confirmation
+          return true;
+        }
+
+        // respond with the default for all other messages
+        if (msg.defaultResponse) {
+          // @TODO print message and response
+          return msg.defaultResponse;
+        }
+      }
+
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
         throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
@@ -432,19 +457,6 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
-      }
-
-      // In non-interactive mode, always return success (true).
-      if (this.nonInteractive) {
-        return true;
-      }
-
-      // Special approval prompt
-      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
-      // If it does not, return success (true). We only check messages with codes that we are aware
-      // are requires approval codes.
-      if (this.skipApprovalStep(msg)) {
-        return true;
       }
 
       // Basic confirmation prompt

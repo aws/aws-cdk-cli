@@ -131,7 +131,7 @@
     "yes": {
       "type": "boolean",
       "alias": "y",
-      "desc": "Skip interactive prompts. If yes=true then the operation will proceed without confirmation.",
+      "desc": "Automatically answer interactive prompts with the recommended response. This includes confirming actions.",
       "default": false
     }
   },
