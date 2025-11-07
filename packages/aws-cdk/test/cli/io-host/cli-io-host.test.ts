@@ -435,7 +435,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' ' + chalk.gray('(y/n)') + ' ');
         expect(response).toBe(true);
       });
 
@@ -449,7 +449,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }))).rejects.toThrow('Aborted by user');
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' ' + chalk.gray('(y/n)') + ' ');
       });
     });
 
@@ -469,7 +469,7 @@ describe('CliIoHost', () => {
           defaultResponse: 'cat',
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Favorite animal') + ' (cat) ');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Favorite animal') + ' ' + chalk.gray('(cat)') + ' ');
         expect(response).toBe(expectedResponse);
       });
     });
@@ -489,65 +489,87 @@ describe('CliIoHost', () => {
           defaultResponse: 1,
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('How many would you like?') + ' (1) ');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('How many would you like?') + ' ' + chalk.gray('(1)') + ' ');
         expect(response).toBe(expectedResponse);
       });
     });
 
-    describe('non-interactive mode', () => {
-      const nonInteractiveIoHost = CliIoHost.instance({
+    describe('--yes mode', () => {
+      const autoRespondingIoHost = CliIoHost.instance({
         logLevel: 'trace',
-        nonInteractive: true,
+        autoRespond: true,
         isCI: false,
         isTTY: true,
       }, true);
 
-      test('it does not prompt the user and return true', async () => {
-        // WHEN
-        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
-          time: new Date(),
-          level: 'info',
-          action: 'synth',
-          code: 'CDK_TOOLKIT_I0001',
-          message: 'test message',
-          defaultResponse: true,
-        }));
+      describe('confirmation prompts', () => {
+        test('it does not prompt the user, prints the question and answer and returns true', async () => {
+          const response = await autoRespondingIoHost.requestResponse(plainMessage({
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I0001',
+            message: 'test message',
+            defaultResponse: true,
+          }));
 
-        // THEN
-        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(response).toBe(true);
+          expect(mockStderr).toHaveBeenCalledWith(chalk.cyan('test message') + ' yes'+ '\n');
+          expect(response).toBe(true);
+        });
       });
 
-      test('approvalToolkitCodes also skip', async () => {
-        // WHEN
-        const response = await nonInteractiveIoHost.requestResponse(plainMessage({
-          time: new Date(),
-          level: 'info',
-          action: 'synth',
-          code: 'CDK_TOOLKIT_I5060',
-          message: 'test message',
-          defaultResponse: true,
-        }));
+      describe('prompts with defaults', () => {
+        test('it does not prompt the user, prints the question and answer and returns the default response', async () => {
+          const response = await autoRespondingIoHost.requestResponse(plainMessage({
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: 'test message',
+            defaultResponse: 'foobar',
+          }));
 
-        // THEN
-        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(response).toBe(true);
+          expect(mockStderr).toHaveBeenCalledWith(chalk.cyan('test message') + ' foobar'+ '\n');
+          expect(response).toBe('foobar');
+        });
       });
-    });
 
-    describe('non-promptable data', () => {
-      test('logs messages and returns default unchanged', async () => {
-        const response = await ioHost.requestResponse(plainMessage({
-          time: new Date(),
-          level: 'info',
-          action: 'synth',
-          code: 'CDK_TOOLKIT_I0001',
-          message: 'test message',
-          defaultResponse: [1, 2, 3],
-        }));
+      describe('non-promptable data', () => {
+        test('logs messages and returns default unchanged', async () => {
+          const response = await ioHost.requestResponse(plainMessage({
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I0001',
+            message: 'test message',
+            defaultResponse: [1, 2, 3],
+          }));
 
-        expect(mockStderr).toHaveBeenCalledWith(chalk.reset('test message') + '\n');
-        expect(response).toEqual([1, 2, 3]);
+          expect(mockStderr).toHaveBeenCalledWith(chalk.reset('test message') + '\n');
+          expect(response).toEqual([1, 2, 3]);
+        });
+      });
+
+      describe('non TTY environment', () => {
+        beforeEach(() => {
+          autoRespondingIoHost.isTTY = false;
+          autoRespondingIoHost.isCI = false;
+        });
+
+        test('no color in printed question and answer', async () => {
+          const response = await autoRespondingIoHost.requestResponse(plainMessage({
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I0001',
+            message: 'Test question?',
+            defaultResponse: true,
+          }));
+
+          // THEN
+          expect(mockStderr).toHaveBeenCalledWith('Test question? yes'+ '\n');
+          expect(response).toBe(true);
+        });
       });
     });
 
@@ -608,7 +630,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' ' + chalk.gray('(y/n)') + ' ');
         expect(response).toEqual(true);
       });
 
@@ -652,7 +674,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' ' + chalk.gray('(y/n)') + ' ');
         expect(response).toEqual(true);
       });
 

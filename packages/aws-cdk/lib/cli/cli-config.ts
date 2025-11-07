@@ -44,7 +44,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'ci': { type: 'boolean', desc: 'Force CI detection. If CI=true then logs will be sent to stdout instead of stderr', default: YARGS_HELPERS.isCI() },
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
       'telemetry-file': { type: 'string', desc: 'Send telemetry data to a local file.', default: undefined },
-      'yes': { type: 'boolean', alias: 'y', desc: 'Skip interactive prompts. If yes=true then the operation will proceed without confirmation.', default: false },
+      'yes': { type: 'boolean', alias: 'y', desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.', default: false },
     },
     commands: {
       'list': {

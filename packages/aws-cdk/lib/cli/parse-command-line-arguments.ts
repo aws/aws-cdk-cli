@@ -165,7 +165,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       default: false,
       type: 'boolean',
       alias: 'y',
-      desc: 'Skip interactive prompts. If yes=true then the operation will proceed without confirmation.',
+      desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.',
     })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs

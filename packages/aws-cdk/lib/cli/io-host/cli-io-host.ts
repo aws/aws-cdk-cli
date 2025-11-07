@@ -83,12 +83,14 @@ export interface CliIoHostProps {
   readonly stackProgress?: StackActivityProgress;
 
   /**
-   * Whether the CLI is running in non-interactive mode.
-   * When true, operation will proceed without confirmation.
+   * Whether the CLI should attempt to automatically respond to prompts.
+   *
+   * When true, operation will usually proceed without interactive confirmation.
+   * Confirmations are responded to with yes. Other prompts will respond with the default value.
    *
    * @default false
    */
-  readonly nonInteractive?: boolean;
+  readonly autoRespond?: boolean;
 }
 
 /**
@@ -168,7 +170,7 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  private readonly nonInteractive: boolean;
+  private readonly autoRespond: boolean;
 
   public telemetry?: TelemetrySession;
 
@@ -180,7 +182,7 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
 
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
-    this.nonInteractive = props.nonInteractive ?? false;
+    this.autoRespond = props.autoRespond ?? false;
   }
 
   public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
@@ -313,7 +315,14 @@ export class CliIoHost implements IIoHost {
       return;
     }
 
-    const output = this.formatMessage(msg);
+    this.writeMessageToStream(msg);
+  }
+
+  /**
+   * Write a messages to the output stream.
+   */
+  private writeMessageToStream(msg: IoMessage<unknown>, formatter: MessageFormatter = DEFAULT_FORMATTER) {
+    const output = this.formatMessage(msg, formatter);
     const stream = this.selectStream(msg);
     stream?.write(output);
   }
@@ -417,12 +426,31 @@ export class CliIoHost implements IIoHost {
       const data: {
         motivation?: string;
         concurrency?: number;
-        responseDescription?: string;
       } = msg.data ?? {};
 
       const motivation = data.motivation ?? 'User input is needed';
       const concurrency = data.concurrency ?? 0;
-      const responseDescription = data.responseDescription;
+
+      // Special approval prompt
+      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
+      // If it does not, return success (true). We only check messages with codes that we are aware
+      // are requires approval codes.
+      if (this.skipApprovalStep(msg)) {
+        return true;
+      }
+
+      // get the prompt details
+      const prompt = extractPromptInfo(msg);
+
+      // In --yes mode, respond for the user if we can
+      if (this.autoRespond) {
+        const responseGiven = prompt.isConfirmationPrompt ? 'yes' : prompt.default;
+        this.writeMessageToStream(msg, () => formatPrompt(prompt, {
+          color: this.isTTY,
+          responseGiven: responseGiven,
+        }));
+        return prompt.convertAnswer(responseGiven);
+      }
 
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
@@ -434,35 +462,10 @@ export class CliIoHost implements IIoHost {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
       }
 
-      // In non-interactive mode, always return success (true).
-      if (this.nonInteractive) {
-        return true;
-      }
-
-      // Special approval prompt
-      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
-      // If it does not, return success (true). We only check messages with codes that we are aware
-      // are requires approval codes.
-      if (this.skipApprovalStep(msg)) {
-        return true;
-      }
-
-      // Basic confirmation prompt
-      // We treat all requests with a boolean response as confirmation prompts
-      if (isConfirmationPrompt(msg)) {
-        const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
-        if (!confirmed) {
-          throw new ToolkitError('Aborted by user');
-        }
-        return confirmed;
-      }
-
-      // Asking for a specific value
-      const prompt = extractPromptInfo(msg);
-      const desc = responseDescription ?? prompt.default;
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
-        default: prompt.default,
-        trim: true,
+      // Prompt user for an answer
+      const answer = await promptly.prompt(formatPrompt(prompt), {
+        default: !prompt.isConfirmationPrompt ? prompt.default : undefined, // No default for confirmation prompts
+        trim: !prompt.isConfirmationPrompt, // Do not trim so that only exact matches pass the validator
       });
       return prompt.convertAnswer(answer);
     });
@@ -476,11 +479,9 @@ export class CliIoHost implements IIoHost {
   /**
    * Formats a message for console output with optional color support
    */
-  private formatMessage(msg: IoMessage<unknown>): string {
+  private formatMessage(msg: IoMessage<unknown>, formatter: MessageFormatter): string {
     // apply provided style or a default style if we're in TTY mode
-    let message_text = this.isTTY
-      ? styleMap[msg.level](msg.message)
-      : msg.message;
+    let message_text = formatter(this.isTTY, msg);
 
     // prepend timestamp if IoMessageLevel is DEBUG or TRACE. Postpend a newline.
     return ((msg.level === 'debug' || msg.level === 'trace')
@@ -519,35 +520,79 @@ export class CliIoHost implements IIoHost {
  * - asking for a string or number value
  */
 function isPromptableRequest(msg: IoRequest<any, any>): msg is IoRequest<any, string | number | boolean> {
-  return isConfirmationPrompt(msg)
+  return typeof msg.defaultResponse === 'boolean'
     || typeof msg.defaultResponse === 'string'
     || typeof msg.defaultResponse === 'number';
 }
 
-/**
- * Check if the request is a confirmation prompt
- * We treat all requests with a boolean response as confirmation prompts
- */
-function isConfirmationPrompt(msg: IoRequest<any, any>): msg is IoRequest<any, boolean> {
-  return typeof msg.defaultResponse === 'boolean';
-}
+type PromptInfo = {
+  message: string;
+  default: string;
+  responseDescription: string;
+  isConfirmationPrompt: boolean;
+  convertAnswer: (input: string) => string | number | true;
+};
 
 /**
  * Helper to extract information for promptly from the request
  */
-function extractPromptInfo(msg: IoRequest<any, any>): {
-  default: string;
-  defaultDesc: string;
-  convertAnswer: (input: string) => string | number;
-} {
-  const isNumber = (typeof msg.defaultResponse === 'number');
+function extractPromptInfo(msg: IoRequest<any, any>): PromptInfo {
+  // confirmation prompt
+  if (typeof msg.defaultResponse === 'boolean') {
+    return {
+      isConfirmationPrompt: true,
+      message: msg.message,
+      default: msg.defaultResponse ? 'yes' : 'no',
+      responseDescription: 'y/n',
+      convertAnswer: (value) => {
+        switch (value.toLowerCase()) {
+          case 'y':
+          case 'yes':
+          case '1':
+            return true;
+          default:
+            throw new ToolkitError('Aborted by user');
+        }
+      },
+    };
+  }
+
+  const expectNumber = (typeof msg.defaultResponse === 'number');
   const defaultResponse = util.format(msg.defaultResponse);
   return {
+    isConfirmationPrompt: false,
+    message: msg.message,
     default: defaultResponse,
-    defaultDesc: 'defaultDescription' in msg && msg.defaultDescription ? util.format(msg.defaultDescription) : defaultResponse,
-    convertAnswer: isNumber ? (v) => Number(v) : (v) => String(v),
+    responseDescription: msg.data?.responseDescription ?? defaultResponse,
+    convertAnswer: expectNumber ? (v) => Number(v) : (v) => String(v),
   };
 }
+
+/**
+ * Format a prompt.
+ *
+ * @param msg - the request message
+ * @param options - configure the prompt formatting
+ * @returns the formatted prompt
+ */
+function formatPrompt(prompt: PromptInfo, options: {
+  color?: boolean;
+  responseGiven?: string;
+} = {}): string {
+  const color = options.color ?? true;
+  const paintQuestion = color ? chalk.cyan : (x: string) => x;
+  const paintDesc = color ? chalk.gray : (x: string) => x;
+
+  const answer = options.responseGiven != null ? ` ${options.responseGiven}` : '';
+
+  // display response help (e.g. options or default) if available and no response given
+  const showResponseHelp = options.responseGiven == null && prompt.responseDescription;
+  const desc = showResponseHelp ? ` ${paintDesc(`(${prompt.responseDescription})`)}` : '';
+
+  return `${paintQuestion(prompt.message)}${desc}${answer}`;
+}
+
+type MessageFormatter = (isTTY: boolean, msg: IoMessage<unknown>) => string;
 
 const styleMap: Record<IoMessageLevel, (str: string) => string> = {
   error: chalk.red,
@@ -556,6 +601,13 @@ const styleMap: Record<IoMessageLevel, (str: string) => string> = {
   info: chalk.reset,
   debug: chalk.gray,
   trace: chalk.gray,
+};
+
+const DEFAULT_FORMATTER: MessageFormatter = (color: boolean, msg: IoMessage<unknown>) => {
+  if (!color) {
+    return msg.message;
+  }
+  return styleMap[msg.level](msg.message);
 };
 
 function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
