@@ -104,24 +104,19 @@ export class IntegTest {
 
   constructor(public readonly info: IntegTestInfo) {
     this.appCommand = info.appCommand ?? 'node {filePath}';
+
+    // for consistency, always run the CDK apps under test from the CWD
+    // this is especially important for languages that use the CWD to discover assets
+    // @see https://github.com/aws/aws-cdk-cli/issues/638
+    this.directory = process.cwd();
     this.absoluteFileName = path.resolve(info.fileName);
-    this.fileName = path.relative(process.cwd(), info.fileName);
-
-    const parsed = path.parse(this.fileName);
+    this.fileName = path.relative(this.directory, info.fileName);
     this.discoveryRelativeFileName = path.relative(info.discoveryRoot, info.fileName);
-    // if `--watch` then we need the directory to be the cwd
-    this.directory = info.watch ? process.cwd() : parsed.dir;
 
-    // if we are running in a package directory then just use the fileName
-    // as the testname, but if we are running in a parent directory with
-    // multiple packages then use the directory/filename as the testname
-    //
-    // Looks either like `integ.mytest` or `package/test/integ.mytest`.
-    const relDiscoveryRoot = path.relative(process.cwd(), info.discoveryRoot);
-    this.testName = this.directory === path.join(relDiscoveryRoot, 'test') || this.directory === path.join(relDiscoveryRoot)
-      ? parsed.name
-      : path.join(path.relative(this.info.discoveryRoot, parsed.dir), parsed.name);
-
+    // We treat the discovery root as the base for display names
+    // Looks either like `integ.mytest` or `package/test/integ.mytest`
+    const parsed = path.parse(this.fileName);
+    this.testName = path.join(path.relative(this.info.discoveryRoot, parsed.dir), parsed.name);
     this.normalizedTestName = parsed.name;
     this.snapshotDir = path.join(parsed.dir, `${parsed.base}.snapshot`);
     this.temporaryOutputDir = path.join(parsed.dir, `${CDK_OUTDIR_PREFIX}.${parsed.base}.snapshot`);
