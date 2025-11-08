@@ -438,13 +438,19 @@ export class CliIoHost implements IIoHost {
       if (this.autoRespond) {
         // respond with yes to all confirmations
         if (isConfirmationPrompt(msg)) {
-          // @TODO print message and confirmation
+          await this.notify({
+            ...msg,
+            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
+          });
           return true;
         }
 
         // respond with the default for all other messages
         if (msg.defaultResponse) {
-          // @TODO print message and response
+          await this.notify({
+            ...msg,
+            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
+          });
           return msg.defaultResponse;
         }
       }

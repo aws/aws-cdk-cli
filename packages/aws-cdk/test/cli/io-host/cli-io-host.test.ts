@@ -503,6 +503,8 @@ describe('CliIoHost', () => {
       }, true);
 
       test('it does not prompt the user and return true', async () => {
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
         // WHEN
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
@@ -515,10 +517,15 @@ describe('CliIoHost', () => {
 
         // THEN
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: chalk.cyan('test message') + ' (auto-confirmed)',
+        }));
         expect(response).toBe(true);
       });
 
       test('messages with default are skipped', async () => {
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
         // WHEN
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
@@ -531,6 +538,9 @@ describe('CliIoHost', () => {
 
         // THEN
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: chalk.cyan('test message') + ' (auto-responded with default: foobar)',
+        }));
         expect(response).toBe('foobar');
       });
     });
