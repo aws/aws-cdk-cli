@@ -39,7 +39,8 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            }),
+              yes: false,
+            },
             config: {
               context: {},
             },
@@ -86,7 +87,8 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            }),
+              yes: false,
+            },
             config: {
               context: {},
             },

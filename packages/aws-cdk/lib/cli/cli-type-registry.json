@@ -127,6 +127,12 @@
     "telemetry-file": {
       "type": "string",
       "desc": "Send telemetry data to a local file."
+    },
+    "yes": {
+      "type": "boolean",
+      "alias": "y",
+      "desc": "Automatically answer interactive prompts with the recommended response. This includes confirming actions.",
+      "default": false
     }
   },
   "commands": {

@@ -161,6 +161,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'string',
       desc: 'Send telemetry data to a local file.',
     })
+    .option('yes', {
+      default: false,
+      type: 'boolean',
+      alias: 'y',
+      desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.',
+    })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
         .option('long', {

@@ -82,6 +82,14 @@ describe('IntegrationTests Discovery', () => {
         );
       });
 
+      test('test not found throws error only in Strict mode', async () => {
+        const testNames = [`test-data/${namedTest}`, `test-data/${namedTest.replace('test1', 'nonexistent')}`];
+
+        await expect(() => tests.fromCliOptions({ ...cliOptions, tests: testNames })).not.toThrow();
+        await expect(() => tests.fromCliOptions({ ...cliOptions, tests: testNames, strict: true }))
+          .rejects.toThrow(`Strict mode: 1 test(s) not found: test-data/${namedTest.replace('test1', 'nonexistent')}`);
+      });
+
       test('exclude tests', async () => {
         const integTests = await tests.fromCliOptions({ ...cliOptions, tests: [`test-data/${namedTest}`], exclude: true });
 
@@ -128,6 +136,15 @@ describe('IntegrationTests Discovery', () => {
       expect(integTests[0].fileName).toEqual(expect.stringMatching(new RegExp('^.*test1\\.js$')));
       expect(integTests[1].fileName).toEqual(expect.stringMatching(new RegExp('^.*test2\\.js$')));
       expect(integTests[2].fileName).toEqual(expect.stringMatching(new RegExp('^.*test3\\.js$')));
+    });
+  });
+
+  describe('IntegTest directory is always cwd', () => {
+    test('directory is set to process.cwd()', async () => {
+      const integTests = await tests.fromCliOptions({ language: ['javascript'] });
+
+      expect(integTests.length).toBeGreaterThan(0);
+      expect(integTests[0].directory).toEqual(process.cwd());
     });
   });
 });
