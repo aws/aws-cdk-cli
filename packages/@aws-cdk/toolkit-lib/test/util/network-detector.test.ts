@@ -1,9 +1,9 @@
-import * as https from 'https';
+import * as https from 'node:https';
 import * as fs from 'fs-extra';
 import { NetworkDetector } from '../../lib/util/network-detector';
 
 // Mock the https module
-jest.mock('https');
+jest.mock('node:https');
 const mockHttps = https as jest.Mocked<typeof https>;
 
 // Mock fs-extra
