@@ -157,7 +157,7 @@ export class Notices {
   public async refresh(options: NoticesRefreshOptions = {}) {
     const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, {
       ...this.httpOptions,
-      skipNetworkCache: options.force,
+      skipNetworkCache: options.force ?? false,
     });
     const dataSource = new CachedDataSource(this.ioHelper, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
     const notices = await dataSource.fetch();
