@@ -155,7 +155,10 @@ export class Notices {
    * @throws on failure to refresh the data source
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, this.httpOptions);
+    const innerDataSource = options.dataSource ?? new WebsiteNoticeDataSource(this.ioHelper, {
+      ...this.httpOptions,
+      skipNetworkCache: options.force,
+    });
     const dataSource = new CachedDataSource(this.ioHelper, CACHE_FILE_PATH, innerDataSource, options.force ?? false);
     const notices = await dataSource.fetch();
     this.data = new Set(notices);

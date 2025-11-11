@@ -21,6 +21,7 @@ export class WebsiteNoticeDataSourceProps {
    * @default - Official CDK notices
    */
   readonly url?: string | URL;
+
   /**
    * The agent responsible for making the network requests.
    *
@@ -29,6 +30,14 @@ export class WebsiteNoticeDataSourceProps {
    * @default - Uses the shared global node agent
    */
   readonly agent?: https.Agent;
+
+  /**
+   * Whether or not we want to skip the check for if we have already determined we are in
+   * a network-less environment. Forces WebsiteNoticeDataSource to make a network call.
+   *
+   * @default false
+   */
+  readonly skipNetworkCache?: boolean;
 }
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {

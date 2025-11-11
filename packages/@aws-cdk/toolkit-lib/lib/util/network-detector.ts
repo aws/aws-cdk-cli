@@ -1,5 +1,4 @@
-import type { Agent } from 'https';
-import { request } from 'https';
+import * as https from 'node:https';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { cdkCacheDir } from './';
@@ -19,7 +18,7 @@ export class NetworkDetector {
   /**
    * Check if internet connectivity is available
    */
-  public static async hasConnectivity(agent?: Agent): Promise<boolean> {
+  public static async hasConnectivity(agent?: https.Agent): Promise<boolean> {
     const cachedData = await this.load();
     const expiration = cachedData.expiration ?? 0;
 
@@ -66,9 +65,9 @@ export class NetworkDetector {
     }
   }
 
-  private static ping(agent?: Agent): Promise<boolean> {
+  private static ping(agent?: https.Agent): Promise<boolean> {
     return new Promise((resolve) => {
-      const req = request({
+      const req = https.request({
         hostname: 'cli.cdk.dev-tools.aws.dev',
         path: '/notices.json',
         method: 'HEAD',
