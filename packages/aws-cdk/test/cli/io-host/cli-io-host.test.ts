@@ -494,6 +494,57 @@ describe('CliIoHost', () => {
       });
     });
 
+    describe('--yes mode', () => {
+      const autoRespondingIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+        autoRespond: true,
+        isCI: false,
+        isTTY: true,
+      }, true);
+
+      test('it does not prompt the user and return true', async () => {
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
+        // WHEN
+        const response = await autoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'test message',
+          defaultResponse: true,
+        }));
+
+        // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: chalk.cyan('test message') + ' (auto-confirmed)',
+        }));
+        expect(response).toBe(true);
+      });
+
+      test('messages with default are skipped', async () => {
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
+        // WHEN
+        const response = await autoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: 'foobar',
+        }));
+
+        // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: chalk.cyan('test message') + ' (auto-responded with default: foobar)',
+        }));
+        expect(response).toBe('foobar');
+      });
+    });
+
     describe('non-promptable data', () => {
       test('logs messages and returns default unchanged', async () => {
         const response = await ioHost.requestResponse(plainMessage({

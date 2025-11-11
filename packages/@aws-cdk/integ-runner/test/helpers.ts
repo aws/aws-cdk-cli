@@ -78,6 +78,8 @@ export class MockCdkProvider {
     diagnostics: Diagnostic[];
     destructiveChanges: DestructiveChange[];
   }> {
+    const actualSnapshotLocation = actualSnapshot ? 'test/test-data/' + actualSnapshot : undefined;
+
     // WHEN
     const integTest = new IntegSnapshotRunner({
       cdk: this.cdk,
@@ -85,7 +87,7 @@ export class MockCdkProvider {
         fileName: 'test/test-data/' + integTestFile,
         discoveryRoot: 'test/test-data',
       }),
-      integOutDir: actualSnapshot ? 'test/test-data/' + actualSnapshot : undefined,
+      integOutDir: actualSnapshotLocation,
     });
 
     const results = await integTest.testSnapshot();
@@ -98,8 +100,8 @@ export class MockCdkProvider {
         CDK_INTEG_REGION: 'test-region',
       }),
       context: expect.any(Object),
-      execCmd: ['node', integTestFile],
-      output: actualSnapshot ?? `cdk-integ.out.${integTestFile}.snapshot`,
+      execCmd: ['node', 'test/test-data/' + integTestFile],
+      output: actualSnapshotLocation ?? `test/test-data/cdk-integ.out.${integTestFile}.snapshot`,
     });
 
     return results;

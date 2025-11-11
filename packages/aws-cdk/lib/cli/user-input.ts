@@ -327,6 +327,13 @@ export interface GlobalOptions {
    * @default - undefined
    */
   readonly telemetryFile?: string;
+
+  /**
+   * Automatically answer interactive prompts with the recommended response. This includes confirming actions.
+   *
+   * @default - false
+   */
+  readonly yes?: boolean;
 }
 
 /**

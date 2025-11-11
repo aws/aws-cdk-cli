@@ -37,6 +37,7 @@ export function parseCliArgs(args: string[] = []) {
     .options('profiles', { type: 'array', desc: 'list of AWS profiles to use. Tests will be run in parallel across each profile+regions', default: [] })
     .options('max-workers', { type: 'number', desc: 'The max number of workerpool workers to use when running integration tests in parallel', default: 16 })
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
+    .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
     .option('disable-update-workflow', { type: 'boolean', default: false, desc: 'If this is "true" then the stack update workflow will be disabled' })
@@ -71,6 +72,11 @@ export function parseCliArgs(args: string[] = []) {
   if (tests.length > 0 && fromFile) {
     throw new Error('A list of tests cannot be provided if "--from-file" is provided');
   }
+
+  if (argv.strict && argv.exclude) {
+    throw new Error('Cannot use --strict with --exclude');
+  }
+
   const requestedTests = fromFile
     ? (fs.readFileSync(fromFile, { encoding: 'utf8' })).split('\n').filter(x => x)
     : (tests.length > 0 ? tests : undefined); // 'undefined' means no request
@@ -97,6 +103,7 @@ export function parseCliArgs(args: string[] = []) {
     disableUpdateWorkflow: argv['disable-update-workflow'] as boolean,
     language: arrayFromYargs(argv.language),
     watch: argv.watch as boolean,
+    strict: argv.strict as boolean,
     unstable: arrayFromYargs(argv.unstable) ?? [],
   };
 }
