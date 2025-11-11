@@ -47,17 +47,21 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
   public readonly url: any;
 
   private readonly agent?: https.Agent;
+  private readonly skipNetworkCache?: boolean;
 
   constructor(private readonly ioHelper: IoHelper, props: WebsiteNoticeDataSourceProps = {}) {
     this.agent = props.agent;
     this.url = props.url ?? 'https://cli.cdk.dev-tools.aws.dev/notices.json';
+    this.skipNetworkCache = props.skipNetworkCache;
   }
 
   async fetch(): Promise<Notice[]> {
-    // Check connectivity before attempting network request
-    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
-    if (!hasConnectivity) {
-      throw new ToolkitError('No internet connectivity detected');
+    if (!this.skipNetworkCache) {
+      // Check connectivity before attempting network request
+      const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+      if (!hasConnectivity) {
+        throw new ToolkitError('No internet connectivity detected');
+      }
     }
 
     // We are observing lots of timeouts when running in a massively parallel
