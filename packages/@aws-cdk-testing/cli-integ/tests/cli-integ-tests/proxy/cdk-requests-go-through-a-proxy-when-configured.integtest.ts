@@ -28,7 +28,11 @@ integTest('requests go through a proxy when configured',
         },
       });
 
+      const connections = JSON.stringify(await fs.readFile(path.join(cdkCacheDir, 'connection.json')));
+      console.log(connections);
+
       const requests = await proxyServer.getSeenRequests();
+      console.log(JSON.stringify(requests));
 
       expect(requests.map(req => req.url))
         .toContain('https://cli.cdk.dev-tools.aws.dev/notices.json');
