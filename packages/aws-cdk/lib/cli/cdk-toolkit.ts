@@ -210,9 +210,9 @@ export class CdkToolkit {
     const args = { ['version-reporting']: versionReporting };
     const canCollect = canCollectTelemetry(args, this.props.configuration.context);
     if (canCollect) {
-      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is enabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to disable.');
     } else {
-      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
+      await this.ioHost.asIoHelper().defaults.info('CLI Telemetry is disabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to enable.');
     }
   }
 
