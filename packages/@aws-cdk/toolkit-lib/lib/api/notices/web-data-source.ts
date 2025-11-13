@@ -57,6 +57,12 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
 
   async fetch(): Promise<Notice[]> {
     if (!this.skipNetworkCache) {
+      this.ioHelper.notify({
+        message: `website data source fetch starting, ${JSON.stringify(this.agent)}`,
+        time: new Date(Date.now()),
+        level: 'info',
+        data: undefined,
+      });
       // Check connectivity before attempting network request
       const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
       if (!hasConnectivity) {

@@ -33,10 +33,15 @@ integTest('requests go through a proxy when configured',
       console.log(connections);
 
       const requests = await proxyServer.getSeenRequests();
+      const urls = requests.map(req => req.url);
       // eslint-disable-next-line no-console
-      console.log(JSON.stringify(requests));
+      console.log(JSON.stringify(urls));
 
-      expect(requests.map(req => req.url))
+      const urls2 = urls.filter(u => u.startsWith('https://cli.cdk.dev'));
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(urls2));
+
+      expect(urls)
         .toContain('https://cli.cdk.dev-tools.aws.dev/notices.json');
 
       const actionsUsed = awsActionsFromRequests(requests);
