@@ -2,7 +2,7 @@ import * as https from 'node:https';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { cdkCacheDir } from './';
-import { IoHelper } from '../api/io/private';
+import type { IoHelper } from '../api/io/private';
 
 interface CachedConnectivity {
   expiration: number;
