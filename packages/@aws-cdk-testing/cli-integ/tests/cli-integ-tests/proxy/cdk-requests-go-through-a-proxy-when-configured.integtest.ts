@@ -17,6 +17,10 @@ integTest('requests go through a proxy when configured',
       // Delete connection cache if it exists
       await fs.rm(path.join(cdkCacheDir, 'connection.json'), { force: true });
 
+      const connections1 = JSON.parse(await fs.readFile(path.join(cdkCacheDir, 'connection.json'), 'utf8'));
+      // eslint-disable-next-line no-console
+      console.log(connections1);
+
       await fixture.cdkDeploy('test-2', {
         captureStderr: true,
         options: [
@@ -28,20 +32,20 @@ integTest('requests go through a proxy when configured',
         },
       });
 
-      const connections = JSON.stringify(await fs.readFile(path.join(cdkCacheDir, 'connection.json')));
+      const connections = JSON.parse(await fs.readFile(path.join(cdkCacheDir, 'connection.json'), 'utf8'));
       // eslint-disable-next-line no-console
       console.log(connections);
 
       const requests = await proxyServer.getSeenRequests();
       const urls = requests.map(req => req.url);
       // eslint-disable-next-line no-console
-      console.log(JSON.stringify(urls));
+      console.log('1', JSON.stringify(urls));
       // eslint-disable-next-line no-console
-      console.log(JSON.stringify(urls.reverse()));
+      console.log('2', JSON.stringify(urls.reverse()));
 
       const urls2 = urls.filter(u => u.startsWith('https://cli.cdk.dev'));
       // eslint-disable-next-line no-console
-      console.log(urls2);
+      console.log('3', urls2);
 
       expect(urls)
         .toContain('https://cli.cdk.dev-tools.aws.dev/notices.json');
