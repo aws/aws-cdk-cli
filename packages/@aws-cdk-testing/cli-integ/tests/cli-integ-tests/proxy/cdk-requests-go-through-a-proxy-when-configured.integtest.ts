@@ -30,7 +30,7 @@ integTest('requests go through a proxy when configured',
 
       const connections = JSON.parse(await fs.readFile(path.join(cdkCacheDir, 'connection.json'), 'utf8'));
       // eslint-disable-next-line no-console
-      console.log(connections);
+      console.log('connections', connections);
 
       const requests = await proxyServer.getSeenRequests();
       const urls = requests.map(req => req.url);

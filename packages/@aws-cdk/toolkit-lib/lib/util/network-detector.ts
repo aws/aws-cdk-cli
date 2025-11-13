@@ -46,6 +46,7 @@ export class NetworkDetector {
   }
 
   private static readonly TIMEOUT_MS = 500;
+  private static readonly URL = 'https://cli.cdk.dev-tools.aws.dev/notices.json';
 
   private static async load(): Promise<CachedConnectivity> {
     const defaultValue = {
@@ -73,9 +74,7 @@ export class NetworkDetector {
 
   private static ping(agent?: https.Agent): Promise<boolean> {
     return new Promise((resolve) => {
-      const req = https.request({
-        hostname: 'cli.cdk.dev-tools.aws.dev',
-        path: '/notices.json',
+      const req = https.request(NetworkDetector.URL, {
         method: 'HEAD',
         agent,
         timeout: this.TIMEOUT_MS,

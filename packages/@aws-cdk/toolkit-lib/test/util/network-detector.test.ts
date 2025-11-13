@@ -31,8 +31,8 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_options, callback) => {
-      callback({ statusCode: 200 });
+    mockRequest.mockImplementation((_url, _options, callback) => {
+      setTimeout(() => callback({ statusCode: 200 }), 0);
       return mockReq;
     });
 
@@ -51,8 +51,8 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_options, callback) => {
-      callback({ statusCode: 500 });
+    mockRequest.mockImplementation((_url, _options, callback) => {
+      setTimeout(() => callback({ statusCode: 500 }), 0);
       return mockReq;
     });
 
@@ -109,8 +109,8 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_options, callback) => {
-      callback({ statusCode: 200 });
+    mockRequest.mockImplementation((_url, _options, callback) => {
+      setTimeout(() => callback({ statusCode: 200 }), 0);
       return mockReq;
     });
 
@@ -132,8 +132,8 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_options, callback) => {
-      callback({ statusCode: 200 });
+    mockRequest.mockImplementation((_url, _options, callback) => {
+      setTimeout(() => callback({ statusCode: 200 }), 0);
       return mockReq;
     });
 
@@ -152,8 +152,8 @@ describe('NetworkDetector', () => {
       destroy: jest.fn(),
     };
 
-    mockRequest.mockImplementation((_options, callback) => {
-      callback({ statusCode: 200 });
+    mockRequest.mockImplementation((_url, _options, callback) => {
+      setTimeout(() => callback({ statusCode: 200 }), 0);
       return mockReq;
     });
 
