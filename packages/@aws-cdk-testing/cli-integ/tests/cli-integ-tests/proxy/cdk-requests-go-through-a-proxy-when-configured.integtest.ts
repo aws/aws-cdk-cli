@@ -37,7 +37,7 @@ integTest('requests go through a proxy when configured',
       // eslint-disable-next-line no-console
       console.log(JSON.stringify(urls));
       // eslint-disable-next-line no-console
-      console.log(JSON.stringify(urls.reverse()))
+      console.log(JSON.stringify(urls.reverse()));
 
       const urls2 = urls.filter(u => u.startsWith('https://cli.cdk.dev'));
       // eslint-disable-next-line no-console
