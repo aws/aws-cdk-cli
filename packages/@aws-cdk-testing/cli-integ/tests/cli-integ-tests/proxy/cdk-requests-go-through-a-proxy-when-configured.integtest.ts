@@ -17,10 +17,6 @@ integTest('requests go through a proxy when configured',
       // Delete connection cache if it exists
       await fs.rm(path.join(cdkCacheDir, 'connection.json'), { force: true });
 
-      const connections1 = JSON.parse(await fs.readFile(path.join(cdkCacheDir, 'connection.json'), 'utf8'));
-      // eslint-disable-next-line no-console
-      console.log(connections1);
-
       await fixture.cdkDeploy('test-2', {
         captureStderr: true,
         options: [
