@@ -203,7 +203,7 @@ export class CliIoHost implements IIoHost {
       }
     }
 
-    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT; // TODO: replace with endpoint at launch
+    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/prod/metrics';
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
         sinks.push(new EndpointTelemetrySink({

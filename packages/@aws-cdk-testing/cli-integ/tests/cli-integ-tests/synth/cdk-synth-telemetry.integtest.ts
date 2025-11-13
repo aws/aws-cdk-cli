@@ -36,7 +36,7 @@ integTest(
               validation: true,
               quiet: false,
               yes: false,
-            },
+            }),
             config: {
               context: {},
             },
@@ -85,7 +85,7 @@ integTest(
               validation: true,
               quiet: false,
               yes: false,
-            },
+            }),
             config: {
               context: {},
             },
