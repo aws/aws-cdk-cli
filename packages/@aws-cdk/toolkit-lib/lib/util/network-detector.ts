@@ -2,7 +2,6 @@ import * as https from 'node:https';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { cdkCacheDir } from './';
-import type { IoHelper } from '../api/io/private';
 
 interface CachedConnectivity {
   expiration: number;
@@ -19,7 +18,7 @@ export class NetworkDetector {
   /**
    * Check if internet connectivity is available
    */
-  public static async hasConnectivity(agent?: https.Agent, ioHelper?: IoHelper): Promise<boolean> {
+  public static async hasConnectivity(agent?: https.Agent, ioHelper?: any): Promise<boolean> {
     const cachedData = await this.load();
     const expiration = cachedData.expiration ?? 0;
     await ioHelper?.notify({
