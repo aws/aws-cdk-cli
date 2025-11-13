@@ -155,7 +155,7 @@ export class Notices {
    * @throws on failure to refresh the data source
    */
   public async refresh(options: NoticesRefreshOptions = {}) {
-    this.ioHelper.notify({
+    await this.ioHelper.notify({
       message: `notices refresh starting, ${JSON.stringify(options)}`,
       time: new Date(Date.now()),
       level: 'info',

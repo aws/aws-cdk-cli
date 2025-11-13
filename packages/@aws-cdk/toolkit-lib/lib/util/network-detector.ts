@@ -22,7 +22,7 @@ export class NetworkDetector {
   public static async hasConnectivity(agent?: https.Agent, ioHelper?: IoHelper): Promise<boolean> {
     const cachedData = await this.load();
     const expiration = cachedData.expiration ?? 0;
-    ioHelper?.notify({
+    await ioHelper?.notify({
       message: `hasconnectivity, ${JSON.stringify(cachedData)}`,
       time: new Date(Date.now()),
       level: 'info',

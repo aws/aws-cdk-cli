@@ -57,7 +57,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
 
   async fetch(): Promise<Notice[]> {
     if (!this.skipNetworkCache) {
-      this.ioHelper.notify({
+      await this.ioHelper.notify({
         message: `website data source fetch starting, ${JSON.stringify(this.agent)}`,
         time: new Date(Date.now()),
         level: 'info',
