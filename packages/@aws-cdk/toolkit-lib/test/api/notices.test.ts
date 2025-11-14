@@ -5,13 +5,13 @@ import * as fs from 'fs-extra';
 import * as nock from 'nock';
 import { Context } from '../../lib/api/context';
 import { asIoHelper } from '../../lib/api/io/private';
+import { NetworkDetector } from '../../lib/api/network-detector/network-detector';
 import { Notices } from '../../lib/api/notices';
 import { CachedDataSource } from '../../lib/api/notices/cached-data-source';
 import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
 import type { BootstrappedEnvironment, Component, Notice } from '../../lib/api/notices/types';
 import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
 import { Settings } from '../../lib/api/settings';
-import { NetworkDetector } from '../../lib/util/network-detector';
 import { TestIoHost } from '../_helpers';
 
 const BASIC_BOOTSTRAP_NOTICE = {

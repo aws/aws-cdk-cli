@@ -1,6 +1,6 @@
 import * as https from 'https';
-import { NetworkDetector } from '@aws-cdk/toolkit-lib';
 import { createTestEvent } from './util';
+import { NetworkDetector } from '../../../../lib/api/network-detector';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
@@ -11,8 +11,7 @@ jest.mock('https', () => ({
 }));
 
 // Mock NetworkDetector
-jest.mock('@aws-cdk/toolkit-lib', () => ({
-  ...jest.requireActual('@aws-cdk/toolkit-lib'),
+jest.mock('../../../../lib/api/network-detector', () => ({
   NetworkDetector: {
     hasConnectivity: jest.fn(),
   },

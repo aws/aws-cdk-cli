@@ -4,8 +4,8 @@ import * as https from 'node:https';
 import type { Notice, NoticeDataSource } from './types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
-import { NetworkDetector } from '../../util/network-detector';
 import type { IoHelper } from '../io/private';
+import { NetworkDetector } from '../network-detector/network-detector';
 
 /**
  * A data source that fetches notices from the CDK notices data source
@@ -30,14 +30,6 @@ export class WebsiteNoticeDataSourceProps {
    * @default - Uses the shared global node agent
    */
   readonly agent?: https.Agent;
-
-  /**
-   * Whether or not we want to skip the check for if we have already determined we are in
-   * a network-less environment. Forces WebsiteNoticeDataSource to make a network call.
-   *
-   * @default false
-   */
-  readonly skipNetworkCache?: boolean;
 }
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {
@@ -47,27 +39,17 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
   public readonly url: any;
 
   private readonly agent?: https.Agent;
-  private readonly skipNetworkCache?: boolean;
 
   constructor(private readonly ioHelper: IoHelper, props: WebsiteNoticeDataSourceProps = {}) {
     this.agent = props.agent;
     this.url = props.url ?? 'https://cli.cdk.dev-tools.aws.dev/notices.json';
-    this.skipNetworkCache = props.skipNetworkCache;
   }
 
   async fetch(): Promise<Notice[]> {
-    if (!this.skipNetworkCache) {
-      await this.ioHelper.notify({
-        message: `website data source fetch starting, ${this.agent !== undefined}}`,
-        time: new Date(Date.now()),
-        level: 'info',
-        data: undefined,
-      });
-      // Check connectivity before attempting network request
-      const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
-      if (!hasConnectivity) {
-        throw new ToolkitError('No internet connectivity detected');
-      }
+    // Check connectivity before attempting network request
+    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+    if (!hasConnectivity) {
+      throw new ToolkitError('No internet connectivity detected');
     }
 
     // We are observing lots of timeouts when running in a massively parallel
