@@ -46,7 +46,7 @@ export class NetworkDetector {
     }
   }
 
-  // private static readonly TIMEOUT_MS = 500;
+  private static readonly TIMEOUT_MS = 500;
   private static readonly URL = 'https://cli.cdk.dev-tools.aws.dev/notices.json';
 
   private static async load(): Promise<CachedConnectivity> {
@@ -77,7 +77,7 @@ export class NetworkDetector {
     const options: RequestOptions = {
       // method: 'HEAD',
       agent: agent,
-      // timeout: this.TIMEOUT_MS,
+      timeout: this.TIMEOUT_MS,
     };
 
     return new Promise((resolve) => {
