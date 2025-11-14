@@ -1,5 +1,5 @@
 // Mock NetworkDetector before any imports
-jest.mock('../../../@aws-cdk/toolkit-lib/lib/util/network-detector', () => ({
+jest.mock('../../lib/api/network-detector', () => ({
   NetworkDetector: {
     hasConnectivity: jest.fn(() => Promise.resolve(true)),
   },
