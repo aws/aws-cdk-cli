@@ -92,7 +92,8 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       timer.unref();
 
       try {
-        req = https.get(this.url,
+        req = https.get(
+          this.url,
           options,
           res => {
             if (res.statusCode === 200) {
@@ -118,7 +119,8 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
             } else {
               reject(new ToolkitError(`${humanHttpStatusError(res.statusCode!)} (Status code: ${res.statusCode})`));
             }
-          });
+          },
+        );
         req.on('error', e => {
           reject(ToolkitError.withCause(humanNetworkError(e), e));
         });

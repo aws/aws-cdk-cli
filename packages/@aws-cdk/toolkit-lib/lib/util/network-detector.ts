@@ -1,4 +1,5 @@
 import * as https from 'node:https';
+import type { RequestOptions } from 'node:https';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { cdkCacheDir } from './';
@@ -45,7 +46,7 @@ export class NetworkDetector {
     }
   }
 
-  private static readonly TIMEOUT_MS = 500;
+  // private static readonly TIMEOUT_MS = 500;
   private static readonly URL = 'https://cli.cdk.dev-tools.aws.dev/notices.json';
 
   private static async load(): Promise<CachedConnectivity> {
@@ -73,15 +74,20 @@ export class NetworkDetector {
   }
 
   private static ping(agent?: https.Agent): Promise<boolean> {
-    return new Promise((resolve) => {
-      const req = https.request(NetworkDetector.URL, {
-        method: 'HEAD',
-        agent,
-        timeout: this.TIMEOUT_MS,
-      }, (res) => {
-        resolve(res.statusCode !== undefined && res.statusCode < 500);
-      });
+    const options: RequestOptions = {
+      // method: 'HEAD',
+      agent: agent,
+      // timeout: this.TIMEOUT_MS,
+    };
 
+    return new Promise((resolve) => {
+      const req = https.request(
+        NetworkDetector.URL,
+        options,
+        (res) => {
+          resolve(res.statusCode !== undefined && res.statusCode < 500);
+        },
+      );
       req.on('error', () => resolve(false));
       req.on('timeout', () => {
         req.destroy();
