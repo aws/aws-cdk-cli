@@ -1,7 +1,9 @@
 import type { ParameterDeclaration } from '@aws-sdk/client-cloudformation';
+import { minimatch } from 'minimatch';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
+import { IO } from '../io/private/messages';
 
 export class ActiveAssetCache {
   private readonly stacks: Set<string> = new Set();
@@ -11,6 +13,9 @@ export class ActiveAssetCache {
   }
 
   public contains(asset: string): boolean {
+    // To reduce computation if asset is empty
+    if (asset=='') return false;
+
     for (const stack of this.stacks) {
       if (stack.includes(asset)) {
         return true;
@@ -18,6 +23,23 @@ export class ActiveAssetCache {
     }
     return false;
   }
+}
+
+/**
+ * Check if a stack name matches any of the skip patterns using glob matching
+ */
+function shouldSkipStack(stackName: string, skipPatterns?: string[]): boolean {
+  if (!skipPatterns || skipPatterns.length === 0) {
+    return false;
+  }
+
+  // Extract stack name from ARN if entire path is passed
+  // fetchAllStackTemplates can return either stack name or id so we handle both
+  const extractedStackName = stackName.includes(':cloudformation:') && stackName.includes(':stack/')
+    ? stackName.split('/')[1] || stackName
+    : stackName;
+
+  return skipPatterns.some(pattern => minimatch(extractedStackName, pattern));
 }
 
 async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | undefined>) {
@@ -32,11 +54,50 @@ async function paginateSdkCall(cb: (nextToken?: string) => Promise<string | unde
 }
 
 /**
+ * Handle unauthorized stacks by asking user if they want to skip them all
+ */
+async function handleUnauthorizedStacks(unauthorizedStacks: string[], ioHelper: IoHelper): Promise<void> {
+  if (unauthorizedStacks.length === 0) {
+    return;
+  }
+
+  try {
+    // Ask user if they want to proceed. Default is no
+    // In CI environments, IoHelper automatically accepts the default response
+    const response = await ioHelper.requestResponse(
+      IO.CDK_TOOLKIT_I9211.req(`Found ${unauthorizedStacks.length} unauthorized stack(s): ${unauthorizedStacks.join(',\n')}\nDo you want to skip all these stacks? Default is 'no'`, {
+        stacks: unauthorizedStacks,
+        count: unauthorizedStacks.length,
+        responseDescription: '[y]es/[n]o',
+      }, 'n'), // To account for ci/cd environments, default remains no until a --yes flag is implemented for cdk-cli
+    );
+
+    // Throw error if user response is not yes or y
+    if (!response || !['y', 'yes'].includes(response.toLowerCase())) {
+      throw new ToolkitError('Operation cancelled by user due to unauthorized stacks');
+    }
+
+    await ioHelper.defaults.info(`Skipping ${unauthorizedStacks.length} unauthorized stack(s)`);
+  } catch (error) {
+    if (error instanceof ToolkitError) {
+      throw error;
+    }
+    throw new ToolkitError(`Failed to handle unauthorized stacks: ${error}`);
+  }
+}
+
+/**
  * Fetches all relevant stack templates from CloudFormation. It ignores the following stacks:
  * - stacks in DELETE_COMPLETE or DELETE_IN_PROGRESS stage
  * - stacks that are using a different bootstrap qualifier
+ * - unauthorized stacks that match the skip patterns (when specified)
  */
-async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHelper, qualifier?: string) {
+async function fetchAllStackTemplates(
+  cfn: ICloudFormationClient,
+  ioHelper: IoHelper,
+  qualifier?: string,
+  unauthNativeCfnStacksToSkip?: string[],
+) {
   const stackNames: string[] = [];
   await paginateSdkCall(async (nextToken) => {
     const stacks = await cfn.listStacks({ NextToken: nextToken });
@@ -55,23 +116,45 @@ async function fetchAllStackTemplates(cfn: ICloudFormationClient, ioHelper: IoHe
   await ioHelper.defaults.debug(`Parsing through ${stackNames.length} stacks`);
 
   const templates: string[] = [];
-  for (const stack of stackNames) {
-    let summary;
-    summary = await cfn.getTemplateSummary({
-      StackName: stack,
-    });
+  const unauthorizedStacks: string[] = [];
 
-    if (bootstrapFilter(summary.Parameters, qualifier)) {
-      // This stack is definitely bootstrapped to a different qualifier so we can safely ignore it
-      continue;
-    } else {
+  for (const stack of stackNames) {
+    try {
+      let summary;
+      summary = await cfn.getTemplateSummary({
+        StackName: stack,
+      });
+
+      if (bootstrapFilter(summary.Parameters, qualifier)) {
+        // This stack is definitely bootstrapped to a different qualifier so we can safely ignore it
+        continue;
+      }
+
       const template = await cfn.getTemplate({
         StackName: stack,
       });
 
       templates.push((template.TemplateBody ?? '') + JSON.stringify(summary?.Parameters));
+    } catch (error: any) {
+      // Check if this is a CloudFormation access denied error
+      if (error.name === 'AccessDenied') {
+        if (shouldSkipStack(stack, unauthNativeCfnStacksToSkip)) {
+          unauthorizedStacks.push(stack);
+          continue;
+        }
+
+        throw new ToolkitError(
+          `Access denied when trying to access stack '${stack}'. ` +
+          'If this is a native CloudFormation stack that you want to skip, add it to --unauth-native-cfn-stacks-to-skip.',
+        );
+      }
+
+      // Re-throw the error if it's not handled
+      throw error;
     }
   }
+
+  await handleUnauthorizedStacks(unauthorizedStacks, ioHelper);
 
   await ioHelper.defaults.debug('Done parsing through stacks');
 
@@ -102,11 +185,17 @@ export interface RefreshStacksProps {
   readonly ioHelper: IoHelper;
   readonly activeAssets: ActiveAssetCache;
   readonly qualifier?: string;
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 
 export async function refreshStacks(props: RefreshStacksProps) {
   try {
-    const stacks = await fetchAllStackTemplates(props.cfn, props.ioHelper, props.qualifier);
+    const stacks = await fetchAllStackTemplates(
+      props.cfn,
+      props.ioHelper,
+      props.qualifier,
+      props.unauthNativeCfnStacksToSkip,
+    );
     for (const stack of stacks) {
       props.activeAssets.rememberStack(stack);
     }
@@ -138,6 +227,11 @@ export interface BackgroundStackRefreshProps {
    * Stack bootstrap qualifier
    */
   readonly qualifier?: string;
+
+  /**
+   * Native CloudFormation stack names or glob patterns to skip when encountering unauthorized access errors
+   */
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 
 /**
@@ -166,6 +260,7 @@ export class BackgroundStackRefresh {
       ioHelper: this.props.ioHelper,
       activeAssets: this.props.activeAssets,
       qualifier: this.props.qualifier,
+      unauthNativeCfnStacksToSkip: this.props.unauthNativeCfnStacksToSkip,
     });
     this.justRefreshedStacks();
 
