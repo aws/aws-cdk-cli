@@ -1,0 +1,227 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/aws/aws-cdk-cli/main/packages/aws-cdk/lib/schema/cdk-config.schema.json",
+  "title": "CDK Configuration",
+  "description": "Schema for cdk.json configuration files used by the AWS CDK CLI",
+  "type": "object",
+  "properties": {
+    "app": {
+      "type": "string",
+      "description": "The command that executes the CDK application"
+    },
+    "build": {
+      "type": "string",
+      "description": "The command that compiles or builds the CDK application before synthesis (not permitted in ~/.cdk.json)"
+    },
+    "language": {
+      "type": "string",
+      "description": "The language to be used for initializing new projects",
+      "enum": ["typescript", "javascript", "python", "java", "csharp", "go", "fsharp"]
+    },
+    "output": {
+      "type": "string",
+      "default": "cdk.out",
+      "description": "The name of the directory into which the synthesized cloud assembly will be emitted"
+    },
+    "outputsFile": {
+      "type": "string",
+      "description": "The file to which AWS CloudFormation outputs from deployed stacks will be written (in JSON format)"
+    },
+    "profile": {
+      "type": "string",
+      "description": "Name of the default AWS profile used for specifying Region and account credentials"
+    },
+    "toolkitStackName": {
+      "type": "string",
+      "description": "The name of the bootstrap stack"
+    },
+    "toolkitBucketName": {
+      "type": "string",
+      "description": "The name of the Amazon S3 bucket used for deploying assets such as Lambda functions and container images"
+    },
+    "bootstrapKmsKeyId": {
+      "type": "string",
+      "description": "Overrides the ID of the AWS KMS key used to encrypt the Amazon S3 deployment bucket"
+    },
+    "requireApproval": {
+      "type": "string",
+      "description": "Default approval level for security changes",
+      "enum": ["never", "any-change", "broadening"]
+    },
+    "assetMetadata": {
+      "type": "boolean",
+      "default": true,
+      "description": "If false, CDK does not add metadata to resources that use assets"
+    },
+    "pathMetadata": {
+      "type": "boolean", 
+      "default": true,
+      "description": "If false, CDK path metadata is not added to synthesized templates"
+    },
+    "notices": {
+      "type": "boolean",
+      "description": "If false, suppresses the display of messages about security vulnerabilities, regressions, and unsupported versions"
+    },
+    "versionReporting": {
+      "type": "boolean",
+      "default": true,
+      "description": "If false, opts out of version reporting"
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "If true, CDK CLI emits more detailed information useful for debugging"
+    },
+    "staging": {
+      "type": "boolean",
+      "description": "If false, assets are not copied to the output directory"
+    },
+    "lookups": {
+      "type": "boolean",
+      "description": "If false, no context lookups are permitted"
+    },
+    "rollback": {
+      "type": "boolean",
+      "description": "If false, failed deployments are not rolled back"
+    },
+    "progress": {
+      "type": "string",
+      "description": "If set to 'events', the CDK CLI displays all AWS CloudFormation events during deployment, rather than a progress bar",
+      "enum": ["bar", "events"]
+    },
+    "browser": {
+      "type": "string",
+      "description": "The command for launching a Web browser for the cdk docs subcommand"
+    },
+    "context": {
+      "type": "object",
+      "description": "Context values and feature flags (values in configuration file will not be erased by cdk context --clear)",
+      "additionalProperties": true
+    },
+    "plugin": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "JSON array specifying the package names or local paths of packages that extend the CDK"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Key": {
+            "type": "string"
+          },
+          "Value": {
+            "type": "string"
+          }
+        },
+        "required": ["Key", "Value"],
+        "additionalProperties": false
+      },
+      "description": "JSON array containing tags (key-value pairs) for the stack"
+    },
+    "watch": {
+      "type": "object",
+      "properties": {
+        "include": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "Files or directories that should trigger a rebuild when changed"
+        },
+        "exclude": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "Files or directories that should not trigger a rebuild when changed"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Configuration for watch mode file monitoring"
+    },
+    "proxy": {
+      "type": "string",
+      "description": "Proxy server URL for HTTP requests"
+    },
+    "caBundlePath": {
+      "type": "string",
+      "description": "Path to CA certificate bundle for HTTPS requests"
+    },
+    "assetParallelism": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of parallel asset uploads"
+    },
+    "assetPrebuild": {
+      "type": "boolean",
+      "description": "Whether to prebuild all assets before deployment"
+    },
+    "ignoreNoStacks": {
+      "type": "boolean",
+      "description": "Whether to ignore the error when no stacks are selected"
+    },
+    "hotswap": {
+      "type": "object",
+      "properties": {
+        "ecs": {
+          "type": "object",
+          "properties": {
+            "minimumHealthyPercent": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Minimum healthy percent for ECS hotswap deployments"
+            },
+            "maximumHealthyPercent": {
+              "type": "integer",
+              "minimum": 100,
+              "description": "Maximum healthy percent for ECS hotswap deployments"
+            },
+            "stabilizationTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Stabilization timeout in seconds for ECS hotswap deployments"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "Configuration for hotswap deployments"
+    },
+    "unstable": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of unstable features to enable"
+    },
+    "quiet": {
+      "type": "boolean",
+      "description": "Suppress output during synthesis"
+    },
+    "custom": {
+      "type": "object",
+      "description": "Area for user-defined custom properties that won't trigger validation warnings",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
