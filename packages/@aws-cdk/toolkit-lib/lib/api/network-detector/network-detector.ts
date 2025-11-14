@@ -19,15 +19,9 @@ export class NetworkDetector {
   /**
    * Check if internet connectivity is available
    */
-  public static async hasConnectivity(agent?: https.Agent, ioHelper?: any): Promise<boolean> {
+  public static async hasConnectivity(agent?: https.Agent): Promise<boolean> {
     const cachedData = await this.load();
     const expiration = cachedData.expiration ?? 0;
-    await ioHelper?.notify({
-      message: `hasconnectivity, ${JSON.stringify(cachedData)}`,
-      time: new Date(Date.now()),
-      level: 'info',
-      data: undefined,
-    });
 
     if (Date.now() > expiration) {
       try {

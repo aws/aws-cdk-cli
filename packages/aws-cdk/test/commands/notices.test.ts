@@ -1,7 +1,8 @@
 // Mock NetworkDetector before any imports
-jest.mock('../../lib/api/network-detector', () => ({
+const mockHasConnectivity = jest.fn().mockResolvedValue(true);
+jest.mock('../../../@aws-cdk/toolkit-lib/lib/api/network-detector/network-detector', () => ({
   NetworkDetector: {
-    hasConnectivity: jest.fn(() => Promise.resolve(true)),
+    hasConnectivity: mockHasConnectivity,
   },
 }));
 
@@ -28,6 +29,8 @@ const BASIC_NOTICE = {
 beforeEach(() => {
   nock.cleanAll();
   jest.clearAllMocks();
+  // Ensure NetworkDetector always returns true for connectivity
+  mockHasConnectivity.mockResolvedValue(true);
 });
 
 describe('cdk notices', () => {
