@@ -75,7 +75,7 @@ export class NetworkDetector {
 
   private static ping(agent?: https.Agent): Promise<boolean> {
     const options: RequestOptions = {
-      // method: 'HEAD',
+      method: 'HEAD',
       agent: agent,
       // timeout: this.TIMEOUT_MS,
     };
