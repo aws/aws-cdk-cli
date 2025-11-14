@@ -46,7 +46,11 @@ export class NetworkDetector {
     }
   }
 
-  // private static readonly TIMEOUT_MS = 500;
+  // We are observing lots of timeouts when running in a massively parallel
+  // integration test environment, so wait for a longer timeout there.
+  //
+  // In production, have a short timeout to not hold up the user experience.
+  private static readonly TIMEOUT = process.env.TESTING_CDK ? 30_000 : 3_000;
   private static readonly URL = 'https://cli.cdk.dev-tools.aws.dev/notices.json';
 
   private static async load(): Promise<CachedConnectivity> {
@@ -77,7 +81,7 @@ export class NetworkDetector {
     const options: RequestOptions = {
       method: 'HEAD',
       agent: agent,
-      // timeout: this.TIMEOUT_MS,
+      timeout: this.TIMEOUT,
     };
 
     return new Promise((resolve) => {
