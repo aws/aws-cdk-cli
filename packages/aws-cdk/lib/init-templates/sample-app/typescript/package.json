@@ -22,8 +22,5 @@
   "dependencies": {
     "aws-cdk-lib": "%cdk-version%",
     "constructs": "%constructs-version%"
-  },
-  "engines": {
-    "node": ">=24.0.0"
   }
 }

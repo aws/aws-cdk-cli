@@ -20,8 +20,5 @@
   "peerDependencies": {
     "aws-cdk-lib": "%cdk-version%",
     "constructs": "%constructs-version%"
-  },
-  "engines": {
-    "node": ">=20.0.0"
   }
 }
