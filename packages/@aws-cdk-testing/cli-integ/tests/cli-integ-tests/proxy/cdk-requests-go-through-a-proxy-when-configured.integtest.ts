@@ -14,6 +14,9 @@ integTest('requests go through a proxy when configured',
       // Delete notices cache if it exists
       await fs.rm(path.join(cdkCacheDir, 'notices.json'), { force: true });
 
+      // Delete connection cache if it exists
+      await fs.rm(path.join(cdkCacheDir, 'connection.json'), { force: true });
+
       await fixture.cdkDeploy('test-2', {
         captureStderr: true,
         options: [
@@ -26,7 +29,6 @@ integTest('requests go through a proxy when configured',
       });
 
       const requests = await proxyServer.getSeenRequests();
-
       expect(requests.map(req => req.url))
         .toContain('https://cli.cdk.dev-tools.aws.dev/notices.json');
 

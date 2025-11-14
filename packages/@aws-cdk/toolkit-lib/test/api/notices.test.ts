@@ -5,6 +5,7 @@ import * as fs from 'fs-extra';
 import * as nock from 'nock';
 import { Context } from '../../lib/api/context';
 import { asIoHelper } from '../../lib/api/io/private';
+import { NetworkDetector } from '../../lib/api/network-detector/network-detector';
 import { Notices } from '../../lib/api/notices';
 import { CachedDataSource } from '../../lib/api/notices/cached-data-source';
 import { FilteredNotice, NoticesFilter } from '../../lib/api/notices/filter';
@@ -539,6 +540,24 @@ function parseTestComponent(x: string): Component {
 
 describe(WebsiteNoticeDataSource, () => {
   const dataSource = new WebsiteNoticeDataSource(ioHelper);
+
+  beforeEach(() => {
+    // Mock NetworkDetector to return true by default for existing tests
+    jest.spyOn(NetworkDetector, 'hasConnectivity').mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('throws error when no connectivity detected', async () => {
+    const mockHasConnectivity = jest.spyOn(NetworkDetector, 'hasConnectivity').mockResolvedValue(false);
+
+    await expect(dataSource.fetch()).rejects.toThrow('No internet connectivity detected');
+    expect(mockHasConnectivity).toHaveBeenCalledWith(undefined);
+
+    mockHasConnectivity.mockRestore();
+  });
 
   test('returns data when download succeeds', async () => {
     const result = await mockCall(200, {

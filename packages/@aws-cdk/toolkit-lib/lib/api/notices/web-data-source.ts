@@ -5,6 +5,7 @@ import type { Notice, NoticeDataSource } from './types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
 import type { IoHelper } from '../io/private';
+import { NetworkDetector } from '../network-detector/network-detector';
 
 /**
  * A data source that fetches notices from the CDK notices data source
@@ -20,6 +21,7 @@ export class WebsiteNoticeDataSourceProps {
    * @default - Official CDK notices
    */
   readonly url?: string | URL;
+
   /**
    * The agent responsible for making the network requests.
    *
@@ -44,6 +46,12 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
   }
 
   async fetch(): Promise<Notice[]> {
+    // Check connectivity before attempting network request
+    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+    if (!hasConnectivity) {
+      throw new ToolkitError('No internet connectivity detected');
+    }
+
     // We are observing lots of timeouts when running in a massively parallel
     // integration test environment, so wait for a longer timeout there.
     //
@@ -66,7 +74,8 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       timer.unref();
 
       try {
-        req = https.get(this.url,
+        req = https.get(
+          this.url,
           options,
           res => {
             if (res.statusCode === 200) {
@@ -92,7 +101,8 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
             } else {
               reject(new ToolkitError(`${humanHttpStatusError(res.statusCode!)} (Status code: ${res.statusCode})`));
             }
-          });
+          },
+        );
         req.on('error', e => {
           reject(ToolkitError.withCause(humanNetworkError(e), e));
         });

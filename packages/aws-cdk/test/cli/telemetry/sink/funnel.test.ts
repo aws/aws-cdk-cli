@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { createTestEvent } from './util';
+import { NetworkDetector } from '../../../../lib/api/network-detector';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
@@ -14,6 +15,13 @@ jest.mock('https', () => ({
   request: jest.fn(),
 }));
 
+// Mock NetworkDetector
+jest.mock('../../../../lib/api/network-detector', () => ({
+  NetworkDetector: {
+    hasConnectivity: jest.fn(),
+  },
+}));
+
 describe('Funnel', () => {
   let tempDir: string;
   let logFilePath: string;
@@ -21,6 +29,9 @@ describe('Funnel', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+
+    // Mock NetworkDetector to return true by default for all tests
+    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
 
     // Create a fresh temp directory for each test
     tempDir = path.join(os.tmpdir(), `telemetry-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
