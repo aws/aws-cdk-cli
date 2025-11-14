@@ -1,7 +1,8 @@
 // Mock NetworkDetector before any imports
+const mockHasConnectivity = jest.fn(() => Promise.resolve(true));
 jest.mock('../../lib/api/network-detector', () => ({
   NetworkDetector: {
-    hasConnectivity: jest.fn(() => Promise.resolve(true)),
+    hasConnectivity: mockHasConnectivity,
   },
 }));
 
@@ -28,11 +29,14 @@ const BASIC_NOTICE = {
 beforeEach(() => {
   nock.cleanAll();
   jest.clearAllMocks();
+  // Reset to default connectivity = true
+  mockHasConnectivity.mockResolvedValue(true);
 });
 
 describe('cdk notices', () => {
-  test('will fail on dns error', async () => {
-    // GIVEN
+  test('will fail when no connectivity (dns error scenario)', async () => {
+    // GIVEN - NetworkDetector will return false by default, simulating no connectivity
+    // This test represents what used to be a DNS error but now gets caught by connectivity check
     nock(NOTICES_URL)
       .get(NOTICES_PATH)
       .replyWithError('DNS resolution failed');
@@ -41,14 +45,15 @@ describe('cdk notices', () => {
     try {
       await exec(['notices']);
     } catch (error: any) {
-      // THEN
+      // THEN - Now expects connectivity error instead of DNS error
       await expect(error.message).toMatch('Failed to load CDK notices');
-      await expect(error.cause.message).toMatch('DNS resolution failed');
+      await expect(error.cause.message).toMatch('No internet connectivity detected');
     }
   });
 
-  test('will fail on timeout', async () => {
-    // GIVEN
+  test('will fail when no connectivity (timeout scenario)', async () => {
+    // GIVEN - NetworkDetector will return false by default, simulating no connectivity
+    // This test represents what used to be a timeout but now gets caught by connectivity check
     nock(NOTICES_URL)
       .get(NOTICES_PATH)
       .delayConnection(3500)
@@ -56,14 +61,27 @@ describe('cdk notices', () => {
         notices: [BASIC_NOTICE],
       });
 
-    // WHEN
+    expect.assertions(2);
+    try {
+      await exec(['notices']);
+    } catch (error: any) {
+      // THEN - Now expects connectivity error instead of timeout error
+      await expect(error.message).toMatch('Failed to load CDK notices');
+      await expect(error.cause.message).toMatch('No internet connectivity detected');
+    }
+  });
+
+  test('will fail when no connectivity', async () => {
+    // GIVEN - explicitly mock no connectivity
+    mockHasConnectivity.mockResolvedValue(false);
+
     expect.assertions(2);
     try {
       await exec(['notices']);
     } catch (error: any) {
       // THEN
       await expect(error.message).toMatch('Failed to load CDK notices');
-      await expect(error.cause.message).toMatch('Request timed out');
+      await expect(error.cause.message).toMatch('No internet connectivity detected');
     }
   });
 });
