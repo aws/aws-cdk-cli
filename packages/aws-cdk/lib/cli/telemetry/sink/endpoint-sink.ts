@@ -1,7 +1,6 @@
 import type { IncomingMessage } from 'http';
 import type { Agent } from 'https';
 import { request } from 'https';
-import { parse, type UrlWithStringQuery } from 'url';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../../api-private';
 import type { IIoHost } from '../../io-host';
@@ -39,12 +38,12 @@ export interface EndpointTelemetrySinkProps {
  */
 export class EndpointTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
-  private endpoint: UrlWithStringQuery;
+  private endpoint: URL;
   private ioHelper: IoHelper;
   private agent?: Agent;
 
   public constructor(props: EndpointTelemetrySinkProps) {
-    this.endpoint = parse(props.endpoint);
+    this.endpoint = new URL(props.endpoint);
 
     if (!this.endpoint.hostname || !this.endpoint.pathname) {
       throw new ToolkitError(`Telemetry Endpoint malformed. Received hostname: ${this.endpoint.hostname}, pathname: ${this.endpoint.pathname}`);
@@ -91,7 +90,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
    * Returns true if telemetry successfully posted, false otherwise.
    */
   private async https(
-    url: UrlWithStringQuery,
+    url: URL,
     body: { events: TelemetrySchema[] },
   ): Promise<boolean> {
     try {
@@ -117,7 +116,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
  * A Promisified version of `https.request()`
  */
 function doRequest(
-  url: UrlWithStringQuery,
+  url: URL,
   data: { events: TelemetrySchema[] },
   agent?: Agent,
 ) {
@@ -125,7 +124,7 @@ function doRequest(
     const payload: string = JSON.stringify(data);
     const req = request({
       hostname: url.hostname,
-      port: url.port,
+      port: url.port || null,
       path: url.pathname,
       method: 'POST',
       headers: {
