@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'http';
 import type { Agent } from 'https';
 import { request } from 'https';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { NetworkDetector } from '../../../api/network-detector';
 import { IoHelper } from '../../../api-private';
 import type { IIoHost } from '../../io-host';
 import type { TelemetrySchema } from '../schema';
@@ -93,6 +94,13 @@ export class EndpointTelemetrySink implements ITelemetrySink {
     url: URL,
     body: { events: TelemetrySchema[] },
   ): Promise<boolean> {
+    // Check connectivity before attempting network request
+    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+    if (!hasConnectivity) {
+      await this.ioHelper.defaults.trace('No internet connectivity detected, skipping telemetry');
+      return false;
+    }
+
     try {
       const res = await doRequest(url, body, this.agent);
 
