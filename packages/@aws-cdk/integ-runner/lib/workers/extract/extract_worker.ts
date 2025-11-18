@@ -31,8 +31,8 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
         engine: request.engine,
         test,
         profile: request.profile,
+        region: request.region,
         env: {
-          AWS_REGION: request.region,
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
         showOutput: verbosity >= 2,
@@ -99,8 +99,8 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
     engine: options.engine,
     test,
     profile: options.profile,
+    region: options.region,
     env: {
-      AWS_REGION: options.region,
       CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
     },
     showOutput: verbosity >= 2,

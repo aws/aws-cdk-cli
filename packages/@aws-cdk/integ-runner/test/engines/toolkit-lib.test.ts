@@ -223,9 +223,9 @@ describe('ToolkitLibRunnerEngine', () => {
         showOutput: true,
       });
 
-      expect(MockedToolkit).toHaveBeenCalledWith({
+      expect(MockedToolkit).toHaveBeenCalledWith(expect.objectContaining({
         ioHost: expect.any(Object),
-      });
+      }));
     });
 
     it('should throw error when no app is provided', async () => {

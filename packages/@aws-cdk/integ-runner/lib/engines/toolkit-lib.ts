@@ -1,8 +1,9 @@
 import * as path from 'node:path';
 import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions, WatchEvents } from '@aws-cdk/cdk-cli-wrapper';
 import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import { UNKNOWN_REGION } from '@aws-cdk/cx-api';
+import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
+import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 
@@ -27,6 +28,11 @@ export interface ToolkitLibEngineOptions {
    * @default false
    */
   readonly showOutput?: boolean;
+
+  /**
+   * The region the CDK app should synthesize itself for
+   */
+  readonly region: string;
 }
 
 /**
@@ -42,7 +48,12 @@ export class ToolkitLibRunnerEngine implements ICdk {
     this.showOutput = options.showOutput ?? false;
 
     this.toolkit = new Toolkit({
-      ioHost: this.showOutput? new IntegRunnerIoHost() : new NoopIoHost(),
+      ioHost: this.showOutput ? new IntegRunnerIoHost() : new NoopIoHost(),
+      sdkConfig: {
+        baseCredentials: BaseCredentials.awsCliCompatible({
+          defaultRegion: options.region,
+        }),
+      },
       // @TODO - these options are currently available on the action calls
       // but toolkit-lib needs them at the constructor level.
       // Need to decide what to do with them.
@@ -73,6 +84,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       stacks: this.stackSelector(options),
       validateStacks: options.validation,
     });
+    await this.validateRegion(lock);
     await lock.dispose();
   }
 
@@ -100,6 +112,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
     try {
       // @TODO - use produce to mimic the current behavior more closely
       const lock = await cx.produce();
+      await this.validateRegion(lock);
       await lock.dispose();
       // We should fix this once we have stabilized toolkit-lib as engine.
       // What we really should do is this:
@@ -217,7 +230,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
       workingDirectory: this.options.workingDirectory,
       outdir,
       lookups: options.lookups,
-      resolveDefaultEnvironment: false, // not part of the integ-runner contract
       contextStore: new MemoryContext(options.context),
       env: this.options.env,
       synthOptions: {
@@ -255,6 +267,37 @@ export class ToolkitLibRunnerEngine implements ICdk {
     return {
       method: options.deploymentMethod ?? 'change-set',
     };
+  }
+
+  /**
+   * Check that the regions for the stacks in the CloudAssembly match the regions requested on the engine
+   *
+   * This prevents misconfiguration of the integ test app. People tend to put:
+   *
+   * ```ts
+   * new Stack(app, 'Stack', {
+   *   env: {
+   *     region: 'some-region-that-suits-me',
+   *   }
+   * });
+   * ```
+   *
+   * Into their integ tests, instead of:
+   *
+   * ```ts
+   * {
+   *   region: process.env.CDK_DEFAULT_REGION,
+   * }
+   * ```
+   *
+   * This catches that misconfiguration.
+   */
+  private async validateRegion(asm: IReadableCloudAssembly) {
+    for (const stack of asm.cloudAssembly.stacksRecursively) {
+      if (stack.environment.region !== this.options.region && stack.environment.region !== UNKNOWN_REGION) {
+        throw new Error(`Stack ${stack.displayName} synthesizes for region ${stack.environment.region}, even though ${this.options.region} was requested. Please configure \`{ env: { region: process.env.CDK_DEFAULT_REGION, account: process.env.CDK_DEFAULT_ACCOUNT } }\`, or use no env at all. Do not hardcode a region or account.`);
+      }
+    }
   }
 }
 
