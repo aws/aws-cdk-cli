@@ -40,7 +40,7 @@ export function parseCliArgs(args: string[] = []) {
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
-    .option('disable-update-workflow', { type: 'boolean', default: false, desc: 'If this is "true" then the stack update workflow will be disabled' })
+    .option('disable-update-workflow', { type: 'boolean', default: true, desc: 'DEPRECATED. Update workflow has been temporarily disabled until we can make it work correctly.' })
     .option('language', {
       alias: 'l',
       default: ['javascript', 'typescript', 'python', 'go'],
@@ -100,7 +100,7 @@ export function parseCliArgs(args: string[] = []) {
     clean: argv.clean as boolean,
     force: argv.force as boolean,
     dryRun: argv['dry-run'] as boolean,
-    disableUpdateWorkflow: argv['disable-update-workflow'] as boolean,
+    disableUpdateWorkflow: true,
     language: arrayFromYargs(argv.language),
     watch: argv.watch as boolean,
     strict: argv.strict as boolean,
@@ -186,7 +186,7 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
         clean: options.clean,
         dryRun: options.dryRun,
         verbosity: options.verbosity,
-        updateWorkflow: !options.disableUpdateWorkflow,
+        updateWorkflow: false,
         watch: options.watch,
       });
       testsSucceeded = success;
