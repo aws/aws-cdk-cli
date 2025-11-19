@@ -25,13 +25,14 @@ describe('ToolkitLibRunnerEngine', () => {
 
     engine = new ToolkitLibRunnerEngine({
       workingDirectory: '/test/dir',
+      region: 'us-dummy-1',
     });
   });
 
   describe('synth', () => {
     it('should call toolkit.synth with correct parameters', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn() };
+      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
       mockToolkit.synth.mockResolvedValue(mockLock as any);
 
@@ -56,7 +57,7 @@ describe('ToolkitLibRunnerEngine', () => {
   describe('synthFast', () => {
     it('should use fromCdkApp and produce for fast synthesis', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn() };
+      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockCx.produce.mockResolvedValue(mockLock);
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
 
@@ -221,6 +222,7 @@ describe('ToolkitLibRunnerEngine', () => {
       const engineWithOutput = new ToolkitLibRunnerEngine({
         workingDirectory: '/test',
         showOutput: true,
+        region: 'us-dummy-1',
       });
 
       expect(MockedToolkit).toHaveBeenCalledWith(expect.objectContaining({
