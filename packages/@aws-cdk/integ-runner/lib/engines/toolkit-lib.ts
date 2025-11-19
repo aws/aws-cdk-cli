@@ -42,13 +42,18 @@ export class ToolkitLibRunnerEngine implements ICdk {
   private readonly toolkit: Toolkit;
   private readonly options: ToolkitLibEngineOptions;
   private readonly showOutput: boolean;
+  private readonly ioHost: IntegRunnerIoHost;
 
   public constructor(options: ToolkitLibEngineOptions) {
     this.options = options;
     this.showOutput = options.showOutput ?? false;
 
+    // We always create this for ourselves to emit warnings, but potentially
+    // don't pass it to the toolkit.
+    this.ioHost = new IntegRunnerIoHost();
+
     this.toolkit = new Toolkit({
-      ioHost: this.showOutput ? new IntegRunnerIoHost() : new NoopIoHost(),
+      ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
       sdkConfig: {
         baseCredentials: BaseCredentials.awsCliCompatible({
           defaultRegion: options.region,
@@ -295,7 +300,23 @@ export class ToolkitLibRunnerEngine implements ICdk {
   private async validateRegion(asm: IReadableCloudAssembly) {
     for (const stack of asm.cloudAssembly.stacksRecursively) {
       if (stack.environment.region !== this.options.region && stack.environment.region !== UNKNOWN_REGION) {
-        throw new Error(`Stack ${stack.displayName} synthesizes for region ${stack.environment.region}, even though ${this.options.region} was requested. Please configure \`{ env: { region: process.env.CDK_DEFAULT_REGION, account: process.env.CDK_DEFAULT_ACCOUNT } }\`, or use no env at all. Do not hardcode a region or account.`);
+        this.ioHost.notify({
+          action: 'deploy',
+          code: 'CDK_RUNNER_W0000',
+          time: new Date(),
+          level: 'warn',
+          message: `Stack ${stack.displayName} synthesizes for region ${stack.environment.region}, even though ${this.options.region} was requested. Please configure \`{ env: { region: process.env.CDK_DEFAULT_REGION, account: process.env.CDK_DEFAULT_ACCOUNT } }\`, or use no env at all. Do not hardcode a region or account.`,
+          data: {
+            stackName: stack.displayName,
+            stackRegion: stack.environment.region,
+            requestedRegion: this.options.region,
+          },
+        }).catch((e) => {
+          if (e) {
+            // eslint-disable-next-line no-console
+            console.error(e);
+          }
+        });
       }
     }
   }
@@ -312,9 +333,16 @@ class IntegRunnerIoHost extends NonInteractiveIoHost {
     });
   }
   public async notify(msg: IoMessage<unknown>): Promise<void> {
+    let color;
+    switch (msg.level) {
+      case 'error': color = chalk.red; break;
+      case 'warn': color = chalk.yellow; break;
+      default: color = chalk.gray;
+    }
+
     return super.notify({
       ...msg,
-      message: chalk.gray(msg.message),
+      message: color(msg.message),
     });
   }
 }
