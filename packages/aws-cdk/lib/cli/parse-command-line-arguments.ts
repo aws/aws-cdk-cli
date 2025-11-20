@@ -370,6 +370,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
             deprecated: 'use --toolkit-stack-name',
             requiresArg: true,
             conflicts: 'toolkit-stack-name',
+          })
+          .option('unauth-native-cfn-stacks-to-skip', {
+            type: 'array',
+            desc: 'Non-CDK stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection. You must explicitly specify non-CDK stack names.',
+            default: [],
+            requiresArg: true,
+            nargs: 1,
           }),
     )
     .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>

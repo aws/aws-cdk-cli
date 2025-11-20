@@ -11,3 +11,11 @@ export interface AssetBatchDeletionRequest extends DataRequest {
     readonly createdBufferDays: number;
   };
 }
+
+/**
+ * Request to confirm skipping unauthorized stacks during garbage collection.
+ */
+export interface UnauthorizedStacksRequest extends DataRequest {
+  readonly stacks: string[];
+  readonly count: number;
+}
