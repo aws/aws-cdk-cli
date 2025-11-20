@@ -581,7 +581,11 @@ export class TestFixture extends ShellHelper {
 
     await this.cli.makeCliAvailable();
 
-    return this.shell(['cdk', ...(verbose ? ['-v'] : []), ...args], {
+    return this.shell([
+      'cdk',
+      ...(verbose ? ['-vvv'] : []), // if we set verbose, we get all the logs
+      ...args,
+    ], {
       ...options,
       modEnv: {
         ...this.cdkShellEnv(),
