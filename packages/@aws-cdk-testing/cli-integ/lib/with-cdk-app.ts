@@ -583,9 +583,8 @@ export class TestFixture extends ShellHelper {
 
     return this.shell([
       'cdk',
-      ...(verbose ? ['-v'] : []),
+      ...(verbose ? ['-vvv'] : []), // if we set verbose, we get all the logs
       ...args,
-      ...(options?.options ?? []),
     ], {
       ...options,
       modEnv: {
