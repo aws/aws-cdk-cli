@@ -15,6 +15,7 @@ const CONTEXT_KEY = 'context';
 export enum Command {
   LS = 'ls',
   LIST = 'list',
+  RESOURCES = 'resources',
   DIFF = 'diff',
   BOOTSTRAP = 'bootstrap',
   DEPLOY = 'deploy',

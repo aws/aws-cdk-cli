@@ -182,6 +182,34 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Display stack dependency information for each stack',
         }),
     )
+    .command('resources [STACK]', 'Lists all CloudFormation resources in a stack', (yargs: Argv) =>
+      yargs
+        .option('long', {
+          default: false,
+          type: 'boolean',
+          alias: 'l',
+          desc: 'Display full resource list grouped by type (default shows summary counts)',
+        })
+        .option('all', {
+          default: false,
+          type: 'boolean',
+          alias: 'a',
+          desc: 'Include all resources (by default, noisy types like Lambda::Permission are hidden)',
+        })
+        .option('type', {
+          default: undefined,
+          type: 'string',
+          alias: 't',
+          desc: 'Filter resources by type (case-insensitive partial match, e.g., "lambda" or "dynamodb")',
+          requiresArg: true,
+        })
+        .option('explain', {
+          default: undefined,
+          type: 'string',
+          desc: 'Show detailed information for a specific resource by logical ID',
+          requiresArg: true,
+        }),
+    )
     .command(['synth [STACKS..]', 'synthesize [STACKS..]'], 'Synthesizes and prints the CloudFormation template for this stack', (yargs: Argv) =>
       yargs
         .option('exclusively', {

@@ -296,6 +296,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           showDeps: args.showDependencies,
         });
 
+      case 'resources':
+        ioHost.currentAction = 'resources';
+        return cli.resources(args.STACK, {
+          json: argv.json,
+          long: args.long,
+          all: args.all,
+          type: args.type,
+          explain: args.explain,
+        });
+
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);

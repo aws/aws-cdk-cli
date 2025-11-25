@@ -35,6 +35,7 @@ import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
+import { listResources, explainResource } from '../commands/list-resources';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
   appendWarningsToReadme,
@@ -1042,6 +1043,100 @@ export class CdkToolkit {
       await this.ioHost.asIoHelper().defaults.result(stack.id);
     }
     return 0; // exit-code
+  }
+
+  /**
+   * List all resources in a stack
+   */
+  public async resources(
+    selector: string,
+    options: { json?: boolean; long?: boolean; all?: boolean; type?: string; explain?: string } = {},
+  ): Promise<number> {
+    const io = this.ioHost.asIoHelper();
+
+    // Handle --explain mode
+    if (options.explain) {
+      const resource = await explainResource(this, {
+        selector,
+        logicalId: options.explain,
+      });
+
+      if (!resource) {
+        throw new ToolkitError(`Resource '${options.explain}' not found in stack '${selector}'`);
+      }
+
+      await printSerializedObject(io, resource, options.json ?? false);
+      return 0;
+    }
+
+    // List all resources (with optional type filter)
+    const resources = await listResources(this, { selector, type: options.type, all: options.all });
+
+    if (resources.length === 0) {
+      if (options.type) {
+        await io.defaults.info(`No resources of type '${options.type}' found in stack`);
+      } else {
+        await io.defaults.info('No resources found in stack');
+      }
+      return 0;
+    }
+
+    if (options.json) {
+      await printSerializedObject(io, resources, true);
+      return 0;
+    }
+
+    // Group resources by type
+    const byType = new Map<string, typeof resources>();
+    for (const r of resources) {
+      const list = byType.get(r.type) ?? [];
+      list.push(r);
+      byType.set(r.type, list);
+    }
+
+    // Sort types by count (descending), then alphabetically
+    const sortedTypes = [...byType.entries()].sort((a, b) => {
+      const countDiff = b[1].length - a[1].length;
+      if (countDiff !== 0) return countDiff;
+      return a[0].localeCompare(b[0]);
+    });
+
+    // Show detailed grouped output if --long or --type filter is used
+    if (options.long || options.type) {
+      const lines: string[] = [];
+
+      for (const [type, typeResources] of sortedTypes) {
+        lines.push('');
+        lines.push(chalk.bold.cyan(`${type} (${typeResources.length})`));
+
+        for (const r of typeResources) {
+          lines.push(`  ${chalk.white(r.logicalId.padEnd(40))} ${chalk.gray(r.constructPath)}`);
+        }
+      }
+
+      lines.push('');
+      lines.push(`${resources.length} resource(s) total`);
+
+      await io.defaults.result(lines.join('\n'));
+      return 0;
+    }
+
+    // Default: Summary mode - just show counts by type
+    const lines: string[] = [];
+    lines.push(`${chalk.bold(selector)}: ${resources.length} resources`);
+    lines.push('');
+
+    for (const [type, typeResources] of sortedTypes) {
+      const shortType = type.replace(/^AWS::/, '');
+      const dots = '.'.repeat(Math.max(1, 45 - shortType.length));
+      lines.push(`${shortType} ${chalk.gray(dots)} ${typeResources.length}`);
+    }
+
+    lines.push('');
+    lines.push(chalk.gray(`Use ${chalk.white('--long')} for full list, ${chalk.white('--type <TYPE>')} to filter, ${chalk.white('--all')} to include permissions`));
+
+    await io.defaults.result(lines.join('\n'));
+    return 0;
   }
 
   /**
@@ -2175,3 +2270,4 @@ function requiresApproval(requireApproval: RequireApproval, permissionChangeType
   return requireApproval === RequireApproval.ANYCHANGE ||
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }
+
