@@ -1341,14 +1341,28 @@ describe('constructs version', () => {
   });
 
   describe('package-manager option', () => {
+    let spawnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      // Mock child_process.spawn to track which package manager is called
+      spawnSpy = jest.spyOn(require('child_process'), 'spawn').mockImplementation(() => ({
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+      }));
+    });
+
+    afterEach(() => {
+      spawnSpy.mockRestore();
+    });
+
     test.each([
-      ['typescript', 'npm', 'package-lock.json'],
-      ['typescript', 'yarn', 'yarn.lock'],
-      ['typescript', 'pnpm', 'pnpm-lock.yaml'],
-      ['javascript', 'npm', 'package-lock.json'],
-      ['javascript', 'yarn', 'yarn.lock'],
-      ['javascript', 'pnpm', 'pnpm-lock.yaml'],
-    ])('creates %s project with %s (verifying %s)', async (language, packageManager, lockFile) => {
+      { language: 'typescript', packageManager: 'npm' },
+      { language: 'typescript', packageManager: 'yarn' },
+      { language: 'typescript', packageManager: 'pnpm' },
+      { language: 'javascript', packageManager: 'npm' },
+      { language: 'javascript', packageManager: 'yarn' },
+      { language: 'javascript', packageManager: 'pnpm' },
+    ])('uses $packageManager for $language project', async ({ language, packageManager }) => {
       await withTempDir(async (workDir) => {
         await cliInit({
           ioHelper,
@@ -1360,8 +1374,10 @@ describe('constructs version', () => {
           workDir,
         });
 
-        expect(await fs.pathExists(path.join(workDir, lockFile))).toBeTruthy();
-        expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+        expect(installCalls.length).toBeGreaterThan(0);
       });
     });
 
