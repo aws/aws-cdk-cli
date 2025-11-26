@@ -34,8 +34,8 @@ import type { Deployments, SuccessfulDeployStackResult } from '../api/deployment
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
-import { listStacks } from '../commands/list-stacks';
 import { listResources, explainResource } from '../commands/list-resources';
+import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
   appendWarningsToReadme,

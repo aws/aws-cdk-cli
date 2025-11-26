@@ -1,9 +1,11 @@
 import type { ResourceDetails, ResourceExplainDetails } from '@aws-cdk/toolkit-lib';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { minimatch } from 'minimatch';
 import type { CdkToolkit } from '../cli/cdk-toolkit';
 import { DefaultSelection, ExtendedStackSelection } from '../cxapp';
 
 const PATH_METADATA_KEY = 'aws:cdk:path';
+const RESOURCE_SUFFIX = '/Resource';
 
 /**
  * Resource types that are hidden by default (noisy/derivative resources)
@@ -103,11 +105,7 @@ export async function listResources(
         logicalId,
         type: resourceType,
         constructPath,
-        dependsOn: Array.isArray(resourceObj.DependsOn)
-          ? resourceObj.DependsOn
-          : resourceObj.DependsOn
-            ? [resourceObj.DependsOn]
-            : [],
+        dependsOn: normalizeDependsOn(resourceObj.DependsOn),
         imports: extractImportValues(resourceObj),
         removalPolicy: mapDeletionPolicy(resourceObj.DeletionPolicy),
       });
@@ -161,7 +159,7 @@ export async function explainResource(
       return undefined;
     }
     if (matchingStacks.length > 1) {
-      throw new Error(`--explain requires exactly one stack, but found ${matchingStacks.length} matching stacks`);
+      throw new ToolkitError(`--explain requires exactly one stack, but found ${matchingStacks.length} matching stacks`);
     }
     stack = matchingStacks[0];
   }
@@ -182,17 +180,22 @@ export async function explainResource(
     logicalId: options.logicalId,
     type: resource.Type ?? '<unknown>',
     constructPath,
-    dependsOn: Array.isArray(resource.DependsOn)
-      ? resource.DependsOn
-      : resource.DependsOn
-        ? [resource.DependsOn]
-        : [],
+    dependsOn: normalizeDependsOn(resource.DependsOn),
     imports: extractImportValues(resource),
     removalPolicy: mapDeletionPolicy(resource.DeletionPolicy),
     condition: resource.Condition,
     updatePolicy: resource.UpdatePolicy ? JSON.stringify(resource.UpdatePolicy) : undefined,
     creationPolicy: resource.CreationPolicy ? JSON.stringify(resource.CreationPolicy) : undefined,
   };
+}
+
+/**
+ * Normalize DependsOn to always be an array
+ */
+function normalizeDependsOn(dependsOn: unknown): string[] {
+  if (Array.isArray(dependsOn)) return dependsOn;
+  if (dependsOn) return [dependsOn as string];
+  return [];
 }
 
 /**
@@ -204,7 +207,12 @@ function extractImportValues(resource: any): string[] {
   function walk(obj: any) {
     if (obj === null || obj === undefined) return;
 
-    if (typeof obj === 'object') {
+    // Check array first since Array.isArray is more specific than typeof === 'object'
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        walk(item);
+      }
+    } else if (typeof obj === 'object') {
       if ('Fn::ImportValue' in obj) {
         const importRef = obj['Fn::ImportValue'];
         if (typeof importRef === 'string') {
@@ -216,10 +224,6 @@ function extractImportValues(resource: any): string[] {
 
       for (const value of Object.values(obj)) {
         walk(value);
-      }
-    } else if (Array.isArray(obj)) {
-      for (const item of obj) {
-        walk(item);
       }
     }
   }
@@ -257,8 +261,8 @@ function stripStackPrefix(path: string, stackId: string): string {
   }
 
   // Strip /Resource suffix (common CDK L2 pattern)
-  if (result.endsWith('/Resource')) {
-    result = result.slice(0, -9);
+  if (result.endsWith(RESOURCE_SUFFIX)) {
+    result = result.slice(0, -RESOURCE_SUFFIX.length);
   }
 
   return result;
