@@ -5,6 +5,7 @@ import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
+import { JsPackageManager } from '../../lib/commands/init/package-manager';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
@@ -1353,7 +1354,7 @@ describe('constructs version', () => {
           ioHelper,
           type: 'app',
           language,
-          packageManager: packageManager as any,
+          packageManager: packageManager as JsPackageManager,
           canUseNetwork: true,
           generateOnly: false,
           workDir,
@@ -1382,7 +1383,7 @@ describe('constructs version', () => {
         ioHelper,
         type: 'app',
         language: 'python',
-        packageManager: 'yarn' as any,
+        packageManager: 'yarn' as JsPackageManager,
         canUseNetwork: false,
         generateOnly: true,
         workDir,
