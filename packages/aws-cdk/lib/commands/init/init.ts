@@ -10,6 +10,7 @@ import { versionNumber } from '../../cli/version';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
+import { JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -75,6 +76,13 @@ export interface CliInitOptions {
    * @default undefined
    */
   readonly templatePath?: string;
+
+  /**
+   * The package manager to use for installing dependencies.
+   * Only applicable for TypeScript and JavaScript projects.
+   * @default undefined
+   */
+  readonly packageManager?: JsPackageManager;
 
   readonly ioHelper: IoHelper;
 }
@@ -653,6 +661,7 @@ async function initializeProject(
   stackName?: string,
   migrate?: boolean,
   cdkVersion?: string,
+  packageManager?: JsPackageManager,
 ) {
   // Step 1: Ensure target directory is empty
   await assertIsEmptyDirectory(workDir);
@@ -675,7 +684,7 @@ async function initializeProject(
     await initializeGitRepository(ioHelper, workDir);
 
     // Step 4: Post-install steps
-    await postInstall(ioHelper, language, canUseNetwork, workDir);
+    await postInstall(ioHelper, language, canUseNetwork, workDir, packageManager);
   }
 
   await ioHelper.defaults.info('✅ All done!');
@@ -728,12 +737,12 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
   }
 }
 
-async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: boolean, workDir: string) {
+async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: boolean, workDir: string, packageManager?: JsPackageManager) {
   switch (language) {
     case 'javascript':
-      return postInstallJavascript(ioHelper, canUseNetwork, workDir);
+      return postInstallJavascript(ioHelper, canUseNetwork, workDir, packageManager);
     case 'typescript':
-      return postInstallTypescript(ioHelper, canUseNetwork, workDir);
+      return postInstallTypescript(ioHelper, canUseNetwork, workDir, packageManager);
     case 'java':
       return postInstallJava(ioHelper, canUseNetwork, workDir);
     case 'python':
@@ -747,12 +756,12 @@ async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: 
   }
 }
 
-async function postInstallJavascript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
-  return postInstallTypescript(ioHelper, canUseNetwork, cwd);
+async function postInstallJavascript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string, packageManager?: JsPackageManager) {
+  return postInstallTypescript(ioHelper, canUseNetwork, cwd, packageManager);
 }
 
-async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
-  const command = 'npm';
+async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string, packageManager?: JsPackageManager) {
+  const command = packageManager ?? 'npm';
 
   if (!canUseNetwork) {
     await ioHelper.defaults.warn(`Please run '${command} install'!`);
