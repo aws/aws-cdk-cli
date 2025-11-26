@@ -4,8 +4,8 @@ import { CliHelpers, type CliConfig } from '@aws-cdk/user-input-gen';
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import { StackActivityProgress } from '../commands/deploy';
 import { availableInitLanguages } from '../commands/init';
-import { getLanguageAlias } from '../commands/language';
 import { JS_PACKAGE_MANAGERS } from '../commands/init/package-manager';
+import { getLanguageAlias } from '../commands/language';
 
 export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
 

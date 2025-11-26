@@ -1338,6 +1338,73 @@ describe('constructs version', () => {
     // cdk.json should not exist since template didn't have one
     expect(await fs.pathExists(path.join(projectDir, 'cdk.json'))).toBeFalsy();
   });
+
+  describe('package-manager option', () => {
+    test.each([
+      ['typescript', 'npm', 'package-lock.json'],
+      ['typescript', 'yarn', 'yarn.lock'],
+      ['typescript', 'pnpm', 'pnpm-lock.yaml'],
+      ['javascript', 'npm', 'package-lock.json'],
+      ['javascript', 'yarn', 'yarn.lock'],
+      ['javascript', 'pnpm', 'pnpm-lock.yaml'],
+    ])('creates %s project with %s (verifying %s)', async (language, packageManager, lockFile) => {
+      // Check if the package manager is available
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      try {
+        await execAsync(`${packageManager} --version`);
+      } catch {
+        // Skip test if package manager is not installed
+        console.log(`Skipping test: ${packageManager} is not installed`);
+        return;
+      }
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language,
+          packageManager: packageManager as any,
+          canUseNetwork: true,
+          generateOnly: false,
+          workDir,
+        });
+
+        // Verify that the correct lock file was created
+        expect(await fs.pathExists(path.join(workDir, lockFile))).toBeTruthy();
+        expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+      });
+    });
+
+    cliTest('uses npm as default when package manager not specified', async (workDir) => {
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    });
+
+    cliTest('ignores package manager option for non-JavaScript languages', async (workDir) => {
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'python',
+        packageManager: 'yarn' as any,
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'requirements.txt'))).toBeTruthy();
+    });
+  });
 });
 
 test('when no version number is present (e.g., local development), the v2 templates are chosen by default', async () => {

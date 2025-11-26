@@ -10,7 +10,7 @@ import { versionNumber } from '../../cli/version';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
-import { JsPackageManager } from './package-manager';
+import type { JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -124,6 +124,7 @@ export async function cliInit(options: CliInitOptions) {
     options.stackName,
     options.migrate,
     options.libVersion,
+    options.packageManager,
   );
 }
 
