@@ -89,6 +89,12 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: 'Show detailed information for a specific resource by logical ID',
             requiresArg: true,
           },
+          'ignore-case': {
+            type: 'boolean',
+            alias: 'i',
+            default: false,
+            desc: 'Use case-insensitive matching for stack name patterns',
+          },
         },
       },
       'synth': {

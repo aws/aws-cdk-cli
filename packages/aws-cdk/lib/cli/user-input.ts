@@ -414,6 +414,15 @@ export interface ResourcesOptions {
   readonly explain?: string;
 
   /**
+   * Use case-insensitive matching for stack name patterns
+   *
+   * aliases: i
+   *
+   * @default - false
+   */
+  readonly ignoreCase?: boolean;
+
+  /**
    * Positional argument for resources
    */
   readonly STACKS?: Array<string>;

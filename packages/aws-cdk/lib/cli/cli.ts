@@ -304,6 +304,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           all: args.all,
           type: args.type,
           explain: args.explain,
+          ignoreCase: args.ignoreCase,
         });
 
       case 'diff':

@@ -54,6 +54,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         all: args.all,
         type: args.type,
         explain: args.explain,
+        ignoreCase: args.ignoreCase,
         STACKS: args.STACKS,
       };
       break;
@@ -366,6 +367,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     all: config.resources?.all,
     type: config.resources?.type,
     explain: config.resources?.explain,
+    ignoreCase: config.resources?.ignoreCase,
   };
   const synthOptions = {
     exclusively: config.synth?.exclusively,

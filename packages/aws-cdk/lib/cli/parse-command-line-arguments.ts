@@ -208,6 +208,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Show detailed information for a specific resource by logical ID',
           requiresArg: true,
+        })
+        .option('ignore-case', {
+          default: false,
+          type: 'boolean',
+          alias: 'i',
+          desc: 'Use case-insensitive matching for stack name patterns',
         }),
     )
     .command(['synth [STACKS..]', 'synthesize [STACKS..]'], 'Synthesizes and prints the CloudFormation template for this stack', (yargs: Argv) =>

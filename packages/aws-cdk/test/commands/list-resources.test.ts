@@ -365,6 +365,44 @@ describe('listResources', () => {
     expect(s3Resources[0].type).toBe('AWS::S3::Bucket');
   });
 
+  test('matches stack names case-insensitively with ignoreCase option', async () => {
+    const cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'WebhookDeliveryStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+              Metadata: { 'aws:cdk:path': 'WebhookDeliveryStack/MyBucket/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: cloudFormation,
+    });
+
+    // Without ignoreCase - lowercase pattern should NOT match
+    const noMatchResources = await listResources(toolkit, { selectors: ['webhookdeliverystack'] });
+    expect(noMatchResources).toHaveLength(0);
+
+    // With ignoreCase - lowercase pattern SHOULD match
+    const matchResources = await listResources(toolkit, { selectors: ['webhookdeliverystack'], ignoreCase: true });
+    expect(matchResources).toHaveLength(1);
+    expect(matchResources[0].stackId).toBe('WebhookDeliveryStack');
+
+    // With ignoreCase - wildcard pattern should match case-insensitively
+    const wildcardResources = await listResources(toolkit, { selectors: ['webhook*'], ignoreCase: true });
+    expect(wildcardResources).toHaveLength(1);
+    expect(wildcardResources[0].stackId).toBe('WebhookDeliveryStack');
+  });
+
   test('hides Lambda::Permission by default', async () => {
     const cloudExecutable = await MockCloudExecutable.create({
       stacks: [{

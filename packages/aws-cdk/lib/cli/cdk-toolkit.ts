@@ -1050,7 +1050,7 @@ export class CdkToolkit {
    */
   public async resources(
     selectors: string[],
-    options: { json?: boolean; long?: boolean; all?: boolean; type?: string; explain?: string } = {},
+    options: { json?: boolean; long?: boolean; all?: boolean; type?: string; explain?: string; ignoreCase?: boolean } = {},
   ): Promise<number> {
     const io = this.ioHost.asIoHelper();
 
@@ -1059,6 +1059,7 @@ export class CdkToolkit {
       const resource = await explainResource(this, {
         selectors,
         logicalId: options.explain,
+        ignoreCase: options.ignoreCase,
       });
 
       if (!resource) {
@@ -1070,7 +1071,7 @@ export class CdkToolkit {
     }
 
     // List all resources (with optional type filter)
-    const resources = await listResources(this, { selectors, type: options.type, all: options.all });
+    const resources = await listResources(this, { selectors, type: options.type, all: options.all, ignoreCase: options.ignoreCase });
 
     if (resources.length === 0) {
       if (options.type) {

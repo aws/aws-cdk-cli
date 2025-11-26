@@ -1,4 +1,5 @@
 import type { ResourceDetails, ResourceExplainDetails } from '@aws-cdk/toolkit-lib';
+import { minimatch } from 'minimatch';
 import type { CdkToolkit } from '../cli/cdk-toolkit';
 import { DefaultSelection, ExtendedStackSelection } from '../cxapp';
 
@@ -29,6 +30,11 @@ export interface ListResourcesOptions {
    * Include all resources (including hidden types like Lambda::Permission)
    */
   readonly all?: boolean;
+
+  /**
+   * Use case-insensitive matching for stack name patterns
+   */
+  readonly ignoreCase?: boolean;
 }
 
 /**
@@ -40,8 +46,11 @@ export async function listResources(
 ): Promise<ResourceDetails[]> {
   const assembly = await toolkit.assembly();
 
+  // When ignoreCase is true, we get all stacks and filter manually with case-insensitive matching
+  const useManualFiltering = options.ignoreCase && options.selectors.length > 0;
+
   const stacks = await assembly.selectStacks(
-    { patterns: options.selectors },
+    { patterns: useManualFiltering ? [] : options.selectors },
     {
       extend: ExtendedStackSelection.None,
       defaultBehavior: DefaultSelection.AllStacks,
@@ -52,9 +61,22 @@ export async function listResources(
     return [];
   }
 
+  // Filter stacks manually when using case-insensitive matching
+  let stackArtifacts = stacks.stackArtifacts;
+  if (useManualFiltering) {
+    stackArtifacts = stackArtifacts.filter(stack =>
+      options.selectors.some(pattern =>
+        minimatch(stack.hierarchicalId, pattern, { nocase: true }),
+      ),
+    );
+    if (stackArtifacts.length === 0) {
+      return [];
+    }
+  }
+
   const resources: ResourceDetails[] = [];
 
-  for (const stack of stacks.stackArtifacts) {
+  for (const stack of stackArtifacts) {
     const template = stack.template;
     const templateResources = template.Resources ?? {};
 
@@ -112,11 +134,14 @@ export async function explainResource(
 ): Promise<ResourceExplainDetails | undefined> {
   const assembly = await toolkit.assembly();
 
+  // When ignoreCase is true, we get all stacks and filter manually with case-insensitive matching
+  const useManualFiltering = options.ignoreCase && options.selectors.length > 0;
+
   const stacks = await assembly.selectStacks(
-    { patterns: options.selectors },
+    { patterns: useManualFiltering ? [] : options.selectors },
     {
       extend: ExtendedStackSelection.None,
-      defaultBehavior: DefaultSelection.OnlySingle,
+      defaultBehavior: useManualFiltering ? DefaultSelection.AllStacks : DefaultSelection.OnlySingle,
     },
   );
 
@@ -124,7 +149,23 @@ export async function explainResource(
     return undefined;
   }
 
-  const stack = stacks.firstStack;
+  // Filter stacks manually when using case-insensitive matching
+  let stack = stacks.firstStack;
+  if (useManualFiltering) {
+    const matchingStacks = stacks.stackArtifacts.filter(s =>
+      options.selectors.some(pattern =>
+        minimatch(s.hierarchicalId, pattern, { nocase: true }),
+      ),
+    );
+    if (matchingStacks.length === 0) {
+      return undefined;
+    }
+    if (matchingStacks.length > 1) {
+      throw new Error(`--explain requires exactly one stack, but found ${matchingStacks.length} matching stacks`);
+    }
+    stack = matchingStacks[0];
+  }
+
   const template = stack.template;
   const resource = template.Resources?.[options.logicalId] as any;
 
