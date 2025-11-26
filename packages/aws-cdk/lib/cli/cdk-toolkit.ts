@@ -1082,7 +1082,20 @@ export class CdkToolkit {
     }
 
     if (options.json) {
-      await printSerializedObject(io, resources, true);
+      // Group resources by stack for cleaner JSON output
+      const byStack = new Map<string, typeof resources>();
+      for (const r of resources) {
+        const list = byStack.get(r.stackId) ?? [];
+        list.push(r);
+        byStack.set(r.stackId, list);
+      }
+
+      const groupedOutput = [...byStack.entries()].map(([stackId, stackResources]) => ({
+        stackId,
+        resources: stackResources.map(({ stackId: _, ...rest }) => rest),
+      }));
+
+      await printSerializedObject(io, groupedOutput, true);
       return 0;
     }
 

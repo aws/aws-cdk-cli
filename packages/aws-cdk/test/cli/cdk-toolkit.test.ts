@@ -271,8 +271,11 @@ describe('resources', () => {
     const jsonOutput = resultCalls[0][0].message;
     const parsed = JSON.parse(jsonOutput);
     expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed[0]).toHaveProperty('logicalId', 'MyBucket');
-    expect(parsed[0]).toHaveProperty('type', 'AWS::S3::Bucket');
+    expect(parsed[0]).toHaveProperty('stackId', 'ResourceStack');
+    expect(parsed[0].resources[0]).toHaveProperty('logicalId', 'MyBucket');
+    expect(parsed[0].resources[0]).toHaveProperty('type', 'AWS::S3::Bucket');
+    // stackId should not be on individual resources
+    expect(parsed[0].resources[0]).not.toHaveProperty('stackId');
   });
 
   test('lists resources in long mode', async () => {
@@ -485,7 +488,8 @@ describe('resources', () => {
     const jsonOutput = resultCalls[0][0].message;
     const parsed = JSON.parse(jsonOutput);
     expect(parsed).toHaveLength(1);
-    expect(parsed[0].type).toBe('AWS::Lambda::Function');
+    expect(parsed[0].resources).toHaveLength(1);
+    expect(parsed[0].resources[0].type).toBe('AWS::Lambda::Function');
   });
 
   test('hides Lambda::Permission by default', async () => {
@@ -526,7 +530,8 @@ describe('resources', () => {
     const jsonOutput = resultCalls[0][0].message;
     const parsed = JSON.parse(jsonOutput);
     expect(parsed).toHaveLength(1);
-    expect(parsed[0].type).toBe('AWS::Lambda::Function');
+    expect(parsed[0].resources).toHaveLength(1);
+    expect(parsed[0].resources[0].type).toBe('AWS::Lambda::Function');
   });
 
   test('shows Lambda::Permission with --all flag', async () => {
@@ -566,7 +571,8 @@ describe('resources', () => {
     const resultCalls = notifySpy.mock.calls.filter(([msg]: [any]) => msg.level === 'result');
     const jsonOutput = resultCalls[0][0].message;
     const parsed = JSON.parse(jsonOutput);
-    expect(parsed).toHaveLength(2);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].resources).toHaveLength(2);
   });
 });
 
