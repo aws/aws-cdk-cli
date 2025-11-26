@@ -10,6 +10,7 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
+import * as picomatch from 'picomatch';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
@@ -917,6 +918,17 @@ export class CdkToolkit {
 
     const stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
 
+    await this.suggestStacks({
+      selector: options.selector,
+      stacks,
+      exclusively: options.exclusively,
+    });
+
+    if (stacks.stackArtifacts.length === 0) {
+      await this.ioHost.asIoHelper().defaults.warn(`No stacks match the name(s): ${chalk.red(options.selector.patterns.join(', '))}`);
+      return;
+    }
+
     if (!options.force) {
       const motivation = 'Destroying stacks is an irreversible action';
       const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
@@ -1317,6 +1329,51 @@ export class CdkToolkit {
     // No validation
 
     return stacks;
+  }
+
+  private async suggestStacks(props: {
+    selector: StackSelector;
+    stacks: StackCollection;
+    exclusively: boolean;
+  }) {
+    if (props.selector.patterns.length === 0) {
+      return;
+    }
+
+    const assembly = await this.assembly();
+    const selectorWithoutPatterns: StackSelector = {
+      patterns: [],
+    };
+    const stacksWithoutPatterns = await assembly.selectStacks(selectorWithoutPatterns, {
+      extend: props.exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
+      defaultBehavior: DefaultSelection.AllStacks,
+    });
+
+    const patterns = props.selector.patterns.map(pattern => {
+      const notExist = !props.stacks.stackArtifacts.find(stack =>
+        picomatch.isMatch(stack.hierarchicalId, pattern),
+      );
+
+      const closelyMatched = notExist ? stacksWithoutPatterns.stackArtifacts.map(stack => {
+        if (picomatch.isMatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase())) {
+          return stack.hierarchicalId;
+        }
+        return;
+      }).filter((stack): stack is string => stack !== undefined) : [];
+
+      return {
+        pattern,
+        notExist,
+        closelyMatched,
+      };
+    });
+
+    for (const pattern of patterns) {
+      if (pattern.notExist) {
+        const closelyMatched = pattern.closelyMatched.length > 0 ? ` Do you mean ${chalk.blue(pattern.closelyMatched.join(', '))}?` : '';
+        await this.ioHost.asIoHelper().defaults.warn(`${chalk.red(pattern.pattern)} does not exist.${closelyMatched}`);
+      }
+    }
   }
 
   /**
