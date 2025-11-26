@@ -407,6 +407,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
+          'package-manager': { type: 'string', desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects.', choices: ['npm', 'yarn', 'pnpm'] },
         },
         implies: { 'template-path': 'from-path' },
       },
