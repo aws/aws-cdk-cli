@@ -182,7 +182,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Display stack dependency information for each stack',
         }),
     )
-    .command('resources [STACK]', 'Lists all CloudFormation resources in a stack', (yargs: Argv) =>
+    .command('resources [STACKS..]', 'Lists all CloudFormation resources in the specified stack(s)', (yargs: Argv) =>
       yargs
         .option('long', {
           default: false,

@@ -298,7 +298,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'resources':
         ioHost.currentAction = 'resources';
-        return cli.resources(args.STACK, {
+        return cli.resources(args.STACKS, {
           json: argv.json,
           long: args.long,
           all: args.all,

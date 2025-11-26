@@ -1046,23 +1046,23 @@ export class CdkToolkit {
   }
 
   /**
-   * List all resources in a stack
+   * List all resources in the specified stack(s)
    */
   public async resources(
-    selector: string,
+    selectors: string[],
     options: { json?: boolean; long?: boolean; all?: boolean; type?: string; explain?: string } = {},
   ): Promise<number> {
     const io = this.ioHost.asIoHelper();
 
-    // Handle --explain mode
+    // Handle --explain mode (requires single stack)
     if (options.explain) {
       const resource = await explainResource(this, {
-        selector,
+        selectors,
         logicalId: options.explain,
       });
 
       if (!resource) {
-        throw new ToolkitError(`Resource '${options.explain}' not found in stack '${selector}'`);
+        throw new ToolkitError(`Resource '${options.explain}' not found`);
       }
 
       await printSerializedObject(io, resource, options.json ?? false);
@@ -1070,13 +1070,13 @@ export class CdkToolkit {
     }
 
     // List all resources (with optional type filter)
-    const resources = await listResources(this, { selector, type: options.type, all: options.all });
+    const resources = await listResources(this, { selectors, type: options.type, all: options.all });
 
     if (resources.length === 0) {
       if (options.type) {
-        await io.defaults.info(`No resources of type '${options.type}' found in stack`);
+        await io.defaults.info(`No resources of type '${options.type}' found`);
       } else {
-        await io.defaults.info('No resources found in stack');
+        await io.defaults.info('No resources found');
       }
       return 0;
     }
@@ -1134,15 +1134,44 @@ export class CdkToolkit {
       return 0;
     }
 
-    // Default: Summary mode - just show counts by type
-    const lines: string[] = [];
-    lines.push(`${chalk.bold(selector)}: ${resources.length} resources`);
-    lines.push('');
+    // Default: Summary mode - show counts by type, grouped by stack
+    const byStack = new Map<string, typeof resources>();
+    for (const r of resources) {
+      const list = byStack.get(r.stackId) ?? [];
+      list.push(r);
+      byStack.set(r.stackId, list);
+    }
 
-    for (const [type, typeResources] of sortedTypes) {
-      const shortType = type.replace(/^AWS::/, '');
-      const dots = '.'.repeat(Math.max(1, 45 - shortType.length));
-      lines.push(`${shortType} ${chalk.gray(dots)} ${typeResources.length}`);
+    const lines: string[] = [];
+
+    for (const [stackId, stackResources] of byStack) {
+      if (lines.length > 0) {
+        lines.push(''); // Blank line between stacks
+      }
+
+      lines.push(`${chalk.bold(stackId)}: ${stackResources.length} resources`);
+      lines.push('');
+
+      // Group by type within this stack
+      const stackByType = new Map<string, typeof stackResources>();
+      for (const r of stackResources) {
+        const list = stackByType.get(r.type) ?? [];
+        list.push(r);
+        stackByType.set(r.type, list);
+      }
+
+      // Sort types by count (descending), then alphabetically
+      const stackSortedTypes = [...stackByType.entries()].sort((a, b) => {
+        const countDiff = b[1].length - a[1].length;
+        if (countDiff !== 0) return countDiff;
+        return a[0].localeCompare(b[0]);
+      });
+
+      for (const [type, typeResources] of stackSortedTypes) {
+        const shortType = type.replace(/^AWS::/, '');
+        const dots = '.'.repeat(Math.max(1, 45 - shortType.length));
+        lines.push(`${shortType} ${chalk.gray(dots)} ${typeResources.length}`);
+      }
     }
 
     lines.push('');

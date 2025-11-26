@@ -29,7 +29,7 @@ export interface UserInput {
   readonly list?: ListOptions;
 
   /**
-   * Lists all CloudFormation resources in a stack
+   * Lists all CloudFormation resources in the specified stack(s)
    */
   readonly resources?: ResourcesOptions;
 
@@ -374,7 +374,7 @@ export interface ListOptions {
 }
 
 /**
- * Lists all CloudFormation resources in a stack
+ * Lists all CloudFormation resources in the specified stack(s)
  *
  * @struct
  */
@@ -416,7 +416,7 @@ export interface ResourcesOptions {
   /**
    * Positional argument for resources
    */
-  readonly STACK?: string;
+  readonly STACKS?: Array<string>;
 }
 
 /**

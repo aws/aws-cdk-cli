@@ -61,10 +61,10 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'resources': {
         arg: {
-          name: 'STACK',
-          variadic: false,
+          name: 'STACKS',
+          variadic: true,
         },
-        description: 'Lists all CloudFormation resources in a stack',
+        description: 'Lists all CloudFormation resources in the specified stack(s)',
         options: {
           'long': {
             type: 'boolean',

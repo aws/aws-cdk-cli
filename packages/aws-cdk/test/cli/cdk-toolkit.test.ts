@@ -224,7 +224,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('ResourceStack');
+    const result = await toolkit.resources(['ResourceStack']);
 
     // THEN
     expect(result).toEqual(0);
@@ -261,7 +261,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('ResourceStack', { json: true });
+    const result = await toolkit.resources(['ResourceStack'], { json: true });
 
     // THEN
     expect(result).toEqual(0);
@@ -308,7 +308,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('ResourceStack', { long: true });
+    const result = await toolkit.resources(['ResourceStack'], { long: true });
 
     // THEN
     expect(result).toEqual(0);
@@ -346,7 +346,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('ResourceStack', { explain: 'MyBucket' });
+    const result = await toolkit.resources(['ResourceStack'], { explain: 'MyBucket' });
 
     // THEN
     expect(result).toEqual(0);
@@ -382,7 +382,7 @@ describe('resources', () => {
     });
 
     // WHEN/THEN
-    await expect(toolkit.resources('ResourceStack', { explain: 'NonExistent' }))
+    await expect(toolkit.resources(['ResourceStack'], { explain: 'NonExistent' }))
       .rejects.toThrow("Resource 'NonExistent' not found");
   });
 
@@ -405,7 +405,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('EmptyStack');
+    const result = await toolkit.resources(['EmptyStack']);
 
     // THEN
     expect(result).toEqual(0);
@@ -440,7 +440,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('ResourceStack', { type: 'Lambda' });
+    const result = await toolkit.resources(['ResourceStack'], { type: 'Lambda' });
 
     // THEN
     expect(result).toEqual(0);
@@ -480,7 +480,7 @@ describe('resources', () => {
     });
 
     // WHEN
-    const result = await toolkit.resources('ResourceStack', { type: 'Lambda', json: true });
+    const result = await toolkit.resources(['ResourceStack'], { type: 'Lambda', json: true });
 
     // THEN
     expect(result).toEqual(0);
@@ -522,7 +522,7 @@ describe('resources', () => {
     });
 
     // WHEN - without --all
-    const result = await toolkit.resources('ResourceStack', { json: true });
+    const result = await toolkit.resources(['ResourceStack'], { json: true });
 
     // THEN - should only have 1 resource (Lambda::Permission hidden)
     expect(result).toEqual(0);
@@ -564,7 +564,7 @@ describe('resources', () => {
     });
 
     // WHEN - with --all
-    const result = await toolkit.resources('ResourceStack', { json: true, all: true });
+    const result = await toolkit.resources(['ResourceStack'], { json: true, all: true });
 
     // THEN - should have both resources
     expect(result).toEqual(0);

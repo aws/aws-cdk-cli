@@ -54,7 +54,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         all: args.all,
         type: args.type,
         explain: args.explain,
-        STACK: args.STACK,
+        STACKS: args.STACKS,
       };
       break;
 

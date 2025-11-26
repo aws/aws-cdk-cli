@@ -49,7 +49,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'TestStack' });
+    const resources = await listResources(toolkit, { selectors: ['TestStack'] });
 
     expect(resources).toHaveLength(2);
     expect(resources).toContainEqual(expect.objectContaining({
@@ -63,6 +63,90 @@ describe('listResources', () => {
       constructPath: 'MyFunction',
       dependsOn: ['MyBucket'],
     }));
+  });
+
+  test('lists resources from multiple stacks', async () => {
+    const cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        {
+          stackName: 'ApiStack',
+          template: {
+            Resources: {
+              ApiFunction: {
+                Type: 'AWS::Lambda::Function',
+                Metadata: { 'aws:cdk:path': 'ApiStack/ApiFunction/Resource' },
+              },
+              ApiTable: {
+                Type: 'AWS::DynamoDB::Table',
+                Metadata: { 'aws:cdk:path': 'ApiStack/ApiTable/Resource' },
+              },
+            },
+          },
+          env: 'aws://123456789012/us-east-1',
+        },
+        {
+          stackName: 'StorageStack',
+          template: {
+            Resources: {
+              DataBucket: {
+                Type: 'AWS::S3::Bucket',
+                Metadata: { 'aws:cdk:path': 'StorageStack/DataBucket/Resource' },
+                DeletionPolicy: 'Retain',
+              },
+            },
+          },
+          env: 'aws://123456789012/us-east-1',
+        },
+      ],
+    });
+
+    const toolkit = new CdkToolkit({
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: cloudFormation,
+    });
+
+    // Test explicit multi-stack selection
+    const resources = await listResources(toolkit, { selectors: ['ApiStack', 'StorageStack'] });
+
+    expect(resources).toHaveLength(3);
+    expect(resources).toEqual([
+      expect.objectContaining({
+        stackId: 'ApiStack',
+        logicalId: 'ApiTable',
+        type: 'AWS::DynamoDB::Table',
+        constructPath: 'ApiTable',
+      }),
+      expect.objectContaining({
+        stackId: 'ApiStack',
+        logicalId: 'ApiFunction',
+        type: 'AWS::Lambda::Function',
+        constructPath: 'ApiFunction',
+      }),
+      expect.objectContaining({
+        stackId: 'StorageStack',
+        logicalId: 'DataBucket',
+        type: 'AWS::S3::Bucket',
+        constructPath: 'DataBucket',
+        removalPolicy: 'retain',
+      }),
+    ]);
+
+    // Test wildcard matching multiple stacks
+    const wildcardResources = await listResources(toolkit, { selectors: ['*Stack'] });
+
+    expect(wildcardResources).toHaveLength(3);
+    expect(wildcardResources.map(r => r.stackId)).toEqual(
+      expect.arrayContaining(['ApiStack', 'ApiStack', 'StorageStack']),
+    );
+
+    // Test selecting all stacks (empty selector with DefaultSelection.AllStacks)
+    const allResources = await listResources(toolkit, { selectors: [] });
+
+    expect(allResources).toHaveLength(3);
+    expect(allResources.filter(r => r.stackId === 'ApiStack')).toHaveLength(2);
+    expect(allResources.filter(r => r.stackId === 'StorageStack')).toHaveLength(1);
   });
 
   test('returns empty array for stack with no resources', async () => {
@@ -81,7 +165,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'EmptyStack' });
+    const resources = await listResources(toolkit, { selectors: ['EmptyStack'] });
 
     expect(resources).toHaveLength(0);
   });
@@ -109,7 +193,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'TestStack' });
+    const resources = await listResources(toolkit, { selectors: ['TestStack'] });
 
     expect(resources).toHaveLength(1);
     expect(resources[0].constructPath).toBe('<unknown>');
@@ -147,7 +231,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'TestStack' });
+    const resources = await listResources(toolkit, { selectors: ['TestStack'] });
 
     expect(resources).toHaveLength(1);
     expect(resources[0].imports).toContain('SharedBucketArn');
@@ -193,7 +277,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'TestStack' });
+    const resources = await listResources(toolkit, { selectors: ['TestStack'] });
 
     const retained = resources.find(r => r.logicalId === 'RetainedBucket');
     const deleted = resources.find(r => r.logicalId === 'DeletedBucket');
@@ -235,7 +319,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'TestStack' });
+    const resources = await listResources(toolkit, { selectors: ['TestStack'] });
 
     // Should be sorted: Lambda::Function (A then Z), then S3::Bucket
     expect(resources[0].logicalId).toBe('AFunction');
@@ -271,12 +355,12 @@ describe('listResources', () => {
     });
 
     // Filter for lambda (lowercase)
-    const lambdaResources = await listResources(toolkit, { selector: 'TestStack', type: 'lambda' });
+    const lambdaResources = await listResources(toolkit, { selectors: ['TestStack'], type: 'lambda' });
     expect(lambdaResources).toHaveLength(1);
     expect(lambdaResources[0].type).toBe('AWS::Lambda::Function');
 
     // Filter for S3 (uppercase)
-    const s3Resources = await listResources(toolkit, { selector: 'TestStack', type: 'S3' });
+    const s3Resources = await listResources(toolkit, { selectors: ['TestStack'], type: 'S3' });
     expect(s3Resources).toHaveLength(1);
     expect(s3Resources[0].type).toBe('AWS::S3::Bucket');
   });
@@ -309,12 +393,12 @@ describe('listResources', () => {
     });
 
     // Without --all flag
-    const defaultResources = await listResources(toolkit, { selector: 'TestStack' });
+    const defaultResources = await listResources(toolkit, { selectors: ['TestStack'] });
     expect(defaultResources).toHaveLength(1);
     expect(defaultResources[0].type).toBe('AWS::Lambda::Function');
 
     // With --all flag
-    const allResources = await listResources(toolkit, { selector: 'TestStack', all: true });
+    const allResources = await listResources(toolkit, { selectors: ['TestStack'], all: true });
     expect(allResources).toHaveLength(2);
   });
 
@@ -346,7 +430,7 @@ describe('listResources', () => {
     });
 
     // When filtering by type, hidden types should be included
-    const permissionResources = await listResources(toolkit, { selector: 'TestStack', type: 'Permission' });
+    const permissionResources = await listResources(toolkit, { selectors: ['TestStack'], type: 'Permission' });
     expect(permissionResources).toHaveLength(1);
     expect(permissionResources[0].type).toBe('AWS::Lambda::Permission');
   });
@@ -382,7 +466,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'MyStack' });
+    const resources = await listResources(toolkit, { selectors: ['MyStack'] });
 
     const bucket = resources.find(r => r.logicalId === 'MyBucket');
     const fn = resources.find(r => r.logicalId === 'MyFunction');
@@ -426,7 +510,7 @@ describe('listResources', () => {
       deployments: cloudFormation,
     });
 
-    const resources = await listResources(toolkit, { selector: 'TestStack' });
+    const resources = await listResources(toolkit, { selectors: ['TestStack'] });
 
     const resourceA = resources.find(r => r.logicalId === 'ResourceA');
     const resourceB = resources.find(r => r.logicalId === 'ResourceB');
@@ -479,7 +563,7 @@ describe('explainResource', () => {
     });
 
     const resource = await explainResource(toolkit, {
-      selector: 'TestStack',
+      selectors: ['TestStack'],
       logicalId: 'MyBucket',
     });
 
@@ -507,7 +591,7 @@ describe('explainResource', () => {
     });
 
     const resource = await explainResource(toolkit, {
-      selector: 'TestStack',
+      selectors: ['TestStack'],
       logicalId: 'NonExistent',
     });
 
@@ -551,7 +635,7 @@ describe('explainResource', () => {
     });
 
     const resource = await explainResource(toolkit, {
-      selector: 'TestStack',
+      selectors: ['TestStack'],
       logicalId: 'MyASG',
     });
 
@@ -591,7 +675,7 @@ describe('explainResource', () => {
     // When no stacks match the selector, explainResource returns undefined
     // (The CdkToolkit.resources() method handles throwing the appropriate error)
     const resource = await explainResource(toolkit, {
-      selector: 'NonExistentStack',
+      selectors: ['NonExistentStack'],
       logicalId: 'MyBucket',
     });
 

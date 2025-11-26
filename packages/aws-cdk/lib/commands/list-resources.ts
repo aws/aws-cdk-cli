@@ -16,9 +16,9 @@ const HIDDEN_RESOURCE_TYPES = [
  */
 export interface ListResourcesOptions {
   /**
-   * Stack selector (name or pattern)
+   * Stack selectors (names or patterns)
    */
-  readonly selector: string;
+  readonly selectors: string[];
 
   /**
    * Filter by resource type (e.g., AWS::Lambda::Function)
@@ -32,7 +32,7 @@ export interface ListResourcesOptions {
 }
 
 /**
- * List all resources in a stack
+ * List all resources in the specified stack(s)
  */
 export async function listResources(
   toolkit: CdkToolkit,
@@ -41,10 +41,10 @@ export async function listResources(
   const assembly = await toolkit.assembly();
 
   const stacks = await assembly.selectStacks(
-    { patterns: [options.selector] },
+    { patterns: options.selectors },
     {
       extend: ExtendedStackSelection.None,
-      defaultBehavior: DefaultSelection.OnlySingle,
+      defaultBehavior: DefaultSelection.AllStacks,
     },
   );
 
@@ -104,6 +104,7 @@ export async function listResources(
 
 /**
  * Get detailed information about a specific resource
+ * Note: --explain requires a single stack to be selected
  */
 export async function explainResource(
   toolkit: CdkToolkit,
@@ -112,7 +113,7 @@ export async function explainResource(
   const assembly = await toolkit.assembly();
 
   const stacks = await assembly.selectStacks(
-    { patterns: [options.selector] },
+    { patterns: options.selectors },
     {
       extend: ExtendedStackSelection.None,
       defaultBehavior: DefaultSelection.OnlySingle,
