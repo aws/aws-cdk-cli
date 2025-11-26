@@ -1,11 +1,12 @@
+import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
+import type { JsPackageManager } from '../../lib/commands/init/package-manager';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
-import { JsPackageManager } from '../../lib/commands/init/package-manager';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
@@ -1343,12 +1344,11 @@ describe('constructs version', () => {
   describe('package-manager option', () => {
     let spawnSpy: jest.SpyInstance;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       // Mock child_process.spawn to track which package manager is called
-      spawnSpy = jest.spyOn(require('child_process'), 'spawn').mockImplementation(() => ({
+      spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
         stdout: { on: jest.fn() },
-        stderr: { on: jest.fn() },
-      }));
+      }) as unknown as child_process.ChildProcess);
     });
 
     afterEach(() => {
