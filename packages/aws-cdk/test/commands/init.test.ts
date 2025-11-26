@@ -1383,7 +1383,7 @@ describe('constructs version', () => {
         ioHelper,
         type: 'app',
         language: 'python',
-        packageManager: 'yarn' as JsPackageManager,
+        packageManager: 'yarn',
         canUseNetwork: false,
         generateOnly: true,
         workDir,
