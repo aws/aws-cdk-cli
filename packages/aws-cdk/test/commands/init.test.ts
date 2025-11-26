@@ -1348,19 +1348,6 @@ describe('constructs version', () => {
       ['javascript', 'yarn', 'yarn.lock'],
       ['javascript', 'pnpm', 'pnpm-lock.yaml'],
     ])('creates %s project with %s (verifying %s)', async (language, packageManager, lockFile) => {
-      // Check if the package manager is available
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-
-      try {
-        await execAsync(`${packageManager} --version`);
-      } catch {
-        // Skip test if package manager is not installed
-        console.log(`Skipping test: ${packageManager} is not installed`);
-        return;
-      }
-
       await withTempDir(async (workDir) => {
         await cliInit({
           ioHelper,
@@ -1372,7 +1359,6 @@ describe('constructs version', () => {
           workDir,
         });
 
-        // Verify that the correct lock file was created
         expect(await fs.pathExists(path.join(workDir, lockFile))).toBeTruthy();
         expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
       });
