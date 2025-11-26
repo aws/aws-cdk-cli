@@ -1369,8 +1369,6 @@ describe('constructs version', () => {
           type: 'app',
           language,
           packageManager: packageManager as JsPackageManager,
-          canUseNetwork: true,
-          generateOnly: false,
           workDir,
         });
 
@@ -1386,12 +1384,13 @@ describe('constructs version', () => {
         ioHelper,
         type: 'app',
         language: 'typescript',
-        canUseNetwork: false,
-        generateOnly: true,
         workDir,
       });
 
-      expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+      const installCalls = spawnSpy.mock.calls.filter(
+        ([cmd, args]) => cmd === 'npm' && args.includes('install'),
+      );
+      expect(installCalls.length).toBeGreaterThan(0);
     });
 
     cliTest('ignores package manager option for non-JavaScript languages', async (workDir) => {
