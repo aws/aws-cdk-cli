@@ -54,8 +54,96 @@ jobs:
           path: .projen/*.sh
           overwrite: "true"
           include-hidden-files: true
-  integ_matrix:
+  telemetry_tests:
     needs: prepare
+    runs-on: aws-cdk_ubuntu-latest_16-core
+    permissions:
+      contents: read
+      id-token: write
+    environment: integ-approval
+    env:
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: packages
+      - name: Download scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: script-artifact
+          path: .projen
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: telemetry-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Run telemetry tests
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} telemetry-integ-tests
+      - name: Set workflow summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: logs-telemetry-tests
+          path: logs/
+          overwrite: "true"
+      - name: Append artifact URL
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+  integ_matrix:
+    needs:
+      - prepare
+      - telemetry_tests
     runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: read
@@ -196,6 +284,7 @@ jobs:
   integ:
     needs:
       - prepare
+      - telemetry_tests
       - integ_matrix
     runs-on: aws-cdk_ubuntu-latest_16-core
     permissions: {}
@@ -204,5 +293,5 @@ jobs:
       - name: Integ test result
         run: echo ${{ needs.integ_matrix.result }}
       - name: Set status based on matrix job
-        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.prepare.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_matrix.result)) }}
+        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.prepare.result) && contains(fromJSON('["success", "skipped"]'), needs.telemetry_tests.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_matrix.result)) }}
         run: exit 1

@@ -1,28 +1,20 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withDefaultFixture } from '../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
-  'cdk synth with telemetry and validation error leads to invoke failure',
+  'cdk synth with telemetry data',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
-    const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
-      allowErrExit: true,
-      modEnv: {
-        INTEG_STACK_SET: 'stage-with-errors',
-      },
-    });
-
-    expect(output).toContain('This is an error');
-
+    await fixture.cdk(['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`]);
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth'],
+            path: ['synth', '$STACKS_1'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -45,6 +37,7 @@ integTest(
           state: 'SUCCEEDED',
           eventType: 'SYNTH',
         }),
+        // some of these can change; but we assert that some value is recorded
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
@@ -71,7 +64,7 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth'],
+            path: ['synth', '$STACKS_1'],
             parameters: {
               verbose: 1,
               unstable: '<redacted>',
@@ -91,7 +84,7 @@ integTest(
               context: {},
             },
           }),
-          state: 'FAILED',
+          state: 'SUCCEEDED',
           eventType: 'INVOKE',
         }),
         identifiers: expect.objectContaining({
@@ -116,12 +109,8 @@ integTest(
         duration: {
           total: expect.anything(),
         },
-        error: {
-          name: 'AssemblyError',
-        },
       }),
     ]);
     fs.unlinkSync(telemetryFile);
   }),
 );
-
