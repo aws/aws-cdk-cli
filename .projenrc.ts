@@ -840,7 +840,7 @@ const toolkitLib = configureProject(
       'fast-deep-equal',
       'fs-extra@^9',
       'glob',
-      'minimatch',
+      'minimatch@10.0.1',
       'p-limit@^3',
       'semver',
       'split2',
@@ -907,6 +907,11 @@ const toolkitLib = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
+
+toolkitLib.tasks.tryFind('test')?.updateStep(0, {
+  // https://github.com/aws/aws-sdk-js-v3/issues/7420
+  exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
+});
 
 new TypecheckTests(toolkitLib);
 
@@ -1158,7 +1163,7 @@ const cli = configureProject(
       'enquirer',
       'fs-extra@^9',
       'glob',
-      'minimatch',
+      'minimatch@10.0.1',
       'p-limit@^3',
       'p-queue@^6',
       'promptly',

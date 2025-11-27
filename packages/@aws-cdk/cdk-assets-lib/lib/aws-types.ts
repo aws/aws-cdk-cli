@@ -1368,6 +1368,7 @@ export const ScanStatus = {
   SCAN_ELIGIBILITY_EXPIRED: 'SCAN_ELIGIBILITY_EXPIRED',
   UNSUPPORTED_IMAGE: 'UNSUPPORTED_IMAGE',
   LIMIT_EXCEEDED: 'LIMIT_EXCEEDED',
+  IMAGE_ARCHIVED: 'IMAGE_ARCHIVED',
 } as const;
 
 export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];

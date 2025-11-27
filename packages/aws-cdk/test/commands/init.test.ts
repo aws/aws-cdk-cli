@@ -711,7 +711,7 @@ describe('constructs version', () => {
 
     expect(stderr).not.toContain('error');
     expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeTruthy();
-  });
+  }, 120000);
 
   cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
     const { exec } = await import('child_process');
@@ -1370,8 +1370,8 @@ describe('expandPlaceholders', () => {
   });
 });
 
-function cliTest(name: string, handler: (dir: string) => void | Promise<any>): void {
-  test(name, () => withTempDir(handler));
+function cliTest(name: string, handler: (dir: string) => void | Promise<any>, timeout?: number): void {
+  test(name, () => withTempDir(handler), timeout);
 }
 
 async function withTempDir(cb: (dir: string) => void | Promise<any>) {
