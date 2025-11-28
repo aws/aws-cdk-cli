@@ -590,7 +590,7 @@ export class TestFixture extends ShellHelper {
 
     return this.shell([
       'cdk',
-      ...(verbose ? [`-${'v'.repeat(verboseLevel)}`] : []), // if we set verbose, we get all the logs
+      ...(verbose ? [`-${'v'.repeat(verboseLevel)}`] : []),
       ...args,
     ], {
       ...options,

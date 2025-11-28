@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { integTest, withDefaultFixture } from '../../lib';
+import { TELEMETRY_ENDPOINT } from './constants';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -11,7 +12,7 @@ integTest(
 
     const synthOutput = await fixture.cdk(
       ['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`],
-      { modEnv: { TELEMETRY_ENDPOINT: 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics' }, verboseLevel: 3 }, // trace mode
+      { modEnv: { TELEMETRY_ENDPOINT: TELEMETRY_ENDPOINT }, verboseLevel: 3 }, // trace mode
     );
 
     // Check the trace that telemetry was executed successfully
