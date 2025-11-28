@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { integTest, withDefaultFixture } from '../../lib';
+import { TELEMETRY_ENDPOINT } from './constants';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -12,8 +13,9 @@ integTest(
       allowErrExit: true,
       modEnv: {
         INTEG_STACK_SET: 'stage-with-errors',
+        TELEMETRY_ENDPOINT: TELEMETRY_ENDPOINT,
       },
-      verbose: true, // force trace mode
+      verboseLevel: 3, // trace mode
     });
 
     expect(output).toContain('This is an error');

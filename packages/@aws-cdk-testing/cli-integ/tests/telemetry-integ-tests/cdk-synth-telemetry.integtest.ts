@@ -11,7 +11,7 @@ integTest(
 
     const synthOutput = await fixture.cdk(
       ['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`],
-      { verbose: true }, // force trace mode
+      { modEnv: { TELEMETRY_ENDPOINT: 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics' }, verboseLevel: 3 }, // trace mode
     );
 
     // Check the trace that telemetry was executed successfully
