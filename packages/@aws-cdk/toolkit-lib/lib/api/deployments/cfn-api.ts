@@ -21,6 +21,10 @@ import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
+export interface ValidationReporter {
+  check(description: DescribeChangeSetCommandOutput, changeSetName: string, stackName: string): Promise<void>;
+}
+
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
  *
@@ -103,7 +107,7 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
-  { fetchAll }: { fetchAll: boolean },
+  { fetchAll, validationReporter }: { fetchAll: boolean; validationReporter?: ValidationReporter },
 ): Promise<DescribeChangeSetCommandOutput> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
@@ -120,6 +124,8 @@ export async function waitForChangeSet(
     if (description.Status === ChangeSetStatus.CREATE_COMPLETE || changeSetHasNoChanges(description)) {
       return description;
     }
+
+    await validationReporter?.check(description, changeSetName, stackName);
 
     // eslint-disable-next-line @stylistic/max-len
     throw new ToolkitError(

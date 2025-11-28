@@ -7,6 +7,7 @@ import {
   DeleteChangeSetCommand,
   DeleteStackCommand,
   DescribeChangeSetCommand,
+  DescribeEventsCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
   type ExecuteChangeSetCommandInput,
@@ -761,6 +762,30 @@ test('deployStack reports no change if describeChangeSet returns specific error'
 
   // THEN
   expect(deployResult.type === 'did-deploy-stack' && deployResult.noOp).toEqual(true);
+});
+
+test('deployStack throws error in case of early validation failures', async () => {
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+    Status: ChangeSetStatus.FAILED,
+    StatusReason: '(AWS::EarlyValidation::SomeError). Blah blah blah.',
+  });
+
+  mockCloudFormationClient.on(DescribeEventsCommand).resolves({
+    OperationEvents: [
+      {
+        ValidationStatus: 'FAILED',
+        ValidationStatusReason: 'Resource already exists',
+        ValidationPath: 'Resources/MyResource',
+      },
+    ],
+  });
+
+  await expect(
+    testDeployStack({
+      ...standardDeployStackArguments(),
+    }),
+  ).rejects.toThrow(`While creating the change set, CloudFormation detected errors in the generated templates.
+To see details about these errors, re-bootstrap your environment with 'cdk bootstrap aws://123456789/bermuda-triangle-1337', and run 'cdk deploy' again.`);
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {

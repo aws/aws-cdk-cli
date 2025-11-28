@@ -100,7 +100,7 @@ import type {
   DescribeStackResourceDriftsCommandInput,
   ExecuteStackRefactorCommandInput,
   DescribeStackRefactorCommandInput,
-  CreateStackRefactorCommandOutput, ExecuteStackRefactorCommandOutput,
+  CreateStackRefactorCommandOutput, ExecuteStackRefactorCommandOutput, DescribeEventsCommandOutput, DescribeEventsCommandInput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateListStacks,
@@ -113,6 +113,7 @@ import {
   DeleteChangeSetCommand,
   DeleteGeneratedTemplateCommand,
   DeleteStackCommand,
+  DescribeEventsCommand,
   DescribeChangeSetCommand,
   DescribeGeneratedTemplateCommand,
   DescribeResourceScanCommand,
@@ -434,6 +435,7 @@ export interface ICloudFormationClient {
   deleteChangeSet(input: DeleteChangeSetCommandInput): Promise<DeleteChangeSetCommandOutput>;
   deleteGeneratedTemplate(input: DeleteGeneratedTemplateCommandInput): Promise<DeleteGeneratedTemplateCommandOutput>;
   deleteStack(input: DeleteStackCommandInput): Promise<DeleteStackCommandOutput>;
+  describeEvents(input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput>;
   describeChangeSet(input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput>;
   describeGeneratedTemplate(
     input: DescribeGeneratedTemplateCommandInput,
@@ -710,6 +712,8 @@ export class SDK {
         client.send(new DetectStackDriftCommand(input)),
       detectStackResourceDrift: (input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput> =>
         client.send(new DetectStackResourceDriftCommand(input)),
+      describeEvents: (input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput> =>
+        client.send(new DescribeEventsCommand(input)),
       describeChangeSet: (input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput> =>
         client.send(new DescribeChangeSetCommand(input)),
       describeGeneratedTemplate: (
