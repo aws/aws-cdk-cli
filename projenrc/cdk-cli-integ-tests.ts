@@ -453,7 +453,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
     // Add a job for telemetry tests that runs before the main matrix
     const JOB_TELEMETRY = 'telemetry_tests';
     runTestsWorkflow.addJob(JOB_TELEMETRY, {
-      environment: props.approvalEnvironment,
+      environment: props.testEnvironment,
       runsOn: [props.testRunsOn],
       needs: [JOB_PREPARE],
       permissions: {

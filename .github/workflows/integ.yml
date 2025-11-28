@@ -60,7 +60,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    environment: integ-approval
+    environment: run-tests
     env:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
