@@ -2,10 +2,12 @@ import * as os from 'os';
 import * as fs_path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
+import { validate } from 'jsonschema';
 import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
 import type { IoHelper } from '../api-private';
+import { cdkConfigSchema } from '../schema';
 
 export const PROJECT_CONFIG = 'cdk.json';
 export { PROJECT_CONTEXT } from '../api/context';
@@ -210,6 +212,9 @@ async function settingsFromFile(ioHelper: IoHelper, fileName: string): Promise<S
   const expanded = expandHomeDir(fileName);
   if (await fs.pathExists(expanded)) {
     const data = await fs.readJson(expanded);
+
+    await validateConfigurationFile(data, fileName, ioHelper);
+
     settings = new Settings(data);
   } else {
     settings = new Settings();
@@ -407,4 +412,55 @@ async function parseStringTagsListToObject(
     }
   }
   return tags.length > 0 ? tags : undefined;
+}
+
+/**
+ * Validates configuration data against the CDK JSON Schema
+ * 
+ * @param data - The configuration object to validate
+ * @param fileName - The file name for error reporting
+ * @param ioHelper - IoHelper for logging warnings
+ */
+async function validateConfigurationFile(data: any, fileName: string, ioHelper: IoHelper): Promise<void> {
+  try {
+    const schema = cdkConfigSchema;
+
+    // Validate configuration against jsonschema, log warnings
+    const result = validate(data, schema);
+
+    if (result.errors && result.errors.length > 0) {
+      for (const error of result.errors) {
+        const propertyPath = error.property ? error.property.replace('instance.', '') : 'root';
+
+        // Provide warning messages
+        if (error.name === 'additionalProperties') {
+          await ioHelper.defaults.warning(
+            `Unknown property '${error.argument}' in ${fileName}. This property is not recognized by the CDK CLI.`
+          );
+        } else {
+          await ioHelper.defaults.warning(
+            `Configuration validation warning in ${fileName}: ${error.message} at '${propertyPath}'`
+          );
+        }
+      }
+    }
+
+    // Custom validation for unknown properties
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const knownProperties = Object.keys(schema.properties || {});
+      const configProperties = Object.keys(data);
+      const unknownProperties = configProperties.filter(prop => !knownProperties.includes(prop));
+
+      if (unknownProperties.length > 0) {
+        for (const prop of unknownProperties) {
+          await ioHelper.defaults.warning(
+            `Unknown configuration property '${prop}' in ${fileName}. This property will be preserved but may not be recognized by CDK. ` +
+            `Check for typos in property names.`
+          );
+        }
+      }
+    }
+  } catch (error) {
+    await ioHelper.defaults.debug(`Schema validation failed for ${fileName}: ${error}`);
+  }
 }
