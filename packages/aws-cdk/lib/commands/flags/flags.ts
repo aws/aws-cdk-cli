@@ -1,11 +1,11 @@
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { InteractiveHandler } from './interactive-handler';
+import { OBSOLETE_FLAGS } from './obsolete-flags';
 import { FlagOperations } from './operations';
 import { FlagOperationRouter } from './router';
 import type { FlagOperationsParams } from './types';
 import { FlagValidator } from './validator';
 import type { IoHelper } from '../../api-private';
-import { OBSOLETE_FLAGS } from '../../obsolete-flags';
 
 export class FlagCommandHandler {
   private readonly flags: FeatureFlag[];
