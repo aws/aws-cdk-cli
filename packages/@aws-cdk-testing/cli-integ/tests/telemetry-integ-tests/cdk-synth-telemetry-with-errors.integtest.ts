@@ -13,7 +13,7 @@ integTest(
       modEnv: {
         INTEG_STACK_SET: 'stage-with-errors',
       },
-      options: ['-vvv'], // force trace mode
+      verbose: true, // force trace mode
     });
 
     expect(output).toContain('This is an error');

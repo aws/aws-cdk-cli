@@ -11,7 +11,7 @@ integTest(
 
     const synthOutput = await fixture.cdk(
       ['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`],
-      { options: ['-vvv'] }, // force trace mode
+      { verbose: true }, // force trace mode
     );
 
     // Check the trace that telemetry was executed successfully

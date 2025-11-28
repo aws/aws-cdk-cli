@@ -12,7 +12,7 @@ integTest(
     // Deploy stack while collecting telemetry
     const deployOutput = await fixture.cdkDeploy('test-1', {
       telemetryFile,
-      options: ['-vvv'], // force trace mode
+      verbose: true, // force trace mode
     });
 
     // Check the trace that telemetry was executed successfully
