@@ -34,8 +34,11 @@ interface SnapshotAssembly {
  * the validation of the integration test snapshots
  */
 export class IntegSnapshotRunner extends IntegRunner {
-  constructor(options: IntegRunnerOptions) {
-    super(options);
+  constructor(options: Omit<IntegRunnerOptions, 'region'>) {
+    super({
+      ...options,
+      region: 'unused',
+    });
   }
 
   /**

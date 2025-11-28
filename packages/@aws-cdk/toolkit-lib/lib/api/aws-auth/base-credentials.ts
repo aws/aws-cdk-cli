@@ -92,10 +92,14 @@ export class BaseCredentials {
    */
   public static awsCliCompatible(options: AwsCliCompatibleOptions = {}): IBaseCredentialsProvider {
     return new class implements IBaseCredentialsProvider {
-      public sdkBaseConfig(ioHost: IActionAwareIoHost, clientConfig: SdkBaseClientConfig) {
+      public async sdkBaseConfig(ioHost: IActionAwareIoHost, clientConfig: SdkBaseClientConfig) {
         const ioHelper = IoHelper.fromActionAwareIoHost(ioHost);
         const awsCli = new AwsCliCompatible(ioHelper, clientConfig.requestHandler ?? {}, new IoHostSdkLogger(ioHelper));
-        return awsCli.baseConfig(options.profile);
+
+        const ret = await awsCli.baseConfig(options.profile);
+        return options.defaultRegion
+          ? { ...ret, defaultRegion: options.defaultRegion }
+          : ret;
       }
 
       public toString() {
@@ -140,6 +144,18 @@ export interface AwsCliCompatibleOptions {
    * @default - Use environment variable if set.
    */
   readonly profile?: string;
+
+  /**
+   * Use a different default region than the one in the profile
+   *
+   * If not supplied the environment variable AWS_REGION will be used, or
+   * whatever region is set in the indicated profile in `~/.aws/config`.
+   * If no region is set in the profile the region in `[default]` will
+   * be used.
+   *
+   * @default - Use region from `~/.aws/config`.
+   */
+  readonly defaultRegion?: string;
 }
 
 export interface CustomBaseCredentialsOption {

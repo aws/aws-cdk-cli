@@ -40,7 +40,8 @@ export function parseCliArgs(args: string[] = []) {
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
-    .option('disable-update-workflow', { type: 'boolean', default: false, desc: 'If this is "true" then the stack update workflow will be disabled' })
+    .option('disable-update-workflow', { type: 'boolean', default: undefined, desc: 'DEPRECATED, use --[no]-update-workflow instead' })
+    .option('update-workflow', { type: 'boolean', default: undefined, desc: 'Deploys the committed snapshot before the updated application. Only works if snapshots are region-agnostic.' })
     .option('language', {
       alias: 'l',
       default: ['javascript', 'typescript', 'python', 'go'],
@@ -81,6 +82,12 @@ export function parseCliArgs(args: string[] = []) {
     ? (fs.readFileSync(fromFile, { encoding: 'utf8' })).split('\n').filter(x => x)
     : (tests.length > 0 ? tests : undefined); // 'undefined' means no request
 
+  if (argv['disable-update-workflow'] !== undefined && argv['update-workflow'] !== undefined) {
+    throw new Error('--disable-update-workflow and --[no-]update-workflow cannot be used together');
+  }
+
+  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : !argv['disable-update-workflow'];
+
   return {
     tests: requestedTests,
     app: argv.app as (string | undefined),
@@ -100,7 +107,7 @@ export function parseCliArgs(args: string[] = []) {
     clean: argv.clean as boolean,
     force: argv.force as boolean,
     dryRun: argv['dry-run'] as boolean,
-    disableUpdateWorkflow: argv['disable-update-workflow'] as boolean,
+    updateWorkflow,
     language: arrayFromYargs(argv.language),
     watch: argv.watch as boolean,
     strict: argv.strict as boolean,
@@ -186,7 +193,7 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
         clean: options.clean,
         dryRun: options.dryRun,
         verbosity: options.verbosity,
-        updateWorkflow: !options.disableUpdateWorkflow,
+        updateWorkflow: options.updateWorkflow,
         watch: options.watch,
       });
       testsSucceeded = success;
@@ -237,7 +244,7 @@ function validateWatchArgs(args: {
   maxWorkers: number;
   force: boolean;
   dryRun: boolean;
-  disableUpdateWorkflow: boolean;
+  updateWorkflow: boolean;
   runUpdateOnFailed: boolean;
   watch: boolean;
 }) {
@@ -250,8 +257,8 @@ function validateWatchArgs(args: {
         'to `--profiles` `--parallel-regions` `--max-workers');
     }
 
-    if (args.runUpdateOnFailed || args.disableUpdateWorkflow || args.force || args.dryRun) {
-      logger.warning('args `--update-on-failed`, `--disable-update-workflow`, `--force`, `--dry-run` have no effect when running with `--watch`');
+    if (args.runUpdateOnFailed || args.updateWorkflow || args.force || args.dryRun) {
+      logger.warning('args `--update-on-failed`, `--update-workflow`, `--force`, `--dry-run` have no effect when running with `--watch`');
     }
   }
 }
