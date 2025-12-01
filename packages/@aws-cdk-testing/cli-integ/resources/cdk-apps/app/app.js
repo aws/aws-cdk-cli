@@ -502,6 +502,17 @@ class DriftableStack extends cdk.Stack {
   }
 }
 
+class EarlyValidationStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    new s3.Bucket(this, 'MyBucket', {
+      bucketName: process.env.BUCKET_NAME,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+  }
+}
+
 class IamRolesStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
@@ -971,6 +982,9 @@ switch (stackSet) {
     new MetadataStack(app, `${stackPrefix}-metadata`);
 
     new DriftableStack(app, `${stackPrefix}-driftable`);
+
+    new EarlyValidationStack(app, `${stackPrefix}-early-validation-stack1`);
+    new EarlyValidationStack(app, `${stackPrefix}-early-validation-stack2`);
     break;
 
   case 'stage-using-context':
