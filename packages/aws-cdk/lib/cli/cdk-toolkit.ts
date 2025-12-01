@@ -54,7 +54,6 @@ import {
 } from '../commands/migrate';
 import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
 import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
-import { OBSOLETE_FLAGS } from '../obsolete-flags';
 import {
   deserializeStructure,
   formatErrorMessage,
@@ -68,6 +67,7 @@ import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
+import { FlagOperations } from '../commands/flags/operations';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -2128,12 +2128,9 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
     return;
   }
 
-  const unconfiguredFlags = flags
-    .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
-    .filter(flag => (flag.unconfiguredBehavesLike?.v2 ?? false) !== flag.recommendedValue)
-    .filter(flag => flag.userValue === undefined);
-
+  const unconfiguredFlags = FlagOperations.filterNeedsAttention(flags);
   const numUnconfigured = unconfiguredFlags.length;
+
   if (numUnconfigured > 0) {
     await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
   }

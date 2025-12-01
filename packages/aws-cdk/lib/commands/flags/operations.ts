@@ -7,11 +7,37 @@ import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import PQueue from 'p-queue';
+import { OBSOLETE_FLAGS } from './obsolete-flags';
 import type { FlagOperationsParams } from './types';
 import { StackSelectionStrategy } from '../../api';
 import type { IoHelper } from '../../api-private';
 
 export class FlagOperations {
+  /**
+   * Returns only those feature flags that need configuration
+   *
+   * That is those flags:
+   * - That are unconfigured
+   * - That are not obsolete
+   * - Whose default value is different from the recommended value
+   *
+   * The default value being equal to the recommended value sounds odd, but
+   * crops up in a number of situtations:
+   *
+   * - Security-related fixes that we want to force on people, but want to
+   *   give them a flag to back out of the changes if they really need to.
+   * - Flags that changed their default value in the most recent major
+   *   version.
+   * - Flags that we've introduced at some point in the past, but have gone
+   *   back on.
+   */
+  public static filterNeedsAttention(flags: FeatureFlag[]): FeatureFlag[] {
+    return flags
+      .filter(flag => !OBSOLETE_FLAGS.includes(flag.name))
+      .filter(flag => flag.userValue === undefined)
+      .filter(flag => defaultValue(flag) !== flag.recommendedValue);
+  }
+
   private app: string;
   private baseContextValues: Record<string, any>;
   private allStacks: CloudFormationStackArtifact[];
@@ -86,7 +112,7 @@ export class FlagOperations {
         .map(flag => flag.name);
     } else if (params.all) {
       return this.flags
-        .filter(flag => flag.userValue === undefined || !this.isUserValueEqualToRecommended(flag))
+        .filter(flag => flag.userValue === undefined || !isEffectiveValueEqualToRecommended(flag))
         .filter(flag => this.isBooleanFlag(flag))
         .map(flag => flag.name);
     } else {
@@ -317,7 +343,7 @@ export class FlagOperations {
         }
         const newValue = params.recommended
           ? flag.recommendedValue as boolean
-          : String(flag.unconfiguredBehavesLike?.v2) === 'true';
+          : String(defaultValue(flag)) === 'true';
         updateObj[flagName] = newValue;
       }
     }
@@ -368,10 +394,10 @@ export class FlagOperations {
       await this.ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);
     } else {
       for (const flagName of flagNames) {
-        const flag = this.flags.find(f => f.name === flagName);
+        const flag = this.flags.find(f => f.name === flagName)!;
         const newValue = params.recommended || params.safe
-          ? flag!.recommendedValue as boolean
-          : String(flag!.unconfiguredBehavesLike?.v2) === 'true';
+          ? flag.recommendedValue as boolean
+          : String(defaultValue(flag)) === 'true';
         cdkJson.context[flagName] = newValue;
       }
     }
@@ -387,9 +413,11 @@ export class FlagOperations {
       return;
     }
 
-    const flagsToDisplay = all ? this.flags : this.flags.filter(flag =>
-      flag.userValue === undefined || !this.isUserValueEqualToRecommended(flag));
+    const [flagsToDisplay, header] = all
+      ? [this.flags, 'All feature flags']
+      : [FlagOperations.filterNeedsAttention(this.flags), 'Unconfigured feature flags'];
 
+    await this.ioHelper.defaults.info(header);
     await this.displayFlagTable(flagsToDisplay);
 
     // Add helpful message after empty table when not using --all
@@ -415,18 +443,20 @@ export class FlagOperations {
       await this.ioHelper.defaults.info(`Flag name: ${flag.name}`);
       await this.ioHelper.defaults.info(`Description: ${flag.explanation}`);
       await this.ioHelper.defaults.info(`Recommended value: ${flag.recommendedValue}`);
+      await this.ioHelper.defaults.info(`Default value: ${defaultValue(flag)}`);
       await this.ioHelper.defaults.info(`User value: ${flag.userValue}`);
+      await this.ioHelper.defaults.info(`Effective value: ${effectiveValue(flag)}`);
       return;
     }
 
-    await this.ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagNames.join(', ')}":`);
+    await this.ioHelper.defaults.info(`Found ${matchingFlags.length} flags matching "${flagNames.join(', ')}"`);
     await this.displayFlagTable(matchingFlags);
   }
 
   /** Returns sort order for flags */
   private getFlagSortOrder(flag: FeatureFlag): number {
     if (flag.userValue === undefined) return 3;
-    if (this.isUserValueEqualToRecommended(flag)) return 1;
+    if (isEffectiveValueEqualToRecommended(flag)) return 1;
     return 2;
   }
 
@@ -441,18 +471,19 @@ export class FlagOperations {
       return a.name.localeCompare(b.name);
     });
 
-    const rows: string[][] = [['Feature Flag Name', 'Recommended Value', 'User Value']];
+    const rows: string[][] = [['Feature Flag', 'Recommended', 'User', 'Effective']];
     let currentModule = '';
 
     sortedFlags.forEach((flag) => {
       if (flag.module !== currentModule) {
-        rows.push([chalk.bold(`Module: ${flag.module}`), '', '']);
+        rows.push([chalk.bold(`Module: ${flag.module}`), '', '', '']);
         currentModule = flag.module;
       }
       rows.push([
         `  ${flag.name}`,
         String(flag.recommendedValue),
         flag.userValue === undefined ? '<unset>' : String(flag.userValue),
+        String(effectiveValue(flag)),
       ]);
     });
 
@@ -468,11 +499,6 @@ export class FlagOperations {
       recommended === 'false';
   }
 
-  /** Checks if the user's current value matches the recommended value */
-  private isUserValueEqualToRecommended(flag: FeatureFlag): boolean {
-    return String(flag.userValue) === String(flag.recommendedValue);
-  }
-
   /** Shows helpful usage examples and available command options */
   async displayHelpMessage(): Promise<void> {
     await this.ioHelper.defaults.info('\n' + chalk.bold('Available options:'));
@@ -484,4 +510,23 @@ export class FlagOperations {
     await this.ioHelper.defaults.info('  cdk flags --set <flag-name> --value <true|false>  # Set specific flag');
     await this.ioHelper.defaults.info('  cdk flags --safe            # Safely set flags that don\'t change templates');
   }
+}
+
+/** Checks if the flags current effective value matches the recommended value */
+export function isEffectiveValueEqualToRecommended(flag: FeatureFlag): boolean {
+  return String(effectiveValue(flag)) === String(flag.recommendedValue);
+}
+
+/**
+ * Return the effective value of a flag (user value or default)
+ */
+function effectiveValue(flag: FeatureFlag) {
+  return flag.userValue ?? defaultValue(flag);
+}
+
+/**
+ * Return the default value for a flag, assume it's `false` if not given
+ */
+function defaultValue(flag: FeatureFlag) {
+  return flag.unconfiguredBehavesLike?.v2 ?? false;
 }
