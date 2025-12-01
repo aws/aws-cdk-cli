@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { TELEMETRY_ENDPOINT } from './constants';
+import { integTest, withDefaultFixture } from '../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -10,9 +11,15 @@ integTest(
     const telemetryFile = path.join(fixture.integTestDir, 'telemetry.json');
 
     // Deploy stack while collecting telemetry
-    await fixture.cdkDeploy('test-1', {
+    const deployOutput = await fixture.cdkDeploy('test-1', {
       telemetryFile,
+      verboseLevel: 3, // trace mode
+      modEnv: { TELEMETRY_ENDPOINT: TELEMETRY_ENDPOINT },
     });
+
+    // Check the trace that telemetry was executed successfully
+    expect(deployOutput).toContain('Telemetry Sent Successfully');
+
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({
