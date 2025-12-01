@@ -100,9 +100,14 @@ import type {
   DescribeStackResourceDriftsCommandInput,
   ExecuteStackRefactorCommandInput,
   DescribeStackRefactorCommandInput,
-  CreateStackRefactorCommandOutput, ExecuteStackRefactorCommandOutput, DescribeEventsCommandOutput, DescribeEventsCommandInput,
+  CreateStackRefactorCommandOutput,
+  ExecuteStackRefactorCommandOutput,
+  DescribeEventsCommandOutput,
+  DescribeEventsCommandInput,
 } from '@aws-sdk/client-cloudformation';
 import {
+  paginateDescribeEvents,
+
   paginateListStacks,
   CloudFormationClient,
   ContinueUpdateRollbackCommand,
@@ -142,6 +147,7 @@ import {
   waitUntilStackRefactorCreateComplete,
   waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
+import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
   FilterLogEventsCommandInput,
   FilterLogEventsCommandOutput,
@@ -470,6 +476,7 @@ export interface ICloudFormationClient {
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
+  paginatedDescribeEvents(input: DescribeEventsCommandInput): Promise<OperationEvent[]>;
   createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
   executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
   waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
@@ -776,6 +783,14 @@ export class SDK {
         const paginator = paginateListStacks({ client }, input);
         for await (const page of paginator) {
           stackResources.push(...(page?.StackSummaries || []));
+        }
+        return stackResources;
+      },
+      paginatedDescribeEvents: async (input: DescribeEventsCommandInput): Promise<OperationEvent[]> => {
+        const stackResources = Array<OperationEvent>();
+        const paginator = paginateDescribeEvents({ client }, input);
+        for await (const page of paginator) {
+          stackResources.push(...(page.OperationEvents || []));
         }
         return stackResources;
       },

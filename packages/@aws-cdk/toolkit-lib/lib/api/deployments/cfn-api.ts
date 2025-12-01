@@ -22,7 +22,7 @@ import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
 export interface ValidationReporter {
-  check(description: DescribeChangeSetCommandOutput, changeSetName: string, stackName: string): Promise<void>;
+  report(changeSetName: string, stackName: string): Promise<void>;
 }
 
 /**
@@ -125,12 +125,17 @@ export async function waitForChangeSet(
       return description;
     }
 
-    await validationReporter?.check(description, changeSetName, stackName);
-
-    // eslint-disable-next-line @stylistic/max-len
-    throw new ToolkitError(
-      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${description.StatusReason || 'no reason provided'}`,
-    );
+    if (description.Status === ChangeSetStatus.FAILED && description.StatusReason?.includes('AWS::EarlyValidation')) {
+      await validationReporter?.report(changeSetName, stackName);
+      return description;
+    } else {
+      // eslint-disable-next-line @stylistic/max-len
+      throw new ToolkitError(
+        `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
+          description.StatusReason || 'no reason provided'
+        }`,
+      );
+    }
   });
 
   if (!ret) {

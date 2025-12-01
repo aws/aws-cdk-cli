@@ -35,6 +35,7 @@ import { TestIoHost } from '../../_helpers/test-io-host';
 
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
+let ioHelperWarn: jest.SpyInstance<Promise<void>, [input: string, ...args: unknown[]], any>;
 
 function testDeployStack(options: DeployStackApiOptions) {
   return deployStack(options, ioHelper);
@@ -112,6 +113,7 @@ beforeEach(() => {
   mockCloudFormationClient.on(UpdateTerminationProtectionCommand).resolves({
     StackId: 'stack-id',
   });
+  ioHelperWarn = jest.spyOn(ioHelper.defaults, 'warn');
 });
 
 function standardDeployStackArguments(): DeployStackApiOptions {
@@ -784,8 +786,27 @@ test('deployStack throws error in case of early validation failures', async () =
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow(`While creating the change set, CloudFormation detected errors in the generated templates.
-To see details about these errors, re-bootstrap your environment with 'cdk bootstrap aws://123456789/bermuda-triangle-1337', and run 'cdk deploy' again.`);
+  ).rejects.toThrow(`ChangeSet 'cdk-deploy-change-set' on stack 'withouterrors' failed early validation:
+  - Resource already exists (at Resources/MyResource)`);
+});
+
+test('deployStack warns when it cannot get the events in case of early validation errors', async () => {
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+    Status: ChangeSetStatus.FAILED,
+    StatusReason: '(AWS::EarlyValidation::SomeError). Blah blah blah.',
+  });
+
+  mockCloudFormationClient.on(DescribeEventsCommand).rejectsOnce({
+    message: 'AccessDenied',
+  });
+
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+  });
+
+  expect(ioHelperWarn).toHaveBeenCalledWith(
+    expect.stringContaining('does not have permissions to call the DescribeEvents API'),
+  );
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {

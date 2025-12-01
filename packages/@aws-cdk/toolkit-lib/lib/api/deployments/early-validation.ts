@@ -1,37 +1,34 @@
-import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
-import { ChangeSetStatus, ValidationStatus } from '@aws-sdk/client-cloudformation';
+import type { OperationEvent } from '@aws-sdk/client-cloudformation';
 import type { ValidationReporter } from './cfn-api';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/sdk';
-import type { EnvironmentResources } from '../environment/index';
+import type { IoHelper } from '../io/private';
 
 /**
- * Reports early validation failures from CloudFormation ChangeSets. To determine what the actual error is
- * it needs to call the `DescribeEvents` API, and therefore the deployment role in the bootstrap bucket
- * must have permissions to call that API. This permission was introduced in version 30 of the bootstrap template.
- * If the bootstrap stack is older than that, a special error message is thrown to instruct the user to
- * re-bootstrap.
+ * A ValidationReporter that checks for early validation errors right after
+ * creating the change set. If any are found, it throws an error listing all validation failures.
+ * If the DescribeEvents API call fails (for example, due to insufficient permissions),
+ * it logs a warning instead.
  */
 export class EarlyValidationReporter implements ValidationReporter {
-  constructor(private readonly sdk: SDK, private readonly environmentResources: EnvironmentResources) {
+  constructor(private readonly sdk: SDK, private readonly ioHelper: IoHelper) {
   }
 
-  /**
-   * Checks whether the ChangeSet failed early validation, and if so, throw an error. Otherwise, do nothing.
-   * @param description - the ChangeSet description, resulting from the call to CloudFormation's DescribeChangeSet API
-   * @param changeSetName - the name of the ChangeSet
-   * @param stackName - the name of the stack
-   */
-  public async check(description: DescribeChangeSetCommandOutput, changeSetName: string, stackName: string) {
-    if (description.Status === ChangeSetStatus.FAILED && description.StatusReason?.includes('AWS::EarlyValidation')) {
-      await this.checkBootstrapVersion();
-      const eventsOutput = await this.sdk.cloudFormation().describeEvents({
-        ChangeSetName: changeSetName,
-        StackName: stackName,
-      });
+  public async report(changeSetName: string, stackName: string) {
+    let operationEvents: OperationEvent[] = [];
+    try {
+      operationEvents = await this.getFailedEvents(stackName, changeSetName);
+    } catch (error) {
+      const message =
+        'While creating the change set, CloudFormation detected errors in the generated templates,' +
+        ' but the deployment role does not have permissions to call the DescribeEvents API to retrieve details about these errors.\n' +
+        'To see more details, re-bootstrap your environment, or otherwise ensure that the deployment role has permissions to call the DescribeEvents API.';
 
-      const failures = (eventsOutput.OperationEvents ?? [])
-        .filter((event) => event.ValidationStatus === ValidationStatus.FAILED)
+      await this.ioHelper.defaults.warn(message);
+    }
+
+    if (operationEvents.length > 0) {
+      const failures = operationEvents
         .map((event) => `  - ${event.ValidationStatusReason} (at ${event.ValidationPath})`)
         .join('\n');
 
@@ -40,21 +37,13 @@ export class EarlyValidationReporter implements ValidationReporter {
     }
   }
 
-  private async checkBootstrapVersion() {
-    const environment = this.environmentResources.environment;
-    let bootstrapVersion: number | undefined = undefined;
-    try {
-      // Try to get the bootstrap version
-      bootstrapVersion = (await this.environmentResources.lookupToolkit()).version;
-    } catch (e) {
-      // But if we can't, keep going. Maybe we can still succeed.
-    }
-    if (bootstrapVersion != null && bootstrapVersion < 30) {
-      const env = `aws://${environment.account}/${environment.region}`;
-      throw new ToolkitError(
-        'While creating the change set, CloudFormation detected errors in the generated templates.\n' +
-          `To see details about these errors, re-bootstrap your environment with 'cdk bootstrap ${env}', and run 'cdk deploy' again.`,
-      );
-    }
+  private async getFailedEvents(stackName: string, changeSetName: string) {
+    return this.sdk.cloudFormation().paginatedDescribeEvents({
+      StackName: stackName,
+      ChangeSetName: changeSetName,
+      Filters: {
+        FailedEvents: true,
+      },
+    });
   }
 }
