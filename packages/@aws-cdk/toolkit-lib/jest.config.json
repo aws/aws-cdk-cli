@@ -6,6 +6,7 @@
   ],
   "maxWorkers": "80%",
   "testEnvironment": "./test/_helpers/jest-bufferedconsole.ts",
+  "forceExit": true,
   "coverageThreshold": {
     "global": {
       "statements": 87,
