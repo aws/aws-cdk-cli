@@ -38,7 +38,8 @@ export class VersionCheckTTL {
 
   public async hasExpired(): Promise<boolean> {
     try {
-      const lastCheckTime = (await fs.stat(this.file)).mtimeMs;
+      // const lastCheckTime = (await fs.stat(this.file)).mtimeMs;
+      const lastCheckTime = fs.statSync(this.file).mtimeMs;
       const today = new Date().getTime();
 
       if ((today - lastCheckTime) / 1000 > this.ttlSecs) { // convert ms to sec
