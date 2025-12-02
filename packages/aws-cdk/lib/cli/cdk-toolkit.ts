@@ -34,6 +34,7 @@ import type { Deployments, SuccessfulDeployStackResult } from '../api/deployment
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
+import { listResources, explainResource } from '../commands/list-resources';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -1040,6 +1041,143 @@ export class CdkToolkit {
       await this.ioHost.asIoHelper().defaults.result(stack.id);
     }
     return 0; // exit-code
+  }
+
+  /**
+   * List all resources in the specified stack(s)
+   */
+  public async resources(
+    selectors: string[],
+    options: { json?: boolean; long?: boolean; all?: boolean; type?: string; explain?: string; ignoreCase?: boolean } = {},
+  ): Promise<number> {
+    const io = this.ioHost.asIoHelper();
+
+    // Handle --explain mode (requires single stack)
+    if (options.explain) {
+      const resource = await explainResource(this, {
+        selectors,
+        logicalId: options.explain,
+        ignoreCase: options.ignoreCase,
+      });
+
+      if (!resource) {
+        throw new ToolkitError(`Resource '${options.explain}' not found`);
+      }
+
+      await printSerializedObject(io, resource, options.json ?? false);
+      return 0;
+    }
+
+    // List all resources (with optional type filter)
+    const resources = await listResources(this, { selectors, type: options.type, all: options.all, ignoreCase: options.ignoreCase });
+
+    if (resources.length === 0) {
+      if (options.type) {
+        await io.defaults.info(`No resources of type '${options.type}' found`);
+      } else {
+        await io.defaults.info('No resources found');
+      }
+      return 0;
+    }
+
+    if (options.json) {
+      // Group resources by stack for cleaner JSON output
+      const byStack = new Map<string, typeof resources>();
+      for (const r of resources) {
+        const list = byStack.get(r.stackId) ?? [];
+        list.push(r);
+        byStack.set(r.stackId, list);
+      }
+
+      const groupedOutput = [...byStack.entries()].map(([stackId, stackResources]) => ({
+        stackId,
+        resources: stackResources.map(({ stackId: _, ...rest }) => rest),
+      }));
+
+      await printSerializedObject(io, groupedOutput, true);
+      return 0;
+    }
+
+    // Group resources by type
+    const byType = new Map<string, typeof resources>();
+    for (const r of resources) {
+      const list = byType.get(r.type) ?? [];
+      list.push(r);
+      byType.set(r.type, list);
+    }
+
+    // Sort types by count (descending), then alphabetically
+    const sortedTypes = [...byType.entries()].sort((a, b) => {
+      const countDiff = b[1].length - a[1].length;
+      if (countDiff !== 0) return countDiff;
+      return a[0].localeCompare(b[0]);
+    });
+
+    // Show detailed grouped output if --long or --type filter is used
+    if (options.long || options.type) {
+      const lines: string[] = [];
+
+      for (const [type, typeResources] of sortedTypes) {
+        lines.push('');
+        lines.push(chalk.bold.cyan(`${type} (${typeResources.length})`));
+
+        for (const r of typeResources) {
+          lines.push(`  ${chalk.white(r.logicalId.padEnd(40))} ${chalk.gray(r.constructPath)}`);
+        }
+      }
+
+      lines.push('');
+      lines.push(`${resources.length} resource(s) total`);
+
+      await io.defaults.result(lines.join('\n'));
+      return 0;
+    }
+
+    // Default: Summary mode - show counts by type, grouped by stack
+    const byStack = new Map<string, typeof resources>();
+    for (const r of resources) {
+      const list = byStack.get(r.stackId) ?? [];
+      list.push(r);
+      byStack.set(r.stackId, list);
+    }
+
+    const lines: string[] = [];
+
+    for (const [stackId, stackResources] of byStack) {
+      if (lines.length > 0) {
+        lines.push(''); // Blank line between stacks
+      }
+
+      lines.push(`${chalk.bold(stackId)}: ${stackResources.length} resources`);
+      lines.push('');
+
+      // Group by type within this stack
+      const stackByType = new Map<string, typeof stackResources>();
+      for (const r of stackResources) {
+        const list = stackByType.get(r.type) ?? [];
+        list.push(r);
+        stackByType.set(r.type, list);
+      }
+
+      // Sort types by count (descending), then alphabetically
+      const stackSortedTypes = [...stackByType.entries()].sort((a, b) => {
+        const countDiff = b[1].length - a[1].length;
+        if (countDiff !== 0) return countDiff;
+        return a[0].localeCompare(b[0]);
+      });
+
+      for (const [type, typeResources] of stackSortedTypes) {
+        const shortType = type.replace(/^AWS::/, '');
+        const dots = '.'.repeat(Math.max(1, 45 - shortType.length));
+        lines.push(`${shortType} ${chalk.gray(dots)} ${typeResources.length}`);
+      }
+    }
+
+    lines.push('');
+    lines.push(chalk.gray(`Use ${chalk.white('--long')} for full list, ${chalk.white('--type <TYPE>')} to filter, ${chalk.white('--all')} to include permissions`));
+
+    await io.defaults.result(lines.join('\n'));
+    return 0;
   }
 
   /**
@@ -2170,3 +2308,4 @@ function requiresApproval(requireApproval: RequireApproval, permissionChangeType
   return requireApproval === RequireApproval.ANYCHANGE ||
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }
+

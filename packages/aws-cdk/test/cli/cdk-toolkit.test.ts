@@ -193,6 +193,389 @@ describe('list', () => {
   });
 });
 
+describe('resources', () => {
+  test('lists resources in summary mode by default', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyBucket/Resource' },
+            },
+            MyFunction: {
+              Type: 'AWS::Lambda::Function',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyFunction/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['ResourceStack']);
+
+    // THEN
+    expect(result).toEqual(0);
+    // Summary mode should show stack name and resource count
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'result',
+      message: expect.stringContaining('ResourceStack'),
+    }));
+  });
+
+  test('lists resources in JSON mode', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyBucket/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['ResourceStack'], { json: true });
+
+    // THEN
+    expect(result).toEqual(0);
+    // JSON mode should output parseable JSON
+    const resultCalls = notifySpy.mock.calls.filter(([msg]: [any]) => msg.level === 'result');
+    expect(resultCalls.length).toBeGreaterThan(0);
+    const jsonOutput = resultCalls[0][0].message;
+    const parsed = JSON.parse(jsonOutput);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed[0]).toHaveProperty('stackId', 'ResourceStack');
+    expect(parsed[0].resources[0]).toHaveProperty('logicalId', 'MyBucket');
+    expect(parsed[0].resources[0]).toHaveProperty('type', 'AWS::S3::Bucket');
+    // stackId should not be on individual resources
+    expect(parsed[0].resources[0]).not.toHaveProperty('stackId');
+  });
+
+  test('lists resources in long mode', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyBucket/Resource' },
+            },
+            MyFunction: {
+              Type: 'AWS::Lambda::Function',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyFunction/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['ResourceStack'], { long: true });
+
+    // THEN
+    expect(result).toEqual(0);
+    // Long mode should show resource count
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'result',
+      message: expect.stringContaining('resource(s) total'),
+    }));
+  });
+
+  test('explains a specific resource', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyBucket/Resource' },
+              DeletionPolicy: 'Retain',
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['ResourceStack'], { explain: 'MyBucket' });
+
+    // THEN
+    expect(result).toEqual(0);
+    // Should output the resource details
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'result',
+      message: expect.stringContaining('MyBucket'),
+    }));
+  });
+
+  test('throws error when explaining non-existent resource', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN/THEN
+    await expect(toolkit.resources(['ResourceStack'], { explain: 'NonExistent' }))
+      .rejects.toThrow("Resource 'NonExistent' not found");
+  });
+
+  test('shows info message when no resources found', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'EmptyStack',
+        template: { Resources: {} },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['EmptyStack']);
+
+    // THEN
+    expect(result).toEqual(0);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      message: expect.stringContaining('No resources found'),
+    }));
+  });
+
+  test('shows info message when no resources match type filter', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['ResourceStack'], { type: 'Lambda' });
+
+    // THEN
+    expect(result).toEqual(0);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      message: expect.stringContaining("No resources of type 'Lambda'"),
+    }));
+  });
+
+  test('filters resources by type', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyBucket: {
+              Type: 'AWS::S3::Bucket',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyBucket/Resource' },
+            },
+            MyFunction: {
+              Type: 'AWS::Lambda::Function',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyFunction/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN
+    const result = await toolkit.resources(['ResourceStack'], { type: 'Lambda', json: true });
+
+    // THEN
+    expect(result).toEqual(0);
+    const resultCalls = notifySpy.mock.calls.filter(([msg]: [any]) => msg.level === 'result');
+    const jsonOutput = resultCalls[0][0].message;
+    const parsed = JSON.parse(jsonOutput);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].resources).toHaveLength(1);
+    expect(parsed[0].resources[0].type).toBe('AWS::Lambda::Function');
+  });
+
+  test('hides Lambda::Permission by default', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyFunction: {
+              Type: 'AWS::Lambda::Function',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyFunction/Resource' },
+            },
+            MyPermission: {
+              Type: 'AWS::Lambda::Permission',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyPermission/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN - without --all
+    const result = await toolkit.resources(['ResourceStack'], { json: true });
+
+    // THEN - should only have 1 resource (Lambda::Permission hidden)
+    expect(result).toEqual(0);
+    const resultCalls = notifySpy.mock.calls.filter(([msg]: [any]) => msg.level === 'result');
+    const jsonOutput = resultCalls[0][0].message;
+    const parsed = JSON.parse(jsonOutput);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].resources).toHaveLength(1);
+    expect(parsed[0].resources[0].type).toBe('AWS::Lambda::Function');
+  });
+
+  test('shows Lambda::Permission with --all flag', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{
+        stackName: 'ResourceStack',
+        template: {
+          Resources: {
+            MyFunction: {
+              Type: 'AWS::Lambda::Function',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyFunction/Resource' },
+            },
+            MyPermission: {
+              Type: 'AWS::Lambda::Permission',
+              Metadata: { 'aws:cdk:path': 'ResourceStack/MyPermission/Resource' },
+            },
+          },
+        },
+        env: 'aws://123456789012/us-east-1',
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: instanceMockFrom(Deployments),
+    });
+
+    // WHEN - with --all
+    const result = await toolkit.resources(['ResourceStack'], { json: true, all: true });
+
+    // THEN - should have both resources
+    expect(result).toEqual(0);
+    const resultCalls = notifySpy.mock.calls.filter(([msg]: [any]) => msg.level === 'result');
+    const jsonOutput = resultCalls[0][0].message;
+    const parsed = JSON.parse(jsonOutput);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].resources).toHaveLength(2);
+  });
+});
+
 describe('deploy', () => {
   test('fails when no valid stack names are given', async () => {
     // GIVEN
