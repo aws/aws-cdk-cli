@@ -208,11 +208,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     return await main(cmd, argv);
   } finally {
+    await ioHost.defaults.info('About to release dir lock...');
     // If we locked the 'cdk.out' directory, release it here.
     await outDirLock?.release();
+    await ioHost.defaults.info('dir lock released.');
 
     // Do PSAs here
+    await ioHost.defaults.info('About to display version message...');
     await displayVersionMessage(ioHelper);
+    await ioHost.defaults.info('Version message displayed.');
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -222,7 +226,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         showTotal: argv.unacknowledged,
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
+      await ioHost.defaults.info('About to display notices...');
       await notices.display();
+      await ioHost.defaults.info('Notices displayed.');
     }
   }
 
