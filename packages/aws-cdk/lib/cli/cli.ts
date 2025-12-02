@@ -743,7 +743,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
       try {
         console.log('Ending telemetry...');
         await CliIoHost.get()?.telemetry?.end(error);
-        console.log('Telemetry ended.');
+        console.log(`Telemetry ended: ${new Date()}`);
       } catch (e: any) {
         console.log(`Ending telemetry failed: ${e.message}`);
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);

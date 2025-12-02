@@ -684,6 +684,9 @@ describe('constructs version', () => {
   30_000);
 
   cliTest('unstable flag functionality works correctly', async (workDir) => {
+    /* eslint-disable no-console */
+    console.log(`Test started at ${new Date()}`);
+
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
@@ -716,6 +719,7 @@ describe('constructs version', () => {
         ...execOptions,
       });
     } catch (err: any) {
+      console.log(`Error caught at ${new Date()}`);
       // Print outputs for debugging in CI logs
       // err may include stdout/stderr; include them in the thrown message
       const stdout = err.stdout ?? err?.stdout ?? '';
