@@ -128,6 +128,7 @@
     "semver": "^7.7.3",
     "strip-ansi": "^6",
     "uuid": "^11.1.0",
+    "why-is-node-running": "^3.2.2",
     "wrap-ansi": "^7",
     "yaml": "^1",
     "yargs": "^15"

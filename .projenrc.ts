@@ -1174,6 +1174,8 @@ const cli = configureProject(
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
       'yargs@^15',
+
+      'why-is-node-running',
     ],
     tsconfig: {
       compilerOptions: {
