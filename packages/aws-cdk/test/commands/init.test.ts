@@ -720,7 +720,7 @@ describe('constructs version', () => {
       // err may include stdout/stderr; include them in the thrown message
       const stdout = err.stdout ?? err?.stdout ?? '';
       const stderr = err.stderr ?? err?.stderr ?? '';
-      throw new Error(`cdk init (unstable) failed or timed out. stdout:\n${stdout}\nstderr:\n${stderr}\nerror:${err.message}`);
+      throw new Error(`cdk init (unstable) failed or timed out. stdout:\n${stdout}\nstderr:\n${stderr}\nerror:${err.message}\nsignal: ${err.signal}`);
     }
 
     expect(successfulResult.stderr).not.toContain('error');
