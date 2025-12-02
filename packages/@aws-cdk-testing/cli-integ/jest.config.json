@@ -6,7 +6,6 @@
   ],
   "maxWorkers": "80%",
   "testEnvironment": "node",
-  "forceExit": true,
   "coverageThreshold": {
     "global": {
       "statements": 25,
