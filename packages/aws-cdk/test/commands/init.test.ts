@@ -719,12 +719,11 @@ describe('constructs version', () => {
         ...execOptions,
       });
     } catch (err: any) {
-      console.log(`Error caught at ${new Date()}`);
       // Print outputs for debugging in CI logs
       // err may include stdout/stderr; include them in the thrown message
       const stdout = err.stdout ?? err?.stdout ?? '';
       const stderr = err.stderr ?? err?.stderr ?? '';
-      throw new Error(`cdk init (unstable) failed or timed out. stdout:\n${stdout}\nstderr:\n${stderr}\nerror:${err.message}\nsignal: ${err.signal}`);
+      throw new Error(`cdk init (unstable) failed or timed out. stdout:\n${stdout}\nstderr:\n${stderr}\nerror:${err.message}\nsignal: ${err.signal}\nError caught at ${new Date()}`);
     }
 
     expect(successfulResult.stderr).not.toContain('error');
