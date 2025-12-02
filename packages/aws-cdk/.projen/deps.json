@@ -391,10 +391,6 @@
       "type": "runtime"
     },
     {
-      "name": "why-is-node-running",
-      "type": "runtime"
-    },
-    {
       "name": "wrap-ansi",
       "version": "^7",
       "type": "runtime"

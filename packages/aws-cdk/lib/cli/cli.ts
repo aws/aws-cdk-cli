@@ -1,6 +1,4 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
-
-import whyIsNodeRunning from 'why-is-node-running'; // should be your first import
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
@@ -746,8 +744,6 @@ export function cli(args: string[] = process.argv.slice(2)) {
         console.log('Ending telemetry...');
         await CliIoHost.get()?.telemetry?.end(error);
         console.log(`Telemetry ended: ${new Date()}`);
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        whyIsNodeRunning();
       } catch (e: any) {
         console.log(`Ending telemetry failed: ${e.message}`);
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
