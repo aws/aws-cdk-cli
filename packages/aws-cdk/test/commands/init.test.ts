@@ -697,21 +697,35 @@ describe('constructs version', () => {
     await fs.mkdirp(projectDir1);
     await fs.mkdirp(projectDir2);
 
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' };
+    const execOptions = { timeout: 30_000, killSignal: 9 }; // fail fast if it hangs
+
     // Test that template-path fails WITHOUT --unstable=init flag
     await expect(execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --generate-only`, {
       cwd: projectDir1,
-      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+      env: commonEnv,
+      ...execOptions,
     })).rejects.toThrow();
 
     // Test that template-path succeeds WITH --unstable=init flag
-    const { stderr } = await execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --unstable init --generate-only`, {
-      cwd: projectDir2,
-      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
-    });
+    let successfulResult;
+    try {
+      successfulResult = await execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --unstable init --generate-only`, {
+        cwd: projectDir2,
+        env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+        ...execOptions,
+      });
+    } catch (err: any) {
+      // Print outputs for debugging in CI logs
+      // err may include stdout/stderr; include them in the thrown message
+      const stdout = err.stdout ?? err?.stdout ?? '';
+      const stderr = err.stderr ?? err?.stderr ?? '';
+      throw new Error(`cdk init (unstable) failed or timed out. stdout:\n${stdout}\nstderr:\n${stderr}\nerror:${err.message}`);
+    }
 
-    expect(stderr).not.toContain('error');
+    expect(successfulResult.stderr).not.toContain('error');
     expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeTruthy();
-  }, 120000);
+  });
 
   cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
     const { exec } = await import('child_process');
