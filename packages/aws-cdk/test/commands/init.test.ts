@@ -697,7 +697,7 @@ describe('constructs version', () => {
     await fs.mkdirp(projectDir1);
     await fs.mkdirp(projectDir2);
 
-    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' };
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', TERM: 'dumb', NO_COLOR: '1' };
     const execOptions = { timeout: 30_000, killSignal: 9 }; // fail fast if it hangs
 
     // Test that template-path fails WITHOUT --unstable=init flag
@@ -712,7 +712,7 @@ describe('constructs version', () => {
     try {
       successfulResult = await execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --unstable init --generate-only`, {
         cwd: projectDir2,
-        env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+        env: commonEnv,
         ...execOptions,
       });
     } catch (err: any) {
@@ -725,7 +725,7 @@ describe('constructs version', () => {
 
     expect(successfulResult.stderr).not.toContain('error');
     expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeTruthy();
-  });
+  }, 100_000);
 
   cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
     const { exec } = await import('child_process');
