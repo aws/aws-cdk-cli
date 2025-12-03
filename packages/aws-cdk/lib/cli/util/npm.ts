@@ -1,27 +1,21 @@
-import { exec as _exec } from 'child_process';
-import { promisify } from 'util';
+import { execSync } from 'child_process';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-
-const exec = promisify(_exec);
 
 /* c8 ignore start */
 export async function execNpmView(currentVersion: string) {
   try {
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const [latestResult, currentResult] = await Promise.all([
-      exec('npm view aws-cdk@latest version', { timeout: 3000 }),
-      exec(`npm view aws-cdk@${currentVersion} name version deprecated --json`, { timeout: 3000 }),
-    ]);
+    const latestResult = execSync('npm view aws-cdk@latest version', { timeout: 3000 }).toString();
+    const currentResult = execSync(`npm view aws-cdk@${currentVersion} name version deprecated --json`, { timeout: 3000 }).toString();
 
-    if (latestResult.stderr && latestResult.stderr.trim().length > 0) {
-      throw new ToolkitError(`npm view command for latest version failed: ${latestResult.stderr.trim()}`);
+    if (latestResult && latestResult.trim().length > 0) {
+      throw new ToolkitError(`npm view command for latest version failed: ${latestResult.trim()}`);
     }
-    if (currentResult.stderr && currentResult.stderr.trim().length > 0) {
-      throw new ToolkitError(`npm view command for current version failed: ${currentResult.stderr.trim()}`);
+    if (currentResult && currentResult.trim().length > 0) {
+      throw new ToolkitError(`npm view command for current version failed: ${currentResult.trim()}`);
     }
 
-    const latestVersion = latestResult.stdout;
-    const currentInfo = JSON.parse(currentResult.stdout);
+    const latestVersion = latestResult;
+    const currentInfo = JSON.parse(currentResult);
 
     return {
       latestVersion: latestVersion,
