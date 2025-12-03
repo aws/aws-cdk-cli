@@ -212,7 +212,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    // await displayVersionMessage(ioHelper);
+    await displayVersionMessage(ioHelper);
 
     await refreshNotices;
     if (cmd === 'notices') {
