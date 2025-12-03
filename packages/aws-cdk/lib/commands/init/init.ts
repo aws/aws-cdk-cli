@@ -903,14 +903,17 @@ function isRoot(dir: string) {
 async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }: { cwd: string }) {
   const child = childProcess.spawn(cmd, args, {
     cwd,
-    shell: true,
+    shell: false,
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   let stdout = '';
+  ioHelper.defaults.info(`Spawning child process: ${cmd} ${args.join(' ')}`).catch(() => {
+    /* nothing */ });
   child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
   return new Promise<string>((ok, fail) => {
     child.once('error', (err) => fail(err));
     child.once('close', (status) => {
+      ioHelper.defaults.info(`close event happened (${cmd} ${args.join(' ')})`).catch((err) => fail(err));
       if (status === 0) {
         return ok(stdout);
       } else {
