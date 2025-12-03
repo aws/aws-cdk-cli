@@ -270,28 +270,19 @@ export interface CredentialChainOptions {
 }
 
 export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
-  const destroyAgents = (config: RequestHandlerSettings) => {
-    try {
-      config.httpAgent?.destroy();
-    } catch (_) {
-    }
-    try {
-      config.httpsAgent?.destroy();
-    } catch (_) {
-    }
-  };
+  process.on('beforeExit', () => {
+    // eslint-disable-next-line no-console
+    console.log('Cleaning up SDK resources before exit...');
+    agent?.destroy();
+  });
+  process.on('SIGINT', () => {
+    agent?.destroy(); process.exit();
+  });
 
-  const result = {
+  return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,
     httpsAgent: agent,
     httpAgent: agent,
   };
-
-  process.on('beforeExit', () => destroyAgents(result));
-  process.on('SIGINT', () => {
-    destroyAgents(result); process.exit();
-  });
-
-  return result;
 }
