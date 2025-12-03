@@ -5,7 +5,7 @@ import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
-// import { displayVersionMessage } from './display-version';
+import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -212,7 +212,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    // await displayVersionMessage(ioHelper);
+    await displayVersionMessage(ioHelper);
 
     await refreshNotices;
     if (cmd === 'notices') {
