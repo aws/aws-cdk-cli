@@ -21,9 +21,9 @@
     "projen": "npx projen"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "3.906.0",
-    "@aws-sdk/credential-providers": "3.906.0",
-    "@aws-sdk/lib-storage": "3.906.0",
+    "@aws-sdk/client-s3": "3.910.0",
+    "@aws-sdk/credential-providers": "3.910.0",
+    "@aws-sdk/lib-storage": "3.910.0",
     "@cdklabs/eslint-plugin": "^1.3.5",
     "@stylistic/eslint-plugin": "^3",
     "@types/node": "ts5.9",
