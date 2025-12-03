@@ -6,7 +6,7 @@
     },
     {
       "name": "@aws-sdk/client-s3",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "build"
     },
     {

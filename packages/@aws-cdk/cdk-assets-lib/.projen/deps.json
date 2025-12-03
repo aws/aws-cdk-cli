@@ -144,32 +144,32 @@
     },
     {
       "name": "@aws-sdk/client-ecr",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-s3",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-secrets-manager",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sts",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/lib-storage",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "runtime"
     },
     {

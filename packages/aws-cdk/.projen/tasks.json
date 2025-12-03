@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,node-backpack,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,enquirer,glob,promptly,proxy-agent,semver,uuid"
+          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,node-backpack,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,enquirer,glob,promptly,proxy-agent,semver,uuid"
         }
       ]
     },
@@ -92,8 +92,7 @@
       "name": "eslint",
       "description": "Runs eslint against the codebase",
       "env": {
-        "ESLINT_USE_FLAT_CONFIG": "false",
-        "NODE_NO_WARNINGS": "1"
+        "ESLINT_USE_FLAT_CONFIG": "false"
       },
       "steps": [
         {

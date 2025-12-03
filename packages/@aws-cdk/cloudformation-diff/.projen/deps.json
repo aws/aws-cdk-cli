@@ -100,7 +100,7 @@
     },
     {
       "name": "@aws-sdk/client-cloudformation",
-      "version": "3.916.0",
+      "version": "3.906.0",
       "type": "peer"
     },
     {
