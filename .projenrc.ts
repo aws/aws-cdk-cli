@@ -908,6 +908,11 @@ const toolkitLib = configureProject(
   }),
 );
 
+toolkitLib.tasks.tryFind('test')?.updateStep(0, {
+  // https://github.com/aws/aws-sdk-js-v3/issues/7420
+  exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
+});
+
 new TypecheckTests(toolkitLib);
 
 // API Extractor documentation publishing
