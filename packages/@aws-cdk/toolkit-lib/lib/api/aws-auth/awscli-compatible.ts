@@ -2,7 +2,7 @@ import type { Agent } from 'node:https';
 import { format } from 'node:util';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
-// import { MetadataService } from '@aws-sdk/ec2-metadata-service';
+import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import type { RequestHandlerSettings } from './base-credentials';
 import { makeCachingProvider } from './provider-caching';
@@ -172,21 +172,20 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
-    return 'us-east-1';
-    // await this.ioHelper.defaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
-    // try {
-    //   const metadataService = new MetadataService({
-    //     httpOptions: {
-    //       timeout: 1000,
-    //     },
-    //   });
-    //
-    //   await metadataService.fetchMetadataToken();
-    //   const document = await metadataService.request('/latest/dynamic/instance-identity/document', {});
-    //   return JSON.parse(document).region;
-    // } catch (e) {
-    //   await this.ioHelper.defaults.debug(`Unable to retrieve AWS region from IMDS: ${e}`);
-    // }
+    await this.ioHelper.defaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
+    try {
+      const metadataService = new MetadataService({
+        httpOptions: {
+          timeout: 1000,
+        },
+      });
+
+      await metadataService.fetchMetadataToken();
+      const document = await metadataService.request('/latest/dynamic/instance-identity/document', {});
+      return JSON.parse(document).region;
+    } catch (e) {
+      await this.ioHelper.defaults.debug(`Unable to retrieve AWS region from IMDS: ${e}`);
+    }
   }
 
   /**
