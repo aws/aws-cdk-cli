@@ -910,7 +910,7 @@ async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }:
   child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
   return new Promise<string>((ok, fail) => {
     child.once('error', (err) => fail(err));
-    child.once('exit', (status) => {
+    child.once('close', (status) => {
       if (status === 0) {
         return ok(stdout);
       } else {
