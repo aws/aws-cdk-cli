@@ -270,15 +270,6 @@ export interface CredentialChainOptions {
 }
 
 export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
-  process.on('beforeExit', () => {
-    // eslint-disable-next-line no-console
-    console.log('Cleaning up SDK resources before exit...');
-    agent?.destroy();
-  });
-  process.on('SIGINT', () => {
-    agent?.destroy(); process.exit();
-  });
-
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,
