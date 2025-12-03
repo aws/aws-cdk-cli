@@ -684,9 +684,6 @@ describe('constructs version', () => {
   30_000);
 
   cliTest('unstable flag functionality works correctly', async (workDir) => {
-    /* eslint-disable no-console */
-    console.log(`Test started at ${new Date()}`);
-
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);

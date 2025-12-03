@@ -208,15 +208,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     return await main(cmd, argv);
   } finally {
-    await ioHost.defaults.info('About to release dir lock...');
     // If we locked the 'cdk.out' directory, release it here.
     await outDirLock?.release();
-    await ioHost.defaults.info('dir lock released.');
 
     // Do PSAs here
-    await ioHost.defaults.info('About to display version message...');
     await displayVersionMessage(ioHelper);
-    await ioHost.defaults.info('Version message displayed.');
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -226,9 +222,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         showTotal: argv.unacknowledged,
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
-      await ioHost.defaults.info('About to display notices...');
       await notices.display();
-      await ioHost.defaults.info('Notices displayed.');
     }
   }
 
@@ -717,7 +711,6 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 }
 
 /* c8 ignore start */ // we never call this in unit tests
-/* eslint-disable no-console */
 export function cli(args: string[] = process.argv.slice(2)) {
   let error: ErrorDetails | undefined;
   exec(args)
@@ -725,11 +718,8 @@ export function cli(args: string[] = process.argv.slice(2)) {
       if (typeof value === 'number') {
         process.exitCode = value;
       }
-      console.log(`SUCCESS: ${value}`);
     })
     .catch(async (err) => {
-      console.log('>>>>>>>>>>>>>>>>>>');
-      console.log(err);
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
@@ -737,17 +727,14 @@ export function cli(args: string[] = process.argv.slice(2)) {
         name: cdkCliErrorName(err.name),
       };
       process.exitCode = 1;
-      console.log(error);
     })
     .finally(async () => {
       try {
-        console.log('Ending telemetry...');
         await CliIoHost.get()?.telemetry?.end(error);
-        process.exit();
       } catch (e: any) {
-        console.log(`Ending telemetry failed: ${e.message}`);
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
+      process.exit();
     });
 }
 /* c8 ignore stop */
