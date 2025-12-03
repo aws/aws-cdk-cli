@@ -100,22 +100,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
-  function destroyAgent() {
-    try {
-      proxyAgent.destroy();
-    } catch (_) {
-    }
-  }
-
-  process.on('beforeExit', () => {
-    // eslint-disable-next-line no-console
-    console.log('Cleaning up SDK resources before exit...');
-    destroyAgent();
-  });
-  process.on('SIGINT', () => {
-    destroyAgent(); process.exit();
-  });
-
   if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
     throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
   }
