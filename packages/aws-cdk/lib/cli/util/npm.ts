@@ -1,37 +1,27 @@
-import { execFile as _execFile } from 'child_process';
+import { exec as _exec } from 'child_process';
 import { promisify } from 'util';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 
-const execFile = promisify(_execFile);
+const exec = promisify(_exec);
 
 /* c8 ignore start */
 export async function execNpmView(currentVersion: string) {
   try {
-    // Run the two npm view calls without a shell (avoids extra shell/socket handles).
-    // Provide a timeout and a maxBuffer to ensure the child is killed / doesn't block.
-    const opts = { timeout: 3000, maxBuffer: 10 * 1024 * 1024, windowsHide: true };
-
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const [latestResult, currentResult] = await Promise.all([
-      execFile('npm', ['view', 'aws-cdk@latest', 'version'], opts),
-      execFile('npm', ['view', `aws-cdk@${currentVersion}`, 'name', 'version', 'deprecated', '--json'], opts),
+      exec('npm view aws-cdk@latest version', { timeout: 3000 }),
+      exec(`npm view aws-cdk@${currentVersion} name version deprecated --json`, { timeout: 3000 }),
     ]);
 
-    // execFile returns objects with stdout/stderr as strings
-    const latestStdout = (latestResult as any).stdout ?? '';
-    const latestStderr = (latestResult as any).stderr ?? '';
-    const currentStdout = (currentResult as any).stdout ?? '';
-    const currentStderr = (currentResult as any).stderr ?? '';
-
-    if (latestStderr && latestStderr.trim().length > 0) {
-      throw new ToolkitError(`npm view command for latest version failed: ${latestStderr.trim()}`);
+    if (latestResult.stderr && latestResult.stderr.trim().length > 0) {
+      throw new ToolkitError(`npm view command for latest version failed: ${latestResult.stderr.trim()}`);
     }
-    if (currentStderr && currentStderr.trim().length > 0) {
-      throw new ToolkitError(`npm view command for current version failed: ${currentStderr.trim()}`);
+    if (currentResult.stderr && currentResult.stderr.trim().length > 0) {
+      throw new ToolkitError(`npm view command for current version failed: ${currentResult.stderr.trim()}`);
     }
 
-    const latestVersion = latestStdout;
-    const currentInfo = JSON.parse(currentStdout);
+    const latestVersion = latestResult.stdout;
+    const currentInfo = JSON.parse(currentResult.stdout);
 
     return {
       latestVersion: latestVersion,
