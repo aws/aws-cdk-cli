@@ -742,7 +742,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
     .finally(async () => {
       try {
         console.log('Ending telemetry...');
-        await CliIoHost.get()?.telemetry?.end(error);
+        // await CliIoHost.get()?.telemetry?.end(error);
         console.log(`Telemetry ended: ${new Date()}`);
       } catch (e: any) {
         console.log(`Ending telemetry failed: ${e.message}`);
