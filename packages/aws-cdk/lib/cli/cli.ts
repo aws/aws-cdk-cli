@@ -547,7 +547,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         if (args.status) {
-          return cli.cliTelemetryStatus(args['version-reporting']);
+          return cli.cliTelemetryStatus(args);
         } else {
           const enable = args.enable ?? !args.disable;
           return cli.cliTelemetry(enable);
