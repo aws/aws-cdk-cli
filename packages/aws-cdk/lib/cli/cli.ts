@@ -734,7 +734,12 @@ export function cli(args: string[] = process.argv.slice(2)) {
       } catch (e: any) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
-      process.exit();
+      /* eslint-disable no-console */
+      console.log('-------------------');
+      console.log('handles:', (process as any)._getActiveHandles());
+      console.log('requests:', (process as any)._getActiveRequests());
+      console.log('-------------------\n');
+      // process.exit();
     });
 }
 /* c8 ignore stop */
