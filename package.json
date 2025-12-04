@@ -18,7 +18,8 @@
     "run": "npx projen run",
     "test": "npx projen test",
     "upgrade": "npx projen upgrade",
-    "projen": "npx projen"
+    "projen": "npx projen",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3",
@@ -39,6 +40,7 @@
     "glob": "^11.1.0",
     "jest-junit": "^16",
     "nx": "^20.8.3",
+    "patch-package": "^8.0.1",
     "prettier": "^2.8",
     "projen": "^0.98.26",
     "semver": "^7.7.3",
