@@ -212,6 +212,7 @@ const repoProject = new yarn.Monorepo({
   defaultReleaseBranch: 'main',
   typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
+    'patch-package',
     'cdklabs-projen-project-types',
     'glob',
     'semver',
@@ -287,6 +288,7 @@ const repoProject = new yarn.Monorepo({
     ],
   },
 });
+repoProject.package.setScript('postinstall', 'patch-package');
 
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
