@@ -1,22 +1,35 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { TELEMETRY_ENDPOINT } from './constants';
+import { integTest, withDefaultFixture } from '../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
-  'cdk synth with telemetry data',
+  'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
-    await fixture.cdk(['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`]);
+    const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
+      allowErrExit: true,
+      modEnv: {
+        INTEG_STACK_SET: 'stage-with-errors',
+        TELEMETRY_ENDPOINT: TELEMETRY_ENDPOINT,
+      },
+      verboseLevel: 3, // trace mode
+    });
+
+    expect(output).toContain('This is an error');
+
+    // Check the trace that telemetry was executed successfully despite error in synth
+    expect(output).toContain('Telemetry Sent Successfully');
+
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACKS_1'],
-            parameters: {
-              verbose: 1,
+            path: ['synth'],
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -29,7 +42,7 @@ integTest(
               validation: true,
               quiet: false,
               yes: false,
-            },
+            }),
             config: {
               context: {},
             },
@@ -37,7 +50,6 @@ integTest(
           state: 'SUCCEEDED',
           eventType: 'SYNTH',
         }),
-        // some of these can change; but we assert that some value is recorded
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
@@ -64,9 +76,8 @@ integTest(
       expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
-            path: ['synth', '$STACKS_1'],
-            parameters: {
-              verbose: 1,
+            path: ['synth'],
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -79,12 +90,12 @@ integTest(
               validation: true,
               quiet: false,
               yes: false,
-            },
+            }),
             config: {
               context: {},
             },
           }),
-          state: 'SUCCEEDED',
+          state: 'FAILED',
           eventType: 'INVOKE',
         }),
         identifiers: expect.objectContaining({
@@ -109,8 +120,12 @@ integTest(
         duration: {
           total: expect.anything(),
         },
+        error: {
+          name: 'AssemblyError',
+        },
       }),
     ]);
     fs.unlinkSync(telemetryFile);
   }),
 );
+
