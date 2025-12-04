@@ -12,7 +12,7 @@ it('throws an error when there are failed validation events', async () => {
   const reporter = new EarlyValidationReporter(sdkMock as any, ioHelperMock as any);
 
   await expect(reporter.report('test-change-set', 'test-stack')).rejects.toThrow(
-    "ChangeSet 'test-change-set' on stack 'test-stack' failed early validation:\n  - Resource already exists (at Resources/MyResource)"
+    "ChangeSet 'test-change-set' on stack 'test-stack' failed early validation:\n  - Resource already exists (at Resources/MyResource)",
   );
 });
 
@@ -41,6 +41,6 @@ it('logs a warning when DescribeEvents API call fails', async () => {
   await reporter.report('test-change-set', 'test-stack');
 
   expect(ioHelperMock.defaults.warn).toHaveBeenCalledWith(
-    expect.stringContaining('While creating the change set, CloudFormation detected errors in the generated templates')
+    expect.stringContaining('While creating the change set, CloudFormation detected errors in the generated templates'),
   );
 });
