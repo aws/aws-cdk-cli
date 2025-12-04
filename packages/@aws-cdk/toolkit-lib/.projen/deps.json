@@ -186,107 +186,107 @@
     },
     {
       "name": "@aws-sdk/client-appsync",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-cloudcontrol",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-cloudformation",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-cloudwatch-logs",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-codebuild",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ec2",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecr",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecs",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-elastic-load-balancing-v2",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-iam",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-kms",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-lambda",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-route-53",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-s3",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-secrets-manager",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sfn",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ssm",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sts",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/ec2-metadata-service",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/lib-storage",
-      "version": "3.910.0",
+      "version": "3.908.0",
       "type": "runtime"
     },
     {
