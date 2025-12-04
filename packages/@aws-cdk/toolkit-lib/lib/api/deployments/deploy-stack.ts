@@ -38,6 +38,7 @@ import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
+import { EarlyValidationReporter } from './early-validation';
 
 export interface DeployStackOptions {
   /**
@@ -511,8 +512,10 @@ class FullCloudFormationDeployment {
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    const validationReporter = new EarlyValidationReporter(this.options.sdk, this.ioHelper);
     return waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
       fetchAll: willExecute,
+      validationReporter,
     });
   }
 

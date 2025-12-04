@@ -21,6 +21,10 @@ import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
+export interface ValidationReporter {
+  report(changeSetName: string, stackName: string): Promise<void>;
+}
+
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
  *
@@ -103,7 +107,7 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
-  { fetchAll }: { fetchAll: boolean },
+  { fetchAll, validationReporter }: { fetchAll: boolean; validationReporter?: ValidationReporter },
 ): Promise<DescribeChangeSetCommandOutput> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
@@ -121,10 +125,17 @@ export async function waitForChangeSet(
       return description;
     }
 
-    // eslint-disable-next-line @stylistic/max-len
-    throw new ToolkitError(
-      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${description.StatusReason || 'no reason provided'}`,
-    );
+    if (description.Status === ChangeSetStatus.FAILED && description.StatusReason?.includes('AWS::EarlyValidation')) {
+      await validationReporter?.report(changeSetName, stackName);
+      return description;
+    } else {
+      // eslint-disable-next-line @stylistic/max-len
+      throw new ToolkitError(
+        `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
+          description.StatusReason || 'no reason provided'
+        }`,
+      );
+    }
   });
 
   if (!ret) {
