@@ -31,7 +31,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudformation": "3.901.0",
+    "@aws-sdk/client-cloudformation": "3.896.0",
     "@cdklabs/eslint-plugin": "^1.3.5",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
@@ -56,7 +56,7 @@
     "typescript": "5.9"
   },
   "peerDependencies": {
-    "@aws-sdk/client-cloudformation": "3.901.0"
+    "@aws-sdk/client-cloudformation": "3.896.0"
   },
   "dependencies": {
     "@aws-cdk/aws-service-spec": "^0.1.98",

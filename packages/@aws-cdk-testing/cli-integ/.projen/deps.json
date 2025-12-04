@@ -123,67 +123,67 @@
     },
     {
       "name": "@aws-sdk/client-cloudformation",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-codeartifact",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecr-public",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecr",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecs",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-iam",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-lambda",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-s3",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-secrets-manager",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sns",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sso",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sts",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "3.901.0",
+      "version": "3.896.0",
       "type": "runtime"
     },
     {
