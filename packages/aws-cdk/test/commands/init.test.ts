@@ -1359,9 +1359,11 @@ describe('constructs version', () => {
       { language: 'typescript', packageManager: 'npm' },
       { language: 'typescript', packageManager: 'yarn' },
       { language: 'typescript', packageManager: 'pnpm' },
+      { language: 'typescript', packageManager: 'bun' },
       { language: 'javascript', packageManager: 'npm' },
       { language: 'javascript', packageManager: 'yarn' },
       { language: 'javascript', packageManager: 'pnpm' },
+      { language: 'javascript', packageManager: 'bun' },
     ])('uses $packageManager for $language project', async ({ language, packageManager }) => {
       await withTempDir(async (workDir) => {
         await cliInit({

@@ -899,7 +899,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: 'npm',
           type: 'string',
           desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects.',
-          choices: ['npm', 'yarn', 'pnpm'],
+          choices: ['npm', 'yarn', 'pnpm', 'bun'],
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>

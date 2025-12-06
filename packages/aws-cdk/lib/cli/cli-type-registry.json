@@ -911,7 +911,8 @@
           "choices": [
             "npm",
             "yarn",
-            "pnpm"
+            "pnpm",
+            "bun"
           ]
         }
       },
