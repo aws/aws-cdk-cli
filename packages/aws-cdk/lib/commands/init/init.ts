@@ -91,6 +91,8 @@ export interface CliInitOptions {
  * Initialize a CDK package in the current directory
  */
 export async function cliInit(options: CliInitOptions) {
+  await ensureValidCliInitOptions(options, options.ioHelper);
+
   const ioHelper = options.ioHelper;
   const canUseNetwork = options.canUseNetwork ?? true;
   const generateOnly = options.generateOnly ?? false;
@@ -126,6 +128,15 @@ export async function cliInit(options: CliInitOptions) {
     options.libVersion,
     options.packageManager,
   );
+}
+
+/**
+ * Validate CLI init options and handle invalid or incompatible option combinations
+ */
+async function ensureValidCliInitOptions(options: CliInitOptions, ioHelper: IoHelper) {
+  if (options.packageManager && !['javascript', 'typescript'].includes(options.language ?? '')) {
+    await ioHelper.defaults.warn(`--package-manager option is only applicable for JavaScript and TypeScript projects. Ignoring the provided value: ${options.packageManager}`);
+  }
 }
 
 /**

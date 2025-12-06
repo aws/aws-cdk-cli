@@ -1423,6 +1423,61 @@ describe('constructs version', () => {
       expect(await fs.pathExists(path.join(workDir, 'requirements.txt'))).toBeTruthy();
     });
   });
+
+  describe('validate CLI init options', () => {
+    test.each([
+      'python',
+      'java',
+      'go',
+      'csharp',
+      'fsharp',
+    ])('warns when package-manager option is specified for non-JS language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const warnSpy = jest.spyOn(ioHelper.defaults, 'warn');
+
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language,
+          packageManager: 'npm',
+          canUseNetwork: false,
+          generateOnly: true,
+          workDir,
+        });
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('--package-manager option is only applicable for JavaScript and TypeScript projects'),
+        );
+
+        warnSpy.mockRestore();
+      });
+    });
+
+    test.each([
+      'typescript',
+      'javascript',
+    ])('does not warn when package-manager option is specified for language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const warnSpy = jest.spyOn(ioHelper.defaults, 'warn');
+
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language,
+          packageManager: 'npm',
+          canUseNetwork: false,
+          generateOnly: true,
+          workDir,
+        });
+
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('--package-manager option is only applicable for JavaScript and TypeScript projects'),
+        );
+
+        warnSpy.mockRestore();
+      });
+    });
+  })
 });
 
 test('when no version number is present (e.g., local development), the v2 templates are chosen by default', async () => {
