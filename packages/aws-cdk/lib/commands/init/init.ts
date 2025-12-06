@@ -80,7 +80,7 @@ export interface CliInitOptions {
   /**
    * The package manager to use for installing dependencies.
    * Only applicable for TypeScript and JavaScript projects.
-   * @default undefined
+   * @default "npm"
    */
   readonly packageManager?: JsPackageManager;
 
