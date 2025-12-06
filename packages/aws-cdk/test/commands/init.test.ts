@@ -1477,7 +1477,7 @@ describe('constructs version', () => {
         warnSpy.mockRestore();
       });
     });
-  })
+  });
 });
 
 test('when no version number is present (e.g., local development), the v2 templates are chosen by default', async () => {
