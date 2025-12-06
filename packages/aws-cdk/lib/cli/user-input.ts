@@ -1411,7 +1411,7 @@ export interface InitOptions {
   /**
    * The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects.
    *
-   * @default - undefined
+   * @default - "npm"
    */
   readonly packageManager?: string;
 
