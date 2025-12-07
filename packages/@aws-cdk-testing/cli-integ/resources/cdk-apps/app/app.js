@@ -707,6 +707,28 @@ class DockerStackWithCustomFile extends cdk.Stack {
   }
 }
 
+class MultipleDockerImagesStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    new docker.DockerImageAsset(this, 'image1', {
+      directory: path.join(__dirname, 'docker-concurrent/image1')
+    });
+    new docker.DockerImageAsset(this, 'image2', {
+      directory: path.join(__dirname, 'docker-concurrent/image2')
+    });
+    new docker.DockerImageAsset(this, 'image3', {
+      directory: path.join(__dirname, 'docker-concurrent/image3')
+    });
+
+    // Add at least a single resource (WaitConditionHandle), otherwise this stack will never
+    // be deployed (and its assets never built)
+    new cdk.CfnResource(this, 'Handle', {
+      type: 'AWS::CloudFormation::WaitConditionHandle'
+    });
+  }
+}
+
 /**
  * A stack that will never succeed deploying (done in a way that CDK cannot detect but CFN will complain about)
  */
@@ -921,6 +943,7 @@ switch (stackSet) {
     new DockerStack(app, `${stackPrefix}-docker`);
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
     new DockerStackWithCustomFile(app, `${stackPrefix}-docker-with-custom-file`);
+    new MultipleDockerImagesStack(app, `${stackPrefix}-multiple-docker-images`);
 
     new NotificationArnsStack(app, `${stackPrefix}-notification-arns`);
 
