@@ -416,9 +416,9 @@ describe('deploy', () => {
       });
 
       test.each([
-        [true],
-        [undefined],
-        [false],
+        true,
+        false,
+        undefined,
       ])('defaults to 1 when assetParallelism=%s and assetBuildConcurrency is not specified', async (assetParallelism) => {
         cloudExecutable = await MockCloudExecutable.create({
           stacks: [MockStack.MOCK_STACK_WITH_ASSET],
