@@ -1425,6 +1425,9 @@ describe('constructs version', () => {
   });
 
   describe('validate CLI init options', () => {
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', FORCE_COLOR: '0' };
+
     test.each([
       'python',
       'java',
@@ -1433,23 +1436,17 @@ describe('constructs version', () => {
       'fsharp',
     ])('warns when package-manager option is specified for non-JS language=%s', async (language) => {
       await withTempDir(async (workDir) => {
-        const warnSpy = jest.spyOn(ioHelper.defaults, 'warn');
-
-        await cliInit({
-          ioHelper,
-          type: 'app',
-          language,
-          packageManager: 'npm',
-          canUseNetwork: false,
-          generateOnly: true,
-          workDir,
-        });
-
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('--package-manager option is only applicable for JavaScript and TypeScript projects'),
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --package-manager npm --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
         );
 
-        warnSpy.mockRestore();
+        expect(output).toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
       });
     });
 
@@ -1461,22 +1458,17 @@ describe('constructs version', () => {
       'fsharp',
     ])('does not warn when package-manager option is omitted for non-JS language=%s', async (language) => {
       await withTempDir(async (workDir) => {
-        const warnSpy = jest.spyOn(ioHelper.defaults, 'warn');
-
-        await cliInit({
-          ioHelper,
-          type: 'app',
-          language,
-          canUseNetwork: false,
-          generateOnly: true,
-          workDir,
-        });
-
-        expect(warnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('--package-manager option is only applicable for JavaScript and TypeScript projects'),
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
         );
 
-        warnSpy.mockRestore();
+        expect(output).not.toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
       });
     });
 
@@ -1485,23 +1477,17 @@ describe('constructs version', () => {
       'javascript',
     ])('does not warn when package-manager option is specified for language=%s', async (language) => {
       await withTempDir(async (workDir) => {
-        const warnSpy = jest.spyOn(ioHelper.defaults, 'warn');
-
-        await cliInit({
-          ioHelper,
-          type: 'app',
-          language,
-          packageManager: 'npm',
-          canUseNetwork: false,
-          generateOnly: true,
-          workDir,
-        });
-
-        expect(warnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('--package-manager option is only applicable for JavaScript and TypeScript projects'),
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
         );
 
-        warnSpy.mockRestore();
+        expect(output).not.toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
       });
     });
   });
