@@ -416,10 +416,10 @@ describe('deploy', () => {
       });
 
       test.each([
-        [true, 1],
-        [undefined, 1],
-        [false, 1],
-      ])('defaults to 1 when assetParallelism=%s and assetBuildConcurrency is not specified', async (assetParallelism, expected) => {
+        [true],
+        [undefined],
+        [false],
+      ])('defaults to 1 when assetParallelism=%s and assetBuildConcurrency is not specified', async (assetParallelism) => {
         cloudExecutable = await MockCloudExecutable.create({
           stacks: [MockStack.MOCK_STACK_WITH_ASSET],
         });
@@ -447,7 +447,7 @@ describe('deploy', () => {
 
         expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
           expect.objectContaining({
-            'asset-build': expected,
+            'asset-build': 1,
           }),
           expect.anything(),
         );
