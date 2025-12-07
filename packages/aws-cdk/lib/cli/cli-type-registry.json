@@ -548,6 +548,12 @@
           "type": "boolean",
           "desc": "Whether to build/publish assets in parallel"
         },
+        "asset-build-concurrency": {
+          "type": "number",
+          "desc": "Maximum number of asset builds to run in parallel",
+          "default": 1,
+          "requiresArg": true
+        },
         "asset-prebuild": {
           "type": "boolean",
           "desc": "Whether to build all assets before deploying the first stack (useful for failing Docker builds)",

@@ -912,6 +912,15 @@ export interface DeployOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * This setting only has an effect if `assetParallelism` is set to `true`.
+   *
+   * @default 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * Whether to build all assets before deploying the first stack (useful for failing Docker builds)
    *
    * @default - true

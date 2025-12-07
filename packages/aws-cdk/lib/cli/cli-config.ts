@@ -208,6 +208,7 @@ export async function makeConfig(): Promise<CliConfig> {
           },
           'concurrency': { type: 'number', desc: 'Maximum number of simultaneous deployments (dependency permitting) to execute.', default: 1, requiresArg: true },
           'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
+          'asset-build-concurrency': { type: 'number', desc: 'Maximum number of asset builds to run in parallel', default: 1, requiresArg: true },
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
         },

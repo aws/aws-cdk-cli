@@ -705,7 +705,7 @@ export class CdkToolkit {
 
     const graphConcurrency: Concurrency = {
       'stack': concurrency,
-      'asset-build': 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+      'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
       'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
     };
 
@@ -1765,6 +1765,15 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default true
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * This setting only has an effect if `assetParallelism` is set to `true`.
+   *
+   * @default 1
+   */
+  readonly assetBuildConcurrency?: number;
 
   /**
    * When to build assets
