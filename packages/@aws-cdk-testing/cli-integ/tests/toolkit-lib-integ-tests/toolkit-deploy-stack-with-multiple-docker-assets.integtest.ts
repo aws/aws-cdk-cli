@@ -6,7 +6,7 @@ import { integTest, withDefaultFixture } from '../../lib';
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
-  'toolkit deploy with asset build concurrency',
+  'toolkit deploy stack with multiple docker assets',
   withDefaultFixture(async (fixture) => {
     const tk = toolkitFromFixture(fixture);
 
@@ -14,7 +14,7 @@ integTest(
 
     const stacks: toolkit.StackSelector = {
       strategy: toolkit.StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-      patterns: [fixture.fullStackName('multiple-docker-images')],
+      patterns: [fixture.fullStackName('multiple-docker-assets')],
     };
 
     await tk.deploy(assembly, {

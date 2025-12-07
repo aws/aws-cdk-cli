@@ -707,7 +707,7 @@ class DockerStackWithCustomFile extends cdk.Stack {
   }
 }
 
-class MultipleDockerImagesStack extends cdk.Stack {
+class MultipleDockerAssetsStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
 
@@ -943,7 +943,7 @@ switch (stackSet) {
     new DockerStack(app, `${stackPrefix}-docker`);
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
     new DockerStackWithCustomFile(app, `${stackPrefix}-docker-with-custom-file`);
-    new MultipleDockerImagesStack(app, `${stackPrefix}-multiple-docker-images`);
+    new MultipleDockerAssetsStack(app, `${stackPrefix}-multiple-docker-assets`);
 
     new NotificationArnsStack(app, `${stackPrefix}-notification-arns`);
 

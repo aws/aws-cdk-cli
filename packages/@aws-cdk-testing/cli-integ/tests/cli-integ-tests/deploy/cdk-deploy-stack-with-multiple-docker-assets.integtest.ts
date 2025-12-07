@@ -5,7 +5,7 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'deploy stack with multiple docker assets',
   withDefaultFixture(async (fixture) => {
-    await fixture.cdkDeploy('multiple-docker-images', {
+    await fixture.cdkDeploy('multiple-docker-assets', {
       options: ['--asset-parallelism', '--asset-build-concurrency', '3'],
     });
   }),
