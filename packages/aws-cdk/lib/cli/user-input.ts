@@ -914,9 +914,7 @@ export interface DeployOptions {
   /**
    * Maximum number of asset builds to run in parallel
    *
-   * This setting only has an effect if `assetParallelism` is set to `true`.
-   *
-   * @default 1
+   * @default - 1
    */
   readonly assetBuildConcurrency?: number;
 
