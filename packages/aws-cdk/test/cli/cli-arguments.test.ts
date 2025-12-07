@@ -41,6 +41,7 @@ describe('yargs', () => {
         STACKS: undefined,
         all: false,
         assetParallelism: undefined,
+        assetBuildConcurrency: 1,
         assetPrebuild: true,
         buildExclude: [],
         changeSetName: undefined,
