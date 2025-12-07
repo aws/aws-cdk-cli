@@ -1409,9 +1409,9 @@ export interface InitOptions {
   readonly templatePath?: string;
 
   /**
-   * The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects.
+   * The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.
    *
-   * @default - "npm"
+   * @default - undefined
    */
   readonly packageManager?: string;
 

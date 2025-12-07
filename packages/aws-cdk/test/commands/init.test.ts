@@ -1454,6 +1454,33 @@ describe('constructs version', () => {
     });
 
     test.each([
+      'python',
+      'java',
+      'go',
+      'csharp',
+      'fsharp',
+    ])('does not warn when package-manager option is omitted for non-JS language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const warnSpy = jest.spyOn(ioHelper.defaults, 'warn');
+
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language,
+          canUseNetwork: false,
+          generateOnly: true,
+          workDir,
+        });
+
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('--package-manager option is only applicable for JavaScript and TypeScript projects'),
+        );
+
+        warnSpy.mockRestore();
+      });
+    });
+
+    test.each([
       'typescript',
       'javascript',
     ])('does not warn when package-manager option is specified for language=%s', async (language) => {
