@@ -78,8 +78,7 @@ export interface CliInitOptions {
   readonly templatePath?: string;
 
   /**
-   * The package manager to use for installing dependencies.
-   * Only applicable for TypeScript and JavaScript projects.
+   * The package manager to use for installing dependencies. Only applicable for TypeScript and JavaScript projects.
    * @default - If specified language is 'typescript' or 'javascript', 'npm' is selected. Otherwise, no package manager is used.
    */
   readonly packageManager?: JsPackageManager;
