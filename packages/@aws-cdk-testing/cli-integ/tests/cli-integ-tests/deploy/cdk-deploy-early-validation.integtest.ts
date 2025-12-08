@@ -8,8 +8,7 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const bucketName = randomUUID();
 
-    // First, deploy a stack that creates a bucket with a custom name,
-    // which we expect to succeed
+    // First, deploy a stack that creates a bucket with a custom name, which we expect to succeed
     await fixture.cdkDeploy('early-validation-stack1', {
       modEnv: {
         BUCKET_NAME: bucketName,

@@ -1,8 +1,7 @@
 import type { OperationEvent } from '@aws-sdk/client-cloudformation';
 import type { ValidationReporter } from './cfn-api';
-import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/sdk';
-import type { IoHelper } from '../io/private';
+import type { EnvironmentResources } from '../environment';
 
 /**
  * A ValidationReporter that checks for early validation errors right after
@@ -11,30 +10,34 @@ import type { IoHelper } from '../io/private';
  * it logs a warning instead.
  */
 export class EarlyValidationReporter implements ValidationReporter {
-  constructor(private readonly sdk: SDK, private readonly ioHelper: IoHelper) {
+  constructor(private readonly sdk: SDK, private readonly envResources: EnvironmentResources) {
   }
 
-  public async report(changeSetName: string, stackName: string) {
+  public async fetchDetails(changeSetName: string, stackName: string): Promise<string> {
     let operationEvents: OperationEvent[] = [];
     try {
       operationEvents = await this.getFailedEvents(stackName, changeSetName);
     } catch (error) {
-      const message =
-        'While creating the change set, CloudFormation detected errors in the generated templates,' +
-        ' but the deployment role does not have permissions to call the DescribeEvents API to retrieve details about these errors.\n' +
-        'To see more details, re-bootstrap your environment, or otherwise ensure that the deployment role has permissions to call the DescribeEvents API.';
+      let currentVersion: number | undefined = undefined;
+      try {
+        currentVersion = (await this.envResources.lookupToolkit()).version;
+      } catch (e) {
+      }
 
-      await this.ioHelper.defaults.warn(message);
+      return `The template cannot be deployed because of early validation errors, but retrieving more details about those
+errors failed (${error}). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
+your environment with the latest version of the CLI (need at least version 30, current version ${currentVersion ?? 'unknown'}).`;
     }
 
+    let message = `ChangeSet '${changeSetName}' on stack '${stackName}' failed early validation`;
     if (operationEvents.length > 0) {
       const failures = operationEvents
         .map((event) => `  - ${event.ValidationStatusReason} (at ${event.ValidationPath})`)
         .join('\n');
 
-      const message = `ChangeSet '${changeSetName}' on stack '${stackName}' failed early validation:\n${failures}`;
-      throw new ToolkitError(message);
+      message += `:\n${failures}\n`;
     }
+    return message;
   }
 
   private async getFailedEvents(stackName: string, changeSetName: string) {

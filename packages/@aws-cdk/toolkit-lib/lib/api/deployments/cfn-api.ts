@@ -22,7 +22,7 @@ import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
 export interface ValidationReporter {
-  report(changeSetName: string, stackName: string): Promise<void>;
+  fetchDetails(changeSetName: string, stackName: string): Promise<string>;
 }
 
 /**
@@ -125,17 +125,21 @@ export async function waitForChangeSet(
       return description;
     }
 
-    if (description.Status === ChangeSetStatus.FAILED && description.StatusReason?.includes('AWS::EarlyValidation')) {
-      await validationReporter?.report(changeSetName, stackName);
-      return description;
-    } else {
-      // eslint-disable-next-line @stylistic/max-len
-      throw new ToolkitError(
-        `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
-          description.StatusReason || 'no reason provided'
-        }`,
-      );
+    const isEarlyValidationError = description.Status === ChangeSetStatus.FAILED &&
+      description.StatusReason?.includes('AWS::EarlyValidation');
+
+    if (isEarlyValidationError) {
+      const details = await validationReporter?.fetchDetails(changeSetName, stackName);
+      if (details) {
+        throw new ToolkitError(details);
+      }
     }
+    // eslint-disable-next-line @stylistic/max-len
+    throw new ToolkitError(
+      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
+        description.StatusReason || 'no reason provided'
+      }`,
+    );
   });
 
   if (!ret) {
