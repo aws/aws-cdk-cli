@@ -1253,7 +1253,7 @@ describe('destroy', () => {
     );
   });
 
-  test('does not suggest nested stack when pattern lacks hierarchy', async () => {
+  test('does not throw and does not suggest nested stack when pattern lacks hierarchy', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1270,6 +1270,44 @@ describe('destroy', () => {
         expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-c(\x1B\[39m)? does not exist\.$/), 'warn'),
         // Color codes are optional because chalk depends on TTY/TERM
         expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-c(\x1B\[39m)?/), 'warn'),
+      ]),
+    );
+  });
+
+  test('does not throw and warns when wildcard pattern does not match any stacks', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Foo*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Foo\*\/\*(\x1B\[39m)? does not exist\.$/), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?Foo\*\/\*(\x1B\[39m)?/), 'warn'),
+      ]),
+    );
+  });
+
+  test('does not throw and suggests stack with wildcard pattern when only case differs', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test\*\/\*(\x1B\[39m)? does not exist\. Do you mean (\x1B\[34m)?Test-Stack-A\/Test-Stack-C(\x1B\[39m)?/), 'warn'),
       ]),
     );
   });
