@@ -894,6 +894,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Path to a specific template within a multi-template repository',
           requiresArg: true,
+        })
+        .option('package-manager', {
+          default: undefined,
+          type: 'string',
+          desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.',
+          choices: ['npm', 'yarn', 'pnpm', 'bun'],
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
