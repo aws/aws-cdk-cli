@@ -1392,13 +1392,11 @@ export class CdkToolkit {
   }) {
     const assembly = await this.assembly();
     const selectorWithoutPatterns: StackSelector = {
-      ...props.selector,
-      allTopLevel: true,
       patterns: [],
     };
     const stacksWithoutPatterns = await assembly.selectStacks(selectorWithoutPatterns, {
       extend: props.exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
-      defaultBehavior: DefaultSelection.OnlySingle,
+      defaultBehavior: DefaultSelection.AllStacks,
     });
 
     const patterns = props.selector.patterns.map(pattern => {

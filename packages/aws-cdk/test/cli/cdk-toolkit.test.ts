@@ -1158,6 +1158,44 @@ describe('destroy', () => {
       ]),
     );
   });
+
+  test('does not throw when there are only nested stage stacks and no top-level stacks', async () => {
+    // Create a cloud executable with only nested stacks (no top-level stacks)
+    const nestedOnlyExecutable = await MockCloudExecutable.create({
+      stacks: [],
+      nestedAssemblies: [
+        {
+          stacks: [MockStack.MOCK_STACK_C],
+        },
+      ],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable: nestedOnlyExecutable,
+      configuration: nestedOnlyExecutable.configuration,
+      sdkProvider: nestedOnlyExecutable.sdkProvider,
+      deployments: new FakeCloudFormation({
+        'Test-Stack-C': { Baz: 'Zinga!' },
+      }),
+    });
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-X(\x1B\[39m)? does not exist./), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?Test-Stack-X(\x1B\[39m)?/), 'warn'),
+      ]),
+    );
+  });
 });
 
 describe('watch', () => {
