@@ -974,11 +974,14 @@ export class CdkToolkit {
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
 
-    await this.suggestStacks({
-      selector: options.selector,
-      stacks,
-      exclusively: options.exclusively,
-    });
+    // Only suggest stacks if patterns are provided (skip for --all flag)
+    if (options.selector.patterns.length > 0) {
+      await this.suggestStacks({
+        selector: options.selector,
+        stacks,
+        exclusively: options.exclusively,
+      });
+    }
     if (stacks.stackArtifacts.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn(`No stacks match the name(s): ${chalk.red(options.selector.patterns.join(', '))}`);
       return;
