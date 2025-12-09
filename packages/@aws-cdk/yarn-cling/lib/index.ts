@@ -87,7 +87,7 @@ class PackageGraphBuilder {
   }
 
   /**
-   * Render the tree by starting from the root keys and recursing, pushing every package as high as it can
+   * Render the tree by starting from the root keys and recursing.
    * go without conflicting
    */
   public makeDependencyTree(rootKeys: string[]): Record<string, PackageLockPackage> {

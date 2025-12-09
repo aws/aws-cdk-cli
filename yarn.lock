@@ -4717,7 +4717,7 @@
   resolved "https://registry.yarnpkg.com/@types/mockery/-/mockery-1.4.33.tgz#fb511e702e38b67e95af8b1375a65350b3fb5cab"
   integrity sha512-vpuuVxCnCEM0OakYNoyFs40mjJFJFJahBHyx0Z0Piysof+YwlDJzNO4V1weRvYySAmtAvlb0UHtxVO2IfTcykw==
 
-"@types/node@*", "@types/node@^24.10.2":
+"@types/node@*", "@types/node@ts5.9":
   version "24.10.2"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-24.10.2.tgz#82a57476a19647d8f2c7750d0924788245e39b26"
   integrity sha512-WOhQTZ4G8xZ1tjJTvKOpyEVSGgOTvJAfDK3FNFgELyaTpzhdgHVHeqW8V+UJvzF5BT+/B54T/1S2K6gd9c7bbA==
