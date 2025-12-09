@@ -52,15 +52,15 @@
     "jest-junit": "^16",
     "license-checker": "^25.0.1",
     "prettier": "^2.8",
-    "ts-jest": "^29.4.4",
+    "ts-jest": "^29.4.5",
     "typescript": "5.9"
   },
   "peerDependencies": {
     "@aws-sdk/client-cloudformation": "^3"
   },
   "dependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.98",
-    "@aws-cdk/service-spec-types": "^0.0.164",
+    "@aws-cdk/aws-service-spec": "^0.1.124",
+    "@aws-cdk/service-spec-types": "^0.0.190",
     "chalk": "^4",
     "diff": "^7.0.0",
     "fast-deep-equal": "^3.1.3",

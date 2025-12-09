@@ -66,7 +66,8 @@ describe('render', () => {
             'If your app has a single stack, there is no need to specify the stack name\\n\\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
           )
           .parse(args);
-      } // eslint-disable-next-line @typescript-eslint/no-require-imports
+      }
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const yargs = require('yargs');
       "
     `);
@@ -125,7 +126,8 @@ describe('render', () => {
             'If your app has a single stack, there is no need to specify the stack name\\n\\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
           )
           .parse(args);
-      } // eslint-disable-next-line @typescript-eslint/no-require-imports
+      }
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const yargs = require('yargs');
       "
     `);
@@ -210,7 +212,8 @@ describe('render', () => {
             'If your app has a single stack, there is no need to specify the stack name\\n\\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
           )
           .parse(args);
-      } // eslint-disable-next-line @typescript-eslint/no-require-imports
+      }
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const yargs = require('yargs');
       "
     `);

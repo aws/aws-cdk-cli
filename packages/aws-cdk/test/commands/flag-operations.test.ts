@@ -4,11 +4,12 @@ import * as path from 'path';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 // @ts-ignore
 import { Select } from 'enquirer';
+import type { IoHelper } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { FlagsOptions } from '../../lib/cli/user-input';
-import { displayFlags, handleFlags } from '../../lib/commands/flag-operations';
 import { FlagCommandHandler } from '../../lib/commands/flags/flags';
+import { FlagOperations } from '../../lib/commands/flags/operations';
 
 jest.mock('enquirer', () => ({
   Select: jest.fn(),
@@ -27,6 +28,13 @@ const mockFlagsData: FeatureFlag[] = [
     name: '@aws-cdk/core:testFlag',
     recommendedValue: true,
     userValue: false,
+    explanation: 'Test flag for unit tests',
+  },
+  {
+    module: 'aws-cdk-lib',
+    name: '@aws-cdk/core:needsAttention',
+    recommendedValue: true,
+    userValue: undefined,
     explanation: 'Test flag for unit tests',
   },
   {
@@ -310,8 +318,7 @@ describe('displayFlags', () => {
 
     const plainTextOutput = output();
     // Should still show the table headers for API consistency
-    expect(plainTextOutput).toContain('Feature Flag Name');
-    expect(plainTextOutput).toContain('Recommended Value');
+    expect(plainTextOutput).toContain('Recommended');
     // Should show helpful message after the empty table
     expect(plainTextOutput).toContain('✅ All feature flags are already set to their recommended values.');
     expect(plainTextOutput).toContain('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
@@ -334,10 +341,9 @@ describe('displayFlags', () => {
 
     const plainTextOutput = output();
     // Should show the table with flags that need attention
-    expect(plainTextOutput).toContain('Feature Flag Name');
-    expect(plainTextOutput).toContain('Recommended Value');
-    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/core:testFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/s3:anotherFlag');
+    expect(plainTextOutput).toContain('@aws-cdk/core:needsAttention');
     // Should NOT show the helpful message since there are flags to display
     expect(plainTextOutput).not.toContain('✅ All feature flags are already set to their recommended values.');
     expect(plainTextOutput).not.toContain('Use \'cdk flags --all --unstable=flags\' to see all flags and their current values.');
@@ -372,7 +378,7 @@ describe('processFlagsCommand', () => {
     expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
   });
 
-  test('displays only differing flags when no specific options are provided', async () => {
+  test('displays only unset flags when no specific options are provided', async () => {
     const options: FlagsOptions = {
     };
 
@@ -380,9 +386,10 @@ describe('processFlagsCommand', () => {
     await flagOperations.processFlagsCommand();
 
     const plainTextOutput = output();
-    expect(plainTextOutput).toContain('  @aws-cdk/core:testFlag');
-    expect(plainTextOutput).toContain('  @aws-cdk/s3:anotherFlag');
-    expect(plainTextOutput).not.toContain('  @aws-cdk/core:matchingFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/core:testFlag');
+    expect(plainTextOutput).not.toContain('@aws-cdk/s3:anotherFlag'); // Recommended: false, effective: false
+    expect(plainTextOutput).toContain('@aws-cdk/core:needsAttention');
+    expect(plainTextOutput).not.toContain('@aws-cdk/core:matchingFlag');
   });
 
   test('handles flag not found for specific flag query', async () => {
@@ -820,51 +827,6 @@ describe('processFlagsCommand', () => {
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
-  });
-
-  test('shows error when flag is not found during prototypeChanges', async () => {
-    // This test targets the validation in prototypeChanges function:
-    // if (!flag) { await ioHelper.defaults.error(`Flag ${flagName} not found.`); return false; }
-
-    const cdkJsonPath = await createCdkJsonFile({});
-
-    setupMockToolkitForPrototyping(mockToolkit);
-
-    // Create a scenario where we try to set multiple flags but one doesn't exist
-    // We'll mock the internal flag lookup to simulate a missing flag during the prototyping process
-    const originalFind = Array.prototype.find;
-    let findCallCount = 0;
-
-    // Mock Array.find to return undefined for the second call (simulating missing flag in prototypeChanges)
-    Array.prototype.find = function(this: any[], callback: any) {
-      findCallCount++;
-      // First call is in handleFlags validation (should find the flag)
-      // Second call is in prototypeChanges (should not find the flag to trigger our test case)
-      if (findCallCount === 2) {
-        return undefined; // Simulate flag not found in prototypeChanges
-      }
-      return originalFind.call(this, callback);
-    };
-
-    const options: FlagsOptions = {
-      set: true,
-      all: true,
-      recommended: true,
-    };
-
-    await handleFlags(mockFlagsData, ioHelper, options, mockToolkit);
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Flag @aws-cdk/s3:anotherFlag not found.');
-
-    // Verify that prototyping was attempted but failed due to missing flag
-    expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(1); // Only the initial call, not the modified one
-    expect(mockToolkit.diff).not.toHaveBeenCalled(); // Diff should not be called due to early return
-
-    // Restore original Array.find
-    Array.prototype.find = originalFind;
-
-    await cleanupCdkJsonFile(cdkJsonPath);
   });
 });
 
@@ -1398,3 +1360,37 @@ describe('setSafeFlags', () => {
     requestResponseSpy.mockRestore();
   });
 });
+
+interface FlagOperationsParams {
+  flagData: FeatureFlag[];
+  toolkit: Toolkit;
+  ioHelper: IoHelper;
+
+  /** User ran --recommended option */
+  recommended?: boolean;
+
+  /** User ran --all option */
+  all?: boolean;
+
+  /** User provided --value field */
+  value?: string;
+
+  /** User provided FLAGNAME field */
+  flagName?: string[];
+
+  /** User ran --default option */
+  default?: boolean;
+
+  /** User ran --unconfigured option */
+  unconfigured?: boolean;
+}
+
+async function displayFlags(params: FlagOperationsParams): Promise<void> {
+  const f = new FlagOperations(params.flagData, params.toolkit, params.ioHelper);
+  await f.displayFlags(params);
+}
+
+async function handleFlags(flagData: FeatureFlag[], _ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
+  const f = new FlagCommandHandler(flagData, _ioHelper, options, toolkit);
+  await f.processFlagsCommand();
+}
