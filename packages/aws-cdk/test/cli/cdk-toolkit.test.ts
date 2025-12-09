@@ -1101,9 +1101,12 @@ describe('destroy', () => {
     });
 
     expect(flatten(notifySpy.mock.calls)).toEqual([
-      expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-X\x1B\[39m does not exist./), 'warn'),
-      expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-Y\x1B\[39m does not exist./), 'warn'),
-      expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): \x1B\[31mTest-Stack-X, Test-Stack-Y\x1B\[39m/), 'warn'),
+      // Color codes are optional because chalk depends on TTY/TERM
+      expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-X(\x1B\[39m)? does not exist./), 'warn'),
+      // Color codes are optional because chalk depends on TTY/TERM
+      expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-Y(\x1B\[39m)? does not exist./), 'warn'),
+      // Color codes are optional because chalk depends on TTY/TERM
+      expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?Test-Stack-X, Test-Stack-Y(\x1B\[39m)?/), 'warn'),
     ]);
   });
 
@@ -1119,12 +1122,14 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-X\x1B\[39m does not exist./), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-X(\x1B\[39m)? does not exist./), 'warn'),
       ]),
     );
     expect(flatten(notifySpy.mock.calls)).not.toEqual(
       expect.arrayContaining([
-        expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-B\x1B\[39m does not exist./), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-B(\x1B\[39m)? does not exist./), 'warn'),
       ]),
     );
     expect(flatten(notifySpy.mock.calls)).not.toEqual(
@@ -1146,8 +1151,10 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        expectIoMsg(expect.stringMatching(/\x1B\[31mtest-stack-b\x1B\[39m does not exist. Do you mean \x1B\[34mTest-Stack-B\x1B\[39m?/), 'warn'),
-        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): \x1B\[31mtest-stack-b\x1B\[39m/), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-b(\x1B\[39m)? does not exist. Do you mean (\x1B\[34m)?Test-Stack-B(\x1B\[39m)?/), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-b(\x1B\[39m)?/), 'warn'),
       ]),
     );
   });
