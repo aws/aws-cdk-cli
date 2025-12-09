@@ -1090,6 +1090,80 @@ describe('destroy', () => {
     }).resolves;
   });
 
+  test('can destroy nested stack with wildcard pattern', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    expect(() => {
+      return toolkit.destroy({
+        selector: { patterns: ['Test*/*'] },
+        exclusively: true,
+        force: true,
+        fromDeploy: true,
+      });
+    }).resolves;
+  });
+
+  test('can destroy nested stack in nested-only configuration', async () => {
+    // only nested stacks (no top-level stacks)
+    const nestedOnlyExecutable = await MockCloudExecutable.create({
+      stacks: [],
+      nestedAssemblies: [
+        {
+          stacks: [MockStack.MOCK_STACK_C],
+        },
+      ],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable: nestedOnlyExecutable,
+      configuration: nestedOnlyExecutable.configuration,
+      sdkProvider: nestedOnlyExecutable.sdkProvider,
+      deployments: new FakeCloudFormation({
+        'Test-Stack-C': { Baz: 'Zinga!' },
+      }),
+    });
+
+    expect(() => {
+      return toolkit.destroy({
+        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+        exclusively: true,
+        force: true,
+        fromDeploy: true,
+      });
+    }).resolves;
+  });
+
+  test('can destroy with --all flag in nested-only configuration', async () => {
+    const nestedOnlyExecutable = await MockCloudExecutable.create({
+      stacks: [],
+      nestedAssemblies: [{
+        stacks: [
+          MockStack.MOCK_STACK_C,
+        ],
+      }],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable: nestedOnlyExecutable,
+      configuration: nestedOnlyExecutable.configuration,
+      sdkProvider: nestedOnlyExecutable.sdkProvider,
+      deployments: new FakeCloudFormation({
+        'Test-Stack-C': { Baz: 'Zinga!' },
+      }),
+    });
+
+    expect(() => {
+      return toolkit.destroy({
+        selector: { patterns: [] }, // --all flag uses empty patterns
+        exclusively: true,
+        force: true,
+        fromDeploy: true,
+      });
+    }).resolves;
+  });
+
   test('does not throw and warns if there are only non-existent stacks', async () => {
     const toolkit = defaultToolkitSetup();
 
@@ -1155,6 +1229,47 @@ describe('destroy', () => {
         expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-b(\x1B\[39m)? does not exist. Do you mean (\x1B\[34m)?Test-Stack-B(\x1B\[39m)?/), 'warn'),
         // Color codes are optional because chalk depends on TTY/TERM
         expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-b(\x1B\[39m)?/), 'warn'),
+      ]),
+    );
+  });
+
+  test('does not throw and suggests nested stack names if there is a non-existent but closely matching nested stack', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test-stack-a/test-stack-c'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-a\/test-stack-c(\x1B\[39m)? does not exist. Do you mean (\x1B\[34m)?Test-Stack-A\/Test-Stack-C(\x1B\[39m)?/), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-a\/test-stack-c(\x1B\[39m)?/), 'warn'),
+      ]),
+    );
+  });
+
+  test('does not suggest nested stack when pattern lacks hierarchy', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test-stack-c'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        // Color codes are optional because chalk depends on TTY/TERM
+        // Should NOT suggest Test-Stack-A/Test-Stack-C because pattern lacks hierarchy
+        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-c(\x1B\[39m)? does not exist\.$/), 'warn'),
+        // Color codes are optional because chalk depends on TTY/TERM
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-c(\x1B\[39m)?/), 'warn'),
       ]),
     );
   });
