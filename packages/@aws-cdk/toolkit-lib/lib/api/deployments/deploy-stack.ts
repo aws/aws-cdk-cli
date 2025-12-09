@@ -33,11 +33,13 @@ import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/privat
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
+import { EnvironmentResourcesRegistry } from '../environment';
 import { HotswapPropertyOverrides, HotswapMode, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
+import { EarlyValidationReporter } from './early-validation';
 
 export interface DeployStackOptions {
   /**
@@ -511,8 +513,12 @@ class FullCloudFormationDeployment {
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
+    const envResources = environmentResourcesRegistry.for(this.options.resolvedEnvironment, this.options.sdk, this.ioHelper);
+    const validationReporter = new EarlyValidationReporter(this.options.sdk, envResources);
     return waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
       fetchAll: willExecute,
+      validationReporter,
     });
   }
 
