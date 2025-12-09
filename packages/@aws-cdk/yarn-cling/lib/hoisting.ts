@@ -83,7 +83,6 @@ export function _addTombstones<A extends PackageLockTree>(root: A): A {
     // the 'moved' tombstone in to make sure we don't accidentally replace this package with a different version.
     // Also add 'moved' to all of its parents, until we find a node that has it in 'dependencies'.
     for (const name of Object.keys(nodeToCheck.requires ?? {})) {
-
       // For every dependency in 'nodeToCheck', add 'moved' to 'depend. As soon as we find
       // the dependency provided declared anywhere, we stop.
       for (const nodeToAdd of rootPathToAdd) {
