@@ -1089,6 +1089,68 @@ describe('destroy', () => {
       });
     }).resolves;
   });
+
+  test('does not throw and warns if there are only non-existent stacks', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X', 'Test-Stack-Y'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual([
+      expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-X\x1B\[39m does not exist./), 'warn'),
+      expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-Y\x1B\[39m does not exist./), 'warn'),
+      expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): \x1B\[31mTest-Stack-X, Test-Stack-Y\x1B\[39m/), 'warn'),
+    ]);
+  });
+
+  test('does not throw and warns if there is a non-existent stack and the other exists', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X', 'Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-X\x1B\[39m does not exist./), 'warn'),
+      ]),
+    );
+    expect(flatten(notifySpy.mock.calls)).not.toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringMatching(/\x1B\[31mTest-Stack-B\x1B\[39m does not exist./), 'warn'),
+      ]),
+    );
+    expect(flatten(notifySpy.mock.calls)).not.toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\)/), 'warn'),
+      ]),
+    );
+  });
+
+  test('does not throw and suggests valid names if there is a non-existent but closely matching stack', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test-stack-b'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringMatching(/\x1B\[31mtest-stack-b\x1B\[39m does not exist. Do you mean \x1B\[34mTest-Stack-B\x1B\[39m?/), 'warn'),
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): \x1B\[31mtest-stack-b\x1B\[39m/), 'warn'),
+      ]),
+    );
+  });
 });
 
 describe('watch', () => {

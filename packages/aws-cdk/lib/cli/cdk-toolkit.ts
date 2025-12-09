@@ -7,6 +7,7 @@ import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-li
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
+import { minimatch } from 'minimatch';
 import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
@@ -68,6 +69,7 @@ import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
 import { FlagOperations } from '../commands/flags/operations';
+import { warning } from '../legacy';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -972,6 +974,16 @@ export class CdkToolkit {
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
 
+    await this.suggestStacks({
+      selector: options.selector,
+      stacks,
+      exclusively: options.exclusively,
+    });
+    if (stacks.stackArtifacts.length === 0) {
+      await this.ioHost.asIoHelper().defaults.warn(`No stacks match the name(s): ${chalk.red(options.selector.patterns.join(', '))}`);
+      return;
+    }
+
     if (!options.force) {
       const motivation = 'Destroying stacks is an irreversible action';
       const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
@@ -1371,6 +1383,49 @@ export class CdkToolkit {
     // No validation
 
     return stacks;
+  }
+
+  private async suggestStacks(props: {
+    selector: StackSelector;
+    stacks: StackCollection;
+    exclusively?: boolean;
+  }) {
+    const assembly = await this.assembly();
+    const selectorWithoutPatterns: StackSelector = {
+      ...props.selector,
+      allTopLevel: true,
+      patterns: [],
+    };
+    const stacksWithoutPatterns = await assembly.selectStacks(selectorWithoutPatterns, {
+      extend: props.exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
+      defaultBehavior: DefaultSelection.OnlySingle,
+    });
+
+    const patterns = props.selector.patterns.map(pattern => {
+      const notExist = !props.stacks.stackArtifacts.find(stack =>
+        minimatch(stack.hierarchicalId, pattern),
+      );
+
+      const closelyMatched = notExist ? stacksWithoutPatterns.stackArtifacts.map(stack => {
+        if (minimatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase())) {
+          return stack.hierarchicalId;
+        }
+        return;
+      }).filter((stack): stack is string => stack !== undefined) : [];
+
+      return {
+        pattern,
+        notExist,
+        closelyMatched,
+      };
+    });
+
+    for (const pattern of patterns) {
+      if (pattern.notExist) {
+        const closelyMatched = pattern.closelyMatched.length > 0 ? ` Do you mean ${chalk.blue(pattern.closelyMatched.join(', '))}?` : '';
+        await this.ioHost.asIoHelper().defaults.warn(`${chalk.red(pattern.pattern)} does not exist.${closelyMatched}`);
+      }
+    };
   }
 
   /**
