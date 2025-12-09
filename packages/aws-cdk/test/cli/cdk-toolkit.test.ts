@@ -1134,6 +1134,19 @@ describe('destroy', () => {
     }).resolves;
   });
 
+  test('can destroy with --all flag', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    expect(() => {
+      return toolkit.destroy({
+        selector: { patterns: [] }, // --all flag uses empty patterns
+        exclusively: true,
+        force: true,
+        fromDeploy: true,
+      });
+    }).resolves;
+  });
+
   test('can destroy with --all flag in nested-only configuration', async () => {
     const nestedOnlyExecutable = await MockCloudExecutable.create({
       stacks: [],
@@ -1312,8 +1325,8 @@ describe('destroy', () => {
     );
   });
 
-  test('does not throw when there are only nested stage stacks and no top-level stacks', async () => {
-    // Create a cloud executable with only nested stacks (no top-level stacks)
+  test('does not throw and warns when destroying non-existent stack in nested-only configuration', async () => {
+    // only nested stacks (no top-level stacks)
     const nestedOnlyExecutable = await MockCloudExecutable.create({
       stacks: [],
       nestedAssemblies: [

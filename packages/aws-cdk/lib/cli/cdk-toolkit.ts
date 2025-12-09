@@ -982,6 +982,7 @@ export class CdkToolkit {
         exclusively: options.exclusively,
       });
     }
+
     if (stacks.stackArtifacts.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn(`No stacks match the name(s): ${chalk.red(options.selector.patterns.join(', '))}`);
       return;
