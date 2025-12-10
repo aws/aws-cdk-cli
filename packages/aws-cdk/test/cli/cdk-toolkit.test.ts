@@ -1089,6 +1089,28 @@ describe('destroy', () => {
     })).resolves.not.toThrow();
   });
 
+  test('destroys with --all flag', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] }, // --all flag sets allTopLevel: true
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack within stage with wildcard pattern', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
   test('destroys single stack with automatic selection', async () => {
     const singleStackExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_B],
@@ -1112,22 +1134,23 @@ describe('destroy', () => {
     })).resolves.not.toThrow();
   });
 
-  test('destroys with --all flag', async () => {
-    const toolkit = defaultToolkitSetup();
+  test('destroys single stack with pattern', async () => {
+    const singleStackExecutable = await MockCloudExecutable.create({
+      stacks: [MockStack.MOCK_STACK_B],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable: singleStackExecutable,
+      configuration: singleStackExecutable.configuration,
+      sdkProvider: singleStackExecutable.sdkProvider,
+      deployments: new FakeCloudFormation({
+        'Test-Stack-B': { Foo: 'Bar' },
+      }),
+    });
 
     await expect(toolkit.destroy({
-      selector: { allTopLevel: true, patterns: [] }, // --all flag sets allTopLevel: true
-      exclusively: true,
-      force: true,
-      fromDeploy: true,
-    })).resolves.not.toThrow();
-  });
-
-  test('destroys stack within stage with wildcard pattern', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await expect(toolkit.destroy({
-      selector: { patterns: ['Test*/*'] },
+      selector: { patterns: ['Test-Stack-B'] },
       exclusively: true,
       force: true,
       fromDeploy: true,
