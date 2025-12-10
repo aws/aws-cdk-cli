@@ -1089,6 +1089,29 @@ describe('destroy', () => {
     })).resolves.not.toThrow();
   });
 
+  test('destroys single stack with automatic selection', async () => {
+    const singleStackExecutable = await MockCloudExecutable.create({
+      stacks: [MockStack.MOCK_STACK_B],
+    });
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable: singleStackExecutable,
+      configuration: singleStackExecutable.configuration,
+      sdkProvider: singleStackExecutable.sdkProvider,
+      deployments: new FakeCloudFormation({
+        'Test-Stack-B': { Foo: 'Bar' },
+      }),
+    });
+
+    await expect(toolkit.destroy({
+      selector: { patterns: [] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
   test('destroys with --all flag', async () => {
     const toolkit = defaultToolkitSetup();
 

@@ -1391,8 +1391,7 @@ export class CdkToolkit {
     stacks: StackCollection;
     exclusively?: boolean;
   }) {
-    // Skip suggestion for --all flag
-    if (props.selector.allTopLevel) {
+    if (props.selector.patterns.length === 0) {
       return;
     }
 
