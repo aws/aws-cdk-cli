@@ -151,6 +151,42 @@ function defaultToolkitSetup() {
   });
 }
 
+async function singleStackToolkitSetup() {
+  const singleStackExecutable = await MockCloudExecutable.create({
+    stacks: [MockStack.MOCK_STACK_B],
+  });
+
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable: singleStackExecutable,
+    configuration: singleStackExecutable.configuration,
+    sdkProvider: singleStackExecutable.sdkProvider,
+    deployments: new FakeCloudFormation({
+      'Test-Stack-B': { Foo: 'Bar' },
+    }),
+  });
+}
+
+// only stacks within stages (no top-level stacks)
+async function stageOnlyToolkitSetup() {
+  const stageOnlyExecutable = await MockCloudExecutable.create({
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [MockStack.MOCK_STACK_C],
+    }],
+  });
+
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable: stageOnlyExecutable,
+    configuration: stageOnlyExecutable.configuration,
+    sdkProvider: stageOnlyExecutable.sdkProvider,
+    deployments: new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+    }),
+  });
+}
+
 const mockSdk = new MockSdk();
 
 describe('bootstrap', () => {
@@ -1112,19 +1148,7 @@ describe('destroy', () => {
   });
 
   test('destroys stack in single-stack configuration', async () => {
-    const singleStackExecutable = await MockCloudExecutable.create({
-      stacks: [MockStack.MOCK_STACK_B],
-    });
-
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable: singleStackExecutable,
-      configuration: singleStackExecutable.configuration,
-      sdkProvider: singleStackExecutable.sdkProvider,
-      deployments: new FakeCloudFormation({
-        'Test-Stack-B': { Foo: 'Bar' },
-      }),
-    });
+    const toolkit = await singleStackToolkitSetup();
 
     await expect(toolkit.destroy({
       selector: { patterns: [] },
@@ -1135,19 +1159,7 @@ describe('destroy', () => {
   });
 
   test('destroys stack with pattern in single-stack configuration', async () => {
-    const singleStackExecutable = await MockCloudExecutable.create({
-      stacks: [MockStack.MOCK_STACK_B],
-    });
-
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable: singleStackExecutable,
-      configuration: singleStackExecutable.configuration,
-      sdkProvider: singleStackExecutable.sdkProvider,
-      deployments: new FakeCloudFormation({
-        'Test-Stack-B': { Foo: 'Bar' },
-      }),
-    });
+    const toolkit = await singleStackToolkitSetup();
 
     await expect(toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -1158,25 +1170,7 @@ describe('destroy', () => {
   });
 
   test('destroys stack within stage in stage-only configuration', async () => {
-    // only stacks within stages (no top-level stacks)
-    const nestedOnlyExecutable = await MockCloudExecutable.create({
-      stacks: [],
-      nestedAssemblies: [
-        {
-          stacks: [MockStack.MOCK_STACK_C],
-        },
-      ],
-    });
-
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable: nestedOnlyExecutable,
-      configuration: nestedOnlyExecutable.configuration,
-      sdkProvider: nestedOnlyExecutable.sdkProvider,
-      deployments: new FakeCloudFormation({
-        'Test-Stack-C': { Baz: 'Zinga!' },
-      }),
-    });
+    const toolkit = await stageOnlyToolkitSetup();
 
     await expect(toolkit.destroy({
       selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
@@ -1187,25 +1181,7 @@ describe('destroy', () => {
   });
 
   test('destroys stack within stage with wildcard pattern in stage-only configuration', async () => {
-    // only stacks within stages (no top-level stacks)
-    const nestedOnlyExecutable = await MockCloudExecutable.create({
-      stacks: [],
-      nestedAssemblies: [
-        {
-          stacks: [MockStack.MOCK_STACK_C],
-        },
-      ],
-    });
-
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable: nestedOnlyExecutable,
-      configuration: nestedOnlyExecutable.configuration,
-      sdkProvider: nestedOnlyExecutable.sdkProvider,
-      deployments: new FakeCloudFormation({
-        'Test-Stack-C': { Baz: 'Zinga!' },
-      }),
-    });
+    const toolkit = await stageOnlyToolkitSetup();
 
     await expect(toolkit.destroy({
       selector: { patterns: ['Test*/*'] },
@@ -1331,25 +1307,7 @@ describe('destroy', () => {
   });
 
   test('warns when destroying non-existent stack in stage-only configuration', async () => {
-    // only stacks within stages (no top-level stacks)
-    const nestedOnlyExecutable = await MockCloudExecutable.create({
-      stacks: [],
-      nestedAssemblies: [
-        {
-          stacks: [MockStack.MOCK_STACK_C],
-        },
-      ],
-    });
-
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable: nestedOnlyExecutable,
-      configuration: nestedOnlyExecutable.configuration,
-      sdkProvider: nestedOnlyExecutable.sdkProvider,
-      deployments: new FakeCloudFormation({
-        'Test-Stack-C': { Baz: 'Zinga!' },
-      }),
-    });
+    const toolkit = await stageOnlyToolkitSetup();
 
     await toolkit.destroy({
       selector: { patterns: ['Test-Stack-X'] },
