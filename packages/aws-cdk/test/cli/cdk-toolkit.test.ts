@@ -1302,6 +1302,7 @@ describe('destroy', () => {
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
         expectIoMsg(expect.stringContaining(`${chalk.red('test*/*')} does not exist. Do you mean ${chalk.blue('Test-Stack-A/Test-Stack-C')}?`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test*/*')}`), 'warn'),
       ]),
     );
   });
