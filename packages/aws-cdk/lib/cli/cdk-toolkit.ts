@@ -974,8 +974,8 @@ export class CdkToolkit {
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
 
-    // Only suggest stacks if patterns are provided (skip for --all flag)
-    if (options.selector.patterns.length > 0) {
+    // Only suggest stacks when not using --all flag
+    if (!options.selector.allTopLevel) {
       await this.suggestStacks({
         selector: options.selector,
         stacks,
