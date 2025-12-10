@@ -1111,7 +1111,7 @@ describe('destroy', () => {
     })).resolves.not.toThrow();
   });
 
-  test('destroys single stack with automatic selection', async () => {
+  test('destroys stack in single-stack configuration', async () => {
     const singleStackExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_B],
     });
@@ -1134,7 +1134,7 @@ describe('destroy', () => {
     })).resolves.not.toThrow();
   });
 
-  test('destroys single stack with pattern', async () => {
+  test('destroys stack with pattern in single-stack configuration', async () => {
     const singleStackExecutable = await MockCloudExecutable.create({
       stacks: [MockStack.MOCK_STACK_B],
     });
