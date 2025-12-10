@@ -1252,6 +1252,42 @@ describe('destroy', () => {
     );
   });
 
+  test('warns when wildcard pattern does not match any stacks', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Foo*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('Foo*/*')} does not exist.`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Foo*/*')}`), 'warn'),
+      ]),
+    );
+  });
+
+  test('warns when destroying non-existent stack in stage-only configuration', async () => {
+    const toolkit = await stageOnlyToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Foo*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('Foo*/*')} does not exist.`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Foo*/*')}`), 'warn'),
+      ]),
+    );
+  });
+
   test('suggests valid names if there is a non-existent but closely matching stack', async () => {
     const toolkit = defaultToolkitSetup();
 
@@ -1288,24 +1324,6 @@ describe('destroy', () => {
     );
   });
 
-  test('warns when wildcard pattern does not match any stacks', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['Foo*/*'] },
-      exclusively: true,
-      force: true,
-      fromDeploy: true,
-    });
-
-    expect(flatten(notifySpy.mock.calls)).toEqual(
-      expect.arrayContaining([
-        expectIoMsg(expect.stringContaining(`${chalk.red('Foo*/*')} does not exist.`), 'warn'),
-        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Foo*/*')}`), 'warn'),
-      ]),
-    );
-  });
-
   test('suggests stack with wildcard pattern when only case differs', async () => {
     const toolkit = defaultToolkitSetup();
 
@@ -1320,24 +1338,6 @@ describe('destroy', () => {
       expect.arrayContaining([
         expectIoMsg(expect.stringContaining(`${chalk.red('test*/*')} does not exist. Do you mean ${chalk.blue('Test-Stack-A/Test-Stack-C')}?`), 'warn'),
         expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test*/*')}`), 'warn'),
-      ]),
-    );
-  });
-
-  test('warns when destroying non-existent stack in stage-only configuration', async () => {
-    const toolkit = await stageOnlyToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-X'] },
-      exclusively: true,
-      force: true,
-      fromDeploy: true,
-    });
-
-    expect(flatten(notifySpy.mock.calls)).toEqual(
-      expect.arrayContaining([
-        expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
-        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Test-Stack-X')}`), 'warn'),
       ]),
     );
   });
