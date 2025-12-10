@@ -11,7 +11,7 @@ integTest('cdk destroy can destroy stacks in stage-only configuration', withDefa
   const stack = await fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: stackName }));
   expect(stack.Stacks?.length ?? 0).toEqual(1);
 
-  await fixture.cdkDestroy(['stage/*'], {
+  await fixture.cdkDestroy('stage/*', {
     modEnv: {
       INTEG_STACK_SET: 'stage-only',
     },

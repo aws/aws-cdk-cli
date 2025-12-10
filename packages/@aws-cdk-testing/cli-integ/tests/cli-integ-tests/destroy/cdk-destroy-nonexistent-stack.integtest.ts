@@ -11,7 +11,7 @@ integTest('cdk destroy with no force option exits without prompt if the stacks d
   const nonExistingStackName1 = 'non-existing-stack-1';
   const nonExistingStackName2 = 'non-existing-stack-2';
 
-  await expect(fixture.cdkDestroy([...fixture.fullStackName([nonExistingStackName1, nonExistingStackName2])], {
+  await expect(fixture.cdkDestroy([nonExistingStackName1, nonExistingStackName2], {
     force: false,
   })).resolves.not.toThrow();
 }));
