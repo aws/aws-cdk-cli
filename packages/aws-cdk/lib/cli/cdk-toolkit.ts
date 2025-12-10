@@ -1427,7 +1427,7 @@ export class CdkToolkit {
         const closelyMatched = pattern.closelyMatched.length > 0 ? ` Do you mean ${chalk.blue(pattern.closelyMatched.join(', '))}?` : '';
         await this.ioHost.asIoHelper().defaults.warn(`${chalk.red(pattern.pattern)} does not exist.${closelyMatched}`);
       }
-    };
+    }
   }
 
   /**
