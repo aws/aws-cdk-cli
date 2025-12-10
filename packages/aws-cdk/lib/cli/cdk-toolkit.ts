@@ -69,7 +69,6 @@ import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
 import { FlagOperations } from '../commands/flags/operations';
-import { warning } from '../legacy';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
