@@ -974,14 +974,11 @@ export class CdkToolkit {
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
 
-    // Only suggest stacks when not using --all flag
-    if (!options.selector.allTopLevel) {
-      await this.suggestStacks({
-        selector: options.selector,
-        stacks,
-        exclusively: options.exclusively,
-      });
-    }
+    await this.suggestStacks({
+      selector: options.selector,
+      stacks,
+      exclusively: options.exclusively,
+    });
 
     if (stacks.stackArtifacts.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn(`No stacks match the name(s): ${chalk.red(options.selector.patterns.join(', '))}`);
@@ -1394,6 +1391,11 @@ export class CdkToolkit {
     stacks: StackCollection;
     exclusively?: boolean;
   }) {
+    // Skip suggestion for --all flag
+    if (props.selector.allTopLevel) {
+      return;
+    }
+
     const assembly = await this.assembly();
     const selectorWithoutPatterns: StackSelector = {
       patterns: [],
