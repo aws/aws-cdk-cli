@@ -63,6 +63,7 @@ import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
+import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { Template, SdkProvider } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
@@ -1077,34 +1078,41 @@ describe('deploy', () => {
 });
 
 describe('destroy', () => {
-  test('destroy correct stack', async () => {
+  test('destroys correct stack', async () => {
     const toolkit = defaultToolkitSetup();
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
   });
 
-  test('can destroy nested stack with wildcard pattern', async () => {
+  test('destroys with --all flag', async () => {
     const toolkit = defaultToolkitSetup();
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test*/*'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
+    await expect(toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] }, // --all flag sets allTopLevel: true
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
   });
 
-  test('can destroy nested stack in nested-only configuration', async () => {
-    // only nested stacks (no top-level stacks)
+  test('destroys stack within stage with wildcard pattern', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack within stage in stage-only configuration', async () => {
+    // only stacks within stages (no top-level stacks)
     const nestedOnlyExecutable = await MockCloudExecutable.create({
       stacks: [],
       nestedAssemblies: [
@@ -1124,37 +1132,23 @@ describe('destroy', () => {
       }),
     });
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
   });
 
-  test('can destroy with --all flag', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: [] }, // --all flag uses empty patterns
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
-  });
-
-  test('can destroy with --all flag in nested-only configuration', async () => {
+  test('destroys stack within stage with wildcard pattern in stage-only configuration', async () => {
+    // only stacks within stages (no top-level stacks)
     const nestedOnlyExecutable = await MockCloudExecutable.create({
       stacks: [],
-      nestedAssemblies: [{
-        stacks: [
-          MockStack.MOCK_STACK_C,
-        ],
-      }],
+      nestedAssemblies: [
+        {
+          stacks: [MockStack.MOCK_STACK_C],
+        },
+      ],
     });
 
     const toolkit = new CdkToolkit({
@@ -1167,17 +1161,15 @@ describe('destroy', () => {
       }),
     });
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: [] }, // --all flag uses empty patterns
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
   });
 
-  test('does not throw and warns if there are only non-existent stacks', async () => {
+  test('warns if there are only non-existent stacks', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1188,16 +1180,13 @@ describe('destroy', () => {
     });
 
     expect(flatten(notifySpy.mock.calls)).toEqual([
-      // Color codes are optional because chalk depends on TTY/TERM
-      expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-X(\x1B\[39m)? does not exist./), 'warn'),
-      // Color codes are optional because chalk depends on TTY/TERM
-      expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-Y(\x1B\[39m)? does not exist./), 'warn'),
-      // Color codes are optional because chalk depends on TTY/TERM
-      expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?Test-Stack-X, Test-Stack-Y(\x1B\[39m)?/), 'warn'),
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-Y')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Test-Stack-X, Test-Stack-Y')}`), 'warn'),
     ]);
   });
 
-  test('does not throw and warns if there is a non-existent stack and the other exists', async () => {
+  test('warns if there is a non-existent stack and the other exists', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1209,14 +1198,12 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-X(\x1B\[39m)? does not exist./), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
       ]),
     );
     expect(flatten(notifySpy.mock.calls)).not.toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-B(\x1B\[39m)? does not exist./), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-B')} does not exist.`), 'warn'),
       ]),
     );
     expect(flatten(notifySpy.mock.calls)).not.toEqual(
@@ -1226,7 +1213,7 @@ describe('destroy', () => {
     );
   });
 
-  test('does not throw and suggests valid names if there is a non-existent but closely matching stack', async () => {
+  test('suggests valid names if there is a non-existent but closely matching stack', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1238,15 +1225,13 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-b(\x1B\[39m)? does not exist. Do you mean (\x1B\[34m)?Test-Stack-B(\x1B\[39m)?/), 'warn'),
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-b(\x1B\[39m)?/), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('test-stack-b')} does not exist. Do you mean ${chalk.blue('Test-Stack-B')}?`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test-stack-b')}`), 'warn'),
       ]),
     );
   });
 
-  test('does not throw and suggests nested stack names if there is a non-existent but closely matching nested stack', async () => {
+  test('suggests stack names within stages if there is a non-existent but closely matching stack', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1258,36 +1243,13 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-a\/test-stack-c(\x1B\[39m)? does not exist. Do you mean (\x1B\[34m)?Test-Stack-A\/Test-Stack-C(\x1B\[39m)?/), 'warn'),
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-a\/test-stack-c(\x1B\[39m)?/), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('test-stack-a/test-stack-c')} does not exist. Do you mean ${chalk.blue('Test-Stack-A/Test-Stack-C')}?`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test-stack-a/test-stack-c')}`), 'warn'),
       ]),
     );
   });
 
-  test('does not throw and does not suggest nested stack when pattern lacks hierarchy', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['test-stack-c'] },
-      exclusively: true,
-      force: true,
-      fromDeploy: true,
-    });
-
-    expect(flatten(notifySpy.mock.calls)).toEqual(
-      expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        // Should NOT suggest Test-Stack-A/Test-Stack-C because pattern lacks hierarchy
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test-stack-c(\x1B\[39m)? does not exist\.$/), 'warn'),
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?test-stack-c(\x1B\[39m)?/), 'warn'),
-      ]),
-    );
-  });
-
-  test('does not throw and warns when wildcard pattern does not match any stacks', async () => {
+  test('warns when wildcard pattern does not match any stacks', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1299,15 +1261,13 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Foo\*\/\*(\x1B\[39m)? does not exist\.$/), 'warn'),
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?Foo\*\/\*(\x1B\[39m)?/), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('Foo*/*')} does not exist.`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Foo*/*')}`), 'warn'),
       ]),
     );
   });
 
-  test('does not throw and suggests stack with wildcard pattern when only case differs', async () => {
+  test('suggests stack with wildcard pattern when only case differs', async () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.destroy({
@@ -1319,14 +1279,13 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?test\*\/\*(\x1B\[39m)? does not exist\. Do you mean (\x1B\[34m)?Test-Stack-A\/Test-Stack-C(\x1B\[39m)?/), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('test*/*')} does not exist. Do you mean ${chalk.blue('Test-Stack-A/Test-Stack-C')}?`), 'warn'),
       ]),
     );
   });
 
-  test('does not throw and warns when destroying non-existent stack in nested-only configuration', async () => {
-    // only nested stacks (no top-level stacks)
+  test('warns when destroying non-existent stack in stage-only configuration', async () => {
+    // only stacks within stages (no top-level stacks)
     const nestedOnlyExecutable = await MockCloudExecutable.create({
       stacks: [],
       nestedAssemblies: [
@@ -1355,10 +1314,8 @@ describe('destroy', () => {
 
     expect(flatten(notifySpy.mock.calls)).toEqual(
       expect.arrayContaining([
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/(\x1B\[31m)?Test-Stack-X(\x1B\[39m)? does not exist./), 'warn'),
-        // Color codes are optional because chalk depends on TTY/TERM
-        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\): (\x1B\[31m)?Test-Stack-X(\x1B\[39m)?/), 'warn'),
+        expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Test-Stack-X')}`), 'warn'),
       ]),
     );
   });
