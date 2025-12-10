@@ -1208,6 +1208,23 @@ describe('destroy', () => {
     ]);
   });
 
+  test('warns if there are only non-existent stacks even when exclusively is false', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X', 'Test-Stack-Y'] },
+      exclusively: false,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual([
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-Y')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Test-Stack-X, Test-Stack-Y')}`), 'warn'),
+    ]);
+  });
+
   test('warns if there is a non-existent stack and the other exists', async () => {
     const toolkit = defaultToolkitSetup();
 
