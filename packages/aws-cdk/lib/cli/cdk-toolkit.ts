@@ -1388,7 +1388,7 @@ export class CdkToolkit {
   private async suggestStacks(props: {
     selector: StackSelector;
     stacks: StackCollection;
-    exclusively?: boolean;
+    exclusively: boolean;
   }) {
     if (props.selector.patterns.length === 0) {
       return;
