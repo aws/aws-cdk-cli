@@ -16,6 +16,6 @@ integTest('cdk destroy with no force option exits without prompt if the stacks d
   })).resolves.not.toThrow();
 }));
 
-integTest('cdk destroy does not fail with wildcard pattern that matches no stacks', withDefaultFixture(async (fixture) => {
-  await expect(fixture.cdkDestroy('NonExistent*')).resolves.not.toThrow();
+integTest('cdk destroy does not fail even if the stages do not exist', withDefaultFixture(async (fixture) => {
+  await expect(fixture.cdkDestroy('NonExistent/*')).resolves.not.toThrow();
 }));
