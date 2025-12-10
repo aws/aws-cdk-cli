@@ -178,6 +178,14 @@ interface GarbageCollectorProps {
    * @default true
    */
   readonly confirm?: boolean;
+
+  /**
+   * Native CloudFormation stack names or glob patterns to skip when encountering unauthorized access errors during garbage collection.
+   * You must explicitly specify native CloudFormation stack names
+   *
+   * @default undefined
+   */
+  readonly unauthNativeCfnStacksToSkip?: string[];
 }
 
 /**
@@ -191,6 +199,7 @@ export class GarbageCollector {
   private bootstrapStackName: string;
   private confirm: boolean;
   private ioHelper: IoHelper;
+  private unauthNativeCfnStacksToSkip?: string[];
 
   public constructor(readonly props: GarbageCollectorProps) {
     this.ioHelper = props.ioHelper;
@@ -201,6 +210,7 @@ export class GarbageCollector {
     this.permissionToDelete = ['delete-tagged', 'full'].includes(props.action);
     this.permissionToTag = ['tag', 'full'].includes(props.action);
     this.confirm = props.confirm ?? true;
+    this.unauthNativeCfnStacksToSkip = props.unauthNativeCfnStacksToSkip;
 
     this.bootstrapStackName = props.bootstrapStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
   }
@@ -224,6 +234,7 @@ export class GarbageCollector {
       ioHelper: this.ioHelper,
       activeAssets,
       qualifier,
+      unauthNativeCfnStacksToSkip: this.unauthNativeCfnStacksToSkip,
     });
     // Start the background refresh
     const backgroundStackRefresh = new BackgroundStackRefresh({
@@ -231,6 +242,7 @@ export class GarbageCollector {
       ioHelper: this.ioHelper,
       activeAssets,
       qualifier,
+      unauthNativeCfnStacksToSkip: this.unauthNativeCfnStacksToSkip,
     });
     backgroundStackRefresh.start();
 
