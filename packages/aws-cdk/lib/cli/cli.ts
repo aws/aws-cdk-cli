@@ -372,6 +372,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           },
         });
 
+      case 'publish':
+        ioHost.currentAction = 'publish';
+        return cli.publish({
+          roleArn: args.roleArn,
+          force: args.force,
+        });
+
       case 'deploy':
         ioHost.currentAction = 'deploy';
         const parameterMap: { [name: string]: string | undefined } = {};

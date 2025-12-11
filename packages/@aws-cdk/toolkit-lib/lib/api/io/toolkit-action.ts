@@ -7,6 +7,7 @@ export type ToolkitAction =
 | 'synth'
 | 'list'
 | 'diff'
+| 'publish'
 | 'deploy'
 | 'drift'
 | 'rollback'

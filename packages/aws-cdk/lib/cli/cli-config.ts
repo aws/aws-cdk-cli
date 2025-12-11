@@ -136,6 +136,12 @@ export async function makeConfig(): Promise<CliConfig> {
           concurrency: { type: 'number', alias: ['n'], desc: 'Maximum number of simultaneous synths to execute.', default: 4, requiresArg: true },
         },
       },
+      'publish': {
+        description: 'Publishes synthesized assets (e.g. Docker images, Lambda ZIPs, S3 files) to their destinations',
+        options: {
+          force: { alias: 'f', type: 'boolean', desc: 'Always publish, even if it already exists', default: false },
+        },
+      },
       'deploy': {
         description: 'Deploys the stack(s) named STACKS into your AWS account',
         options: {

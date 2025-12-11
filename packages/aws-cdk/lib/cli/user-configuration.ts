@@ -17,6 +17,7 @@ export enum Command {
   LIST = 'list',
   DIFF = 'diff',
   BOOTSTRAP = 'bootstrap',
+  PUBLISH = 'publish',
   DEPLOY = 'deploy',
   DESTROY = 'destroy',
   SYNTHESIZE = 'synthesize',
