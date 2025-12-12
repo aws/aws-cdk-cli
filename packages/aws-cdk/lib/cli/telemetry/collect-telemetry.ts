@@ -11,5 +11,6 @@ export function canCollectTelemetry(args: any, context: Context): boolean {
     return false;
   }
 
+  console.log('whoah');
   return true;
 }
