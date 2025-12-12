@@ -125,6 +125,7 @@ describe('config', () => {
       }),
       context: expect.anything(),
       acknowledge: expect.anything(),
+      publish: expect.anything(),
       deploy: expect.anything(),
       destroy: expect.anything(),
       diff: expect.anything(),

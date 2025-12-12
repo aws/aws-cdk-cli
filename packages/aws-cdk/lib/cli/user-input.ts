@@ -51,6 +51,11 @@ export interface UserInput {
   readonly flags?: FlagsOptions;
 
   /**
+   * Publishes synthesized assets (e.g. Docker images, Lambda ZIPs, S3 files) to their destinations
+   */
+  readonly publish?: PublishOptions;
+
+  /**
    * Deploys the stack(s) named STACKS into your AWS account
    */
   readonly deploy?: DeployOptions;
@@ -708,6 +713,22 @@ export interface FlagsOptions {
    * Positional argument for flags
    */
   readonly FLAGNAME?: Array<string>;
+}
+
+/**
+ * Publishes synthesized assets (e.g. Docker images, Lambda ZIPs, S3 files) to their destinations
+ *
+ * @struct
+ */
+export interface PublishOptions {
+  /**
+   * Always publish, even if it already exists
+   *
+   * aliases: f
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
 }
 
 /**

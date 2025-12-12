@@ -112,6 +112,12 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'publish':
+      commandOptions = {
+        force: args.force,
+      };
+      break;
+
     case 'deploy':
       commandOptions = {
         all: args.all,
@@ -399,6 +405,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     safe: config.flags?.safe,
     concurrency: config.flags?.concurrency,
   };
+  const publishOptions = {
+    force: config.publish?.force,
+  };
   const deployOptions = {
     all: config.deploy?.all,
     buildExclude: config.deploy?.buildExclude,
@@ -536,6 +545,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrap: bootstrapOptions,
     gc: gcOptions,
     flags: flagsOptions,
+    publish: publishOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
     import: importOptions,

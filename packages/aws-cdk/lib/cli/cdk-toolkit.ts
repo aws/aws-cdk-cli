@@ -374,6 +374,30 @@ export class CdkToolkit {
     return diffs && options.fail ? 1 : 0;
   }
 
+  public async publish(options: PublishOptions) {
+    const buildAsset = async (assetNode: AssetBuildNode) => {
+      await this.props.deployments.buildSingleAsset(
+        assetNode.assetManifestArtifact,
+        assetNode.assetManifest,
+        assetNode.asset,
+        {
+          stack: assetNode.parentStack,
+          roleArn: options.roleArn,
+          stackName: assetNode.parentStack.stackName,
+        },
+      );
+    };
+
+    const publishAsset = async (assetNode: AssetPublishNode) => {
+      await this.props.deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
+        stack: assetNode.parentStack,
+        roleArn: options.roleArn,
+        stackName: assetNode.parentStack.stackName,
+        forcePublish: options.force,
+      });
+    };
+  }
+
   public async deploy(options: DeployOptions) {
     if (options.watch) {
       return this.watch(options);
@@ -1677,6 +1701,19 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
    * @default 1
    */
   readonly concurrency?: number;
+}
+
+export interface PublishOptions {
+  /**
+   * Role to pass to CloudFormation for asset publishing
+   */
+  roleArn?: string;
+
+  /**
+   * Always publish, even if it already exists
+   * @default false
+   */
+  force?: boolean;
 }
 
 export interface DeployOptions extends CfnDeployOptions, WatchOptions {
