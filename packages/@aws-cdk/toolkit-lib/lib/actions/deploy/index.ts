@@ -215,6 +215,15 @@ export interface DeployOptions extends BaseDeployOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * This setting only has an effect if `assetParallelism` is set to `true`.
+   *
+   * @default 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * When to build assets
    *
    * The default is the Docker-friendly default.
