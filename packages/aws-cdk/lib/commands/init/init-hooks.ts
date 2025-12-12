@@ -76,7 +76,7 @@ export async function invokeBuiltinHooks(ioHelper: IoHelper, target: HookTarget,
     case 'javascript':
     case 'typescript':
       // See above, but for 'package.json'.
-      await context.substitutePlaceholdersIn('package.json');
+      await context.substitutePlaceholdersIn('package.json', 'README.md');
   }
 }
 

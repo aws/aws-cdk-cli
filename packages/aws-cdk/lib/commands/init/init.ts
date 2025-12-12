@@ -10,7 +10,7 @@ import { versionNumber } from '../../cli/version';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
-import type { JsPackageManager } from './package-manager';
+import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -423,7 +423,14 @@ export class InitTemplate {
    * @param libVersion - the version of the CDK library to use
    * @default undefined
    */
-  public async install(ioHelper: IoHelper, language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
+  public async install(
+    ioHelper: IoHelper,
+    language: string,
+    targetDirectory: string,
+    stackName?: string,
+    libVersion?: string,
+    packageManager?: JsPackageManager,
+  ): Promise<void> {
     if (this.languages.indexOf(language) === -1) {
       await ioHelper.defaults.error(
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
@@ -455,7 +462,7 @@ export class InitTemplate {
       await this.installFilesWithoutProcessing(sourceDirectory, targetDirectory);
     } else {
       // For built-in templates, process placeholders as usual
-      await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo);
+      await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo, packageManager);
       await this.applyFutureFlags(targetDirectory);
       await invokeBuiltinHooks(
         ioHelper,
@@ -465,27 +472,33 @@ export class InitTemplate {
             const fileProcessingPromises = fileNames.map(async (fileName) => {
               const fullPath = path.join(targetDirectory, fileName);
               const template = await fs.readFile(fullPath, { encoding: 'utf-8' });
-              await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo));
+              await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo, packageManager));
             });
             /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Processing a small, known set of template files
             await Promise.all(fileProcessingPromises);
           },
-          placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo),
+          placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo, packageManager),
         },
       );
     }
   }
 
-  private async installFiles(sourceDirectory: string, targetDirectory: string, language: string, project: ProjectInfo) {
+  private async installFiles(
+    sourceDirectory: string,
+    targetDirectory: string,
+    language: string,
+    project: ProjectInfo,
+    packageManager?: JsPackageManager,
+  ): Promise<void> {
     for (const file of await fs.readdir(sourceDirectory)) {
       const fromFile = path.join(sourceDirectory, file);
-      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project));
+      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project, packageManager));
       if ((await fs.stat(fromFile)).isDirectory()) {
         await fs.mkdir(toFile);
-        await this.installFiles(fromFile, toFile, language, project);
+        await this.installFiles(fromFile, toFile, language, project, packageManager);
         continue;
       } else if (file.match(/^.*\.template\.[^.]+$/)) {
-        await this.installProcessed(fromFile, toFile.replace(/\.template(\.[^.]+)$/, '$1'), language, project);
+        await this.installProcessed(fromFile, toFile.replace(/\.template(\.[^.]+)$/, '$1'), language, project, packageManager);
         continue;
       } else if (file.match(/^.*\.hook\.(d.)?[^.]+$/)) {
         // Ignore
@@ -496,9 +509,15 @@ export class InitTemplate {
     }
   }
 
-  private async installProcessed(templatePath: string, toFile: string, language: string, project: ProjectInfo) {
+  private async installProcessed(
+    templatePath: string,
+    toFile: string,
+    language: string,
+    project: ProjectInfo,
+    packageManager?: JsPackageManager,
+  ) {
     const template = await fs.readFile(templatePath, { encoding: 'utf-8' });
-    await fs.writeFile(toFile, expandPlaceholders(template, language, project));
+    await fs.writeFile(toFile, expandPlaceholders(template, language, project, packageManager));
   }
 
   /**
@@ -548,7 +567,7 @@ export class InitTemplate {
   }
 }
 
-export function expandPlaceholders(template: string, language: string, project: ProjectInfo) {
+export function expandPlaceholders(template: string, language: string, project: ProjectInfo, packageManager?: JsPackageManager) {
   const cdkVersion = project.versions['aws-cdk-lib'];
   const cdkCliVersion = project.versions['aws-cdk'];
   let constructsVersion = project.versions.constructs;
@@ -582,7 +601,8 @@ export function expandPlaceholders(template: string, language: string, project: 
     .replace(/%cdk-home%/g, cdkHomeDir())
     .replace(/%name\.PythonModule%/g, project.name.replace(/-/g, '_'))
     .replace(/%python-executable%/g, pythonExecutable())
-    .replace(/%name\.StackName%/g, project.name.replace(/[^A-Za-z0-9-]/g, '-'));
+    .replace(/%name\.StackName%/g, project.name.replace(/[^A-Za-z0-9-]/g, '-'))
+    .replace(/%pm-cmd%/g, getPmCmdPrefix(packageManager ?? 'npm'));
 }
 
 interface ProjectInfo {
@@ -679,7 +699,7 @@ async function initializeProject(
 
   // Step 2: Copy template files
   await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
-  await template.install(ioHelper, language, workDir, stackName, cdkVersion);
+  await template.install(ioHelper, language, workDir, stackName, cdkVersion, packageManager);
 
   if (migrate) {
     await template.addMigrateContext(workDir);
