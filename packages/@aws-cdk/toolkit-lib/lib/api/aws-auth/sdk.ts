@@ -111,9 +111,14 @@ import type {
   DescribeStackResourceDriftsCommandInput,
   ExecuteStackRefactorCommandInput,
   DescribeStackRefactorCommandInput,
-  CreateStackRefactorCommandOutput, ExecuteStackRefactorCommandOutput,
+  CreateStackRefactorCommandOutput,
+  ExecuteStackRefactorCommandOutput,
+  DescribeEventsCommandOutput,
+  DescribeEventsCommandInput,
 } from '@aws-sdk/client-cloudformation';
 import {
+  paginateDescribeEvents,
+
   paginateListStacks,
   CloudFormationClient,
   ContinueUpdateRollbackCommand,
@@ -124,6 +129,7 @@ import {
   DeleteChangeSetCommand,
   DeleteGeneratedTemplateCommand,
   DeleteStackCommand,
+  DescribeEventsCommand,
   DescribeChangeSetCommand,
   DescribeGeneratedTemplateCommand,
   DescribeResourceScanCommand,
@@ -152,6 +158,7 @@ import {
   waitUntilStackRefactorCreateComplete,
   waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
+import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
   FilterLogEventsCommandInput,
   FilterLogEventsCommandOutput,
@@ -450,6 +457,7 @@ export interface ICloudFormationClient {
   deleteChangeSet(input: DeleteChangeSetCommandInput): Promise<DeleteChangeSetCommandOutput>;
   deleteGeneratedTemplate(input: DeleteGeneratedTemplateCommandInput): Promise<DeleteGeneratedTemplateCommandOutput>;
   deleteStack(input: DeleteStackCommandInput): Promise<DeleteStackCommandOutput>;
+  describeEvents(input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput>;
   describeChangeSet(input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput>;
   describeGeneratedTemplate(
     input: DescribeGeneratedTemplateCommandInput,
@@ -484,6 +492,7 @@ export interface ICloudFormationClient {
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
+  paginatedDescribeEvents(input: DescribeEventsCommandInput): Promise<OperationEvent[]>;
   createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
   executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
   waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
@@ -736,6 +745,8 @@ export class SDK {
         client.send(new DetectStackDriftCommand(input)),
       detectStackResourceDrift: (input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput> =>
         client.send(new DetectStackResourceDriftCommand(input)),
+      describeEvents: (input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput> =>
+        client.send(new DescribeEventsCommand(input)),
       describeChangeSet: (input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput> =>
         client.send(new DescribeChangeSetCommand(input)),
       describeGeneratedTemplate: (
@@ -798,6 +809,14 @@ export class SDK {
         const paginator = paginateListStacks({ client }, input);
         for await (const page of paginator) {
           stackResources.push(...(page?.StackSummaries || []));
+        }
+        return stackResources;
+      },
+      paginatedDescribeEvents: async (input: DescribeEventsCommandInput): Promise<OperationEvent[]> => {
+        const stackResources = Array<OperationEvent>();
+        const paginator = paginateDescribeEvents({ client }, input);
+        for await (const page of paginator) {
+          stackResources.push(...(page.OperationEvents || []));
         }
         return stackResources;
       },

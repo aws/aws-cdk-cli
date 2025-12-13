@@ -420,7 +420,7 @@ export class TestFixture extends ShellHelper {
       // use events because bar renders bad in tests
       '--progress', 'events',
       ...(skipStackRename ? stackNames : this.fullStackName(stackNames)),
-      ...(options.telemetryFile ? ['--unstable=telemetry', `--telemetry-file=${options.telemetryFile}`] : []),
+      ...(options.telemetryFile ? [`--telemetry-file=${options.telemetryFile}`] : []),
     ];
   }
 

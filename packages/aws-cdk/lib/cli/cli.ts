@@ -100,10 +100,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
-  if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
-    throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
-  }
-
   try {
     await ioHost.startTelemetry(argv, configuration.context);
   } catch (e: any) {
@@ -565,6 +561,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             libVersion: args.libVersion,
             fromPath: args['from-path'],
             templatePath: args['template-path'],
+            packageManager: args['package-manager'],
           });
         }
       case 'migrate':
@@ -734,15 +731,6 @@ export function cli(args: string[] = process.argv.slice(2)) {
       } catch (e: any) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
-      /*
-       * The SDK may leave open handles in some environments. One case we have seen is
-       * MetadataService leaving an open socket in GitHub Actions. To ensure that
-       * the CLI exits in all environments, we explicitly call process.exit() after
-       * ending telemetry.
-       *
-       * See https://github.com/aws/aws-sdk-js-v3/issues/7538.
-       */
-      process.exit();
     });
 }
 /* c8 ignore stop */
