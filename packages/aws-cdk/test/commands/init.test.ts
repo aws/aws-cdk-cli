@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
-import type { JsPackageManager } from '../../lib/commands/init/package-manager';
+import { type JsPackageManager } from '../../lib/commands/init/package-manager';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -1370,15 +1370,15 @@ describe('constructs version', () => {
     });
 
     test.each([
-      { language: 'typescript', packageManager: 'npm' },
-      { language: 'typescript', packageManager: 'yarn' },
-      { language: 'typescript', packageManager: 'pnpm' },
-      { language: 'typescript', packageManager: 'bun' },
-      { language: 'javascript', packageManager: 'npm' },
-      { language: 'javascript', packageManager: 'yarn' },
-      { language: 'javascript', packageManager: 'pnpm' },
-      { language: 'javascript', packageManager: 'bun' },
-    ])('uses $packageManager for $language project', async ({ language, packageManager }) => {
+      { language: 'typescript', packageManager: 'npm', pmCmdPrefix: 'npm run' },
+      { language: 'typescript', packageManager: 'yarn', pmCmdPrefix: 'yarn' },
+      { language: 'typescript', packageManager: 'pnpm', pmCmdPrefix: 'pnpm' },
+      { language: 'typescript', packageManager: 'bun', pmCmdPrefix: 'bun run' },
+      { language: 'javascript', packageManager: 'npm', pmCmdPrefix: 'npm run' },
+      { language: 'javascript', packageManager: 'yarn', pmCmdPrefix: 'yarn' },
+      { language: 'javascript', packageManager: 'pnpm', pmCmdPrefix: 'pnpm' },
+      { language: 'javascript', packageManager: 'bun', pmCmdPrefix: 'bun run' },
+    ])('uses $packageManager for $language project', async ({ language, packageManager, pmCmdPrefix }) => {
       await withTempDir(async (workDir) => {
         await cliInit({
           ioHelper,
@@ -1388,14 +1388,66 @@ describe('constructs version', () => {
           workDir,
         });
 
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
         const installCalls = spawnSpy.mock.calls.filter(
           ([cmd, args]) => cmd === packageManager && args.includes('install'),
         );
+
         expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('init type `lib` also respects package manager option', async () => {
+      const packageManager = 'pnpm';
+      const pmCmdPrefix = 'pnpm';
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language: 'typescript',
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('init type `sample-app` also respects package manager option', async () => {
+      const packageManager = 'pnpm';
+      const pmCmdPrefix = 'pnpm';
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'sample-app',
+          language: 'typescript',
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
       });
     });
 
     cliTest('uses npm as default when package manager not specified', async (workDir) => {
+      const defaultPackageManager = 'npm';
+      const pmCmdPrefix = 'npm run';
+
       await cliInit({
         ioHelper,
         type: 'app',
@@ -1403,24 +1455,34 @@ describe('constructs version', () => {
         workDir,
       });
 
+      const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
       const installCalls = spawnSpy.mock.calls.filter(
-        ([cmd, args]) => cmd === 'npm' && args.includes('install'),
+        ([cmd, args]) => cmd === defaultPackageManager && args.includes('install'),
       );
+
       expect(installCalls.length).toBeGreaterThan(0);
+      expect(readme).toContain(pmCmdPrefix);
     });
 
     cliTest('ignores package manager option for non-JavaScript languages', async (workDir) => {
+      const packageManager = 'yarn';
+      const pmCmdPrefix = 'yarn';
+
       await cliInit({
         ioHelper,
         type: 'app',
         language: 'python',
-        packageManager: 'yarn',
+        packageManager,
         canUseNetwork: false,
         generateOnly: true,
         workDir,
       });
 
-      expect(await fs.pathExists(path.join(workDir, 'requirements.txt'))).toBeTruthy();
+      const requirementsExists = await fs.pathExists(path.join(workDir, 'requirements.txt'));
+      const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+
+      expect(requirementsExists).toBeTruthy();
+      expect(readme).not.toContain(pmCmdPrefix);
     });
   });
 
