@@ -517,6 +517,8 @@ Hotswapping is currently supported for the following changes
 - Source and Environment changes of AWS CodeBuild Projects.
 - VTL mapping template changes for AppSync Resolvers and Functions.
 - Schema changes for AppSync GraphQL Apis.
+- Code files (S3-based) and container image (ECR-based) changes, along with environment variable
+  and description changes of Amazon Bedrock AgentCore Runtimes.
 
 You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 

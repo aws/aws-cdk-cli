@@ -85,6 +85,7 @@
     "@aws-cdk/cx-api": "^2.230.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@aws-sdk/client-appsync": "^3",
+    "@aws-sdk/client-bedrock-agentcore-control": "^3",
     "@aws-sdk/client-cloudcontrol": "^3",
     "@aws-sdk/client-cloudformation": "^3",
     "@aws-sdk/client-cloudwatch-logs": "^3",

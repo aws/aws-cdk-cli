@@ -23,6 +23,17 @@ import {
   UpdateResolverCommand,
 } from '@aws-sdk/client-appsync';
 import type {
+  GetAgentRuntimeCommandInput,
+  GetAgentRuntimeCommandOutput,
+  UpdateAgentRuntimeCommandInput,
+  UpdateAgentRuntimeCommandOutput,
+} from '@aws-sdk/client-bedrock-agentcore-control';
+import {
+  BedrockAgentCoreControlClient,
+  GetAgentRuntimeCommand,
+  UpdateAgentRuntimeCommand,
+} from '@aws-sdk/client-bedrock-agentcore-control';
+import type {
   GetResourceCommandInput,
   GetResourceCommandOutput,
   ListResourcesCommandInput,
@@ -421,6 +432,11 @@ export interface IAppSyncClient {
   listFunctions(input: ListFunctionsCommandInput): Promise<FunctionConfiguration[]>;
 }
 
+export interface IBedrockAgentCoreControlClient {
+  getAgentRuntime(input: GetAgentRuntimeCommandInput): Promise<GetAgentRuntimeCommandOutput>;
+  updateAgentRuntime(input: UpdateAgentRuntimeCommandInput): Promise<UpdateAgentRuntimeCommandOutput>;
+}
+
 export interface ICloudControlClient {
   listResources(input: ListResourcesCommandInput): Promise<ListResourcesCommandOutput>;
   getResource(input: GetResourceCommandInput): Promise<GetResourceCommandOutput>;
@@ -670,6 +686,16 @@ export class SDK {
         }
         return functions;
       },
+    };
+  }
+
+  public bedrockAgentCoreControl(): IBedrockAgentCoreControlClient {
+    const client = new BedrockAgentCoreControlClient(this.config);
+    return {
+      getAgentRuntime: (input: GetAgentRuntimeCommandInput): Promise<GetAgentRuntimeCommandOutput> =>
+        client.send(new GetAgentRuntimeCommand(input)),
+      updateAgentRuntime: (input: UpdateAgentRuntimeCommandInput): Promise<UpdateAgentRuntimeCommandOutput> =>
+        client.send(new UpdateAgentRuntimeCommand(input)),
     };
   }
 
