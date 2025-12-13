@@ -561,31 +561,6 @@ Hotswapping is currently supported for the following changes
     );
     ```
 
-    - Even if you want to use `Source.asset()` with `BucketDeployment`, you can specify a static file name via `assetHash` (you will need to update this static value for each code change to make hotswap work):
-
-    ```typescript
-    const fileName = 'agent-code-v1.zip'; // Change this for each code update
-    const deployment = new aws_s3_deployment.BucketDeployment(this, 'Deploy', {
-      sources: [
-        aws_s3_deployment.Source.asset(path.join(__dirname, 'agent-code'), {
-          assetHash: fileName,
-          assetHashType: cdk.AssetHashType.CUSTOM,
-        }),
-      ],
-      destinationBucket: bucket,
-      extract: false,
-    });
-
-    const agentRuntimeArtifact = AgentRuntimeArtifact.fromS3(
-      {
-        bucketName: bucket.bucketName,
-        objectKey: fileName, // direct reference to the static file name
-      },
-      AgentCoreRuntime.PYTHON_3_13,
-      ['app.py'],
-    );
-    ```
-
 You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 
 | Property                    | Description                                                                                                                                                 | Default                            |
