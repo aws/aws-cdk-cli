@@ -17,6 +17,19 @@ test('select all top level stacks in the presence of nested assemblies', async (
   expect(x.stackIds).toContain('withouterrors');
 });
 
+test('select all stacks when only nested assemblies exist (Stage-only apps)', async () => {
+  // GIVEN
+  const cxasm = await testStageOnlyCloudAssembly();
+
+  // WHEN
+  const x = await cxasm.selectStacks({ allTopLevel: true, patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks });
+
+  // THEN
+  expect(x.stackCount).toBe(2);
+  expect(x.stackIds).toContain('stack1');
+  expect(x.stackIds).toContain('stack2');
+});
+
 test('select stacks by glob pattern', async () => {
   // GIVEN
   const cxasm = await testCloudAssembly();
@@ -330,6 +343,31 @@ async function testNestedCloudAssembly({ env }: { env?: string; versionReporting
             },
           ],
         },
+      }],
+    }],
+  });
+
+  const asm = await cloudExec.synthesize();
+  return cliAssemblyWithForcedVersion(asm, '30.0.0');
+}
+
+async function testStageOnlyCloudAssembly({ env }: { env?: string; versionReporting?: boolean } = {}) {
+  const cloudExec = await MockCloudExecutable.create({
+    stacks: [], // No top-level stacks
+    nestedAssemblies: [{
+      stacks: [{
+        stackName: 'stack1',
+        displayName: 'stage1/stack1',
+        env,
+        template: { resource: 'resource1' },
+      }],
+    },
+    {
+      stacks: [{
+        stackName: 'stack2',
+        displayName: 'stage2/stack2',
+        env,
+        template: { resource: 'resource2' },
       }],
     }],
   });
