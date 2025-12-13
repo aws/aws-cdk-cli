@@ -519,6 +519,72 @@ Hotswapping is currently supported for the following changes
 - Schema changes for AppSync GraphQL Apis.
 - Code files (S3-based) and container image (ECR-based) changes, along with environment variable
   and description changes of Amazon Bedrock AgentCore Runtimes.
+  - **Note**: For S3-based code changes to be detected, use `Asset` from `aws-cdk-lib/aws-s3-assets`:
+
+    ```typescript
+    // ✅ Recommended (hotswap works)
+    const asset = new aws_s3_assets.Asset(this, 'CodeAsset', {
+      path: path.join(__dirname, 'agent-code'),
+    });
+
+    const agentRuntimeArtifact = AgentRuntimeArtifact.fromS3(
+      {
+        bucketName: asset.s3BucketName,
+        objectKey: asset.s3ObjectKey, // Content hash, changes when code changes
+      },
+      AgentCoreRuntime.PYTHON_3_13,
+      ['app.py'],
+    );
+    new Runtime(this, 'Runtime', {
+      runtimeName: 'runtime',
+      agentRuntimeArtifact,
+    });
+    ```
+
+  - Do not use `Source.asset()` with `BucketDeployment`, as the generated object key is a token resolved at deployment time and does not change in the CloudFormation template (hotswap will not work):
+
+    ```typescript
+    // ❌ Not recommended (hotswap doesn't work)
+    const deployment = new aws_s3_deployment.BucketDeployment(this, 'Deploy', {
+      sources: [aws_s3_deployment.Source.asset(path.join(__dirname, 'agent-code'))],
+      destinationBucket: bucket,
+      extract: false,
+    });
+
+    const agentRuntimeArtifact = AgentRuntimeArtifact.fromS3(
+      {
+        bucketName: bucket.bucketName,
+        objectKey: cdk.Fn.select(0, deployment.objectKeys), // Token, resolved at deployment time
+      },
+      AgentCoreRuntime.PYTHON_3_13,
+      ['app.py'],
+    );
+    ```
+
+    - Even if you want to use `Source.asset()` with `BucketDeployment`, you can specify a static file name via `assetHash` (you will need to update this static value for each code change to make hotswap work):
+
+    ```typescript
+    const fileName = 'agent-code-v1.zip'; // Change this for each code update
+    const deployment = new aws_s3_deployment.BucketDeployment(this, 'Deploy', {
+      sources: [
+        aws_s3_deployment.Source.asset(path.join(__dirname, 'agent-code'), {
+          assetHash: fileName,
+          assetHashType: cdk.AssetHashType.CUSTOM,
+        }),
+      ],
+      destinationBucket: bucket,
+      extract: false,
+    });
+
+    const agentRuntimeArtifact = AgentRuntimeArtifact.fromS3(
+      {
+        bucketName: bucket.bucketName,
+        objectKey: fileName, // direct reference to the static file name
+      },
+      AgentCoreRuntime.PYTHON_3_13,
+      ['app.py'],
+    );
+    ```
 
 You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 
