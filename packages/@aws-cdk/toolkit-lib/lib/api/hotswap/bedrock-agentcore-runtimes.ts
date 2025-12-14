@@ -122,6 +122,7 @@ async function evaluateBedrockAgentCoreRuntimeProps(
         break;
 
       default:
+        // never reached
         throw new ToolkitError(
           'Unexpected hotswappable property for BedrockAgentCore Runtime. Please report this at github.com/aws/aws-cdk/issues/new/choose',
         );
