@@ -689,7 +689,7 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
     });
     image.repository.grantPull(role);
 
-    const ecrRuntime = new bedrockagentcore.CfnRuntime(this, 'Runtime', {
+    const runtime = new bedrockagentcore.CfnRuntime(this, 'Runtime', {
       agentRuntimeName: 'test_runtime',
       roleArn: role.roleArn,
       networkConfiguration: {
@@ -705,8 +705,8 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
         TEST_VAR: process.env.DYNAMIC_BEDROCK_RUNTIME_ENV_VAR ?? 'original',
       },
     });
-    ecrRuntime.node.addDependency(role);
-    new cdk.CfnOutput(this, 'ECRRuntimeId', { value: ecrRuntime.ref });
+    runtime.node.addDependency(role);
+    new cdk.CfnOutput(this, 'RuntimeId', { value: runtime.ref });
   }
 }
 

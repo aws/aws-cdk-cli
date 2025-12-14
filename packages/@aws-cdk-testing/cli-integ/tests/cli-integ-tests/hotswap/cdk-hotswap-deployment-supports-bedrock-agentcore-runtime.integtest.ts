@@ -31,7 +31,7 @@ integTest(
         StackName: stackArn,
       }),
     );
-    const ecrRuntimeId = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'ECRRuntimeId')?.OutputValue;
+    const ecrRuntimeId = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'RuntimeId')?.OutputValue;
 
     // THEN
 
