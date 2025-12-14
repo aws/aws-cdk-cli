@@ -808,6 +808,7 @@ const toolkitLib = configureProject(
       cdkAssetsLib.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
       `${cxApi}@^2`, // stay within the same MV, otherwise any should work
       sdkDepForLib('@aws-sdk/client-appsync'),
+      sdkDepForLib('@aws-sdk/client-bedrock-agentcore-control'),
       sdkDepForLib('@aws-sdk/client-cloudformation'),
       sdkDepForLib('@aws-sdk/client-cloudwatch-logs'),
       sdkDepForLib('@aws-sdk/client-cloudcontrol'),
@@ -1128,6 +1129,7 @@ const cli = configureProject(
       toolkitLib,
       'archiver',
       '@aws-sdk/client-appsync',
+      '@aws-sdk/client-bedrock-agentcore-control',
       '@aws-sdk/client-cloudformation',
       '@aws-sdk/client-cloudwatch-logs',
       '@aws-sdk/client-cloudcontrol',
