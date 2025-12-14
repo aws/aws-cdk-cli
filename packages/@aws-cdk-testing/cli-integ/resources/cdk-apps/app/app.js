@@ -678,7 +678,7 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
     super(parent, id, props);
 
     const role = new iam.Role(this, 'RuntimeRole', {
-      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+      assumedBy: new iam.ServicePrincipal('bedrock-agentcore.amazonaws.com'),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonBedrockFullAccess'),
       ],
