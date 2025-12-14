@@ -32,6 +32,7 @@ if (process.env.PACKAGE_LAYOUT_VERSION === '1') {
     aws_lambda_nodejs: node_lambda,
     aws_ecr_assets: docker,
     aws_appsync: appsync,
+    aws_bedrockagentcore: bedrockagentcore,
     Stack
   } = require('aws-cdk-lib');
 }
@@ -672,6 +673,41 @@ class EcsHotswapStack extends cdk.Stack {
   }
 }
 
+class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    const role = new iam.Role(this, 'RuntimeRole', {
+      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonBedrockFullAccess'),
+      ],
+    });
+
+    const image = new docker.DockerImageAsset(this, 'Image', {
+      directory: path.join(__dirname, 'docker'),
+    });
+
+    const ecrRuntime = new bedrockagentcore.CfnRuntime(this, 'Runtime', {
+      runtimeName: 'test-runtime',
+      roleArn: role.roleArn,
+      networkConfiguration: {
+        networkMode: 'PUBLIC',
+      },
+      agentRuntimeArtifact: {
+        containerConfiguration: {
+          containerUri: image.imageUri,
+        },
+      },
+      description: process.env.DYNAMIC_BEDROCK_RUNTIME_DESCRIPTION ?? 'runtime',
+      environmentVariables: {
+        TEST_VAR: process.env.DYNAMIC_BEDROCK_RUNTIME_ENV_VAR ?? 'original',
+      },
+    });
+    new cdk.CfnOutput(this, 'ECRRuntimeId', { value: ecrRuntime.ref });
+  }
+}
+
 class DockerStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
@@ -928,6 +964,7 @@ switch (stackSet) {
     new SessionTagsWithNoExecutionRoleCustomSynthesizerStack(app, `${stackPrefix}-session-tags-with-custom-synthesizer`);
     new LambdaHotswapStack(app, `${stackPrefix}-lambda-hotswap`);
     new EcsHotswapStack(app, `${stackPrefix}-ecs-hotswap`);
+    new BedrockAgentCoreRuntimeHotswapStack(app, `${stackPrefix}-bedrock-agentcore-runtime-hotswap`);
     new AppSyncHotswapStack(app, `${stackPrefix}-appsync-hotswap`);
     new DockerStack(app, `${stackPrefix}-docker`);
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
