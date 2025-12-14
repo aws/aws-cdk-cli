@@ -58,7 +58,7 @@ export async function isHotswappableBedrockAgentCoreRuntimeChange(
       const bedrockAgentCore = sdk.bedrockAgentCoreControl();
 
       const currentRuntime = await bedrockAgentCore.getAgentRuntime({
-        agentRuntimeId: agentRuntimeId,
+        agentRuntimeId,
       });
 
       // While UpdateAgentRuntimeRequest type allows undefined,
@@ -77,7 +77,7 @@ export async function isHotswappableBedrockAgentCoreRuntimeChange(
       // default values. We pass all properties from the current runtime and override
       // only the ones that have changed.
       await bedrockAgentCore.updateAgentRuntime({
-        agentRuntimeId: agentRuntimeId,
+        agentRuntimeId,
         agentRuntimeArtifact: runtimeChange.artifact
           ? toSdkAgentRuntimeArtifact(runtimeChange.artifact)
           : currentRuntime.agentRuntimeArtifact,
