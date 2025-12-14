@@ -687,6 +687,7 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
     const image = new docker.DockerImageAsset(this, 'Image', {
       directory: path.join(__dirname, 'docker'),
     });
+    image.repository.grantPull(role);
 
     const ecrRuntime = new bedrockagentcore.CfnRuntime(this, 'Runtime', {
       agentRuntimeName: 'test_runtime',
