@@ -705,6 +705,7 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
         TEST_VAR: process.env.DYNAMIC_BEDROCK_RUNTIME_ENV_VAR ?? 'original',
       },
     });
+    ecrRuntime.node.addDependency(role);
     new cdk.CfnOutput(this, 'ECRRuntimeId', { value: ecrRuntime.ref });
   }
 }
