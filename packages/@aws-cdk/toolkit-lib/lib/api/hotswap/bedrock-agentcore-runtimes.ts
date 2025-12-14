@@ -28,68 +28,70 @@ export async function isHotswappableBedrockAgentCoreRuntimeChange(
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 
   const namesOfHotswappableChanges = Object.keys(classifiedChanges.hotswappableProps);
-  if (namesOfHotswappableChanges.length > 0) {
-    const agentRuntimeId = await evaluateCfnTemplate.findPhysicalNameFor(logicalId);
-
-    if (!agentRuntimeId) {
-      return ret;
-    }
-    const runtimeChange = await evaluateBedrockAgentCoreRuntimeProps(
-      classifiedChanges.hotswappableProps,
-      evaluateCfnTemplate,
-    );
-
-    ret.push({
-      change: {
-        cause: change,
-        resources: [{
-          logicalId,
-          resourceType: change.newValue.Type,
-          physicalName: agentRuntimeId,
-          metadata: evaluateCfnTemplate.metadataFor(logicalId),
-        }],
-      },
-      hotswappable: true,
-      service: 'bedrock-agentcore',
-      apply: async (sdk: SDK) => {
-        const bedrockAgentCore = sdk.bedrockAgentCoreControl();
-
-        const currentRuntime = await bedrockAgentCore.getAgentRuntime({
-          agentRuntimeId: agentRuntimeId,
-        });
-
-        // While UpdateAgentRuntimeRequest type allows undefined,
-        // the API will fail at runtime if these required properties are not provided.
-        if (!currentRuntime.agentRuntimeArtifact) {
-          throw new ToolkitError('Current runtime does not have an artifact');
-        }
-        if (!currentRuntime.roleArn) {
-          throw new ToolkitError('Current runtime does not have a roleArn');
-        }
-        if (!currentRuntime.networkConfiguration) {
-          throw new ToolkitError('Current runtime does not have a networkConfiguration');
-        }
-
-        // All properties must be explicitly specified, otherwise they will be reset to
-        // default values. We pass all properties from the current runtime and override
-        // only the ones that have changed.
-        await bedrockAgentCore.updateAgentRuntime({
-          agentRuntimeId: agentRuntimeId,
-          agentRuntimeArtifact: runtimeChange.artifact
-            ? toSdkAgentRuntimeArtifact(runtimeChange.artifact)
-            : currentRuntime.agentRuntimeArtifact,
-          roleArn: currentRuntime.roleArn,
-          networkConfiguration: currentRuntime.networkConfiguration,
-          description: runtimeChange.description ?? currentRuntime.description,
-          authorizerConfiguration: currentRuntime.authorizerConfiguration,
-          requestHeaderConfiguration: currentRuntime.requestHeaderConfiguration,
-          protocolConfiguration: currentRuntime.protocolConfiguration,
-          lifecycleConfiguration: currentRuntime.lifecycleConfiguration,
-          environmentVariables: runtimeChange.environmentVariables ?? currentRuntime.environmentVariables,
-        });
-      },
-    });
+  if (namesOfHotswappableChanges.length === 0) {
+    return ret;
   }
+
+  const agentRuntimeId = await evaluateCfnTemplate.findPhysicalNameFor(logicalId);
+  if (!agentRuntimeId) {
+    return ret;
+  }
+
+  const runtimeChange = await evaluateBedrockAgentCoreRuntimeProps(
+    classifiedChanges.hotswappableProps,
+    evaluateCfnTemplate,
+  );
+
+  ret.push({
+    change: {
+      cause: change,
+      resources: [{
+        logicalId,
+        resourceType: change.newValue.Type,
+        physicalName: agentRuntimeId,
+        metadata: evaluateCfnTemplate.metadataFor(logicalId),
+      }],
+    },
+    hotswappable: true,
+    service: 'bedrock-agentcore',
+    apply: async (sdk: SDK) => {
+      const bedrockAgentCore = sdk.bedrockAgentCoreControl();
+
+      const currentRuntime = await bedrockAgentCore.getAgentRuntime({
+        agentRuntimeId: agentRuntimeId,
+      });
+
+      // While UpdateAgentRuntimeRequest type allows undefined,
+      // the API will fail at runtime if these required properties are not provided.
+      if (!currentRuntime.agentRuntimeArtifact) {
+        throw new ToolkitError('Current runtime does not have an artifact');
+      }
+      if (!currentRuntime.roleArn) {
+        throw new ToolkitError('Current runtime does not have a roleArn');
+      }
+      if (!currentRuntime.networkConfiguration) {
+        throw new ToolkitError('Current runtime does not have a networkConfiguration');
+      }
+
+      // All properties must be explicitly specified, otherwise they will be reset to
+      // default values. We pass all properties from the current runtime and override
+      // only the ones that have changed.
+      await bedrockAgentCore.updateAgentRuntime({
+        agentRuntimeId: agentRuntimeId,
+        agentRuntimeArtifact: runtimeChange.artifact
+          ? toSdkAgentRuntimeArtifact(runtimeChange.artifact)
+          : currentRuntime.agentRuntimeArtifact,
+        roleArn: currentRuntime.roleArn,
+        networkConfiguration: currentRuntime.networkConfiguration,
+        description: runtimeChange.description ?? currentRuntime.description,
+        authorizerConfiguration: currentRuntime.authorizerConfiguration,
+        requestHeaderConfiguration: currentRuntime.requestHeaderConfiguration,
+        protocolConfiguration: currentRuntime.protocolConfiguration,
+        lifecycleConfiguration: currentRuntime.lifecycleConfiguration,
+        environmentVariables: runtimeChange.environmentVariables ?? currentRuntime.environmentVariables,
+      });
+    },
+  });
 
   return ret;
 }
