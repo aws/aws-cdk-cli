@@ -689,7 +689,7 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
     });
 
     const ecrRuntime = new bedrockagentcore.CfnRuntime(this, 'Runtime', {
-      agentRuntimeName: 'test-runtime',
+      agentRuntimeName: 'test_runtime',
       roleArn: role.roleArn,
       networkConfiguration: {
         networkMode: 'PUBLIC',
