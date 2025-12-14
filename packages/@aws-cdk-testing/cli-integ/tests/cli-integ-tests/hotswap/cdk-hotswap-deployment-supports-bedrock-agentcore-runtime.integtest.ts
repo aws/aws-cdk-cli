@@ -31,7 +31,7 @@ integTest(
         StackName: stackArn,
       }),
     );
-    const ecrRuntimeId = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'RuntimeId')?.OutputValue;
+    const runtimeId = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'RuntimeId')?.OutputValue;
 
     // THEN
 
@@ -40,6 +40,6 @@ integTest(
     expect(response.Stacks?.[0].StackStatus).toEqual('CREATE_COMPLETE');
     // The entire string fails locally due to formatting. Making this test less specific
     expect(deployOutput).toMatch(/hotswapped!/);
-    expect(deployOutput).toContain(ecrRuntimeId);
+    expect(deployOutput).toContain(runtimeId);
   }),
 );
