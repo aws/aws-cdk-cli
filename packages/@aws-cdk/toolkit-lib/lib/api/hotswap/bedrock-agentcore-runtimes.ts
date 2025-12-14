@@ -102,7 +102,7 @@ async function evaluateBedrockAgentCoreRuntimeProps(
 
   for (const updatedPropName in hotswappablePropChanges) {
     const updatedProp = hotswappablePropChanges[updatedPropName];
-    
+
     switch (updatedPropName) {
       case 'AgentRuntimeArtifact':
         runtimeChange.artifact = await evaluateAgentRuntimeArtifact(
