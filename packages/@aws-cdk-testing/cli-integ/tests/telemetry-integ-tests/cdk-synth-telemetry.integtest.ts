@@ -10,7 +10,7 @@ integTest(
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
 
     const synthOutput = await fixture.cdk(
-      ['synth', fixture.fullStackName('test-1'), '--unstable=telemetry', `--telemetry-file=${telemetryFile}`],
+      ['synth', fixture.fullStackName('test-1'), `--telemetry-file=${telemetryFile}`],
       { verboseLevel: 3 }, // trace mode
     );
 

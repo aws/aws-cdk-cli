@@ -8,7 +8,7 @@ integTest(
   'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
-    const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
+    const output = await fixture.cdk(['synth', `--telemetry-file=${telemetryFile}`], {
       allowErrExit: true,
       modEnv: {
         INTEG_STACK_SET: 'stage-with-errors',
