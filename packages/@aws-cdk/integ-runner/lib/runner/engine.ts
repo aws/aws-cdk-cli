@@ -20,6 +20,7 @@ export function makeEngine(options: IntegRunnerOptions): ICdk {
         showOutput: options.showOutput,
         env: options.env,
         region: options.region,
+        profile: options.profile,
       });
     case 'cli-wrapper':
     default:
