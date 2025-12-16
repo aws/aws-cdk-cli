@@ -48,6 +48,17 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'resources':
+      commandOptions = {
+        long: args.long,
+        all: args.all,
+        type: args.type,
+        explain: args.explain,
+        ignoreCase: args.ignoreCase,
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'synth':
     case 'synthesize':
       commandOptions = {
@@ -352,6 +363,13 @@ export function convertConfigToUserInput(config: any): UserInput {
     long: config.list?.long,
     showDependencies: config.list?.showDependencies,
   };
+  const resourcesOptions = {
+    long: config.resources?.long,
+    all: config.resources?.all,
+    type: config.resources?.type,
+    explain: config.resources?.explain,
+    ignoreCase: config.resources?.ignoreCase,
+  };
   const synthOptions = {
     exclusively: config.synth?.exclusively,
     validation: config.synth?.validation,
@@ -532,6 +550,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const userInput: UserInput = {
     globalOptions,
     list: listOptions,
+    resources: resourcesOptions,
     synth: synthOptions,
     bootstrap: bootstrapOptions,
     gc: gcOptions,

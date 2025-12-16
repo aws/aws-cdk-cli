@@ -31,6 +31,7 @@ type CliAction =
 | 'docs'
 | 'flags'
 | 'notices'
+| 'resources'
 | 'version'
 | 'cli-telemetry'
 | 'none';

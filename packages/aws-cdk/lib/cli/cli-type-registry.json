@@ -160,6 +160,44 @@
         }
       }
     },
+    "resources": {
+      "arg": {
+        "name": "STACKS",
+        "variadic": true
+      },
+      "description": "Lists all CloudFormation resources in the specified stack(s)",
+      "options": {
+        "long": {
+          "type": "boolean",
+          "alias": "l",
+          "default": false,
+          "desc": "Display full resource list grouped by type (default shows summary counts)"
+        },
+        "all": {
+          "type": "boolean",
+          "alias": "a",
+          "default": false,
+          "desc": "Include all resources (by default, noisy types like Lambda::Permission are hidden)"
+        },
+        "type": {
+          "type": "string",
+          "alias": "t",
+          "desc": "Filter resources by type (case-insensitive partial match, e.g., \"lambda\" or \"dynamodb\")",
+          "requiresArg": true
+        },
+        "explain": {
+          "type": "string",
+          "desc": "Show detailed information for a specific resource by logical ID",
+          "requiresArg": true
+        },
+        "ignore-case": {
+          "type": "boolean",
+          "alias": "i",
+          "default": false,
+          "desc": "Use case-insensitive matching for stack name patterns"
+        }
+      }
+    },
     "synth": {
       "arg": {
         "name": "STACKS",

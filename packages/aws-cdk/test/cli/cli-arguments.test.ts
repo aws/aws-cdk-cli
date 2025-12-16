@@ -142,6 +142,7 @@ describe('config', () => {
       doctor: expect.anything(),
       docs: expect.anything(),
       refactor: expect.anything(),
+      resources: expect.anything(),
       cliTelemetry: expect.anything(),
     });
   });

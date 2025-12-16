@@ -29,6 +29,11 @@ export interface UserInput {
   readonly list?: ListOptions;
 
   /**
+   * Lists all CloudFormation resources in the specified stack(s)
+   */
+  readonly resources?: ResourcesOptions;
+
+  /**
    * Synthesizes and prints the CloudFormation template for this stack
    *
    * aliases: synthesize
@@ -364,6 +369,61 @@ export interface ListOptions {
 
   /**
    * Positional argument for list
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
+ * Lists all CloudFormation resources in the specified stack(s)
+ *
+ * @struct
+ */
+export interface ResourcesOptions {
+  /**
+   * Display full resource list grouped by type (default shows summary counts)
+   *
+   * aliases: l
+   *
+   * @default - false
+   */
+  readonly long?: boolean;
+
+  /**
+   * Include all resources (by default, noisy types like Lambda::Permission are hidden)
+   *
+   * aliases: a
+   *
+   * @default - false
+   */
+  readonly all?: boolean;
+
+  /**
+   * Filter resources by type (case-insensitive partial match, e.g., "lambda" or "dynamodb")
+   *
+   * aliases: t
+   *
+   * @default - undefined
+   */
+  readonly type?: string;
+
+  /**
+   * Show detailed information for a specific resource by logical ID
+   *
+   * @default - undefined
+   */
+  readonly explain?: string;
+
+  /**
+   * Use case-insensitive matching for stack name patterns
+   *
+   * aliases: i
+   *
+   * @default - false
+   */
+  readonly ignoreCase?: boolean;
+
+  /**
+   * Positional argument for resources
    */
   readonly STACKS?: Array<string>;
 }
