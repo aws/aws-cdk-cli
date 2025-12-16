@@ -14,7 +14,7 @@ let passThrough: PassThrough;
 const originalProcessOn = process.on;
 
 // Mock process.on to be a no-op function that returns process for chaining
-process.on = jest.fn().mockImplementation(function() {
+process.on = jest.fn().mockImplementation(function () {
   return process;
 }) as any;
 
@@ -277,6 +277,16 @@ describe('CliIoHost', () => {
 
       expect(mockStderr).toHaveBeenCalledWith(chalk.reset('info message') + '\n');
     });
+  });
+
+  test('telemetry should not be instantiated with an invalid command', async () => {
+    const telemetryIoHost = CliIoHost.instance({
+      logLevel: 'trace',
+    }, true);
+
+    await telemetryIoHost.startTelemetry({ _: 'invalid' }, new Context());
+
+    expect(telemetryIoHost.telemetry).toBeUndefined();
   });
 
   describe('telemetry', () => {

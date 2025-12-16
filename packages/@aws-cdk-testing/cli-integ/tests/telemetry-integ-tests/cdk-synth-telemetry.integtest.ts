@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { integTest, withDefaultFixture } from '../../lib';
+import { CURRENT_TELEMETRY_VERSION } from './constants';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -48,7 +49,7 @@ integTest(
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
-          telemetryVersion: '1.0',
+          telemetryVersion: CURRENT_TELEMETRY_VERSION,
           cdkCliVersion: expect.anything(),
           cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
@@ -96,7 +97,7 @@ integTest(
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
-          telemetryVersion: '1.0',
+          telemetryVersion: CURRENT_TELEMETRY_VERSION,
           cdkCliVersion: expect.anything(),
           cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
