@@ -194,6 +194,8 @@ export class CliIoHost implements IIoHost {
     const validCommands = Object.keys(config.commands);
     const cmd = args._;
     if (!validCommands.includes(cmd)) {
+      // the user typed in an invalid command - no need for telemetry since the invocation is going to fail
+      // imminently anyway.
       await this.asIoHelper().defaults.trace(`Session instantiated with an invalid command (${cmd}). Not starting telemetry.`);
       return;
     }
