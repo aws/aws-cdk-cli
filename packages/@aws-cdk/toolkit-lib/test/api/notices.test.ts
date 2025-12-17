@@ -753,9 +753,7 @@ describe(Notices, () => {
   });
 
   describe('filter', () => {
-
     test('can acknowledge two notices that share the same issue number', async () => {
-
       const data = [
         {
           title: 'notice1',
@@ -786,17 +784,17 @@ describe(Notices, () => {
       const notices = Notices.create({
         context: new Context({
           bag: new Settings({ 'acknowledged-issue-numbers': [12345] }),
-        }), ioHost, cliVersion: '2.1034.0'
+        }),
+        ioHost,
+        cliVersion: '2.1034.0',
       });
       await notices.refresh({ dataSource: { fetch: async () => data } });
       const filtered = await notices.filter();
 
       expect(filtered).toEqual([]);
-
-    })
+    });
 
     test('filters the correct notice when two notices share the same issue number', async () => {
-
       const data = [
         {
           title: 'notice1',
@@ -824,10 +822,10 @@ describe(Notices, () => {
         },
       ];
 
-      async function filterNotices(cliVersion: string) {
-        const notices = Notices.create({ context: new Context(), ioHost, cliVersion });
+      async function filterNotices(_cliVersion: string) {
+        const notices = Notices.create({ context: new Context(), ioHost, cliVersion: _cliVersion });
         await notices.refresh({ dataSource: { fetch: async () => data } });
-        return await notices.filter();
+        return notices.filter();
       }
 
       const testCases = [
@@ -844,9 +842,8 @@ describe(Notices, () => {
           expect(filtered[0].notice.title).toEqual(expectedTitle);
         }
       }
-    })
-
-  })
+    });
+  });
 
   describe('addBootstrapVersion', () => {
     test('can add multiple values', async () => {
