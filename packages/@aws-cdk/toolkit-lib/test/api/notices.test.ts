@@ -680,27 +680,25 @@ describe(WebsiteNoticeDataSource, () => {
     ];
 
     async function filterNotices(cliVersion: string) {
-
-      const notices1 = Notices.create({ context: new Context(), ioHost, cliVersion });
-      await notices1.refresh({ force: true, dataSource: { fetch: async () => data } });
-      return await notices1.filter();
+      const notices = Notices.create({ context: new Context(), ioHost, cliVersion });
+      await notices.refresh({ force: true, dataSource: { fetch: async () => data } });
+      return await notices.filter();
     }
 
-    const filteredNotices1 = await filterNotices('2.1034.0');
-    expect(filteredNotices1.length).toEqual(1);
-    expect(filteredNotices1[0].notice.title).toEqual('notice1');
+    const testCases = [
+      { version: '2.1034.0', expectedCount: 1, expectedTitle: 'notice1' },
+      { version: '2.1100.0', expectedCount: 1, expectedTitle: 'notice2' },
+      { version: '2.1100.1', expectedCount: 1, expectedTitle: 'notice2' },
+      { version: '1.1034.0', expectedCount: 0, expectedTitle: undefined },
+    ];
 
-    const filteredNotices2 = await filterNotices('2.1100.0');
-    expect(filteredNotices2.length).toEqual(1);
-    expect(filteredNotices2[0].notice.title).toEqual('notice2');
-
-    const filteredNotices3 = await filterNotices('2.1100.1');
-    expect(filteredNotices3.length).toEqual(1);
-    expect(filteredNotices3[0].notice.title).toEqual('notice2');
-
-    const filteredNotices4 = await filterNotices('1.1034.0');
-    expect(filteredNotices4.length).toEqual(0);
-
+    for (const { version, expectedCount, expectedTitle } of testCases) {
+      const filtered = await filterNotices(version);
+      expect(filtered.length).toEqual(expectedCount);
+      if (expectedTitle) {
+        expect(filtered[0].notice.title).toEqual(expectedTitle);
+      }
+    }
   })
 
   test('returns appropriate error when the connection stays idle for too long', async () => {
