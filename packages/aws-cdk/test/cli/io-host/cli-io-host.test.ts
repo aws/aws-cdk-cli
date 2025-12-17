@@ -284,7 +284,7 @@ describe('CliIoHost', () => {
       logLevel: 'trace',
     }, true);
 
-    await telemetryIoHost.startTelemetry({ _: 'invalid' }, new Context());
+    await telemetryIoHost.startTelemetry({ _: ['invalid'] }, new Context());
 
     expect(telemetryIoHost.telemetry).toBeUndefined();
   });
@@ -303,7 +303,7 @@ describe('CliIoHost', () => {
       telemetryIoHost = CliIoHost.instance({
         logLevel: 'trace',
       }, true);
-      await telemetryIoHost.startTelemetry({ '_': 'init', 'telemetry-file': telemetryFilePath }, new Context());
+      await telemetryIoHost.startTelemetry({ '_': ['init'], 'telemetry-file': telemetryFilePath }, new Context());
 
       expect(telemetryIoHost.telemetry).toBeDefined();
 

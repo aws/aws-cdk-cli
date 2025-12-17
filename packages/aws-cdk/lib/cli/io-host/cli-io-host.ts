@@ -192,7 +192,7 @@ export class CliIoHost implements IIoHost {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const config = require('../cli-type-registry.json');
     const validCommands = Object.keys(config.commands);
-    const cmd = args._;
+    const cmd = args._[0];
     if (!validCommands.includes(cmd)) {
       // the user typed in an invalid command - no need for telemetry since the invocation is going to fail
       // imminently anyway.
