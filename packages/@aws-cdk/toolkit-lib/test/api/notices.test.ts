@@ -609,98 +609,6 @@ describe(WebsiteNoticeDataSource, () => {
     await expect(result).rejects.toThrow(/DNS resolution failed/);
   });
 
-  test('can acknowledge two notices that share the same issue number', async () => {
-
-    const data = [
-      {
-        title: 'notice1',
-        issueNumber: 12345,
-        overview: 'notice1-overview',
-        components: [
-          {
-            name: 'cli',
-            version: '>=2.0.0 <2.1100.0',
-          },
-        ],
-        schemaVersion: '1',
-      },
-      {
-        title: 'notice2',
-        issueNumber: 12345,
-        overview: 'notice2-overview',
-        components: [
-          {
-            name: 'cli',
-            version: '>=2.0.0 <2.1100.0',
-          },
-        ],
-        schemaVersion: '1',
-      },
-    ];
-
-    const notices = Notices.create({
-      context: new Context({
-        bag: new Settings({ 'acknowledged-issue-numbers': [12345] }),
-      }), ioHost, cliVersion: '2.1034.0'
-    });
-    await notices.refresh({ force: true, dataSource: { fetch: async () => data } });
-    const filtered = await notices.filter();
-
-    expect(filtered).toEqual([]);
-
-  })
-
-  test('filters the correct notice when two notices share the same issue number', async () => {
-
-    const data = [
-      {
-        title: 'notice1',
-        issueNumber: 12345,
-        overview: 'notice1-overview',
-        components: [
-          {
-            name: 'cli',
-            version: '>=2.0.0 <2.1100.0',
-          },
-        ],
-        schemaVersion: '1',
-      },
-      {
-        title: 'notice2',
-        issueNumber: 12345,
-        overview: 'notice2-overview',
-        components: [
-          {
-            name: 'cli',
-            version: '^2.1100.0',
-          },
-        ],
-        schemaVersion: '1',
-      },
-    ];
-
-    async function filterNotices(cliVersion: string) {
-      const notices = Notices.create({ context: new Context(), ioHost, cliVersion });
-      await notices.refresh({ force: true, dataSource: { fetch: async () => data } });
-      return await notices.filter();
-    }
-
-    const testCases = [
-      { version: '2.1034.0', expectedCount: 1, expectedTitle: 'notice1' },
-      { version: '2.1100.0', expectedCount: 1, expectedTitle: 'notice2' },
-      { version: '2.1100.1', expectedCount: 1, expectedTitle: 'notice2' },
-      { version: '1.1034.0', expectedCount: 0, expectedTitle: undefined },
-    ];
-
-    for (const { version, expectedCount, expectedTitle } of testCases) {
-      const filtered = await filterNotices(version);
-      expect(filtered.length).toEqual(expectedCount);
-      if (expectedTitle) {
-        expect(filtered[0].notice.title).toEqual(expectedTitle);
-      }
-    }
-  })
-
   test('returns appropriate error when the connection stays idle for too long', async () => {
     nock('https://cli.cdk.dev-tools.aws.dev')
       .get('/notices.json')
@@ -843,6 +751,102 @@ describe(Notices, () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
+
+  describe('filter', () => {
+
+    test('can acknowledge two notices that share the same issue number', async () => {
+
+      const data = [
+        {
+          title: 'notice1',
+          issueNumber: 12345,
+          overview: 'notice1-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '>=2.0.0 <2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+        {
+          title: 'notice2',
+          issueNumber: 12345,
+          overview: 'notice2-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '>=2.0.0 <2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+      ];
+
+      const notices = Notices.create({
+        context: new Context({
+          bag: new Settings({ 'acknowledged-issue-numbers': [12345] }),
+        }), ioHost, cliVersion: '2.1034.0'
+      });
+      await notices.refresh({ dataSource: { fetch: async () => data } });
+      const filtered = await notices.filter();
+
+      expect(filtered).toEqual([]);
+
+    })
+
+    test('filters the correct notice when two notices share the same issue number', async () => {
+
+      const data = [
+        {
+          title: 'notice1',
+          issueNumber: 12345,
+          overview: 'notice1-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '>=2.0.0 <2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+        {
+          title: 'notice2',
+          issueNumber: 12345,
+          overview: 'notice2-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '^2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+      ];
+
+      async function filterNotices(cliVersion: string) {
+        const notices = Notices.create({ context: new Context(), ioHost, cliVersion });
+        await notices.refresh({ dataSource: { fetch: async () => data } });
+        return await notices.filter();
+      }
+
+      const testCases = [
+        { version: '2.1034.0', expectedCount: 1, expectedTitle: 'notice1' },
+        { version: '2.1100.0', expectedCount: 1, expectedTitle: 'notice2' },
+        { version: '2.1100.1', expectedCount: 1, expectedTitle: 'notice2' },
+        { version: '1.1034.0', expectedCount: 0, expectedTitle: undefined },
+      ];
+
+      for (const { version, expectedCount, expectedTitle } of testCases) {
+        const filtered = await filterNotices(version);
+        expect(filtered.length).toEqual(expectedCount);
+        if (expectedTitle) {
+          expect(filtered[0].notice.title).toEqual(expectedTitle);
+        }
+      }
+    })
+
+  })
 
   describe('addBootstrapVersion', () => {
     test('can add multiple values', async () => {
