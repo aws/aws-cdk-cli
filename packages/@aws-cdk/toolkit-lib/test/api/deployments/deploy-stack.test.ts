@@ -804,7 +804,8 @@ test('deployStack warns when it cannot get the events in case of early validatio
     }),
   ).rejects.toThrow(`The template cannot be deployed because of early validation errors, but retrieving more details about those
 errors failed (Error: AccessDenied). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
-your environment with the latest version of the CLI (need at least version 30, current version 0).`);
+your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
+Bootstrap toolkit stack version 30 or later is needed; current version: 0.`);
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {

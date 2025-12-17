@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { TELEMETRY_ENDPOINT } from './constants';
+import { CURRENT_TELEMETRY_VERSION } from './constants';
 import { integTest, withDefaultFixture } from '../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
@@ -9,11 +9,10 @@ integTest(
   'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
-    const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
+    const output = await fixture.cdk(['synth', `--telemetry-file=${telemetryFile}`], {
       allowErrExit: true,
       modEnv: {
         INTEG_STACK_SET: 'stage-with-errors',
-        TELEMETRY_ENDPOINT: TELEMETRY_ENDPOINT,
       },
       verboseLevel: 3, // trace mode
     });
@@ -53,7 +52,7 @@ integTest(
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
-          telemetryVersion: '1.0',
+          telemetryVersion: CURRENT_TELEMETRY_VERSION,
           cdkCliVersion: expect.anything(),
           cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
@@ -101,7 +100,7 @@ integTest(
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
-          telemetryVersion: '1.0',
+          telemetryVersion: CURRENT_TELEMETRY_VERSION,
           cdkCliVersion: expect.anything(),
           cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),

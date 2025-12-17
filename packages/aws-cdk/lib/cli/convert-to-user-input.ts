@@ -4,7 +4,7 @@
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Command } from './user-configuration';
-import { UserInput, GlobalOptions } from './user-input';
+import { GlobalOptions, UserInput } from './user-input';
 
 // @ts-ignore TS6133
 export function convertYargsToUserInput(args: any): UserInput {
