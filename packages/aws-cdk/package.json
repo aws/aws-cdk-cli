@@ -113,7 +113,7 @@
     "@smithy/util-waiter": "^4.2.5",
     "archiver": "^7.0.1",
     "camelcase": "^6",
-    "cdk-from-cfn": "^0.248.0",
+    "cdk-from-cfn": "^0.261.0",
     "chalk": "^4",
     "chokidar": "^3",
     "decamelize": "^5",

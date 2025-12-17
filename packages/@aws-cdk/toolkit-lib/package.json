@@ -109,7 +109,7 @@
     "@smithy/util-retry": "^4",
     "@smithy/util-waiter": "^4",
     "archiver": "^7.0.1",
-    "cdk-from-cfn": "^0.248.0",
+    "cdk-from-cfn": "^0.261.0",
     "chalk": "^4",
     "chokidar": "^3",
     "fast-deep-equal": "^3.1.3",

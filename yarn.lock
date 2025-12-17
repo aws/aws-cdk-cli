@@ -6003,10 +6003,10 @@ case@1.6.3, case@^1.6.3:
   resolved "https://registry.yarnpkg.com/case/-/case-1.6.3.tgz#0a4386e3e9825351ca2e6216c60467ff5f1ea1c9"
   integrity sha512-mzDSXIPaFwVDvZAHqZ9VlbyF4yyXRuX6IvB06WvPYkqJVO24kX1PPhv9bfpKNFZyxYFmmgo03HUiD8iklmJYRQ==
 
-cdk-from-cfn@^0.248.0:
-  version "0.248.0"
-  resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.248.0.tgz#f6387629fad01ab8b00938c00ab359bd394d7f62"
-  integrity sha512-aBJfd7EqwSLdW0MzxNsrVntrdDf28TSfX5elLjF4KvkOM66f+9NbGQpmmdXE2VztxP7p9JS8BE54UujRo4PmrQ==
+cdk-from-cfn@^0.261.0:
+  version "0.261.0"
+  resolved "https://registry.yarnpkg.com/cdk-from-cfn/-/cdk-from-cfn-0.261.0.tgz#98a5bf4e6b1a794b4a0fb5f5deeca80492626b56"
+  integrity sha512-DjtYSOc66hZEoX4T4/0tSSbUvFBd3xr3UNLm4YEdmbC1Ikig9dWyad6fib7pDi5LPH/OWv6ccRjZICoP3w5ZiQ==
 
 cdklabs-projen-project-types@^0.3.9:
   version "0.3.10"
