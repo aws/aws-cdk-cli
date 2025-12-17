@@ -609,6 +609,100 @@ describe(WebsiteNoticeDataSource, () => {
     await expect(result).rejects.toThrow(/DNS resolution failed/);
   });
 
+  test('can acknowledge two notices that share the same issue number', async () => {
+
+    const data = [
+      {
+        title: 'notice1',
+        issueNumber: 12345,
+        overview: 'notice1-overview',
+        components: [
+          {
+            name: 'cli',
+            version: '>=2.0.0 <2.1100.0',
+          },
+        ],
+        schemaVersion: '1',
+      },
+      {
+        title: 'notice2',
+        issueNumber: 12345,
+        overview: 'notice2-overview',
+        components: [
+          {
+            name: 'cli',
+            version: '>=2.0.0 <2.1100.0',
+          },
+        ],
+        schemaVersion: '1',
+      },
+    ];
+
+    const notices = Notices.create({
+      context: new Context({
+        bag: new Settings({ 'acknowledged-issue-numbers': [12345] }),
+      }), ioHost, cliVersion: '2.1034.0'
+    });
+    await notices.refresh({ force: true, dataSource: { fetch: async () => data } });
+    const filtered = await notices.filter();
+
+    expect(filtered).toEqual([]);
+
+  })
+
+  test('filters the correct notice when two notices share the same issue number', async () => {
+
+    const data = [
+      {
+        title: 'notice1',
+        issueNumber: 12345,
+        overview: 'notice1-overview',
+        components: [
+          {
+            name: 'cli',
+            version: '>=2.0.0 <2.1100.0',
+          },
+        ],
+        schemaVersion: '1',
+      },
+      {
+        title: 'notice2',
+        issueNumber: 12345,
+        overview: 'notice2-overview',
+        components: [
+          {
+            name: 'cli',
+            version: '^2.1100.0',
+          },
+        ],
+        schemaVersion: '1',
+      },
+    ];
+
+    async function filterNotices(cliVersion: string) {
+
+      const notices1 = Notices.create({ context: new Context(), ioHost, cliVersion });
+      await notices1.refresh({ force: true, dataSource: { fetch: async () => data } });
+      return await notices1.filter();
+    }
+
+    const filteredNotices1 = await filterNotices('2.1034.0');
+    expect(filteredNotices1.length).toEqual(1);
+    expect(filteredNotices1[0].notice.title).toEqual('notice1');
+
+    const filteredNotices2 = await filterNotices('2.1100.0');
+    expect(filteredNotices2.length).toEqual(1);
+    expect(filteredNotices2[0].notice.title).toEqual('notice2');
+
+    const filteredNotices3 = await filterNotices('2.1100.1');
+    expect(filteredNotices3.length).toEqual(1);
+    expect(filteredNotices3[0].notice.title).toEqual('notice2');
+
+    const filteredNotices4 = await filterNotices('1.1034.0');
+    expect(filteredNotices4.length).toEqual(0);
+
+  })
+
   test('returns appropriate error when the connection stays idle for too long', async () => {
     nock('https://cli.cdk.dev-tools.aws.dev')
       .get('/notices.json')
