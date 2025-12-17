@@ -8,7 +8,7 @@ import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployPr
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
 import type { DriftResultPayload } from '../../../payloads/drift';
 import type { FeatureFlagChangeRequest } from '../../../payloads/flags';
-import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
+import type { AssetBatchDeletionRequest, UnauthorizedStacksRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
@@ -418,6 +418,11 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9210',
     description: 'Confirm the deletion of a batch of assets',
     interface: 'AssetBatchDeletionRequest',
+  }),
+  CDK_TOOLKIT_I9211: make.question<UnauthorizedStacksRequest>({
+    code: 'CDK_TOOLKIT_I9211',
+    description: 'Confirm skipping unauthorized stacks during garbage collection',
+    interface: 'UnauthorizedStacksRequest',
   }),
 
   CDK_TOOLKIT_I9900: make.result<{ environment: cxapi.Environment }>({
