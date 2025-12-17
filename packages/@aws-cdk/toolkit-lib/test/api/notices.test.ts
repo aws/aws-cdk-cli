@@ -829,17 +829,19 @@ describe(Notices, () => {
       }
 
       const testCases = [
-        { version: '2.1034.0', expectedCount: 1, expectedTitle: 'notice1' },
-        { version: '2.1100.0', expectedCount: 1, expectedTitle: 'notice2' },
-        { version: '2.1100.1', expectedCount: 1, expectedTitle: 'notice2' },
-        { version: '1.1034.0', expectedCount: 0, expectedTitle: undefined },
+        { version: '2.1034.0', expectedCount: 1, expectedTitles: ['notice1'] },
+        { version: '2.1100.0', expectedCount: 1, expectedTitles: ['notice2'] },
+        { version: '2.1100.1', expectedCount: 1, expectedTitles: ['notice2'] },
+        { version: '1.1034.0', expectedCount: 0, expectedTitles: undefined },
       ];
 
-      for (const { version, expectedCount, expectedTitle } of testCases) {
+      for (const { version, expectedCount, expectedTitles } of testCases) {
         const filtered = await filterNotices(version);
         expect(filtered.length).toEqual(expectedCount);
-        if (expectedTitle) {
-          expect(filtered[0].notice.title).toEqual(expectedTitle);
+
+        const actualTitles = new Set(filtered.map(n => n.notice.title))
+        if (expectedTitles) {
+          expect(actualTitles).toEqual(new Set(expectedTitles));
         }
       }
     });
