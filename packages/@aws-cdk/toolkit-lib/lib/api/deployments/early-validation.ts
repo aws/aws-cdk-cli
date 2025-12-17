@@ -27,7 +27,7 @@ export class EarlyValidationReporter implements ValidationReporter {
       return `The template cannot be deployed because of early validation errors, but retrieving more details about those
 errors failed (${error}). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
 your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-Bootstrap toolkit stack version 30 or later is needed; current version: ${currentVersion ?? 'unknown'}).`;
+Bootstrap toolkit stack version 30 or later is needed; current version: ${currentVersion ?? 'unknown'}.`;
     }
 
     let message = `ChangeSet '${changeSetName}' on stack '${stackName}' failed early validation`;
