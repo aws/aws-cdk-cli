@@ -6,11 +6,6 @@ export interface PackageJson {
    * Dependency name to version range
    */
   dependencies?: Record<string, string>;
-
-  /**
-   * Yarn resolutions to force specific package versions
-   */
-  resolutions?: Record<string, string>;
 }
 
 export interface YarnLock {

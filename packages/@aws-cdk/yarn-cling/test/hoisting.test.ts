@@ -192,64 +192,6 @@ test('reproduce hoisting bug', () => {
   _validateTree(tree);
 });
 
-test('_validateTree respects resolutions', () => {
-  // GIVEN - a tree where string-width v4 is installed but v5 is required
-  const tree = pkgFile({
-    parent: pkg2('1.0.0', {
-      requires: { 'string-width': '^5.1.2' },
-      dependencies: {
-        'string-width': pkg('4.2.3'),
-      },
-    }),
-  });
-
-  const resolutions = {
-    'string-width': '^4.2.3',
-  };
-
-  // THEN - should not throw because resolutions override the required version
-  expect(() => _validateTree(tree, resolutions)).not.toThrow();
-});
-
-test('_validateTree fails without resolutions when version mismatch', () => {
-  // GIVEN - same tree but without resolutions
-  const tree = pkgFile({
-    parent: pkg2('1.0.0', {
-      requires: { 'string-width': '^5.1.2' },
-      dependencies: {
-        'string-width': pkg('4.2.3'),
-      },
-    }),
-  });
-
-  // THEN - should throw because version doesn't satisfy requirement
-  expect(() => _validateTree(tree)).toThrow(/Could not satisfy one or more dependencies/);
-});
-
-test('_validateTree resolutions only apply to specified packages', () => {
-  // GIVEN - tree with two mismatched versions
-  const tree = pkgFile({
-    parent: pkg2('1.0.0', {
-      requires: {
-        'string-width': '^5.1.2',
-        'strip-ansi': '^7.0.0',
-      },
-      dependencies: {
-        'string-width': pkg('4.2.3'),
-        'strip-ansi': pkg('6.0.1'),
-      },
-    }),
-  });
-
-  const resolutions = {
-    'string-width': '^4.2.3',
-    // strip-ansi is NOT in resolutions
-  };
-
-  // THEN - should throw for strip-ansi but not for string-width
-  expect(() => _validateTree(tree, resolutions)).toThrow(/strip-ansi/);
-});
-
 function pkg(version: string, dependencies?: Record<string, PackageLockPackage>): PackageLockPackage {
   return {
     version,
