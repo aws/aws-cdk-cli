@@ -839,7 +839,7 @@ describe(Notices, () => {
         const filtered = await filterNotices(version);
         expect(filtered.length).toEqual(expectedCount);
 
-        const actualTitles = new Set(filtered.map(n => n.notice.title))
+        const actualTitles = new Set(filtered.map(n => n.notice.title));
         if (expectedTitles) {
           expect(actualTitles).toEqual(new Set(expectedTitles));
         }
