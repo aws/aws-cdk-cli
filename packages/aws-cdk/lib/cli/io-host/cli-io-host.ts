@@ -26,14 +26,14 @@ export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
  * The current action being performed by the CLI. 'none' represents the absence of an action.
  */
 type CliAction =
-| ToolkitAction
-| 'context'
-| 'docs'
-| 'flags'
-| 'notices'
-| 'version'
-| 'cli-telemetry'
-| 'none';
+  | ToolkitAction
+  | 'context'
+  | 'docs'
+  | 'flags'
+  | 'notices'
+  | 'version'
+  | 'cli-telemetry'
+  | 'none';
 
 export interface CliIoHostProps {
   /**
@@ -189,6 +189,17 @@ export class CliIoHost implements IIoHost {
   }
 
   public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const config = require('../cli-type-registry.json');
+    const validCommands = Object.keys(config.commands);
+    const cmd = args._[0];
+    if (!validCommands.includes(cmd)) {
+      // the user typed in an invalid command - no need for telemetry since the invocation is going to fail
+      // imminently anyway.
+      await this.asIoHelper().defaults.trace(`Session instantiated with an invalid command (${cmd}). Not starting telemetry.`);
+      return;
+    }
+
     let sinks: ITelemetrySink[] = [];
     const telemetryFilePath = args['telemetry-file'];
     if (telemetryFilePath) {
