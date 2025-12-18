@@ -21,10 +21,12 @@
     "nx": "npx projen nx",
     "package": "npx projen package",
     "post-compile": "npx projen post-compile",
+    "post-upgrade": "npx projen post-upgrade",
     "pre-compile": "npx projen pre-compile",
     "test": "npx projen test",
     "test:watch": "npx projen test:watch",
     "unbump": "npx projen unbump",
+    "upgrade-aws-cdk-lib": "npx projen upgrade-aws-cdk-lib",
     "watch": "npx projen watch",
     "projen": "npx projen"
   },
