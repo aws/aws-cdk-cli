@@ -36,3 +36,10 @@ export function rangeFromSemver(ver: string, targetType: RangeType) {
       }
   }
 }
+
+/**
+ * Strips a leading caret ^, if present
+ */
+export function stripCaret(ver: string): string {
+  return ver.startsWith('^') ? ver.slice(1) : ver;
+}
