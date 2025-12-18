@@ -322,13 +322,6 @@ new AdcPublishing(repoProject);
 
 const repo = configureProject(repoProject);
 
-// Force CommonJS versions to prevent Yarn from hoisting ESM-only versions, which break the build
-repo.package.addPackageResolutions(
-  'strip-ansi@^6.0.1',
-  'string-width@^4.2.3',
-  'wrap-ansi@^7.0.0',
-);
-
 interface GenericProps {
   private?: boolean;
 }

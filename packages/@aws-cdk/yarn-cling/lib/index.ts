@@ -36,21 +36,13 @@ export async function generateShrinkwrap(options: ShrinkwrapOptions): Promise<Pa
   const yarnLock: YarnLock = lockfile.parse(await fs.readFile(yarnLockLoc, { encoding: 'utf8' }));
   const pkgJson = await loadPackageJson(packageJsonFile);
 
-  // Load resolutions from root package.json (for monorepo support)
-  const rootPkgJsonPath = path.join(path.dirname(yarnLockLoc), 'package.json');
-  let resolutions: Record<string, string> = {};
-  if (await fileExists(rootPkgJsonPath)) {
-    const rootPkgJson = await loadPackageJson(rootPkgJsonPath);
-    resolutions = rootPkgJson.resolutions || {};
-  }
-
-  let lock = await generateLockFile(pkgJson, yarnLock, packageJsonDir, resolutions);
+  let lock = await generateLockFile(pkgJson, yarnLock, packageJsonDir);
 
   if (options.hoist ?? true) {
     lock = hoistDependencies(lock);
   }
 
-  _validateTree(lock, resolutions);
+  _validateTree(lock);
 
   if (options.outputFile) {
     // Write the shrinkwrap file
@@ -60,12 +52,7 @@ export async function generateShrinkwrap(options: ShrinkwrapOptions): Promise<Pa
   return lock;
 }
 
-async function generateLockFile(
-  pkgJson: PackageJson,
-  yarnLock: YarnLock,
-  rootDir: string,
-  resolutions: Record<string, string> = {},
-): Promise<PackageLockFile> {
+async function generateLockFile(pkgJson: PackageJson, yarnLock: YarnLock, rootDir: string): Promise<PackageLockFile> {
   const builder = new PackageGraphBuilder(yarnLock);
   const rootKeys = await builder.buildGraph(pkgJson.dependencies || {}, rootDir);
 
@@ -78,7 +65,7 @@ async function generateLockFile(
   };
 
   try {
-    checkRequiredVersions(lockFile, resolutions);
+    checkRequiredVersions(lockFile);
   } catch (e: any) {
     const tempFile = path.join(os.tmpdir(), 'npm-shrinkwrap.json');
     await fs.writeFile(tempFile, JSON.stringify(lockFile, undefined, 2), 'utf-8');
@@ -379,7 +366,7 @@ async function findPackageDir(depName: string, rootDir: string) {
  * tell our future selves that is cannot and will not work, and we should find another
  * solution.
  */
-export function checkRequiredVersions(root: PackageLockFile, resolutions: Record<string, string> = {}) {
+export function checkRequiredVersions(root: PackageLockFile) {
   recurse(root, [[root.name, root]]);
 
   // rootPath does include 'entry'
@@ -399,11 +386,8 @@ export function checkRequiredVersions(root: PackageLockFile, resolutions: Record
           range = range.split('@')[1];
         }
 
-        // If there's a resolution for this package, use that instead of the required range
-        const effectiveRange = resolutions[name] || range;
-
         const depPath = [name, ...rootPath.map(x => x[0])];
-        if (!semver.satisfies(resolvedPackage.version, effectiveRange)) {
+        if (!semver.satisfies(resolvedPackage.version, range)) {
           // Ruh-roh.
           throw new Error(`Looks like we're trying to force '${renderRootPath(depPath)}' to version '${resolvedPackage.version}' (found at ${resolvedPath} => ${name}), but `
             + `${depPath[depPath.length - 1]} specifies the dependency as '${range}'. NPM will not respect this shrinkwrap file. Try vendoring a patched `
@@ -437,7 +421,7 @@ export function checkRequiredVersions(root: PackageLockFile, resolutions: Record
  * We have manipulated the tree a bunch. Do a sanity check to ensure that all declared
  * dependencies are satisfied.
  */
-export function _validateTree(lock: PackageLockTree, resolutions: Record<string, string> = {}) {
+export function _validateTree(lock: PackageLockTree) {
   const errors = new Array<string>();
   recurse(lock, [['root', lock]], {});
   if (errors.length > 0) {
@@ -468,16 +452,13 @@ export function _validateTree(lock: PackageLockTree, resolutions: Record<string,
       declaredRange = declaredRange.split('@')[1];
     }
 
-    // If there's a resolution for this package, use that instead of the declared range
-    const effectiveRange = resolutions[name] || declaredRange;
-
     const foundVersion = depsVersions[name];
     const newRootPath = [name, ...rootPath.map(x => x[0])];
     if (!foundVersion) {
       errors.push(`Dependency on ${renderRootPath(newRootPath)} not satisfied: not found`);
-    } else if (!semver.satisfies(foundVersion, effectiveRange)) {
+    } else if (!semver.satisfies(foundVersion, declaredRange)) {
       // eslint-disable-next-line no-console
-      errors.push(`Dependency on ${renderRootPath(newRootPath)} not satisfied: declared range '${effectiveRange}', found '${foundVersion}'`);
+      errors.push(`Dependency on ${renderRootPath(newRootPath)} not satisfied: declared range '${declaredRange}', found '${foundVersion}'`);
     }
   }
 }
