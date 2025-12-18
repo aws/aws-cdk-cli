@@ -568,17 +568,19 @@ export class InitTemplate {
 }
 
 export function expandPlaceholders(template: string, language: string, project: ProjectInfo, packageManager?: JsPackageManager) {
-  const cdkVersion = project.versions['aws-cdk-lib'];
   const cdkCliVersion = project.versions['aws-cdk'];
+  let cdkVersion = project.versions['aws-cdk-lib'];
   let constructsVersion = project.versions.constructs;
 
   switch (language) {
     case 'java':
     case 'csharp':
     case 'fsharp':
+      cdkVersion = rangeFromSemver(cdkVersion, 'bracket');
       constructsVersion = rangeFromSemver(constructsVersion, 'bracket');
       break;
     case 'python':
+      cdkVersion = rangeFromSemver(cdkVersion, 'pep');
       constructsVersion = rangeFromSemver(constructsVersion, 'pep');
       break;
   }
