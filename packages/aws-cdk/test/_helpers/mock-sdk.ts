@@ -3,6 +3,7 @@ import { type Account } from '@aws-cdk/cdk-assets-lib';
 import type { SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import type { Environment } from '@aws-cdk/cx-api';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
+import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CloudFormationClient, StackStatus } from '@aws-sdk/client-cloudformation';
@@ -37,6 +38,7 @@ export const FAKE_CREDENTIAL_CHAIN = createCredentialChain(() => Promise.resolve
 
 // Default implementations
 export const mockAppSyncClient = mockClient(AppSyncClient);
+export const mockBedrockAgentCoreControlClient = mockClient(BedrockAgentCoreControlClient);
 export const mockCloudControlClient = mockClient(CloudControlClient);
 export const mockCloudFormationClient = mockClient(CloudFormationClient);
 export const mockCloudWatchClient = mockClient(CloudWatchLogsClient);
@@ -68,6 +70,7 @@ export const restoreSdkMocksToDefault = () => {
   applyToAllMocks('reset');
 
   mockAppSyncClient.onAnyCommand().resolves({});
+  mockBedrockAgentCoreControlClient.onAnyCommand().resolves({});
   mockCloudControlClient.onAnyCommand().resolves({});
   mockCloudFormationClient.onAnyCommand().resolves({});
   mockCloudWatchClient.onAnyCommand().resolves({});
@@ -103,6 +106,7 @@ export function undoAllSdkMocks() {
 
 function applyToAllMocks(meth: 'reset' | 'restore') {
   mockAppSyncClient[meth]();
+  mockBedrockAgentCoreControlClient[meth]();
   mockCloudFormationClient[meth]();
   mockCloudWatchClient[meth]();
   mockCodeBuildClient[meth]();

@@ -10,6 +10,7 @@ import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { CloudFormationStack, NestedStackTemplates } from '../cloudformation';
 import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
 import { isHotswappableAppSyncChange } from './appsync-mapping-templates';
+import { isHotswappableBedrockAgentCoreRuntimeChange } from './bedrock-agentcore-runtimes';
 import { isHotswappableCodeBuildProjectChange } from './code-build-projects';
 import type {
   HotswapChange,
@@ -59,6 +60,7 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   'AWS::AppSync::GraphQLSchema': isHotswappableAppSyncChange,
   'AWS::AppSync::ApiKey': isHotswappableAppSyncChange,
 
+  'AWS::BedrockAgentCore::Runtime': isHotswappableBedrockAgentCoreRuntimeChange,
   'AWS::ECS::TaskDefinition': isHotswappableEcsServiceChange,
   'AWS::CodeBuild::Project': isHotswappableCodeBuildProjectChange,
   'AWS::StepFunctions::StateMachine': isHotswappableStateMachineChange,
