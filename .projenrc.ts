@@ -1177,6 +1177,7 @@ const cli = configureProject(
       'yaml@^1',
       'yargs@^15',
     ],
+    excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1235,6 +1236,20 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+
+// @ts-ignore
+cli.github = repo.github;
+new pj.javascript.UpgradeDependencies(cli, {
+  include: ['aws-cdk-lib'],
+  semanticCommit: 'feat',
+  pullRequestTitle: 'upgrade aws-cdk-lib',
+  target: 'minor',
+  taskName: 'upgrade-aws-cdk-lib',
+  workflow: true,
+  workflowOptions: {
+    schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKDAY,
+  },
+});
 
 new TypecheckTests(cli);
 

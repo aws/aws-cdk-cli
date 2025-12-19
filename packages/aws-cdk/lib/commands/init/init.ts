@@ -7,7 +7,7 @@ import { invokeBuiltinHooks } from './init-hooks';
 import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
-import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
+import { cdkHomeDir, formatErrorMessage, rangeFromSemver, stripCaret } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
 import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
@@ -568,18 +568,24 @@ export class InitTemplate {
 }
 
 export function expandPlaceholders(template: string, language: string, project: ProjectInfo, packageManager?: JsPackageManager) {
-  const cdkVersion = project.versions['aws-cdk-lib'];
   const cdkCliVersion = project.versions['aws-cdk'];
+  let cdkVersion = project.versions['aws-cdk-lib'];
   let constructsVersion = project.versions.constructs;
 
   switch (language) {
     case 'java':
     case 'csharp':
     case 'fsharp':
+      cdkVersion = rangeFromSemver(cdkVersion, 'bracket');
       constructsVersion = rangeFromSemver(constructsVersion, 'bracket');
       break;
     case 'python':
+      cdkVersion = rangeFromSemver(cdkVersion, 'pep');
       constructsVersion = rangeFromSemver(constructsVersion, 'pep');
+      break;
+    case 'go':
+      cdkVersion = stripCaret(cdkVersion);
+      constructsVersion = stripCaret(constructsVersion);
       break;
   }
   return template
