@@ -287,8 +287,15 @@ export class IamChanges {
         break;
       case PropertyScrutinyType.InlineResourcePolicy:
         // Any PolicyDocument on a resource (including AssumeRolePolicyDocument)
-        this.statements.addOld(...this.readResourceStatements(propertyChange.oldValue, propertyChange.resourceLogicalId));
-        this.statements.addNew(...this.readResourceStatements(propertyChange.newValue, propertyChange.resourceLogicalId));
+        // Special-case AWS::SSO::PermissionSet as a pseudo-principal in the IAM statement changes output.
+        if (propertyChange.resourceType === 'AWS::SSO::PermissionSet') {
+          this.statements.addOld(...this.readPermissionSetInlinePolicy(propertyChange.oldValue, propertyChange.resourceLogicalId));
+          this.statements.addNew(...this.readPermissionSetInlinePolicy(propertyChange.newValue, propertyChange.resourceLogicalId));
+        } else {
+          // Existing behaviour for all other resources
+          this.statements.addOld(...this.readResourceStatements(propertyChange.oldValue, propertyChange.resourceLogicalId));
+          this.statements.addNew(...this.readResourceStatements(propertyChange.newValue, propertyChange.resourceLogicalId));
+        }
         break;
       case PropertyScrutinyType.ManagedPolicies:
         // Just a list of managed policies
@@ -411,6 +418,27 @@ export class IamChanges {
       ssoCustomerManagedPolicyReferences: properties.CustomerManagedPolicyReferences,
       ssoPermissionsBoundary: properties.PermissionsBoundary,
     })];
+  }
+
+  private readPermissionSetInlinePolicy(policy: any, logicalId: string): Statement[] {
+    if (policy === undefined) {
+      return [];
+    }
+
+    // For PermissionSet inline policies:
+    // - Resource: still defaulted to the PermissionSet ARN when wildcarded
+    // - Principal: a pseudo-principal that identifies the PermissionSet
+    const appliesToResource = '${' + logicalId + '.Arn}';
+    const appliesToPrincipal = 'AWS:${' + logicalId + '}';
+
+    const statements = parseStatements(renderIntrinsics(policy.Statement));
+
+    // Keeping the existing behaviour for Resource…
+    defaultResource(appliesToResource, statements);
+    // …and additionally injecting a pseudo-principal for readability
+    defaultPrincipal(appliesToPrincipal, statements);
+
+    return statements;
   }
 
   private readResourceStatements(policy: any, logicalId: string): Statement[] {
