@@ -121,7 +121,7 @@ export class CloudAssembly extends BaseStackAssembly {
       return this.extendStacks(topLevelStacks, stacks, extend);
     } else if (stacks.length > 0) {
       // Fallback to all stacks if no top-level stacks (e.g., app including stages only in top-level assembly)
-      return this.extendStacks(stacks, stacks, extend);
+      return new StackCollection(this, stacks);
     } else {
       throw new ToolkitError('No stack found in the main cloud assembly. Use "list" to print manifest');
     }
