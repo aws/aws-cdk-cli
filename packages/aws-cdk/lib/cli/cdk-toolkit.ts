@@ -1365,7 +1365,7 @@ export class CdkToolkit {
     const assembly = await this.assembly();
     const stacks = await assembly.selectStacks(selector, {
       extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
-      defaultBehavior: DefaultSelection.OnlySingle,
+      defaultBehavior: DefaultSelection.OnlySingle, // TODO: should we add a condition to select all stacks in the assembly if no patterns are provided?
     });
 
     // No validation
