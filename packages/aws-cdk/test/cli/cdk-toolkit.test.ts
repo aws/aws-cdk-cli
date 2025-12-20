@@ -150,6 +150,26 @@ function defaultToolkitSetup() {
   });
 }
 
+// only stacks within stages (no top-level stacks)
+async function stageOnlyToolkitSetup() {
+  const stageOnlyExecutable = await MockCloudExecutable.create({
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [MockStack.MOCK_STACK_C],
+    }],
+  });
+
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable: stageOnlyExecutable,
+    configuration: stageOnlyExecutable.configuration,
+    sdkProvider: stageOnlyExecutable.sdkProvider,
+    deployments: new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+    }),
+  });
+}
+
 const mockSdk = new MockSdk();
 
 describe('bootstrap', () => {
@@ -282,6 +302,17 @@ describe('deploy', () => {
         selector: { patterns: ['Test-Stack-A-Display-Name'] },
         deploymentMethod: { method: 'change-set' },
       });
+    });
+
+    test('deploy all stacks in stage-only configuration with --all option', async () => {
+      // GIVEN
+      const toolkit = await stageOnlyToolkitSetup();
+
+      // WHEN & THEN
+      await expect(toolkit.deploy({
+        selector: { patterns: [], allTopLevel: true },
+        deploymentMethod: { method: 'change-set' },
+      })).resolves.not.toThrow();
     });
 
     test('uses display names to reference assets', async () => {
@@ -1080,14 +1111,23 @@ describe('destroy', () => {
   test('destroy correct stack', async () => {
     const toolkit = defaultToolkitSetup();
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroy all stacks in stage-only configuration with --all option', async () => {
+    const toolkit = await stageOnlyToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: [], allTopLevel: true },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
   });
 });
 
