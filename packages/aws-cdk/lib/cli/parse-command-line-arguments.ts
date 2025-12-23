@@ -430,6 +430,14 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
         }),
     )
+    .command('publish', 'Publishes synthesized assets (e.g. Docker images, Lambda ZIPs, S3 files) to their destinations', (yargs: Argv) =>
+      yargs.option('force', {
+        default: false,
+        alias: 'f',
+        type: 'boolean',
+        desc: 'Always publish, even if it already exists',
+      }),
+    )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
         .option('all', {
