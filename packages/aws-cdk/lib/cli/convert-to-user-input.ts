@@ -251,6 +251,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         fromPath: args.fromPath,
         templatePath: args.templatePath,
         packageManager: args.packageManager,
+        name: args.name,
         TEMPLATE: args.TEMPLATE,
       };
       break;

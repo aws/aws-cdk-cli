@@ -51,6 +51,11 @@ export interface CliInitOptions {
   /**
    * @default undefined
    */
+  readonly name?: string;
+
+  /**
+   * @default undefined
+   */
   readonly stackName?: string;
 
   /**
@@ -122,6 +127,7 @@ export async function cliInit(options: CliInitOptions) {
     canUseNetwork,
     generateOnly,
     workDir,
+    options.name,
     options.stackName,
     options.migrate,
     options.libVersion,
@@ -427,6 +433,7 @@ export class InitTemplate {
     ioHelper: IoHelper,
     language: string,
     targetDirectory: string,
+    name?: string,
     stackName?: string,
     libVersion?: string,
     packageManager?: JsPackageManager,
@@ -440,7 +447,7 @@ export class InitTemplate {
     }
 
     const projectInfo: ProjectInfo = {
-      name: decamelize(path.basename(path.resolve(targetDirectory))),
+      name: name ? decamelize(name) : decamelize(path.basename(path.resolve(targetDirectory))),
       stackName,
       versions: await loadInitVersions(),
     };
@@ -695,6 +702,7 @@ async function initializeProject(
   canUseNetwork: boolean,
   generateOnly: boolean,
   workDir: string,
+  name?: string,
   stackName?: string,
   migrate?: boolean,
   cdkVersion?: string,
@@ -705,7 +713,7 @@ async function initializeProject(
 
   // Step 2: Copy template files
   await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
-  await template.install(ioHelper, language, workDir, stackName, cdkVersion, packageManager);
+  await template.install(ioHelper, language, workDir, name, stackName, cdkVersion, packageManager);
 
   if (migrate) {
     await template.addMigrateContext(workDir);

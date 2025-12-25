@@ -65,6 +65,19 @@ describe('constructs version', () => {
     expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
   });
 
+  cliTest('can specify project name with --name option', async (workDir) => {
+    await cliInit({
+      ioHelper,
+      type: 'app',
+      language: 'typescript',
+      workDir,
+      name: 'my-project',
+    });
+
+    const stackFile = await fs.readFile(path.join(workDir, 'lib', 'my-project-stack.ts'), 'utf-8');
+    expect(stackFile).toContain('export class MyProjectStack');
+  });
+
   cliTest('asking for a nonexistent template fails', async (workDir) => {
     await expect(cliInit({
       ioHelper,
