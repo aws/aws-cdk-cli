@@ -913,6 +913,12 @@
             "pnpm",
             "bun"
           ]
+        },
+        "name": {
+          "type": "string",
+          "alias": "n",
+          "desc": "The name of the new project",
+          "requiresArg": true
         }
       },
       "implies": {
