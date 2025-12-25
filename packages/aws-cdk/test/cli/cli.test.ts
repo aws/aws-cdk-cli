@@ -1,3 +1,4 @@
+import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { Notices } from '../../lib/api/notices';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
@@ -65,6 +66,8 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         _: ['deploy'],
         parameters: [],
       };
+    } else if (args.includes('flags')) {
+      result = { ...result, _: ['flags'] };
     }
 
     // Handle notices flags
@@ -92,6 +95,21 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
     return Promise.resolve(result);
   }),
 }));
+
+// Mock FlagCommandHandler to capture constructor calls
+const mockFlagCommandHandlerConstructor = jest.fn();
+const mockProcessFlagsCommand = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('../../lib/commands/flags/flags', () => {
+  return {
+    FlagCommandHandler: jest.fn().mockImplementation((...args) => {
+      mockFlagCommandHandlerConstructor(...args);
+      return {
+        processFlagsCommand: mockProcessFlagsCommand,
+      };
+    }),
+  };
+});
 
 describe('exec verbose flag tests', () => {
   beforeEach(() => {
@@ -511,5 +529,63 @@ describe('--yes', () => {
 
     migrateSpy.mockRestore();
     execSpy.mockRestore();
+  });
+});
+
+describe('flags command tests', () => {
+  let mockConfig: any;
+  let flagsSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFlagCommandHandlerConstructor.mockClear();
+    mockProcessFlagsCommand.mockClear();
+
+    flagsSpy = jest.spyOn(Toolkit.prototype, 'flags').mockResolvedValue([]);
+
+    mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['flags'];
+          return undefined;
+        }),
+      },
+      context: {
+        all: {
+          myContextParam: 'testValue',
+        },
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+  });
+
+  afterEach(() => {
+    flagsSpy.mockRestore();
+  });
+
+  test('passes CLI context to FlagCommandHandler', async () => {
+    // WHEN
+    await exec([
+      'flags',
+      '--unstable=flags',
+      '--set',
+      '--recommended',
+      '--all',
+      '-c', 'myContextParam=testValue',
+      '--yes',
+    ]);
+
+    // THEN
+    expect(mockFlagCommandHandlerConstructor).toHaveBeenCalledWith(
+      expect.anything(), // flagsData
+      expect.anything(), // ioHelper
+      expect.anything(), // args
+      expect.anything(), // toolkit
+      mockConfig.context.all, // cliContextValues
+    );
+    expect(mockProcessFlagsCommand).toHaveBeenCalled();
   });
 });

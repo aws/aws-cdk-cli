@@ -48,6 +48,7 @@ export class FlagOperations {
     private readonly flags: FeatureFlag[],
     private readonly toolkit: Toolkit,
     private readonly ioHelper: IoHelper,
+    private readonly cliContextValues: Record<string, any> = {},
   ) {
     this.app = '';
     this.baseContextValues = {};
@@ -159,11 +160,12 @@ export class FlagOperations {
   /** Initializes the safety check by reading context and synthesizing baseline templates */
   private async initializeSafetyCheck(): Promise<void> {
     const baseContext = new CdkAppMultiContext(process.cwd());
-    this.baseContextValues = await baseContext.read();
+    this.baseContextValues = { ...await baseContext.read(), ...this.cliContextValues };
 
     this.baselineTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-baseline-'));
+    const mergedContext = new MemoryContext(this.baseContextValues);
     const baseSource = await this.toolkit.fromCdkApp(this.app, {
-      contextStore: baseContext,
+      contextStore: mergedContext,
       outdir: this.baselineTempDir,
     });
 
@@ -270,14 +272,14 @@ export class FlagOperations {
   /** Prototypes flag changes by synthesizing templates and showing diffs to the user */
   private async prototypeChanges(flagNames: string[], params: FlagOperationsParams): Promise<boolean> {
     const baseContext = new CdkAppMultiContext(process.cwd());
-    const baseContextValues = await baseContext.read();
+    const baseContextValues = { ...await baseContext.read(), ...this.cliContextValues };
     const memoryContext = new MemoryContext(baseContextValues);
 
     const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
     const app = cdkJson.app;
 
     const source = await this.toolkit.fromCdkApp(app, {
-      contextStore: baseContext,
+      contextStore: memoryContext,
       outdir: fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-original-')),
     });
 
