@@ -13,8 +13,8 @@
     "@types/node": "^20.19.24",
     "aws-cdk-lib": "%cdk-version%",
     "constructs": "%constructs-version%",
-    "jest": "^29",
-    "ts-jest": "^30",
+    "jest": "^30",
+    "ts-jest": "^29",
     "typescript": "~5.9.3"
   },
   "peerDependencies": {
