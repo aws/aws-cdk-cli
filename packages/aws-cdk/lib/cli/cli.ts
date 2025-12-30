@@ -70,6 +70,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     isCI: Boolean(argv.ci),
     currentAction: cmd,
     stackProgress: argv.progress,
+    autoRespond: argv.yes,
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
@@ -98,10 +99,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     proxyAddress: configuration.settings.get(['proxy']),
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
-
-  if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
-    throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
-  }
 
   try {
     await ioHost.startTelemetry(argv, configuration.context);
@@ -475,6 +472,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
         }
+        // roleArn is defined for when cloudformation is invoked
+        // This conflicts with direct sdk calls existing in the gc command to s3 and ecr
+        if (args.roleArn) {
+          await ioHost.defaults.warn('The --role-arn option is not supported for the gc command and will be ignored.');
+        }
         return cli.garbageCollect(args.ENVIRONMENTS, {
           action: args.action,
           type: args.type,
@@ -535,7 +537,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         if (args.status) {
-          return cli.cliTelemetryStatus(args['version-reporting']);
+          return cli.cliTelemetryStatus(args);
         } else {
           const enable = args.enable ?? !args.disable;
           return cli.cliTelemetry(enable);
@@ -559,6 +561,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             libVersion: args.libVersion,
             fromPath: args['from-path'],
             templatePath: args['template-path'],
+            packageManager: args['package-manager'],
           });
         }
       case 'migrate':

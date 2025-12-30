@@ -15,6 +15,7 @@ import { ResourceLocation, ResourceMapping } from './cloudformation';
 import { hashObject } from './digest';
 import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { pLimit } from '../../util/concurrency';
 
 export * from './exclude';
 export * from './context';
@@ -41,9 +42,11 @@ export async function usePrescribedMappings(
 
   const stackGroups: MappingGroupWithStacks[] = [];
   for (const group of mappingGroups) {
+    const summaries = await listStacks(sdkProvider, environmentOf(group));
+    const stacks = await getDeployedStacksByNames(sdkProvider, environmentOf(group), summaries.map(s => s.StackName!));
     stackGroups.push({
       ...group,
-      stacks: await getDeployedStacks(sdkProvider, environmentOf(group)),
+      stacks,
     });
   }
 
@@ -118,13 +121,36 @@ export async function usePrescribedMappings(
   }
 }
 
-export async function getDeployedStacks(
+export async function getDeployedStacksByNames(
   sdkProvider: SdkProvider,
   environment: cxapi.Environment,
+  stackNames: string[],
 ): Promise<CloudFormationStack[]> {
   const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
 
-  const summaries = await cfn.paginatedListStacks({
+  const normalize = async (stackName: string) => {
+    const templateCommandOutput = await cfn.getTemplate({ StackName: stackName });
+    const template = deserializeStructure(templateCommandOutput.TemplateBody ?? '{}');
+    return {
+      environment,
+      stackName: stackName,
+      template,
+    };
+  };
+
+  const limit = pLimit(20);
+
+  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+  return Promise.all(stackNames.map(s => limit(() => normalize(s))));
+}
+
+async function listStacks(
+  sdkProvider: SdkProvider,
+  environment: cxapi.Environment,
+): Promise<StackSummary[]> {
+  const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
+
+  return cfn.paginatedListStacks({
     StackStatusFilter: [
       'CREATE_COMPLETE',
       'UPDATE_COMPLETE',
@@ -133,19 +159,6 @@ export async function getDeployedStacks(
       'ROLLBACK_COMPLETE',
     ],
   });
-
-  const normalize = async (summary: StackSummary) => {
-    const templateCommandOutput = await cfn.getTemplate({ StackName: summary.StackName! });
-    const template = deserializeStructure(templateCommandOutput.TemplateBody ?? '{}');
-    return {
-      environment,
-      stackName: summary.StackName!,
-      template,
-    };
-  };
-
-  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  return Promise.all(summaries.map(normalize));
 }
 
 export function formatEnvironmentSectionHeader(environment: cxapi.Environment) {
@@ -185,15 +198,20 @@ export async function groupStacks(sdkProvider: SdkProvider, localStacks: CloudFo
 
   const groups: StackGroup[] = [];
   for (let key of localByEnvironment.keys()) {
-    const environment = environments.get(key)!;
-    const allDeployedStacks = await getDeployedStacks(sdkProvider, environment);
     const local = localByEnvironment.get(key)!;
-    const hasLocalCounterpart = (s: CloudFormationStack) => local.some((l) => l.stackName === s.stackName);
-    const wasExplicitlyProvided = (s: CloudFormationStack) => additionalStackNames.includes(s.stackName);
+    const hasLocalCounterpart = (stackName: string) => local.some((l) => l.stackName === stackName);
+    const wasExplicitlyProvided = (stackName: string) => additionalStackNames.includes(stackName);
+
+    const environment = environments.get(key)!;
+    const stackSummaries = await listStacks(sdkProvider, environment);
+    const stackNames = stackSummaries
+      .map(s => s.StackName!)
+      .filter(s => hasLocalCounterpart(s) || wasExplicitlyProvided(s));
+    const deployedStacks = await getDeployedStacksByNames(sdkProvider, environment, stackNames);
 
     groups.push({
       environment,
-      deployedStacks: allDeployedStacks.filter(s => hasLocalCounterpart(s) || wasExplicitlyProvided(s)),
+      deployedStacks,
       localStacks: local,
     });
   }

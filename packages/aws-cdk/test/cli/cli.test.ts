@@ -51,6 +51,20 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('ts')) {
         result = { ...result, language: 'typescript' };
       }
+    } else if (args.includes('gc')) {
+      result = { ...result, _: ['gc'] };
+
+      // Handle role-arn flag for gc command validation testing
+      // This simulates parser behavior to test that the CLI properly rejects roleArn
+      if (args.includes('--role-arn')) {
+        result = { ...result, roleArn: 'arn:aws:iam::123456789012:role/TestRole' };
+      }
+    } else if (args.includes('deploy')) {
+      result = {
+        ...result,
+        _: ['deploy'],
+        parameters: [],
+      };
     }
 
     // Handle notices flags
@@ -69,6 +83,10 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
     const verboseIndex = args.findIndex((arg: string) => arg === '--verbose');
     if (verboseIndex !== -1 && args[verboseIndex + 1]) {
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
+    }
+
+    if (args.includes('--yes')) {
+      result = { ...result, yes: true };
     }
 
     return Promise.resolve(result);
@@ -425,5 +443,73 @@ describe('notices configuration tests', () => {
         language: 'typescript',
       }),
     );
+  });
+});
+
+describe('gc command tests', () => {
+  let originalCliIoHostInstance: any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    originalCliIoHostInstance = CliIoHost.instance;
+  });
+
+  afterEach(() => {
+    CliIoHost.instance = originalCliIoHostInstance;
+  });
+
+  test('should warn when --role-arn is used with gc command', async () => {
+    const gcSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'garbageCollect').mockResolvedValue();
+
+    // Make exec use our TestIoHost and adds properties to TestIoHost to match CliIoHost
+    const warnSpy = jest.fn();
+    (ioHost as any).defaults = { warn: warnSpy, debug: jest.fn(), result: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['gc'];
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await exec(['gc', '--unstable=gc', '--role-arn', 'arn:aws:iam::123456789012:role/TestRole']);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'The --role-arn option is not supported for the gc command and will be ignored.',
+    );
+    expect(gcSpy).toHaveBeenCalled();
+  });
+});
+
+describe('--yes', () => {
+  test('when --yes option is provided, CliIoHost is using autoRespond', async () => {
+    // GIVEN
+    const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+    const execSpy = jest.spyOn(CliIoHost, 'instance');
+
+    // WHEN
+    await exec(['deploy', '--yes']);
+
+    // THEN
+    expect(execSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoRespond: true,
+      }),
+      true,
+    );
+
+    migrateSpy.mockRestore();
+    execSpy.mockRestore();
   });
 });

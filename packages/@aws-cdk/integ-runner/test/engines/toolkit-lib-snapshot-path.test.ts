@@ -25,6 +25,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
 
     engine = new ToolkitLibRunnerEngine({
       workingDirectory: '/test/dir',
+      region: 'us-dummy-1',
     });
   });
 
@@ -32,7 +33,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     const snapshotPath = 'test.snapshot';
     const fullSnapshotPath = path.join('/test/dir', snapshotPath);
     const mockCx = { produce: jest.fn() };
-    const mockLock = { dispose: jest.fn() };
+    const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
 
     // Mock fs to indicate the snapshot directory exists
     mockedFs.pathExistsSync.mockReturnValue(true);
@@ -55,7 +56,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
   it('should use fromCdkApp when app is not a path to existing directory', async () => {
     const appCommand = 'node bin/app.js';
     const mockCx = { produce: jest.fn() };
-    const mockLock = { dispose: jest.fn() };
+    const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
 
     // Mock fs to indicate the path doesn't exist
     mockedFs.pathExistsSync.mockReturnValue(false);
@@ -76,7 +77,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     const appPath = 'app.js';
     const fullAppPath = path.join('/test/dir', appPath);
     const mockCx = { produce: jest.fn() };
-    const mockLock = { dispose: jest.fn() };
+    const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
 
     // Mock fs to indicate the path exists but is not a directory
     mockedFs.pathExistsSync.mockReturnValue(true);

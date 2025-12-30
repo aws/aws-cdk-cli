@@ -1270,7 +1270,7 @@ command to consider only a subset of them, you can specify the stacks you
 want, both local and deployed:
 
 ```shell
-$ cdk refactor --local-stack Foo --local-stack Bar --deployed-stack Foo --unstable=refactor --dry-run 
+$ cdk refactor Test* ProdStack --unstable=refactor --dry-run 
 ```
 
 This is useful if, for example, you have more than one CDK application deployed

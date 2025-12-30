@@ -43,37 +43,37 @@ describe('telemetry command', () => {
 
   test('status reports current telemetry status -- enabled by default', async () => {
     // WHEN
-    await toolkit.cliTelemetryStatus();
+    await toolkit.cliTelemetryStatus({ _: ['synth'] });
 
     // THEN
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.' }));
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is enabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to disable.' }));
   });
 
   test('status reports current telemetry status -- enabled intentionally', async () => {
     // WHEN
     configuration.context.set('cli-telemetry', true);
-    await toolkit.cliTelemetryStatus();
+    await toolkit.cliTelemetryStatus({ _: ['synth'] });
 
     // THEN
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.' }));
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is enabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to disable.' }));
   });
 
   test('status reports current telemetry status -- disabled via context', async () => {
     // WHEN
     configuration.context.set('cli-telemetry', false);
-    await toolkit.cliTelemetryStatus();
+    await toolkit.cliTelemetryStatus({ _: ['synth'] });
 
     // THEN
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.' }));
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is disabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to enable.' }));
   });
 
   test('status reports current telemetry status -- disabled via env var', async () => {
     await withEnv(async () => {
       // WHEN
-      await toolkit.cliTelemetryStatus();
+      await toolkit.cliTelemetryStatus({ _: ['synth'] });
 
       // THEN
-      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.' }));
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: 'CLI Telemetry is disabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to enable.' }));
     }, {
       CDK_DISABLE_CLI_TELEMETRY: 'true',
     });

@@ -4,6 +4,7 @@ import { CliHelpers, type CliConfig } from '@aws-cdk/user-input-gen';
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import { StackActivityProgress } from '../commands/deploy';
 import { availableInitLanguages } from '../commands/init';
+import { JS_PACKAGE_MANAGERS } from '../commands/init/package-manager';
 import { getLanguageAlias } from '../commands/language';
 
 export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
@@ -44,6 +45,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'ci': { type: 'boolean', desc: 'Force CI detection. If CI=true then logs will be sent to stdout instead of stderr', default: YARGS_HELPERS.isCI() },
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
       'telemetry-file': { type: 'string', desc: 'Send telemetry data to a local file.', default: undefined },
+      'yes': { type: 'boolean', alias: 'y', desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.', default: false },
     },
     commands: {
       'list': {
@@ -406,6 +408,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
+          'package-manager': { type: 'string', desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.', choices: JS_PACKAGE_MANAGERS.map(({ name }) => name) },
         },
         implies: { 'template-path': 'from-path' },
       },

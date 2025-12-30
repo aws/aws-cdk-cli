@@ -102,7 +102,7 @@ describe('test runner', () => {
 
     expect(spawnSyncMock).toHaveBeenCalledWith(
       expect.stringMatching(/node/),
-      ['xxxxx.integ-test1.js'],
+      ['test/test-data/xxxxx.integ-test1.js'],
       expect.objectContaining({
         env: expect.objectContaining({
           CDK_INTEG_ACCOUNT: '12345678',

@@ -86,3 +86,24 @@ export const {
   data,
   prefix,
 } = legacy;
+
+if (!process.env.CDK_DISABLE_LEGACY_EXPORT_WARNING) {
+  // eslint-disable-next-line no-console
+  console.warn([
+    '',
+    '\x1b[33m█████████████████████████████████████████████████████████████████████████\x1b[0m',
+    '\x1b[33m█                                                                       █\x1b[0m',
+    '\x1b[33m█  ⚠ WARNING: You are using LEGACY EXPORTS from the aws-cdk package!    █\x1b[0m',
+    '\x1b[33m█                                                                       █\x1b[0m',
+    '\x1b[33m█  These exports were never officially supported and will be removed    █\x1b[0m',
+    '\x1b[33m█  after 2026-03-01.                                                    █\x1b[0m',
+    '\x1b[33m█  Please migrate to using the official CDK Toolkit Library instead:    █\x1b[0m',
+    '\x1b[33m█  https://docs.aws.amazon.com/cdk/api/toolkit-lib/                     █\x1b[0m',
+    '\x1b[33m█                                                                       █\x1b[0m',
+    '\x1b[33m█  For more information: https://github.com/aws/aws-cdk-cli/issues/310  █\x1b[0m',
+    '\x1b[33m█  To disable this warning: CDK_DISABLE_LEGACY_EXPORT_WARNING=1         █\x1b[0m',
+    '\x1b[33m█                                                                       █\x1b[0m',
+    '\x1b[33m█████████████████████████████████████████████████████████████████████████\x1b[0m',
+    '',
+  ].join('\n'));
+}

@@ -27,6 +27,11 @@ export interface IntegRunnerOptions extends EngineOptions {
   readonly test: IntegTest;
 
   /**
+   * The region where the test should be deployed
+   */
+  readonly region: string;
+
+  /**
    * The AWS profile to use when invoking the CDK CLI
    *
    * @default - no profile is passed, the default profile is used

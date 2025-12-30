@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { CURRENT_TELEMETRY_VERSION } from './constants';
+import { integTest, withDefaultFixture } from '../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -8,14 +9,18 @@ integTest(
   'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
-    const output = await fixture.cdk(['synth', '--unstable=telemetry', `--telemetry-file=${telemetryFile}`], {
+    const output = await fixture.cdk(['synth', `--telemetry-file=${telemetryFile}`], {
       allowErrExit: true,
       modEnv: {
         INTEG_STACK_SET: 'stage-with-errors',
       },
+      verboseLevel: 3, // trace mode
     });
 
     expect(output).toContain('This is an error');
+
+    // Check the trace that telemetry was executed successfully despite error in synth
+    expect(output).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
@@ -23,8 +28,7 @@ integTest(
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['synth'],
-            parameters: {
-              verbose: 1,
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -36,7 +40,8 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            },
+              yes: false,
+            }),
             config: {
               context: {},
             },
@@ -47,7 +52,7 @@ integTest(
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
-          telemetryVersion: '1.0',
+          telemetryVersion: CURRENT_TELEMETRY_VERSION,
           cdkCliVersion: expect.anything(),
           cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
@@ -71,8 +76,7 @@ integTest(
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['synth'],
-            parameters: {
-              verbose: 1,
+            parameters: expect.objectContaining({
               unstable: '<redacted>',
               ['telemetry-file']: '<redacted>',
               lookups: true,
@@ -84,7 +88,8 @@ integTest(
               ci: expect.anything(), // changes based on where this is called
               validation: true,
               quiet: false,
-            },
+              yes: false,
+            }),
             config: {
               context: {},
             },
@@ -95,7 +100,7 @@ integTest(
         identifiers: expect.objectContaining({
           installationId: expect.anything(),
           sessionId: expect.anything(),
-          telemetryVersion: '1.0',
+          telemetryVersion: CURRENT_TELEMETRY_VERSION,
           cdkCliVersion: expect.anything(),
           cdkLibraryVersion: fixture.library.requestedVersion(),
           region: expect.anything(),
