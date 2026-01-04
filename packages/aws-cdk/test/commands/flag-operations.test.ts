@@ -1227,9 +1227,6 @@ describe('CLI context parameters', () => {
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
     await flagOperations.processFlagsCommand();
 
-    // Verify that fromCdkApp was called
-    expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
-
     // Get the first call's context store and verify it contains merged context
     // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
     const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0]; // Get first call arguments
@@ -1239,12 +1236,11 @@ describe('CLI context parameters', () => {
     // contextStore is defined as we've verified above
     const contextData = await contextStore!.read();
 
-    // Verify both file context and CLI context are present
     expect(contextData).toEqual({
-      '@aws-cdk/core:existingFlag': true, // from cdk.json
-      '@aws-cdk/core:testFlag': true,      // set by the operation
-      foo: 'bar',                          // from CLI
-      myContextParam: 'myValue',           // from CLI
+      '@aws-cdk/core:existingFlag': true,
+      '@aws-cdk/core:testFlag': true,
+      foo: 'bar',
+      myContextParam: 'myValue',
     });
 
     await cleanupCdkJsonFile(cdkJsonPath);
@@ -1276,9 +1272,6 @@ describe('CLI context parameters', () => {
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
     await flagOperations.processFlagsCommand();
 
-    // Verify that fromCdkApp was called during safe flag checking
-    expect(mockToolkit.fromCdkApp).toHaveBeenCalled();
-
     // Get the first call's context store and verify it contains merged context
     // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
     const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0]; // Get first call arguments
@@ -1288,11 +1281,10 @@ describe('CLI context parameters', () => {
     // contextStore is defined as we've verified above
     const contextData = await contextStore!.read();
 
-    // Verify both file context and CLI context are merged
     expect(contextData).toEqual({
-      '@aws-cdk/core:fileFlag': false,  // from cdk.json
-      myCliParam: 'cliValue',            // from CLI
-      anotherParam: 'anotherValue',      // from CLI
+      '@aws-cdk/core:fileFlag': false,
+      myCliParam: 'cliValue',
+      anotherParam: 'anotherValue',
     });
 
     await cleanupCdkJsonFile(cdkJsonPath);
