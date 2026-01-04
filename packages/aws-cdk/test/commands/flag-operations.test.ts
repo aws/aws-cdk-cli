@@ -1239,8 +1239,8 @@ describe('CLI context parameters', () => {
     expect(contextData).toEqual({
       '@aws-cdk/core:existingFlag': true,
       '@aws-cdk/core:testFlag': true,
-      foo: 'bar',
-      myContextParam: 'myValue',
+      'foo': 'bar',
+      'myContextParam': 'myValue',
     });
 
     await cleanupCdkJsonFile(cdkJsonPath);
@@ -1283,8 +1283,8 @@ describe('CLI context parameters', () => {
 
     expect(contextData).toEqual({
       '@aws-cdk/core:fileFlag': false,
-      myCliParam: 'cliValue',
-      anotherParam: 'anotherValue',
+      'myCliParam': 'cliValue',
+      'anotherParam': 'anotherValue',
     });
 
     await cleanupCdkJsonFile(cdkJsonPath);
