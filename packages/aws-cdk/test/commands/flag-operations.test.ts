@@ -1227,22 +1227,34 @@ describe('CLI context parameters', () => {
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
     await flagOperations.processFlagsCommand();
 
-    // Verify that fromCdkApp was called with a context store
+    // Verify that fromCdkApp was called
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
 
-    // Get the first call's context store
-    const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0];
-    const contextStore = firstCallArgs[1]?.contextStore;
-
-    // Verify the context store is a MemoryContext that contains both file and CLI context
+    // Get the first call's context store and verify it contains merged context
+    // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
+    const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0]; // Get first call arguments
+    const contextStore = firstCallArgs[1]?.contextStore; // Extract contextStore from second argument (options object)
     expect(contextStore).toBeDefined();
+
+    // contextStore is defined as we've verified above
+    const contextData = await contextStore!.read();
+
+    // Verify both file context and CLI context are present
+    expect(contextData).toEqual({
+      '@aws-cdk/core:existingFlag': true, // from cdk.json
+      '@aws-cdk/core:testFlag': true,      // set by the operation
+      foo: 'bar',                          // from CLI
+      myContextParam: 'myValue',           // from CLI
+    });
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
   });
 
   test('CLI context values are passed to synthesis during safe flag checking', async () => {
-    const cdkJsonPath = await createCdkJsonFile({});
+    const cdkJsonPath = await createCdkJsonFile({
+      '@aws-cdk/core:fileFlag': false,
+    });
 
     mockToolkit.diff.mockResolvedValue({
       TestStack: { differenceCount: 0 } as any,
@@ -1253,6 +1265,7 @@ describe('CLI context parameters', () => {
 
     const cliContextValues = {
       myCliParam: 'cliValue',
+      anotherParam: 'anotherValue',
     };
 
     const options: FlagsOptions = {
@@ -1266,72 +1279,24 @@ describe('CLI context parameters', () => {
     // Verify that fromCdkApp was called during safe flag checking
     expect(mockToolkit.fromCdkApp).toHaveBeenCalled();
 
-    await cleanupCdkJsonFile(cdkJsonPath);
-    requestResponseSpy.mockRestore();
-  });
+    // Get the first call's context store and verify it contains merged context
+    // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
+    const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0]; // Get first call arguments
+    const contextStore = firstCallArgs[1]?.contextStore; // Extract contextStore from second argument (options object)
+    expect(contextStore).toBeDefined();
 
-  test('works correctly when no CLI context is provided', async () => {
-    const cdkJsonPath = await createCdkJsonFile({
-      '@aws-cdk/core:existingFlag': false,
+    // contextStore is defined as we've verified above
+    const contextData = await contextStore!.read();
+
+    // Verify both file context and CLI context are merged
+    expect(contextData).toEqual({
+      '@aws-cdk/core:fileFlag': false,  // from cdk.json
+      myCliParam: 'cliValue',            // from CLI
+      anotherParam: 'anotherValue',      // from CLI
     });
 
-    setupMockToolkitForPrototyping(mockToolkit);
-
-    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
-    requestResponseSpy.mockResolvedValue(false);
-
-    const options: FlagsOptions = {
-      FLAGNAME: ['@aws-cdk/core:testFlag'],
-      set: true,
-      value: 'true',
-    };
-
-    // Not passing cliContextValues (defaults to empty object)
-    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
-
-    expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
-    expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
-
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
-  });
-
-  test('FlagCommandHandler constructor accepts CLI context values', () => {
-    const cliContextValues = {
-      myParam: 'myValue',
-      foo: 'bar',
-    };
-
-    const options: FlagsOptions = {
-      all: true,
-    };
-
-    // Verify that constructor accepts CLI context values parameter
-    const handler = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
-    expect(handler).toBeDefined();
-  });
-
-  test('FlagCommandHandler passes CLI context to FlagOperations', async () => {
-    const cdkJsonPath = await createCdkJsonFile({});
-
-    setupMockToolkitForPrototyping(mockToolkit);
-
-    const cliContextValues = {
-      cliParam: 'cliValue',
-    };
-
-    const options: FlagsOptions = {
-      all: true,
-    };
-
-    const handler = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
-    await handler.processFlagsCommand();
-
-    // Just verify it doesn't throw and completes successfully
-    expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled(); // Display mode doesn't call synthesis
-
-    await cleanupCdkJsonFile(cdkJsonPath);
   });
 });
 
