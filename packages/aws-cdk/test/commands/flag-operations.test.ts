@@ -1249,7 +1249,7 @@ describe('CLI context parameters', () => {
 
   test('CLI context values are passed to synthesis during safe flag checking', async () => {
     const cdkJsonPath = await createCdkJsonFile({
-      '@aws-cdk/core:fileFlag': false,
+      '@aws-cdk/core:existingFlag': true,
     });
 
     mockToolkit.diff.mockResolvedValue({
@@ -1260,8 +1260,8 @@ describe('CLI context parameters', () => {
     requestResponseSpy.mockResolvedValue(false);
 
     const cliContextValues = {
-      myCliParam: 'cliValue',
-      anotherParam: 'anotherValue',
+      foo: 'bar',
+      myContextParam: 'myValue',
     };
 
     const options: FlagsOptions = {
@@ -1282,9 +1282,9 @@ describe('CLI context parameters', () => {
     const contextData = await contextStore!.read();
 
     expect(contextData).toEqual({
-      '@aws-cdk/core:fileFlag': false,
-      'myCliParam': 'cliValue',
-      'anotherParam': 'anotherValue',
+      '@aws-cdk/core:existingFlag': true,
+      'foo': 'bar',
+      'myContextParam': 'myValue',
     });
 
     await cleanupCdkJsonFile(cdkJsonPath);
