@@ -570,135 +570,66 @@ and might have breaking changes in the future.
 
 ##### Deploy flowchart
 
-This flowchart provides a high-level overview of the deployment architecture and key decision points.
+This flowchart provides a high-level overview of the deployment process.
 For technical implementation details (function calls, file locations), see [docs/deploy-architecture.md](./docs/deploy-architecture.md).
 
 ```mermaid
 graph TD
-    %% Initialization Phase
-    c1["Initialize Deployment"]
+    %% Stack Selection
+    c1["Select and Order Stacks<br/>that need update"]
     
-    %% Stack Selection Phase
-    c4["Determine Which Stacks to Deploy"]
-    c5["Order Stacks by Dependencies"]
+    %% Synthesis
+    c2{"Need AWS Context?"}
+    c3["Query AWS and Cache<br/>to cdk.context.json"]
+    c4["Run CDK App and<br/>Generate CloudFormation Templates"]
     
-    %% Synthesis Phase
-    c6["Synthesis Phase"]
-    c7{"Need AWS Account Info?<br/>(VPCs, Zones, AMIs)"}
-    c8["Query AWS & Cache to<br/>cdk.context.json"]
-    c9["Run Your CDK Code"]
-    c10["Generate CloudFormation Templates"]
+    %% Asset Processing
+    c5["Package and Upload Assets<br/>(Lambda code, Docker images)"]
     
-    %% Asset Processing Phase
-    c11["Asset Processing Phase"]
-    c13["Package Assets<br/>(Lambda code, Docker images)"]
-    c14["Upload to S3 & ECR"]
-    
-    %% Deployment Method Selection
-    c19{"Fast Deploy Available?<br/>(--hotswap flag set?)"}
-    c20["Fast Deployment Path"]
-    c21["Standard Deployment Path"]
-    
-    %% Hotswap Path
-    c22["Identify Resources to Update"]
-    c23["Update Resources Directly<br/>(Skip CloudFormation)"]
-    
-    %% CloudFormation Path
-    c25["Deploy via CloudFormation"]
-    c27["Monitor Progress & Wait for Completion"]
-    
-    %% Completion Phase
-    c29["Collect Outputs & Report Status"]
-    c30["End: Deployment Complete"]
-    
-    %% Main Flow
-    c1 --> c4
-    c4 --> c5
-    c5 --> c6
-    
-    %% Synthesis Phase with Context Loop
-    c6 --> c7
-    c7 -->|"Yes"| c8
-    c8 --> c9
-    c9 --> c10
-    c10 -->|"Loop if context missing<br/>(can repeat multiple times)"| c7
-    c7 -->|"No"| c11
-    
-    %% Asset Processing Phase
-    c11 --> c13
-    c13 --> c14
-    c14 --> c19
-    
-    %% Deployment Method Selection
-    c19 -->|"Yes: Fast Deploy"| c20
-    c19 -->|"No: Standard Deploy"| c21
-    
-    %% Hotswap Path
-    c20 --> c22
-    c22 --> c23
-    c23 --> c29
-    
-    %% CloudFormation Path
-    c21 --> c25
-    c25 --> c27
-    c27 --> c29
+    %% Deployment
+    c6["Deploy via CloudFormation"]
+    c7["Monitor Progress and<br/>Collect Outputs"]
     
     %% Completion
-    c29 --> c30
+    c8["Done"]
     
-    %% Phase-based Color Coding
-    %% Initialization Phase (Light Gray)
-    style c1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
+    %% Flow
+    c1 --> c2
+    c2 -->|"Yes"| c3
+    c3 --> c4
+    c4 -->|"Re-check context"| c2
+    c2 -->|"No"| c5
     
-    %% Stack Selection Phase (Light Cyan)
-    style c4 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
-    style c5 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+    c5 --> c6
+    c6 --> c7
+    c7 --> c8
     
-    %% Synthesis Phase (Light Blue)
-    style c6 fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
-    style c7 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style c8 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style c9 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style c10 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    %% Styling
+    style c1 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
     
-    %% Asset Processing Phase (Light Purple)
-    style c11 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:3px
-    style c13 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    style c14 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style c2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style c3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style c4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
     
-    %% Deployment Method Selection (Light Amber)
-    style c19 fill:#fff8e1,stroke:#ff6f00,stroke-width:2px
+    style c5 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
     
-    %% Hotswap Deployment (Light Green)
-    style c20 fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
-    style c22 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style c23 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style c6 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style c7 fill:#fff3e0,stroke:#e65100,stroke-width:2px
     
-    %% CloudFormation Deployment (Light Red)
-    style c21 fill:#ffebee,stroke:#c62828,stroke-width:3px
-    style c25 fill:#ffebee,stroke:#c62828,stroke-width:2px
-    style c27 fill:#ffebee,stroke:#c62828,stroke-width:2px
-    
-    %% Completion Phase (Light Teal)
-    style c29 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-    style c30 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style c8 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
 ```
 
-**Legend:**
 ```mermaid
+---
+title: Legend
+---
 graph LR
-    L1["Initialization"] --> L2["Stack Selection"] --> L3["Synthesis"] --> L4["Asset Processing"] --> L5["Fast Deploy"] 
-    L4 --> L6["Standard Deploy"]
-    L5 --> L7["Completion"]
-    L6 --> L7
-    
-    style L1 fill:#f5f5f5,stroke:#757575,stroke-width:2px
-    style L2 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
-    style L3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style L4 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    style L5 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style L6 fill:#ffebee,stroke:#c62828,stroke-width:2px
-    style L7 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    L1["Stack Selection"] --> L2["Synthesis"] --> L3["Assets"] --> L4["Deploy"] --> L5["Done"]
+    style L1 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+    style L2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style L3 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style L4 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style L5 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
 ```
 
 ### `cdk rollback`
