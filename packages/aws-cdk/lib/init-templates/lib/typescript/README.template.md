@@ -7,6 +7,6 @@ The construct defines an interface (`%name.PascalCased%Props`) to configure the 
 
 ## Useful commands
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
+* `%pm-cmd% build`   compile typescript to js
+* `%pm-cmd% watch`   watch for changes and compile
+* `%pm-cmd% test`    perform the jest unit tests

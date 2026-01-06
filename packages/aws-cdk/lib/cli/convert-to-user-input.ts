@@ -4,7 +4,7 @@
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Command } from './user-configuration';
-import { UserInput, GlobalOptions } from './user-input';
+import { GlobalOptions, UserInput } from './user-input';
 
 // @ts-ignore TS6133
 export function convertYargsToUserInput(args: any): UserInput {
@@ -250,6 +250,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         libVersion: args.libVersion,
         fromPath: args.fromPath,
         templatePath: args.templatePath,
+        packageManager: args.packageManager,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -493,6 +494,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     libVersion: config.init?.libVersion,
     fromPath: config.init?.fromPath,
     templatePath: config.init?.templatePath,
+    packageManager: config.init?.packageManager,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,

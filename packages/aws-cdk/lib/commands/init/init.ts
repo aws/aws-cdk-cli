@@ -7,9 +7,10 @@ import { invokeBuiltinHooks } from './init-hooks';
 import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
-import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
+import { cdkHomeDir, formatErrorMessage, rangeFromSemver, stripCaret } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
+import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -76,6 +77,12 @@ export interface CliInitOptions {
    */
   readonly templatePath?: string;
 
+  /**
+   * The package manager to use for installing dependencies. Only applicable for TypeScript and JavaScript projects.
+   * @default - If specified language is 'typescript' or 'javascript', 'npm' is selected. Otherwise, no package manager is used.
+   */
+  readonly packageManager?: JsPackageManager;
+
   readonly ioHelper: IoHelper;
 }
 
@@ -83,6 +90,8 @@ export interface CliInitOptions {
  * Initialize a CDK package in the current directory
  */
 export async function cliInit(options: CliInitOptions) {
+  await ensureValidCliInitOptions(options, options.ioHelper);
+
   const ioHelper = options.ioHelper;
   const canUseNetwork = options.canUseNetwork ?? true;
   const generateOnly = options.generateOnly ?? false;
@@ -116,7 +125,17 @@ export async function cliInit(options: CliInitOptions) {
     options.stackName,
     options.migrate,
     options.libVersion,
+    options.packageManager,
   );
+}
+
+/**
+ * Validate CLI init options and handle invalid or incompatible option combinations
+ */
+async function ensureValidCliInitOptions(options: CliInitOptions, ioHelper: IoHelper) {
+  if (options.packageManager && !['javascript', 'typescript'].includes(options.language ?? '')) {
+    await ioHelper.defaults.warn(`--package-manager option is only applicable for JavaScript and TypeScript projects. Ignoring the provided value: ${options.packageManager}`);
+  }
 }
 
 /**
@@ -404,7 +423,14 @@ export class InitTemplate {
    * @param libVersion - the version of the CDK library to use
    * @default undefined
    */
-  public async install(ioHelper: IoHelper, language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
+  public async install(
+    ioHelper: IoHelper,
+    language: string,
+    targetDirectory: string,
+    stackName?: string,
+    libVersion?: string,
+    packageManager?: JsPackageManager,
+  ): Promise<void> {
     if (this.languages.indexOf(language) === -1) {
       await ioHelper.defaults.error(
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
@@ -436,7 +462,7 @@ export class InitTemplate {
       await this.installFilesWithoutProcessing(sourceDirectory, targetDirectory);
     } else {
       // For built-in templates, process placeholders as usual
-      await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo);
+      await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo, packageManager);
       await this.applyFutureFlags(targetDirectory);
       await invokeBuiltinHooks(
         ioHelper,
@@ -446,27 +472,33 @@ export class InitTemplate {
             const fileProcessingPromises = fileNames.map(async (fileName) => {
               const fullPath = path.join(targetDirectory, fileName);
               const template = await fs.readFile(fullPath, { encoding: 'utf-8' });
-              await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo));
+              await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo, packageManager));
             });
             /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Processing a small, known set of template files
             await Promise.all(fileProcessingPromises);
           },
-          placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo),
+          placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo, packageManager),
         },
       );
     }
   }
 
-  private async installFiles(sourceDirectory: string, targetDirectory: string, language: string, project: ProjectInfo) {
+  private async installFiles(
+    sourceDirectory: string,
+    targetDirectory: string,
+    language: string,
+    project: ProjectInfo,
+    packageManager?: JsPackageManager,
+  ): Promise<void> {
     for (const file of await fs.readdir(sourceDirectory)) {
       const fromFile = path.join(sourceDirectory, file);
-      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project));
+      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project, packageManager));
       if ((await fs.stat(fromFile)).isDirectory()) {
         await fs.mkdir(toFile);
-        await this.installFiles(fromFile, toFile, language, project);
+        await this.installFiles(fromFile, toFile, language, project, packageManager);
         continue;
       } else if (file.match(/^.*\.template\.[^.]+$/)) {
-        await this.installProcessed(fromFile, toFile.replace(/\.template(\.[^.]+)$/, '$1'), language, project);
+        await this.installProcessed(fromFile, toFile.replace(/\.template(\.[^.]+)$/, '$1'), language, project, packageManager);
         continue;
       } else if (file.match(/^.*\.hook\.(d.)?[^.]+$/)) {
         // Ignore
@@ -477,9 +509,15 @@ export class InitTemplate {
     }
   }
 
-  private async installProcessed(templatePath: string, toFile: string, language: string, project: ProjectInfo) {
+  private async installProcessed(
+    templatePath: string,
+    toFile: string,
+    language: string,
+    project: ProjectInfo,
+    packageManager?: JsPackageManager,
+  ) {
     const template = await fs.readFile(templatePath, { encoding: 'utf-8' });
-    await fs.writeFile(toFile, expandPlaceholders(template, language, project));
+    await fs.writeFile(toFile, expandPlaceholders(template, language, project, packageManager));
   }
 
   /**
@@ -529,19 +567,25 @@ export class InitTemplate {
   }
 }
 
-export function expandPlaceholders(template: string, language: string, project: ProjectInfo) {
-  const cdkVersion = project.versions['aws-cdk-lib'];
+export function expandPlaceholders(template: string, language: string, project: ProjectInfo, packageManager?: JsPackageManager) {
   const cdkCliVersion = project.versions['aws-cdk'];
+  let cdkVersion = project.versions['aws-cdk-lib'];
   let constructsVersion = project.versions.constructs;
 
   switch (language) {
     case 'java':
     case 'csharp':
     case 'fsharp':
+      cdkVersion = rangeFromSemver(cdkVersion, 'bracket');
       constructsVersion = rangeFromSemver(constructsVersion, 'bracket');
       break;
     case 'python':
+      cdkVersion = rangeFromSemver(cdkVersion, 'pep');
       constructsVersion = rangeFromSemver(constructsVersion, 'pep');
+      break;
+    case 'go':
+      cdkVersion = stripCaret(cdkVersion);
+      constructsVersion = stripCaret(constructsVersion);
       break;
   }
   return template
@@ -563,7 +607,8 @@ export function expandPlaceholders(template: string, language: string, project: 
     .replace(/%cdk-home%/g, cdkHomeDir())
     .replace(/%name\.PythonModule%/g, project.name.replace(/-/g, '_'))
     .replace(/%python-executable%/g, pythonExecutable())
-    .replace(/%name\.StackName%/g, project.name.replace(/[^A-Za-z0-9-]/g, '-'));
+    .replace(/%name\.StackName%/g, project.name.replace(/[^A-Za-z0-9-]/g, '-'))
+    .replace(/%pm-cmd%/g, getPmCmdPrefix(packageManager ?? 'npm'));
 }
 
 interface ProjectInfo {
@@ -653,13 +698,14 @@ async function initializeProject(
   stackName?: string,
   migrate?: boolean,
   cdkVersion?: string,
+  packageManager?: JsPackageManager,
 ) {
   // Step 1: Ensure target directory is empty
   await assertIsEmptyDirectory(workDir);
 
   // Step 2: Copy template files
   await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
-  await template.install(ioHelper, language, workDir, stackName, cdkVersion);
+  await template.install(ioHelper, language, workDir, stackName, cdkVersion, packageManager);
 
   if (migrate) {
     await template.addMigrateContext(workDir);
@@ -675,7 +721,7 @@ async function initializeProject(
     await initializeGitRepository(ioHelper, workDir);
 
     // Step 4: Post-install steps
-    await postInstall(ioHelper, language, canUseNetwork, workDir);
+    await postInstall(ioHelper, language, canUseNetwork, workDir, packageManager);
   }
 
   await ioHelper.defaults.info('✅ All done!');
@@ -728,12 +774,12 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
   }
 }
 
-async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: boolean, workDir: string) {
+async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: boolean, workDir: string, packageManager?: JsPackageManager) {
   switch (language) {
     case 'javascript':
-      return postInstallJavascript(ioHelper, canUseNetwork, workDir);
+      return postInstallJavascript(ioHelper, canUseNetwork, workDir, packageManager);
     case 'typescript':
-      return postInstallTypescript(ioHelper, canUseNetwork, workDir);
+      return postInstallTypescript(ioHelper, canUseNetwork, workDir, packageManager);
     case 'java':
       return postInstallJava(ioHelper, canUseNetwork, workDir);
     case 'python':
@@ -747,12 +793,12 @@ async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: 
   }
 }
 
-async function postInstallJavascript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
-  return postInstallTypescript(ioHelper, canUseNetwork, cwd);
+async function postInstallJavascript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string, packageManager?: JsPackageManager) {
+  return postInstallTypescript(ioHelper, canUseNetwork, cwd, packageManager);
 }
 
-async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
-  const command = 'npm';
+async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string, packageManager?: JsPackageManager) {
+  const command = packageManager ?? 'npm';
 
   if (!canUseNetwork) {
     await ioHelper.defaults.warn(`Please run '${command} install'!`);

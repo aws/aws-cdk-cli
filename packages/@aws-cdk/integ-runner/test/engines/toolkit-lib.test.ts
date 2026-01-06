@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
 
 const MockedToolkit = Toolkit as jest.MockedClass<typeof Toolkit>;
+const MockedBaseCredentials = BaseCredentials as jest.Mocked<typeof BaseCredentials>;
 
 describe('ToolkitLibRunnerEngine', () => {
   let mockToolkit: jest.Mocked<Toolkit>;
@@ -228,6 +229,21 @@ describe('ToolkitLibRunnerEngine', () => {
       expect(MockedToolkit).toHaveBeenCalledWith(expect.objectContaining({
         ioHost: expect.any(Object),
       }));
+    });
+
+    it('should pass profile to BaseCredentials', () => {
+      MockedBaseCredentials.awsCliCompatible = jest.fn();
+
+      new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        profile: 'test-profile',
+      });
+
+      expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+        profile: 'test-profile',
+        defaultRegion: 'us-dummy-1',
+      });
     });
 
     it('should throw error when no app is provided', async () => {

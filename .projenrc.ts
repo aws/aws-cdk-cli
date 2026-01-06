@@ -840,7 +840,7 @@ const toolkitLib = configureProject(
       'fast-deep-equal',
       'fs-extra@^9',
       'glob',
-      'minimatch',
+      'minimatch@10.0.1',
       'p-limit@^3',
       'semver',
       'split2',
@@ -907,6 +907,11 @@ const toolkitLib = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
+
+toolkitLib.tasks.tryFind('test')?.updateStep(0, {
+  // https://github.com/aws/aws-sdk-js-v3/issues/7420
+  exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
+});
 
 new TypecheckTests(toolkitLib);
 
@@ -1158,7 +1163,7 @@ const cli = configureProject(
       'enquirer',
       'fs-extra@^9',
       'glob',
-      'minimatch',
+      'minimatch@10.0.1',
       'p-limit@^3',
       'p-queue@^6',
       'promptly',
@@ -1170,6 +1175,7 @@ const cli = configureProject(
       'yaml@^1',
       'yargs@^15',
     ],
+    excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1228,6 +1234,20 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+
+// @ts-ignore
+cli.github = repo.github;
+new pj.javascript.UpgradeDependencies(cli, {
+  include: ['aws-cdk-lib'],
+  semanticCommit: 'feat',
+  pullRequestTitle: 'upgrade aws-cdk-lib',
+  target: 'minor',
+  taskName: 'upgrade-aws-cdk-lib',
+  workflow: true,
+  workflowOptions: {
+    schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKDAY,
+  },
+});
 
 new TypecheckTests(cli);
 
