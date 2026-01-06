@@ -573,64 +573,7 @@ and might have breaking changes in the future.
 This flowchart provides a high-level overview of the deployment process.
 For technical implementation details (function calls, file locations), see [docs/deploy-architecture.md](./docs/deploy-architecture.md).
 
-```mermaid
-graph TD
-    %% Stack Selection
-    c1["Select and Order Stacks<br/>that need update"]
-    
-    %% Synthesis
-    c2{"Need AWS Context?"}
-    c3["Query AWS and Cache<br/>to cdk.context.json"]
-    c4["Run CDK App and<br/>Generate CloudFormation Templates"]
-    
-    %% Asset Processing
-    c5["Package and Upload Assets<br/>(Lambda code, Docker images)"]
-    
-    %% Deployment
-    c6["Deploy via CloudFormation"]
-    c7["Monitor Progress and<br/>Collect Outputs"]
-    
-    %% Completion
-    c8["Done"]
-    
-    %% Flow
-    c1 --> c2
-    c2 -->|"Yes"| c3
-    c3 --> c4
-    c4 -->|"Re-check context"| c2
-    c2 -->|"No"| c5
-    
-    c5 --> c6
-    c6 --> c7
-    c7 --> c8
-    
-    %% Styling
-    style c1 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
-    
-    style c2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style c3 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style c4 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    
-    style c5 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    
-    style c6 fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style c7 fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    
-    style c8 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-```
-
-```mermaid
----
-title: Legend
----
-graph LR
-    L1["Stack Selection"] --> L2["Synthesis"] --> L3["Assets"] --> L4["Deploy"] --> L5["Done"]
-    style L1 fill:#e0f7fa,stroke:#00838f,stroke-width:2px
-    style L2 fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style L3 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    style L4 fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style L5 fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-```
+![Deploy flowchart](./images/deploy-flowchart.png)
 
 ### `cdk rollback`
 
