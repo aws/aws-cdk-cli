@@ -1235,8 +1235,6 @@ const cli = configureProject(
   }),
 );
 
-// @ts-ignore
-cli.github = repo.github;
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
   semanticCommit: 'feat',
