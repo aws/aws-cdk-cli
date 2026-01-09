@@ -1416,6 +1416,15 @@ export interface InitOptions {
   readonly packageManager?: string;
 
   /**
+   * The name of the new project
+   *
+   * aliases: n
+   *
+   * @default - undefined
+   */
+  readonly name?: string;
+
+  /**
    * Positional argument for init
    */
   readonly TEMPLATE?: string;

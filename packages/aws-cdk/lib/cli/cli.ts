@@ -562,6 +562,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             fromPath: args['from-path'],
             templatePath: args['template-path'],
             packageManager: args['package-manager'],
+            name: args.name,
           });
         }
       case 'migrate':
