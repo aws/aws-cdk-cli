@@ -75,7 +75,10 @@ export enum ExtendedStackSelection {
 export interface StackSelector {
   /**
    * Whether all stacks at the top level assembly should
-   * be selected and nothing else
+   * be selected and nothing else.
+   *
+   * For Stage-only apps where no top-level stacks exist,
+   * selects all stacks including those in nested assemblies.
    */
   allTopLevel?: boolean;
 
