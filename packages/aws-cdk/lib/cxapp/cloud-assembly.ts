@@ -103,8 +103,7 @@ export class CloudAssembly extends BaseStackAssembly {
       throw new ToolkitError('This app contains no stacks');
     }
 
-    const someCondition = false // TODO: replace
-    if (allTopLevel && someCondition) {
+    if (allTopLevel && topLevelStacks.length === 0) {
       return new StackCollection(this, stacks);
     } else if (allTopLevel) {
       return this.selectTopLevelStacks(stacks, topLevelStacks, options.extend);
