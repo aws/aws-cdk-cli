@@ -584,6 +584,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Whether to build/publish assets in parallel',
         })
+        .option('asset-build-concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of asset builds to run in parallel',
+          requiresArg: true,
+        })
         .option('asset-prebuild', {
           default: true,
           type: 'boolean',
