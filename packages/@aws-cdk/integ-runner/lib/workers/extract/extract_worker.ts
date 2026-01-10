@@ -132,7 +132,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
 
   const timer = setTimeout(() => {
     workerpool.workerEmit({
-      reason: DiagnosticReason.SNAPSHOT_ERROR,
+      reason: DiagnosticReason.TEST_WARNING,
       testName: test.testName,
       message: 'Test is taking a very long time',
       duration: (Date.now() - start) / 1000,

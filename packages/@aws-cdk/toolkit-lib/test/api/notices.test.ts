@@ -752,6 +752,101 @@ describe(Notices, () => {
     jest.restoreAllMocks();
   });
 
+  describe('filter', () => {
+    test('can acknowledge two notices that share the same issue number', async () => {
+      const data = [
+        {
+          title: 'notice1',
+          issueNumber: 12345,
+          overview: 'notice1-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '>=2.0.0 <2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+        {
+          title: 'notice2',
+          issueNumber: 12345,
+          overview: 'notice2-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '>=2.0.0 <2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+      ];
+
+      const notices = Notices.create({
+        context: new Context({
+          bag: new Settings({ 'acknowledged-issue-numbers': [12345] }),
+        }),
+        ioHost,
+        cliVersion: '2.1034.0',
+      });
+      await notices.refresh({ dataSource: { fetch: async () => data } });
+      const filtered = await notices.filter();
+
+      expect(filtered).toEqual([]);
+    });
+
+    test('filters the correct notice when two notices share the same issue number', async () => {
+      const data = [
+        {
+          title: 'notice1',
+          issueNumber: 12345,
+          overview: 'notice1-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '>=2.0.0 <2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+        {
+          title: 'notice2',
+          issueNumber: 12345,
+          overview: 'notice2-overview',
+          components: [
+            {
+              name: 'cli',
+              version: '^2.1100.0',
+            },
+          ],
+          schemaVersion: '1',
+        },
+      ];
+
+      async function filterNotices(_cliVersion: string) {
+        const notices = Notices.create({ context: new Context(), ioHost, cliVersion: _cliVersion });
+        await notices.refresh({ dataSource: { fetch: async () => data } });
+        return notices.filter();
+      }
+
+      const testCases = [
+        { version: '2.1034.0', expectedCount: 1, expectedTitles: ['notice1'] },
+        { version: '2.1100.0', expectedCount: 1, expectedTitles: ['notice2'] },
+        { version: '2.1100.1', expectedCount: 1, expectedTitles: ['notice2'] },
+        { version: '1.1034.0', expectedCount: 0, expectedTitles: undefined },
+      ];
+
+      for (const { version, expectedCount, expectedTitles } of testCases) {
+        const filtered = await filterNotices(version);
+        expect(filtered.length).toEqual(expectedCount);
+
+        if (expectedTitles) {
+          const actualTitles = new Set(filtered.map(n => n.notice.title));
+          expect(actualTitles).toEqual(new Set(expectedTitles));
+        }
+      }
+    });
+  });
+
   describe('addBootstrapVersion', () => {
     test('can add multiple values', async () => {
       const notices = Notices.create({ context: new Context(), ioHost, cliVersion });

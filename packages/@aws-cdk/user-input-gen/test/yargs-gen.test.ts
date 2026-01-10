@@ -24,53 +24,7 @@ describe('render', () => {
       commands: {},
     };
 
-    expect(await renderYargs(config, YARGS_HELPERS)).toMatchInlineSnapshot(`
-      "// -------------------------------------------------------------------------------------------
-      // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
-      // Do not edit by hand; all changes will be overwritten at build time from the config file.
-      // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-      import { Argv } from 'yargs';
-      import * as helpers from './util/yargs-helpers';
-
-      // @ts-ignore TS6133
-      export function parseCommandLineArguments(args: Array<string>): any {
-        return yargs
-          .env('CDK')
-          .usage('Usage: cdk -a <cdk-app> COMMAND')
-          .option('one', {
-            default: undefined,
-            type: 'string',
-            alias: 'o',
-            desc: 'text for one',
-            requiresArg: true,
-          })
-          .option('two', {
-            default: undefined,
-            type: 'number',
-            desc: 'text for two',
-          })
-          .option('three', {
-            type: 'array',
-            alias: 't',
-            desc: 'text for three',
-            nargs: 1,
-            requiresArg: true,
-          })
-          .version(helpers.cliVersion())
-          .demandCommand(1, '')
-          .recommendCommands()
-          .help()
-          .alias('h', 'help')
-          .epilogue(
-            'If your app has a single stack, there is no need to specify the stack name\\n\\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
-          )
-          .parse(args);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const yargs = require('yargs');
-      "
-    `);
+    expect(await renderYargs(config, YARGS_HELPERS)).toMatchSnapshot();
   });
 
   test('can generate negativeAlias', async () => {
@@ -92,45 +46,7 @@ describe('render', () => {
       },
     };
 
-    expect(await renderYargs(config, YARGS_HELPERS)).toMatchInlineSnapshot(`
-      "// -------------------------------------------------------------------------------------------
-      // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
-      // Do not edit by hand; all changes will be overwritten at build time from the config file.
-      // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-      import { Argv } from 'yargs';
-      import * as helpers from './util/yargs-helpers';
-
-      // @ts-ignore TS6133
-      export function parseCommandLineArguments(args: Array<string>): any {
-        return yargs
-          .env('CDK')
-          .usage('Usage: cdk -a <cdk-app> COMMAND')
-          .command(['test', 'spec'], 'the action under test', (yargs: Argv) =>
-            yargs
-              .option('one', {
-                default: undefined,
-                type: 'boolean',
-                alias: 'o',
-                desc: 'text for one',
-              })
-              .option('O', { type: 'boolean', hidden: true })
-              .middleware(helpers.yargsNegativeAlias('O', 'one'), true),
-          )
-          .version(helpers.cliVersion())
-          .demandCommand(1, '')
-          .recommendCommands()
-          .help()
-          .alias('h', 'help')
-          .epilogue(
-            'If your app has a single stack, there is no need to specify the stack name\\n\\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
-          )
-          .parse(args);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const yargs = require('yargs');
-      "
-    `);
+    expect(await renderYargs(config, YARGS_HELPERS)).toMatchSnapshot();
   });
 
   test('can pass-through expression unchanged', async () => {
@@ -174,48 +90,6 @@ describe('render', () => {
       globalOptions: {},
     };
 
-    expect(await renderYargs(config, YARGS_HELPERS)).toMatchInlineSnapshot(`
-      "// -------------------------------------------------------------------------------------------
-      // GENERATED FROM packages/aws-cdk/lib/cli/cli-config.ts.
-      // Do not edit by hand; all changes will be overwritten at build time from the config file.
-      // -------------------------------------------------------------------------------------------
-      /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-      import { Argv } from 'yargs';
-      import * as helpers from './util/yargs-helpers';
-
-      // @ts-ignore TS6133
-      export function parseCommandLineArguments(args: Array<string>): any {
-        return yargs
-          .env('CDK')
-          .usage('Usage: cdk -a <cdk-app> COMMAND')
-          .command('deploy', 'Notification Arns', (yargs: Argv) =>
-            yargs
-              .option('notification-arns', {
-                type: 'array',
-                desc: 'Deploy all stacks',
-                nargs: 1,
-                requiresArg: true,
-              })
-              .option('other-array', {
-                type: 'array',
-                desc: 'Other array',
-                nargs: 1,
-                requiresArg: true,
-              }),
-          )
-          .version(helpers.cliVersion())
-          .demandCommand(1, '')
-          .recommendCommands()
-          .help()
-          .alias('h', 'help')
-          .epilogue(
-            'If your app has a single stack, there is no need to specify the stack name\\n\\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
-          )
-          .parse(args);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const yargs = require('yargs');
-      "
-    `);
+    expect(await renderYargs(config, YARGS_HELPERS)).toMatchSnapshot();
   });
 });

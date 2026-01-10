@@ -1,8 +1,10 @@
+import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
+import { type JsPackageManager } from '../../lib/commands/init/package-manager';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -1351,6 +1353,205 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
     // cdk.json should not exist since template didn't have one
     expect(await fs.pathExists(path.join(projectDir, 'cdk.json'))).toBeFalsy();
+  });
+
+  describe('package-manager option', () => {
+    let spawnSpy: jest.SpyInstance;
+
+    beforeEach(async () => {
+      // Mock child_process.spawn to track which package manager is called
+      spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
+        stdout: { on: jest.fn() },
+      }) as unknown as child_process.ChildProcess);
+    });
+
+    afterEach(() => {
+      spawnSpy.mockRestore();
+    });
+
+    test.each([
+      { language: 'typescript', packageManager: 'npm', pmCmdPrefix: 'npm run' },
+      { language: 'typescript', packageManager: 'yarn', pmCmdPrefix: 'yarn' },
+      { language: 'typescript', packageManager: 'pnpm', pmCmdPrefix: 'pnpm' },
+      { language: 'typescript', packageManager: 'bun', pmCmdPrefix: 'bun run' },
+      { language: 'javascript', packageManager: 'npm', pmCmdPrefix: 'npm run' },
+      { language: 'javascript', packageManager: 'yarn', pmCmdPrefix: 'yarn' },
+      { language: 'javascript', packageManager: 'pnpm', pmCmdPrefix: 'pnpm' },
+      { language: 'javascript', packageManager: 'bun', pmCmdPrefix: 'bun run' },
+    ])('uses $packageManager for $language project', async ({ language, packageManager, pmCmdPrefix }) => {
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language,
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('init type `lib` also respects package manager option', async () => {
+      const packageManager = 'pnpm';
+      const pmCmdPrefix = 'pnpm';
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language: 'typescript',
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('init type `sample-app` also respects package manager option', async () => {
+      const packageManager = 'pnpm';
+      const pmCmdPrefix = 'pnpm';
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'sample-app',
+          language: 'typescript',
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('uses npm as default when package manager not specified', async (workDir) => {
+      const defaultPackageManager = 'npm';
+      const pmCmdPrefix = 'npm run';
+
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        workDir,
+      });
+
+      const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+      const installCalls = spawnSpy.mock.calls.filter(
+        ([cmd, args]) => cmd === defaultPackageManager && args.includes('install'),
+      );
+
+      expect(installCalls.length).toBeGreaterThan(0);
+      expect(readme).toContain(pmCmdPrefix);
+    });
+
+    cliTest('ignores package manager option for non-JavaScript languages', async (workDir) => {
+      const packageManager = 'yarn';
+      const pmCmdPrefix = 'yarn';
+
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'python',
+        packageManager,
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      const requirementsExists = await fs.pathExists(path.join(workDir, 'requirements.txt'));
+      const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+
+      expect(requirementsExists).toBeTruthy();
+      expect(readme).not.toContain(pmCmdPrefix);
+    });
+  });
+
+  describe('validate CLI init options', () => {
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', FORCE_COLOR: '0' };
+
+    test.each([
+      'python',
+      'java',
+      'go',
+      'csharp',
+      'fsharp',
+    ])('warns when package-manager option is specified for non-JS language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --package-manager npm --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
+        );
+
+        expect(output).toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
+      });
+    });
+
+    test.each([
+      'python',
+      'java',
+      'go',
+      'csharp',
+      'fsharp',
+    ])('does not warn when package-manager option is omitted for non-JS language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
+        );
+
+        expect(output).not.toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
+      });
+    });
+
+    test.each([
+      'typescript',
+      'javascript',
+    ])('does not warn when package-manager option is specified for language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
+        );
+
+        expect(output).not.toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
+      });
+    });
   });
 });
 
