@@ -1,3 +1,4 @@
+import * as path from 'path';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { environmentsFromDescriptors } from './private';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
@@ -6,6 +7,7 @@ import type { IIoHost } from '../../api/io';
 import { asIoHelper } from '../../api/io/private';
 import type { Tag } from '../../api/tags';
 import { assemblyFromSource } from '../../toolkit/private';
+import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 
 /**
  * Create manage bootstrap environments
@@ -251,5 +253,27 @@ export class BootstrapSource {
       source: 'custom',
       templateFile,
     };
+  }
+
+  /**
+   * Get the bootstrap template as a string
+   *
+   * @param source - The bootstrap template source configuration
+   * @param json - Whether to return JSON format (default: YAML)
+   * @returns The bootstrap template as a string
+   */
+  static async showTemplate(source: BootstrapOptions['source'] = { source: 'default' }, json: boolean = false): Promise<string> {
+    let template: any;
+
+    switch (source.source) {
+      case 'custom':
+        template = await loadStructuredFile(source.templateFile);
+        break;
+      case 'default':
+        template = await loadStructuredFile(path.join(bundledPackageRootDir(__dirname), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'));
+        break;
+    }
+
+    return serializeStructure(template, json);
   }
 }

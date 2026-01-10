@@ -627,4 +627,44 @@ describe('bootstrap', () => {
       }));
     });
   });
+
+  describe('BootstrapSource.showTemplate', () => {
+    test('can retrieve default bootstrap template as YAML', async () => {
+      // WHEN
+      const template = await BootstrapSource.showTemplate();
+
+      // THEN
+      expect(template).toContain('Description:');
+      expect(template).toContain('Parameters:');
+      expect(template).toContain('Resources:');
+      expect(template).toContain('StagingBucket:');
+      // Should be YAML format (not valid JSON)
+      expect(() => JSON.parse(template)).toThrow();
+    });
+
+    test('can retrieve default bootstrap template as JSON', async () => {
+      // WHEN
+      const template = await BootstrapSource.showTemplate(BootstrapSource.default(), true);
+
+      // THEN
+      const parsed = JSON.parse(template);
+      expect(parsed.Description).toBeDefined();
+      expect(parsed.Parameters).toBeDefined();
+      expect(parsed.Resources).toBeDefined();
+      expect(parsed.Resources.StagingBucket).toBeDefined();
+    });
+
+    test('can retrieve custom bootstrap template', async () => {
+      // GIVEN
+      const customTemplatePath = path.join(__dirname, '_fixtures/custom-bootstrap-template.yaml');
+
+      // WHEN
+      const template = await BootstrapSource.showTemplate(
+        BootstrapSource.customTemplate(customTemplatePath),
+      );
+
+      // THEN
+      expect(template).toContain('Description: Custom CDK Bootstrap Template');
+    });
+  });
 });
