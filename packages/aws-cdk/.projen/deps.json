@@ -210,6 +210,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-bedrock-agentcore-control",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-cloudcontrol",
       "type": "runtime"
     },
