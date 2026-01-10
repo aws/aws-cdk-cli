@@ -75,7 +75,10 @@ export enum ExtendedStackSelection {
 export interface StackSelector {
   /**
    * Whether all stacks at the top level assembly should
-   * be selected and nothing else
+   * be selected and nothing else.
+   *
+   * For Stage-only apps where no top-level stacks exist,
+   * selects all stacks including those in nested assemblies.
    */
   allTopLevel?: boolean;
 
@@ -103,7 +106,9 @@ export class CloudAssembly extends BaseStackAssembly {
       throw new ToolkitError('This app contains no stacks');
     }
 
-    if (allTopLevel) {
+    if (allTopLevel && topLevelStacks.length === 0) {
+      return new StackCollection(this, stacks);
+    } else if (allTopLevel) {
       return this.selectTopLevelStacks(stacks, topLevelStacks, options.extend);
     } else if (patterns.length > 0) {
       return this.selectMatchingStacks(stacks, patterns, options.extend);
