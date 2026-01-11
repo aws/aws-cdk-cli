@@ -131,29 +131,30 @@ export async function generateStackDefinitions(
         StackName: stack.stackName,
         TemplateBody: templateJson,
       });
-    } else {
-      // Template is too large, upload to S3
-      // Generate a unique key for this template
-      const templateHash = contentHash(templateJson);
-      const key = `cdk-refactor/${stack.stackName}/${templateHash}.json`;
-
-      // Upload to S3
-      const s3 = sdk.s3();
-      await s3.upload({
-        Bucket: toolkitInfo.bucketName,
-        Key: key,
-        Body: templateJson,
-        ContentType: 'application/json',
-      });
-
-      const templateURL = `${toolkitInfo.bucketUrl}/${key}`;
-      await ioHelper.defaults.debug(`Storing template for stack ${stack.stackName} in S3 at: ${templateURL}`);
-
-      stackDefinitions.push({
-        StackName: stack.stackName,
-        TemplateURL: templateURL,
-      });
+      continue;
     }
+
+    // Template is too large, upload to S3
+    // Generate a unique key for this template
+    const templateHash = contentHash(templateJson);
+    const key = `cdk-refactor/${stack.stackName}/${templateHash}.json`;
+
+    // Upload to S3
+    const s3 = sdk.s3();
+    await s3.upload({
+      Bucket: toolkitInfo.bucketName,
+      Key: key,
+      Body: templateJson,
+      ContentType: 'application/json',
+    });
+
+    const templateURL = `${toolkitInfo.bucketUrl}/${key}`;
+    await ioHelper.defaults.debug(`Storing template for stack ${stack.stackName} in S3 at: ${templateURL}`);
+
+    stackDefinitions.push({
+      StackName: stack.stackName,
+      TemplateURL: templateURL,
+    });
   }
 
   return stackDefinitions;
