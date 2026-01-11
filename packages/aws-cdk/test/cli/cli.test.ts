@@ -76,6 +76,9 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('--force')) {
         result = { ...result, force: true };
       }
+      if (args.includes('--asset-parallelism')) {
+        result = { ...result, assetParallelism: true };
+      }
       const concurrencyIndex = args.findIndex((arg: string) => arg === '--concurrency');
       if (concurrencyIndex !== -1 && args[concurrencyIndex + 1]) {
         result = { ...result, concurrency: parseInt(args[concurrencyIndex + 1], 10) };
@@ -604,8 +607,9 @@ describe('publish command tests', () => {
       settings: {
         get: jest.fn().mockImplementation((key: string[]) => {
           if (key[0] === 'unstable') return ['publish'];
-          if (key[0] === 'assetParallelism') return true;
-          return [];
+          // assetParallelism can come from configuration settings as fallback
+          if (key[0] === 'assetParallelism') return false; // Will be overridden by CLI arg
+          return undefined;
         }),
       },
       context: {
@@ -615,12 +619,13 @@ describe('publish command tests', () => {
 
     Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
 
-    await exec(['publish', '--unstable=publish', '--exclusively', '--force', '--concurrency', '4']);
+    await exec(['publish', '--unstable=publish', '--exclusively', '--force', '--asset-parallelism', '--concurrency', '4']);
 
     expect(publishSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         exclusively: true,
         force: true,
+        // assetParallelism from CLI arg takes precedence over configuration.settings
         assetParallelism: true,
         concurrency: 4,
       }),
