@@ -14,6 +14,7 @@ import { Mode } from '../plugin';
 const deepEqual = require('fast-deep-equal');
 
 const LARGE_TEMPLATE_SIZE_KB = 50;
+const LARGE_TEMPLATE_SIZE_BYTES = LARGE_TEMPLATE_SIZE_KB * 1024;
 
 export async function generateStackDefinitions(
   mappings: ResourceMapping[],
@@ -83,7 +84,7 @@ export async function generateStackDefinitions(
 
   // Check if any templates are large enough to require S3 upload
   const hasLargeTemplates = stacksToProcess.some(
-    stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_KB * 1024,
+    stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_BYTES,
   );
 
   // If no large templates, use TemplateBody for all (fast path)
@@ -103,7 +104,7 @@ export async function generateStackDefinitions(
   if (!toolkitInfo.found) {
     // Find the first large template to include in the error message
     const largeStack = stacksToProcess.find(
-      stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_KB * 1024,
+      stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_BYTES,
     );
     const templateSize = largeStack ? Math.round(JSON.stringify(largeStack.template).length / 1024) : 0;
 
@@ -125,7 +126,7 @@ export async function generateStackDefinitions(
     const templateJson = JSON.stringify(stack.template);
 
     // If template is small enough, use TemplateBody
-    if (templateJson.length <= LARGE_TEMPLATE_SIZE_KB * 1024) {
+    if (templateJson.length <= LARGE_TEMPLATE_SIZE_BYTES) {
       stackDefinitions.push({
         StackName: stack.stackName,
         TemplateBody: templateJson,
