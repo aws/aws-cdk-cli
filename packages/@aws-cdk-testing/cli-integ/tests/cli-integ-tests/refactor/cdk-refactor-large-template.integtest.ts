@@ -3,7 +3,6 @@ import { integTest, withSpecificFixture } from '../../../lib';
 integTest(
   'cdk refactor - handles large templates by uploading to S3',
   withSpecificFixture('refactoring-large-template', async (fixture) => {
-    // Deploy a stack with a large template (450 buckets = >50KB)
     await fixture.cdkDeploy('large-stack', {
       modEnv: {
         QUEUE_LOGICAL_ID: 'OldQueue',
@@ -20,7 +19,6 @@ integTest(
       },
     });
 
-    // Verify refactor completed successfully with the large template
     expect(stdErr).toMatch('Stack refactor complete');
 
     // CloudFormation may complete the refactoring, while the stack is still in the "UPDATE_IN_PROGRESS" state.

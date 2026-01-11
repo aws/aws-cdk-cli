@@ -6,12 +6,11 @@ const sqs = require('aws-cdk-lib/aws-sqs');
 const stackPrefix = process.env.STACK_NAME_PREFIX;
 const app = new cdk.App();
 
-// Create a stack with many resources to exceed 50KB template size
+// Create a stack with many resources to exceed 50KB template size (100 buckets = ~260KB)
 class LargeStack extends Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
 
-    // Create 100 S3 buckets to make the template large (>50KB)
     for (let i = 0; i < 100; i++) {
       new s3.Bucket(this, `Bucket${i}`, {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
