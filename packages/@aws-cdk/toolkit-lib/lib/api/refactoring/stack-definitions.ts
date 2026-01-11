@@ -106,11 +106,17 @@ export async function generateStackDefinitions(
     const largeStack = stacksToProcess.find(
       stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_BYTES,
     );
-    const templateSize = largeStack ? Math.round(JSON.stringify(largeStack.template).length / 1024) : 0;
+
+    if (!largeStack) {
+      // This should never happen since hasLargeTemplates was true
+      throw new Error('Large template not found');
+    }
+
+    const templateSize = Math.round(JSON.stringify(largeStack.template).length / 1024);
 
     await ioHelper.defaults.error(
       util.format(
-        `The template for stack "${largeStack?.stackName}" is ${templateSize}KiB. ` +
+        `The template for stack "${largeStack.stackName}" is ${templateSize}KiB. ` +
         `Templates larger than ${LARGE_TEMPLATE_SIZE_KB}KiB must be uploaded to S3.\n` +
         'Run the following command in order to setup an S3 bucket in this environment, and then re-refactor:\n\n',
         chalk.blue(`\t$ cdk bootstrap ${environment.name}\n`),
