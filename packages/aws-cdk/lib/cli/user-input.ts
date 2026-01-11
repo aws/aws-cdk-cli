@@ -61,6 +61,11 @@ export interface UserInput {
   readonly rollback?: RollbackOptions;
 
   /**
+   * Publish assets for the given stack(s) without deploying
+   */
+  readonly publish?: PublishOptions;
+
+  /**
    * Import existing resource(s) into the given STACK
    */
   readonly import?: ImportOptions;
@@ -976,6 +981,64 @@ export interface RollbackOptions {
 
   /**
    * Positional argument for rollback
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
+ * Publish assets for the given stack(s) without deploying
+ *
+ * @struct
+ */
+export interface PublishOptions {
+  /**
+   * Publish assets for all available stacks
+   *
+   * @default - false
+   */
+  readonly all?: boolean;
+
+  /**
+   * Only publish assets for requested stacks, don't include dependencies
+   *
+   * aliases: e
+   *
+   * @default - undefined
+   */
+  readonly exclusively?: boolean;
+
+  /**
+   * The name of the existing CDK toolkit stack
+   *
+   * @default - undefined
+   */
+  readonly toolkitStackName?: string;
+
+  /**
+   * Always publish assets, even if they are already published
+   *
+   * aliases: f
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
+
+  /**
+   * Whether to build/publish assets in parallel
+   *
+   * @default - undefined
+   */
+  readonly assetParallelism?: boolean;
+
+  /**
+   * Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
+
+  /**
+   * Positional argument for publish
    */
   readonly STACKS?: Array<string>;
 }

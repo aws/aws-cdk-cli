@@ -157,6 +157,18 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'publish':
+      commandOptions = {
+        all: args.all,
+        exclusively: args.exclusively,
+        toolkitStackName: args.toolkitStackName,
+        force: args.force,
+        assetParallelism: args.assetParallelism,
+        concurrency: args.concurrency,
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'import':
       commandOptions = {
         execute: args.execute,
@@ -436,6 +448,14 @@ export function convertConfigToUserInput(config: any): UserInput {
     validateBootstrapVersion: config.rollback?.validateBootstrapVersion,
     orphan: config.rollback?.orphan,
   };
+  const publishOptions = {
+    all: config.publish?.all,
+    exclusively: config.publish?.exclusively,
+    toolkitStackName: config.publish?.toolkitStackName,
+    force: config.publish?.force,
+    assetParallelism: config.publish?.assetParallelism,
+    concurrency: config.publish?.concurrency,
+  };
   const importOptions = {
     execute: config.import?.execute,
     changeSetName: config.import?.changeSetName,
@@ -538,6 +558,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
+    publish: publishOptions,
     import: importOptions,
     watch: watchOptions,
     destroy: destroyOptions,

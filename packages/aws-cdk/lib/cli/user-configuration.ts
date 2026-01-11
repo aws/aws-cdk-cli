@@ -28,6 +28,7 @@ export enum Command {
   GC = 'gc',
   FLAGS = 'flags',
   ROLLBACK = 'rollback',
+  PUBLISH = 'publish',
   IMPORT = 'import',
   ACKNOWLEDGE = 'acknowledge',
   ACK = 'ack',

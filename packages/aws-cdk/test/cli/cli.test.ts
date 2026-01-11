@@ -66,6 +66,20 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         _: ['deploy'],
         parameters: [],
       };
+    } else if (args.includes('publish')) {
+      result = { ...result, _: ['publish'] };
+
+      // Handle publish-specific flags
+      if (args.includes('--exclusively')) {
+        result = { ...result, exclusively: true };
+      }
+      if (args.includes('--force')) {
+        result = { ...result, force: true };
+      }
+      const concurrencyIndex = args.findIndex((arg: string) => arg === '--concurrency');
+      if (concurrencyIndex !== -1 && args[concurrencyIndex + 1]) {
+        result = { ...result, concurrency: parseInt(args[concurrencyIndex + 1], 10) };
+      }
     } else if (args.includes('flags')) {
       result = { ...result, _: ['flags'] };
     }
@@ -507,6 +521,110 @@ describe('gc command tests', () => {
       'The --role-arn option is not supported for the gc command and will be ignored.',
     );
     expect(gcSpy).toHaveBeenCalled();
+  });
+});
+
+describe('publish command tests', () => {
+  let originalCliIoHostInstance: any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    originalCliIoHostInstance = CliIoHost.instance;
+  });
+
+  afterEach(() => {
+    CliIoHost.instance = originalCliIoHostInstance;
+  });
+
+  test('should require unstable flag', async () => {
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
+
+    (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return []; // No unstable flags set
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await expect(exec(['publish'])).rejects.toThrow(/Unstable feature use.*publish.*unstable/);
+    expect(publishSpy).not.toHaveBeenCalled();
+  });
+
+  test('should call publish when unstable flag is set', async () => {
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
+
+    (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn(), info: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['publish'];
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await exec(['publish', '--unstable=publish']);
+
+    expect(publishSpy).toHaveBeenCalled();
+  });
+
+  test('should pass options to publish method', async () => {
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
+
+    (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn(), info: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['publish'];
+          if (key[0] === 'assetParallelism') return true;
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await exec(['publish', '--unstable=publish', '--exclusively', '--force', '--concurrency', '4']);
+
+    expect(publishSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exclusively: true,
+        force: true,
+        assetParallelism: true,
+        concurrency: 4,
+      }),
+    );
   });
 });
 
