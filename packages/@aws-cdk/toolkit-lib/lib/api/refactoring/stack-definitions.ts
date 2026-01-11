@@ -87,7 +87,7 @@ export async function generateStackDefinitions(
     stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_BYTES,
   );
 
-  // If no large templates, use TemplateBody for all (fast path)
+  // If no large templates, use TemplateBody for all
   if (!hasLargeTemplates) {
     return stacksToProcess.map(stack => ({
       StackName: stack.stackName,
