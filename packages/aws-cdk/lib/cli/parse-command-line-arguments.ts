@@ -3,8 +3,8 @@
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
+import { Argv } from 'yargs';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {
@@ -550,17 +550,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('watch', {
@@ -729,17 +729,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('logs', {
