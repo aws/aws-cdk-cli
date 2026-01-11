@@ -717,6 +717,157 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
   });
 
+  test('knows how to handle attributes of the AWS::DynamoDB::GlobalTable resource', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        GlobalTable: {
+          Type: 'AWS::DynamoDB::GlobalTable',
+          Properties: {
+            KeySchema: [
+              {
+                AttributeName: 'name',
+                KeyType: 'HASH',
+              },
+            ],
+            AttributeDefinitions: [
+              {
+                AttributeName: 'name',
+                AttributeType: 'S',
+              },
+            ],
+            BillingMode: 'PAY_PER_REQUEST',
+            Replicas: [
+              {
+                Region: 'us-east-1',
+              },
+            ],
+          },
+        },
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: '{}',
+            StateMachineName: 'my-machine',
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(setup.stackSummaryOf('GlobalTable', 'AWS::DynamoDB::GlobalTable', 'my-global-table'));
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          GlobalTable: {
+            Type: 'AWS::DynamoDB::GlobalTable',
+            Properties: {
+              KeySchema: [
+                {
+                  AttributeName: 'name',
+                  KeyType: 'HASH',
+                },
+              ],
+              AttributeDefinitions: [
+                {
+                  AttributeName: 'name',
+                  AttributeType: 'S',
+                },
+              ],
+              BillingMode: 'PAY_PER_REQUEST',
+              Replicas: [
+                {
+                  Region: 'us-east-1',
+                },
+              ],
+            },
+          },
+          Machine: {
+            Type: 'AWS::StepFunctions::StateMachine',
+            Properties: {
+              DefinitionString: {
+                'Fn::Join': [
+                  '',
+                  ['{"TableName":"', { Ref: 'GlobalTable' }, '","TableArn":"', { 'Fn::GetAtt': ['GlobalTable', 'Arn'] }, '"}'],
+                ],
+              },
+              StateMachineName: 'my-machine',
+            },
+          },
+        },
+      },
+    });
+
+    // THEN
+    const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    expect(result).not.toBeUndefined();
+    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
+      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      definition: JSON.stringify({
+        TableName: 'my-global-table',
+        TableArn: 'arn:swa:dynamodb:here:123456789012:globaltable/my-global-table',
+      }),
+    });
+  });
+
+  test('knows how to handle attributes of the AWS::Lambda::Url resource', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        LambdaUrl: {
+          Type: 'AWS::Lambda::Url',
+          Properties: {
+            TargetFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:my-function',
+            AuthType: 'NONE',
+          },
+        },
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: '{}',
+            StateMachineName: 'my-machine',
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(setup.stackSummaryOf('LambdaUrl', 'AWS::Lambda::Url', 'my-lambda-url'));
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          LambdaUrl: {
+            Type: 'AWS::Lambda::Url',
+            Properties: {
+              TargetFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:my-function',
+              AuthType: 'NONE',
+            },
+          },
+          Machine: {
+            Type: 'AWS::StepFunctions::StateMachine',
+            Properties: {
+              DefinitionString: {
+                'Fn::Join': [
+                  '',
+                  ['{"UrlArn":"', { 'Fn::GetAtt': ['LambdaUrl', 'Arn'] }, '"}'],
+                ],
+              },
+              StateMachineName: 'my-machine',
+            },
+          },
+        },
+      },
+    });
+
+    // THEN
+    const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    expect(result).not.toBeUndefined();
+    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
+      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      definition: JSON.stringify({
+        UrlArn: 'arn:swa:lambda:here:123456789012:url/my-lambda-url',
+      }),
+    });
+  });
+
   test('knows how to handle attributes of the AWS::KMS::Key resource', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
