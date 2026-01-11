@@ -95,7 +95,6 @@ export async function generateStackDefinitions(
     }));
   }
 
-  // Initialize SDK and toolkit info for large templates
   const sdk = (await sdkProvider.forEnvironment(environment, Mode.ForWriting)).sdk;
   const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
   const envResources = environmentResourcesRegistry.for(environment, sdk, ioHelper);
@@ -126,7 +125,6 @@ export async function generateStackDefinitions(
     throw new ToolkitError('Template too large to refactor ("cdk bootstrap" is required)');
   }
 
-  // Process templates with S3 upload support
   const stackDefinitions: StackDefinition[] = [];
   for (const stack of stacksToProcess) {
     const templateJson = JSON.stringify(stack.template);
@@ -145,7 +143,6 @@ export async function generateStackDefinitions(
     const templateHash = contentHash(templateJson);
     const key = `cdk-refactor/${stack.stackName}/${templateHash}.json`;
 
-    // Upload to S3
     const s3 = sdk.s3();
     await s3.upload({
       Bucket: toolkitInfo.bucketName,
