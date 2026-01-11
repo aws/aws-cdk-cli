@@ -104,12 +104,7 @@ export async function generateStackDefinitions(
     // Find the first large template to include in the error message
     const largeStack = stacksToProcess.find(
       stack => JSON.stringify(stack.template).length > LARGE_TEMPLATE_SIZE_BYTES,
-    );
-
-    if (!largeStack) {
-      // This should never happen since hasLargeTemplates was true
-      throw new Error('Large template not found');
-    }
+    )!; // Must exist since hasLargeTemplates is true
 
     const templateSize = Math.round(JSON.stringify(largeStack.template).length / 1024);
 
