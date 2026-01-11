@@ -11,20 +11,11 @@ class LargeStack extends Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
 
-    // Create 450 S3 buckets to make the template large (>50KB)
-    for (let i = 0; i < 450; i++) {
+    // Create 100 S3 buckets to make the template large (>50KB)
+    for (let i = 0; i < 100; i++) {
       new s3.Bucket(this, `Bucket${i}`, {
-        bucketName: `large-template-bucket-${i}-${cdk.Stack.of(this).account}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         autoDeleteObjects: true,
-        // Add tags to increase template size
-        tags: {
-          Environment: 'Test',
-          Application: 'LargeTemplateTest',
-          Owner: 'CDK-IntegTest',
-          CostCenter: '12345',
-          Index: `${i}`,
-        },
       });
     }
 
