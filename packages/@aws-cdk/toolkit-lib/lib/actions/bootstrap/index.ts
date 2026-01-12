@@ -281,7 +281,8 @@ export class BootstrapTemplate {
     return new BootstrapTemplate(template);
   }
 
-  private constructor(private readonly template: any) {}
+  private constructor(private readonly template: any) {
+  }
 
   /**
    * Serialize the template as YAML
