@@ -607,8 +607,9 @@ describe('publish command tests', () => {
       settings: {
         get: jest.fn().mockImplementation((key: string[]) => {
           if (key[0] === 'unstable') return ['publish'];
-          // assetParallelism can come from configuration settings as fallback
-          if (key[0] === 'assetParallelism') return false; // Will be overridden by CLI arg
+          // configuration.settings.get() merges CLI args, cdk.json, and ~/.cdk.json
+          // with CLI args having highest priority
+          if (key[0] === 'assetParallelism') return true; // From --asset-parallelism flag
           return undefined;
         }),
       },
@@ -625,7 +626,7 @@ describe('publish command tests', () => {
       expect.objectContaining({
         exclusively: true,
         force: true,
-        // assetParallelism from CLI arg takes precedence over configuration.settings
+        // assetParallelism from configuration.settings (which includes CLI args)
         assetParallelism: true,
         concurrency: 4,
       }),
