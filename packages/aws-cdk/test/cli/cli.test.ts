@@ -539,7 +539,7 @@ describe('publish command tests', () => {
     CliIoHost.instance = originalCliIoHostInstance;
   });
 
-  test('should require unstable flag', async () => {
+  test('throw error when unstable flag is not set', async () => {
     const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
 
     (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn() };
@@ -566,34 +566,6 @@ describe('publish command tests', () => {
     expect(publishSpy).not.toHaveBeenCalled();
   });
 
-  test('should call publish when unstable flag is set', async () => {
-    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
-
-    (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn(), info: jest.fn() };
-    (ioHost as any).asIoHelper = () => ioHelper;
-    (ioHost as any).logLevel = 'info';
-    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
-
-    const mockConfig = {
-      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
-      settings: {
-        get: jest.fn().mockImplementation((key: string[]) => {
-          if (key[0] === 'unstable') return ['publish'];
-          return [];
-        }),
-      },
-      context: {
-        get: jest.fn().mockReturnValue([]),
-      },
-    };
-
-    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
-
-    await exec(['publish', '--unstable=publish']);
-
-    expect(publishSpy).toHaveBeenCalled();
-  });
-
   test('should pass options to publish method', async () => {
     const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
 
@@ -607,9 +579,7 @@ describe('publish command tests', () => {
       settings: {
         get: jest.fn().mockImplementation((key: string[]) => {
           if (key[0] === 'unstable') return ['publish'];
-          // configuration.settings.get() merges CLI args, cdk.json, and ~/.cdk.json
-          // with CLI args having highest priority
-          if (key[0] === 'assetParallelism') return true; // From --asset-parallelism flag
+          if (key[0] === 'assetParallelism') return true;
           return undefined;
         }),
       },
@@ -626,7 +596,6 @@ describe('publish command tests', () => {
       expect.objectContaining({
         exclusively: true,
         force: true,
-        // assetParallelism from configuration.settings (which includes CLI args)
         assetParallelism: true,
         concurrency: 4,
       }),
