@@ -550,17 +550,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('watch', {
@@ -766,17 +766,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('logs', {
@@ -937,6 +937,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.',
           choices: ['npm', 'yarn', 'pnpm', 'bun'],
+        })
+        .option('project-name', {
+          default: undefined,
+          type: 'string',
+          alias: 'n',
+          desc: 'The name of the new project',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>

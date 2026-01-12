@@ -183,15 +183,15 @@ export async function makeConfig(): Promise<CliConfig> {
               'Do not use this in production environments',
           },
           'hotswap-ecs-minimum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-maximum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-stabilization-timeout-seconds': {
-            type: 'string',
+            type: 'number',
             desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'watch': {
@@ -327,15 +327,15 @@ export async function makeConfig(): Promise<CliConfig> {
               'and falls back to a full deployment if that is not possible.',
           },
           'hotswap-ecs-minimum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-maximum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-stabilization-timeout-seconds': {
-            type: 'string',
+            type: 'number',
             desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'logs': {
@@ -424,6 +424,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
           'package-manager': { type: 'string', desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.', choices: JS_PACKAGE_MANAGERS.map(({ name }) => name) },
+          'project-name': { type: 'string', alias: 'n', desc: 'The name of the new project', requiresArg: true },
         },
         implies: { 'template-path': 'from-path' },
       },
