@@ -686,6 +686,7 @@ class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
 
     const image = new docker.DockerImageAsset(this, 'Image', {
       directory: path.join(__dirname, 'docker'),
+      platform: docker.Platform.LINUX_ARM64,
     });
     image.repository.grantPull(role);
 
