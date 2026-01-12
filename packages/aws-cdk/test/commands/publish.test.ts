@@ -1,10 +1,11 @@
 import * as path from 'path';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
+import { Deployments } from '../../lib/api/deployments';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
-import { Deployments } from '../../lib/api/deployments';
-import { MockCloudExecutable, TestStackArtifact } from '../_helpers/assembly';
 import { instanceMockFrom } from '../_helpers/as-mock';
+import type { TestStackArtifact } from '../_helpers/assembly';
+import { MockCloudExecutable } from '../_helpers/assembly';
 
 // Mock stacks for testing
 const MOCK_STACK_WITH_ASSET: TestStackArtifact = {
