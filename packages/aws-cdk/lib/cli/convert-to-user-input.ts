@@ -251,6 +251,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         fromPath: args.fromPath,
         templatePath: args.templatePath,
         packageManager: args.packageManager,
+        projectName: args.projectName,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -495,6 +496,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     fromPath: config.init?.fromPath,
     templatePath: config.init?.templatePath,
     packageManager: config.init?.packageManager,
+    projectName: config.init?.projectName,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,

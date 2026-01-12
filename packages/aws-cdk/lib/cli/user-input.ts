@@ -867,21 +867,21 @@ export interface DeployOptions {
    *
    * @default - undefined
    */
-  readonly hotswapEcsMinimumHealthyPercent?: string;
+  readonly hotswapEcsMinimumHealthyPercent?: number;
 
   /**
    * Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsMaximumHealthyPercent?: string;
+  readonly hotswapEcsMaximumHealthyPercent?: number;
 
   /**
    * Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsStabilizationTimeoutSeconds?: string;
+  readonly hotswapEcsStabilizationTimeoutSeconds?: number;
 
   /**
    * Continuously observe the project files, and deploy the given stack(s) automatically when changes are detected. Implies --hotswap by default
@@ -1127,21 +1127,21 @@ export interface WatchOptions {
    *
    * @default - undefined
    */
-  readonly hotswapEcsMinimumHealthyPercent?: string;
+  readonly hotswapEcsMinimumHealthyPercent?: number;
 
   /**
    * Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsMaximumHealthyPercent?: string;
+  readonly hotswapEcsMaximumHealthyPercent?: number;
 
   /**
    * Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsStabilizationTimeoutSeconds?: string;
+  readonly hotswapEcsStabilizationTimeoutSeconds?: number;
 
   /**
    * Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off
@@ -1414,6 +1414,15 @@ export interface InitOptions {
    * @default - undefined
    */
   readonly packageManager?: string;
+
+  /**
+   * The name of the new project
+   *
+   * aliases: n
+   *
+   * @default - undefined
+   */
+  readonly projectName?: string;
 
   /**
    * Positional argument for init

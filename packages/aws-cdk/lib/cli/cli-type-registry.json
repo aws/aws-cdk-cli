@@ -518,15 +518,15 @@
           "desc": "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible. Do not use this in production environments"
         },
         "hotswap-ecs-minimum-healthy-percent": {
-          "type": "string",
+          "type": "number",
           "desc": "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount"
         },
         "hotswap-ecs-maximum-healthy-percent": {
-          "type": "string",
+          "type": "number",
           "desc": "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount"
         },
         "hotswap-ecs-stabilization-timeout-seconds": {
-          "type": "string",
+          "type": "number",
           "desc": "Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount"
         },
         "watch": {
@@ -696,15 +696,15 @@
           "desc": "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible."
         },
         "hotswap-ecs-minimum-healthy-percent": {
-          "type": "string",
+          "type": "number",
           "desc": "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount"
         },
         "hotswap-ecs-maximum-healthy-percent": {
-          "type": "string",
+          "type": "number",
           "desc": "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount"
         },
         "hotswap-ecs-stabilization-timeout-seconds": {
-          "type": "string",
+          "type": "number",
           "desc": "Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount"
         },
         "logs": {
@@ -913,6 +913,12 @@
             "pnpm",
             "bun"
           ]
+        },
+        "project-name": {
+          "type": "string",
+          "alias": "n",
+          "desc": "The name of the new project",
+          "requiresArg": true
         }
       },
       "implies": {
