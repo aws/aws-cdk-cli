@@ -825,9 +825,9 @@ export class CdkToolkit {
     await this.ioHost.asIoHelper().defaults.info('Publishing assets for %s stack(s)', chalk.bold(String(stackCollection.stackCount)));
 
     const graphConcurrency: Concurrency = {
-      'stack': 1,
-      'asset-build': 1,
-      'asset-publish': (options.assetParallelism ?? true) ? 8 : 1,
+      'stack': 1, // Not relevant since we're not deploying stacks
+      'asset-build': 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+      'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
     };
 
     await workGraph.doParallel(graphConcurrency, {
