@@ -254,15 +254,21 @@ export class BootstrapSource {
       templateFile,
     };
   }
+}
+
+/**
+ * Represents a bootstrap template that can be serialized to YAML or JSON
+ */
+export class BootstrapTemplate {
+  private constructor(private readonly template: any) {}
 
   /**
-   * Get the bootstrap template as a string
+   * Load a bootstrap template from a source
    *
    * @param source - The bootstrap template source configuration
-   * @param json - Whether to return JSON format (default: YAML)
-   * @returns The bootstrap template as a string
+   * @returns A BootstrapTemplate instance
    */
-  static async showTemplate(source: BootstrapOptions['source'] = { source: 'default' }, json: boolean = false): Promise<string> {
+  static async fromSource(source: BootstrapOptions['source'] = { source: 'default' }): Promise<BootstrapTemplate> {
     let template: any;
 
     switch (source.source) {
@@ -274,6 +280,24 @@ export class BootstrapSource {
         break;
     }
 
-    return serializeStructure(template, json);
+    return new BootstrapTemplate(template);
+  }
+
+  /**
+   * Serialize the template as YAML
+   *
+   * @returns The template as a YAML string
+   */
+  public asYAML(): string {
+    return serializeStructure(this.template, false);
+  }
+
+  /**
+   * Serialize the template as JSON
+   *
+   * @returns The template as a JSON string
+   */
+  public asJSON(): string {
+    return serializeStructure(this.template, true);
   }
 }

@@ -11,7 +11,7 @@ import {
 import { bold } from 'chalk';
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
-import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
+import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters, BootstrapTemplate } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
@@ -628,10 +628,11 @@ describe('bootstrap', () => {
     });
   });
 
-  describe('BootstrapSource.showTemplate', () => {
+  describe('BootstrapTemplate.fromSource', () => {
     test('can retrieve default bootstrap template as YAML', async () => {
       // WHEN
-      const template = await BootstrapSource.showTemplate();
+      const bootstrapTemplate = await BootstrapTemplate.fromSource();
+      const template = bootstrapTemplate.asYAML();
 
       // THEN
       expect(template).toContain('Description:');
@@ -644,7 +645,8 @@ describe('bootstrap', () => {
 
     test('can retrieve default bootstrap template as JSON', async () => {
       // WHEN
-      const template = await BootstrapSource.showTemplate(BootstrapSource.default(), true);
+      const bootstrapTemplate = await BootstrapTemplate.fromSource();
+      const template = bootstrapTemplate.asJSON();
 
       // THEN
       const parsed = JSON.parse(template);
@@ -659,9 +661,10 @@ describe('bootstrap', () => {
       const customTemplatePath = path.join(__dirname, '_fixtures/custom-bootstrap-template.yaml');
 
       // WHEN
-      const template = await BootstrapSource.showTemplate(
+      const bootstrapTemplate = await BootstrapTemplate.fromSource(
         BootstrapSource.customTemplate(customTemplatePath),
       );
+      const template = bootstrapTemplate.asYAML();
 
       // THEN
       expect(template).toContain('Description: Custom CDK Bootstrap Template');
