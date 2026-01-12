@@ -9,7 +9,7 @@ integTest(
     const stackName = 'lambda';
     const fullStackName = fixture.fullStackName(stackName);
 
-    const output = await fixture.cdk(['publish', fullStackName, '--unstable=publish']);1
+    const output = await fixture.cdk(['publish', fullStackName, '--unstable=publish']);
     expect(output).toMatch('Assets published successfully');
 
     // assert the stack wan not deployed
