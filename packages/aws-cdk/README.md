@@ -578,15 +578,17 @@ For technical implementation details (function calls, file locations), see [docs
 
 ### `cdk publish`
 
-> **Note:** This is an **unstable** feature. You must opt-in using `--unstable=publish`.
+Publishes assets for the specified stack(s) without performing a deployment.
+
+> [!CAUTION]
+> `cdk publish` is under development and therefore must be opted in via the
+> `--unstable` flag: `cdk publish --unstable=publish`. `--unstable` indicates that the scope and
+> API of feature might still change. Otherwise the feature is generally production
+> ready and fully supported.
 
 Publishes assets (such as Docker images and file assets) for the specified stack(s) to their respective destinations (ECR repositories, S3 buckets) without performing a deployment.
 
-This is useful in CI/CD pipelines where you want to separate the build/publish phase from the deployment phase. For example:
-
-- Publish assets once in a build stage
-- Deploy to multiple environments (dev, staging, prod) using the already-published assets
-- Ensure all assets are available before starting deployment
+This is useful in CI/CD pipelines where you want to separate the build/publish phase from the deployment phase, allowing you to publish assets once and deploy to multiple environments using the already-published assets.
 
 ```console
 $ # Publish assets for a single stack
@@ -600,40 +602,6 @@ $ cdk publish MyStack --unstable=publish --asset-parallelism
 
 $ # Force re-publish even if assets already exist
 $ cdk publish MyStack --unstable=publish --force
-```
-
-#### Options
-
-- `--all`: Publish assets for all stacks in the app
-- `--exclusively` (`-e`): Only publish assets for the specified stack(s), don't include dependencies
-- `--force` (`-f`): Always publish assets, even if they are already published
-- `--asset-parallelism`: Whether to build/publish assets in parallel (default: true)
-- `--concurrency N`: Maximum number of simultaneous asset publishing operations (default: 1)
-- `--role-arn`: ARN of the IAM role to use for asset publishing
-
-#### Use Cases
-
-**CI/CD Pipeline Separation:**
-
-```bash
-# Build stage
-cdk publish --all --unstable=publish
-
-# Deploy stage (dev)
-cdk deploy --all
-
-# Deploy stage (staging) - reuses already published assets
-cdk deploy --all
-
-# Deploy stage (prod) - reuses already published assets
-cdk deploy --all
-```
-
-**Debugging Asset Issues:**
-
-```bash
-# Force re-publish a specific asset to debug upload issues
-cdk publish MyStack --unstable=publish --force
 ```
 
 ### `cdk rollback`
