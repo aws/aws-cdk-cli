@@ -822,6 +822,11 @@ export class CdkToolkit {
       true, // prebuild all assets
     ).build(stacksAndTheirAssetManifests);
 
+    // Unless we are running with '--force', skip already published assets
+    if (!options.force) {
+      await this.removePublishedAssets(workGraph, options);
+    }
+
     await this.ioHost.asIoHelper().defaults.info('Publishing assets for %s stack(s)', chalk.bold(String(stackCollection.stackCount)));
 
     const graphConcurrency: Concurrency = {
