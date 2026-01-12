@@ -9,10 +9,8 @@ integTest(
     const stackName = 'lambda';
     const fullStackName = fixture.fullStackName(stackName);
 
-    const output = await fixture.cdk(['publish', fullStackName, '--unstable=publish']);
-
+    const output = await fixture.cdk(['publish', fullStackName, '--unstable=publish']);1
     expect(output).toMatch('Assets published successfully');
-
 
     // assert the stack wan not deployed
     await expect(fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: fullStackName })))
