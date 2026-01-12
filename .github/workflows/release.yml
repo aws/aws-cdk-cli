@@ -29,8 +29,8 @@ jobs:
           fetch-depth: 0
       - name: Set git identity
         run: |-
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -223,7 +223,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -248,7 +248,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -293,7 +293,7 @@ jobs:
           java-version: "11"
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -337,7 +337,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
@@ -378,7 +378,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 6.x
@@ -419,7 +419,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - uses: actions/setup-go@v6
         with:
           go-version: ^1.18.0
@@ -447,8 +447,8 @@ jobs:
         run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
-          GIT_USER_NAME: github-actions
-          GIT_USER_EMAIL: github-actions@github.com
+          GIT_USER_NAME: github-actions[bot]
+          GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
         run: npx -p publib@latest publib-golang
   aws-cdk-cloudformation-diff_release_github:
@@ -464,7 +464,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -489,7 +489,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -518,7 +518,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -543,7 +543,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -572,7 +572,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -597,7 +597,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -626,7 +626,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -651,7 +651,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -680,7 +680,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -705,7 +705,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -734,7 +734,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -759,7 +759,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -788,7 +788,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -813,7 +813,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -842,7 +842,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -867,7 +867,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -896,7 +896,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:
@@ -921,7 +921,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v5
         with:
-          node-version: 24.x
+          node-version: lts/*
       - name: Download build artifacts
         uses: actions/download-artifact@v5
         with:

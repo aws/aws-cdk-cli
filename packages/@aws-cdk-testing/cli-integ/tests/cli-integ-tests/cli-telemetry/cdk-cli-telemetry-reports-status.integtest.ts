@@ -11,12 +11,12 @@ integTest(
     try {
       // default status is enabled
       const output1 = await fixture.cdk(['cli-telemetry', '--status']);
-      expect(output1).toContain('CLI Telemetry is enabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to disable.');
+      expect(output1).toContain('CLI Telemetry is enabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to disable.');
 
       // disable status
       await fs.writeFile(userContextFile, JSON.stringify({ context: { 'cli-telemetry': false } }));
       const output2 = await fixture.cdk(['cli-telemetry', '--status']);
-      expect(output2).toContain('CLI Telemetry is disabled. See https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-cli-telemetry for ways to enable.');
+      expect(output2).toContain('CLI Telemetry is disabled. See https://docs.aws.amazon.com/cdk/v2/guide/cli-telemetry.html for ways to enable.');
     } finally {
       await fs.unlink(userContextFile);
     }

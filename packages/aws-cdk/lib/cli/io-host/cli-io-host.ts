@@ -9,11 +9,15 @@ import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
+import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
 import type { EventType } from '../telemetry/schema';
 import { TelemetrySession } from '../telemetry/session';
+import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
+import { Funnel } from '../telemetry/sink/funnel';
+import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
 import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -22,14 +26,14 @@ export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
  * The current action being performed by the CLI. 'none' represents the absence of an action.
  */
 type CliAction =
-| ToolkitAction
-| 'context'
-| 'docs'
-| 'flags'
-| 'notices'
-| 'version'
-| 'cli-telemetry'
-| 'none';
+  | ToolkitAction
+  | 'context'
+  | 'docs'
+  | 'flags'
+  | 'notices'
+  | 'version'
+  | 'cli-telemetry'
+  | 'none';
 
 export interface CliIoHostProps {
   /**
@@ -81,6 +85,16 @@ export interface CliIoHostProps {
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
+
+  /**
+   * Whether the CLI should attempt to automatically respond to prompts.
+   *
+   * When true, operation will usually proceed without interactive confirmation.
+   * Confirmations are responded to with yes. Other prompts will respond with the default value.
+   *
+   * @default false
+   */
+  readonly autoRespond?: boolean;
 }
 
 /**
@@ -160,6 +174,8 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  private readonly autoRespond: boolean;
+
   public telemetry?: TelemetrySession;
 
   private constructor(props: CliIoHostProps = {}) {
@@ -168,32 +184,56 @@ export class CliIoHost implements IIoHost {
     this.logLevel = props.logLevel ?? 'info';
     this.isCI = props.isCI ?? isCI();
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
-
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+    this.autoRespond = props.autoRespond ?? false;
   }
 
-  public async startTelemetry(args: any, context: Context, _proxyAgent?: Agent) {
-    let sink;
+  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const config = require('../cli-type-registry.json');
+    const validCommands = Object.keys(config.commands);
+    const cmd = args._[0];
+    if (!validCommands.includes(cmd)) {
+      // the user typed in an invalid command - no need for telemetry since the invocation is going to fail
+      // imminently anyway.
+      await this.asIoHelper().defaults.trace(`Session instantiated with an invalid command (${cmd}). Not starting telemetry.`);
+      return;
+    }
+
+    let sinks: ITelemetrySink[] = [];
     const telemetryFilePath = args['telemetry-file'];
     if (telemetryFilePath) {
-      sink = new FileTelemetrySink({
-        ioHost: this,
-        logFilePath: telemetryFilePath,
-      });
+      try {
+        sinks.push(new FileTelemetrySink({
+          ioHost: this,
+          logFilePath: telemetryFilePath,
+        }));
+        await this.asIoHelper().defaults.trace('File Telemetry connected');
+      } catch (e: any) {
+        await this.asIoHelper().defaults.trace(`File Telemetry instantiation failed: ${e.message}`);
+      }
     }
-    // TODO: uncomment this at launch
-    // if (canCollectTelemetry(args, context)) {
-    //   sink = new EndpointTelemetrySink({
-    //     ioHost: this,
-    //     agent: proxyAgent,
-    //     endpoint: '', // TODO: add endpoint
-    //   });
-    // }
 
-    if (sink) {
+    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
+    if (canCollectTelemetry(args, context) && telemetryEndpoint) {
+      try {
+        sinks.push(new EndpointTelemetrySink({
+          ioHost: this,
+          agent: proxyAgent,
+          endpoint: telemetryEndpoint,
+        }));
+        await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
+      } catch (e: any) {
+        await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
+      }
+    } else {
+      await this.asIoHelper().defaults.trace('Endpoint Telemetry NOT connected');
+    }
+
+    if (sinks.length > 0) {
       this.telemetry = new TelemetrySession({
         ioHost: this,
-        client: sink,
+        client: new Funnel({ sinks }),
         arguments: args,
         context: context,
       });
@@ -413,6 +453,35 @@ export class CliIoHost implements IIoHost {
       const concurrency = data.concurrency ?? 0;
       const responseDescription = data.responseDescription;
 
+      // Special approval prompt
+      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
+      // If it does not, return success (true). We only check messages with codes that we are aware
+      // are requires approval codes.
+      if (this.skipApprovalStep(msg)) {
+        return true;
+      }
+
+      // In --yes mode, respond for the user if we can
+      if (this.autoRespond) {
+        // respond with yes to all confirmations
+        if (isConfirmationPrompt(msg)) {
+          await this.notify({
+            ...msg,
+            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
+          });
+          return true;
+        }
+
+        // respond with the default for all other messages
+        if (msg.defaultResponse) {
+          await this.notify({
+            ...msg,
+            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
+          });
+          return msg.defaultResponse;
+        }
+      }
+
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
         throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
@@ -421,14 +490,6 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
-      }
-
-      // Special approval prompt
-      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
-      // If it does not, return success (true). We only check messages with codes that we are aware
-      // are requires approval codes.
-      if (this.skipApprovalStep(msg)) {
-        return true;
       }
 
       // Basic confirmation prompt

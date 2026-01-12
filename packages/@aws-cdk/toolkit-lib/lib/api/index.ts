@@ -10,6 +10,7 @@ export * from './garbage-collection';
 export * from './hotswap';
 export * from './io';
 export * from './logs-monitor';
+export * from './network-detector';
 export * from './notices';
 export * from './plugin';
 export * from './refactoring';

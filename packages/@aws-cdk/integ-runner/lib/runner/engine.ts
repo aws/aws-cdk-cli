@@ -18,9 +18,9 @@ export function makeEngine(options: IntegRunnerOptions): ICdk {
       return new ToolkitLibRunnerEngine({
         workingDirectory: options.test.directory,
         showOutput: options.showOutput,
-        env: {
-          ...options.env,
-        },
+        env: options.env,
+        region: options.region,
+        profile: options.profile,
       });
     case 'cli-wrapper':
     default:
@@ -29,6 +29,8 @@ export function makeEngine(options: IntegRunnerOptions): ICdk {
         showOutput: options.showOutput,
         env: {
           ...options.env,
+          // The CDK CLI will interpret this and use it usefully
+          AWS_REGION: options.region,
         },
       });
   }

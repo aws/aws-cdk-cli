@@ -73,6 +73,8 @@ If not, changes cannot be compared across systems and the [update workflow](#upd
   List of AWS Profiles to use when running tests in parallel
 - `--exclude` (default=`false`)
   If this is set to `true` then the list of tests provided will be excluded
+- `--strict` (default=`false`)
+  Fail if any specified tests are not found. Cannot be used with `--exclude`
 - `--from-file`
   Read the list of tests from this file
 - `--disable-update-workflow` (default=`false`)

@@ -161,6 +161,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'string',
       desc: 'Send telemetry data to a local file.',
     })
+    .option('yes', {
+      default: false,
+      type: 'boolean',
+      alias: 'y',
+      desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.',
+    })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
         .option('long', {
@@ -888,6 +894,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Path to a specific template within a multi-template repository',
           requiresArg: true,
+        })
+        .option('package-manager', {
+          default: undefined,
+          type: 'string',
+          desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.',
+          choices: ['npm', 'yarn', 'pnpm', 'bun'],
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
@@ -1038,5 +1050,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'If your app has a single stack, there is no need to specify the stack name\n\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
     )
     .parse(args);
-} // eslint-disable-next-line @typescript-eslint/no-require-imports
+}
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const yargs = require('yargs');

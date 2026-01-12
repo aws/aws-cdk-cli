@@ -106,6 +106,7 @@ export async function isHotswappableEcsServiceChange(
 
         // The SDK requires more properties here than its worth doing explicit typing for
         // instead, just use all the old values in the diff to fill them in implicitly
+        renameCfnPropertiesToSdkProperties(taskDefinitionResource);
         const lowercasedTaskDef = transformObjectKeys(taskDefinitionResource, lowerCaseFirstCharacter, {
           // All the properties that take arbitrary string as keys i.e. { "string" : "string" }
           // https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RegisterTaskDefinition.html#API_RegisterTaskDefinition_RequestSyntax
@@ -167,6 +168,14 @@ export async function isHotswappableEcsServiceChange(
 interface EcsService {
   readonly logicalId: string;
   readonly serviceArn: string;
+}
+
+function renameCfnPropertiesToSdkProperties(object: any): void {
+  // CloudFormation uses ProxyConfigurationProperties but SDK expects properties
+  if (object.ProxyConfiguration?.ProxyConfigurationProperties !== undefined) {
+    object.ProxyConfiguration.properties = object.ProxyConfiguration.ProxyConfigurationProperties;
+    delete object.ProxyConfiguration.ProxyConfigurationProperties;
+  }
 }
 
 async function prepareTaskDefinitionChange(

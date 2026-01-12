@@ -99,9 +99,21 @@ export async function makeBodyParameter(
  *
  * Replaces environment placeholders (which this field may contain),
  * and reformats s3://.../... urls into S3 REST URLs (which CloudFormation
- * expects)
+ * expects).
+ *
+ * We need to return the official region- and partition-specific URL for AWS S3
+ * here, so we use the SDK's information about endpoints. At the same time, the
+ * SDK allows overriding this URL by setting an environment variable
+ * (specifically $AWS_ENDPOINT_URL_S3) but we want to *not* honor that, because
+ * there's a 99.9% chance this URL will not be routable from AWS CloudFormation.
+ *
+ * To allow for the off chance that someone is running this tool against a
+ * custom build of CloudFormation that does need a specific S3 endpoint passed
+ * to it, we'll introduce a new environment variable that we'll respect instead:
+ *
+ *  AWS_ENDPOINT_URL_S3_FOR_CLOUDFORMATION
  */
-async function restUrlFromManifest(url: string, environment: Environment): Promise<string> {
+export async function restUrlFromManifest(url: string, environment: Environment): Promise<string> {
   const doNotUseMarker = '**DONOTUSE**';
   const region = environment.region;
   // This URL may contain placeholders, so still substitute those.
@@ -127,13 +139,26 @@ async function restUrlFromManifest(url: string, environment: Environment): Promi
   const bucketName = s3Url[1];
   const objectKey = s3Url[2];
 
-  // SDK v3 no longer allows for getting endpoints from only region.
-  // A command and client config must now be provided.
-  const s3 = new S3Client({ region });
-  const endpoint = await getEndpointFromInstructions({}, HeadObjectCommand, {
-    ...s3.config,
-  });
-  endpoint.url.hostname;
+  const originalOverrideS3Endpoint = process.env.AWS_ENDPOINT_URL_S3;
+  setEnv('AWS_ENDPOINT_URL_S3', process.env.AWS_ENDPOINT_URL_S3_FOR_CLOUDFORMATION);
+  try {
+    // SDK v3 no longer allows for getting endpoints from only region.
+    // A command and client config must now be provided.
+    const s3 = new S3Client({ region });
+    const endpoint = await getEndpointFromInstructions({}, HeadObjectCommand, {
+      ...s3.config,
+    });
 
-  return `${endpoint.url.origin}/${bucketName}/${objectKey}`;
+    return `${endpoint.url.origin}/${bucketName}/${objectKey}`;
+  } finally {
+    setEnv('AWS_ENDPOINT_URL_S3', originalOverrideS3Endpoint);
+  }
+}
+
+function setEnv(name: string, value: string | undefined) {
+  if (value) {
+    process.env[name] = value;
+  } else {
+    delete process.env[name];
+  }
 }

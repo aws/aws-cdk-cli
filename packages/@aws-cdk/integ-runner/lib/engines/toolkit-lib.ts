@@ -1,8 +1,9 @@
 import * as path from 'node:path';
 import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions, WatchEvents } from '@aws-cdk/cdk-cli-wrapper';
 import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import { UNKNOWN_REGION } from '@aws-cdk/cx-api';
+import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
+import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 
@@ -27,6 +28,18 @@ export interface ToolkitLibEngineOptions {
    * @default false
    */
   readonly showOutput?: boolean;
+
+  /**
+   * The region the CDK app should synthesize itself for
+   */
+  readonly region: string;
+
+  /**
+   * The AWS profile to use when authenticating
+   *
+   * @default - no profile is passed, the default profile is used
+   */
+  readonly profile?: string;
 }
 
 /**
@@ -36,13 +49,24 @@ export class ToolkitLibRunnerEngine implements ICdk {
   private readonly toolkit: Toolkit;
   private readonly options: ToolkitLibEngineOptions;
   private readonly showOutput: boolean;
+  private readonly ioHost: IntegRunnerIoHost;
 
   public constructor(options: ToolkitLibEngineOptions) {
     this.options = options;
     this.showOutput = options.showOutput ?? false;
 
+    // We always create this for ourselves to emit warnings, but potentially
+    // don't pass it to the toolkit.
+    this.ioHost = new IntegRunnerIoHost();
+
     this.toolkit = new Toolkit({
-      ioHost: this.showOutput? new IntegRunnerIoHost() : new NoopIoHost(),
+      ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
+      sdkConfig: {
+        baseCredentials: BaseCredentials.awsCliCompatible({
+          profile: options.profile,
+          defaultRegion: options.region,
+        }),
+      },
       // @TODO - these options are currently available on the action calls
       // but toolkit-lib needs them at the constructor level.
       // Need to decide what to do with them.
@@ -73,6 +97,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       stacks: this.stackSelector(options),
       validateStacks: options.validation,
     });
+    await this.validateRegion(lock);
     await lock.dispose();
   }
 
@@ -100,6 +125,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
     try {
       // @TODO - use produce to mimic the current behavior more closely
       const lock = await cx.produce();
+      await this.validateRegion(lock);
       await lock.dispose();
       // We should fix this once we have stabilized toolkit-lib as engine.
       // What we really should do is this:
@@ -217,7 +243,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
       workingDirectory: this.options.workingDirectory,
       outdir,
       lookups: options.lookups,
-      resolveDefaultEnvironment: false, // not part of the integ-runner contract
       contextStore: new MemoryContext(options.context),
       env: this.options.env,
       synthOptions: {
@@ -256,6 +281,53 @@ export class ToolkitLibRunnerEngine implements ICdk {
       method: options.deploymentMethod ?? 'change-set',
     };
   }
+
+  /**
+   * Check that the regions for the stacks in the CloudAssembly match the regions requested on the engine
+   *
+   * This prevents misconfiguration of the integ test app. People tend to put:
+   *
+   * ```ts
+   * new Stack(app, 'Stack', {
+   *   env: {
+   *     region: 'some-region-that-suits-me',
+   *   }
+   * });
+   * ```
+   *
+   * Into their integ tests, instead of:
+   *
+   * ```ts
+   * {
+   *   region: process.env.CDK_DEFAULT_REGION,
+   * }
+   * ```
+   *
+   * This catches that misconfiguration.
+   */
+  private async validateRegion(asm: IReadableCloudAssembly) {
+    for (const stack of asm.cloudAssembly.stacksRecursively) {
+      if (stack.environment.region !== this.options.region && stack.environment.region !== UNKNOWN_REGION) {
+        this.ioHost.notify({
+          action: 'deploy',
+          code: 'CDK_RUNNER_W0000',
+          time: new Date(),
+          level: 'warn',
+          message: `Stack ${stack.displayName} synthesizes for region ${stack.environment.region}, even though ${this.options.region} was requested. Please configure \`{ env: { region: process.env.CDK_DEFAULT_REGION, account: process.env.CDK_DEFAULT_ACCOUNT } }\`, or use no env at all. Do not hardcode a region or account.`,
+          data: {
+            stackName: stack.displayName,
+            stackRegion: stack.environment.region,
+            requestedRegion: this.options.region,
+          },
+        }).catch((e) => {
+          if (e) {
+            // eslint-disable-next-line no-console
+            console.error(e);
+          }
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -269,9 +341,16 @@ class IntegRunnerIoHost extends NonInteractiveIoHost {
     });
   }
   public async notify(msg: IoMessage<unknown>): Promise<void> {
+    let color;
+    switch (msg.level) {
+      case 'error': color = chalk.red; break;
+      case 'warn': color = chalk.yellow; break;
+      default: color = chalk.gray;
+    }
+
     return super.notify({
       ...msg,
-      message: chalk.gray(msg.message),
+      message: color(msg.message),
     });
   }
 }

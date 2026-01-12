@@ -1,3 +1,4 @@
+import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { Notices } from '../../lib/api/notices';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
@@ -51,6 +52,22 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       if (args.includes('ts')) {
         result = { ...result, language: 'typescript' };
       }
+    } else if (args.includes('gc')) {
+      result = { ...result, _: ['gc'] };
+
+      // Handle role-arn flag for gc command validation testing
+      // This simulates parser behavior to test that the CLI properly rejects roleArn
+      if (args.includes('--role-arn')) {
+        result = { ...result, roleArn: 'arn:aws:iam::123456789012:role/TestRole' };
+      }
+    } else if (args.includes('deploy')) {
+      result = {
+        ...result,
+        _: ['deploy'],
+        parameters: [],
+      };
+    } else if (args.includes('flags')) {
+      result = { ...result, _: ['flags'] };
     }
 
     // Handle notices flags
@@ -71,9 +88,28 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
     }
 
+    if (args.includes('--yes')) {
+      result = { ...result, yes: true };
+    }
+
     return Promise.resolve(result);
   }),
 }));
+
+// Mock FlagCommandHandler to capture constructor calls
+const mockFlagCommandHandlerConstructor = jest.fn();
+const mockProcessFlagsCommand = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('../../lib/commands/flags/flags', () => {
+  return {
+    FlagCommandHandler: jest.fn().mockImplementation((...args) => {
+      mockFlagCommandHandlerConstructor(...args);
+      return {
+        processFlagsCommand: mockProcessFlagsCommand,
+      };
+    }),
+  };
+});
 
 describe('exec verbose flag tests', () => {
   beforeEach(() => {
@@ -425,5 +461,131 @@ describe('notices configuration tests', () => {
         language: 'typescript',
       }),
     );
+  });
+});
+
+describe('gc command tests', () => {
+  let originalCliIoHostInstance: any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    originalCliIoHostInstance = CliIoHost.instance;
+  });
+
+  afterEach(() => {
+    CliIoHost.instance = originalCliIoHostInstance;
+  });
+
+  test('should warn when --role-arn is used with gc command', async () => {
+    const gcSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'garbageCollect').mockResolvedValue();
+
+    // Make exec use our TestIoHost and adds properties to TestIoHost to match CliIoHost
+    const warnSpy = jest.fn();
+    (ioHost as any).defaults = { warn: warnSpy, debug: jest.fn(), result: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['gc'];
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await exec(['gc', '--unstable=gc', '--role-arn', 'arn:aws:iam::123456789012:role/TestRole']);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'The --role-arn option is not supported for the gc command and will be ignored.',
+    );
+    expect(gcSpy).toHaveBeenCalled();
+  });
+});
+
+describe('--yes', () => {
+  test('when --yes option is provided, CliIoHost is using autoRespond', async () => {
+    // GIVEN
+    const migrateSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+    const execSpy = jest.spyOn(CliIoHost, 'instance');
+
+    // WHEN
+    await exec(['deploy', '--yes']);
+
+    // THEN
+    expect(execSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoRespond: true,
+      }),
+      true,
+    );
+
+    migrateSpy.mockRestore();
+    execSpy.mockRestore();
+  });
+});
+
+describe('flags command tests', () => {
+  let mockConfig: any;
+  let flagsSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFlagCommandHandlerConstructor.mockClear();
+    mockProcessFlagsCommand.mockClear();
+
+    flagsSpy = jest.spyOn(Toolkit.prototype, 'flags').mockResolvedValue([]);
+
+    mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['flags'];
+          return undefined;
+        }),
+      },
+      context: {
+        all: {
+          myContextParam: 'testValue',
+        },
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+  });
+
+  afterEach(() => {
+    flagsSpy.mockRestore();
+  });
+
+  test('passes CLI context to FlagCommandHandler', async () => {
+    // WHEN
+    await exec([
+      'flags',
+      '--unstable=flags',
+      '--set',
+      '--recommended',
+      '--all',
+      '-c', 'myContextParam=testValue',
+      '--yes',
+    ]);
+
+    // THEN
+    expect(mockFlagCommandHandlerConstructor).toHaveBeenCalledWith(
+      expect.anything(), // flagsData
+      expect.anything(), // ioHelper
+      expect.anything(), // args
+      expect.anything(), // toolkit
+      mockConfig.context.all, // cliContextValues
+    );
+    expect(mockProcessFlagsCommand).toHaveBeenCalled();
   });
 });

@@ -1,8 +1,8 @@
 import type { IncomingMessage } from 'http';
 import type { Agent } from 'https';
 import { request } from 'https';
-import { parse, type UrlWithStringQuery } from 'url';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { NetworkDetector } from '../../../api/network-detector';
 import { IoHelper } from '../../../api-private';
 import type { IIoHost } from '../../io-host';
 import type { TelemetrySchema } from '../schema';
@@ -39,12 +39,17 @@ export interface EndpointTelemetrySinkProps {
  */
 export class EndpointTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
-  private endpoint: UrlWithStringQuery;
+  private endpoint: URL;
   private ioHelper: IoHelper;
   private agent?: Agent;
 
   public constructor(props: EndpointTelemetrySinkProps) {
-    this.endpoint = parse(props.endpoint);
+    this.endpoint = new URL(props.endpoint);
+
+    if (!this.endpoint.hostname || !this.endpoint.pathname) {
+      throw new ToolkitError(`Telemetry Endpoint malformed. Received hostname: ${this.endpoint.hostname}, pathname: ${this.endpoint.pathname}`);
+    }
+
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
     this.agent = props.agent;
 
@@ -78,7 +83,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
       }
     } catch (e: any) {
       // Never throw errors, just log them via ioHost
-      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
+      await this.ioHelper.defaults.trace(`Failed to send telemetry event: ${e.message}`);
     }
   }
 
@@ -86,14 +91,22 @@ export class EndpointTelemetrySink implements ITelemetrySink {
    * Returns true if telemetry successfully posted, false otherwise.
    */
   private async https(
-    url: UrlWithStringQuery,
+    url: URL,
     body: { events: TelemetrySchema[] },
   ): Promise<boolean> {
+    // Check connectivity before attempting network request
+    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+    if (!hasConnectivity) {
+      await this.ioHelper.defaults.trace('No internet connectivity detected, skipping telemetry');
+      return false;
+    }
+
     try {
       const res = await doRequest(url, body, this.agent);
 
       // Successfully posted
       if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+        await this.ioHelper.defaults.trace('Telemetry Sent Successfully');
         return true;
       }
 
@@ -111,7 +124,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
  * A Promisified version of `https.request()`
  */
 function doRequest(
-  url: UrlWithStringQuery,
+  url: URL,
   data: { events: TelemetrySchema[] },
   agent?: Agent,
 ) {
@@ -119,7 +132,7 @@ function doRequest(
     const payload: string = JSON.stringify(data);
     const req = request({
       hostname: url.hostname,
-      port: url.port,
+      port: url.port || null,
       path: url.pathname,
       method: 'POST',
       headers: {

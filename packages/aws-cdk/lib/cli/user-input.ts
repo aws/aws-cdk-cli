@@ -327,6 +327,13 @@ export interface GlobalOptions {
    * @default - undefined
    */
   readonly telemetryFile?: string;
+
+  /**
+   * Automatically answer interactive prompts with the recommended response. This includes confirming actions.
+   *
+   * @default - false
+   */
+  readonly yes?: boolean;
 }
 
 /**
@@ -1400,6 +1407,13 @@ export interface InitOptions {
    * @default - undefined
    */
   readonly templatePath?: string;
+
+  /**
+   * The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.
+   *
+   * @default - undefined
+   */
+  readonly packageManager?: string;
 
   /**
    * Positional argument for init

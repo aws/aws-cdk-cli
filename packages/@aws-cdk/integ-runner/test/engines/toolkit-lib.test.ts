@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
 
 const MockedToolkit = Toolkit as jest.MockedClass<typeof Toolkit>;
+const MockedBaseCredentials = BaseCredentials as jest.Mocked<typeof BaseCredentials>;
 
 describe('ToolkitLibRunnerEngine', () => {
   let mockToolkit: jest.Mocked<Toolkit>;
@@ -25,13 +26,14 @@ describe('ToolkitLibRunnerEngine', () => {
 
     engine = new ToolkitLibRunnerEngine({
       workingDirectory: '/test/dir',
+      region: 'us-dummy-1',
     });
   });
 
   describe('synth', () => {
     it('should call toolkit.synth with correct parameters', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn() };
+      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
       mockToolkit.synth.mockResolvedValue(mockLock as any);
 
@@ -56,7 +58,7 @@ describe('ToolkitLibRunnerEngine', () => {
   describe('synthFast', () => {
     it('should use fromCdkApp and produce for fast synthesis', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn() };
+      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockCx.produce.mockResolvedValue(mockLock);
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
 
@@ -221,10 +223,26 @@ describe('ToolkitLibRunnerEngine', () => {
       const engineWithOutput = new ToolkitLibRunnerEngine({
         workingDirectory: '/test',
         showOutput: true,
+        region: 'us-dummy-1',
       });
 
-      expect(MockedToolkit).toHaveBeenCalledWith({
+      expect(MockedToolkit).toHaveBeenCalledWith(expect.objectContaining({
         ioHost: expect.any(Object),
+      }));
+    });
+
+    it('should pass profile to BaseCredentials', () => {
+      MockedBaseCredentials.awsCliCompatible = jest.fn();
+
+      new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        profile: 'test-profile',
+      });
+
+      expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+        profile: 'test-profile',
+        defaultRegion: 'us-dummy-1',
       });
     });
 

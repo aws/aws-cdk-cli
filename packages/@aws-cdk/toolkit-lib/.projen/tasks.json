@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/fs-extra,@types/jest,@types/jest-when,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,ts-jest,xml-js,archiver,cdk-from-cfn,fast-deep-equal,glob,minimatch,semver,split2,uuid"
+          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/fs-extra,@types/jest,@types/jest-when,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,ts-jest,xml-js,archiver,cdk-from-cfn,fast-deep-equal,glob,semver,split2,uuid"
         }
       ]
     },
@@ -100,7 +100,8 @@
       "name": "eslint",
       "description": "Runs eslint against the codebase",
       "env": {
-        "ESLINT_USE_FLAT_CONFIG": "false"
+        "ESLINT_USE_FLAT_CONFIG": "false",
+        "NODE_NO_WARNINGS": "1"
       },
       "steps": [
         {
@@ -209,8 +210,7 @@
       "description": "Run tests",
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
-          "receiveArgs": true
+          "exec": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --passWithNoTests --updateSnapshot"
         },
         {
           "spawn": "eslint"

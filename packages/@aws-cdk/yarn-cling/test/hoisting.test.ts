@@ -160,6 +160,38 @@ test('order of hoisting shouldnt produce a broken situation', () => {
   ]);
 });
 
+test('reproduce hoisting bug', () => {
+  // GIVEN
+  let tree = pkgFile({
+    // Prevent pushing child1 and child2 upwards
+    child2: pkg('999.999.999'),
+    child1: pkg('999.999.999'),
+
+    // sharedparent doesn't have anything to do with 'conflictdep' itself,
+    // but has 2 children that depend on conflicting versions.
+    //
+    // conflictdep@1 is at the top of the tree already.
+    // We want to avoid that conflictdep@2 gets pushed up because the
+    // slot in sharedparent.dependencies['conflictdep'] is "free" (because it
+    // isn't).
+    sharedparent: pkg('2.0.0', {
+      child2: pkg('4.0.0', {
+        conflictdep: pkg('2.0.0'),
+      }),
+      child1: pkg2('3.0.0', {
+        requires: { conflictdep: '1.0.0' },
+      }),
+    }),
+    conflictdep: pkg('1.0.0'),
+  });
+
+  // WHEN
+  tree = hoistDependencies(tree);
+
+  // THEN -- should not throw
+  _validateTree(tree);
+});
+
 function pkg(version: string, dependencies?: Record<string, PackageLockPackage>): PackageLockPackage {
   return {
     version,
@@ -167,6 +199,19 @@ function pkg(version: string, dependencies?: Record<string, PackageLockPackage>)
       dependencies,
       requires: Object.fromEntries(Object.entries(dependencies).map(([name, p]) => [name, p.version])),
     } : undefined,
+  };
+}
+
+interface Pkg2Options {
+  dependencies?: Record<string, PackageLockPackage>;
+  requires?: Record<string, string>;
+}
+
+function pkg2(version: string, options: Pkg2Options): PackageLockPackage {
+  return {
+    version,
+    dependencies: options.dependencies,
+    requires: options.requires,
   };
 }
 

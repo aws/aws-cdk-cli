@@ -35,6 +35,7 @@ describe('yargs', () => {
         unstable: [],
         notices: undefined,
         output: undefined,
+        yes: false,
       },
       deploy: {
         STACKS: undefined,

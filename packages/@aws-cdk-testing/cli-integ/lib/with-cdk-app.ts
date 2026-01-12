@@ -218,6 +218,7 @@ export interface CdkCliOptions extends ShellOptions {
   options?: string[];
   neverRequireApproval?: boolean;
   verbose?: boolean;
+  verboseLevel?: number;
   telemetryFile?: string;
 }
 
@@ -419,7 +420,7 @@ export class TestFixture extends ShellHelper {
       // use events because bar renders bad in tests
       '--progress', 'events',
       ...(skipStackRename ? stackNames : this.fullStackName(stackNames)),
-      ...(options.telemetryFile ? ['--unstable=telemetry', `--telemetry-file=${options.telemetryFile}`] : []),
+      ...(options.telemetryFile ? [`--telemetry-file=${options.telemetryFile}`] : []),
     ];
   }
 
@@ -579,9 +580,19 @@ export class TestFixture extends ShellHelper {
   public async cdk(args: string[], options: CdkCliOptions = {}) {
     const verbose = options.verbose ?? true;
 
+    if (!verbose && options.verboseLevel) {
+      throw new Error(`Invalid verbose state: verbose is false and verboseLevel is ${options.verboseLevel}`);
+    }
+
+    const verboseLevel = options.verboseLevel ?? 1;
+
     await this.cli.makeCliAvailable();
 
-    return this.shell(['cdk', ...(verbose ? ['-v'] : []), ...args], {
+    return this.shell([
+      'cdk',
+      ...(verbose ? [`-${'v'.repeat(verboseLevel)}`] : []),
+      ...args,
+    ], {
       ...options,
       modEnv: {
         ...this.cdkShellEnv(),

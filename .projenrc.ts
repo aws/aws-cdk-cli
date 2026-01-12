@@ -19,7 +19,7 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
 
-const TYPESCRIPT_VERSION = '5.8';
+const TYPESCRIPT_VERSION = '5.9';
 
 /**
  * When adding an SDK dependency for a library, use this function
@@ -244,7 +244,6 @@ const repoProject = new yarn.Monorepo({
   releaseOptions: {
     publishToNpm: true,
     releaseTrigger: pj.release.ReleaseTrigger.workflowDispatch(),
-    nodeVersion: '24.x',
   },
 
   depsUpgradeOptions: {
@@ -794,6 +793,7 @@ const toolkitLibTsCompilerOptions = {
 const toolkitLib = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
+    homepage: 'https://docs.aws.amazon.com/cdk/api/toolkit-lib',
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
@@ -840,7 +840,7 @@ const toolkitLib = configureProject(
       'fast-deep-equal',
       'fs-extra@^9',
       'glob',
-      'minimatch',
+      'minimatch@10.0.1',
       'p-limit@^3',
       'semver',
       'split2',
@@ -907,6 +907,11 @@ const toolkitLib = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
+
+toolkitLib.tasks.tryFind('test')?.updateStep(0, {
+  // https://github.com/aws/aws-sdk-js-v3/issues/7420
+  exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
+});
 
 new TypecheckTests(toolkitLib);
 
@@ -1158,7 +1163,7 @@ const cli = configureProject(
       'enquirer',
       'fs-extra@^9',
       'glob',
-      'minimatch',
+      'minimatch@10.0.1',
       'p-limit@^3',
       'p-queue@^6',
       'promptly',
@@ -1170,6 +1175,7 @@ const cli = configureProject(
       'yaml@^1',
       'yargs@^15',
     ],
+    excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1228,6 +1234,18 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+
+new pj.javascript.UpgradeDependencies(cli, {
+  include: ['aws-cdk-lib'],
+  semanticCommit: 'feat',
+  pullRequestTitle: 'upgrade aws-cdk-lib',
+  target: 'minor',
+  taskName: 'upgrade-aws-cdk-lib',
+  workflow: true,
+  workflowOptions: {
+    schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKDAY,
+  },
+});
 
 new TypecheckTests(cli);
 
@@ -1679,7 +1697,7 @@ new CdkCliIntegTestsWorkflow(repo, {
   additionalNodeVersionsToTest: [
     // 18.18 introduces `Symbol.dispose`, and we need to make sure that we work on older versions as well
     '18.17.0',
-    '20', '22',
+    '20', '22', '24',
   ],
 });
 
