@@ -26,9 +26,13 @@ integTest(
       },
     });
 
+    // Extract stack name from ARN (format: arn:aws:cloudformation:region:account:stack/name/id)
+    // Using the full ARN can cause "Stack name cannot exceed 128 characters" error in some cases
+    const stackName = stackArn.split('/')[1];
+
     const response = await fixture.aws.cloudFormation.send(
       new DescribeStacksCommand({
-        StackName: stackArn,
+        StackName: stackName,
       }),
     );
     const runtimeId = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'RuntimeId')?.OutputValue;
