@@ -1197,6 +1197,101 @@ describe('interactive prompts lead to the correct function calls', () => {
   });
 });
 
+describe('CLI context parameters', () => {
+  beforeEach(() => {
+    setupMockToolkitForPrototyping(mockToolkit);
+    jest.clearAllMocks();
+  });
+
+  test('CLI context values are merged with file context during prototyping', async () => {
+    const cdkJsonPath = await createCdkJsonFile({
+      '@aws-cdk/core:existingFlag': true,
+    });
+
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const cliContextValues = {
+      foo: 'bar',
+      myContextParam: 'myValue',
+    };
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
+    await flagOperations.processFlagsCommand();
+
+    // Get the first call's context store and verify it contains merged context
+    // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
+    const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0]; // Get first call arguments
+    const contextStore = firstCallArgs[1]?.contextStore; // Extract contextStore from second argument (options object)
+    expect(contextStore).toBeDefined();
+
+    // contextStore is defined as we've verified above
+    const contextData = await contextStore!.read();
+
+    expect(contextData).toEqual({
+      '@aws-cdk/core:existingFlag': true,
+      '@aws-cdk/core:testFlag': true,
+      'foo': 'bar',
+      'myContextParam': 'myValue',
+    });
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('CLI context values are passed to synthesis during safe flag checking', async () => {
+    const cdkJsonPath = await createCdkJsonFile({
+      '@aws-cdk/core:existingFlag': true,
+    });
+
+    mockToolkit.diff.mockResolvedValue({
+      TestStack: { differenceCount: 0 } as any,
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const cliContextValues = {
+      foo: 'bar',
+      myContextParam: 'myValue',
+    };
+
+    const options: FlagsOptions = {
+      safe: true,
+      concurrency: 4,
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
+    await flagOperations.processFlagsCommand();
+
+    // Get the first call's context store and verify it contains merged context
+    // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
+    const firstCallArgs = mockToolkit.fromCdkApp.mock.calls[0]; // Get first call arguments
+    const contextStore = firstCallArgs[1]?.contextStore; // Extract contextStore from second argument (options object)
+    expect(contextStore).toBeDefined();
+
+    // contextStore is defined as we've verified above
+    const contextData = await contextStore!.read();
+
+    expect(contextData).toEqual({
+      '@aws-cdk/core:existingFlag': true,
+      'foo': 'bar',
+      'myContextParam': 'myValue',
+    });
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+});
+
 describe('setSafeFlags', () => {
   beforeEach(() => {
     setupMockToolkitForPrototyping(mockToolkit);
@@ -1390,7 +1485,13 @@ async function displayFlags(params: FlagOperationsParams): Promise<void> {
   await f.displayFlags(params);
 }
 
-async function handleFlags(flagData: FeatureFlag[], _ioHelper: IoHelper, options: FlagsOptions, toolkit: Toolkit) {
-  const f = new FlagCommandHandler(flagData, _ioHelper, options, toolkit);
+async function handleFlags(
+  flagData: FeatureFlag[],
+  _ioHelper: IoHelper,
+  options: FlagsOptions,
+  toolkit: Toolkit,
+  cliContextValues: Record<string, any> = {},
+) {
+  const f = new FlagCommandHandler(flagData, _ioHelper, options, toolkit, cliContextValues);
   await f.processFlagsCommand();
 }

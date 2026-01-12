@@ -2,7 +2,7 @@
 
 * text=auto eol=lf
 *.snap linguist-generated
-/.eslintrc.json linguist-generated
+/.eslintrc.json linguist-generated linguist-language=JSON-with-Comments
 /.gitattributes linguist-generated
 /.github/dependabot.yml linguist-generated
 /.github/pull_request_template.md linguist-generated
@@ -17,7 +17,7 @@
 /.github/workflows/pr-labeler.yml linguist-generated
 /.github/workflows/pull-request-lint.yml linguist-generated
 /.github/workflows/release.yml linguist-generated
-/.github/workflows/upgrade-aws-cdk-lib.yml linguist-generated
+/.github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml linguist-generated
 /.github/workflows/upgrade.yml linguist-generated
 /.gitignore linguist-generated
 /.npmignore linguist-generated
@@ -26,10 +26,10 @@
 /.projen/files.json linguist-generated
 /.projen/prepare-verdaccio.sh linguist-generated
 /.projen/tasks.json linguist-generated
-/aws-cdk-cli.code-workspace linguist-generated
+/aws-cdk-cli.code-workspace linguist-generated linguist-language=JSON-with-Comments
 /LICENSE linguist-generated
 /nx.json linguist-generated
 /package.json linguist-generated
-/tsconfig.dev.json linguist-generated
-/tsconfig.json linguist-generated
+/tsconfig.dev.json linguist-generated linguist-language=JSON-with-Comments
+/tsconfig.json linguist-generated linguist-language=JSON-with-Comments
 /yarn.lock linguist-generated
