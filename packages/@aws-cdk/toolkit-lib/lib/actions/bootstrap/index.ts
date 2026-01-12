@@ -260,8 +260,6 @@ export class BootstrapSource {
  * Represents a bootstrap template that can be serialized to YAML or JSON
  */
 export class BootstrapTemplate {
-  private constructor(private readonly template: any) {}
-
   /**
    * Load a bootstrap template from a source
    *
@@ -282,6 +280,8 @@ export class BootstrapTemplate {
 
     return new BootstrapTemplate(template);
   }
+
+  private constructor(private readonly template: any) {}
 
   /**
    * Serialize the template as YAML
