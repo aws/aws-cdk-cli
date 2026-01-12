@@ -498,7 +498,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
-        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit);
+        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit, configuration.context.all);
         return handler.processFlagsCommand();
 
       case 'synthesize':

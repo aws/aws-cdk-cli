@@ -6,7 +6,7 @@ import { ToolkitError } from '../toolkit/toolkit-error';
 export type RangeType = 'bracket' | 'pep';
 
 export function rangeFromSemver(ver: string, targetType: RangeType) {
-  const re = ver.match(/^([^\d]*)([\d.]*)$/);
+  const re = ver.match(/^([^\d]*)([\d.]*)[^\s]*$/);
   if (!re || !semver.valid(re[2])) {
     throw new ToolkitError('not a semver or unsupported range syntax');
   }
