@@ -409,6 +409,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
           'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
           'package-manager': { type: 'string', desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.', choices: JS_PACKAGE_MANAGERS.map(({ name }) => name) },
+          'project-name': { type: 'string', alias: 'n', desc: 'The name of the new project', requiresArg: true },
         },
         implies: { 'template-path': 'from-path' },
       },

@@ -1422,7 +1422,7 @@ export interface InitOptions {
    *
    * @default - undefined
    */
-  readonly name?: string;
+  readonly projectName?: string;
 
   /**
    * Positional argument for init

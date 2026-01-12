@@ -71,7 +71,7 @@ describe('constructs version', () => {
       type: 'app',
       language: 'typescript',
       workDir,
-      name: 'my-project',
+      projectName: 'my-project',
     });
 
     const stackFile = await fs.readFile(path.join(workDir, 'lib', 'my-project-stack.ts'), 'utf-8');

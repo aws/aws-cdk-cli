@@ -901,7 +901,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.',
           choices: ['npm', 'yarn', 'pnpm', 'bun'],
         })
-        .option('name', {
+        .option('project-name', {
           default: undefined,
           type: 'string',
           alias: 'n',
