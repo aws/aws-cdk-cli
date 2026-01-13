@@ -484,6 +484,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           createdBufferDays: args['created-buffer-days'],
           bootstrapStackName: args.toolkitStackName ?? args.bootstrapStackName,
           confirm: args.confirm,
+          unauthNativeCfnStacksToSkip: arrayFromYargs(args['unauth-native-cfn-stacks-to-skip']),
         });
 
       case 'flags':
