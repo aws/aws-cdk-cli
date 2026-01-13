@@ -20,7 +20,7 @@ jobs:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr/exempt-size-check') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - id: fetch_target_branch
         run: git fetch origin main
       - id: get_total_lines_changed

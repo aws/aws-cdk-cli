@@ -356,6 +356,23 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
 
 /**
  * Query input for lookup up CloudFormation resources using CC API
+ *
+ * The example below is required to successfully compile CDK (otherwise,
+ * the CDK build will generate a synthetic example for the below, but it
+ * doesn't have enough type information about the literal string union
+ * to generate a validly compiling example).
+ *
+ * @example
+ * import { CcApiContextQuery } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const x: CcApiContextQuery = {
+ *   typeName: 'AWS::Some::Type',
+ *   expectedMatchCount: 'exactly-one',
+ *   resourceModel: {SomeArn: 'arn:aws:....'},
+ *   propertiesToReturn: ['SomeProp'],
+ *   account: '11111111111',
+ *   region: 'us-east-1',
+ * };
  */
 export interface CcApiContextQuery extends ContextLookupRoleOptions {
   /**
@@ -373,6 +390,17 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    * @default - Either exactIdentifier or propertyMatch should be specified.
    */
   readonly exactIdentifier?: string;
+
+  /**
+   * The resource model to use to select the resources, using `ListResources`..
+   *
+   * This is needed for sub-resources where the parent Arn is required.
+   *
+   * See https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/resource-operations-list.html#resource-operations-list-containers
+   *
+   * @default - no resource Model is provided
+   */
+  readonly resourceModel?: Record<string, unknown>;
 
   /**
    * Returns any resources matching these properties, using `ListResources`.

@@ -3,7 +3,7 @@ import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
 import { IntegTest } from '../../runner/integration-tests';
 import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic } from '../common';
-import { DiagnosticReason, formatAssertionResults } from '../common';
+import { DiagnosticReason, formatAssertionResults, formatError } from '../common';
 import type { IntegTestBatchRequest } from '../integ-test-worker';
 import type { IntegWatchOptions } from '../integ-watch-worker';
 
@@ -15,7 +15,7 @@ import type { IntegWatchOptions } from '../integ-watch-worker';
  *
  * If the tests succeed it will then save the snapshot
  */
-export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorkerConfig[] {
+export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerConfig[]> {
   const failures: IntegTestInfo[] = [];
   const verbosity = request.verbosity ?? 0;
 
@@ -28,23 +28,24 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
 
     try {
       const runner = new IntegTestRunner({
+        engine: request.engine,
         test,
         profile: request.profile,
+        region: request.region,
         env: {
-          AWS_REGION: request.region,
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
         showOutput: verbosity >= 2,
       }, testInfo.destructiveChanges);
 
-      const tests = runner.actualTests();
+      const tests = await runner.actualTests();
 
       if (!tests || Object.keys(tests).length === 0) {
         throw new Error(`No tests defined for ${runner.testName}`);
       }
       for (const testCaseName of Object.keys(tests)) {
         try {
-          const results = runner.runIntegTestCase({
+          const results = await runner.runIntegTestCase({
             testCaseName,
             clean: request.clean,
             dryRun: request.dryRun,
@@ -72,7 +73,7 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
           workerpool.workerEmit({
             reason: DiagnosticReason.TEST_FAILED,
             testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
-            message: `Integration test failed: ${e}`,
+            message: `Integration test failed: ${formatError(e)}`,
             duration: (Date.now() - start) / 1000,
           });
         }
@@ -82,7 +83,7 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
       workerpool.workerEmit({
         reason: DiagnosticReason.TEST_ERROR,
         testName: `${testInfo.fileName} (${request.profile}/${request.region})`,
-        message: `Error during integration test: ${e}`,
+        message: `Error during integration test: ${formatError(e)}`,
         duration: (Date.now() - start) / 1000,
       });
     }
@@ -91,20 +92,21 @@ export function integTestWorker(request: IntegTestBatchRequest): IntegTestWorker
   return failures;
 }
 
-export async function watchTestWorker(options: IntegWatchOptions) {
+export async function watchTestWorker(options: IntegWatchOptions): Promise<void> {
   const verbosity = options.verbosity ?? 0;
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
+    engine: options.engine,
     test,
     profile: options.profile,
+    region: options.region,
     env: {
-      AWS_REGION: options.region,
       CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
     },
     showOutput: verbosity >= 2,
   });
   runner.createCdkContextJson();
-  const tests = runner.actualTests();
+  const tests = await runner.actualTests();
 
   if (!tests || Object.keys(tests).length === 0) {
     throw new Error(`No tests defined for ${runner.testName}`);
@@ -123,14 +125,14 @@ export async function watchTestWorker(options: IntegWatchOptions) {
  * if there is an existing snapshot, and if there is will
  * check if there are any changes
  */
-export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVerificationOptions = {}): IntegTestWorkerConfig[] {
+export async function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVerificationOptions = {}): Promise<IntegTestWorkerConfig[]> {
   const failedTests = new Array<IntegTestWorkerConfig>();
   const start = Date.now();
   const test = new IntegTest(testInfo); // Hydrate the data record again
 
   const timer = setTimeout(() => {
     workerpool.workerEmit({
-      reason: DiagnosticReason.SNAPSHOT_ERROR,
+      reason: DiagnosticReason.TEST_WARNING,
       testName: test.testName,
       message: 'Test is taking a very long time',
       duration: (Date.now() - start) / 1000,
@@ -138,7 +140,11 @@ export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVer
   }, 60_000);
 
   try {
-    const runner = new IntegSnapshotRunner({ test });
+    const runner = new IntegSnapshotRunner({
+      engine: options.engine,
+      test,
+      showOutput: options.verbose ?? false,
+    });
     if (!runner.hasSnapshot()) {
       workerpool.workerEmit({
         reason: DiagnosticReason.NO_SNAPSHOT,
@@ -148,7 +154,7 @@ export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVer
       });
       failedTests.push(test.info);
     } else {
-      const { diagnostics, destructiveChanges } = runner.testSnapshot(options);
+      const { diagnostics, destructiveChanges } = await runner.testSnapshot(options);
       if (diagnostics.length > 0) {
         diagnostics.forEach(diagnostic => workerpool.workerEmit({
           ...diagnostic,
@@ -170,7 +176,7 @@ export function snapshotTestWorker(testInfo: IntegTestInfo, options: SnapshotVer
   } catch (e: any) {
     failedTests.push(test.info);
     workerpool.workerEmit({
-      message: e.message,
+      message: formatError(e),
       testName: test.testName,
       reason: DiagnosticReason.SNAPSHOT_ERROR,
       duration: (Date.now() - start) / 1000,

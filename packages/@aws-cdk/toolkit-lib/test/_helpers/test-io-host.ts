@@ -1,4 +1,5 @@
-import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../../lib/api/io';
+import { when } from 'jest-when';
+import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest } from '../../lib/api/io';
 import type { IoHelper } from '../../lib/api/io/private';
 import { asIoHelper, isMessageRelevantForLevel } from '../../lib/api/io/private';
 
@@ -27,8 +28,10 @@ export class TestIoHost implements IIoHost {
   public messages: Array<IoMessage<unknown>> = [];
   public readonly notifySpy: MessageMock;
   public readonly requestSpy: RequestMock<any>;
+  private readonly stripSpecial: boolean;
 
-  constructor(public level: IoMessageLevel = 'info') {
+  constructor(public level: IoMessageLevel = 'info', stripSpecial = false) {
+    this.stripSpecial = stripSpecial;
     this.notifySpy = jest.fn();
     this.requestSpy = jest.fn();
     this.clear();
@@ -46,6 +49,12 @@ export class TestIoHost implements IIoHost {
 
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     if (isMessageRelevantForLevel(msg, this.level)) {
+      if (this.stripSpecial) {
+        msg = {
+          ...msg,
+          message: msg.message.replace(/\p{Emoji_Presentation}/gu, '').replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, ''),
+        };
+      }
       this.messages.push(msg);
       this.notifySpy(msg);
     }
@@ -65,5 +74,27 @@ export class TestIoHost implements IIoHost {
       // Can be a partial string as well
       message: expect.stringContaining(m.containing),
     }));
+  }
+
+  /**
+   * Mocks the response for a given message code.
+   *
+   * Use `requestSpy.mockReset()` to remove mock.
+   */
+  public mockResponse(code: IoMessageCode, response: any) {
+    when(this.requestSpy)
+      .calledWith(expect.objectContaining({ code }))
+      .mockResolvedValue(response);
+  }
+
+  /**
+   * Mocks the response for a given message code, only once.
+   *
+   * Use `requestSpy.mockReset()` to remove mock.
+   */
+  public mockResponseOnce(code: IoMessageCode, response: any) {
+    when(this.requestSpy)
+      .calledWith(expect.objectContaining({ code }))
+      .mockResolvedValueOnce(response);
   }
 }

@@ -1,9 +1,10 @@
 /* eslint-disable import/order */
 import { PluginHost } from '../../lib/api/plugin';
 import * as contextproviders from '../../lib/context-providers';
-import { Context, TRANSIENT_CONTEXT_KEY } from '../../lib/api/context';
+import { TRANSIENT_CONTEXT_KEY } from '../../lib/api/context';
 import { MockSdkProvider, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 import { TestIoHost } from '../_helpers/test-io-host';
+import { ToolkitError } from '../../lib';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper();
@@ -21,18 +22,17 @@ test('errors are reported into the context value', async () => {
       throw new Error('Something went wrong');
     },
   });
-  const context = new Context();
 
   // WHEN
-  await contextproviders.provideContextValues([
+  const result = await contextproviders.provideContextValues([
     { key: 'asdf', props: { account: '1234', region: 'us-east-1' }, provider: TEST_PROVIDER },
-  ], context, mockSDK, new PluginHost(), ioHelper);
+  ], mockSDK, new PluginHost(), ioHelper);
 
   // THEN - error is now in context
 
   // NOTE: error key is inlined here because it's part of the CX-API
   // compatibility surface.
-  expect(context.get('asdf').$providerError).toBe('Something went wrong');
+  expect((result.asdf as any).$providerError).toBe('Something went wrong');
 });
 
 test('lookup role ARN is resolved', async () => {
@@ -50,10 +50,9 @@ test('lookup role ARN is resolved', async () => {
       return 'some resolved value';
     },
   });
-  const context = new Context();
 
   // WHEN
-  await contextproviders.provideContextValues([
+  const result = await contextproviders.provideContextValues([
     {
       key: 'asdf',
       props: {
@@ -63,10 +62,10 @@ test('lookup role ARN is resolved', async () => {
       },
       provider: TEST_PROVIDER,
     },
-  ], context, mockSDK, new PluginHost(), ioHelper);
+  ], mockSDK, new PluginHost(), ioHelper);
 
   // THEN - Value gets resolved
-  expect(context.get('asdf')).toEqual('some resolved value');
+  expect(result.asdf).toEqual('some resolved value');
 });
 
 test('errors are marked transient', async () => {
@@ -76,15 +75,31 @@ test('errors are marked transient', async () => {
       throw new Error('Something went wrong');
     },
   });
-  const context = new Context();
 
   // WHEN
-  await contextproviders.provideContextValues([
+  const result = await contextproviders.provideContextValues([
     { key: 'asdf', props: { account: '1234', region: 'us-east-1' }, provider: TEST_PROVIDER },
-  ], context, mockSDK, new PluginHost(), ioHelper);
+  ], mockSDK, new PluginHost(), ioHelper);
 
   // THEN - error is marked transient
-  expect(context.get('asdf')[TRANSIENT_CONTEXT_KEY]).toBeTruthy();
+  expect((result.asdf as any)[TRANSIENT_CONTEXT_KEY]).toBeTruthy();
+});
+
+test('toolkit errors with cause are displayed fully', async () => {
+  // GIVEN
+  contextproviders.registerContextProvider(TEST_PROVIDER, {
+    async getValue(_: { [key: string]: any }): Promise<any> {
+      throw ToolkitError.withCause('Something went wrong', new Error('And this is the reason'));
+    },
+  });
+
+  // WHEN
+  const result = await contextproviders.provideContextValues([
+    { key: 'asdf', props: { account: '1234', region: 'us-east-1' }, provider: TEST_PROVIDER },
+  ], mockSDK, new PluginHost(), ioHelper);
+
+  // THEN - error is marked transient
+  expect((result.asdf as any).$providerError).toBe('Something went wrong\nAnd this is the reason');
 });
 
 test('context provider can be registered using PluginHost', async () => {
@@ -98,12 +113,11 @@ test('context provider can be registered using PluginHost', async () => {
       return '';
     },
   });
-  const context = new Context();
 
   // WHEN
   await contextproviders.provideContextValues([
     { key: 'asdf', props: { account: '1234', region: 'us-east-1', pluginName: 'prov' }, provider: PLUGIN_PROVIDER },
-  ], context, mockSDK, ph, ioHelper);
+  ], mockSDK, ph, ioHelper);
 
   // THEN - error is marked transient
   expect(called).toEqual(true);
@@ -117,13 +131,12 @@ test('plugin context provider can be called without account/region', async () =>
       return 'yay';
     },
   });
-  const context = new Context();
 
   // WHEN
-  await contextproviders.provideContextValues([
+  const result = await contextproviders.provideContextValues([
     { key: 'asdf', props: { banana: 'yellow', pluginName: 'prov' } as any, provider: PLUGIN_PROVIDER },
-  ], context, mockSDK, ph, ioHelper);
+  ], mockSDK, ph, ioHelper);
 
   // THEN - error is marked transient
-  expect(context.get('asdf')).toEqual('yay');
+  expect(result.asdf).toEqual('yay');
 });

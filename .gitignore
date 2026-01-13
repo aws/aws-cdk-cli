@@ -45,9 +45,12 @@ jspm_packages/
 !/aws-cdk-cli.code-workspace
 /.nx
 !/nx.json
+!/.github/workflows/bootstrap-template-protection.yml
 !/.eslintrc.json
+!/.github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml
 !/.github/dependabot.yml
 !/.github/workflows/integ.yml
+!/.projen/prepare-verdaccio.sh
 !/.github/workflows/codecov.yml
 !/.github/workflows/issue-label-assign.yml
 !/.github/workflows/pr-labeler.yml

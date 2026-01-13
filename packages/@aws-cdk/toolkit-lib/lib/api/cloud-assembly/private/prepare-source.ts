@@ -6,20 +6,36 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { lte } from 'semver';
-import type { SdkProvider, IoHelper } from '../../../api/shared-private';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { splitBySize, versionNumber } from '../../../util';
+import type { SdkProvider } from '../../aws-auth/private';
+import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import type { IReadLock, IWriteLock } from '../../rwlock';
 import { RWLock } from '../../rwlock';
 import { Settings } from '../../settings';
+import type { ConstructTreeNode } from '../../tree';
 import { loadTree, some } from '../../tree';
-import { prepareDefaultEnvironment as oldPrepare, prepareContext, spaceAvailableForContext, guessExecutable } from '../environment';
+import type { Context, Env } from '../environment';
+import { prepareDefaultEnvironment, spaceAvailableForContext, guessExecutable, synthParametersFromSettings } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
 
-type Env = { [key: string]: string };
-type Context = { [key: string]: any };
+export interface ExecutionEnvironmentOptions {
+  /**
+   * The directory the cloud assembly will be written to.
+   *
+   * @default - use a temporary directory as output directory, this will be cleaned up when this object is disposed
+   */
+  readonly outdir?: string;
+
+  /**
+   * Resolve and add environment variables for the app's default environment.
+   *
+   * This will make a call to STS, which is not always desirable e.g. if the env is explicitly specified.
+   */
+  readonly resolveDefaultAppEnv: boolean;
+}
 
 export class ExecutionEnvironment implements AsyncDisposable {
   /**
@@ -34,18 +50,39 @@ export class ExecutionEnvironment implements AsyncDisposable {
    * If `markSuccessful()` is called, the writer lock is converted to a reader lock
    * and temporary directories will not be cleaned up anymore.
    */
-  public static async create(services: ToolkitServices, props: { outdir?: string } = {}) {
-    let tempDir = false;
-    let dir = props.outdir;
+  public static async create(services: ToolkitServices, options: ExecutionEnvironmentOptions) {
+    let outDirIsTemporary = false;
+    let dir = options.outdir;
     if (!dir) {
-      tempDir = true;
+      outDirIsTemporary = true;
       dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
     }
-
     const lock = await new RWLock(dir).acquireWrite();
-    return new ExecutionEnvironment(services, dir, tempDir, lock);
+
+    const opts = {
+      outdir: dir,
+      resolveDefaultAppEnv: options.resolveDefaultAppEnv,
+    };
+
+    return new ExecutionEnvironment(services, opts, {
+      lock,
+      outDirIsTemporary,
+    });
   }
 
+  /**
+   * Should the outdir be disposed of.
+   */
+  public get shouldDisposeOutDir(): boolean {
+    return this.shouldClean;
+  }
+
+  /**
+   * The directory the cloud assembly will be written to.
+   */
+  public readonly outdir: string;
+
+  private readonly options: Required<ExecutionEnvironmentOptions>;
   private readonly ioHelper: IoHelper;
   private readonly sdkProvider: SdkProvider;
   private readonly debugFn: (msg: string) => Promise<void>;
@@ -54,21 +91,25 @@ export class ExecutionEnvironment implements AsyncDisposable {
 
   private constructor(
     services: ToolkitServices,
-    public readonly outdir: string,
-    public readonly outDirIsTemporary: boolean,
-    lock: IWriteLock,
+    options: Required<ExecutionEnvironmentOptions>,
+    { lock, outDirIsTemporary }: {
+      readonly outDirIsTemporary: boolean;
+      readonly lock: IWriteLock;
+    },
   ) {
     this.ioHelper = services.ioHelper;
     this.sdkProvider = services.sdkProvider;
-    this.debugFn = (msg: string) => this.ioHelper.assemblyDefaults.debug(msg);
+    this.debugFn = (msg: string) => this.ioHelper.defaults.debug(msg);
     this.lock = lock;
     this.shouldClean = outDirIsTemporary;
+    this.outdir = options.outdir;
+    this.options = options;
   }
 
   public async [Symbol.asyncDispose]() {
     await this.lock?.release();
 
-    if (this.shouldClean) {
+    if (this.shouldDisposeOutDir) {
       await fs.rm(this.outdir, { recursive: true, force: true });
     }
   }
@@ -137,7 +178,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
    */
   public async defaultEnvVars(): Promise<Env> {
     const debugFn = (msg: string) => this.ioHelper.notify(IO.CDK_ASSEMBLY_I0010.msg(msg));
-    const env = await oldPrepare(this.sdkProvider, debugFn);
+    const env = this.options.resolveDefaultAppEnv ? await prepareDefaultEnvironment(this.sdkProvider, debugFn) : {};
 
     env[cxapi.OUTDIR_ENV] = this.outdir;
     await debugFn(format('outdir:', this.outdir));
@@ -167,81 +208,83 @@ export class ExecutionEnvironment implements AsyncDisposable {
       }
     }
   }
+}
 
-  /**
-   * Run code with additional environment variables
-   */
-  public async withEnv<T>(env: Env = {}, block: () => Promise<T>) {
-    const originalEnv = process.env;
-    try {
-      process.env = {
-        ...originalEnv,
-        ...env,
-      };
+/**
+ * Serializes the given context to a set if environment variables environment variables
+ *
+ * Needs to know the size of the rest of the env because that's necessary to do
+ * an overflow computation on Windows. This function will mutate the given
+ * environment in-place. It should be called as the very last operation on the
+ * environment, because afterwards is might be at the maximum size.
+ *
+ * This *would* have returned an `IAsyncDisposable` but that requires messing
+ * with TypeScript type definitions to use it in aws-cdk, so returning an
+ * explicit cleanup function is easier.
+ *
+ * `completeness` indicates whether this `env` block represents the full `env`
+ * that will be passed to a subprocess, or whether it will be mixed into
+ * `process.env` later.
+ */
+export function writeContextToEnv(env: Env, context: Context, completeness: 'add-process-env-later' | 'env-is-complete') {
+  let contextOverflowLocation = null;
 
-      return await block();
-    } finally {
-      process.env = originalEnv;
-    }
+  // On Windows, all envvars together must fit in a 32k block (<https://devblogs.microsoft.com/oldnewthing/20100203-00>)
+  // On Linux, a single entry may not exceed 131k; but we're treating it as all together because that's safe
+  // and it's a single execution path for both platforms.
+  const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
+
+  const completeEnv = { ...completeness === 'add-process-env-later' ? process.env : {}, ...env };
+  const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(completeEnv, envVariableSizeLimit));
+
+  // Store the safe part in the environment variable
+  env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
+
+  // If there was any overflow, write it to a temporary file
+  if (Object.keys(overflow ?? {}).length > 0) {
+    const contextDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-context'));
+    contextOverflowLocation = path.join(contextDir, 'context-overflow.json');
+    fs.writeJSONSync(contextOverflowLocation, overflow);
+    env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
   }
 
-  /**
-   * Run code with context setup inside the environment
-   */
-  public async withContext<T>(
-    inputContext: Context,
-    env: Env,
-    synthOpts: AppSynthOptions = {},
-    block: (env: Env, context: Context) => Promise<T>,
-  ) {
-    const context = await prepareContext(synthOptsDefaults(synthOpts), inputContext, env, this.debugFn);
-    let contextOverflowLocation = null;
-
-    try {
-      const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
-      const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(env, envVariableSizeLimit));
-
-      // Store the safe part in the environment variable
-      env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
-
-      // If there was any overflow, write it to a temporary file
-      if (Object.keys(overflow ?? {}).length > 0) {
-        const contextDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-context'));
-        contextOverflowLocation = path.join(contextDir, 'context-overflow.json');
-        fs.writeJSONSync(contextOverflowLocation, overflow);
-        env[cxapi.CONTEXT_OVERFLOW_LOCATION_ENV] = contextOverflowLocation;
-      }
-
-      // call the block code with new environment
-      return await block(env, context);
-    } finally {
-      if (contextOverflowLocation) {
-        fs.removeSync(path.dirname(contextOverflowLocation));
-      }
+  return async () => {
+    if (contextOverflowLocation) {
+      await fs.promises.rm(path.dirname(contextOverflowLocation), { recursive: true, force: true });
     }
-  }
+  };
 }
 
 /**
  * Checks if a given assembly supports context overflow, warn otherwise.
  *
- * @param assembly the assembly to check
+ * @param assembly - the assembly to check
  */
 async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
-  const traceFn = (msg: string) => ioHelper.assemblyDefaults.trace(msg);
+  const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
   const tree = await loadTree(assembly, traceFn);
-  const frameworkDoesNotSupportContextOverflow = some(tree, node => {
-    const fqn = node.constructInfo?.fqn;
-    const version = node.constructInfo?.version;
-    return (fqn === 'aws-cdk-lib.App' && version != null && lte(version, '2.38.0')) // v2
-    || fqn === '@aws-cdk/core.App'; // v1
-  });
 
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
-  if (frameworkDoesNotSupportContextOverflow) {
+  if (!frameworkSupportsContextOverflow(tree)) {
     await ioHelper.notify(IO.CDK_ASSEMBLY_W0010.msg('Part of the context could not be sent to the application. Please update the AWS CDK library to the latest version.'));
   }
+}
+
+/**
+ * Checks if the framework supports context overflow
+ */
+export function frameworkSupportsContextOverflow(tree: ConstructTreeNode | undefined): boolean {
+  return !some(tree, node => {
+    const fqn = node.constructInfo?.fqn;
+    const version = node.constructInfo?.version;
+    return (
+      fqn === 'aws-cdk-lib.App' // v2 app
+      && version !== '0.0.0' // ignore developer builds
+      && version != null && lte(version, '2.38.0') // last version not supporting large context
+    ) // v2
+    || fqn === '@aws-cdk/core.App'; // v1 app => not supported
+  });
 }
 
 /**
@@ -269,7 +312,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHel
   }
 }
 
-function synthOptsDefaults(synthOpts: AppSynthOptions = {}): Settings {
+export function settingsFromSynthOptions(synthOpts: AppSynthOptions = {}): Settings {
   return new Settings({
     debug: false,
     pathMetadata: true,
@@ -278,4 +321,14 @@ function synthOptsDefaults(synthOpts: AppSynthOptions = {}): Settings {
     assetStaging: true,
     ...synthOpts,
   }, true);
+}
+
+/**
+ * Turn synthesis options into context/environment variables that will go to the CDK app
+ *
+ * These are parameters that control the synthesis operation, configurable by the user
+ * from the outside of the app.
+ */
+export function parametersFromSynthOptions(synthOptions?: AppSynthOptions) {
+  return synthParametersFromSettings(settingsFromSynthOptions(synthOptions ?? {}));
 }

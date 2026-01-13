@@ -72,6 +72,7 @@ export class CachedDataSource implements NoticeDataSource {
 
   private async save(cached: CachedNotices): Promise<void> {
     try {
+      await fs.ensureFile(this.fileName);
       await fs.writeJSON(this.fileName, cached);
     } catch (e) {
       await this.ioHelper.defaults.debug(`Failed to store notices in the cache: ${e}`);

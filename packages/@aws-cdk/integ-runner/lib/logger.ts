@@ -18,3 +18,4 @@ export const error = logger(stderr, [chalk.red]);
 export const warning = logger(stderr, [chalk.yellow]);
 export const success = logger(stderr, [chalk.green]);
 export const highlight = logger(stderr, [chalk.bold]);
+export const trace = logger(stderr, [chalk.gray]);

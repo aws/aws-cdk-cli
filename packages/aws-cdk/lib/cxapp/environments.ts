@@ -55,7 +55,7 @@ export function environmentsFromDescriptors(envSpecs: string[]): cxapi.Environme
  * De-duplicates a list of environments, such that a given account and region is only represented exactly once
  * in the result.
  *
- * @param envs the possibly full-of-duplicates list of environments.
+ * @param envs - the possibly full-of-duplicates list of environments.
  *
  * @return a de-duplicated list of environments.
  */

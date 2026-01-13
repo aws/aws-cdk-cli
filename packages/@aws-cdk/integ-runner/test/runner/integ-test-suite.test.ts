@@ -138,18 +138,18 @@ describe('Legacy Integration test cases', () => {
     jest.restoreAllMocks();
   });
 
-  test('basic manifest', () => {
+  test('basic manifest', async () => {
     // GIVEN
     mockfs({
       [testsFile]: '/// !cdk-integ test-stack',
     });
     listMock = jest.fn().mockImplementation(() => {
-      return 'stackabc';
+      return ['stackabc'];
     });
     cdkMock.mockList(listMock);
 
     // WHEN
-    const testCases = LegacyIntegTestSuite.fromLegacy({
+    const testCases = await LegacyIntegTestSuite.fromLegacy({
       cdk: cdkMock.cdk,
       testName: 'test',
       listOptions: {},
@@ -171,18 +171,18 @@ describe('Legacy Integration test cases', () => {
     });
   });
 
-  test('manifest with pragma', () => {
+  test('manifest with pragma', async () => {
     // GIVEN
     mockfs({
       [testsFile]: '/// !cdk-integ test-stack pragma:enable-lookups pragma:disable-update-workflow pragma:include-assets-hashes',
     });
     listMock = jest.fn().mockImplementation(() => {
-      return 'stackabc';
+      return ['stackabc'];
     });
     cdkMock.mockList(listMock);
 
     // WHEN
-    const testCases = LegacyIntegTestSuite.fromLegacy({
+    const testCases = await LegacyIntegTestSuite.fromLegacy({
       cdk: cdkMock.cdk,
       testName: 'test',
       listOptions: {},
@@ -204,18 +204,18 @@ describe('Legacy Integration test cases', () => {
     });
   });
 
-  test('manifest with no pragma', () => {
+  test('manifest with no pragma', async () => {
     // GIVEN
     mockfs({
       [testsFile]: '',
     });
     listMock = jest.fn().mockImplementation(() => {
-      return 'stackabc';
+      return ['stackabc'];
     });
     cdkMock.mockList(listMock);
 
     // WHEN
-    const testCases = LegacyIntegTestSuite.fromLegacy({
+    const testCases = await LegacyIntegTestSuite.fromLegacy({
       cdk: cdkMock.cdk,
       testName: 'test',
       listOptions: {},
@@ -237,25 +237,23 @@ describe('Legacy Integration test cases', () => {
     });
   });
 
-  test('manifest with no pragma and multiple stack throws', () => {
+  test('manifest with no pragma and multiple stack throws', async () => {
     // GIVEN
     mockfs({
       [testsFile]: '',
     });
     listMock = jest.fn().mockImplementation(() => {
-      return 'stack1\nstack2';
+      return ['stack1', 'stack2'];
     });
     cdkMock.mockList(listMock);
 
     // THEN
-    expect(() => {
-      LegacyIntegTestSuite.fromLegacy({
-        cdk: cdkMock.cdk,
-        testName: 'test',
-        listOptions: {},
-        integSourceFilePath: testsFile,
-      });
-    }).toThrow();
+    await expect(() => LegacyIntegTestSuite.fromLegacy({
+      cdk: cdkMock.cdk,
+      testName: 'test',
+      listOptions: {},
+      integSourceFilePath: testsFile,
+    })).rejects.toThrow();
   });
 
   test('can get context from pragma', () => {

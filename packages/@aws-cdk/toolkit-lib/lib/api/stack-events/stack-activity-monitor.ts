@@ -35,7 +35,7 @@ export interface StackActivityMonitorProps {
    *
    * Used to calculate a progress bar.
    *
-   * @default - No progress reporting.
+   * @default - No progress reporting
    */
   readonly resourcesTotal?: number;
 
@@ -48,7 +48,7 @@ export interface StackActivityMonitorProps {
    * It is recommended to use this, otherwise the filtering will be subject
    * to clock drift between local and cloud machines.
    *
-   * @default - local machine's current time
+   * @default - Local machine's current time
    */
   readonly changeSetCreationTime?: Date;
 

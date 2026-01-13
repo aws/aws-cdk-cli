@@ -14,7 +14,7 @@ const stripAnsi = require('strip-ansi');
  * - Each line in between is prepended with '*** ' and appended with ' ***'
  * - The text is indented left, i.e. whitespace is right-padded when the length is shorter than the longest.
  *
- * @param msgs array of strings containing the message lines to be printed in the banner. Returns empty string if array
+ * @param msgs - array of strings containing the message lines to be printed in the banner. Returns empty string if array
  * is empty.
  * @returns array of strings containing the message formatted as a banner
  */

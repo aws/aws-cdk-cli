@@ -1,20 +1,28 @@
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import type * as cxapi from '@aws-cdk/cx-api';
+import type { ResourceMapping as CfnResourceMapping } from '@aws-sdk/client-cloudformation';
+
+export interface CloudFormationResource {
+  Type: string;
+  Properties?: any;
+  Metadata?: Record<string, any>;
+  DependsOn?: string | string[];
+}
 
 export interface CloudFormationTemplate {
   Resources?: {
-    [logicalId: string]: {
-      Type: string;
-      Properties?: any;
-      Metadata?: Record<string, any>;
-    };
+    [logicalId: string]: CloudFormationResource;
   };
+  Outputs?: Record<string, any>;
+  Rules?: Record<string, any>;
+  Parameters?: Record<string, any>;
 }
 
 export interface CloudFormationStack {
   readonly environment: cxapi.Environment;
   readonly stackName: string;
   readonly template: CloudFormationTemplate;
+  readonly assumeRoleArn?: string;
 }
 
 /**
@@ -27,8 +35,7 @@ export class ResourceLocation {
   }
 
   public toPath(): string {
-    const stack = this.stack;
-    const resource = stack.template.Resources?.[this.logicalResourceId];
+    const resource = this.stack.template.Resources?.[this.logicalResourceId];
     const result = resource?.Metadata?.['aws:cdk:path'];
 
     if (result != null) {
@@ -36,7 +43,11 @@ export class ResourceLocation {
     }
 
     // If the path is not available, we can use stack name and logical ID
-    return `${stack.stackName}.${this.logicalResourceId}`;
+    return this.toLocationString();
+  }
+
+  public toLocationString() {
+    return `${this.stack.stackName}.${this.logicalResourceId}`;
   }
 
   public getType(): string {
@@ -46,6 +57,10 @@ export class ResourceLocation {
 
   public equalTo(other: ResourceLocation): boolean {
     return this.logicalResourceId === other.logicalResourceId && this.stack.stackName === other.stack.stackName;
+  }
+
+  public get stackName(): string {
+    return this.stack.stackName;
   }
 }
 
@@ -65,5 +80,17 @@ export class ResourceMapping {
       destinationPath: this.destination.toPath(),
     };
   }
-}
 
+  public toCloudFormation(): CfnResourceMapping {
+    return {
+      Source: {
+        StackName: this.source.stack.stackName,
+        LogicalResourceId: this.source.logicalResourceId,
+      },
+      Destination: {
+        StackName: this.destination.stack.stackName,
+        LogicalResourceId: this.destination.logicalResourceId,
+      },
+    };
+  }
+}

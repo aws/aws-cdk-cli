@@ -3,11 +3,15 @@ import { contextHandler } from '../../lib/commands/context';
 import { Settings } from '../../lib/api/settings';
 import { Context } from '../../lib/api/context';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { TestIoHost } from '../_helpers/io-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('context');
 
 describe('context --list', () => {
-  test('runs', async() => {
+  test('runs', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
 
     expect(configuration.context.all).toEqual({
@@ -16,6 +20,7 @@ describe('context --list', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
     });
   });
@@ -24,7 +29,7 @@ describe('context --list', () => {
 describe('context --reset', () => {
   test('can remove a context key', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
     configuration.context.set('baz', 'quux');
 
@@ -35,6 +40,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'foo',
     });
@@ -47,7 +53,7 @@ describe('context --reset', () => {
 
   test('can remove a context key using number', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
     configuration.context.set('baz', 'quux');
 
@@ -58,6 +64,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: '1',
     });
@@ -70,7 +77,7 @@ describe('context --reset', () => {
 
   test('can reset matched pattern', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
     configuration.context.set('match-a', 'baz');
     configuration.context.set('match-b', 'qux');
@@ -83,6 +90,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'match-*',
     });
@@ -95,7 +103,7 @@ describe('context --reset', () => {
 
   test('prefers an exact match', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
     configuration.context.set('fo*', 'baz');
 
@@ -106,6 +114,7 @@ describe('context --reset', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'fo*',
     });
@@ -118,7 +127,7 @@ describe('context --reset', () => {
 
   test('doesn\'t throw when at least one match is reset', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     const readOnlySettings = new Settings({
       'foo': 'bar',
       'match-a': 'baz',
@@ -128,6 +137,7 @@ describe('context --reset', () => {
 
     // When
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'match-*',
     }));
@@ -141,7 +151,7 @@ describe('context --reset', () => {
 
   test('throws when key not found', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
 
     expect(configuration.context.all).toEqual({
@@ -150,6 +160,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'baz',
     })).rejects.toThrow(/No context value matching key/);
@@ -157,7 +168,7 @@ describe('context --reset', () => {
 
   test('Doesn\'t throw when key not found and --force is set', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
 
     expect(configuration.context.all).toEqual({
@@ -166,6 +177,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'baz',
       force: true,
@@ -174,7 +186,7 @@ describe('context --reset', () => {
 
   test('throws when no key of index found', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
 
     expect(configuration.context.all).toEqual({
@@ -183,6 +195,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: '2',
     })).rejects.toThrow(/No context key with number/);
@@ -190,7 +203,7 @@ describe('context --reset', () => {
 
   test('throws when resetting read-only values', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     const readOnlySettings = new Settings({
       foo: 'bar',
     }, true);
@@ -202,6 +215,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'foo',
     })).rejects.toThrow(/Cannot reset readonly context value with key/);
@@ -209,7 +223,7 @@ describe('context --reset', () => {
 
   test('throws when no matches could be reset', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     const readOnlySettings = new Settings({
       'foo': 'bar',
       'match-a': 'baz',
@@ -225,6 +239,7 @@ describe('context --reset', () => {
 
     // THEN
     await expect(contextHandler({
+      ioHelper,
       context: configuration.context,
       reset: 'match-*',
     })).rejects.toThrow(/None of the matched context values could be reset/);
@@ -234,7 +249,7 @@ describe('context --reset', () => {
 describe('context --clear', () => {
   test('can clear all context keys', async () => {
     // GIVEN
-    const configuration = new Configuration();
+    const configuration = await Configuration.fromArgs(ioHelper);
     configuration.context.set('foo', 'bar');
     configuration.context.set('baz', 'quux');
 
@@ -245,6 +260,7 @@ describe('context --clear', () => {
 
     // WHEN
     await contextHandler({
+      ioHelper,
       context: configuration.context,
       clear: true,
     });

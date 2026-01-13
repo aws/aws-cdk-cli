@@ -1,8 +1,9 @@
 
+import type { SdkProvider } from '../../api/aws-auth/private';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { StackAssembly } from '../../api/cloud-assembly/private';
+import type { IoHelper } from '../../api/io/private';
 import type { PluginHost } from '../../api/plugin';
-import type { SdkProvider, IoHelper } from '../../api/shared-private';
 
 /**
  * Helper struct to pass internal services around.
@@ -19,8 +20,8 @@ export interface ToolkitServices {
  * The caller assumes ownership of the returned `StackAssembly`, and `dispose()`
  * should be called on this object after use.
  *
- * @param assemblySource the source for the cloud assembly
- * @param cache if the assembly should be cached, default: `true`
+ * @param assemblySource - the source for the cloud assembly
+ * @param cache - if the assembly should be cached, default: `true`
  * @returns the CloudAssembly object
  */
 export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {

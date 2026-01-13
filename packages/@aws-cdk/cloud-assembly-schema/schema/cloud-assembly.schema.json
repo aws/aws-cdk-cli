@@ -83,6 +83,9 @@
                         },
                         {
                             "$ref": "#/definitions/NestedCloudAssemblyProperties"
+                        },
+                        {
+                            "$ref": "#/definitions/FeatureFlagReportProperties"
                         }
                     ]
                 },
@@ -103,7 +106,8 @@
                 "aws:cloudformation:stack",
                 "cdk:tree",
                 "cdk:asset-manifest",
-                "cdk:cloud-assembly"
+                "cdk:cloud-assembly",
+                "cdk:feature-flag-report"
             ]
         },
         "MetadataEntry": {
@@ -495,6 +499,60 @@
             "required": [
                 "directoryName"
             ]
+        },
+        "FeatureFlagReportProperties": {
+            "description": "Artifact properties for a feature flag report\n\nA feature flag report is small enough that all the properties can be inlined\nhere, and doesn't need an additional file.",
+            "type": "object",
+            "properties": {
+                "module": {
+                    "description": "The library that this feature flag report applies to.",
+                    "type": "string"
+                },
+                "flags": {
+                    "description": "Information about every feature flag supported by this library.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/FeatureFlag"
+                    }
+                }
+            },
+            "required": [
+                "flags",
+                "module"
+            ]
+        },
+        "FeatureFlag": {
+            "description": "A single feature flag",
+            "type": "object",
+            "properties": {
+                "recommendedValue": {
+                    "description": "The library-recommended value for this flag, if any\n\nIt is possible that there is no recommended value. (Default - No recommended value.)"
+                },
+                "userValue": {
+                    "description": "The value configured by the user\n\nThis is the value configured at the root of the tree. Users may also have\nconfigured values at specific locations in the tree; we don't report on\nthose. (Default - Not configured by the user)"
+                },
+                "explanation": {
+                    "description": "Explanation about the purpose of this flag that can be shown to the user. (Default - No description)",
+                    "type": "string"
+                },
+                "unconfiguredBehavesLike": {
+                    "description": "The value of the flag that produces the same behavior as when the flag is not configured at all\n\nThe structure of this field is a historical accident. The type of this field\nshould have been boolean, which should have contained the default value for\nthe flag appropriate for the *current* version of the CDK library. We are\nnot rectifying this accident because doing so\n\nInstead, the canonical way to access this value is by evaluating\n`unconfiguredBehavesLike?.v2 ?? false`.",
+                    "default": false,
+                    "$ref": "#/definitions/UnconfiguredBehavesLike"
+                }
+            }
+        },
+        "UnconfiguredBehavesLike": {
+            "type": "object",
+            "properties": {
+                "v1": {
+                    "description": "Historical accident, don't use.\n\nThis value may be present, but it should never be used. The actual value is\nin the `v2` field, regardless of the version of the CDK library. (Default - ignore)"
+                },
+                "v2": {
+                    "description": "The value of the flag that produces the same behavior as when the flag is not configured at all\n\nEven though it is called 'v2', this is the official name of this field. In\nany future versions of CDK (v3, v4, ...), this field will still be called 'v2'.\n\nThe structure of this field is a historical accident. See the comment on\n`unconfiguredBehavesLike` for more information.",
+                    "default": false
+                }
+            }
         },
         "MissingContext": {
             "description": "Represents a missing piece of context.",
@@ -1028,7 +1086,7 @@
             ]
         },
         "CcApiContextQuery": {
-            "description": "Query input for lookup up CloudFormation resources using CC API",
+            "description": "Query input for lookup up CloudFormation resources using CC API\n\nThe example below is required to successfully compile CDK (otherwise,\nthe CDK build will generate a synthetic example for the below, but it\ndoesn't have enough type information about the literal string union\nto generate a validly compiling example).",
             "type": "object",
             "properties": {
                 "typeName": {
@@ -1039,9 +1097,13 @@
                     "description": "Identifier of the resource to look up using `GetResource`.\n\nSpecifying exactIdentifier will return exactly one result, or throw an error\nunless `ignoreErrorOnMissingContext` is set. (Default - Either exactIdentifier or propertyMatch should be specified.)",
                     "type": "string"
                 },
+                "resourceModel": {
+                    "description": "The resource model to use to select the resources, using `ListResources`..\n\nThis is needed for sub-resources where the parent Arn is required.\n\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/resource-operations-list.html#resource-operations-list-containers (Default - no resource Model is provided)",
+                    "$ref": "#/definitions/Record%3Cstring%2Cunknown%3E"
+                },
                 "propertyMatch": {
                     "description": "Returns any resources matching these properties, using `ListResources`.\n\nBy default, specifying propertyMatch will successfully return 0 or more\nresults. To throw an error if the number of results is unexpected (and\nprevent the query results from being committed to context), specify\n`expectedMatchCount`.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe resources that `propertyMatch` matches against will *only ever* be the\nproperties returned by the `ListResources` call. (Default - Either exactIdentifier or propertyMatch should be specified.)",
-                    "$ref": "#/definitions/Record<string,unknown>"
+                    "$ref": "#/definitions/Record%3Cstring%2Cunknown%3E"
                 },
                 "propertiesToReturn": {
                     "description": "This is a set of properties returned from CC API that we want to return from ContextQuery.\n\nIf any properties listed here are absent from the target resource, an error will be thrown.\n\nThe returned object will always include the key `Identifier` with the CC-API returned\nfield `Identifier`.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe returned properties here are *currently* selected from the response\nobject that CloudControl API returns to the CDK CLI.\n\nHowever, if we find there is need to do so, we may decide to change this\nbehavior in the future: we might change it to perform an additional\n`GetResource` call for resources matched by `propertyMatch`.",

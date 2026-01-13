@@ -64,12 +64,6 @@ beforeEach(() => {
 });
 
 describe('watch', () => {
-  test('no include & no exclude results in error', async () => {
-    // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-role');
-    await expect(async () => toolkit.watch(cx, {})).rejects.toThrow(/Cannot use the 'watch' command without specifying at least one directory to monitor. Make sure to add a \"watch\" key to your cdk.json/);
-  });
-
   test('observes cwd as default rootdir', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
@@ -99,7 +93,7 @@ describe('watch', () => {
       action: 'watch',
       level: 'debug',
       code: 'CDK_TOOLKIT_I5310',
-      message: expect.stringContaining('\'exclude\' patterns for \'watch\': ["**/.*","**/.*/**","**/node_modules/**"]'),
+      message: expect.stringContaining('\'exclude\' patterns for \'watch\': [".*","**/.*","**/.*/**","**/node_modules/**"]'),
     }));
   });
 
@@ -121,7 +115,7 @@ describe('watch', () => {
       action: 'watch',
       level: 'debug',
       code: 'CDK_TOOLKIT_I5310',
-      message: expect.stringContaining(`'exclude' patterns for 'watch': ["${path.basename(outdir)}/**","**/.*","**/.*/**","**/node_modules/**"]`),
+      message: expect.stringContaining(`'exclude' patterns for 'watch': ["${path.basename(outdir)}/**",".*","**/.*","**/.*/**","**/node_modules/**"]`),
     }));
   });
 
@@ -161,7 +155,7 @@ describe('watch', () => {
     // GIVEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     ioHost.level = 'debug';
-    await toolkit.watch(cx, {
+    const watcher = await toolkit.watch(cx, {
       include: [],
       traceLogs: true,
     });
@@ -174,8 +168,13 @@ describe('watch', () => {
       cloudWatchLogMonitor: expect.anything(), // Not undefined
     }));
 
-    // Deactivate the cloudWatchLogMonitor that we created, otherwise the tests won't exit
-    (deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor?.deactivate();
+    const logMonitorSpy = jest.spyOn((deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor, 'deactivate');
+
+    // Deactivate the watcher and cloudWatchLogMonitor that we created, otherwise the tests won't exit
+    await watcher.dispose();
+
+    // ensure the log monitor has been closed
+    expect(logMonitorSpy).toHaveBeenCalled();
   });
 
   test('watch returns an object that can be used to stop the watch', async () => {
@@ -253,6 +252,25 @@ describe('watch', () => {
     // THEN
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
+  });
+
+  test('will use sensible defaults for include and exclude if not specified', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    ioHost.level = 'debug';
+    await toolkit.watch(cx);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'watch',
+      level: 'debug',
+      message: expect.stringContaining('\'include\' patterns for \'watch\': ["**"]'),
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'watch',
+      level: 'debug',
+      message: expect.stringContaining('\'exclude\' patterns for \'watch\': ["README.md",'),
+    }));
   });
 });
 

@@ -1,4 +1,4 @@
-const cdk = require('aws-cdk-lib');
+const cdk = require('aws-cdk-lib/core');
 const sns = require('aws-cdk-lib/aws-sns');
 const subs = require('aws-cdk-lib/aws-sns-subscriptions');
 const sqs = require('aws-cdk-lib/aws-sqs');

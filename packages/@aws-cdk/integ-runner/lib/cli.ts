@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as workerpool from 'workerpool';
 import * as logger from './logger';
+import type { EngineOptions } from './runner/engine';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
@@ -26,7 +27,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('watch', { type: 'boolean', default: false, desc: 'Perform integ tests in watch mode' })
     .option('list', { type: 'boolean', default: false, desc: 'List tests instead of running them' })
-    .option('clean', { type: 'boolean', default: true, desc: 'Skips stack clean up after test is completed (use --no-clean to negate)' })
+    .option('clean', { type: 'boolean', default: true, desc: 'Clean up and delete stack after test is completed (use --no-clean to negate)' })
     .option('verbose', { type: 'boolean', default: false, alias: 'v', count: true, desc: 'Verbose logs and metrics on integration tests durations (specify multiple times to increase verbosity)' })
     .option('dry-run', { type: 'boolean', default: false, desc: 'do not actually deploy the stack. just update the snapshot (not recommended!)' })
     .option('update-on-failed', { type: 'boolean', default: false, desc: 'rerun integration tests and update snapshots for failed tests.' })
@@ -36,9 +37,11 @@ export function parseCliArgs(args: string[] = []) {
     .options('profiles', { type: 'array', desc: 'list of AWS profiles to use. Tests will be run in parallel across each profile+regions', default: [] })
     .options('max-workers', { type: 'number', desc: 'The max number of workerpool workers to use when running integration tests in parallel', default: 16 })
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
+    .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
-    .option('disable-update-workflow', { type: 'boolean', default: false, desc: 'If this is "true" then the stack update workflow will be disabled' })
+    .option('disable-update-workflow', { type: 'boolean', default: undefined, desc: 'DEPRECATED, use --[no]-update-workflow instead' })
+    .option('update-workflow', { type: 'boolean', default: undefined, desc: 'Deploys the committed snapshot before the updated application. Only works if snapshots are region-agnostic.' })
     .option('language', {
       alias: 'l',
       default: ['javascript', 'typescript', 'python', 'go'],
@@ -49,6 +52,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
+    .option('unstable', { type: 'array', desc: 'Opt-in to using unstable features. By using these flags you acknowledges that scope and APIs of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to.', nargs: 1, choices: ['toolkit-lib-engine', 'deprecated-cli-engine'], default: [] })
     .strict()
     .parse(args);
 
@@ -69,9 +73,20 @@ export function parseCliArgs(args: string[] = []) {
   if (tests.length > 0 && fromFile) {
     throw new Error('A list of tests cannot be provided if "--from-file" is provided');
   }
+
+  if (argv.strict && argv.exclude) {
+    throw new Error('Cannot use --strict with --exclude');
+  }
+
   const requestedTests = fromFile
     ? (fs.readFileSync(fromFile, { encoding: 'utf8' })).split('\n').filter(x => x)
     : (tests.length > 0 ? tests : undefined); // 'undefined' means no request
+
+  if (argv['disable-update-workflow'] !== undefined && argv['update-workflow'] !== undefined) {
+    throw new Error('--disable-update-workflow and --[no-]update-workflow cannot be used together');
+  }
+
+  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : !argv['disable-update-workflow'];
 
   return {
     tests: requestedTests,
@@ -92,15 +107,31 @@ export function parseCliArgs(args: string[] = []) {
     clean: argv.clean as boolean,
     force: argv.force as boolean,
     dryRun: argv['dry-run'] as boolean,
-    disableUpdateWorkflow: argv['disable-update-workflow'] as boolean,
+    updateWorkflow,
     language: arrayFromYargs(argv.language),
     watch: argv.watch as boolean,
+    strict: argv.strict as boolean,
+    unstable: arrayFromYargs(argv.unstable) ?? [],
   };
 }
 
 export async function main(args: string[]) {
-  const options = parseCliArgs(args);
+  let engineForError;
+  try {
+    const options = parseCliArgs(args);
+    const engine = engineFromOptions(options);
+    engineForError = engine.engine;
+    await run(options, engine);
+  } catch (err: any) {
+    logger.error(err);
+    if (engineForError === 'toolkit-lib') {
+      logger.warning('\n[Notice] You are using the new default engine to run integration tests. If you think the above failure has been caused by the new engine, you may choose to temporarily revert to the old engine by adding the `--unstable=deprecated-cli-engine` option. Please note that this engine is deprecated and scheduled to be removed in January 2026.\n\nIf reverting to the old engine resolves an issue for you, please let us know so we can address this in the new engine. Report issues here: https://github.com/aws/aws-cdk-cli/issues/new/choose');
+    }
+    throw err;
+  }
+}
 
+async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineOptions) {
   const testsFromArgs = await new IntegrationTests(path.resolve(options.directory)).fromCliOptions(options);
 
   // List only prints the discovered tests
@@ -131,6 +162,7 @@ export async function main(args: string[]) {
       failedSnapshots = await runSnapshotTests(pool, testsFromArgs, {
         retain: options.inspectFailures,
         verbose: options.verbose,
+        engine,
       });
       for (const failure of failedSnapshots) {
         logger.warning(`Failed: ${failure.fileName}`);
@@ -154,13 +186,14 @@ export async function main(args: string[]) {
     if (options.runUpdateOnFailed || options.force) {
       const { success, metrics } = await runIntegrationTests({
         pool,
+        engine,
         tests: testsToRun,
         regions: options.testRegions,
         profiles: options.profiles,
         clean: options.clean,
         dryRun: options.dryRun,
         verbosity: options.verbosity,
-        updateWorkflow: !options.disableUpdateWorkflow,
+        updateWorkflow: options.updateWorkflow,
         watch: options.watch,
       });
       testsSucceeded = success;
@@ -179,6 +212,7 @@ export async function main(args: string[]) {
     } else if (options.watch) {
       await watchIntegrationTest(pool, {
         watch: true,
+        engine,
         verbosity: options.verbosity,
         ...testsToRun[0],
         profile: options.profiles ? options.profiles[0] : undefined,
@@ -210,7 +244,7 @@ function validateWatchArgs(args: {
   maxWorkers: number;
   force: boolean;
   dryRun: boolean;
-  disableUpdateWorkflow: boolean;
+  updateWorkflow: boolean;
   runUpdateOnFailed: boolean;
   watch: boolean;
 }) {
@@ -223,8 +257,8 @@ function validateWatchArgs(args: {
         'to `--profiles` `--parallel-regions` `--max-workers');
     }
 
-    if (args.runUpdateOnFailed || args.disableUpdateWorkflow || args.force || args.dryRun) {
-      logger.warning('args `--update-on-failed`, `--disable-update-workflow`, `--force`, `--dry-run` have no effect when running with `--watch`');
+    if (args.runUpdateOnFailed || args.updateWorkflow || args.force || args.dryRun) {
+      logger.warning('args `--update-on-failed`, `--update-workflow`, `--force`, `--dry-run` have no effect when running with `--watch`');
     }
   }
 }
@@ -278,8 +312,7 @@ function mergeTests(testFromArgs: IntegTestInfo[], failedSnapshotTests: IntegTes
 }
 
 export function cli(args: string[] = process.argv.slice(2)) {
-  main(args).then().catch(err => {
-    logger.error(err);
+  main(args).then().catch(() => {
     process.exitCode = 1;
   });
 }
@@ -299,4 +332,12 @@ function configFromFile(fileName?: string): Record<string, any> {
   } catch {
     return {};
   }
+}
+
+function engineFromOptions(options: { unstable?: string[] }): Required<EngineOptions> {
+  if (options.unstable?.includes('deprecated-cli-engine')) {
+    logger.warning('[Deprecation Notice] You have opted-in to use the deprecated CLI engine which is scheduled to be removed in January 2026. If you have encountered blockers while using the new default engine, please let us know by opening an issue: https://github.com/aws/aws-cdk-cli/issues/new/choose\n\nTo use the new default engine, remove the `--unstable=deprecated-cli-engine` option.');
+    return { engine: 'cli-wrapper' };
+  }
+  return { engine: 'toolkit-lib' };
 }

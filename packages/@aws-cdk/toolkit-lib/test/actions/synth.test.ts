@@ -1,9 +1,6 @@
 import { Toolkit } from '../../lib/toolkit';
 import { appFixture, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
-// these tests often run a bit longer than the default
-jest.setTimeout(10_000);
-
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
 

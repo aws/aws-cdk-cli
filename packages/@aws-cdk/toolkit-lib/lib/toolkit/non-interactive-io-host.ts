@@ -20,7 +20,7 @@ export interface NonInteractiveIoHostProps {
    *
    * When TTY is disabled, the CLI will have no interactions or color.
    *
-   * @default - determined from the current process
+   * @default - Determined from the current process
    */
   readonly isTTY?: boolean;
 
@@ -30,7 +30,7 @@ export interface NonInteractiveIoHostProps {
    * In CI mode, all non-error output goes to stdout instead of stderr.
    * Set to false in the IoHost constructor it will be overwritten if the CLI CI argument is passed
    *
-   * @default - determined from the environment, specifically based on `process.env.CI`
+   * @default - Determined from the environment, specifically based on `process.env.CI`
    */
   readonly isCI?: boolean;
 }
@@ -156,8 +156,8 @@ export class NonInteractiveIoHost implements IIoHost {
 const styleMap: Record<IoMessageLevel, (str: string) => string> = {
   error: chalk.red,
   warn: chalk.yellow,
-  result: chalk.white,
-  info: chalk.white,
+  result: chalk.reset,
+  info: chalk.reset,
   debug: chalk.gray,
   trace: chalk.gray,
 };
@@ -166,7 +166,7 @@ const styleMap: Record<IoMessageLevel, (str: string) => string> = {
  * Detect stack activity messages so they can be send to the printer.
  */
 function isStackActivity(msg: IoMessage<unknown>) {
-  return [
+  return msg.code && [
     'CDK_TOOLKIT_I5501',
     'CDK_TOOLKIT_I5502',
     'CDK_TOOLKIT_I5503',

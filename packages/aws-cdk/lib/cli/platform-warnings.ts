@@ -1,10 +1,10 @@
 import * as os from 'os';
 import * as fs from 'fs-extra';
-import * as logging from '../logging';
+import type { IoHelper } from '../api-private';
 
-export async function checkForPlatformWarnings() {
+export async function checkForPlatformWarnings(ioHelper: IoHelper) {
   if (await hasDockerCopyBug()) {
-    logging.warning('`cdk synth` may hang in Docker on Linux 5.6-5.10. See https://github.com/aws/aws-cdk/issues/21379 for workarounds.');
+    await ioHelper.defaults.warn('`cdk synth` may hang in Docker on Linux 5.6-5.10. See https://github.com/aws/aws-cdk/issues/21379 for workarounds.');
   }
 }
 

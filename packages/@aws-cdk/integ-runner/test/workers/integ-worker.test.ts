@@ -89,20 +89,20 @@ afterAll(async () => {
 });
 
 describe('test runner', () => {
-  test('no snapshot', () => {
+  test('no snapshot', async () => {
     // WHEN
     const test = {
       fileName: 'test/test-data/xxxxx.integ-test1.js',
       discoveryRoot: 'test/test-data',
     };
-    integTestWorker({
+    await integTestWorker({
       tests: [test],
       region: 'us-east-1',
     });
 
     expect(spawnSyncMock).toHaveBeenCalledWith(
       expect.stringMatching(/node/),
-      ['xxxxx.integ-test1.js'],
+      ['test/test-data/xxxxx.integ-test1.js'],
       expect.objectContaining({
         env: expect.objectContaining({
           CDK_INTEG_ACCOUNT: '12345678',
@@ -112,7 +112,7 @@ describe('test runner', () => {
     );
   });
 
-  test('legacy test throws', () => {
+  test('legacy test throws', async () => {
     // WHEN
     const test = {
       fileName: 'test/test-data/xxxxx.integ-test2.js',
@@ -129,7 +129,7 @@ describe('test runner', () => {
     });
 
     // GIVEN
-    const results = integTestWorker({
+    const results = await integTestWorker({
       tests: [test],
       region: 'us-east-1',
     });
@@ -141,13 +141,13 @@ describe('test runner', () => {
     }]);
   });
 
-  test('has snapshot', () => {
+  test('has snapshot', async () => {
     // WHEN
     const test = {
       fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
       discoveryRoot: 'test/test-data',
     };
-    const results = integTestWorker({
+    const results = await integTestWorker({
       tests: [test],
       region: 'us-east-3',
     });
@@ -155,31 +155,22 @@ describe('test runner', () => {
     expect(spawnSyncMock.mock.calls).toEqual(expect.arrayContaining([
       expect.arrayContaining([
         expect.stringMatching(/git/),
-        ['remote', 'show', 'origin'],
-        expect.objectContaining({
-          cwd: 'test/test-data',
-        }),
+        ['-C', 'test/test-data', 'remote', 'show', 'origin'],
       ]),
       expect.arrayContaining([
         expect.stringMatching(/git/),
-        ['merge-base', 'HEAD', 'master'],
-        expect.objectContaining({
-          cwd: 'test/test-data',
-        }),
+        ['-C', 'test/test-data', 'merge-base', 'HEAD', 'master'],
       ]),
       expect.arrayContaining([
         expect.stringMatching(/git/),
-        ['checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
-        expect.objectContaining({
-          cwd: 'test/test-data',
-        }),
+        ['-C', 'test/test-data', 'checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
       ]),
     ]));
 
     expect(results).toEqual([]);
   });
 
-  test('deploy failed', () => {
+  test('deploy failed', async () => {
     // WHEN
     const test = {
       fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
@@ -193,7 +184,7 @@ describe('test runner', () => {
       output: ['stdout', 'stderr'],
       signal: null,
     });
-    const results = integTestWorker({
+    const results = await integTestWorker({
       tests: [test],
       region: 'us-east-1',
     });

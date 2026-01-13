@@ -1,0 +1,1 @@
+export const CURRENT_TELEMETRY_VERSION = '2.0';

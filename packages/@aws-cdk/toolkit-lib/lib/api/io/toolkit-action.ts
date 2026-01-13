@@ -1,5 +1,5 @@
 /**
- * The current action being performed by the CLI. 'none' represents the absence of an action.
+ * The current action being performed by the Toolkit.
  */
 export type ToolkitAction =
 | 'assembly'
@@ -8,6 +8,7 @@ export type ToolkitAction =
 | 'list'
 | 'diff'
 | 'deploy'
+| 'drift'
 | 'rollback'
 | 'watch'
 | 'destroy'
@@ -17,4 +18,5 @@ export type ToolkitAction =
 | 'metadata'
 | 'init'
 | 'migrate'
-| 'refactor';
+| 'refactor'
+| 'flags';

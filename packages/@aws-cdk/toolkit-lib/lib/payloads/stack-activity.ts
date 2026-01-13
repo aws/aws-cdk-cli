@@ -1,4 +1,4 @@
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { StackProgress } from './progress';
 import type { ResourceMetadata } from '../api/resource-metadata/resource-metadata';
@@ -17,7 +17,7 @@ export interface StackMonitoringControlEvent {
   /**
    * The stack artifact that is getting deployed
    */
-  readonly stack: CloudFormationStackArtifact;
+  readonly stack: cxapi.CloudFormationStackArtifact;
 
   /**
    * The name of the Stack that is getting deployed

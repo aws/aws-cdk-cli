@@ -1,6 +1,6 @@
 import { format } from 'util';
 import * as chalk from 'chalk';
-import type { DifferenceCollection, TemplateDiff } from './diff/types';
+import type { DifferenceCollection, Move, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
 import type { Difference, ResourceDifference } from './diff-template';
 import { isPropertyDifference, ResourceImpact } from './diff-template';
@@ -22,11 +22,11 @@ export interface FormatStream extends NodeJS.WritableStream {
 /**
  * Renders template differences to the process' console.
  *
- * @param stream           The IO stream where to output the rendered diff.
- * @param templateDiff     TemplateDiff to be rendered to the console.
- * @param logicalToPathMap A map from logical ID to construct path. Useful in
+ * @param stream           - The IO stream where to output the rendered diff.
+ * @param templateDiff     - TemplateDiff to be rendered to the console.
+ * @param logicalToPathMap - A map from logical ID to construct path. Useful in
  *                         case there is no aws:cdk:path metadata in the template.
- * @param context          the number of context lines to use in arbitrary JSON diff (defaults to 3).
+ * @param context          - the number of context lines to use in arbitrary JSON diff (defaults to 3).
  */
 export function formatDifferences(
   stream: FormatStream,
@@ -98,7 +98,7 @@ export class Formatter {
   }
 
   public print(fmt: string, ...args: any[]) {
-    this.stream.write(chalk.white(format(fmt, ...args)) + '\n');
+    this.stream.write(chalk.reset(format(fmt, ...args)) + '\n');
   }
 
   public warning(fmt: string, ...args: any[]) {
@@ -130,8 +130,8 @@ export class Formatter {
   /**
    * Print a simple difference for a given named entity.
    *
-   * @param logicalId the name of the entity that is different.
-   * @param diff the difference to be rendered.
+   * @param logicalId - the name of the entity that is different.
+   * @param diff - the difference to be rendered.
    */
   public formatDifference(type: string, logicalId: string, diff: Difference<any> | undefined) {
     if (!diff || !diff.isDifferent) {
@@ -156,8 +156,8 @@ export class Formatter {
   /**
    * Print a resource difference for a given logical ID.
    *
-   * @param logicalId the logical ID of the resource that changed.
-   * @param diff      the change to be rendered.
+   * @param logicalId - the logical ID of the resource that changed.
+   * @param diff      - the change to be rendered.
    */
   public formatResourceDifference(_type: string, logicalId: string, diff: ResourceDifference) {
     if (!diff.isDifferent) {
@@ -166,8 +166,15 @@ export class Formatter {
 
     const resourceType = diff.isRemoval ? diff.oldResourceType : diff.newResourceType;
 
-    // eslint-disable-next-line @stylistic/max-len
-    this.print(`${this.formatResourcePrefix(diff)} ${this.formatValue(resourceType, chalk.cyan)} ${this.formatLogicalId(logicalId)} ${this.formatImpact(diff.changeImpact)}`.trimEnd());
+    const message = [
+      this.formatResourcePrefix(diff),
+      this.formatValue(resourceType, chalk.cyan),
+      this.formatLogicalId(logicalId),
+      this.formatImpact(diff.changeImpact),
+      this.formatMove(diff.move),
+    ].filter(Boolean).join(' ');
+
+    this.print(message);
 
     if (diff.isUpdate) {
       const differenceCount = diff.differenceCount;
@@ -197,12 +204,12 @@ export class Formatter {
     if (diff.isRemoval) {
       return REMOVAL;
     }
-    return chalk.white('[?]');
+    return chalk.reset('[?]');
   }
 
   /**
-   * @param value the value to be formatted.
-   * @param color the color to be used.
+   * @param value - the value to be formatted.
+   * @param color - the color to be used.
    *
    * @returns the formatted string, with color applied.
    */
@@ -217,7 +224,7 @@ export class Formatter {
   }
 
   /**
-   * @param impact the impact to be formatted
+   * @param impact - the impact to be formatted
    * @returns a user-friendly, colored string representing the impact.
    */
   public formatImpact(impact: ResourceImpact) {
@@ -239,11 +246,15 @@ export class Formatter {
     }
   }
 
+  private formatMove(move?: Move): string {
+    return !move ? '' : chalk.yellow('(OR', chalk.italic(chalk.bold('move')), `${move.direction} ${move.stackName}.${move.resourceLogicalId} via refactoring)`);
+  }
+
   /**
    * Renders a tree of differences under a particular name.
-   * @param name    the name of the root of the tree.
-   * @param diff    the difference on the tree.
-   * @param last    whether this is the last node of a parent tree.
+   * @param name    - the name of the root of the tree.
+   * @param diff    - the difference on the tree.
+   * @param last    - whether this is the last node of a parent tree.
    */
   public formatTreeDiff(name: string, diff: Difference<any>, last: boolean) {
     let additionalInfo = '';
@@ -262,9 +273,9 @@ export class Formatter {
    * Renders the difference between two objects, looking for the differences as deep as possible,
    * and rendering a tree graph of the path until the difference is found.
    *
-   * @param oldObject  the old object.
-   * @param newObject  the new object.
-   * @param linePrefix a prefix (indent-like) to be used on every line.
+   * @param oldObject  - the old object.
+   * @param newObject  - the new object.
+   * @param linePrefix - a prefix (indent-like) to be used on every line.
    */
   public formatObjectDiff(oldObject: any, newObject: any, linePrefix: string) {
     if ((typeof oldObject !== typeof newObject) || Array.isArray(oldObject) || typeof oldObject === 'string' || typeof oldObject === 'number') {
@@ -307,8 +318,8 @@ export class Formatter {
   }
 
   /**
-   * @param oldValue the old value of a difference.
-   * @param newValue the new value of a difference.
+   * @param oldValue - the old value of a difference.
+   * @param newValue - the new value of a difference.
    *
    * @returns a tag to be rendered in the diff, reflecting whether the difference
    *      was an ADDITION, UPDATE or REMOVAL.
@@ -466,9 +477,9 @@ interface PatchHunk {
 /**
  * Creates a unified diff of two strings.
  *
- * @param oldStr  the "old" version of the string.
- * @param newStr  the "new" version of the string.
- * @param context the number of context lines to use in arbitrary JSON diff.
+ * @param oldStr  - the "old" version of the string.
+ * @param newStr  - the "new" version of the string.
+ * @param context - the number of context lines to use in arbitrary JSON diff.
  *
  * @returns an array of diff lines.
  */

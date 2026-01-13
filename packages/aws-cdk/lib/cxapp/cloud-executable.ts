@@ -6,6 +6,9 @@ import type { IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
+import { cdkCliErrorName } from '../cli/telemetry/error';
+import { CLI_PRIVATE_SPAN } from '../cli/telemetry/messages';
+import type { ErrorDetails } from '../cli/telemetry/schema';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
 
@@ -65,7 +68,7 @@ export class CloudExecutable implements ICloudAssemblySource {
   /**
    * Synthesize a set of stacks.
    *
-   * @param cacheCloudAssembly whether to cache the Cloud Assembly after it has been first synthesized.
+   * @param cacheCloudAssembly - whether to cache the Cloud Assembly after it has been first synthesized.
    *   This is 'true' by default, and only set to 'false' for 'cdk watch',
    *   which needs to re-synthesize the Assembly each time it detects a change to the project files
    */
@@ -82,47 +85,60 @@ export class CloudExecutable implements ICloudAssemblySource {
     // but it missing. We'll then look up the context and run the executable again, and
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
-    while (true) {
-      const assembly = await this.props.synthesizer(this.props.sdkProvider, this.props.configuration);
+    const synthSpan = await this.props.ioHelper.span(CLI_PRIVATE_SPAN.SYNTH_ASSEMBLY).begin({});
+    let error: ErrorDetails | undefined;
+    try {
+      while (true) {
+        const assembly = await this.props.synthesizer(this.props.sdkProvider, this.props.configuration);
 
-      if (assembly.manifest.missing && assembly.manifest.missing.length > 0) {
-        const missingKeys = missingContextKeys(assembly.manifest.missing);
+        if (assembly.manifest.missing && assembly.manifest.missing.length > 0) {
+          const missingKeys = missingContextKeys(assembly.manifest.missing);
 
-        if (!this.canLookup) {
-          throw new ToolkitError(
-            'Context lookups have been disabled. '
-            + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
-            + `Missing context keys: '${Array.from(missingKeys).join(', ')}'`);
+          if (!this.canLookup) {
+            throw new ToolkitError(
+              'Context lookups have been disabled. '
+              + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
+              + `Missing context keys: '${Array.from(missingKeys).join(', ')}'`);
+          }
+
+          let tryLookup = true;
+          if (previouslyMissingKeys && setsEqual(missingKeys, previouslyMissingKeys)) {
+            await this.props.ioHelper.defaults.debug('Not making progress trying to resolve environmental context. Giving up.');
+            tryLookup = false;
+          }
+
+          previouslyMissingKeys = missingKeys;
+
+          if (tryLookup) {
+            await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
+
+            const updates = await contextproviders.provideContextValues(
+              assembly.manifest.missing,
+              this.props.sdkProvider,
+              GLOBAL_PLUGIN_HOST,
+              this.props.ioHelper,
+            );
+
+            for (const [key, value] of Object.entries(updates)) {
+              this.props.configuration.context.set(key, value);
+            }
+
+            // Cache the new context to disk
+            await this.props.configuration.saveContext();
+
+            // Execute again
+            continue;
+          }
         }
-
-        let tryLookup = true;
-        if (previouslyMissingKeys && setsEqual(missingKeys, previouslyMissingKeys)) {
-          await this.props.ioHelper.assemblyDefaults.debug('Not making progress trying to resolve environmental context. Giving up.');
-          tryLookup = false;
-        }
-
-        previouslyMissingKeys = missingKeys;
-
-        if (tryLookup) {
-          await this.props.ioHelper.assemblyDefaults.debug('Some context information is missing. Fetching...');
-
-          await contextproviders.provideContextValues(
-            assembly.manifest.missing,
-            this.props.configuration.context,
-            this.props.sdkProvider,
-            GLOBAL_PLUGIN_HOST,
-            this.props.ioHelper,
-          );
-
-          // Cache the new context to disk
-          await this.props.configuration.saveContext();
-
-          // Execute again
-          continue;
-        }
+        return new CloudAssembly(assembly, this.props.ioHelper);
       }
-
-      return new CloudAssembly(assembly, this.props.ioHelper);
+    } catch (e: any) {
+      error = {
+        name: cdkCliErrorName(e.name),
+      };
+      throw e;
+    } finally {
+      await synthSpan.end({ error });
     }
   }
 

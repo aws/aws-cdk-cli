@@ -4,7 +4,7 @@
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
 import { Command } from './user-configuration';
-import { UserInput, GlobalOptions } from './user-input';
+import { GlobalOptions, UserInput } from './user-input';
 
 // @ts-ignore TS6133
 export function convertYargsToUserInput(args: any): UserInput {
@@ -34,6 +34,8 @@ export function convertYargsToUserInput(args: any): UserInput {
     noColor: args.noColor,
     ci: args.ci,
     unstable: args.unstable,
+    telemetryFile: args.telemetryFile,
+    yes: args.yes,
   };
   let commandOptions;
   switch (args._[0] as Command) {
@@ -65,6 +67,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         bootstrapCustomerKey: args.bootstrapCustomerKey,
         qualifier: args.qualifier,
         publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
+        denyExternalId: args.denyExternalId,
         tags: args.tags,
         execute: args.execute,
         trust: args.trust,
@@ -88,8 +91,24 @@ export function convertYargsToUserInput(args: any): UserInput {
         rollbackBufferDays: args.rollbackBufferDays,
         createdBufferDays: args.createdBufferDays,
         confirm: args.confirm,
+        toolkitStackName: args.toolkitStackName,
         bootstrapStackName: args.bootstrapStackName,
         ENVIRONMENTS: args.ENVIRONMENTS,
+      };
+      break;
+
+    case 'flags':
+      commandOptions = {
+        value: args.value,
+        set: args.set,
+        all: args.all,
+        unconfigured: args.unconfigured,
+        recommended: args.recommended,
+        default: args.default,
+        interactive: args.interactive,
+        safe: args.safe,
+        concurrency: args.concurrency,
+        FLAGNAME: args.FLAGNAME,
       };
       break;
 
@@ -192,6 +211,14 @@ export function convertYargsToUserInput(args: any): UserInput {
         quiet: args.quiet,
         changeSet: args.changeSet,
         importExistingResources: args.importExistingResources,
+        includeMoves: args.includeMoves,
+        STACKS: args.STACKS,
+      };
+      break;
+
+    case 'drift':
+      commandOptions = {
+        fail: args.fail,
         STACKS: args.STACKS,
       };
       break;
@@ -221,6 +248,10 @@ export function convertYargsToUserInput(args: any): UserInput {
         list: args.list,
         generateOnly: args.generateOnly,
         libVersion: args.libVersion,
+        fromPath: args.fromPath,
+        templatePath: args.templatePath,
+        packageManager: args.packageManager,
+        projectName: args.projectName,
         TEMPLATE: args.TEMPLATE,
       };
       break;
@@ -261,11 +292,20 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'refactor':
       commandOptions = {
+        additionalStackName: args.additionalStackName,
         dryRun: args.dryRun,
-        excludeFile: args.excludeFile,
-        mappingFile: args.mappingFile,
+        overrideFile: args.overrideFile,
         revert: args.revert,
+        force: args.force,
         STACKS: args.STACKS,
+      };
+      break;
+
+    case 'cli-telemetry':
+      commandOptions = {
+        enable: args.enable,
+        disable: args.disable,
+        status: args.status,
       };
       break;
   }
@@ -306,6 +346,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     noColor: config.noColor,
     ci: config.ci,
     unstable: config.unstable,
+    telemetryFile: config.telemetryFile,
+    yes: config.yes,
   };
   const listOptions = {
     long: config.list?.long,
@@ -324,6 +366,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrapCustomerKey: config.bootstrap?.bootstrapCustomerKey,
     qualifier: config.bootstrap?.qualifier,
     publicAccessBlockConfiguration: config.bootstrap?.publicAccessBlockConfiguration,
+    denyExternalId: config.bootstrap?.denyExternalId,
     tags: config.bootstrap?.tags,
     execute: config.bootstrap?.execute,
     trust: config.bootstrap?.trust,
@@ -343,7 +386,19 @@ export function convertConfigToUserInput(config: any): UserInput {
     rollbackBufferDays: config.gc?.rollbackBufferDays,
     createdBufferDays: config.gc?.createdBufferDays,
     confirm: config.gc?.confirm,
+    toolkitStackName: config.gc?.toolkitStackName,
     bootstrapStackName: config.gc?.bootstrapStackName,
+  };
+  const flagsOptions = {
+    value: config.flags?.value,
+    set: config.flags?.set,
+    all: config.flags?.all,
+    unconfigured: config.flags?.unconfigured,
+    recommended: config.flags?.recommended,
+    default: config.flags?.default,
+    interactive: config.flags?.interactive,
+    safe: config.flags?.safe,
+    concurrency: config.flags?.concurrency,
   };
   const deployOptions = {
     all: config.deploy?.all,
@@ -423,6 +478,10 @@ export function convertConfigToUserInput(config: any): UserInput {
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
     importExistingResources: config.diff?.importExistingResources,
+    includeMoves: config.diff?.includeMoves,
+  };
+  const driftOptions = {
+    fail: config.drift?.fail,
   };
   const metadataOptions = {};
   const acknowledgeOptions = {};
@@ -434,6 +493,10 @@ export function convertConfigToUserInput(config: any): UserInput {
     list: config.init?.list,
     generateOnly: config.init?.generateOnly,
     libVersion: config.init?.libVersion,
+    fromPath: config.init?.fromPath,
+    templatePath: config.init?.templatePath,
+    packageManager: config.init?.packageManager,
+    projectName: config.init?.projectName,
   };
   const migrateOptions = {
     stackName: config.migrate?.stackName,
@@ -457,10 +520,16 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const doctorOptions = {};
   const refactorOptions = {
+    additionalStackName: config.refactor?.additionalStackName,
     dryRun: config.refactor?.dryRun,
-    excludeFile: config.refactor?.excludeFile,
-    mappingFile: config.refactor?.mappingFile,
+    overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
+    force: config.refactor?.force,
+  };
+  const cliTelemetryOptions = {
+    enable: config.cliTelemetry?.enable,
+    disable: config.cliTelemetry?.disable,
+    status: config.cliTelemetry?.status,
   };
   const userInput: UserInput = {
     globalOptions,
@@ -468,12 +537,14 @@ export function convertConfigToUserInput(config: any): UserInput {
     synth: synthOptions,
     bootstrap: bootstrapOptions,
     gc: gcOptions,
+    flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
     import: importOptions,
     watch: watchOptions,
     destroy: destroyOptions,
     diff: diffOptions,
+    drift: driftOptions,
     metadata: metadataOptions,
     acknowledge: acknowledgeOptions,
     notices: noticesOptions,
@@ -483,6 +554,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     docs: docsOptions,
     doctor: doctorOptions,
     refactor: refactorOptions,
+    cliTelemetry: cliTelemetryOptions,
   };
 
   return userInput;

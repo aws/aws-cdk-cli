@@ -24,6 +24,48 @@ describe('cdk bootstrap', () => {
       region: 'us-east-1',
     }, expect.anything(), expect.anything());
   });
+
+  test('will pass denyExternalId parameter when --deny-external-id is provided', async () => {
+    bootstrapEnvironmentMock.mockResolvedValueOnce({
+      noOp: false,
+      outputs: {},
+      type: 'did-deploy-stack',
+      stackArn: 'fake-arn',
+    });
+
+    await exec(['bootstrap', 'aws://123456789012/us-east-1', '--deny-external-id']);
+    expect(bootstrapEnvironmentMock).toHaveBeenCalledTimes(1);
+    expect(bootstrapEnvironmentMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        parameters: expect.objectContaining({
+          denyExternalId: true,
+        }),
+      }),
+    );
+  });
+
+  test('will pass denyExternalId=false when --no-deny-external-id is provided', async () => {
+    bootstrapEnvironmentMock.mockResolvedValueOnce({
+      noOp: false,
+      outputs: {},
+      type: 'did-deploy-stack',
+      stackArn: 'fake-arn',
+    });
+
+    await exec(['bootstrap', 'aws://123456789012/us-east-1', '--no-deny-external-id']);
+    expect(bootstrapEnvironmentMock).toHaveBeenCalledTimes(1);
+    expect(bootstrapEnvironmentMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        parameters: expect.objectContaining({
+          denyExternalId: false,
+        }),
+      }),
+    );
+  });
 });
 
 describe('cdk bootstrap --show-template', () => {
@@ -34,5 +76,15 @@ describe('cdk bootstrap --show-template', () => {
   test('prints the default bootstrap template', async () => {
     await exec(['bootstrap', '--show-template']);
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('BootstrapVersion'));
+  });
+
+  test('bootstrap template contains DenyExternalId parameter', async () => {
+    await exec(['bootstrap', '--show-template']);
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('DenyExternalId'));
+  });
+
+  test('bootstrap template contains ShouldDenyExternalId condition', async () => {
+    await exec(['bootstrap', '--show-template']);
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('ShouldDenyExternalId'));
   });
 });

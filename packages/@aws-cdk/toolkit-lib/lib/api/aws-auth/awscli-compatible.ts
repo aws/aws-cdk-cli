@@ -1,13 +1,12 @@
+import type { Agent } from 'node:https';
 import { format } from 'node:util';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
-import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
+import type { RequestHandlerSettings } from './base-credentials';
 import { makeCachingProvider } from './provider-caching';
-import { ProxyAgentProvider } from './proxy-agent';
 import type { ISdkLogger } from './sdk-logger';
-import type { SdkHttpOptions } from './types';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
 
@@ -24,10 +23,10 @@ const DEFAULT_TIMEOUT = 300000;
  */
 export class AwsCliCompatible {
   private readonly ioHelper: IoHelper;
-  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly requestHandler: RequestHandlerSettings;
   private readonly logger?: ISdkLogger;
 
-  public constructor(ioHelper: IoHelper, requestHandler: NodeHttpHandlerOptions, logger?: ISdkLogger) {
+  public constructor(ioHelper: IoHelper, requestHandler: RequestHandlerSettings, logger?: ISdkLogger) {
     this.ioHelper = ioHelper;
     this.requestHandler = requestHandler;
     this.logger = logger;
@@ -156,7 +155,7 @@ export class AwsCliCompatible {
 
     if (!region) {
       const usedProfile = !profile ? '' : ` (profile: "${profile}")`;
-      await this.ioHelper.sdkDefaults.debug(
+      await this.ioHelper.defaults.debug(
         `Unable to determine AWS region from environment or AWS configuration${usedProfile}, defaulting to '${defaultRegion}'`,
       );
       return defaultRegion;
@@ -173,7 +172,7 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
-    await this.ioHelper.sdkDefaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
+    await this.ioHelper.defaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
     try {
       const metadataService = new MetadataService({
         httpOptions: {
@@ -185,14 +184,14 @@ export class AwsCliCompatible {
       const document = await metadataService.request('/latest/dynamic/instance-identity/document', {});
       return JSON.parse(document).region;
     } catch (e) {
-      await this.ioHelper.sdkDefaults.debug(`Unable to retrieve AWS region from IMDS: ${e}`);
+      await this.ioHelper.defaults.debug(`Unable to retrieve AWS region from IMDS: ${e}`);
     }
   }
 
   /**
    * Looks up the region of the provided profile. If no region is present,
    * it will attempt to lookup the default region.
-   * @param profile The profile to use to lookup the region
+   * @param profile - The profile to use to lookup the region
    * @returns The region for the profile or default profile, if present. Otherwise returns undefined.
    */
   private async getRegionFromIni(profile: string): Promise<string | undefined> {
@@ -223,7 +222,7 @@ export class AwsCliCompatible {
    * Result is send to callback function for SDK to authorize the request
    */
   private async tokenCodeFn(deviceArn: string): Promise<string> {
-    const debugFn = (msg: string, ...args: any[]) => this.ioHelper.sdkDefaults.debug(format(msg, ...args));
+    const debugFn = (msg: string, ...args: any[]) => this.ioHelper.defaults.debug(format(msg, ...args));
     await debugFn('Require MFA token from MFA device with ARN', deviceArn);
     try {
       const token: string = await this.ioHelper.requestResponse(IO.CDK_SDK_I1100.req(`MFA token for ${deviceArn}`, {
@@ -270,9 +269,7 @@ export interface CredentialChainOptions {
   readonly logger?: ISdkLogger;
 }
 
-export async function makeRequestHandler(ioHelper: IoHelper, options: SdkHttpOptions = {}): Promise<NodeHttpHandlerOptions> {
-  const agent = await new ProxyAgentProvider(ioHelper).create(options);
-
+export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,

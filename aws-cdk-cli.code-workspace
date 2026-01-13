@@ -9,10 +9,10 @@
       "path": "packages/@aws-cdk-testing/cli-integ"
     },
     {
-      "path": "packages/@aws-cdk/cdk-cli-wrapper"
+      "path": "packages/@aws-cdk/cdk-assets-lib"
     },
     {
-      "path": "packages/@aws-cdk/cli-lib-alpha"
+      "path": "packages/@aws-cdk/cdk-cli-wrapper"
     },
     {
       "path": "packages/@aws-cdk/cli-plugin-contract"
@@ -25,9 +25,6 @@
     },
     {
       "path": "packages/@aws-cdk/integ-runner"
-    },
-    {
-      "path": "packages/@aws-cdk/node-bundle"
     },
     {
       "path": "packages/@aws-cdk/toolkit-lib"

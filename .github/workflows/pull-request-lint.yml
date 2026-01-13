@@ -19,7 +19,7 @@ jobs:
       pull-requests: write
     if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
     steps:
-      - uses: amannn/action-semantic-pull-request@v5.4.0
+      - uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -32,9 +32,13 @@ jobs:
             docs
             revert
           scopes: |-
+            aws-cdk
+            bootstrap
             cdk-assets
+            cdk-assets-lib
+            cdk-cli-wrapper
             cli
-            cli-lib-alpha
+            cli-integ
             cli-plugin-contract
             cloud-assembly-schema
             cloudformation-diff
@@ -44,6 +48,8 @@ jobs:
             integ-runner
             integ-testing
             toolkit-lib
+            toolkit-lib
+            yarn-cling
           requireScope: false
   contributorStatement:
     name: Require Contributor Statement
@@ -56,7 +62,7 @@ jobs:
       HELP: Contributor statement missing from PR description. Please include the following text in the PR description
     if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && !(github.event.pull_request.user.login == 'aws-cdk-automation' || github.event.pull_request.user.login == 'dependabot[bot]')
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v8
         with:
           script: |-
             const actual = process.env.PR_BODY.replace(/\r?\n/g, "\n");

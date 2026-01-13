@@ -28,7 +28,7 @@ export class AccountAccessKeyCache {
   private readonly debug: (msg: string) => Promise<void>;
 
   /**
-   * @param filePath Path to the cache file
+   * @param filePath - Path to the cache file
    */
   constructor(filePath: string = AccountAccessKeyCache.DEFAULT_PATH, debugFn: (msg: string) => Promise<void>) {
     this.cacheFile = filePath;

@@ -1,7 +1,153 @@
-import type { javascript } from 'projen';
-import { Component, github } from 'projen';
+import { yarn } from 'cdklabs-projen-project-types';
+import type { javascript, Project } from 'projen';
+import { Component, github, TextFile } from 'projen';
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
+
+/**
+ * Common workflow steps
+ */
+function downloadArtifactsSteps(): github.workflows.JobStep[] {
+  return [
+    {
+      name: 'Download build artifacts',
+      uses: 'actions/download-artifact@v4',
+      with: {
+        name: 'build-artifact',
+        path: 'packages',
+      },
+    },
+    {
+      name: 'Download scripts',
+      uses: 'actions/download-artifact@v4',
+      with: {
+        name: 'script-artifact',
+        path: '.projen',
+      },
+    },
+  ];
+}
+
+function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
+  return {
+    name: 'Setup Node.js',
+    uses: 'actions/setup-node@v4',
+    with: {
+      'node-version': nodeVersion,
+    },
+  };
+}
+
+function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string): github.workflows.JobStep {
+  return {
+    name: 'Authenticate Via OIDC Role',
+    id: 'creds',
+    uses: 'aws-actions/configure-aws-credentials@v4',
+    with: {
+      'aws-region': 'us-east-1',
+      'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
+      // Expect this in Environment Variables
+      'role-to-assume': props.enableAtmosphere ? props.enableAtmosphere.oidcRoleArn : '${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}',
+      'role-session-name': sessionName,
+      'output-credentials': true,
+    },
+  };
+}
+
+function gitIdentityStep(): github.workflows.JobStep {
+  // This is necessary for the init tests to succeed, they set up a git repo.
+  return {
+    name: 'Set git identity',
+    run: [
+      'git config --global user.name "aws-cdk-cli-integ"',
+      'git config --global user.email "noreply@example.com"',
+    ].join('\n'),
+  };
+}
+
+function verdaccioSteps(): github.workflows.JobStep[] {
+  return [
+    {
+      name: 'Prepare Verdaccio',
+      run: 'chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh',
+    },
+    {
+      name: 'Download and install the test artifact',
+      run: 'npm install @aws-cdk-testing/cli-integ',
+    },
+  ];
+}
+
+function determineVersionsStep(): github.workflows.JobStep {
+  return {
+    name: 'Determine latest package versions',
+    id: 'versions',
+    run: [
+      'CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)',
+      'echo "CLI version: ${CLI_VERSION}"',
+      'echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT',
+      'LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)',
+      'echo "lib version: ${LIB_VERSION}"',
+      'echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT',
+    ].join('\n'),
+  };
+}
+
+function testEnvVars(props: CdkCliIntegTestsWorkflowProps): Record<string, string> {
+  return {
+    JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: 'true',
+    JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: 'true',
+    JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: 'true',
+    DOCKERHUB_DISABLED: 'true',
+    ...(props.enableAtmosphere ?
+      {
+        CDK_INTEG_ATMOSPHERE_ENABLED: 'true',
+        CDK_INTEG_ATMOSPHERE_ENDPOINT: props.enableAtmosphere.endpoint,
+        CDK_INTEG_ATMOSPHERE_POOL: props.enableAtmosphere.pool,
+      } :
+      {
+        AWS_REGIONS: ['us-east-2', 'eu-west-1', 'eu-north-1', 'ap-northeast-1', 'ap-south-1'].join(','),
+      }),
+    CDK_MAJOR_VERSION: '2',
+    RELEASE_TAG: 'latest',
+    GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+    INTEG_LOGS: 'logs',
+  };
+}
+
+function logUploadSteps(artifactName: string): github.workflows.JobStep[] {
+  return [
+    {
+      name: 'Set workflow summary',
+      if: 'always()',
+      run: [
+        // Don't fail the glob expansion if there are no .md files
+        'if compgen -G "logs/md/*.md" > /dev/null; then',
+        '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
+        'fi',
+      ].join('\n'),
+    },
+    {
+      name: 'Upload logs',
+      if: 'always()',
+      uses: 'actions/upload-artifact@v4.4.0',
+      id: 'logupload',
+      with: {
+        name: artifactName,
+        path: 'logs/',
+        overwrite: 'true',
+      },
+    },
+    {
+      name: 'Append artifact URL',
+      if: 'always()',
+      run: [
+        'echo "" >> $GITHUB_STEP_SUMMARY',
+        'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
+      ].join('\n'),
+    },
+  ];
+}
 
 /**
  * Options for atmosphere service usage.
@@ -52,13 +198,6 @@ export interface CdkCliIntegTestsWorkflowProps {
   readonly testEnvironment: string;
 
   /**
-   * Packages that are locally transfered (we will never use the upstream versions)
-   *
-   * Takes package names; these are expected to live in `packages/<NAME>/dist/js`.
-   */
-  readonly localPackages: string[];
-
-  /**
    * The official repo this workflow is used for
    */
   readonly sourceRepo: string;
@@ -68,7 +207,7 @@ export interface CdkCliIntegTestsWorkflowProps {
    *
    * @default - No upstream versions
    */
-  readonly allowUpstreamVersions?: string[];
+  readonly allowUpstreamVersions?: Array<Project>;
 
   /**
    * Enable atmosphere service to retrieve AWS test environments.
@@ -83,6 +222,15 @@ export interface CdkCliIntegTestsWorkflowProps {
    * @default - the cli integ test package determines a sensible default
    */
   readonly maxWorkers?: string;
+
+  /**
+   * Additional Node versions to some particular suites against.
+   *
+   * Use the version syntax of `setup-node`. `'lts/*'` is always included automatically.
+   *
+   * @see https://github.com/actions/setup-node?tab=readme-ov-file#supported-version-syntax
+   */
+  readonly additionalNodeVersionsToTest?: string[];
 }
 
 /**
@@ -122,9 +270,13 @@ export class CdkCliIntegTestsWorkflow extends Component {
     }
     ((buildWorkflow as any).workflow as github.GithubWorkflow);
 
-    props.allowUpstreamVersions?.forEach((pack) => {
-      if (!props.localPackages.includes(pack)) {
-        throw new Error(`Package in allowUpstreamVersions but not in localPackages: ${pack}`);
+    const localPackages = repo.subprojects
+      .filter(p => p instanceof yarn.TypeScriptWorkspace && !p.isPrivatePackage)
+      .map(p => p.name);
+    const upstreamVersions = (props.allowUpstreamVersions ?? [])?.map(p => p.name);
+    upstreamVersions.forEach((pack) => {
+      if (!localPackages.includes(pack)) {
+        throw new Error(`Package in allowUpstreamVersions is not a local monorepo package: ${pack}`);
       }
     });
 
@@ -132,6 +284,65 @@ export class CdkCliIntegTestsWorkflow extends Component {
     if (props.maxWorkers) {
       maxWorkersArg = ` --maxWorkers=${props.maxWorkers}`;
     }
+
+    const verdaccioConfig = {
+      storage: './storage',
+      auth: { htpasswd: { file: './htpasswd' } },
+      uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
+      packages: {} as Record<string, unknown>,
+    };
+
+    for (const pack of localPackages) {
+      const allowUpstream = upstreamVersions.includes(pack);
+
+      verdaccioConfig.packages[pack] = {
+        access: '$all',
+        publish: '$all',
+        proxy: allowUpstream ? 'npmjs' : 'none',
+      };
+    }
+    verdaccioConfig.packages['**'] = {
+      access: '$all',
+      proxy: 'npmjs',
+    };
+
+    // bash only expands {...} if there's a , in there, otherwise it will leave the
+    // braces in literally. So we need to do case analysis here. Thanks, I hate it.
+    const tarballBashExpr = localPackages.length === 1
+      ? `packages/${localPackages[0]}/dist/js/*.tgz`
+      : `packages/{${localPackages.join(',')}}/dist/js/*.tgz`;
+
+    // Add a script that will upload all packages to Verdaccio.
+    //
+    // This is a script because we want to be able to update it on a per-branch basis
+    // (so this information cannot live in the workflow, because that only takes effect after
+    // a PR changing it has been merged to `main`).
+    //
+    // It also cannot be a simple projen task, because we run the tests disconnected
+    // from a source checkout and we need to transfer artifacts from the 'prepare' job to
+    // the 'run' job.
+    //
+    // So we create a script file that we send as an artifact, and run in the
+    // 'run' job.
+
+    new TextFile(repo, '.projen/prepare-verdaccio.sh', {
+      executable: true,
+      lines: [
+        '#!/bin/bash',
+        'npm install -g verdaccio pm2',
+        'mkdir -p $HOME/.config/verdaccio',
+        `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
+        'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
+        'sleep 5', // Wait for Verdaccio to start
+        // Configure NPM to use local registry
+        'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
+        'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
+        // Find and locally publish all tarballs
+        `for pkg in ${tarballBashExpr}; do`,
+        '  npm publish --loglevel=warn $pkg',
+        'done',
+      ],
+    });
 
     runTestsWorkflow.on({
       pullRequestTarget: {
@@ -226,43 +437,69 @@ export class CdkCliIntegTestsWorkflow extends Component {
             overwrite: 'true',
           },
         },
+        {
+          name: 'Upload scripts',
+          uses: 'actions/upload-artifact@v4.4.0',
+          with: {
+            'name': 'script-artifact',
+            'path': '.projen/*.sh',
+            'overwrite': 'true',
+            'include-hidden-files': true,
+          },
+        },
       ],
     });
 
-    const verdaccioConfig = {
-      storage: './storage',
-      auth: { htpasswd: { file: './htpasswd' } },
-      uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
-      packages: {} as Record<string, unknown>,
-    };
-
-    for (const pack of props.localPackages) {
-      const allowUpstream = props.allowUpstreamVersions?.includes(pack);
-
-      verdaccioConfig.packages[pack] = {
-        access: '$all',
-        publish: '$all',
-        proxy: allowUpstream ? 'npmjs' : 'none',
-      };
-    }
-    verdaccioConfig.packages['**'] = {
-      access: '$all',
-      proxy: 'npmjs',
-    };
-
-    // bash only expands {...} if there's a , in there, otherwise it will leave the
-    // braces in literally. So we need to do case analysis here. Thanks, I hate it.
-    const tarballBashExpr = props.localPackages.length === 1
-      ? `packages/${props.localPackages[0]}/dist/js/*.tgz`
-      : `packages/{${props.localPackages.join(',')}}/dist/js/*.tgz`;
+    // Add a job for telemetry tests that runs before the main matrix
+    const JOB_TELEMETRY = 'telemetry_tests';
+    runTestsWorkflow.addJob(JOB_TELEMETRY, {
+      environment: props.testEnvironment,
+      runsOn: [props.testRunsOn],
+      needs: [JOB_PREPARE],
+      permissions: {
+        contents: github.workflows.JobPermission.READ,
+        idToken: github.workflows.JobPermission.WRITE,
+      },
+      env: {
+        MAVEN_ARGS: '--no-transfer-progress',
+        IS_CANARY: 'true',
+        CI: 'true',
+      },
+      if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
+      steps: [
+        ...downloadArtifactsSteps(),
+        setupNodeStep('lts/*'),
+        awsAuthStep(props, 'telemetry-tests@aws-cdk-cli-integ'),
+        gitIdentityStep(),
+        ...verdaccioSteps(),
+        determineVersionsStep(),
+        {
+          name: 'Run telemetry tests',
+          run: `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} telemetry-integ-tests`,
+          env: testEnvVars(props),
+        },
+        ...logUploadSteps('logs-telemetry-tests'),
+      ],
+    });
 
     // We create a matrix job for the test.
     // This job will run all the different test suites in parallel.
+    const matrixInclude: github.workflows.JobMatrix['include'] = [];
+    const matrixExclude: github.workflows.JobMatrix['exclude'] = [];
+
+    // In addition to the default runs, run these suites under different Node versions
+    matrixInclude.push(...['init-typescript-app', 'toolkit-lib-integ-tests'].flatMap(
+      suite => (props.additionalNodeVersionsToTest ?? []).map(node => ({ suite, node }))));
+
+    // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
+    matrixExclude.push({ suite: 'tool-integrations', node: 'lts/*' });
+    matrixInclude.push({ suite: 'tool-integrations', node: 20 });
+
     const JOB_INTEG_MATRIX = 'integ_matrix';
     runTestsWorkflow.addJob(JOB_INTEG_MATRIX, {
       environment: props.testEnvironment,
       runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE],
+      needs: [JOB_PREPARE, JOB_TELEMETRY],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
@@ -274,9 +511,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
-        // This is necessary because the new versioning of @aws-cdk/cli-lib-alpha
-        // matches the CLI and not the framework.
-        CLI_LIB_VERSION_MIRRORS_CLI: 'true',
       },
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
@@ -298,18 +532,15 @@ export class CdkCliIntegTestsWorkflow extends Component {
               'init-typescript-lib',
               'tool-integrations',
             ],
+            node: ['lts/*'],
           },
+          include: matrixInclude,
+          exclude: matrixExclude,
         },
       },
       steps: [
-        {
-          name: 'Download build artifacts',
-          uses: 'actions/download-artifact@v4',
-          with: {
-            name: 'build-artifact',
-            path: 'packages',
-          },
-        },
+        ...downloadArtifactsSteps(),
+        setupNodeStep('${{ matrix.node }}'),
         {
           name: 'Set up JDK 18',
           if: 'matrix.suite == \'init-java\' || matrix.suite == \'cli-integ-tests\'',
@@ -319,103 +550,14 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'distribution': 'corretto',
           },
         },
-        {
-          name: 'Authenticate Via OIDC Role',
-          id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v4',
-          with: {
-            'aws-region': 'us-east-1',
-            'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
-            // Expect this in Environment Variables
-            'role-to-assume': props.enableAtmosphere ? props.enableAtmosphere.oidcRoleArn : '${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}',
-            'role-session-name': 'run-tests@aws-cdk-cli-integ',
-            'output-credentials': true,
-          },
-        },
-        // This is necessary for the init tests to succeed, they set up a git repo.
-        {
-          name: 'Set git identity',
-          run: [
-            'git config --global user.name "aws-cdk-cli-integ"',
-            'git config --global user.email "noreply@example.com"',
-          ].join('\n'),
-        },
-        {
-          name: 'Install Verdaccio',
-          run: 'npm install -g verdaccio pm2',
-        },
-        {
-          name: 'Create Verdaccio config',
-          run: [
-            'mkdir -p $HOME/.config/verdaccio',
-            `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-          ].join('\n'),
-        },
-        {
-          name: 'Start Verdaccio',
-          run: [
-            'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
-            'sleep 5 # Wait for Verdaccio to start',
-          ].join('\n'),
-        },
-        {
-          name: 'Configure npm to use local registry',
-          run: [
-            // This token is a bogus token. It doesn't represent any actual secret, it just needs to exist.
-            'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
-            'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
-          ].join('\n'),
-        },
-        {
-          name: 'Find an locally publish all tarballs',
-          run: [
-            `for pkg in ${tarballBashExpr}; do`,
-            '  npm publish $pkg',
-            'done',
-          ].join('\n'),
-        },
-        {
-          name: 'Download and install the test artifact',
-          run: [
-            'npm install @aws-cdk-testing/cli-integ',
-          ].join('\n'),
-        },
-        {
-          name: 'Determine latest package versions',
-          id: 'versions',
-          run: [
-            'CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)',
-            'echo "CLI version: ${CLI_VERSION}"',
-            'echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT',
-            'LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)',
-            'echo "lib version: ${LIB_VERSION}"',
-            'echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT',
-          ].join('\n'),
-        },
+        awsAuthStep(props, 'run-tests@aws-cdk-cli-integ'),
+        gitIdentityStep(),
+        ...verdaccioSteps(),
+        determineVersionsStep(),
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
-          run: [
-            `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
-          ].join('\n'),
-          env: {
-            JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: 'true',
-            JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: 'true',
-            JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: 'true',
-            DOCKERHUB_DISABLED: 'true',
-            ...(props.enableAtmosphere ?
-              {
-                CDK_INTEG_ATMOSPHERE_ENABLED: 'true',
-                CDK_INTEG_ATMOSPHERE_ENDPOINT: props.enableAtmosphere.endpoint,
-                CDK_INTEG_ATMOSPHERE_POOL: props.enableAtmosphere.pool,
-              } :
-              {
-                AWS_REGIONS: ['us-east-2', 'eu-west-1', 'eu-north-1', 'ap-northeast-1', 'ap-south-1'].join(','),
-              }),
-            CDK_MAJOR_VERSION: '2',
-            RELEASE_TAG: 'latest',
-            GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
-            INTEG_LOGS: 'logs',
-          },
+          run: `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
+          env: testEnvVars(props),
         },
         {
           name: 'Set workflow summary',
@@ -427,13 +569,26 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'fi',
           ].join('\n'),
         },
+        // Slugify artifact ID, because matrix.node will contain invalid chars
+        {
+          name: 'Slugify artifact id',
+          if: 'always()',
+          id: 'artifactid',
+          run: [
+            'slug=$(node -p \'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")\')',
+            'echo "slug=$slug" >> "$GITHUB_OUTPUT"',
+          ].join('\n'),
+          env: {
+            INPUT: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+          },
+        },
         {
           name: 'Upload logs',
           if: 'always()',
           uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
           with: {
-            name: 'logs-${{ matrix.suite }}',
+            name: '${{ steps.artifactid.outputs.slug }}',
             path: 'logs/',
             overwrite: 'true',
           },
@@ -456,7 +611,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
     runTestsWorkflow.addJob('integ', {
       permissions: {},
       runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE, JOB_INTEG_MATRIX],
+      needs: [JOB_PREPARE, JOB_TELEMETRY, JOB_INTEG_MATRIX],
       if: 'always()',
       steps: [
         {
@@ -465,7 +620,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           // Don't fail the job if the test was successful or intentionally skipped
-          if: `\${{ !(contains(fromJSON('["success", "skipped"]'), needs.${JOB_PREPARE}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_INTEG_MATRIX}.result)) }}`,
+          if: `\${{ !(contains(fromJSON('["success", "skipped"]'), needs.${JOB_PREPARE}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_TELEMETRY}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_INTEG_MATRIX}.result)) }}`,
           name: 'Set status based on matrix job',
           run: 'exit 1',
         },

@@ -1,13 +1,13 @@
 import * as child_process from 'node:child_process';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
-import { ToolkitError } from '../../../toolkit/toolkit-error';
+import { AssemblyError } from '../../../toolkit/toolkit-error';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 
 interface ExecOptions {
   eventPublisher?: EventPublisher;
-  extraEnv?: { [key: string]: string | undefined };
+  env?: { [key: string]: string | undefined };
   cwd?: string;
 }
 
@@ -29,10 +29,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       detached: false,
       shell: true,
       cwd: options.cwd,
-      env: {
-        ...process.env,
-        ...(options.extraEnv ?? {}),
-      },
+      env: options.env,
     });
 
     const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
@@ -48,8 +45,14 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
           return;
       }
     });
+
+    const stderr = new Array<string>();
+
     proc.stdout.pipe(split()).on('data', (line) => eventPublisher('data_stdout', line));
-    proc.stderr.pipe(split()).on('data', (line) => eventPublisher('data_stderr', line));
+    proc.stderr.pipe(split()).on('data', (line) => {
+      stderr.push(line);
+      return eventPublisher('data_stderr', line);
+    });
 
     proc.on('error', fail);
 
@@ -57,7 +60,12 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       if (code === 0) {
         return ok();
       } else {
-        return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
+        let cause: Error | undefined;
+        if (stderr.length) {
+          cause = new Error(stderr.join('\n'));
+          cause.name = 'ExecutionError';
+        }
+        return fail(AssemblyError.withCause(`${commandAndArgs}: Subprocess exited with error ${code}`, cause));
       }
     });
   });

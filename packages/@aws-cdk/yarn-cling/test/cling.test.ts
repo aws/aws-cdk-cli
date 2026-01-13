@@ -84,5 +84,5 @@ test('fail when requires cannot be satisfied', async () => {
     },
   } as const;
 
-  expect(() => checkRequiredVersions(lockFile)).toThrow(/This can never/);
+  expect(() => checkRequiredVersions(lockFile)).toThrow(/NPM will not respect/);
 });

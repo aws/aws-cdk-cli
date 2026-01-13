@@ -1,6 +1,6 @@
 /**
- * @param maxAttempts the maximum number of attempts
- * @param interval interval in milliseconds to observe between attempts
+ * @param maxAttempts - the maximum number of attempts
+ * @param interval - interval in milliseconds to observe between attempts
  */
 export type EventuallyOptions = {
   maxAttempts?: number;
@@ -18,8 +18,8 @@ const DEFAULT_MAX_ATTEMPTS = 10;
  * Default interval = 1000 milliseconds
  * Default maxAttempts = 10
  *
- * @param fn function to run
- * @param options EventuallyOptions
+ * @param fn - function to run
+ * @param options - EventuallyOptions
  */
 const eventually = async <T>(call: () => Promise<T>, options?: EventuallyOptions): Promise<T> => {
   const opts = {

@@ -1,4 +1,4 @@
-const { Stack, Duration } = require('aws-cdk-lib');
+const { Stack, Duration } = require('aws-cdk-lib/core');
 // const sqs = require('aws-cdk-lib/aws-sqs');
 
 class %name.PascalCased%Stack extends Stack {

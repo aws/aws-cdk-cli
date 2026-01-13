@@ -36,7 +36,7 @@ export function some(node: ConstructTreeNode | undefined, predicate: (n: Constru
   }
 }
 
-export async function loadTree(assembly: CloudAssembly, trace: (msg: string) => Promise<void>): Promise<ConstructTreeNode | undefined > {
+export async function loadTree(assembly: CloudAssembly, trace: (msg: string) => Promise<void>): Promise<ConstructTreeNode | undefined> {
   try {
     const outdir = assembly.directory;
     const fileName = assembly.tree()?.file;

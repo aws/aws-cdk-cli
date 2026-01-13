@@ -1,16 +1,14 @@
 import * as path from 'path';
+import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
-import { cfnApi } from '../../lib/api/shared-private';
+import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
-
-// tests using fixtures can sometimes take a bit longer
-jest.setTimeout(10_000);
+import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -51,11 +49,14 @@ describe('diff', () => {
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
+      level: 'result',
       code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
       data: expect.objectContaining({
-        formattedStackDiff: expect.stringContaining((chalk.bold('Stack1'))),
+        numStacksWithChanges: 1,
+        diffs: expect.objectContaining({
+          Stack1: expect.anything(),
+        }),
       }),
     }));
   });
@@ -75,6 +76,78 @@ describe('diff', () => {
             isAddition: true,
             isRemoval: false,
             oldValue: undefined,
+            newValue: {
+              Type: 'AWS::S3::Bucket',
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          }),
+        }),
+      },
+    }));
+  });
+
+  const resources = {
+    OldLogicalID: {
+      Type: 'AWS::S3::Bucket',
+      UpdateReplacePolicy: 'Retain',
+      DeletionPolicy: 'Retain',
+      Metadata: { 'aws:cdk:path': 'Stack1/OldLogicalID/Resource' },
+    },
+  };
+
+  test('returns diff augmented with moves', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
+      StackSummaries: [
+        {
+          StackName: 'Stack1',
+          StackId: 'arn:aws:cloudformation:us-east-1:999999999999:stack/Stack1',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
+
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Parameters: {},
+        resources,
+      },
+      nestedStacks: [] as any,
+    });
+
+    mockCloudFormationClient
+      .on(GetTemplateCommand, {
+        StackName: 'Stack1',
+      })
+      .resolves({
+        TemplateBody: JSON.stringify({
+          Resources: resources,
+        }),
+      });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      includeMoves: true,
+    });
+
+    // THEN
+    expect(result.Stack1).toMatchObject(expect.objectContaining({
+      resources: {
+        diffs: expect.objectContaining({
+          MyBucketF68F3FF0: expect.objectContaining({
+            isAddition: true,
+            isRemoval: false,
+            oldValue: undefined,
+            move: {
+              direction: 'from',
+              resourceLogicalId: 'OldLogicalID',
+              stackName: 'Stack1',
+            },
             newValue: {
               Type: 'AWS::S3::Bucket',
               UpdateReplacePolicy: 'Retain',
@@ -131,12 +204,11 @@ describe('diff', () => {
     }));
   });
 
-  test('only security diff', async () => {
+  test('security diff', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
-      securityOnly: true,
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
     });
 
@@ -144,16 +216,16 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'warn',
-      code: 'CDK_TOOLKIT_W0000',
       message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I4001',
-      message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
       data: expect.objectContaining({
-        formattedSecurityDiff: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
+        formattedDiff: expect.objectContaining({
+          security: expect.stringContaining((chalk.underline(chalk.bold('IAM Statement Changes')))),
+        }),
       }),
     }));
 
@@ -183,17 +255,17 @@ describe('diff', () => {
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-      securityOnly: true,
     });
 
     // THEN
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I4001',
-      message: expect.stringContaining('✨ Number of stacks with differences: 0'),
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
       data: expect.objectContaining({
-        formattedSecurityDiff: '',
+        formattedDiff: expect.objectContaining({
+          security: undefined,
+        }),
       }),
     }));
   });
@@ -208,19 +280,13 @@ describe('diff', () => {
 
     // THEN
     expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
-      action: 'diff',
-      level: 'info',
-      code: 'CDK_TOOLKIT_I0000',
       message: expect.stringContaining('Could not create a change set'),
     }));
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
-      level: 'info',
+      level: 'result',
       code: 'CDK_TOOLKIT_I4001',
       message: expect.stringContaining('✨ Number of stacks with differences: 1'),
-      data: expect.objectContaining({
-        formattedStackDiff: expect.stringContaining(chalk.bold('Stack1')),
-      }),
     }));
   });
 
@@ -238,7 +304,6 @@ describe('diff', () => {
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         action: 'diff',
         level: 'info',
-        code: 'CDK_TOOLKIT_I0000',
         message: expect.stringContaining('Could not create a change set, will base the diff on template differences'),
       }));
     });
@@ -346,7 +411,6 @@ describe('diff', () => {
       const cx = await builderFixture(toolkit, 'stack-with-role');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
-        securityOnly: true,
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
       });
 
@@ -354,7 +418,6 @@ describe('diff', () => {
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         action: 'diff',
         level: 'warn',
-        code: 'CDK_TOOLKIT_W0000',
         message: expect.stringContaining('This deployment will make potentially sensitive changes according to your current security approval level'),
       }));
       expect(result.Stack1).toMatchObject(expect.objectContaining({

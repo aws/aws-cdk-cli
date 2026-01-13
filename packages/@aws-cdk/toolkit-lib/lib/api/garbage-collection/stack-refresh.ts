@@ -97,11 +97,18 @@ function bootstrapFilter(parameters?: ParameterDeclaration[], qualifier?: string
           splitBootstrapVersion[2] != qualifier);
 }
 
-export async function refreshStacks(cfn: ICloudFormationClient, ioHelper: IoHelper, activeAssets: ActiveAssetCache, qualifier?: string) {
+export interface RefreshStacksProps {
+  readonly cfn: ICloudFormationClient;
+  readonly ioHelper: IoHelper;
+  readonly activeAssets: ActiveAssetCache;
+  readonly qualifier?: string;
+}
+
+export async function refreshStacks(props: RefreshStacksProps) {
   try {
-    const stacks = await fetchAllStackTemplates(cfn, ioHelper, qualifier);
+    const stacks = await fetchAllStackTemplates(props.cfn, props.ioHelper, props.qualifier);
     for (const stack of stacks) {
-      activeAssets.rememberStack(stack);
+      props.activeAssets.rememberStack(stack);
     }
   } catch (err) {
     throw new ToolkitError(`Error refreshing stacks: ${err}`);
@@ -154,7 +161,12 @@ export class BackgroundStackRefresh {
   private async refresh() {
     const startTime = Date.now();
 
-    await refreshStacks(this.props.cfn, this.props.ioHelper, this.props.activeAssets, this.props.qualifier);
+    await refreshStacks({
+      cfn: this.props.cfn,
+      ioHelper: this.props.ioHelper,
+      activeAssets: this.props.activeAssets,
+      qualifier: this.props.qualifier,
+    });
     this.justRefreshedStacks();
 
     // If the last invocation of refreshStacks takes <5 minutes, the next invocation starts 5 minutes after the last one started.

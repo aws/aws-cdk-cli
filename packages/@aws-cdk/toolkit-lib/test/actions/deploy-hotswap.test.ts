@@ -1,8 +1,6 @@
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 
-jest.setTimeout(10_000);
-
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
 

@@ -26,7 +26,7 @@ test('stop executing if context providers are not making progress', async () => 
     },
   });
 
-  const cloudExecutable = new MockCloudExecutable({
+  const cloudExecutable = await MockCloudExecutable.create({
     stacks: [{
       stackName: 'thestack',
       template: { resource: 'noerrorresource' },
@@ -46,7 +46,7 @@ test('stop executing if context providers are not making progress', async () => 
 
 test('fails if lookups are disabled and missing context is synthesized', async () => {
   // GIVEN
-  const cloudExecutable = new MockCloudExecutable({
+  const cloudExecutable = await MockCloudExecutable.create({
     stacks: [{
       stackName: 'thestack',
       template: { resource: 'noerrorresource' },
@@ -66,7 +66,7 @@ async function testCloudExecutable(
   { env, versionReporting = true, schemaVersion }:
   { env?: string; versionReporting?: boolean; schemaVersion?: string } = {},
 ) {
-  const cloudExec = new MockCloudExecutable({
+  const cloudExec = await MockCloudExecutable.create({
     stacks: [{
       stackName: 'withouterrors',
       env,

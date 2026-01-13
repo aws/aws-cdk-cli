@@ -1,4 +1,4 @@
-import type { StackSelector } from '../../api/cloud-assembly';
+import type { StackSelector } from '../../api';
 
 export interface RefactorOptions {
   /**
@@ -9,49 +9,43 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * Criteria for selecting stacks to deploy
-   *
-   * @default - all stacks
+   * List of overrides to be applied to resolve possible ambiguities in the
+   * computed list of mappings.
    */
-  stacks?: StackSelector;
+  readonly overrides?: MappingGroup[];
 
   /**
-   * A list of resources that will not be part of the refactor.
-   * Elements of this list must be the _destination_ locations
-   * that should be excluded, i.e., the location to which a
-   * resource would be moved if the refactor were to happen.
-   *
-   * The format of the locations in the file can be either:
-   *
-   * - Stack name and logical ID (e.g. `Stack1.MyQueue`)
-   * - A construct path (e.g. `Stack1/Foo/Bar/Resource`).
+   * Criteria for selecting stacks to compare with the deployed stacks in the
+   * target environment.
    */
-  exclude?: string[];
+  readonly stacks?: StackSelector;
 
   /**
-   * An explicit mapping to be used by the toolkit (as opposed to letting the
-   * toolkit itself compute the mapping).
+   * A list of names of additional deployed stacks to be included in the comparison.
    */
-  mappings?: MappingGroup[];
+  readonly additionalStackNames?: string[];
 
   /**
-   * Modifies the behavior of the 'mappings' option by swapping source and
-   * destination locations. This is useful when you want to undo a refactor
-   * that was previously applied.
+   * Whether to do the refactor without prompting the user for confirmation.
    */
-  revert?: boolean;
+  force?: boolean;
+
+  /**
+   * Role to assume in the target environment before performing the refactor.
+   */
+  roleArn?: string;
 }
 
 export interface MappingGroup {
   /**
    * The account ID of the environment in which the mapping is valid.
    */
-  account: string;
+  readonly account: string;
 
   /**
    * The region of the environment in which the mapping is valid.
    */
-  region: string;
+  readonly region: string;
 
   /**
    * A collection of resource mappings, where each key is the source location
@@ -61,7 +55,7 @@ export interface MappingGroup {
    * location that is not already occupied by any resource.
    *
    */
-  resources: {
-    [key: string]: string;
+  readonly resources: {
+    readonly [key: string]: string;
   };
 }

@@ -13,10 +13,10 @@ jobs:
       publish-aws-cdk-cloud-assembly-schema: ${{ steps.check-publish-aws-cdk-cloud-assembly-schema.outputs.publish }}
       publish-aws-cdk-cloudformation-diff: ${{ steps.check-publish-aws-cdk-cloudformation-diff.outputs.publish }}
       publish-aws-cdk-cli-plugin-contract: ${{ steps.check-publish-aws-cdk-cli-plugin-contract.outputs.publish }}
+      publish-aws-cdk-cdk-assets-lib: ${{ steps.check-publish-aws-cdk-cdk-assets-lib.outputs.publish }}
       publish-cdk-assets: ${{ steps.check-publish-cdk-assets.outputs.publish }}
       publish-aws-cdk-toolkit-lib: ${{ steps.check-publish-aws-cdk-toolkit-lib.outputs.publish }}
       publish-aws-cdk: ${{ steps.check-publish-aws-cdk.outputs.publish }}
-      publish-aws-cdk-cli-lib-alpha: ${{ steps.check-publish-aws-cdk-cli-lib-alpha.outputs.publish }}
       publish-cdk: ${{ steps.check-publish-cdk.outputs.publish }}
       publish-aws-cdk-integ-runner: ${{ steps.check-publish-aws-cdk-integ-runner.outputs.publish }}
       publish-aws-cdk-testing-cli-integ: ${{ steps.check-publish-aws-cdk-testing-cli-integ.outputs.publish }}
@@ -24,13 +24,13 @@ jobs:
       CI: "true"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Set git identity
         run: |-
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -48,6 +48,9 @@ jobs:
       - id: check-publish-aws-cdk-cli-plugin-contract
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/@aws-cdk/cli-plugin-contract
+      - id: check-publish-aws-cdk-cdk-assets-lib
+        run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
+        working-directory: packages/@aws-cdk/cdk-assets-lib
       - id: check-publish-cdk-assets
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/cdk-assets
@@ -57,9 +60,6 @@ jobs:
       - id: check-publish-aws-cdk
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/aws-cdk
-      - id: check-publish-aws-cdk-cli-lib-alpha
-        run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
-        working-directory: packages/@aws-cdk/cli-lib-alpha
       - id: check-publish-cdk
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/cdk
@@ -79,7 +79,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloud-assembly-schema
       - name: "@aws-cdk/cloud-assembly-schema: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: packages/@aws-cdk/cloud-assembly-schema/dist
@@ -91,7 +91,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloudformation-diff
       - name: "@aws-cdk/cloudformation-diff: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: packages/@aws-cdk/cloudformation-diff/dist
@@ -103,10 +103,22 @@ jobs:
         working-directory: packages/@aws-cdk/cli-plugin-contract
       - name: "@aws-cdk/cli-plugin-contract: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: packages/@aws-cdk/cli-plugin-contract/dist
+          overwrite: true
+      - name: "@aws-cdk/cdk-assets-lib: Backup artifact permissions"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        run: cd dist && getfacl -R . > permissions-backup.acl
+        continue-on-error: true
+        working-directory: packages/@aws-cdk/cdk-assets-lib
+      - name: "@aws-cdk/cdk-assets-lib: Upload artifact"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: aws-cdk-cdk-assets-lib_build-artifact
+          path: packages/@aws-cdk/cdk-assets-lib/dist
           overwrite: true
       - name: "cdk-assets: Backup artifact permissions"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
@@ -115,7 +127,7 @@ jobs:
         working-directory: packages/cdk-assets
       - name: "cdk-assets: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: cdk-assets_build-artifact
           path: packages/cdk-assets/dist
@@ -127,7 +139,7 @@ jobs:
         working-directory: packages/@aws-cdk/toolkit-lib
       - name: "@aws-cdk/toolkit-lib: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: packages/@aws-cdk/toolkit-lib/dist
@@ -139,22 +151,10 @@ jobs:
         working-directory: packages/aws-cdk
       - name: "aws-cdk: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk_build-artifact
           path: packages/aws-cdk/dist
-          overwrite: true
-      - name: "@aws-cdk/cli-lib-alpha: Backup artifact permissions"
-        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        run: cd dist && getfacl -R . > permissions-backup.acl
-        continue-on-error: true
-        working-directory: packages/@aws-cdk/cli-lib-alpha
-      - name: "@aws-cdk/cli-lib-alpha: Upload artifact"
-        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: packages/@aws-cdk/cli-lib-alpha/dist
           overwrite: true
       - name: "cdk: Backup artifact permissions"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
@@ -163,7 +163,7 @@ jobs:
         working-directory: packages/cdk
       - name: "cdk: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: cdk_build-artifact
           path: packages/cdk/dist
@@ -175,7 +175,7 @@ jobs:
         working-directory: packages/@aws-cdk/integ-runner
       - name: "@aws-cdk/integ-runner: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: packages/@aws-cdk/integ-runner/dist
@@ -187,7 +187,7 @@ jobs:
         working-directory: packages/@aws-cdk-testing/cli-integ
       - name: "@aws-cdk-testing/cli-integ: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: packages/@aws-cdk-testing/cli-integ/dist
@@ -218,13 +218,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -242,13 +243,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -256,7 +258,7 @@ jobs:
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: .repo
       - name: Install Dependencies
@@ -274,7 +276,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cloud-assembly-schema_release_maven:
     name: "@aws-cdk/cloud-assembly-schema: Publish to Maven Central"
@@ -282,17 +284,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: corretto
           java-version: "11"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -300,7 +303,7 @@ jobs:
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: .repo
       - name: Install Dependencies
@@ -315,7 +318,7 @@ jobs:
         run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
-          MAVEN_ENDPOINT: https://aws.oss.sonatype.org
+          MAVEN_SERVER_ID: central-ossrh
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           MAVEN_GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.MAVEN_GPG_PRIVATE_KEY_PASSPHRASE }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
@@ -328,16 +331,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -345,7 +350,7 @@ jobs:
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: .repo
       - name: Install Dependencies
@@ -360,8 +365,7 @@ jobs:
         run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+          PYPI_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-pypi
   aws-cdk-cloud-assembly-schema_release_nuget:
     name: "@aws-cdk/cloud-assembly-schema: Publish to NuGet Gallery"
@@ -369,16 +373,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 6.x
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -386,7 +391,7 @@ jobs:
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: .repo
       - name: Install Dependencies
@@ -409,16 +414,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ^1.18.0
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -426,7 +432,7 @@ jobs:
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: .repo
       - name: Install Dependencies
@@ -441,8 +447,8 @@ jobs:
         run: mv .repo/packages/@aws-cdk/cloud-assembly-schema/dist dist
       - name: Release
         env:
-          GIT_USER_NAME: github-actions
-          GIT_USER_EMAIL: github-actions@github.com
+          GIT_USER_NAME: github-actions[bot]
+          GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
         run: npx -p publib@latest publib-golang
   aws-cdk-cloudformation-diff_release_github:
@@ -453,13 +459,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: dist
@@ -477,13 +484,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: dist
@@ -495,7 +503,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-cli-plugin-contract_release_github:
     name: "@aws-cdk/cli-plugin-contract: Publish to GitHub Releases"
@@ -505,13 +513,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: dist
@@ -529,13 +538,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: dist
@@ -547,7 +557,61 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
+        run: npx -p publib@latest publib-npm
+  aws-cdk-cdk-assets-lib_release_github:
+    name: "@aws-cdk/cdk-assets-lib: Publish to GitHub Releases"
+    needs:
+      - release
+      - aws-cdk-cdk-assets-lib_release_npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: releasing
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: aws-cdk-cdk-assets-lib_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+  aws-cdk-cdk-assets-lib_release_npm:
+    name: "@aws-cdk/cdk-assets-lib: Publish to npm"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: releasing
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: aws-cdk-cdk-assets-lib_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          NPM_DIST_TAG: latest
+          NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   cdk-assets_release_github:
     name: "cdk-assets: Publish to GitHub Releases"
@@ -557,13 +621,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: cdk-assets_build-artifact
           path: dist
@@ -581,13 +646,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: cdk-assets_build-artifact
           path: dist
@@ -599,7 +665,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-toolkit-lib_release_github:
     name: "@aws-cdk/toolkit-lib: Publish to GitHub Releases"
@@ -609,13 +675,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: dist
@@ -633,13 +700,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: dist
@@ -651,7 +719,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk_release_github:
     name: "aws-cdk: Publish to GitHub Releases"
@@ -661,13 +729,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk_build-artifact
           path: dist
@@ -685,13 +754,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk_build-artifact
           path: dist
@@ -703,247 +773,8 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
-  aws-cdk-cli-lib-alpha_release_github:
-    name: "@aws-cdk/cli-lib-alpha: Publish to GitHub Releases"
-    needs:
-      - release
-      - aws-cdk-cli-lib-alpha_release_npm
-      - aws-cdk-cli-lib-alpha_release_maven
-      - aws-cdk-cli-lib-alpha_release_pypi
-      - aws-cdk-cli-lib-alpha_release_nuget
-      - aws-cdk-cli-lib-alpha_release_golang
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
-  aws-cdk-cli-lib-alpha_release_npm:
-    name: "@aws-cdk/cli-lib-alpha: Publish to npm"
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: .repo
-      - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
-      - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
-      - name: Move build artifact out of the way
-        run: mv dist dist.old
-      - name: Create js artifact
-        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:js
-      - name: Collect js artifact
-        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
-      - name: Release
-        env:
-          NPM_DIST_TAG: latest
-          NPM_REGISTRY: registry.npmjs.org
-          NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx -p publib@latest publib-npm
-  aws-cdk-cli-lib-alpha_release_maven:
-    name: "@aws-cdk/cli-lib-alpha: Publish to Maven Central"
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
-    steps:
-      - uses: actions/setup-java@v4
-        with:
-          distribution: corretto
-          java-version: "11"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: .repo
-      - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
-      - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
-      - name: Move build artifact out of the way
-        run: mv dist dist.old
-      - name: Create java artifact
-        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:java
-      - name: Collect java artifact
-        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
-      - name: Release
-        env:
-          MAVEN_ENDPOINT: https://aws.oss.sonatype.org
-          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          MAVEN_GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.MAVEN_GPG_PRIVATE_KEY_PASSPHRASE }}
-          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
-          MAVEN_STAGING_PROFILE_ID: ${{ secrets.MAVEN_STAGING_PROFILE_ID }}
-        run: npx -p publib@latest publib-maven
-  aws-cdk-cli-lib-alpha_release_pypi:
-    name: "@aws-cdk/cli-lib-alpha: Publish to PyPI"
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.x
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: .repo
-      - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
-      - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
-      - name: Move build artifact out of the way
-        run: mv dist dist.old
-      - name: Create python artifact
-        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:python
-      - name: Collect python artifact
-        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
-      - name: Release
-        env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-        run: npx -p publib@latest publib-pypi
-  aws-cdk-cli-lib-alpha_release_nuget:
-    name: "@aws-cdk/cli-lib-alpha: Publish to NuGet Gallery"
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 6.x
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: .repo
-      - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
-      - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
-      - name: Move build artifact out of the way
-        run: mv dist dist.old
-      - name: Create dotnet artifact
-        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:dotnet
-      - name: Collect dotnet artifact
-        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
-      - name: Release
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: npx -p publib@latest publib-nuget
-  aws-cdk-cli-lib-alpha_release_golang:
-    name: "@aws-cdk/cli-lib-alpha: Publish to GitHub Go Module Repository"
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-lib-alpha == 'true' }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ^1.18.0
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-cli-lib-alpha_build-artifact
-          path: dist
-      - name: Restore build artifact permissions
-        run: cd dist && setfacl --restore=permissions-backup.acl
-        continue-on-error: true
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: .repo
-      - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
-      - name: Extract build artifact
-        run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cli-lib-alpha
-      - name: Move build artifact out of the way
-        run: mv dist dist.old
-      - name: Create go artifact
-        run: cd .repo/packages/@aws-cdk/cli-lib-alpha && npx projen package:go
-      - name: Collect go artifact
-        run: mv .repo/packages/@aws-cdk/cli-lib-alpha/dist dist
-      - name: Release
-        env:
-          GIT_USER_NAME: github-actions
-          GIT_USER_EMAIL: github-actions@github.com
-          GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
-        run: npx -p publib@latest publib-golang
   cdk_release_github:
     name: "cdk: Publish to GitHub Releases"
     needs:
@@ -952,13 +783,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: cdk_build-artifact
           path: dist
@@ -976,13 +808,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: cdk_build-artifact
           path: dist
@@ -994,7 +827,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-integ-runner_release_github:
     name: "@aws-cdk/integ-runner: Publish to GitHub Releases"
@@ -1004,13 +837,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: dist
@@ -1028,13 +862,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: dist
@@ -1046,7 +881,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   aws-cdk-testing-cli-integ_release_github:
     name: "@aws-cdk-testing/cli-integ: Publish to GitHub Releases"
@@ -1056,13 +891,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: dist
@@ -1080,13 +916,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: dist
@@ -1098,7 +935,7 @@ jobs:
           NPM_DIST_TAG: latest
           NPM_REGISTRY: registry.npmjs.org
           NPM_CONFIG_PROVENANCE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TRUSTED_PUBLISHER: "true"
         run: npx -p publib@latest publib-npm
   standalone_release_adc:
     name: "standalone: publish to ADC"
@@ -1111,7 +948,7 @@ jobs:
     if: ${{ needs.release.outputs.latest_commit == github.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
@@ -1166,68 +1003,6 @@ jobs:
         run: |-
           aws ssm put-parameter --name "/published/cdk/cli-npm/version" --type "String" --value "${{ steps.aws-cdk-version.outputs.version }}" --overwrite
           aws ssm put-parameter --name "/published/cdk/cli-npm/timestamp" --type "String" --value "$(date +%s)" --overwrite
-  aws-cdk-toolkit-lib_release_typedoc:
-    name: "@aws-cdk/toolkit-lib: Publish typedoc to S3"
-    needs: aws-cdk-toolkit-lib_release_npm
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    environment: releasing
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: aws-cdk-toolkit-lib_build-artifact
-          path: dist
-      - name: Authenticate Via OIDC Role
-        id: creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: s3-docs-publishing@aws-cdk-cli
-          mask-aws-account-id: true
-      - name: Assume the publishing role
-        id: publishing-creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
-          role-session-name: s3-docs-publishing@aws-cdk-cli
-          mask-aws-account-id: true
-          role-chaining: true
-      - name: Publish typedoc
-        env:
-          BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
-          DOCS_STREAM: toolkit-lib
-        run: |-
-          echo "Uploading typedoc to S3"
-          echo "::add-mask::$BUCKET_NAME"
-          S3_PATH="$DOCS_STREAM/aws-cdk-toolkit-lib-v$(cat dist/version.txt).zip"
-          LATEST="latest-toolkit-lib"
-
-          # Capture both stdout and stderr
-          if OUTPUT=$(aws s3api put-object \
-            --bucket "$BUCKET_NAME" \
-            --key "$S3_PATH" \
-            --body dist/docs.zip \
-            --if-none-match "*" 2>&1); then
-            
-            # File was uploaded successfully, update the latest pointer
-            echo "New typedoc artifact uploaded successfully, updating latest pointer"
-            echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
-
-          elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
-            # Check specifically for PreconditionFailed in the error output
-            echo "::warning::File already exists in S3. Skipping upload."
-            exit 0
-
-          else
-            # Any other error (permissions, etc)
-            echo "::error::Failed to upload typedoc artifact"
-            exit 1
-          fi
   aws-cdk-toolkit-lib_release_api_extractor:
     name: "@aws-cdk/toolkit-lib: Publish api-extractor to S3"
     needs: aws-cdk-toolkit-lib_release_npm

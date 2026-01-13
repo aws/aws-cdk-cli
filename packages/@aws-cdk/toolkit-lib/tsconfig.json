@@ -30,6 +30,7 @@
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "declarationMap": true,
     "composite": true
   },
   "include": [
@@ -44,7 +45,7 @@
       "path": "../cloudformation-diff"
     },
     {
-      "path": "../../cdk-assets"
+      "path": "../cdk-assets-lib"
     },
     {
       "path": "../cli-plugin-contract"

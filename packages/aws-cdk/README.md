@@ -9,51 +9,47 @@
 
 <!--END STABILITY BANNER-->
 
-The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications.
+The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
-| Command                               | Description                                                                       |
-|---------------------------------------|-----------------------------------------------------------------------------------|
-| [`cdk docs`](#cdk-docs)               | Access the online documentation                                                   |
-| [`cdk init`](#cdk-init)               | Start a new CDK project (app or library)                                          |
-| [`cdk list`](#cdk-list)               | List stacks and their dependencies in an application                              |
-| [`cdk synth`](#cdk-synthesize)        | Synthesize a CDK app to CloudFormation template(s)                                |
-| [`cdk diff`](#cdk-diff)               | Diff stacks against current state                                                 |
-| [`cdk deploy`](#cdk-deploy)           | Deploy a stack into an AWS account                                                |
-| [`cdk rollback`](#cdk-rollback)       | Roll back a failed deployment                                                     |
-| [`cdk import`](#cdk-import)           | Import existing AWS resources into a CDK stack                                    |
-| [`cdk migrate`](#cdk-migrate)         | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
-| [`cdk watch`](#cdk-watch)             | Watches a CDK app for deployable and hotswappable changes                         |
-| [`cdk destroy`](#cdk-destroy)         | Deletes a stack from an AWS account                                               |
-| [`cdk bootstrap`](#cdk-bootstrap)     | Deploy a toolkit stack to support deploying large stacks & artifacts              |
-| [`cdk gc`](#cdk-gc)                   | Garbage collect assets associated with the bootstrapped stack                     |
-| [`cdk doctor`](#cdk-doctor)           | Inspect the environment and produce information useful for troubleshooting        |
-| [`cdk acknowledge`](#cdk-acknowledge) | Acknowledge (and hide) a notice by issue number                                   |
-| [`cdk notices`](#cdk-notices)         | List all relevant notices for the application                                     |
-| [`cdk refactor`](#cdk-refactor)       | Moves resources between stacks or within the same stack                           |
+| Command                                   | Description                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| [`cdk docs`](#cdk-docs)                   | Access the online documentation                                                   |
+| [`cdk init`](#cdk-init)                   | Start a new CDK project (app or library)                                          |
+| [`cdk list`](#cdk-list)                   | List stacks and their dependencies in an application                              |
+| [`cdk synth`](#cdk-synth)                 | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk diff`](#cdk-diff)                   | Diff stacks against current state                                                 |
+| [`cdk deploy`](#cdk-deploy)               | Deploy a stack into an AWS account                                                |
+| [`cdk rollback`](#cdk-rollback)           | Roll back a failed deployment                                                     |
+| [`cdk import`](#cdk-import)               | Import existing AWS resources into a CDK stack                                    |
+| [`cdk migrate`](#cdk-migrate)             | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
+| [`cdk watch`](#cdk-watch)                 | Watches a CDK app for deployable and hotswappable changes                         |
+| [`cdk destroy`](#cdk-destroy)             | Deletes a stack from an AWS account                                               |
+| [`cdk bootstrap`](#cdk-bootstrap)         | Deploy a toolkit stack to support deploying large stacks & artifacts              |
+| [`cdk gc`](#cdk-gc)                       | Garbage collect assets associated with the bootstrapped stack                     |
+| [`cdk doctor`](#cdk-doctor)               | Inspect the environment and produce information useful for troubleshooting        |
+| [`cdk acknowledge`](#cdk-acknowledge)     | Acknowledge (and hide) a notice by issue number                                   |
+| [`cdk notices`](#cdk-notices)             | List all relevant notices for the application                                     |
+| [`cdk refactor`](#cdk-refactor)           | Moves resources between stacks or within the same stack                           |
+| [`cdk drift`](#cdk-drift)                 | Detect drifts in the given CloudFormation stack(s)                                |
+| [`cdk cli-telemetry`](#cdk-cli-telemetry) | Enable or disable cli telemetry collection                                        |
+| [`cdk flags`](#cdk-flags)                 | View and modify your feature flag configurations                                  |
 
-- [Bundling](#bundling)
-- [MFA Support](#mfa-support)
-- [SSO Support](#sso-support)
+## Common topics
+
+- Usage
+  - [Asset bundling](#bundling)
+  - [Preview features](#unstable)
+- Authentication
+  - [MFA Support](#mfa-support)
+  - [SSO Support](#sso-support)
 - [Configuration](#configuration)
   - [Running in CI](#running-in-ci)
 
+## Requirements
 
-This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
-
-## Global Options
-
-### `unstable`
-
-The `--unstable` flag indicates that the scope and API of a feature might still change.
-Otherwise the feature is generally production ready and fully supported. For example,
-`cdk gc` is gated behind an `--unstable` flag:
-
-```bash
-cdk gc --unstable=gc
-```
-
-The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
-is aware of the caveats in place for the feature.
+You need [Node.js](https://nodejs.org/en/download) or another JavaScript runtime to use the AWS CDK Toolkit CLI. We recommend using the [Node.js version in Active LTS](https://nodejs.org/en/about/previous-releases).
+The minimal supported version is **Node.js v18**.
+See our [Support Policy](https://docs.aws.amazon.com/cdk/v2/guide/node-versions.html) for full details.
 
 ## Commands
 
@@ -80,11 +76,11 @@ $ # List the available template types & languages
 $ cdk init --list
 Available templates:
 * app: Template for a CDK Application
-   └─ cdk init app --language=[csharp|fsharp|java|javascript|python|typescript]
+   └─ cdk init app --language=[csharp|cs|fsharp|fs|java|javascript|js|python|py|typescript|ts]
 * lib: Template for a CDK Construct Library
    └─ cdk init lib --language=typescript
 * sample-app: Example CDK Application with some constructs
-   └─ cdk init sample-app --language=[csharp|fsharp|java|javascript|python|typescript]
+   └─ cdk init sample-app --language=[csharp|cs|fsharp|fs|java|javascript|js|python|py|typescript|ts]
 
 $ # Create a new library application in typescript
 $ cdk init lib --language=typescript
@@ -123,7 +119,7 @@ $ cdk list --app='node bin/main.js' --long
         region: bermuda-triangle-3
 ```
 
-### `cdk synthesize`
+### `cdk synth`
 
 Synthesizes the CDK app and produces a cloud assembly to a designated output (defaults to `cdk.out`)
 
@@ -524,11 +520,11 @@ Hotswapping is currently supported for the following changes
 
 You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 
-| Property                       | Description                          | Default     |
-|--------------------------------|--------------------------------------|-------------|
-| minimumHealthyPercent          | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount  | **REPLICA:** 100, **DAEMON:** 0 |
-| maximumHealthyPercent          | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount    | **REPLICA:** 200, **DAEMON:**: N/A |
-| stabilizationTimeoutSeconds    | Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount    | 600 |
+| Property                    | Description                                                                                                                                                 | Default                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| minimumHealthyPercent       | Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount            | **REPLICA:** 100, **DAEMON:** 0    |
+| maximumHealthyPercent       | Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount | **REPLICA:** 200, **DAEMON:**: N/A |
+| stabilizationTimeoutSeconds | Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount                                   | 600                                |
 
 ##### cdk.json
 
@@ -570,6 +566,14 @@ and might have breaking changes in the future.
 - `Fn::Sub`
 
 > *: `Fn::GetAtt` is only partially supported. Refer to [this implementation](https://github.com/aws/aws-cdk-cli/blob/main/packages/aws-cdk/lib/api/cloudformation/evaluate-cloudformation-template.ts#L256-L266) for supported resources and attributes.
+
+
+##### Deploy flowchart
+
+This flowchart provides a high-level overview of the deployment process.
+For technical implementation details (function calls, file locations), see [docs/deploy-architecture.md](./docs/deploy-architecture.md).
+
+![Deploy flowchart](./images/deploy-flowchart.png)
 
 ### `cdk rollback`
 
@@ -859,13 +863,13 @@ before deploying the generated application.
 
 In practice this is how CDK Migrate generated applications will operate in the following scenarios:
 
-| Situation                                                                                         | Result                                                                        |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a changeset to the existing stack          |
-| Provided template has no overlap with resources already in the account/region                     | The CDK application will deploy a new stack successfully                      |
-| Provided template has overlap with Cloudformation managed resources already in the account/region | The CDK application will not be deployable unless those resources are removed |
-| Provided template has overlap with un-managed resources already in the account/region              | The CDK application will not be deployable until those resources are adopted with [`cdk import`](#cdk-import) |
-| No template has been provided and resources exist in the region the scan is done | The CDK application will be immediatly deployable and will import those resources into a new cloudformation stack upon deploy |
+| Situation                                                                                         | Result                                                                                                                        |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a changeset to the existing stack                                                          |
+| Provided template has no overlap with resources already in the account/region                     | The CDK application will deploy a new stack successfully                                                                      |
+| Provided template has overlap with Cloudformation managed resources already in the account/region | The CDK application will not be deployable unless those resources are removed                                                 |
+| Provided template has overlap with un-managed resources already in the account/region             | The CDK application will not be deployable until those resources are adopted with [`cdk import`](#cdk-import)                 |
+| No template has been provided and resources exist in the region the scan is done                  | The CDK application will be immediatly deployable and will import those resources into a new cloudformation stack upon deploy |
 
 ##### **The provided template is already deployed to CloudFormation in the account/region**
 
@@ -1107,8 +1111,12 @@ when using this command.
 
 Compares the infrastructure specified in the current state of the CDK app with 
 the currently deployed application, to determine if any resource was moved 
-(to a different stack or to a different logical ID, or both). The CLI will 
-show the correspondence between the old and new locations in a table:
+(to a different stack or to a different logical ID, or both). In keeping with
+the CloudFormation API, you are not allowed to modify the set of resources
+as part of a refactor. In other words, adding, deleting or updating resources
+is considered an error.
+
+The CLI will show the correspondence between the old and new locations in a table:
 
 ```
 $ cdk refactor --unstable=refactor --dry-run
@@ -1131,41 +1139,49 @@ show this table and exit. Eventually, the CLI will also be able to automatically
 apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
 mode is supported.
 
-If you want to exclude some resources from the refactor, you can pass an 
-exclude file, containing a list of destination locations to exclude. A 
-location can be either the stack name + logical ID, or the construct path. For  
-example, if you don't want to include the bucket and the distribution from 
-the table above in the refactor, you can create a file called 
-`exclude.txt` with the following content (destination locations separated by 
-newlines): 
-
-```
-Web/Website/Origin/Resource
-Web/Website/Distribution/Resource
-```
-
-and pass it to the CLI via the `--exclude-file` flag:
+If your application has more than one stack, and you want the `refactor`
+command to consider only a subset of them, you can specify the stacks you
+want, both local and deployed:
 
 ```shell
-$ cdk refactor --exclude-file exclude.txt --unstable=refactor --dry-run
+$ cdk refactor Test* ProdStack --unstable=refactor --dry-run 
 ```
 
-If your application has more than one stack, and you want the refactor 
-command to consider only a subset of them, you can pass a list of stack 
-patterns as a parameter:
+This is useful if, for example, you have more than one CDK application deployed
+to a given environment, and you want to only include the deployed stacks that
+belong to the application that you are refactoring.
 
-```shell
-$ cdk refactor Web* --unstable=refactor --dry-run 
-```
-
-The pattern language is the same as the one used in the `cdk deploy` command. 
-However, unlike `cdk deploy`, in the absence of this parameter, all stacks are 
+The pattern language is the same as the one used in the `cdk deploy` command.
+However, unlike `cdk deploy`, in the absence of this parameter, all stacks are
 considered.
 
-If, instead of letting the CLI decide which resources to move, you want to 
-provide your own mapping of old to new locations, you can do so by passing a
-mapping file to the CLI via the `--mapping-file` flag. This file should 
-contain a JSON object with the following format: 
+The CLI's default behavior is to include in the comparison only the deployed
+stacks that have a counterpart (stack with the same name) locally. If you want
+to include additional deployed stacks in the comparison, pass their names using
+the `--additional-stack-name` option:
+
+```shell
+$ cdk refactor --unstable=refactor --dry-run --additional-stack-name=Foo --additional-stack-name=Bar
+```
+
+In case of ambiguities, the CLI will display a table like this:
+
+```
+Detected ambiguities:
+┌───┬──────────────────────┐
+│   │ Resource             │
+├───┼──────────────────────┤
+│ - │ Stack2/DLQ/Resource  │
+│   │ Stack2/DLQ2/Resource │
+├───┼──────────────────────┤
+│ + │ Stack1/DLQ/Resource  │
+│   │ Stack1/DLQ2/Resource │
+└───┴──────────────────────┘
+```
+
+You can resolve this ambiguity manually, by passing an override file via the
+`--override-file=<path>` CLI option. This file should contain a JSON object 
+with the following structure: 
 
 ```json
 {
@@ -1174,22 +1190,267 @@ contain a JSON object with the following format:
       "account": "123456789012",
       "region": "us-east-1",
       "resources": {
-        "Foo.OldName": "Bar.NewName"
+        "Stack2.OldName": "Stack2.NewName"
       }
     }
   ]
 }
 ```
 
-where `resources` is a mapping of resources from source to destination 
-locations for a given environment. Resource locations are in the format 
-`StackName.LogicalId`.The source must refer to a location where there is a 
-resource currently deployed, while the destination must refer to a location 
+where `resources` is a mapping of resources from source to destination
+locations for a given environment. Resource locations are in the format
+`StackName.LogicalId`.The source must refer to a location where there is a
+resource currently deployed, while the destination must refer to a location
 that is not already occupied by any resource.
 
-If you want to undo a refactor, you can use the `--revert` option in 
-conjunction with the `--mapping-file` option. It will apply the mapping in 
-reverse order (source becomes destination and vice versa).
+#### How resources are compared
+
+To determine if a resource was moved or renamed, the CLI computes a digest
+for each resource, both in the deployed stacks and in the local stacks, and
+then compares the digests. 
+
+Conceptually, the digest is computed as:
+
+```
+digest(resource) = hash(type + properties + dependencies.map(d))
+```
+
+where hash is a cryptographic hash function. In other words, the digest of a 
+resource is computed from its type, its own properties (that is, excluding 
+properties that refer to other resources), and the digests of each of its 
+dependencies. The digest of a resource, defined recursively this way, remains 
+stable even if one or more of its dependencies gets renamed. Since the 
+resources in a CloudFormation template form a directed acyclic graph, this 
+function is well-defined.
+
+Resources that have the same digest, but different locations, are considered to be
+the same resource, and therefore to have been moved or renamed.
+
+#### Limitations
+- A refactor cannot leave a stack empty. This is a CloudFormation API limitation, 
+  that also applies to deployments.
+- Creation of new stacks during a refactor is not supported. If you need to
+  create a new stack, do it in a separate deployment, previous to refactoring.
+
+### `cdk drift`
+
+Checks if there is any drift in your stack or stacks. If you need the command
+to return a non-zero if any differences are found, you need to use the `--fail`
+command line option.
+
+```console
+$ # Detect drift against the currently-deployed stack
+$ cdk drift
+
+$ # Detect drift against a specific stack
+$ cdk drift MyStackName
+```
+
+Note that there are some resources that do not support drift detection. You can
+see which of these resources were left unchecked with the `--verbose` command line
+option.
+
+```console
+$ # Detect drift against the currently-deployed stack with the verbose flag enabled
+$ cdk drift --verbose 
+```
+
+### `cdk cli-telemetry`
+
+Enables or disables cli telemetry collection for your local CDK App. Records your
+choice in `cdk.context.json`. You can also set your preference manually under the `context` key in your
+`~/.cdk.json` file or `<app-root>/cdk.json` file.
+
+```bash
+$ # Disable telemetry
+$ cdk cli-telemetry --disable
+
+$ # Enable telemetry
+$ cdk cli-telemetry --enable
+```
+
+You can also check the current status on whether your CDK App is opted in or out of
+cli telemetry collection. Note that this takes into account all methods of disabling
+cli telemetry, including environment variables and
+[context values](https://docs.aws.amazon.com/cdk/v2/guide/context.html)
+that can be set in many different ways (such as `~/.cdk.json`).
+
+```bash
+$ # Check the current status of telemetry
+$ cdk cli-telemetry --status
+```
+### `cdk flags` 
+
+View and modify your feature flag configurations.
+
+Run `cdk flags` to see a report of your feature flag configurations that differ from our recommended states. Unconfigured flags will be labelled with `<unset>` to show that flag currently has no value. The flags are displayed to you in the following order:
+
+1. flags whose states do not match our recommended values
+2. flags that are not configured at all
+
+```shell
+$ cdk flags --unstable=flags
+    Feature Flag                              Recommended                  User
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+```
+
+Alternatively, you can also run `cdk flags --all` to see a report of all feature flags in the following order:
+
+1. flags whose states match our recommended values
+2. flags whose states do not match our recommended values
+3. flags that are not configured at all
+
+```shell
+$ cdk flags --unstable=flags --all 
+    Feature Flag                              Recommended                  User
+    @aws-cdk/...                              true                         true
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+```
+
+### Modifying your feature flag values
+
+To modify your feature flags interactively, you can run `cdk flags --interactive`  (or `cdk flags -i`) to view a list of menu options.
+
+ To change every single feature flag to our recommended value and potentially overwrite existing configured values, run `cdk flags --set --recommended --all`. To keep feature flag configuration up-to-date with the latest CDK feature flag configurations, use this command.
+
+```shell
+$ cdk flags --unstable=flags --set --recommended --all
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         false
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+    Resources
+    [~] AWS::S3::Bucket MyBucket
+    └─ [~] Properties
+        └─ [~] Encryption
+                ... 
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+If you would prefer your existing configured flags untouched, this option only changes the unconfigured feature flags to our recommended values, run `cdk flags --set --recommended --unconfigured`. This only changes the unconfigured feature flags to our recommended values.
+
+```shell
+$ cdk flags --unstable=flags --set --recommended --unconfigured
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         <unset>
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+    Resources
+    [~] AWS::S3::Bucket MyBucket
+    └─ [~] Properties
+        └─ [~] Encryption
+            ├─ [-] None
+            └─ [+] ServerSideEncryptionConfiguration:
+                    - ...
+            ...
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+If you want to ensure the unconfigured flags do not interfere with your application, `cdk flags --set --default --unconfigured` changes the unconfigured feature flags to its default values. For example, if `@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021` is unconfigured, it leads to the notification appearing after running `cdk synth`. However, if you set the flag to its default state (false), it will be configured, turned off, and have no impact on your application whatsoever.
+
+```shell
+$ cdk flags --unstable=flags --set --default --unconfigured
+    Feature Flag                              Recommended Value            User Value
+  * @aws-cdk/...                              true                         <unset>
+  * @aws-cdk/...                              true                         <unset>
+  Synthesizing...
+  
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...
+```
+
+### Inspect a specific feature flag
+
+#### View more information about a flag
+
+Besides running `cdk flags` and `cdk flags --all` to view your feature flag configuration, you can also utilize `cdk flags "#FLAGNAME#"` to inspect a specific feature flag and find out what a specific flag does. This can be helpful in cases where you want to understand a particular flag and its impact on your application. 
+
+```shell
+$ cdk flags --unstable=flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
+    Description: Enable this feature flag to have cloudfront distributions use the security policy TLSv1.2_2021 by default.
+    Recommended Value: true
+    User Value: true
+```
+
+#### Filter flags by substring
+
+You can also run `cdk flags #substring#` to view all matching feature flags. If there is only one feature flag that matches that substring, specific details will be displayed. 
+
+```shell
+$ cdk flags --unstable=flags ebs
+@aws-cdk/aws-ec2:ebsDefaultGp3Volume
+    Description: When enabled, the default volume type of the EBS volume will be GP3
+    Recommended Value: true
+    User Value: true
+```
+
+If there are multiple flags matching the substring, a table with all matching flags will be displayed. If you enter multiple substrings, all matching flags
+that contain any of those substrings will be returned.
+
+```shell
+$ cdk flags --unstable=flags s3 lambda
+    Feature Flag                              Recommended                  User
+  * @aws-cdk/s3...                            true                         false
+  * @aws-cdk/lambda...                        true                         false
+  * @aws-cdk/lambda...                        true                         <unset>
+```
+
+#### Modify a particular flag
+
+If you need to modify the value of this flag and want to make sure you’re setting it to a correct and supported state, run `cdk flags --set "#FLAGNAME#" --value="#state#"`.
+
+```shell
+$ cdk flags --unstable=flags--set "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021" --value="true"
+  Synthesizing...
+    Resources
+    [~] AWS::CloudFront::Distribution MyDistribution
+    └─ [~] Properties
+        └─ [~] DefaultSecurityPolicy
+            ├─ [-] TLSv1.0
+            └─ [+] TLSv1.2_2021
+                    - ...
+    Number of stacks with differences: 2
+  Do you want to accept these changes? (y/n) y
+  Resynthesizing...   
+```
+
+## Global Options
+
+### `unstable`
+
+The `--unstable` flag indicates that the scope and API of a feature might still change.
+Otherwise the feature is generally production ready and fully supported. For example,
+`cdk gc` is gated behind an `--unstable` flag:
+
+```bash
+cdk gc --unstable=gc
+```
+
+The command will fail if `--unstable=gc` is not passed in, which acknowledges that the user
+is aware of the caveats in place for the feature.
+
+### `telemetry-file`
+
+Send your telemetry data to a local file (note that `--telemetry-file` is unstable, and must
+be passed in conjunction with `--unstable=telemetry`).
+
+```bash
+cdk list --telemetry-file=my/file/path --unstable=telemetry
+```
+
+The supplied path must be a non existing file. If the file exists, it will fail to log telemetry
+data but the command itself will continue uninterrupted.
+
+> Note: The file will be written to regardless of your opt-out status.
 
 ## Notices
 

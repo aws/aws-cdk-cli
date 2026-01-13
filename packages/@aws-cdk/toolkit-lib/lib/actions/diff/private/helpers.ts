@@ -13,6 +13,7 @@ import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { deserializeStructure, formatErrorMessage } from '../../../util';
+import { mappingsByEnvironment } from '../../refactor/private/mapping-helpers';
 
 export function prepareDiff(
   ioHelper: IoHelper,
@@ -67,6 +68,10 @@ async function cfnDiff(
   const templateInfos = [];
   const methodOptions = (options.method?.options ?? {}) as ChangeSetDiffOptions;
 
+  const allMappings = options.includeMoves
+    ? await mappingsByEnvironment(stacks.stackArtifacts, sdkProvider, true)
+    : [];
+
   // Compare N stacks against deployed templates
   for (const stack of stacks.stackArtifacts) {
     const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
@@ -93,12 +98,17 @@ async function cfnDiff(
       methodOptions.importExistingResources,
     ) : undefined;
 
+    const mappings = allMappings.find(m =>
+      m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
+    )?.mappings ?? {};
+
     templateInfos.push({
       oldTemplate: currentTemplate,
       newTemplate: stack,
       isImport: !!resourcesToImport,
       nestedStacks,
       changeSet,
+      mappings,
     });
   }
 
@@ -158,8 +168,8 @@ async function changeSetDiff(
  * Appends all properties from obj2 to obj1.
  * obj2 values take priority in the case of collisions.
  *
- * @param obj1 The object to modify
- * @param obj2 The object to consume
+ * @param obj1 - The object to modify
+ * @param obj2 - The object to consume
  *
  * @returns obj1 with all properties from obj2
  */

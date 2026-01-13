@@ -1,6 +1,6 @@
 import type { PluginProviderResult } from '@aws-cdk/cli-plugin-contract';
 import { StackSelectionStrategy } from '../../lib';
-import { SdkProvider } from '../../lib/api/shared-private';
+import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { appFixture, TestIoHost } from '../_helpers';
 import { MockSdk } from '../_helpers/mock-sdk';

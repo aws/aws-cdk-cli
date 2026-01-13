@@ -20,12 +20,12 @@ let config: Configuration;
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('synth');
 
-beforeEach(() => {
+beforeEach(async () => {
   ioHost.notifySpy.mockClear();
   ioHost.requestSpy.mockClear();
 
   sdkProvider = new MockSdkProvider();
-  config = new Configuration();
+  config = await Configuration.fromArgs(ioHelper);
 
   config.settings.set(['output'], 'cdk.out');
 
@@ -162,6 +162,34 @@ test('the application set in --app is executed', async () => {
   // WHEN
   const { lock } = await execProgram(sdkProvider, ioHelper, config);
   await lock.release();
+});
+
+test('execProgram will not log existing environment variables', async () => {
+  const varName = 'SOME_BOGUS_VAR';
+
+  // GIVEN
+  ioHost.level = 'debug';
+  config.settings.set(['app'], 'cloud-executable');
+  mockSpawn({
+    commandLine: 'cloud-executable',
+    sideEffect: () => writeOutputAssembly(),
+  });
+
+  // WHEN
+  process.env[varName] = 'hello';
+  const { lock } = await execProgram(sdkProvider, ioHelper, config);
+  await lock.release();
+  delete process.env[varName];
+
+  // THEN
+  const envMessage = (ioHost.notifySpy.mock.calls as Array<{ message: string }[]>)
+    .map(([arg0]) => arg0)
+    .find((arg0) => arg0.message.includes('env:'));
+
+  expect(envMessage).toBeDefined();
+  expect(envMessage!.message).not.toContain(varName);
+
+  ioHost.level = 'info';
 });
 
 test('the application set in --app is executed as-is if it contains a filename that does not exist', async () => {

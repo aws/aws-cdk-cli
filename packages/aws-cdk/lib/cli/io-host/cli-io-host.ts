@@ -1,22 +1,39 @@
+import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
+import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import type { EventResult } from '../telemetry/messages';
+import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
+import type { EventType } from '../telemetry/schema';
+import { TelemetrySession } from '../telemetry/session';
+import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
+import { FileTelemetrySink } from '../telemetry/sink/file-sink';
+import { Funnel } from '../telemetry/sink/funnel';
+import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
+import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 
+/**
+ * The current action being performed by the CLI. 'none' represents the absence of an action.
+ */
 type CliAction =
-| ToolkitAction
-| 'context'
-| 'docs'
-| 'notices'
-| 'version'
-| 'none';
+  | ToolkitAction
+  | 'context'
+  | 'docs'
+  | 'flags'
+  | 'notices'
+  | 'version'
+  | 'cli-telemetry'
+  | 'none';
 
 export interface CliIoHostProps {
   /**
@@ -24,7 +41,7 @@ export interface CliIoHostProps {
    *
    * @default 'none'
    */
-  readonly currentAction?: ToolkitAction;
+  readonly currentAction?: CliAction;
 
   /**
    * Determines the verbosity of the output.
@@ -62,12 +79,22 @@ export interface CliIoHostProps {
    */
   readonly requireDeployApproval?: RequireApproval;
 
-  /*
+  /**
    * The initial Toolkit action the hosts starts with.
    *
    * @default StackActivityProgress.BAR
    */
   readonly stackProgress?: StackActivityProgress;
+
+  /**
+   * Whether the CLI should attempt to automatically respond to prompts.
+   *
+   * When true, operation will usually proceed without interactive confirmation.
+   * Confirmations are responded to with yes. Other prompts will respond with the default value.
+   *
+   * @default false
+   */
+  readonly autoRespond?: boolean;
 }
 
 /**
@@ -86,6 +113,13 @@ export class CliIoHost implements IIoHost {
     if (forceNew || !CliIoHost._instance) {
       CliIoHost._instance = new CliIoHost(props);
     }
+    return CliIoHost._instance;
+  }
+
+  /**
+   * Returns the singleton instance if it exists
+   */
+  static get(): CliIoHost | undefined {
     return CliIoHost._instance;
   }
 
@@ -131,7 +165,6 @@ export class CliIoHost implements IIoHost {
    */
   public noticesDestination: TargetStream = 'stderr';
 
-  private _internalIoHost?: IIoHost;
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -141,23 +174,72 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  private readonly autoRespond: boolean;
+
+  public telemetry?: TelemetrySession;
+
   private constructor(props: CliIoHostProps = {}) {
     this.currentAction = props.currentAction ?? 'none';
     this.isTTY = props.isTTY ?? process.stdout.isTTY ?? false;
     this.logLevel = props.logLevel ?? 'info';
     this.isCI = props.isCI ?? isCI();
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
-
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
+    this.autoRespond = props.autoRespond ?? false;
   }
 
-  /**
-   * Returns the singleton instance
-   */
-  public registerIoHost(ioHost: IIoHost) {
-    if (ioHost !== this) {
-      this._internalIoHost = ioHost;
+  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const config = require('../cli-type-registry.json');
+    const validCommands = Object.keys(config.commands);
+    const cmd = args._[0];
+    if (!validCommands.includes(cmd)) {
+      // the user typed in an invalid command - no need for telemetry since the invocation is going to fail
+      // imminently anyway.
+      await this.asIoHelper().defaults.trace(`Session instantiated with an invalid command (${cmd}). Not starting telemetry.`);
+      return;
     }
+
+    let sinks: ITelemetrySink[] = [];
+    const telemetryFilePath = args['telemetry-file'];
+    if (telemetryFilePath) {
+      try {
+        sinks.push(new FileTelemetrySink({
+          ioHost: this,
+          logFilePath: telemetryFilePath,
+        }));
+        await this.asIoHelper().defaults.trace('File Telemetry connected');
+      } catch (e: any) {
+        await this.asIoHelper().defaults.trace(`File Telemetry instantiation failed: ${e.message}`);
+      }
+    }
+
+    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
+    if (canCollectTelemetry(args, context) && telemetryEndpoint) {
+      try {
+        sinks.push(new EndpointTelemetrySink({
+          ioHost: this,
+          agent: proxyAgent,
+          endpoint: telemetryEndpoint,
+        }));
+        await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
+      } catch (e: any) {
+        await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
+      }
+    } else {
+      await this.asIoHelper().defaults.trace('Endpoint Telemetry NOT connected');
+    }
+
+    if (sinks.length > 0) {
+      this.telemetry = new TelemetrySession({
+        ioHost: this,
+        client: new Funnel({ sinks }),
+        arguments: args,
+        context: context,
+      });
+    }
+
+    await this.telemetry?.begin();
   }
 
   /**
@@ -241,15 +323,13 @@ export class CliIoHost implements IIoHost {
    * The caller waits until the notification completes.
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
-    if (this._internalIoHost) {
-      return this._internalIoHost.notify(msg);
-    }
+    await this.maybeEmitTelemetry(msg);
 
     if (this.isStackActivity(msg)) {
       if (!this.activityPrinter) {
         this.activityPrinter = this.makeActivityPrinter();
       }
-      await this.activityPrinter.notify(msg);
+      this.activityPrinter.notify(msg);
       return;
     }
 
@@ -267,11 +347,25 @@ export class CliIoHost implements IIoHost {
     stream?.write(output);
   }
 
+  private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
+    try {
+      if (this.telemetry && isTelemetryMessage(msg)) {
+        await this.telemetry.emit({
+          eventType: getEventType(msg),
+          duration: msg.data.duration,
+          error: msg.data.error,
+        });
+      }
+    } catch (e: any) {
+      await this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
+    }
+  }
+
   /**
    * Detect stack activity messages so they can be send to the printer.
    */
   private isStackActivity(msg: IoMessage<unknown>) {
-    return [
+    return msg.code && [
       'CDK_TOOLKIT_I5501',
       'CDK_TOOLKIT_I5502',
       'CDK_TOOLKIT_I5503',
@@ -284,7 +378,7 @@ export class CliIoHost implements IIoHost {
    */
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
     const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
-    if (!approvalToolkitCodes.includes(msg.code)) {
+    if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
       false;
     }
 
@@ -340,11 +434,6 @@ export class CliIoHost implements IIoHost {
    * default response from the input message will be used.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-    // First call out to a registered instance if we have one
-    if (this._internalIoHost) {
-      return this._internalIoHost.requestResponse(msg);
-    }
-
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
       await this.notify(msg);
@@ -364,6 +453,35 @@ export class CliIoHost implements IIoHost {
       const concurrency = data.concurrency ?? 0;
       const responseDescription = data.responseDescription;
 
+      // Special approval prompt
+      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
+      // If it does not, return success (true). We only check messages with codes that we are aware
+      // are requires approval codes.
+      if (this.skipApprovalStep(msg)) {
+        return true;
+      }
+
+      // In --yes mode, respond for the user if we can
+      if (this.autoRespond) {
+        // respond with yes to all confirmations
+        if (isConfirmationPrompt(msg)) {
+          await this.notify({
+            ...msg,
+            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
+          });
+          return true;
+        }
+
+        // respond with the default for all other messages
+        if (msg.defaultResponse) {
+          await this.notify({
+            ...msg,
+            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
+          });
+          return msg.defaultResponse;
+        }
+      }
+
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
         throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
@@ -372,14 +490,6 @@ export class CliIoHost implements IIoHost {
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
         throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
-      }
-
-      // Special approval prompt
-      // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
-      // If it does not, return success (true). We only check messages with codes that we are aware
-      // are requires approval codes.
-      if (this.skipApprovalStep(msg)) {
-        return true;
       }
 
       // Basic confirmation prompt
@@ -472,11 +582,14 @@ function isConfirmationPrompt(msg: IoRequest<any, any>): msg is IoRequest<any, b
  */
 function extractPromptInfo(msg: IoRequest<any, any>): {
   default: string;
+  defaultDesc: string;
   convertAnswer: (input: string) => string | number;
 } {
   const isNumber = (typeof msg.defaultResponse === 'number');
+  const defaultResponse = util.format(msg.defaultResponse);
   return {
-    default: util.format(msg.defaultResponse),
+    default: defaultResponse,
+    defaultDesc: 'defaultDescription' in msg && msg.defaultDescription ? util.format(msg.defaultDescription) : defaultResponse,
     convertAnswer: isNumber ? (v) => Number(v) : (v) => String(v),
   };
 }
@@ -484,19 +597,11 @@ function extractPromptInfo(msg: IoRequest<any, any>): {
 const styleMap: Record<IoMessageLevel, (str: string) => string> = {
   error: chalk.red,
   warn: chalk.yellow,
-  result: chalk.white,
-  info: chalk.white,
+  result: chalk.reset,
+  info: chalk.reset,
   debug: chalk.gray,
   trace: chalk.gray,
 };
-
-/**
- * Returns true if the current process is running in a CI environment
- * @returns true if the current process is running in a CI environment
- */
-export function isCI(): boolean {
-  return process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0';
-}
 
 function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
   switch (x) {
@@ -509,6 +614,23 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
   }
 }
 
-function isNoticesMessage(msg: IoMessage<unknown>) {
+function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
+}
+
+function isTelemetryMessage(msg: IoMessage<unknown>): msg is IoMessage<EventResult> {
+  return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
+}
+
+function getEventType(msg: IoMessage<unknown>): EventType {
+  switch (msg.code) {
+    case CLI_PRIVATE_IO.CDK_CLI_I1001.code:
+      return 'SYNTH';
+    case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
+      return 'INVOKE';
+    case CLI_PRIVATE_IO.CDK_CLI_I3001.code:
+      return 'DEPLOY';
+    default:
+      throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
+  }
 }

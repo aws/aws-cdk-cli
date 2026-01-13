@@ -11,6 +11,9 @@ import { RunnerLibraryPreinstalledSource } from '../package-sources/library-prei
 import type { IRunnerSource, ITestCliSource, ITestLibrarySource } from '../package-sources/source';
 import { serializeSources } from '../package-sources/subprocess';
 
+const CLI_PACKAGE_NAME = 'aws-cdk';
+const CDK_ASSETS_PACKAGE_NAME = 'cdk-assets';
+
 async function main() {
   const args = await yargs
     .command('* <SUITENAME>', 'default command', y => y
@@ -39,6 +42,11 @@ async function main() {
       .options('toolkit-lib-version', {
         describe: 'Toolkit lib version to use',
         alias: 'l',
+        type: 'string',
+      })
+      .options('cdk-assets-version', {
+        describe: 'cdk-assets version to use.',
+        alias: 'a',
         type: 'string',
       })
       .option('use-source', {
@@ -105,25 +113,55 @@ async function main() {
   const suiteName = args.SUITENAME;
 
   // So many ways to specify this, and with various ways to spell the same flag (o_O)
+  // Also, some of them depend on each other for convenience.
   const cliSource = new UniqueOption<IRunnerSource<ITestCliSource>>('CLI version');
+  const cdkAssetsSource = new UniqueOption<IRunnerSource<ITestCliSource>>('cdk-assets version');
+
+  // Specific CLI version
   for (const flagAlias of ['cli-version', 'use-cli-release'] as const) {
     if (args[flagAlias]) {
-      cliSource.set(new RunnerCliNpmSource(args[flagAlias]), `--${flagAlias}`);
+      cliSource.set(new RunnerCliNpmSource(CLI_PACKAGE_NAME, args[flagAlias]), `--${flagAlias}`);
     }
   }
+
+  // Specific cdk-assets version
+  if (args['cdk-assets-version']) {
+    cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, args['cdk-assets-version']), '--cdk-assets-version');
+  }
+
+  // Specifically use a source location
   for (const flagAlias of ['cli-source', 'use-source'] as const) {
     if (args[flagAlias]) {
       const root = args[flagAlias] === 'auto' ? await autoFindRepoRoot() : args[flagAlias];
-      cliSource.set(new RunnerCliRepoSource(root), `--${flagAlias}`);
+      cliSource.set(new RunnerCliRepoSource(CLI_PACKAGE_NAME, root), `--${flagAlias}`);
+      cdkAssetsSource.set(new RunnerCliRepoSource(CDK_ASSETS_PACKAGE_NAME, root), `--${flagAlias}`);
     }
   }
+
+  // Specifically request that a source location is given, or we didn't find a CLI yet.
+  // A CLI source is required, so if this fails that's alright.
   if (args['auto-source'] || !cliSource.isSet()) {
-    cliSource.set(new RunnerCliRepoSource(await autoFindRepoRoot()), '--auto-source');
+    cliSource.set(new RunnerCliRepoSource(CLI_PACKAGE_NAME, await autoFindRepoRoot()), '--auto-source');
   }
 
+  // If the CLI is taken from the source, and cdk-assets is not set, we can copy the cdk-assets source from the CLI source.
+  if (!cdkAssetsSource.isSet()) {
+    const cliSrc = cliSource.assert();
+    if (cliSrc instanceof RunnerCliRepoSource) {
+      cdkAssetsSource.set(new RunnerCliRepoSource(CDK_ASSETS_PACKAGE_NAME, cliSrc.repoRoot), 'copied from CLI source');
+    }
+  }
+
+  // If cdk-assets is still not configured, fall back to the latest version that is available
+  if (!cdkAssetsSource.isSet()) {
+    cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, 'latest'), '--cdk-assets-version not set');
+  }
+
+  // Library source is either the given one, or 'latest' (nice and simple)
   const librarySource: IRunnerSource<ITestLibrarySource>
     = new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version'] ? args['framework-version'] : 'latest');
 
+  // Toolkit lib source is either the given one, or the one that's being brought by 'package.json' already, or 'latest'
   const toolkitLibPackage = '@aws-cdk/toolkit-lib';
   let toolkitSource: IRunnerSource<ITestLibrarySource> | undefined;
   if (args['toolkit-lib-version']) {
@@ -141,6 +179,7 @@ async function main() {
   console.log(`        CLI source:         ${cliSource.assert().sourceDescription}`);
   console.log(`        Library source:     ${librarySource.sourceDescription}`);
   console.log(`        Toolkit lib source: ${toolkitSource.sourceDescription}`);
+  console.log(`        cdk-assets source:  ${cdkAssetsSource.assert().sourceDescription}`);
 
   if (args.verbose) {
     process.env.VERBOSE = '1';
@@ -171,10 +210,15 @@ async function main() {
     disposables.push(toolkitLib);
     console.log(`        Toolkit library: ${toolkitLib.version}`);
 
+    const cdkAssets = await cdkAssetsSource.assert().runnerPrepare();
+    disposables.push(cdkAssets);
+    console.log(`        cdk-assets:      ${cdkAssets.version}`);
+
     serializeSources({
       cli,
       library,
       toolkitLib,
+      cdkAssets,
     });
 
     const jestConfig = path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js');

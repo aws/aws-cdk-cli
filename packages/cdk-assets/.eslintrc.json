@@ -301,6 +301,9 @@
     "jsdoc/check-alignment": [
       "error"
     ],
+    "jsdoc/require-hyphen-before-param-description": [
+      "error"
+    ],
     "jest/expect-expect": "off",
     "jest/no-conditional-expect": "off",
     "jest/no-done-callback": "off",
@@ -311,9 +314,6 @@
     "jest/no-disabled-tests": "error",
     "jest/no-focused-tests": "error",
     "prettier/prettier": [
-      "off"
-    ],
-    "jest/no-export": [
       "off"
     ]
   },

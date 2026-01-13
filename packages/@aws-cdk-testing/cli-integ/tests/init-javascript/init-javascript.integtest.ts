@@ -7,7 +7,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     const shell = ShellHelper.fromContext(context);
     await context.cli.makeCliAvailable();
 
-    await shell.shell(['cdk', 'init', '-l', 'javascript', template]);
+    await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'javascript', template]);
     await shell.shell(['npm', 'prune']);
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
     await shell.shell(['npm', 'run', 'test']);
@@ -21,7 +21,7 @@ integTest('Test importing CDK from ESM', withTemporaryDirectory(withPackages(asy
   const shell = ShellHelper.fromContext(context);
   await context.cli.makeCliAvailable();
 
-  await shell.shell(['cdk', 'init', '-l', 'javascript', 'app']);
+  await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'javascript', 'app']);
 
   // Rewrite some files
   await fs.writeFile(path.join(context.integTestDir, 'new-entrypoint.mjs'), `

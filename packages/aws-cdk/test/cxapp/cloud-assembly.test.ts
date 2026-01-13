@@ -249,7 +249,7 @@ describe('StackCollection', () => {
 });
 
 async function testCloudAssembly({ env }: { env?: string; versionReporting?: boolean } = {}) {
-  const cloudExec = new MockCloudExecutable({
+  const cloudExec = await MockCloudExecutable.create({
     stacks: [{
       stackName: 'withouterrors',
       displayName: 'withouterrorsNODEPATH',
@@ -288,7 +288,7 @@ async function testCloudAssembly({ env }: { env?: string; versionReporting?: boo
 }
 
 async function testCloudAssemblyNoStacks() {
-  const cloudExec = new MockCloudExecutable({
+  const cloudExec = await MockCloudExecutable.create({
     stacks: [],
   });
 
@@ -296,7 +296,7 @@ async function testCloudAssemblyNoStacks() {
 }
 
 async function testNestedCloudAssembly({ env }: { env?: string; versionReporting?: boolean } = {}) {
-  const cloudExec = new MockCloudExecutable({
+  const cloudExec = await MockCloudExecutable.create({
     stacks: [{
       stackName: 'withouterrors',
       env,

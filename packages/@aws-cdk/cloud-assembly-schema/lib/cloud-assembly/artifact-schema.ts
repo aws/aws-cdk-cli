@@ -224,10 +224,101 @@ export interface NestedCloudAssemblyProperties {
 }
 
 /**
+ * Artifact properties for a feature flag report
+ *
+ * A feature flag report is small enough that all the properties can be inlined
+ * here, and doesn't need an additional file.
+ */
+export interface FeatureFlagReportProperties {
+  /**
+   * The library that this feature flag report applies to.
+   */
+  readonly module: string;
+
+  /**
+   * Information about every feature flag supported by this library.
+   */
+  readonly flags: { [flagName: string]: FeatureFlag };
+}
+
+/**
+ * A single feature flag
+ */
+export interface FeatureFlag {
+  /**
+   * The library-recommended value for this flag, if any
+   *
+   * It is possible that there is no recommended value.
+   *
+   * @default - No recommended value.
+   */
+  readonly recommendedValue?: any;
+
+  /**
+   * The value configured by the user
+   *
+   * This is the value configured at the root of the tree. Users may also have
+   * configured values at specific locations in the tree; we don't report on
+   * those.
+   *
+   * @default - Not configured by the user
+   */
+  readonly userValue?: any;
+
+  /**
+   * Explanation about the purpose of this flag that can be shown to the user.
+   *
+   * @default - No description
+   */
+  readonly explanation?: string;
+
+  /**
+   * The value of the flag that produces the same behavior as when the flag is not configured at all
+   *
+   *The structure of this field is a historical accident. The type of this field
+   *should have been boolean, which should have contained the default value for
+   *the flag appropriate for the *current* version of the CDK library. We are
+   *not rectifying this accident because doing so
+   *
+   * Instead, the canonical way to access this value is by evaluating
+   * `unconfiguredBehavesLike?.v2 ?? false`.
+   *
+   * @default false
+   */
+  readonly unconfiguredBehavesLike?: UnconfiguredBehavesLike;
+}
+
+export interface UnconfiguredBehavesLike {
+  /**
+   * Historical accident, don't use.
+   *
+   * This value may be present, but it should never be used. The actual value is
+   * in the `v2` field, regardless of the version of the CDK library.
+   *
+   * @default - ignore
+   */
+  readonly v1?: any;
+
+  /**
+   * The value of the flag that produces the same behavior as when the flag is not configured at all
+   *
+   * Even though it is called 'v2', this is the official name of this field. In
+   * any future versions of CDK (v3, v4, ...), this field will still be called 'v2'.
+   *
+   * The structure of this field is a historical accident. See the comment on
+   * `unconfiguredBehavesLike` for more information.
+   *
+   * @default false
+   */
+  readonly v2?: any;
+}
+
+/**
  * Properties for manifest artifacts
  */
 export type ArtifactProperties =
   | AwsCloudFormationStackProperties
   | AssetManifestProperties
   | TreeArtifactProperties
-  | NestedCloudAssemblyProperties;
+  | NestedCloudAssemblyProperties
+  | FeatureFlagReportProperties;

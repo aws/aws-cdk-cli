@@ -37,10 +37,10 @@ export class SSMContextProviderPlugin implements ContextProviderPlugin {
 
   /**
    * Gets the value of an SSM Parameter, while not throwin if the parameter does not exist.
-   * @param account       the account in which the SSM Parameter is expected to be.
-   * @param region        the region in which the SSM Parameter is expected to be.
-   * @param parameterName the name of the SSM Parameter
-   * @param lookupRoleArn the ARN of the lookup role.
+   * @param account       - the account in which the SSM Parameter is expected to be.
+   * @param region        - the region in which the SSM Parameter is expected to be.
+   * @param parameterName - the name of the SSM Parameter
+   * @param lookupRoleArn - the ARN of the lookup role.
    *
    * @returns the result of the ``GetParameter`` operation.
    *

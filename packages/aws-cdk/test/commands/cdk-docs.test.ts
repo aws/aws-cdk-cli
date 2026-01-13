@@ -1,9 +1,11 @@
 import * as child_process from 'child_process';
 import { mocked } from 'jest-mock';
 import { docs } from '../../lib/commands/docs';
+import { TestIoHost } from '../_helpers/io-host';
 
-// eslint-disable-next-line no-console
-console.log = jest.fn();
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('docs');
+
 jest.mock('child_process');
 
 describe('`cdk docs`', () => {
@@ -11,7 +13,10 @@ describe('`cdk docs`', () => {
     const mockChildProcessExec: any = (_: string, cb: (err?: Error, stdout?: string, stderr?: string) => void) => cb();
     mocked(child_process.exec).mockImplementation(mockChildProcessExec);
 
-    const result = await docs({ browser: 'echo %u' });
+    const result = await docs({
+      ioHelper,
+      browser: 'echo %u',
+    });
     expect(result).toBe(0);
   });
 
@@ -19,7 +24,10 @@ describe('`cdk docs`', () => {
     const mockChildProcessExec: any = (_: string, cb: (err: Error, stdout?: string, stderr?: string) => void) => cb(new Error('TEST'));
     mocked(child_process.exec).mockImplementation(mockChildProcessExec);
 
-    const result = await docs({ browser: 'echo %u' });
+    const result = await docs({
+      ioHelper,
+      browser: 'echo %u',
+    });
     expect(result).toBe(0);
   });
 });

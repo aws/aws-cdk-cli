@@ -3,14 +3,14 @@
   "compilerOptions": {
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": true,
+    "esModuleInterop": false,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
       "es2020"
     ],
-    "module": "CommonJS",
+    "module": "commonjs",
     "noEmitOnError": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
@@ -24,6 +24,9 @@
     "strictPropertyInitialization": true,
     "stripInternal": true,
     "target": "ES2020",
+    "incremental": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
     "composite": true,
     "outDir": "lib"
   },

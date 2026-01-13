@@ -5,8 +5,8 @@ import type { Environment } from '@aws-cdk/cx-api';
 import { EnvironmentUtils, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
 import type { AssumeRoleCommandInput } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
-import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { AwsCliCompatible } from './awscli-compatible';
+import type { RequestHandlerSettings } from './base-credentials';
 import { cached } from './cached';
 import { CredentialPlugins } from './credential-plugins';
 import { makeCachingProvider } from './provider-caching';
@@ -23,13 +23,26 @@ export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, '
 /**
  * Options for the default SDK provider
  */
-export interface SdkProviderOptions extends SdkProviderServices {
+export interface SdkProviderOptions {
   /**
-   * Profile to read from ~/.aws
-   *
-   * @default - No profile
+   * An IO helper for emitting messages
    */
-  readonly profile?: string;
+  readonly ioHelper: IoHelper;
+
+  /**
+   * The request handler settings
+   */
+  readonly requestHandler?: RequestHandlerSettings;
+
+  /**
+   * A plugin host
+   */
+  readonly pluginHost?: PluginHost;
+
+  /**
+   * An SDK logger
+   */
+  readonly logger?: ISdkLogger;
 }
 
 const CACHED_ACCOUNT = Symbol('cached_account');
@@ -91,31 +104,35 @@ export class SdkProvider {
    *
    * The AWS SDK for JS behaves slightly differently from the AWS CLI in a number of ways; see the
    * class `AwsCliCompatible` for the details.
+   *
+   * @param options - Options for the default SDK provider
+   * @param profile - Profile to read from ~/.aws
+   * @returns a configured SdkProvider
    */
-  public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions) {
+  public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions, profile?: string) {
     callTrace(SdkProvider.withAwsCliCompatibleDefaults.name, SdkProvider.constructor.name, options.logger);
-    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(options.profile);
+    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(profile);
     return new SdkProvider(config.credentialProvider, config.defaultRegion, options);
   }
 
   public readonly defaultRegion: string;
   private readonly defaultCredentialProvider: SDKv3CompatibleCredentialProvider;
   private readonly plugins;
-  private readonly requestHandler: NodeHttpHandlerOptions;
+  private readonly requestHandler: RequestHandlerSettings;
   private readonly ioHelper: IoHelper;
   private readonly logger?: ISdkLogger;
 
   public constructor(
     defaultCredentialProvider: SDKv3CompatibleCredentialProvider,
     defaultRegion: string | undefined,
-    services: SdkProviderServices,
+    options: SdkProviderOptions,
   ) {
     this.defaultCredentialProvider = defaultCredentialProvider;
     this.defaultRegion = defaultRegion ?? 'us-east-1';
-    this.requestHandler = services.requestHandler ?? {};
-    this.ioHelper = services.ioHelper;
-    this.logger = services.logger;
-    this.plugins = new CredentialPlugins(services.pluginHost ?? new PluginHost(), this.ioHelper);
+    this.requestHandler = options.requestHandler ?? {};
+    this.ioHelper = options.ioHelper;
+    this.logger = options.logger;
+    this.plugins = new CredentialPlugins(options.pluginHost ?? new PluginHost(), this.ioHelper);
   }
 
   /**
@@ -165,7 +182,7 @@ export class SdkProvider {
       return { sdk, didAssumeRole: true };
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
-        throw err;
+        throw AuthenticationError.withCause('Assuming role failed: ExpiredToken', err);
       }
 
       // AssumeRole failed. Proceed and warn *if and only if* the baseCredentials were already for the right account
@@ -173,10 +190,10 @@ export class SdkProvider {
       // feed the CLI credentials which are sufficient by themselves. Prefer to assume the correct role if we can,
       // but if we can't then let's just try with available credentials anyway.
       if (baseCreds.source === 'correctDefault' || baseCreds.source === 'plugin') {
-        await this.ioHelper.sdkDefaults.debug(err.message);
+        await this.ioHelper.defaults.debug(err.message);
 
         const level = quiet ? 'debug' : 'warn';
-        await this.ioHelper.sdkDefaults[level](
+        await this.ioHelper.defaults[level](
           `${fmtObtainedCredentials(baseCreds)} could not be used to assume '${options.assumeRoleArn}', but are for the right account. Proceeding anyway.`,
         );
         return {
@@ -252,13 +269,13 @@ export class SdkProvider {
         // they are complaining about if we fail 'cdk synth' on them. We loudly complain in order to show that
         // the current situation is probably undesirable, but we don't fail.
         if (e.name === 'ExpiredToken') {
-          await this.ioHelper.sdkDefaults.warn(
+          await this.ioHelper.defaults.warn(
             'There are expired AWS credentials in your environment. The CDK app will synth without current account information.',
           );
           return undefined;
         }
 
-        await this.ioHelper.sdkDefaults.debug(`Unable to determine the default AWS account (${e.name}): ${formatErrorMessage(e)}`);
+        await this.ioHelper.defaults.debug(`Unable to determine the default AWS account (${e.name}): ${formatErrorMessage(e)}`);
         return undefined;
       }
     });
@@ -320,7 +337,7 @@ export class SdkProvider {
     additionalOptions?: AssumeRoleAdditionalOptions,
     region?: string,
   ): Promise<SDK> {
-    await this.ioHelper.sdkDefaults.debug(`Assuming role '${roleArn}'.`);
+    await this.ioHelper.defaults.debug(`Assuming role '${roleArn}'.`);
 
     region = region ?? this.defaultRegion;
 
@@ -354,7 +371,7 @@ export class SdkProvider {
         throw err;
       }
 
-      await this.ioHelper.sdkDefaults.debug(`Assuming role failed: ${err.message}`);
+      await this.ioHelper.defaults.debug(`Assuming role failed: ${err.message}`);
       throw new AuthenticationError(
         [
           'Could not assume role in target account',
@@ -527,26 +544,4 @@ export async function initContextProviderSdk(aws: SdkProvider, options: ContextL
   };
 
   return (await aws.forEnvironment(EnvironmentUtils.make(account, region), Mode.ForReading, creds)).sdk;
-}
-
-export interface SdkProviderServices {
-  /**
-   * An IO helper for emitting messages
-   */
-  readonly ioHelper: IoHelper;
-
-  /**
-   * The request handler settings
-   */
-  readonly requestHandler?: NodeHttpHandlerOptions;
-
-  /**
-   * A plugin host
-   */
-  readonly pluginHost?: PluginHost;
-
-  /**
-   * An SDK logger
-   */
-  readonly logger?: ISdkLogger;
 }

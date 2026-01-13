@@ -5,12 +5,23 @@ import type { ResourceLocation } from './cloudformation';
 
 export interface ExcludeList {
   isExcluded(location: ResourceLocation): boolean;
+
+  union(other: ExcludeList): ExcludeList;
 }
 
-export class ManifestExcludeList implements ExcludeList {
+abstract class AbstractExcludeList implements ExcludeList {
+  abstract isExcluded(location: ResourceLocation): boolean;
+
+  union(other: ExcludeList): ExcludeList {
+    return new UnionExcludeList([this, other]);
+  }
+}
+
+export class ManifestExcludeList extends AbstractExcludeList {
   private readonly excludedLocations: CfnResourceLocation[];
 
   constructor(manifest: AssemblyManifest) {
+    super();
     this.excludedLocations = this.getExcludedLocations(manifest);
   }
 
@@ -48,11 +59,12 @@ export class ManifestExcludeList implements ExcludeList {
   }
 }
 
-export class InMemoryExcludeList implements ExcludeList {
+export class InMemoryExcludeList extends AbstractExcludeList {
   private readonly excludedLocations: CfnResourceLocation[];
   private readonly excludedPaths: string[];
 
   constructor(items: string[]) {
+    super();
     this.excludedLocations = [];
     this.excludedPaths = [];
 
@@ -85,8 +97,9 @@ export class InMemoryExcludeList implements ExcludeList {
   }
 }
 
-export class UnionExcludeList implements ExcludeList {
+export class UnionExcludeList extends AbstractExcludeList {
   constructor(private readonly excludeLists: ExcludeList[]) {
+    super();
   }
 
   isExcluded(location: ResourceLocation): boolean {
@@ -94,19 +107,14 @@ export class UnionExcludeList implements ExcludeList {
   }
 }
 
-export class NeverExclude implements ExcludeList {
+export class NeverExclude extends AbstractExcludeList {
   isExcluded(_location: ResourceLocation): boolean {
     return false;
   }
 }
 
-export class AlwaysExclude implements ExcludeList {
+export class AlwaysExclude extends AbstractExcludeList {
   isExcluded(_location: ResourceLocation): boolean {
     return true;
   }
 }
-
-export function fromManifestAndExclusionList(manifest: AssemblyManifest, exclude?: string[]): ExcludeList {
-  return new UnionExcludeList([new ManifestExcludeList(manifest), new InMemoryExcludeList(exclude ?? [])]);
-}
-

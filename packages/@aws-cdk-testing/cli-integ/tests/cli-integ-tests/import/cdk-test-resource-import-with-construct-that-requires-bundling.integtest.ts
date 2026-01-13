@@ -1,13 +1,13 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { DescribeStacksCommand, GetTemplateCommand } from '@aws-sdk/client-cloudformation';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withExtendedTimeoutFixture } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
   'test resource import with construct that requires bundling',
-  withDefaultFixture(async (fixture) => {
+  withExtendedTimeoutFixture(async (fixture) => {
     // GIVEN
     const outputsFile = path.join(fixture.integTestDir, 'outputs', 'outputs.json');
     await fs.mkdir(path.dirname(outputsFile), { recursive: true });

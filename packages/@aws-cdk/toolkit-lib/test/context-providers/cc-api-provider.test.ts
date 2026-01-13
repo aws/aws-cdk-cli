@@ -76,7 +76,7 @@ test('looks up RDS instance using CC API getResource - error in CC API', async (
       exactIdentifier: 'bad-identifier',
       propertiesToReturn: ['DBInstanceArn', 'StorageEncrypted'],
     }),
-  ).rejects.toThrow('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier'); // THEN
+  ).rejects.toThrowWithCause('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier', 'No data found'); // THEN
 });
 
 test('looks up RDS instance using CC API listResources', async () => {
@@ -290,6 +290,50 @@ test('error by specifying both exactIdentifier and propertyMatch', async () => {
   ).rejects.toThrow('specify either exactIdentifier or propertyMatch, but not both'); // THEN
 });
 
+
+test('CCAPI provider paginates results of listResources', async () => {
+  // GIVEN
+  mockCloudControlClient.on(ListResourcesCommand)
+    .callsFake((input) => {
+      switch (input.NextToken) {
+        case undefined:
+          return {
+            ResourceDescriptions: [
+              { Identifier: 'pl-xxxx', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-xxxx","OwnerId":"123456789012"}' },
+              { Identifier: 'pl-yyyy', Properties: '{"PrefixListName":"name1","PrefixListId":"pl-yyyy","OwnerId":"234567890123"}' },
+            ],
+            NextToken: 'next-token',
+          };
+        case 'next-token':
+          return {
+            ResourceDescriptions: [
+              { Identifier: 'pl-zzzz', Properties: '{"PrefixListName":"name2","PrefixListId":"pl-zzzz","OwnerId":"123456789012"}' },
+            ],
+          };
+        default:
+          throw new Error('Unrecognized token');
+      }
+    });
+
+  // WHEN
+  await expect(
+    // WHEN
+    provider.getValue({
+      account: '123456789012',
+      region: 'us-east-1',
+      typeName: 'AWS::EC2::PrefixList',
+      propertiesToReturn: ['PrefixListId'],
+      propertyMatch: {},
+    }),
+  ).resolves.toEqual([
+    { PrefixListId: 'pl-xxxx', Identifier: 'pl-xxxx' },
+    { PrefixListId: 'pl-yyyy', Identifier: 'pl-yyyy' },
+    { PrefixListId: 'pl-zzzz', Identifier: 'pl-zzzz' },
+  ]);
+
+  expect(mockCloudControlClient).toHaveReceivedCommandTimes(ListResourcesCommand, 2);
+});
+
 test('error by specifying neither exactIdentifier or propertyMatch', async () => {
   // GIVEN
   mockCloudControlClient.on(GetResourceCommand).resolves({
@@ -386,7 +430,7 @@ describe('dummy value', () => {
           },
       ],
     }),
-  ).rejects.toThrow('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier: Other error');
+  ).rejects.toThrowWithCause('Encountered CC API error while getting AWS::RDS::DBInstance resource bad-identifier', 'Other error');
   });
 
   test('throws error when CC API listResources fails but the error is not ResourceNotFoundException', async () => {
@@ -409,7 +453,7 @@ describe('dummy value', () => {
           },
         ],
       }),
-    ).rejects.toThrow('Encountered CC API error while listing AWS::RDS::DBInstance resources matching {\"StorageEncrypted\":\"true\"}: Other error');
+    ).rejects.toThrowWithCause('Encountered CC API error while listing AWS::RDS::DBInstance resources matching {\"StorageEncrypted\":\"true\"}', 'Other error');
   });
 
   test('throws error when CC API fails and ignoreErrorOnMissingContext is not provided', async () => {

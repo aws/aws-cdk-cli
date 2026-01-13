@@ -33,8 +33,9 @@ describe('yargs', () => {
         lookups: true,
         trace: undefined,
         unstable: [],
-        notices: expect.any(Boolean),
+        notices: undefined,
         output: undefined,
+        yes: false,
       },
       deploy: {
         STACKS: undefined,
@@ -94,10 +95,33 @@ describe('yargs', () => {
       globalOptions: expect.anything(),
     });
   });
+
+  test('hotswap ECS arguments are correctly parsed', async () => {
+    const input = await parseCommandLineArguments([
+      'deploy',
+      '--hotswap',
+      '--hotswap-ecs-minimum-healthy-percent', '100',
+      '--hotswap-ecs-maximum-healthy-percent', '250',
+      '--hotswap-ecs-stabilization-timeout-seconds', '300',
+    ]);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'deploy',
+      deploy: expect.objectContaining({
+        hotswap: true,
+        hotswapEcsMinimumHealthyPercent: 100,
+        hotswapEcsMaximumHealthyPercent: 250,
+        hotswapEcsStabilizationTimeoutSeconds: 300,
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
 });
 
 describe('config', () => {
-  test('cdk.json arguments can be converted to cli argumets', async () => {
+  test('cdk.json arguments can be converted to cli arguments', async () => {
     const input = {
       output: 'blah.out',
       build: 'yarn build',
@@ -127,6 +151,7 @@ describe('config', () => {
       deploy: expect.anything(),
       destroy: expect.anything(),
       diff: expect.anything(),
+      drift: expect.anything(),
       init: expect.anything(),
       metadata: expect.anything(),
       migrate: expect.anything(),
@@ -136,9 +161,11 @@ describe('config', () => {
       notices: expect.anything(),
       import: expect.anything(),
       gc: expect.anything(),
+      flags: expect.anything(),
       doctor: expect.anything(),
       docs: expect.anything(),
       refactor: expect.anything(),
+      cliTelemetry: expect.anything(),
     });
   });
 });

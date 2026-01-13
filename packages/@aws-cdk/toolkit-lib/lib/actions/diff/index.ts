@@ -23,7 +23,7 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
   /**
    * Additional parameters for CloudFormation when creating a diff change set
    *
-   * @default - no parameters
+   * @default - No parameters
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -89,13 +89,13 @@ export class DiffMethod {
 }
 
 /**
- * Optins for the diff method
+ * Options for the diff method
  */
 export interface DiffOptions {
   /**
    * Select the stacks
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   readonly stacks?: StackSelector;
 
@@ -131,11 +131,10 @@ export interface DiffOptions {
   readonly contextLines?: number;
 
   /**
-   * Only include broadened security changes in the diff
+   * Whether to include resource moves in the diff. These are the same moves that are detected
+   * by the `refactor` command.
    *
    * @default false
-   *
-   * @deprecated implement in IoHost
    */
-  readonly securityOnly?: boolean;
+  readonly includeMoves?: boolean;
 }

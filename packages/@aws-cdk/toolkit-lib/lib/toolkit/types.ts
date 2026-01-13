@@ -116,3 +116,12 @@ export interface RolledBackStack extends PhysicalStack {
 }
 
 export type StackRollbackResult = 'rolled-back' | 'already-stable';
+
+export interface FeatureFlag {
+  readonly module: string;
+  readonly name: string;
+  readonly recommendedValue: unknown;
+  readonly userValue?: unknown;
+  readonly explanation?: string;
+  readonly unconfiguredBehavesLike?: { v2?: any };
+}

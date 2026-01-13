@@ -50,6 +50,7 @@ import type {
   CreateGeneratedTemplateCommandOutput,
   CreateStackCommandInput,
   CreateStackCommandOutput,
+  CreateStackRefactorCommandInput,
   DeleteChangeSetCommandInput,
   DeleteChangeSetCommandOutput,
   DeleteGeneratedTemplateCommandInput,
@@ -89,17 +90,35 @@ import type {
   UpdateTerminationProtectionCommandInput,
   UpdateTerminationProtectionCommandOutput,
   StackSummary,
+  DescribeStackDriftDetectionStatusCommandInput,
+  DescribeStackDriftDetectionStatusCommandOutput,
+  DescribeStackResourceDriftsCommandOutput,
+  DetectStackDriftCommandInput,
+  DetectStackDriftCommandOutput,
+  DetectStackResourceDriftCommandInput,
+  DetectStackResourceDriftCommandOutput,
+  DescribeStackResourceDriftsCommandInput,
+  ExecuteStackRefactorCommandInput,
+  DescribeStackRefactorCommandInput,
+  CreateStackRefactorCommandOutput,
+  ExecuteStackRefactorCommandOutput,
+  DescribeEventsCommandOutput,
+  DescribeEventsCommandInput,
 } from '@aws-sdk/client-cloudformation';
 import {
+  paginateDescribeEvents,
+
   paginateListStacks,
   CloudFormationClient,
   ContinueUpdateRollbackCommand,
   CreateChangeSetCommand,
   CreateGeneratedTemplateCommand,
   CreateStackCommand,
+  CreateStackRefactorCommand,
   DeleteChangeSetCommand,
   DeleteGeneratedTemplateCommand,
   DeleteStackCommand,
+  DescribeEventsCommand,
   DescribeChangeSetCommand,
   DescribeGeneratedTemplateCommand,
   DescribeResourceScanCommand,
@@ -107,6 +126,7 @@ import {
   DescribeStackResourcesCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
+  ExecuteStackRefactorCommand,
   GetGeneratedTemplateCommand,
   GetTemplateCommand,
   GetTemplateSummaryCommand,
@@ -120,7 +140,14 @@ import {
   StartResourceScanCommand,
   UpdateStackCommand,
   UpdateTerminationProtectionCommand,
+  DescribeStackDriftDetectionStatusCommand,
+  DescribeStackResourceDriftsCommand,
+  DetectStackDriftCommand,
+  DetectStackResourceDriftCommand,
+  waitUntilStackRefactorCreateComplete,
+  waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
+import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
   FilterLogEventsCommandInput,
   FilterLogEventsCommandOutput,
@@ -340,10 +367,10 @@ import {
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
-import type { NodeHttpHandlerOptions } from '@smithy/node-http-handler';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
 import type { WaiterResult } from '@smithy/util-waiter';
 import { AccountAccessKeyCache } from './account-cache';
+import type { RequestHandlerSettings } from './base-credentials';
 import { cachedAsync } from './cached';
 import type { ISdkLogger } from './sdk-logger';
 import type { Account } from './sdk-provider';
@@ -383,7 +410,7 @@ export interface SdkOptions {
 export interface ConfigurationOptions {
   region: string;
   credentials: SDKv3CompatibleCredentialProvider;
-  requestHandler: NodeHttpHandlerOptions;
+  requestHandler: RequestHandlerSettings;
   retryStrategy: ConfiguredRetryStrategy;
   customUserAgent: string;
   logger?: ISdkLogger;
@@ -414,13 +441,18 @@ export interface ICloudFormationClient {
   deleteChangeSet(input: DeleteChangeSetCommandInput): Promise<DeleteChangeSetCommandOutput>;
   deleteGeneratedTemplate(input: DeleteGeneratedTemplateCommandInput): Promise<DeleteGeneratedTemplateCommandOutput>;
   deleteStack(input: DeleteStackCommandInput): Promise<DeleteStackCommandOutput>;
+  describeEvents(input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput>;
   describeChangeSet(input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput>;
   describeGeneratedTemplate(
     input: DescribeGeneratedTemplateCommandInput,
   ): Promise<DescribeGeneratedTemplateCommandOutput>;
   describeResourceScan(input: DescribeResourceScanCommandInput): Promise<DescribeResourceScanCommandOutput>;
+  describeStackDriftDetectionStatus(input: DescribeStackDriftDetectionStatusCommandInput): Promise<DescribeStackDriftDetectionStatusCommandOutput>;
   describeStacks(input: DescribeStacksCommandInput): Promise<DescribeStacksCommandOutput>;
+  describeStackResourceDrifts(input: DescribeStackResourceDriftsCommandInput): Promise<DescribeStackResourceDriftsCommandOutput>;
   describeStackResources(input: DescribeStackResourcesCommandInput): Promise<DescribeStackResourcesCommandOutput>;
+  detectStackDrift(input: DetectStackDriftCommandInput): Promise<DetectStackDriftCommandOutput>;
+  detectStackResourceDrift(input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput>;
   executeChangeSet(input: ExecuteChangeSetCommandInput): Promise<ExecuteChangeSetCommandOutput>;
   getGeneratedTemplate(input: GetGeneratedTemplateCommandInput): Promise<GetGeneratedTemplateCommandOutput>;
   getTemplate(input: GetTemplateCommandInput): Promise<GetTemplateCommandOutput>;
@@ -444,6 +476,11 @@ export interface ICloudFormationClient {
   describeStackEvents(input: DescribeStackEventsCommandInput): Promise<DescribeStackEventsCommandOutput>;
   listStackResources(input: ListStackResourcesCommandInput): Promise<StackResourceSummary[]>;
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
+  paginatedDescribeEvents(input: DescribeEventsCommandInput): Promise<OperationEvent[]>;
+  createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
+  executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
+  waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
+  waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -563,8 +600,6 @@ export class SDK {
 
   public readonly config: ConfigurationOptions;
 
-  protected readonly logger?: ISdkLogger;
-
   private readonly accountCache;
 
   /**
@@ -589,11 +624,11 @@ export class SDK {
   constructor(
     private readonly credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
-    requestHandler: NodeHttpHandlerOptions,
+    requestHandler: RequestHandlerSettings,
     ioHelper: IoHelper,
     logger?: ISdkLogger,
   ) {
-    const debugFn = async (msg: string) => ioHelper.sdkDefaults.debug(msg);
+    const debugFn = async (msg: string) => ioHelper.defaults.debug(msg);
     this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
     this.debug = debugFn;
     this.config = {
@@ -602,9 +637,8 @@ export class SDK {
       requestHandler,
       retryStrategy: new ConfiguredRetryStrategy(7, (attempt) => 300 * (2 ** attempt)),
       customUserAgent: defaultCliUserAgent(),
-      logger,
+      logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
-    this.logger = logger;
     this.currentRegion = region;
   }
 
@@ -681,6 +715,12 @@ export class SDK {
       ): Promise<DeleteGeneratedTemplateCommandOutput> => client.send(new DeleteGeneratedTemplateCommand(input)),
       deleteStack: (input: DeleteStackCommandInput): Promise<DeleteStackCommandOutput> =>
         client.send(new DeleteStackCommand(input)),
+      detectStackDrift: (input: DetectStackDriftCommandInput): Promise<DetectStackDriftCommandOutput> =>
+        client.send(new DetectStackDriftCommand(input)),
+      detectStackResourceDrift: (input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput> =>
+        client.send(new DetectStackResourceDriftCommand(input)),
+      describeEvents: (input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput> =>
+        client.send(new DescribeEventsCommand(input)),
       describeChangeSet: (input: DescribeChangeSetCommandInput): Promise<DescribeChangeSetCommandOutput> =>
         client.send(new DescribeChangeSetCommand(input)),
       describeGeneratedTemplate: (
@@ -688,6 +728,10 @@ export class SDK {
       ): Promise<DescribeGeneratedTemplateCommandOutput> => client.send(new DescribeGeneratedTemplateCommand(input)),
       describeResourceScan: (input: DescribeResourceScanCommandInput): Promise<DescribeResourceScanCommandOutput> =>
         client.send(new DescribeResourceScanCommand(input)),
+      describeStackDriftDetectionStatus: (input: DescribeStackDriftDetectionStatusCommandInput):
+      Promise<DescribeStackDriftDetectionStatusCommandOutput> => client.send(new DescribeStackDriftDetectionStatusCommand(input)),
+      describeStackResourceDrifts: (input: DescribeStackResourceDriftsCommandInput): Promise<DescribeStackResourceDriftsCommandOutput> =>
+        client.send(new DescribeStackResourceDriftsCommand(input)),
       describeStacks: (input: DescribeStacksCommandInput): Promise<DescribeStacksCommandOutput> =>
         client.send(new DescribeStacksCommand(input)),
       describeStackResources: (input: DescribeStackResourcesCommandInput): Promise<DescribeStackResourcesCommandOutput> =>
@@ -741,6 +785,42 @@ export class SDK {
           stackResources.push(...(page?.StackSummaries || []));
         }
         return stackResources;
+      },
+      paginatedDescribeEvents: async (input: DescribeEventsCommandInput): Promise<OperationEvent[]> => {
+        const stackResources = Array<OperationEvent>();
+        const paginator = paginateDescribeEvents({ client }, input);
+        for await (const page of paginator) {
+          stackResources.push(...(page.OperationEvents || []));
+        }
+        return stackResources;
+      },
+      createStackRefactor: (input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput> => {
+        return client.send(new CreateStackRefactorCommand(input));
+      },
+      executeStackRefactor: (input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput> => {
+        return client.send(new ExecuteStackRefactorCommand(input));
+      },
+      waitUntilStackRefactorCreateComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorCreateComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
+      },
+      waitUntilStackRefactorExecuteComplete: (input: DescribeStackRefactorCommandInput): Promise<WaiterResult> => {
+        return waitUntilStackRefactorExecuteComplete(
+          {
+            client,
+            maxWaitTime: 600,
+            minDelay: 6,
+            maxDelay: 6,
+          },
+          input,
+        );
       },
     };
   }
@@ -1051,3 +1131,24 @@ export class SDK {
 }
 
 const CURRENT_ACCOUNT_KEY = Symbol('current_account_key');
+
+/**
+ * Make the SDK logger safe against raw function invocations
+ *
+ * The SDK expects the logger to be an object with a number of functions, but it
+ * doesn't necessarily keep 'this' bound all the time; sometimes it will copy
+ * functions off of the object and call them from a variable.
+ *
+ * By how JavaScript works, this drops the 'this' reference. Make sure 'this' is
+ * bound at all times.
+ *
+ * @see https://github.com/aws/aws-sdk-js-v3/issues/7297
+ */
+function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
+  return {
+    debug: logger.debug.bind(logger),
+    info: logger.info.bind(logger),
+    warn: logger.warn.bind(logger),
+    error: logger.error.bind(logger),
+  };
+}

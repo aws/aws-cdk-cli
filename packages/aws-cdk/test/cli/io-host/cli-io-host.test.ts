@@ -1,10 +1,22 @@
+import * as os from 'os';
+import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
+import * as fs from 'fs-extra';
+import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
 
 let passThrough: PassThrough;
+
+// Store original process.on
+const originalProcessOn = process.on;
+
+// Mock process.on to be a no-op function that returns process for chaining
+process.on = jest.fn().mockImplementation(function () {
+  return process;
+}) as any;
 
 const ioHost = CliIoHost.instance({
   logLevel: 'trace',
@@ -56,6 +68,11 @@ describe('CliIoHost', () => {
     jest.restoreAllMocks();
   });
 
+  afterAll(() => {
+    // Restore original process.on
+    process.on = originalProcessOn;
+  });
+
   describe('stream selection', () => {
     test('writes to stderr by default for non-error messages in non-CI mode', async () => {
       ioHost.isTTY = true;
@@ -67,7 +84,7 @@ describe('CliIoHost', () => {
         message: 'test message',
       }));
 
-      expect(mockStderr).toHaveBeenCalledWith(chalk.white('test message') + '\n');
+      expect(mockStderr).toHaveBeenCalledWith(chalk.reset('test message') + '\n');
       expect(mockStdout).not.toHaveBeenCalled();
     });
 
@@ -95,7 +112,7 @@ describe('CliIoHost', () => {
         message: 'result message',
       }));
 
-      expect(mockStdout).toHaveBeenCalledWith(chalk.white('result message') + '\n');
+      expect(mockStdout).toHaveBeenCalledWith(chalk.reset('result message') + '\n');
       expect(mockStderr).not.toHaveBeenCalled();
     });
   });
@@ -167,7 +184,7 @@ describe('CliIoHost', () => {
     test.each([
       ['error', 'red', false],
       ['warn', 'yellow', false],
-      ['info', 'white', false],
+      ['info', 'reset', false],
       ['debug', 'gray', true],
       ['trace', 'gray', true],
     ] as Array<[IoMessageLevel, typeof chalk.ForegroundColor, boolean]>)('outputs %ss in %s color ', async (level, color, shouldAddTime) => {
@@ -212,7 +229,7 @@ describe('CliIoHost', () => {
         message: 'ci message',
       }));
 
-      expect(mockStdout).toHaveBeenCalledWith(chalk.white('ci message') + '\n');
+      expect(mockStdout).toHaveBeenCalledWith(chalk.reset('ci message') + '\n');
       expect(mockStderr).not.toHaveBeenCalled();
     });
 
@@ -258,7 +275,142 @@ describe('CliIoHost', () => {
         message: 'info message',
       }));
 
-      expect(mockStderr).toHaveBeenCalledWith(chalk.white('info message') + '\n');
+      expect(mockStderr).toHaveBeenCalledWith(chalk.reset('info message') + '\n');
+    });
+  });
+
+  test('telemetry should not be instantiated with an invalid command', async () => {
+    const telemetryIoHost = CliIoHost.instance({
+      logLevel: 'trace',
+    }, true);
+
+    await telemetryIoHost.startTelemetry({ _: ['invalid'] }, new Context());
+
+    expect(telemetryIoHost.telemetry).toBeUndefined();
+  });
+
+  describe('telemetry', () => {
+    let telemetryIoHost: CliIoHost;
+    let telemetryEmitSpy: jest.SpyInstance;
+    let telemetryDir: string;
+
+    beforeEach(async () => {
+      // Create a telemetry file to satisfy requirements; we are not asserting on the file contents
+      telemetryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'telemetry'));
+      const telemetryFilePath = path.join(telemetryDir, 'telemetry-file.json');
+
+      // Create a new instance with telemetry enabled
+      telemetryIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+      }, true);
+      await telemetryIoHost.startTelemetry({ '_': ['init'], 'telemetry-file': telemetryFilePath }, new Context());
+
+      expect(telemetryIoHost.telemetry).toBeDefined();
+
+      telemetryEmitSpy = jest.spyOn(telemetryIoHost.telemetry!, 'emit')
+        .mockImplementation(async () => Promise.resolve());
+    });
+
+    afterEach(() => {
+      fs.rmdirSync(telemetryDir, { recursive: true });
+      jest.restoreAllMocks();
+    });
+
+    test('emit telemetry on SYNTH event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I1001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'SYNTH',
+        duration: 123,
+      }));
+    });
+
+    test('emit telemetry on INVOKE event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'INVOKE',
+        duration: 123,
+      }));
+    });
+
+    test('do not emit telemetry on non telemetry codes', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2000', // only I2001, I1001 are valid
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was not called
+      expect(telemetryEmitSpy).not.toHaveBeenCalled();
+    });
+
+    test('emit telemetry with error name', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'synth',
+        code: 'CDK_CLI_I2001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+          error: {
+            name: 'MyError',
+            message: 'Some message',
+          },
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'INVOKE',
+        duration: 123,
+        error: {
+          name: 'MyError',
+          message: 'Some message',
+        },
+      }));
     });
   });
 
@@ -352,6 +504,57 @@ describe('CliIoHost', () => {
       });
     });
 
+    describe('--yes mode', () => {
+      const autoRespondingIoHost = CliIoHost.instance({
+        logLevel: 'trace',
+        autoRespond: true,
+        isCI: false,
+        isTTY: true,
+      }, true);
+
+      test('it does not prompt the user and return true', async () => {
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
+        // WHEN
+        const response = await autoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'test message',
+          defaultResponse: true,
+        }));
+
+        // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: chalk.cyan('test message') + ' (auto-confirmed)',
+        }));
+        expect(response).toBe(true);
+      });
+
+      test('messages with default are skipped', async () => {
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
+        // WHEN
+        const response = await autoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: 'foobar',
+        }));
+
+        // THEN
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: chalk.cyan('test message') + ' (auto-responded with default: foobar)',
+        }));
+        expect(response).toBe('foobar');
+      });
+    });
+
     describe('non-promptable data', () => {
       test('logs messages and returns default unchanged', async () => {
         const response = await ioHost.requestResponse(plainMessage({
@@ -363,7 +566,7 @@ describe('CliIoHost', () => {
           defaultResponse: [1, 2, 3],
         }));
 
-        expect(mockStderr).toHaveBeenCalledWith(chalk.white('test message') + '\n');
+        expect(mockStderr).toHaveBeenCalledWith(chalk.reset('test message') + '\n');
         expect(response).toEqual([1, 2, 3]);
       });
     });

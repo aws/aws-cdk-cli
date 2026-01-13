@@ -92,6 +92,29 @@ describe('formatStackDiff', () => {
     );
   });
 
+  test('formats differences showing resource moves', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        mappings: {
+          'test-stack.OldName': 'test-stack.Func',
+        },
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.formattedDiff).toBeDefined();
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func (OR move from test-stack.OldName via refactoring)',
+    );
+  });
+
   test('handles nested stack templates', () => {
     // GIVEN
     const nestedStacks = {

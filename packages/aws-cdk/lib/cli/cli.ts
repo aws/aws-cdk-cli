@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
-import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
+import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
+import { ciSystemIsStdErrSafe } from './ci-systems';
+import { displayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -12,11 +14,10 @@ import { prettyPrintError } from './pretty-print-error';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
-import * as version from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
-import { SdkProvider, IoHostSdkLogger, setSdkTracing, makeRequestHandler } from '../api/aws-auth';
+import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { Deployments } from '../api/deployments';
@@ -25,10 +26,17 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
+import { ProxyAgentProvider } from './proxy-agent';
+import { cdkCliErrorName } from './telemetry/error';
+import type { ErrorDetails } from './telemetry/schema';
+import { isCI } from './util/ci';
+import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
+import { getLanguageFromAlias } from '../commands/language';
 
 if (!process.stdout.isTTY) {
   // Disable chalk color highlighting
@@ -37,6 +45,8 @@ if (!process.stdout.isTTY) {
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
+  argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
   const cmd = argv._[0];
 
   // if one -v, log at a DEBUG level
@@ -60,47 +70,78 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     isCI: Boolean(argv.ci),
     currentAction: cmd,
     stackProgress: argv.progress,
+    autoRespond: argv.yes,
   }, true);
+  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Debug should always imply tracing
-  if (argv.debug || argv.verbose > 2) {
-    setSdkTracing(true);
-  } else {
-    // cli-lib-alpha needs to explicitly set in case it was enabled before
-    setSdkTracing(false);
-  }
+  setSdkTracing(argv.debug || argv.verbose > 2);
 
   try {
-    await checkForPlatformWarnings();
+    await checkForPlatformWarnings(ioHelper);
   } catch (e) {
     await ioHost.defaults.debug(`Error while checking for platform warnings: ${e}`);
   }
 
-  await ioHost.defaults.debug('CDK Toolkit CLI version:', version.displayVersion());
+  await ioHost.defaults.debug('CDK Toolkit CLI version:', versionWithBuild());
   await ioHost.defaults.debug('Command line arguments:', argv);
 
-  const configuration = new Configuration({
-    commandLineArguments: {
-      ...argv,
-      _: argv._ as [Command, ...string[]], // TypeScript at its best
-    },
+  const configuration = await Configuration.fromArgsAndFiles(ioHelper,
+    {
+      commandLineArguments: {
+        ...argv,
+        _: argv._ as [Command, ...string[]], // TypeScript at its best
+      },
+    });
+
+  // Always create and use ProxyAgent to support configuration via env vars
+  const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
+    proxyAddress: configuration.settings.get(['proxy']),
+    caBundlePath: configuration.settings.get(['caBundlePath']),
   });
-  await configuration.load();
 
-  const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
+  try {
+    await ioHost.startTelemetry(argv, configuration.context);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
+  }
 
-  const shouldDisplayNotices = configuration.settings.get(['notices']);
+  /**
+   * The default value for displaying (and refreshing) notices on all commands.
+   *
+   * If the user didn't supply either `--notices` or `--no-notices`, we do
+   * autodetection. The autodetection currently is: do write notices if we are
+   * not on CI, or are on a CI system where we know that writing to stderr is
+   * safe. We fail "closed"; that is, we decide to NOT print for unknown CI
+   * systems, even though technically we maybe could.
+   */
+  const isSafeToWriteNotices = !isCI() || Boolean(ciSystemIsStdErrSafe());
+
+  // Determine if notices should be displayed based on CLI args and configuration
+  let shouldDisplayNotices: boolean;
+  if (argv.notices !== undefined) {
+    // CLI argument takes precedence
+    shouldDisplayNotices = argv.notices;
+  } else {
+    // Fall back to configuration file setting, then autodetection
+    const configNotices = configuration.settings.get(['notices']);
+    if (configNotices !== undefined) {
+      // Consider string "false" to be falsy in this context
+      shouldDisplayNotices = configNotices !== 'false' && Boolean(configNotices);
+    } else {
+      // Default autodetection behavior
+      shouldDisplayNotices = isSafeToWriteNotices;
+    }
+  }
+
   // Notices either go to stderr, or nowhere
   ioHost.noticesDestination = shouldDisplayNotices ? 'stderr' : 'drop';
   const notices = Notices.create({
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    httpOptions: {
-      proxyAddress: configuration.settings.get(['proxy']),
-      caBundlePath: configuration.settings.get(['caBundlePath']),
-    },
-    cliVersion: version.versionNumber(),
+    httpOptions: { agent: proxyAgent },
+    cliVersion: versionNumber(),
   });
   const refreshNotices = (async () => {
     // the cdk notices command has it's own refresh
@@ -115,14 +156,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const sdkProvider = await SdkProvider.withAwsCliCompatibleDefaults({
     ioHelper,
-    profile: configuration.settings.get(['profile']),
-    requestHandler: await makeRequestHandler(ioHelper, {
-      proxyAddress: argv.proxy,
-      caBundlePath: argv['ca-bundle-path'],
-    }),
+    requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
-  });
+  }, configuration.settings.get(['profile']));
+
+  try {
+    await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
+  } catch (e: any) {
+    await ioHost.asIoHelper().defaults.trace(`Telemetry attach region failed: ${e.message}`);
+  }
 
   let outDirLock: IReadLock | undefined;
   const cloudExecutable = new CloudExecutable({
@@ -165,7 +208,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await version.displayVersionMessage();
+    await displayVersionMessage(ioHelper);
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -174,7 +217,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
-    } else if (cmd !== 'version') {
+    } else if (shouldDisplayNotices && cmd !== 'version') {
       await notices.display();
     }
   }
@@ -218,6 +261,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'context':
         ioHost.currentAction = 'context';
         return context({
+          ioHelper,
           context: configuration.context,
           clear: argv.clear,
           json: argv.json,
@@ -228,11 +272,16 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'docs':
       case 'doc':
         ioHost.currentAction = 'docs';
-        return docs({ browser: configuration.settings.get(['browser']) });
+        return docs({
+          ioHelper,
+          browser: configuration.settings.get(['browser']),
+        });
 
       case 'doctor':
         ioHost.currentAction = 'doctor';
-        return doctor();
+        return doctor({
+          ioHelper,
+        });
 
       case 'ls':
       case 'list':
@@ -259,6 +308,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           changeSet: args['change-set'],
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
+          includeMoves: args['include-moves'],
+        });
+
+      case 'drift':
+        ioHost.currentAction = 'drift';
+        return cli.drift({
+          selector,
+          fail: args.fail,
         });
 
       case 'refactor':
@@ -269,10 +326,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'refactor';
         return cli.refactor({
           dryRun: args.dryRun,
-          selector,
-          excludeFile: args.excludeFile,
-          mappingFile: args.mappingFile,
+          overrideFile: args.overrideFile,
           revert: args.revert,
+          stacks: selector,
+          additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
+          force: args.force ?? false,
+          roleArn: args.roleArn,
         });
 
       case 'bootstrap':
@@ -305,6 +364,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),
             cloudFormationExecutionPolicies: arrayFromYargs(args.cloudformationExecutionPolicies),
+            denyExternalId: args.denyExternalId,
           },
         });
 
@@ -322,43 +382,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('Can not supply both --[no-]execute and --method at the same time');
         }
 
-        let deploymentMethod: DeploymentMethod | undefined;
-        switch (args.method) {
-          case 'direct':
-            if (args.changeSetName) {
-              throw new ToolkitError('--change-set-name cannot be used with method=direct');
-            }
-            if (args.importExistingResources) {
-              throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
-            }
-            deploymentMethod = { method: 'direct' };
-            break;
-          case 'change-set':
-            deploymentMethod = {
-              method: 'change-set',
-              execute: true,
-              changeSetName: args.changeSetName,
-              importExistingResources: args.importExistingResources,
-            };
-            break;
-          case 'prepare-change-set':
-            deploymentMethod = {
-              method: 'change-set',
-              execute: false,
-              changeSetName: args.changeSetName,
-              importExistingResources: args.importExistingResources,
-            };
-            break;
-          case undefined:
-            deploymentMethod = {
-              method: 'change-set',
-              execute: args.execute ?? true,
-              changeSetName: args.changeSetName,
-              importExistingResources: args.importExistingResources,
-            };
-            break;
-        }
-
         return cli.deploy({
           selector,
           exclusively: args.exclusively,
@@ -368,7 +391,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
-          deploymentMethod,
+          deploymentMethod: determineDeploymentMethod(args, configuration),
           force: args.force,
           parameters: parameterMap,
           usePreviousParameters: args['previous-parameters'],
@@ -376,7 +399,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           progress: configuration.settings.get(['progress']),
           ci: args.ci,
           rollback: configuration.settings.get(['rollback']),
-          hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback),
           watch: args.watch,
           traceLogs: args.logs,
           concurrency: args.concurrency,
@@ -424,14 +446,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           roleArn: args.roleArn,
           reuseAssets: args['build-exclude'],
-          deploymentMethod: {
-            method: 'change-set',
-            changeSetName: args.changeSetName,
-          },
+          deploymentMethod: determineDeploymentMethod(args, configuration, true),
           force: args.force,
           progress: configuration.settings.get(['progress']),
           rollback: configuration.settings.get(['rollback']),
-          hotswap: determineHotswapMode(args.hotswap, args.hotswapFallback, true),
           traceLogs: args.logs,
           concurrency: args.concurrency,
         });
@@ -451,14 +469,37 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (!configuration.settings.get(['unstable']).includes('gc')) {
           throw new ToolkitError('Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
         }
+        if (args.bootstrapStackName) {
+          await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
+        }
+        // roleArn is defined for when cloudformation is invoked
+        // This conflicts with direct sdk calls existing in the gc command to s3 and ecr
+        if (args.roleArn) {
+          await ioHost.defaults.warn('The --role-arn option is not supported for the gc command and will be ignored.');
+        }
         return cli.garbageCollect(args.ENVIRONMENTS, {
           action: args.action,
           type: args.type,
           rollbackBufferDays: args['rollback-buffer-days'],
           createdBufferDays: args['created-buffer-days'],
-          bootstrapStackName: args.bootstrapStackName,
+          bootstrapStackName: args.toolkitStackName ?? args.bootstrapStackName,
           confirm: args.confirm,
         });
+
+      case 'flags':
+        ioHost.currentAction = 'flags';
+
+        if (!configuration.settings.get(['unstable']).includes('flags')) {
+          throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
+        }
+        const toolkit = new Toolkit({
+          ioHost,
+          toolkitStackName,
+          unstableFeatures: configuration.settings.get(['unstable']),
+        });
+        const flagsData = await toolkit.flags(cloudExecutable);
+        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit, configuration.context.all);
+        return handler.processFlagsCommand();
 
       case 'synthesize':
       case 'synth':
@@ -489,18 +530,39 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'notices';
         return cli.acknowledge(args.ID);
 
+      case 'cli-telemetry':
+        ioHost.currentAction = 'cli-telemetry';
+        if (args.enable === undefined && args.disable === undefined && args.status === undefined) {
+          throw new ToolkitError('Must specify \'--enable\', \'--disable\', or \'--status\'');
+        }
+
+        if (args.status) {
+          return cli.cliTelemetryStatus(args);
+        } else {
+          const enable = args.enable ?? !args.disable;
+          return cli.cliTelemetry(enable);
+        }
       case 'init':
         ioHost.currentAction = 'init';
         const language = configuration.settings.get(['language']);
         if (args.list) {
-          return printAvailableTemplates(language);
+          return printAvailableTemplates(ioHelper, language);
         } else {
+          // Gate custom template support with unstable flag
+          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
+            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          }
           return cliInit({
+            ioHelper,
             type: args.TEMPLATE,
             language,
             canUseNetwork: undefined,
             generateOnly: args.generateOnly,
             libVersion: args.libVersion,
+            fromPath: args['from-path'],
+            templatePath: args['template-path'],
+            packageManager: args['package-manager'],
+            projectName: args.name,
           });
         }
       case 'migrate':
@@ -519,7 +581,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
       case 'version':
         ioHost.currentAction = 'version';
-        return ioHost.defaults.result(version.displayVersion());
+        return ioHost.defaults.result(versionWithBuild());
 
       default:
         throw new ToolkitError('Unknown command: ' + command);
@@ -565,6 +627,65 @@ function arrayFromYargs(xs: string[]): string[] | undefined {
   return xs.filter((x) => x !== '');
 }
 
+function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {
+  let deploymentMethod: ChangeSetDeployment | DirectDeployment | undefined;
+  switch (args.method) {
+    case 'direct':
+      if (args.changeSetName) {
+        throw new ToolkitError('--change-set-name cannot be used with method=direct');
+      }
+      if (args.importExistingResources) {
+        throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
+      }
+      deploymentMethod = { method: 'direct' };
+      break;
+    case 'change-set':
+      deploymentMethod = {
+        method: 'change-set',
+        execute: true,
+        changeSetName: args.changeSetName,
+        importExistingResources: args.importExistingResources,
+      };
+      break;
+    case 'prepare-change-set':
+      deploymentMethod = {
+        method: 'change-set',
+        execute: false,
+        changeSetName: args.changeSetName,
+        importExistingResources: args.importExistingResources,
+      };
+      break;
+    case undefined:
+    default:
+      deploymentMethod = {
+        method: 'change-set',
+        execute: watch ? true : args.execute ?? true,
+        changeSetName: args.changeSetName,
+        importExistingResources: args.importExistingResources,
+      };
+      break;
+  }
+
+  const hotswapMode = determineHotswapMode(args.hotswap, args.hotswapFallback, watch);
+  const hotswapProperties = configuration.settings.get(['hotswap']) || {};
+  switch (hotswapMode) {
+    case HotswapMode.FALL_BACK:
+      return {
+        method: 'hotswap',
+        properties: hotswapProperties,
+        fallback: deploymentMethod,
+      };
+    case HotswapMode.HOTSWAP_ONLY:
+      return {
+        method: 'hotswap',
+        properties: hotswapProperties,
+      };
+    default:
+    case HotswapMode.FULL_DEPLOYMENT:
+      return deploymentMethod;
+  }
+}
+
 function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watch?: boolean): HotswapMode {
   if (hotswap && hotswapFallback) {
     throw new ToolkitError('Can not supply both --hotswap and --hotswap-fallback at the same time');
@@ -589,17 +710,28 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 
 /* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
+  let error: ErrorDetails | undefined;
   exec(args)
     .then(async (value) => {
       if (typeof value === 'number') {
         process.exitCode = value;
       }
     })
-    .catch((err) => {
+    .catch(async (err) => {
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      prettyPrintError(err, version.isDeveloperBuild());
+      prettyPrintError(err, isDeveloperBuildVersion());
+      error = {
+        name: cdkCliErrorName(err.name),
+      };
       process.exitCode = 1;
+    })
+    .finally(async () => {
+      try {
+        await CliIoHost.get()?.telemetry?.end(error);
+      } catch (e: any) {
+        await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
+      }
     });
 }
 /* c8 ignore stop */

@@ -1,6 +1,6 @@
 /**
  * Get a human-readable error message for a network error
- * @param error The network error object
+ * @param error - The network error object
  */
 export function humanNetworkError(error: NodeJS.ErrnoException): string {
   switch (error.code) {

@@ -102,7 +102,8 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('version-reporting', {
       default: undefined,
       type: 'boolean',
-      desc: 'Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)',
+      alias: 'telemetry',
     })
     .option('path-metadata', {
       default: undefined,
@@ -134,7 +135,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       requiresArg: true,
     })
     .option('notices', {
-      default: helpers.shouldDisplayNotices(),
+      default: undefined,
       type: 'boolean',
       desc: 'Show relevant notices',
     })
@@ -154,6 +155,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
       default: [],
       nargs: 1,
       requiresArg: true,
+    })
+    .option('telemetry-file', {
+      default: undefined,
+      type: 'string',
+      desc: 'Send telemetry data to a local file.',
+    })
+    .option('yes', {
+      default: false,
+      type: 'boolean',
+      alias: 'y',
+      desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.',
     })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
@@ -233,6 +245,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'boolean',
           desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ',
+        })
+        .option('deny-external-id', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ',
         })
         .option('tags', {
           type: 'array',
@@ -339,12 +356,79 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Confirm via manual prompt before deletion',
           })
-          .option('bootstrap-stack-name', {
+          .option('toolkit-stack-name', {
             default: undefined,
             type: 'string',
             desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"',
             requiresArg: true,
+            conflicts: 'bootstrap-stack-name',
+          })
+          .option('bootstrap-stack-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)',
+            deprecated: 'use --toolkit-stack-name',
+            requiresArg: true,
+            conflicts: 'toolkit-stack-name',
           }),
+    )
+    .command('flags [FLAGNAME..]', 'View and toggle feature flags.', (yargs: Argv) =>
+      yargs
+        .option('value', {
+          default: undefined,
+          type: 'string',
+          desc: 'The value the user would like to set the feature flag configuration to',
+          requiresArg: true,
+        })
+        .option('set', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Signifies the user would like to modify their feature flag configuration',
+          requiresArg: false,
+        })
+        .option('all', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify or view all feature flags',
+          requiresArg: false,
+        })
+        .option('unconfigured', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Modify unconfigured feature flags',
+          requiresArg: false,
+        })
+        .option('recommended', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to recommended states',
+          requiresArg: false,
+        })
+        .option('default', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Change flags to default state',
+          requiresArg: false,
+        })
+        .option('interactive', {
+          default: undefined,
+          type: 'boolean',
+          alias: ['i'],
+          desc: 'Interactive option for the flags command',
+        })
+        .option('safe', {
+          default: undefined,
+          type: 'boolean',
+          desc: "Enable all feature flags that do not impact the user's application",
+          requiresArg: false,
+        })
+        .option('concurrency', {
+          default: 4,
+          type: 'number',
+          alias: ['n'],
+          desc: 'Maximum number of simultaneous synths to execute.',
+          requiresArg: true,
+        }),
     )
     .command('deploy [STACKS..]', 'Deploys the stack(s) named STACKS into your AWS account', (yargs: Argv) =>
       yargs
@@ -466,17 +550,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('watch', {
@@ -645,17 +729,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('logs', {
@@ -749,7 +833,19 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: false,
             type: 'boolean',
             desc: 'Whether or not the change set imports resources that already exist',
+          })
+          .option('include-moves', {
+            default: false,
+            type: 'boolean',
+            desc: 'Whether to include moves in the diff',
           }),
+    )
+    .command('drift [STACKS..]', 'Detect drifts in the given CloudFormation stack(s)', (yargs: Argv) =>
+      yargs.option('fail', {
+        default: undefined,
+        type: 'boolean',
+        desc: 'Fail with exit code 1 if drift is detected',
+      }),
     )
     .command('metadata [STACK]', 'Returns all metadata associated with this stack')
     .command(['acknowledge [ID]', 'ack [ID]'], 'Acknowledge a notice so that it does not show up anymore')
@@ -768,7 +864,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)',
-          choices: ['csharp', 'fsharp', 'go', 'java', 'javascript', 'python', 'typescript'],
+          choices: ['csharp', 'cs', 'fsharp', 'fs', 'go', 'java', 'javascript', 'js', 'python', 'py', 'typescript', 'ts'],
         })
         .option('list', {
           default: undefined,
@@ -784,7 +880,33 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           alias: 'V',
-          desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.',
+          desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.',
+        })
+        .option('from-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a local custom template directory or multi-template repository',
+          requiresArg: true,
+          conflicts: ['lib-version'],
+        })
+        .option('template-path', {
+          default: undefined,
+          type: 'string',
+          desc: 'Path to a specific template within a multi-template repository',
+          requiresArg: true,
+        })
+        .option('package-manager', {
+          default: undefined,
+          type: 'string',
+          desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.',
+          choices: ['npm', 'yarn', 'pnpm', 'bun'],
+        })
+        .option('project-name', {
+          default: undefined,
+          type: 'string',
+          alias: 'n',
+          desc: 'The name of the new project',
+          requiresArg: true,
         }),
     )
     .command('migrate', 'Migrate existing AWS resources into a CDK app', (yargs: Argv) =>
@@ -801,7 +923,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           alias: 'l',
           desc: 'The language to be used for the new project',
-          choices: ['typescript', 'go', 'java', 'python', 'csharp'],
+          choices: ['typescript', 'ts', 'go', 'java', 'python', 'py', 'csharp', 'cs'],
         })
         .option('account', {
           default: undefined,
@@ -877,27 +999,53 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .command('doctor', 'Check your set-up for potential problems')
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
+        .option('additional-stack-name', {
+          type: 'array',
+          requiresArg: true,
+          desc: 'Names of deployed stacks to be considered for resource comparison.',
+          nargs: 1,
+        })
         .option('dry-run', {
           default: false,
           type: 'boolean',
           desc: 'Do not perform any changes, just show what would be done',
         })
-        .option('exclude-file', {
+        .option('override-file', {
           default: undefined,
           type: 'string',
           requiresArg: true,
-          desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
-        })
-        .option('mapping-file', {
-          default: undefined,
-          type: 'string',
-          requiresArg: true,
-          desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+          desc: 'A file that declares overrides to be applied to the list of mappings computed by the CLI.',
         })
         .option('revert', {
           default: false,
           type: 'boolean',
           desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          desc: 'Whether to do the refactor without asking for confirmation',
+        }),
+    )
+    .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>
+      yargs
+        .option('enable', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Enable anonymous telemetry',
+          conflicts: 'disable',
+        })
+        .option('disable', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Disable anonymous telemetry',
+          conflicts: 'enable',
+        })
+        .option('status', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Report telemetry opt-in/out status',
+          conflicts: ['enable', 'disable'],
         }),
     )
     .version(helpers.cliVersion())
@@ -909,5 +1057,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'If your app has a single stack, there is no need to specify the stack name\n\nIf one of cdk.json or ~/.cdk.json exists, options specified there will be used as defaults. Settings in cdk.json take precedence.',
     )
     .parse(args);
-} // eslint-disable-next-line @typescript-eslint/no-require-imports
+}
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const yargs = require('yargs');

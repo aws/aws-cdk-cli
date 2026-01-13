@@ -1,8 +1,8 @@
 import * as path from 'path';
+import type { FileManifestEntry, DockerImageManifestEntry } from '@aws-cdk/cdk-assets-lib';
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import type { AssemblyManifest, AwsCloudFormationStackProperties, ArtifactManifest, MetadataEntry, AssetManifestProperties, ContainerImageAssetMetadataEntry, FileAssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, ArtifactType, ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
-import type { FileManifestEntry, DockerImageManifestEntry } from 'cdk-assets/lib/asset-manifest';
-import { AssetManifest } from 'cdk-assets/lib/asset-manifest';
 import * as fs from 'fs-extra';
 
 /**

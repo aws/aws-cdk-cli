@@ -131,7 +131,6 @@ export class CloudAssembly extends BaseStackAssembly {
   ): Promise<StackCollection> {
     const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => minimatch(stack.hierarchicalId, pattern);
     const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
-
     return this.extendStacks(matchedStacks, stacks, extend);
   }
 

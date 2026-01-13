@@ -29,3 +29,18 @@ export function partition<T>(collection: T[], pred: (x: T) => boolean): T[] {
   }
   return ret;
 }
+
+export async function indexBy<A, B>(xs: A[], fn: (a: A) => Promise<B>): Promise<Map<B, A[]>> {
+  const ret = new Map<B, A[]>();
+  for (const x of xs) {
+    const key = await fn(x);
+    const group = ret.get(key);
+    if (group) {
+      group.push(x);
+    } else {
+      ret.set(key, [x]);
+    }
+  }
+  return ret;
+}
+

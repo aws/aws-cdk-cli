@@ -4,7 +4,7 @@ export interface RollbackOptions {
   /**
    * Criteria for selecting stacks to rollback
    *
-   * @default - all stacks
+   * @default - All stacks
    */
   readonly stacks?: StackSelector;
 

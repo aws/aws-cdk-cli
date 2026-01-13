@@ -3,35 +3,27 @@ jest.mock('@aws-cdk/cloudformation-diff/lib/diff/util', () => ({
   loadResourceModel: mockLoadResourceModel,
 }));
 
-import type {
-  ResourceLocation as CfnResourceLocation,
-  ResourceMapping as CfnResourceMapping,
-} from '@aws-sdk/client-cloudformation';
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { expect } from '@jest/globals';
-import type { ExcludeList } from '../../../lib/api/refactoring';
-import {
-  AlwaysExclude,
-  ambiguousMovements,
-  findResourceMovements,
-  resourceMappings,
-  resourceMovements,
-  usePrescribedMappings,
-} from '../../../lib/api/refactoring';
-import type {
-  CloudFormationStack,
-} from '../../../lib/api/refactoring/cloudformation';
+import { usePrescribedMappings } from '../../../lib/api/refactoring';
+import type { CloudFormationStack, CloudFormationTemplate } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
-import { generateStackDefinitions } from '../../../lib/api/refactoring/execution';
-import { mockCloudFormationClient, MockSdkProvider } from '../../_helpers/mock-sdk';
+import { generateStackDefinitions } from '../../../lib/api/refactoring/stack-definitions';
+import { MockSdkProvider, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 
-const cloudFormationClient = mockCloudFormationClient;
+describe(computeResourceDigests, () => {
+  function makeStacks(templates: CloudFormationTemplate[]): CloudFormationStack[] {
+    return templates.map((template, index) => ({
+      environment: { account: '123456789012', region: 'us-east-1', name: '' },
+      stackName: `Stack${index + 1}`,
+      template,
+    }));
+  }
 
-describe('computeResourceDigests', () => {
-  test('returns empty map for empty template', () => {
-    const template = {};
-    const result = computeResourceDigests(template);
+  test('returns empty map for empty stacks', () => {
+    const stacks = makeStacks([{}]);
+    const result = computeResourceDigests(stacks);
     expect(Object.keys(result).length).toBe(0);
   });
 
@@ -43,9 +35,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(1);
-    expect(result.MyResource).toBeDefined();
+    expect(result['Stack1.MyResource']).toBeDefined();
   });
 
   test('computes digest for single resource without dependencies', () => {
@@ -57,9 +49,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(1);
-    expect(result.MyResource).toBeDefined();
+    expect(result['Stack1.MyResource']).toBeDefined();
   });
 
   test('order of properties does not matter', () => {
@@ -75,9 +67,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(2);
-    expect(result.MyResource1).toEqual(result.MyResource2);
+    expect(result['Stack1.MyResource1']).toEqual(result['Stack1.MyResource2']);
   });
 
   test('computes digests with multiple resources referencing each other', () => {
@@ -96,10 +88,10 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(2);
-    expect(result.Bucket).toBeDefined();
-    expect(result.Topic).toBeDefined();
+    expect(result['Stack1.Bucket']).toBeDefined();
+    expect(result['Stack1.Topic']).toBeDefined();
   });
 
   test('computes different digests if top-level properties are different', () => {
@@ -119,8 +111,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Q1).not.toBe(result.Q2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Q1']).not.toBe(result['Stack1.Q2']);
   });
 
   test('computes the same digest for identical resources', () => {
@@ -136,9 +128,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(2);
-    expect(result.Bucket1).toBe(result.Bucket2);
+    expect(result['Stack1.Bucket1']).toBe(result['Stack1.Bucket2']);
   });
 
   test('identical resources up to dependency names', () => {
@@ -164,8 +156,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Bucket1).toBe(result.Bucket2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Bucket1']).toBe(result['Stack1.Bucket2']);
   });
 
   test('identical resources up to dependency names - DependsOn', () => {
@@ -195,8 +187,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Topic1).toEqual(result.Topic2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).toEqual(result['Stack1.Topic2']);
   });
 
   test('different resources - DependsOn plus Ref in properties', () => {
@@ -231,8 +223,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Topic1).not.toEqual(result.Topic2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
   });
 
   test('different resources - DependsOn', () => {
@@ -262,8 +254,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Topic1).not.toEqual(result.Topic2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
   });
 
   test('almost identical resources - dependency via different intrinsic functions', () => {
@@ -290,8 +282,8 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Bucket1).not.toBe(result.Bucket2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Bucket1']).not.toBe(result['Stack1.Bucket2']);
   });
 
   test('ignores references to unknown resources', () => {
@@ -308,9 +300,9 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
+    const result = computeResourceDigests(makeStacks([template]));
     expect(Object.keys(result).length).toBe(1);
-    expect(result.MyResource).toBeDefined();
+    expect(result['Stack1.MyResource']).toBeDefined();
   });
 
   test('ignores CDK construct path', () => {
@@ -336,72 +328,10 @@ describe('computeResourceDigests', () => {
         },
       },
     };
-    const result = computeResourceDigests(template);
-    expect(result.Q1).toBe(result.Q2);
-  });
-
-  test('uses physical ID if present', () => {
-    mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName'],
-    });
-
-    const template = {
-      Resources: {
-        Foo1: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            ShouldBeIgnored: true,
-          },
-        },
-        Foo2: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            ShouldAlsoBeIgnored: true,
-          },
-        },
-      },
-    };
-
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).toBe(result.Foo2);
-  });
-
-  test('uses physical ID if present - with dependencies', () => {
-    mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName'],
-    });
-
-    const template = {
-      Resources: {
-        Foo1: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            ShouldBeIgnored: true,
-          },
-        },
-        Foo2: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            ShouldAlsoBeIgnored: true,
-          },
-        },
-        Bucket1: {
-          Type: 'AWS::S3::Bucket',
-          Properties: { Dep: { Ref: 'Foo1' } },
-        },
-        Bucket2: {
-          Type: 'AWS::S3::Bucket',
-          Properties: { Dep: { Ref: 'Foo2' } },
-        },
-      },
-    };
-
-    const result = computeResourceDigests(template);
-    expect(result.Bucket1).toBe(result.Bucket2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Q1']).toBeDefined();
+    expect(result['Stack1.Q2']).toBeDefined();
+    expect(result['Stack1.Q1']).toBe(result['Stack1.Q2']);
   });
 
   test('different physical IDs lead to different digests', () => {
@@ -428,8 +358,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toEqual(result['Stack1.Foo2']);
   });
 
   test('primaryIdentifier is a composite field - different values', () => {
@@ -458,66 +390,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
-  });
-
-  test('primaryIdentifier is a composite field - same value', () => {
-    mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName', 'BarName'],
-    });
-
-    const template = {
-      Resources: {
-        Foo1: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            BarName: 'YYYYYYYYY',
-            ShouldBeIgnored: true,
-          },
-        },
-        Foo2: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            BarName: 'YYYYYYYYY',
-            ShouldAlsoBeIgnored: true,
-          },
-        },
-      },
-    };
-
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).toBe(result.Foo2);
-  });
-
-  test('primaryIdentifier is a composite field but not all of them are set in the resource', () => {
-    mockLoadResourceModel.mockReturnValue({
-      primaryIdentifier: ['FooName', 'BarName'],
-    });
-
-    const template = {
-      Resources: {
-        Foo1: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            ShouldBeIgnored: true,
-          },
-        },
-        Foo2: {
-          Type: 'AWS::S3::Foo',
-          Properties: {
-            FooName: 'XXXXXXXXX',
-            ShouldAlsoBeIgnored: true,
-          },
-        },
-      },
-    };
-
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toEqual(result['Stack1.Foo2']);
   });
 
   test('resource properties does not contain primaryIdentifier - different values', () => {
@@ -542,8 +418,10 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).not.toBe(result.Foo2);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).not.toBe(result['Stack1.Foo2']);
   });
 
   test('resource properties does not contain primaryIdentifier - same value', () => {
@@ -568,859 +446,96 @@ describe('computeResourceDigests', () => {
       },
     };
 
-    const result = computeResourceDigests(template);
-    expect(result.Foo1).toBe(result.Foo2);
-  });
-});
-
-describe('typed mappings', () => {
-  // The environment isn't important for these tests
-  // Using the same for all stacks
-  const environment = {
-    name: 'prod',
-    account: '123456789012',
-    region: 'us-east-1',
-  };
-
-  test('returns empty mappings for identical sets of stacks', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([]);
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Foo1']).toBeDefined();
+    expect(result['Stack1.Foo2']).toBeDefined();
+    expect(result['Stack1.Foo1']).toEqual(result['Stack1.Foo2']);
   });
 
-  test('returns empty mappings when there are only removals', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
+  test('identical resources from different stacks', () => {
+    const template1 = {
+      Resources: {
+        Bucket: {
+          Type: 'AWS::S3::Bucket',
+          // cross-stack reference
+          Properties: { SomeProp: { 'Fn::ImportValue': 'Stack2:Bar' } },
         },
       },
     };
 
-    const stack2 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        // Resource was removed
-        Resources: {},
+    const template2 = {
+      Outputs: {
+        ExportForTheBarResource: {
+          Value: { Ref: 'Bar' },
+          Export: { Name: 'Stack2:Bar' },
+        },
+      },
+      Resources: {
+        Bar: {
+          Type: 'AWS::X::Y',
+          Properties: { Banana: true },
+        },
+        AnotherBucket: {
+          Type: 'AWS::S3::Bucket',
+          // same stack reference
+          Properties: { SomeProp: { Ref: 'Bar' } },
+        },
       },
     };
 
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([]);
+    const stacks = makeStacks([template1, template2]);
+    const result = computeResourceDigests(stacks);
+    expect(Object.keys(result).length).toBe(3);
+    expect(result['Stack1.Bucket']).toBeDefined();
+    expect(result['Stack2.Bar']).toBeDefined();
+    expect(result['Stack2.AnotherBucket']).toBeDefined();
+    expect(result['Stack1.Bucket']).toEqual(result['Stack2.AnotherBucket']);
   });
 
-  test('returns empty mappings when there are only additions', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {},
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        // Resource was added
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([]);
-  });
-
-  test('normal updates are not mappings', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'old value' },
-          },
+  test('different resources from different stacks', () => {
+    const template1 = {
+      Resources: {
+        Bucket: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { SomeProp: { 'Fn::ImportValue': 'Stack2:Foo' } },
         },
       },
     };
 
-    const stack2 = {
-      environment,
-      // Same stack name
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          // Same resource name
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            // Updated property
-            Properties: { Prop: 'old value' },
-          },
+    const template2 = {
+      Outputs: {
+        ExportForTheFooResource: {
+          Value: { Ref: 'Foo' },
+          Export: { Name: 'Stack2:Foo' },
         },
       },
-    };
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([]);
-  });
-
-  test('moving resources across stacks', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
+      Resources: {
+        Foo: {
+          Type: 'AWS::S3::Foo',
+        },
+        Bar: {
+          Type: 'AWS::S3::Bar',
+        },
+        AnotherBucket: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { SomeProp: { Ref: 'Bar' } },
         },
       },
     };
 
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([
-      {
-        Source: { LogicalResourceId: 'Bucket1', StackName: 'Foo' },
-        Destination: { LogicalResourceId: 'Bucket1', StackName: 'Bar' },
-      },
-    ]);
-  });
-
-  test('renaming resources in the same stack', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          OldName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          NewName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([
-      {
-        Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
-        Destination: { LogicalResourceId: 'NewName', StackName: 'Foo' },
-      },
-    ]);
-  });
-
-  test('moving and renaming resources across stacks', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          OldName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          NewName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([
-      {
-        Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
-        Destination: { LogicalResourceId: 'NewName', StackName: 'Bar' },
-      },
-    ]);
-  });
-
-  test('type is also part of the resources contents', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          OldName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {
-              Xyz: 123,
-            },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          NewName: {
-            Type: 'AWS::EC2::Instance',
-            Properties: {
-              Xyz: 123,
-            },
-          },
-        },
-      },
-    };
-
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-
-    // We don't consider that a resource was moved from Foo.OldName to Bar.NewName,
-    // even though they have the same properties. Since they have different types,
-    // they are considered different resources.
-    expect(mappings).toEqual([]);
-  });
-
-  test('ambiguous resources from multiple stacks', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Stack1',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Stack2',
-      template: {
-        Resources: {
-          Bucket2: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-        },
-      },
-    };
-
-    const stack3 = {
-      environment,
-      stackName: 'Stack3',
-      template: {
-        Resources: {
-          Bucket3: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-        },
-      },
-    };
-    const movements = resourceMovements([stack1, stack2], [stack3]);
-    const ambiguous = ambiguousMovements(movements);
-    expect(ambiguous).toEqual([
-      [
-        [
-          {
-            stack: expect.objectContaining({
-              stackName: 'Stack1',
-            }),
-            logicalResourceId: 'Bucket1',
-          },
-          {
-            stack: expect.objectContaining({
-              stackName: 'Stack2',
-            }),
-            logicalResourceId: 'Bucket2',
-          },
-        ],
-        [
-          {
-            stack: expect.objectContaining({
-              stackName: 'Stack3',
-            }),
-            logicalResourceId: 'Bucket3',
-          },
-        ],
-      ],
-    ]);
-  });
-
-  test('ambiguous pairs', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-          Bucket2: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          Bucket3: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-          Bucket4: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {},
-          },
-        },
-      },
-    };
-
-    const movements = resourceMovements([stack1], [stack2]);
-    const ambiguous = ambiguousMovements(movements);
-    expect(ambiguous).toEqual([
-      [
-        [
-          {
-            stack: expect.objectContaining({
-              stackName: 'Foo',
-            }),
-            logicalResourceId: 'Bucket1',
-          },
-          {
-            stack: expect.objectContaining({
-              stackName: 'Foo',
-            }),
-            logicalResourceId: 'Bucket2',
-          },
-        ],
-        [
-          {
-            stack: expect.objectContaining({
-              stackName: 'Bar',
-            }),
-            logicalResourceId: 'Bucket3',
-          },
-          {
-            stack: expect.objectContaining({
-              stackName: 'Bar',
-            }),
-            logicalResourceId: 'Bucket4',
-          },
-        ],
-      ],
-    ]);
-  });
-
-  test('combines addition, deletion, update, and rename', () => {
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          OldName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'OldBucket' },
-          },
-          ToBeDeleted: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'DeleteMe' },
-          },
-          ToBeUpdated: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'UpdateMe' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          NewName: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'OldBucket' },
-          },
-          ToBeAdded: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'NewBucket' },
-          },
-          ToBeUpdated: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'UpdatedBucket' },
-          },
-        },
-      },
-    };
-
-    const pairs = resourceMovements([stack1], [stack2]);
-    const mappings = resourceMappings(pairs).map(toCfnMapping);
-    expect(mappings).toEqual([
-      {
-        Source: { LogicalResourceId: 'OldName', StackName: 'Foo' },
-        Destination: { LogicalResourceId: 'NewName', StackName: 'Foo' },
-      },
-    ]);
-  });
-
-  test('stack filtering', () => {
-    // eslint-disable-next-line @typescript-eslint/no-shadow
-    const environment = {
-      name: 'prod',
-      account: '123456789012',
-      region: 'us-east-1',
-    };
-
-    // Scenario:
-    //  Foo.Bucket1 -> Bar.Bucket1
-    //  Zee.OldName -> Zee.NewName
-
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack3 = {
-      environment,
-      stackName: 'Zee',
-      template: {
-        Resources: {
-          OldName: {
-            Type: 'AWS::SQS::Queue',
-            Properties: { Prop: 'YYYYYYYYY' },
-          },
-        },
-      },
-    };
-
-    const stack4 = {
-      environment,
-      stackName: 'Zee',
-      template: {
-        Resources: {
-          NewName: {
-            Type: 'AWS::SQS::Queue',
-            Properties: { Prop: 'YYYYYYYYY' },
-          },
-        },
-      },
-    };
-
-    const movements = resourceMovements([stack1, stack3], [stack2, stack4]);
-
-    // Testing different filters:
-
-    // Only Foo. Should include Foo and Bar
-    expect(resourceMappings(movements, [stack1]).map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Bar',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Foo',
-        },
-      },
-    ]);
-
-    // Only Bar. Should include Foo and Bar
-    expect(resourceMappings(movements, [stack2]).map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Bar',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Foo',
-        },
-      },
-    ]);
-
-    // Only Zee. Should include Zee
-    expect(resourceMappings(movements, [stack3]).map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'NewName',
-          StackName: 'Zee',
-        },
-        Source: {
-          LogicalResourceId: 'OldName',
-          StackName: 'Zee',
-        },
-      },
-    ]);
-
-    // Foo and Zee. Should include all
-    expect(resourceMappings(movements, [stack1, stack3]).map(toCfnMapping)).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Bar',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket1',
-          StackName: 'Foo',
-        },
-      },
-      {
-        Destination: {
-          LogicalResourceId: 'NewName',
-          StackName: 'Zee',
-        },
-        Source: {
-          LogicalResourceId: 'OldName',
-          StackName: 'Zee',
-        },
-      },
-    ]);
-  });
-});
-
-describe('environment grouping', () => {
-  beforeEach(() => {
-    jest.resetAllMocks();
-    cloudFormationClient.reset();
-  });
-
-  test('produces mappings for the same environment', async () => {
-    const environment = {
-      name: 'test',
-      account: '333333333333',
-      region: 'us-east-1',
-    };
-
-    const stack1 = {
-      environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Dummy: {
-            Type: 'AWS::X::Y',
-            Properties: {},
-          },
-          Bucket: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          Dummy: {
-            Type: 'AWS::Z::W',
-            Properties: {},
-          },
-        },
-      },
-    };
-
-    cloudFormationClient.on(ListStacksCommand).resolves({
-      // Both stacks are in the same environment, so they are returned in the same call
-      StackSummaries: [
-        {
-          StackName: 'Foo',
-          StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Foo',
-          StackStatus: 'CREATE_COMPLETE',
-          CreationTime: new Date(),
-        },
-        {
-          StackName: 'Bar',
-          StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Bar',
-          StackStatus: 'CREATE_COMPLETE',
-          CreationTime: new Date(),
-        },
-      ],
-    });
-
-    cloudFormationClient
-      .on(GetTemplateCommand, {
-        StackName: 'Foo',
-      })
-      .resolves({
-        TemplateBody: JSON.stringify({
-          Resources: {
-            Dummy: {
-              Type: 'AWS::X::Y',
-              Properties: {},
-            },
-          },
-        }),
-      });
-
-    cloudFormationClient
-      .on(GetTemplateCommand, {
-        StackName: 'Bar',
-      })
-      .resolves({
-        TemplateBody: JSON.stringify({
-          Resources: {
-            Dummy: {
-              Type: 'AWS::Z::W',
-              Properties: {},
-            },
-            Bucket: {
-              Type: 'AWS::S3::Bucket',
-              Properties: { Prop: 'XXXXXXXXX' },
-            },
-          },
-        }),
-      });
-
-    expect(await mappings([stack1, stack2])).toEqual([
-      {
-        Destination: {
-          LogicalResourceId: 'Bucket',
-          StackName: 'Foo',
-        },
-        Source: {
-          LogicalResourceId: 'Bucket',
-          StackName: 'Bar',
-        },
-      },
-    ]);
-
-    expect(await mappings([stack1, stack2], new AlwaysExclude())).toEqual([]);
-
-    async function mappings(stacks: CloudFormationStack[], excludeList?: ExcludeList) {
-      const provider = new MockSdkProvider();
-      provider.returnsDefaultAccounts(environment.account);
-      const movements2 = await findResourceMovements(stacks, provider, excludeList);
-      return resourceMappings(movements2).map(toCfnMapping);
-    }
-  });
-
-  test('does not produce cross-environment mappings', async () => {
-    const environment1 = {
-      name: 'test',
-      account: '333333333333',
-      region: 'us-east-1',
-    };
-
-    const environment2 = {
-      name: 'prod',
-      account: '123456789012',
-      region: 'us-east-1',
-    };
-
-    const stack1 = {
-      environment: environment1,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Dummy: {
-            Type: 'AWS::X::Y',
-            Properties: {},
-          },
-          Bucket: {
-            Type: 'AWS::S3::Bucket',
-            Properties: { Prop: 'XXXXXXXXX' },
-          },
-        },
-      },
-    };
-
-    const stack2 = {
-      environment: environment2,
-      stackName: 'Bar',
-      template: {
-        Resources: {
-          Dummy: {
-            Type: 'AWS::Z::W',
-            Properties: {},
-          },
-        },
-      },
-    };
-
-    cloudFormationClient
-      .on(ListStacksCommand)
-      // We are relying on the fact that these calls are made in the order that the
-      // stacks are passed. So the first call is for environment1 and the second is
-      // for environment2. This is not ideal, but as far as I know there is no other
-      // way to control the behavior of the mock SDK clients.
-      .resolvesOnce({
-        StackSummaries: [
-          {
-            StackName: 'Foo',
-            StackId: 'arn:aws:cloudformation:us-east-1:333333333333:stack/Foo',
-            StackStatus: 'CREATE_COMPLETE',
-            CreationTime: new Date(),
-          },
-        ],
-      })
-      .resolvesOnce({
-        StackSummaries: [
-          {
-            StackName: 'Bar',
-            StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Bar',
-            StackStatus: 'CREATE_COMPLETE',
-            CreationTime: new Date(),
-          },
-        ],
-      });
-
-    cloudFormationClient
-      .on(GetTemplateCommand, {
-        StackName: 'Foo',
-      })
-      .resolves({
-        TemplateBody: JSON.stringify({
-          Resources: {
-            Dummy: {
-              Type: 'AWS::X::Y',
-              Properties: {},
-            },
-          },
-        }),
-      });
-
-    cloudFormationClient
-      .on(GetTemplateCommand, {
-        StackName: 'Bar',
-      })
-      .resolves({
-        TemplateBody: JSON.stringify({
-          Resources: {
-            Dummy: {
-              Type: 'AWS::Z::W',
-              Properties: {},
-            },
-            // This resource was "moved" from Foo to Bar
-            // except that they are in different environments
-            // so it should not be detected as a refactor
-            Bucket: {
-              Type: 'AWS::S3::Bucket',
-              Properties: { Prop: 'XXXXXXXXX' },
-            },
-          },
-        }),
-      });
-
-    const provider = new MockSdkProvider();
-    provider.returnsDefaultAccounts(environment1.account, environment2.account);
-
-    const movements = await findResourceMovements([stack1, stack2], provider);
-    expect(ambiguousMovements(movements)).toEqual([]);
-
-    expect(resourceMappings(movements).map(toCfnMapping)).toEqual([]);
+    const stacks = makeStacks([template1, template2]);
+    const result = computeResourceDigests(stacks);
+    expect(Object.keys(result).length).toBe(4);
+    expect(result['Stack1.Bucket']).toBeDefined();
+    expect(result['Stack2.AnotherBucket']).toBeDefined();
+    expect(result['Stack1.Bucket']).not.toEqual(result['Stack2.AnotherBucket']);
   });
 });
 
 describe(usePrescribedMappings, () => {
   beforeEach(() => {
     jest.resetAllMocks();
-    cloudFormationClient.reset();
+    mockCloudFormationClient.reset();
   });
 
   test('generates resource mappings', async () => {
@@ -1439,7 +554,7 @@ describe(usePrescribedMappings, () => {
     };
 
     // and the fact that the source stack exists in the environment
-    cloudFormationClient.on(ListStacksCommand).resolves({
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
       StackSummaries: [
         {
           StackName: 'Foo',
@@ -1451,7 +566,7 @@ describe(usePrescribedMappings, () => {
     });
 
     // and the fact that the logical ID exists in the stack
-    cloudFormationClient
+    mockCloudFormationClient
       .on(GetTemplateCommand, {
         StackName: 'Foo',
       })
@@ -1527,7 +642,7 @@ describe(usePrescribedMappings, () => {
     };
 
     // and the fact that the source stack exists in the environment
-    cloudFormationClient.on(ListStacksCommand).resolves({
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
       StackSummaries: [
         {
           StackName: 'Foo',
@@ -1539,7 +654,7 @@ describe(usePrescribedMappings, () => {
     });
 
     // and the fact that the logical ID exists in the stack
-    cloudFormationClient
+    mockCloudFormationClient
       .on(GetTemplateCommand, {
         StackName: 'Foo',
       })
@@ -1583,7 +698,7 @@ describe(usePrescribedMappings, () => {
     };
 
     // and the fact that the source stack does not exist in the environment
-    cloudFormationClient.on(ListStacksCommand).resolves({
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
       StackSummaries: [],
     });
 
@@ -1612,7 +727,7 @@ describe(usePrescribedMappings, () => {
     };
 
     // and the fact that the source stack exists in the environment
-    cloudFormationClient.on(ListStacksCommand).resolvesOnce({
+    mockCloudFormationClient.on(ListStacksCommand).resolvesOnce({
       StackSummaries: [
         {
           StackName: 'Foo',
@@ -1630,7 +745,7 @@ describe(usePrescribedMappings, () => {
     });
 
     // and the fact that the source logical ID exists in the stack
-    cloudFormationClient
+    mockCloudFormationClient
       .on(GetTemplateCommand, {
         StackName: 'Foo',
       })
@@ -1645,7 +760,7 @@ describe(usePrescribedMappings, () => {
         }),
       });
 
-    cloudFormationClient
+    mockCloudFormationClient
       .on(GetTemplateCommand, {
         StackName: 'Bar',
       })
@@ -1687,7 +802,7 @@ describe(usePrescribedMappings, () => {
     };
 
     // and the fact that the source stack exists in the environment
-    cloudFormationClient.on(ListStacksCommand).resolves({
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
       StackSummaries: [
         {
           StackName: 'Foo',
@@ -1699,7 +814,7 @@ describe(usePrescribedMappings, () => {
     });
 
     // and the fact that the logical ID exists in the stack
-    cloudFormationClient
+    mockCloudFormationClient
       .on(GetTemplateCommand, {
         StackName: 'Foo',
       })
@@ -1731,48 +846,8 @@ describe(generateStackDefinitions, () => {
     region: 'us-east-1',
   };
 
-  test('renames a resource within the same stack', () => {
-    const stack: CloudFormationStack = {
-      environment: environment,
-      stackName: 'Foo',
-      template: {
-        Resources: {
-          Bucket1: {
-            Type: 'AWS::S3::Bucket',
-          },
-          NotInvolved: {
-            Type: 'AWS::X::Y',
-          },
-        },
-      },
-    };
-
-    const mappings: ResourceMapping[] = [
-      new ResourceMapping(new ResourceLocation(stack, 'Bucket1'), new ResourceLocation(stack, 'Bucket2')),
-    ];
-
-    const result = generateStackDefinitions(mappings, [stack]);
-    expect(result).toEqual([
-      {
-        StackName: 'Foo',
-        TemplateBody: JSON.stringify({
-          Resources: {
-            // Not involved in the refactor, but still part of the
-            // original template. Should be included.
-            NotInvolved: {
-              Type: 'AWS::X::Y',
-            },
-            Bucket2: {
-              Type: 'AWS::S3::Bucket',
-            },
-          },
-        }),
-      },
-    ]);
-  });
-
   test('moves a resource to another stack that has already been deployed', () => {
-    const stack1: CloudFormationStack = {
+    const deployedStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
       template: {
@@ -1787,7 +862,7 @@ describe(generateStackDefinitions, () => {
       },
     };
 
-    const stack2: CloudFormationStack = {
+    const deployedStack2: CloudFormationStack = {
       environment,
       stackName: 'Stack2',
       template: {
@@ -1798,12 +873,41 @@ describe(generateStackDefinitions, () => {
         },
       },
     };
+    const localStack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          A: {
+            Type: 'AWS::A::A',
+          },
+        },
+      },
+    };
+
+    const localStack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          B: {
+            Type: 'AWS::B::B',
+          },
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
 
     const mappings: ResourceMapping[] = [
-      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
+      new ResourceMapping(
+        new ResourceLocation(deployedStack1, 'Bucket1'),
+        new ResourceLocation(deployedStack2, 'Bucket2'),
+      ),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1837,8 +941,98 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
+  test('with cross-stack references', () => {
+    const deployedStacks: CloudFormationStack[] = [
+      {
+        environment,
+        stackName: 'StackX',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Props: { 'Fn::ImportValue': 'BFromOtherStack' },
+              },
+            },
+          },
+        },
+      },
+      {
+        environment,
+        stackName: 'StackY',
+        template: {
+          Outputs: {
+            Bout: {
+              Value: { Ref: 'B' },
+              Export: {
+                Name: 'BFromOtherStack',
+              },
+            },
+          },
+          Resources: {
+            B: { Type: 'AWS::B::B' },
+          },
+        },
+      },
+    ];
+
+    const localStacks: CloudFormationStack[] = [
+      {
+        environment,
+        stackName: 'StackX',
+        template: {
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                Props: { Ref: 'B' },
+              },
+            },
+            B: { Type: 'AWS::B::B' },
+          },
+        },
+      },
+      {
+        environment,
+        stackName: 'StackY',
+        template: {
+          Resources: {},
+        },
+      },
+    ];
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(deployedStacks[1], 'B'), new ResourceLocation(localStacks[0], 'B')),
+    ];
+
+    const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+    expect(result).toEqual([
+      {
+        StackName: 'StackX',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            A: {
+              Type: 'AWS::A::A',
+              Properties: {
+                // The reference has been updated to the moved resource
+                Props: { Ref: 'B' },
+              },
+            },
+            B: { Type: 'AWS::B::B' },
+          },
+        }),
+      },
+      {
+        StackName: 'StackY',
+        TemplateBody: JSON.stringify({
+          Resources: {},
+        }),
+      },
+    ]);
+  });
+
   test('moves a resource to another stack that has not been deployed', () => {
-    const stack1: CloudFormationStack = {
+    const deployedStack: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
       template: {
@@ -1853,24 +1047,57 @@ describe(generateStackDefinitions, () => {
       },
     };
 
-    const stack2: CloudFormationStack = {
+    const localStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack2',
       template: {
         Resources: {
-          B: {
-            Type: 'AWS::B::B',
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+          },
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: {
+              Analytics: 'v2:deflate64:AAA',
+            },
+            Metadata: {
+              'aws:cdk:path': 'Data/CDKMetadata/Default',
+            },
+          },
+        },
+      },
+    };
+
+    const localStack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          A: {
+            Type: 'AWS::A::A',
           },
         },
       },
     };
 
     const mappings: ResourceMapping[] = [
-      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
+      new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket1'), new ResourceLocation(localStack1, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1]);
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
     expect(result).toEqual([
+      {
+        StackName: 'Stack2',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // Old Bucket1 is now Bucket2 here
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+            },
+            // CDKMetadata was not included
+          },
+        }),
+      },
       {
         StackName: 'Stack1',
         TemplateBody: JSON.stringify({
@@ -1884,22 +1111,11 @@ describe(generateStackDefinitions, () => {
           },
         }),
       },
-      {
-        StackName: 'Stack2',
-        TemplateBody: JSON.stringify({
-          Resources: {
-            // Old Bucket1 is now Bucket2 here
-            Bucket2: {
-              Type: 'AWS::S3::Bucket',
-            },
-          },
-        }),
-      },
     ]);
   });
 
   test('multiple mappings', () => {
-    const stack1: CloudFormationStack = {
+    const deployedStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
       template: {
@@ -1914,7 +1130,7 @@ describe(generateStackDefinitions, () => {
       },
     };
 
-    const stack2: CloudFormationStack = {
+    const deployedStack2: CloudFormationStack = {
       environment,
       stackName: 'Stack2',
       template: {
@@ -1926,13 +1142,49 @@ describe(generateStackDefinitions, () => {
       },
     };
 
+    const localStack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket6: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          Bucket4: {
+            Type: 'AWS::S3::Bucket',
+          },
+          Bucket5: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
     const mappings: ResourceMapping[] = [
-      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket4')),
-      new ResourceMapping(new ResourceLocation(stack1, 'Bucket2'), new ResourceLocation(stack2, 'Bucket5')),
-      new ResourceMapping(new ResourceLocation(stack2, 'Bucket3'), new ResourceLocation(stack1, 'Bucket6')),
+      new ResourceMapping(
+        new ResourceLocation(deployedStack1, 'Bucket1'),
+        new ResourceLocation(deployedStack2, 'Bucket4'),
+      ),
+      new ResourceMapping(
+        new ResourceLocation(deployedStack1, 'Bucket2'),
+        new ResourceLocation(deployedStack2, 'Bucket5'),
+      ),
+      new ResourceMapping(
+        new ResourceLocation(deployedStack2, 'Bucket3'),
+        new ResourceLocation(deployedStack1, 'Bucket6'),
+      ),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1961,7 +1213,7 @@ describe(generateStackDefinitions, () => {
   });
 
   test('deployed stacks that are not in any mapping', () => {
-    const stack1: CloudFormationStack = {
+    const deployedStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
       template: {
@@ -1973,7 +1225,31 @@ describe(generateStackDefinitions, () => {
       },
     };
 
-    const stack2: CloudFormationStack = {
+    const deployedStack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket3: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack2: CloudFormationStack = {
       environment,
       stackName: 'Stack2',
       template: {
@@ -1986,12 +1262,16 @@ describe(generateStackDefinitions, () => {
     };
 
     const mappings: ResourceMapping[] = [
-      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack1, 'Bucket3')),
+      new ResourceMapping(
+        new ResourceLocation(deployedStack1, 'Bucket1'),
+        new ResourceLocation(deployedStack1, 'Bucket3'),
+      ),
     ];
 
-    const result = generateStackDefinitions(mappings, [stack1, stack2]);
+    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
     expect(result).toEqual([
       {
+        // Stack2 and Stack3 are not involved in the refactoring. Only Stack1 is.
         StackName: 'Stack1',
         TemplateBody: JSON.stringify({
           Resources: {
@@ -2004,46 +1284,187 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('refactor should not create empty templates', () => {
-    const stack1: CloudFormationStack = {
+  test('stack definitions come from the local templates', () => {
+    const deployedStack: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
       template: {
         Resources: {
           Bucket1: {
             Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Bar',
+            },
+          },
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: {
+              Analytics: 'v2:deflate64:deployed',
+            },
+            Metadata: {
+              'aws:cdk:path': 'Stack1/CDKMetadata/Default',
+            },
           },
         },
       },
     };
 
-    const stack2: CloudFormationStack = {
+    const localStack: CloudFormationStack = {
       environment,
-      stackName: 'Stack2',
+      stackName: 'Stack1',
       template: {
-        Resources: {},
+        Resources: {
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Bar',
+            },
+          },
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: {
+              Analytics: 'v2:deflate64:local',
+            },
+            Metadata: {
+              'aws:cdk:path': 'Stack1/CDKMetadata/Default',
+            },
+          },
+        },
       },
     };
 
     const mappings: ResourceMapping[] = [
-      new ResourceMapping(new ResourceLocation(stack1, 'Bucket1'), new ResourceLocation(stack2, 'Bucket2')),
+      new ResourceMapping(
+        new ResourceLocation(deployedStack, 'Bucket1'),
+        new ResourceLocation(deployedStack, 'Bucket2'),
+      ),
     ];
 
-    expect(() => generateStackDefinitions(mappings, [stack1, stack2]))
-      .toThrow(/Stack Stack1 has no resources after refactor/);
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            // For regular resources, we pick the local one
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+              Properties: {
+                Foo: 'Bar',
+              },
+            },
+            CDKMetadata: {
+              Type: 'AWS::CDK::Metadata',
+              Properties: {
+                // But for CDKMetadata, we pick the deployed one
+                Analytics: 'v2:deflate64:deployed',
+              },
+              Metadata: {
+                'aws:cdk:path': 'Stack1/CDKMetadata/Default',
+              },
+            },
+          },
+        }),
+      },
+    ]);
+  });
+
+  test('Rules and Parameters are removed for new stacks', () => {
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Bar',
+            },
+          },
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Zee',
+            },
+          },
+        },
+      },
+    };
+
+    const localStack1: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Bar',
+            },
+          },
+        },
+      },
+    };
+
+    const localStack2: CloudFormationStack = {
+      environment,
+      stackName: 'Stack2',
+      template: {
+        Resources: {
+          // Moved out of the original stack to a new one.
+          Bucket2: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Foo: 'Zee',
+            },
+          },
+        },
+        Rules: {
+          CheckBootstrapVersion: {
+            Assertions: [],
+          },
+        },
+        Parameters: {
+          BootstrapVersion: {
+            Type: 'AWS::SSM::Parameter::Value<String>',
+            Default: '/cdk-bootstrap/hnb659fds/version',
+            Description: 'Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]',
+          },
+        },
+      },
+    };
+
+    const mappings: ResourceMapping[] = [
+      new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket2'), new ResourceLocation(localStack2, 'Bucket2')),
+    ];
+
+    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+    expect(result).toEqual([
+      {
+        StackName: 'Stack1',
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket1: {
+              Type: 'AWS::S3::Bucket',
+              Properties: {
+                Foo: 'Bar',
+              },
+            },
+          },
+        }),
+      },
+      {
+        StackName: 'Stack2',
+        // No Rules or Parameters, even though they are present in the local stack
+        TemplateBody: JSON.stringify({
+          Resources: {
+            Bucket2: {
+              Type: 'AWS::S3::Bucket',
+              Properties: { Foo: 'Zee' },
+            },
+          },
+        }),
+      },
+    ]);
   });
 });
-
-function toCfnMapping(m: ResourceMapping): CfnResourceMapping {
-  return {
-    Source: toCfnLocation(m.source),
-    Destination: toCfnLocation(m.destination),
-  };
-}
-
-function toCfnLocation(loc: ResourceLocation): CfnResourceLocation {
-  return {
-    LogicalResourceId: loc.logicalResourceId,
-    StackName: loc.stack.stackName,
-  };
-}

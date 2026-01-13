@@ -37,10 +37,10 @@ asset, or the name of the local Docker image.
 
 ## Usage
 
-The `cdk-asset` tool can be used programmatically and via the CLI. Use
-programmatic access if you need more control over authentication than the
-default [AWS SDK for JavaScript v3](https://github.com/aws/aws-sdk-js-v3) 
-implementation allows.
+The `cdk-asset` tool is a CLI. Use [library
+access](https://www.npmjs.com/package/@aws-cdk/cdk-assets-lib) if you need more
+control over authentication than the default [AWS SDK for JavaScript
+v3](https://github.com/aws/aws-sdk-js-v3) implementation allows.
 
 Command-line use looks like this:
 

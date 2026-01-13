@@ -1,12 +1,34 @@
+import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
+import { type JsPackageManager } from '../../lib/commands/init/package-manager';
+import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
+import { TestIoHost } from '../_helpers/io-host';
+
+const ioHost = new TestIoHost();
+const ioHelper = ioHost.asHelper('init');
 
 describe('constructs version', () => {
+  cliTest('shows available templates when no parameters provided', async (workDir) => {
+    // Test that calling cdk init without any parameters shows available templates
+    await cliInit({
+      ioHelper,
+      workDir,
+    });
+
+    // Verify that printAvailableTemplates was called by checking the output
+    // The function should return early without creating any files
+    const files = await fs.readdir(workDir);
+    const visibleFiles = files.filter(f => !f.startsWith('.'));
+    expect(visibleFiles.length).toBe(0); // No files should be created
+  });
+
   cliTest('create a TypeScript library project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'lib',
       language: 'typescript',
       workDir,
@@ -17,8 +39,21 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
   });
 
+  cliTest("when type is 'lib' and language is not specified, it default language to TypeScript", async (workDir) => {
+    await cliInit({
+      ioHelper,
+      type: 'lib',
+      workDir,
+    });
+
+    // Check that tsconfig.json and lib/ got created in the current directory
+    expect(await fs.pathExists(path.join(workDir, 'tsconfig.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
+  });
+
   cliTest('can override requested version with environment variable', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'lib',
       language: 'typescript',
       workDir,
@@ -30,8 +65,22 @@ describe('constructs version', () => {
     expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
   });
 
+  cliTest('can specify project name with --name option', async (workDir) => {
+    await cliInit({
+      ioHelper,
+      type: 'app',
+      language: 'typescript',
+      workDir,
+      projectName: 'my-project',
+    });
+
+    const stackFile = await fs.readFile(path.join(workDir, 'lib', 'my-project-stack.ts'), 'utf-8');
+    expect(stackFile).toContain('export class MyProjectStack');
+  });
+
   cliTest('asking for a nonexistent template fails', async (workDir) => {
     await expect(cliInit({
+      ioHelper,
       type: 'banana',
       language: 'typescript',
       workDir,
@@ -40,13 +89,33 @@ describe('constructs version', () => {
 
   cliTest('asking for a template but no language prints and throws', async (workDir) => {
     await expect(cliInit({
+      ioHelper,
       type: 'app',
       workDir,
     })).rejects.toThrow(/No language/);
   });
 
+  cliTest('cdk init --language defaults to app template with specified language', async (workDir) => {
+    await cliInit({
+      ioHelper,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir,
+    });
+
+    // Verify app template structure was created
+    expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
+
+    // Verify it uses the specified language (TypeScript)
+    const binFiles = await fs.readdir(path.join(workDir, 'bin'));
+    expect(binFiles.some(file => file.endsWith('.ts'))).toBeTruthy();
+  });
+
   cliTest('create a TypeScript app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       workDir,
@@ -59,6 +128,7 @@ describe('constructs version', () => {
 
   cliTest('create a JavaScript app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'javascript',
       workDir,
@@ -72,6 +142,7 @@ describe('constructs version', () => {
 
   cliTest('create a Java app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'java',
       canUseNetwork: false,
@@ -94,6 +165,7 @@ describe('constructs version', () => {
 
   cliTest('create a .NET app project in csharp', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'csharp',
       canUseNetwork: false,
@@ -116,6 +188,7 @@ describe('constructs version', () => {
 
   cliTest('create a .NET app project in fsharp', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'fsharp',
       canUseNetwork: false,
@@ -138,6 +211,7 @@ describe('constructs version', () => {
 
   cliTestWithDirSpaces('csharp app with spaces', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'csharp',
       canUseNetwork: false,
@@ -156,6 +230,7 @@ describe('constructs version', () => {
 
   cliTestWithDirSpaces('fsharp app with spaces', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'fsharp',
       canUseNetwork: false,
@@ -174,6 +249,7 @@ describe('constructs version', () => {
 
   cliTest('create a Python app project', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'python',
       canUseNetwork: false,
@@ -196,6 +272,7 @@ describe('constructs version', () => {
 
   cliTest('--generate-only should skip git init', async (workDir) => {
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'javascript',
       canUseNetwork: false,
@@ -213,6 +290,7 @@ describe('constructs version', () => {
     fs.mkdirSync(path.join(workDir, '.git'));
 
     await cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       canUseNetwork: false,
@@ -224,9 +302,338 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
   });
 
+  cliTest('create project from single local custom template', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('single template auto-detects language when template has single language', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('custom template with multiple languages fails if language not provided', async (workDir) => {
+    const templateDir = await createMultiLanguageTemplate(workDir, 'multi-lang-template', ['typescript', 'python']);
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    })).rejects.toThrow(/No language was selected/);
+  });
+
+  cliTest('custom template path does not exist throws error', async (workDir) => {
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: '/nonexistent/path',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Template path does not exist/);
+  });
+
+  cliTest('create project from multi-template repository with template-path', async (workDir) => {
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'my-custom-template', languages: ['typescript', 'python'] },
+      { name: 'web-app-template', languages: ['java'] },
+    ]);
+
+    // Test 1: Initialize from my-custom-template with TypeScript
+    const projectDir1 = path.join(workDir, 'project1');
+    await fs.mkdirp(projectDir1);
+
+    await cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'my-custom-template',
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir1,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir1, 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir1, 'app.py'))).toBeFalsy();
+
+    // Test 2: Initialize from web-app-template with Java
+    const projectDir2 = path.join(workDir, 'project2');
+    await fs.mkdirp(projectDir2);
+
+    await cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'web-app-template',
+      language: 'java',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir2,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir2, 'App.java'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeFalsy();
+  });
+
+  cliTest('multi-template repository with non-existent template-path throws error', async (workDir) => {
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'valid-template', languages: ['typescript'] },
+    ]);
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'nonexistent-template',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Template path does not exist/);
+  });
+
+  cliTest('template validation requires at least one language directory', async (workDir) => {
+    // Test that templates must contain at least one language subdirectory
+    const repoDir = path.join(workDir, 'cdk-templates');
+    const invalidTemplateDir = path.join(repoDir, 'invalid-template');
+    await fs.mkdirp(invalidTemplateDir);
+    // Create a file but no language directories
+    await fs.writeFile(path.join(invalidTemplateDir, 'README.md'), 'This template has no language directories');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'invalid-template',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Custom template must contain at least one language directory/);
+  });
+
+  cliTest('template validation requires language files in language directory', async (workDir) => {
+    // Test that language directories must contain files of the matching language type
+    const repoDir = path.join(workDir, 'cdk-templates');
+    const invalidTemplateDir = path.join(repoDir, 'empty-lang-template');
+    const emptyTsDir = path.join(invalidTemplateDir, 'typescript');
+    await fs.mkdirp(emptyTsDir);
+    // Create language directory but no files with matching extensions
+    await fs.writeFile(path.join(emptyTsDir, 'README.md'), 'No TypeScript files here');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'empty-lang-template',
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Found 'typescript' directory but it doesn't contain the expected language files. Ensure the template contains typescript source files./);
+  });
+
+  cliTest('multi-template repository without template-path suggests using template-path', async (workDir) => {
+    // Test that when using a multi-template repository without specifying template-path,
+    // it suggests using --template-path to specify which template to use
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'template-one', languages: ['typescript'] },
+      { name: 'template-two', languages: ['python'] },
+    ]);
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      // Note: no templatePath specified
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Use --template-path to specify which template to use./);
+  });
+
+  cliTest('handles repository path access errors gracefully', async (workDir) => {
+    // Test error handling when repository path doesn't exist
+    const nonExistentRepo = path.join(workDir, 'nonexistent-repo');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: nonExistentRepo,
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Template path does not exist/);
+  });
+
+  cliTest('handles repository permission errors gracefully', async (workDir) => {
+    // Test error handling when repository path has permission issues
+    const restrictedRepo = path.join(workDir, 'restricted-repo');
+    await fs.mkdirp(restrictedRepo);
+    await fs.chmod(restrictedRepo, 0o000); // Remove all permissions
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromPath: restrictedRepo,
+        language: 'typescript',
+        workDir: projectDir,
+      })).rejects.toThrow(/permission denied/);
+    } finally {
+      // Restore permissions for cleanup
+      await fs.chmod(restrictedRepo, 0o755);
+    }
+  });
+
+  cliTest('skips corrupted template directories in multi-template repository', async (workDir) => {
+    // Test that corrupted template directories are skipped gracefully
+    const repoDir = path.join(workDir, 'mixed-repo');
+    await fs.mkdirp(repoDir);
+
+    // Create a valid template
+    const validTemplateDir = path.join(repoDir, 'valid-template');
+    const validTsDir = path.join(validTemplateDir, 'typescript');
+    await fs.mkdirp(validTsDir);
+    await fs.writeFile(path.join(validTsDir, 'app.ts'), 'console.log("valid");');
+
+    // Create a corrupted template directory (will cause getLanguageDirectories to fail)
+    const corruptedTemplateDir = path.join(repoDir, 'corrupted-template');
+    await fs.mkdirp(corruptedTemplateDir);
+    // Create a typescript directory but make it unreadable
+    const corruptedTsDir = path.join(corruptedTemplateDir, 'typescript');
+    await fs.mkdirp(corruptedTsDir);
+    await fs.chmod(corruptedTsDir, 0o000); // Remove all permissions to cause read failure
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    try {
+      // Should still work by using the valid template and skipping the corrupted one
+      await expect(cliInit({
+        ioHelper,
+        fromPath: repoDir,
+        // Note: no templatePath specified, should suggest using template-path
+        language: 'typescript',
+        workDir: projectDir,
+      })).rejects.toThrow(/Use --template-path to specify which template to use./);
+    } finally {
+      // Restore permissions for cleanup
+      await fs.chmod(corruptedTsDir, 0o755);
+    }
+  });
+
+  cliTest('handles generic filesystem errors in findPotentialTemplates', async (workDir) => {
+    // Test generic error handling in findPotentialTemplates by creating a file where a directory is expected
+    const repoFile = path.join(workDir, 'not-a-directory');
+    await fs.writeFile(repoFile, 'this is a file, not a directory');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: repoFile,
+      language: 'typescript',
+      workDir: projectDir,
+    })).rejects.toThrow(/Cannot read template directory.*not a directory/);
+  });
+
+  cliTest('multi-template repository auto-detects language when template has single language', async (workDir) => {
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'single-lang-template', languages: ['typescript'] },
+    ]);
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'single-lang-template',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('multi-template repository supports all CDK languages', async (workDir) => {
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'multi-lang-template', languages: ['typescript', 'javascript', 'python', 'java', 'csharp', 'fsharp', 'go'] },
+    ]);
+
+    // Test TypeScript selection
+    const tsProjectDir = path.join(workDir, 'ts-project');
+    await fs.mkdirp(tsProjectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'multi-lang-template',
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: tsProjectDir,
+    });
+
+    expect(await fs.pathExists(path.join(tsProjectDir, 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(tsProjectDir, 'app.js'))).toBeFalsy();
+    expect(await fs.pathExists(path.join(tsProjectDir, 'app.py'))).toBeFalsy();
+
+    // Test Python selection
+    const pyProjectDir = path.join(workDir, 'py-project');
+    await fs.mkdirp(pyProjectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'multi-lang-template',
+      language: 'python',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: pyProjectDir,
+    });
+
+    expect(await fs.pathExists(path.join(pyProjectDir, 'app.py'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(pyProjectDir, 'app.ts'))).toBeFalsy();
+  });
+
   cliTest('CLI uses recommended feature flags from data file to initialize context', async (workDir) => {
     const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.recommended-feature-flags.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ banana: 'yellow' }), () => cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       canUseNetwork: false,
@@ -241,6 +648,7 @@ describe('constructs version', () => {
   cliTest('CLI uses init versions file to initialize template', async (workDir) => {
     const recommendedFlagsFile = path.join(__dirname, '..', '..', 'lib', 'init-templates', '.init-version.json');
     await withReplacedFile(recommendedFlagsFile, JSON.stringify({ 'aws-cdk-lib': '100.1.1', 'constructs': '^200.2.2' }), () => cliInit({
+      ioHelper,
       type: 'app',
       language: 'typescript',
       canUseNetwork: false,
@@ -258,6 +666,7 @@ describe('constructs version', () => {
       for (const lang of templ.languages) {
         await withTempDir(async tmpDir => {
           await cliInit({
+            ioHelper,
             type: templ.name,
             language: lang,
             canUseNetwork: false,
@@ -288,6 +697,875 @@ describe('constructs version', () => {
   },
   // This is a lot to test, and it can be slow-ish, especially when ran with other tests.
   30_000);
+
+  cliTest('unstable flag functionality works correctly', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'unstable-test', languages: ['typescript'] },
+    ]);
+    const projectDir1 = path.join(workDir, 'project-without-unstable');
+    const projectDir2 = path.join(workDir, 'project-with-unstable');
+    await fs.mkdirp(projectDir1);
+    await fs.mkdirp(projectDir2);
+
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', TERM: 'dumb', NO_COLOR: '1' };
+    const execOptions = { timeout: 30_000, killSignal: 9 }; // fail fast if it hangs
+
+    // Test that template-path fails WITHOUT --unstable=init flag
+    await expect(execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --generate-only`, {
+      cwd: projectDir1,
+      env: commonEnv,
+      ...execOptions,
+    })).rejects.toThrow();
+
+    // Test that template-path succeeds WITH --unstable=init flag
+    let successfulResult;
+    try {
+      successfulResult = await execAsync(`node ${cdkBin} init --from-path ${repoDir} --template-path unstable-test --language typescript --unstable init --generate-only`, {
+        cwd: projectDir2,
+        env: commonEnv,
+        ...execOptions,
+      });
+    } catch (err: any) {
+      // Print outputs for debugging in CI logs
+      // err may include stdout/stderr; include them in the thrown message
+      const stdout = err.stdout ?? err?.stdout ?? '';
+      const stderr = err.stderr ?? err?.stderr ?? '';
+      throw new Error(`cdk init (unstable) failed or timed out. stdout:\n${stdout}\nstderr:\n${stderr}\nerror:${err.message}\nsignal: ${err.signal}\nError caught at ${new Date()}`);
+    }
+
+    expect(successfulResult.stderr).not.toContain('error');
+    expect(await fs.pathExists(path.join(projectDir2, 'app.ts'))).toBeTruthy();
+  }, 100_000);
+
+  cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    const templateDir = await createSingleLanguageTemplate(workDir, 'conflict-test', 'typescript');
+
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+
+    // Test that using both flags together causes an error
+    await expect(execAsync(`node ${cdkBin} init app --language typescript --lib-version 2.0.0 --from-path ${templateDir} --generate-only`, {
+      cwd: workDir,
+      env: { ...process.env, CDK_DISABLE_VERSION_CHECK: '1' },
+    })).rejects.toThrow();
+  });
+
+  cliTest('template-path implies from-path validation works', async (workDir) => {
+    // Test that the implication is properly configured
+    const { makeConfig } = await import('../../lib/cli/cli-config');
+    const config = await makeConfig();
+    expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
+
+    // Test that template-path functionality works when from-path is provided
+    const repoDir = await createMultiTemplateRepository(workDir, [
+      { name: 'implies-test', languages: ['typescript'] },
+    ]);
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: repoDir,
+      templatePath: 'implies-test',
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('hook files are ignored during template copy', async (workDir) => {
+    const templateDir = path.join(workDir, 'template-with-hooks');
+    const tsDir = path.join(templateDir, 'typescript');
+    await fs.mkdirp(tsDir);
+
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("Hello CDK");');
+    await fs.writeFile(path.join(tsDir, 'package.json'), '{}');
+    await fs.writeFile(path.join(tsDir, 'setup.hook.js'), 'console.log("setup hook");');
+    await fs.writeFile(path.join(tsDir, 'build.hook.d.ts'), 'export {};');
+    await fs.writeFile(path.join(tsDir, 'deploy.hook.sh'), '#!/bin/bash\necho "deploy"');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'package.json'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'setup.hook.js'))).toBeFalsy();
+    expect(await fs.pathExists(path.join(projectDir, 'build.hook.d.ts'))).toBeFalsy();
+    expect(await fs.pathExists(path.join(projectDir, 'deploy.hook.sh'))).toBeFalsy();
+  });
+
+  cliTest('handles file permission failures gracefully', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'permission-test-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await fs.chmod(projectDir, 0o444);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromPath: templateDir,
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir: projectDir,
+      })).rejects.toThrow();
+    } finally {
+      await fs.chmod(projectDir, 0o755);
+    }
+  });
+
+  cliTest('handles relative vs absolute paths correctly', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'path-test-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: path.resolve(templateDir),
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+
+    await fs.remove(projectDir);
+    await fs.mkdirp(projectDir);
+
+    const relativePath = path.relative(process.cwd(), templateDir);
+    await cliInit({
+      ioHelper,
+      fromPath: relativePath,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('fails when target directory is a file not a directory', async (workDir) => {
+    // Test error handling when workDir is a file instead of a directory
+    const templateDir = await createSingleLanguageTemplate(workDir, 'test-template', 'typescript');
+    const targetFile = path.join(workDir, 'target-file');
+    await fs.writeFile(targetFile, 'this is a file, not a directory');
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: targetFile,
+    })).rejects.toThrow(/Path exists but is not a directory/);
+  });
+
+  cliTest('fails when target directory does not exist', async (workDir) => {
+    // Test error handling when workDir doesn't exist
+    const templateDir = await createSingleLanguageTemplate(workDir, 'test-template', 'typescript');
+    const nonExistentDir = path.join(workDir, 'nonexistent-target-dir');
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: nonExistentDir,
+    })).rejects.toThrow(/Directory does not exist:[\s\S]*Please create the directory/);
+  });
+
+  cliTest('fails when target directory is not empty', async (workDir) => {
+    // Test error handling when workDir contains visible files
+    const templateDir = await createSingleLanguageTemplate(workDir, 'test-template', 'typescript');
+    const nonEmptyDir = path.join(workDir, 'non-empty-dir');
+    await fs.mkdirp(nonEmptyDir);
+    await fs.writeFile(path.join(nonEmptyDir, 'existing-file.txt'), 'existing content');
+    await fs.writeFile(path.join(nonEmptyDir, 'another-file.js'), 'more content');
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: nonEmptyDir,
+    })).rejects.toThrow(/* cdk init.*cannot be run in a non-empty directory.*Found 2 visible files*/);
+  });
+
+  cliTest('handles generic filesystem errors in directory validation', async (workDir) => {
+    // Test generic error handling in assertIsEmptyDirectory
+    const templateDir = await createSingleLanguageTemplate(workDir, 'test-template', 'typescript');
+    const targetDir = path.join(workDir, 'target-dir');
+    await fs.mkdirp(targetDir);
+
+    // Remove read permissions to cause a different type of error
+    await fs.chmod(targetDir, 0o000);
+
+    try {
+      await expect(cliInit({
+        ioHelper,
+        fromPath: templateDir,
+        language: 'typescript',
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir: targetDir,
+      })).rejects.toThrow(/Failed to validate directory/);
+    } finally {
+      // Restore permissions for cleanup
+      await fs.chmod(targetDir, 0o755);
+    }
+  });
+
+  cliTest('fails when requesting unsupported language for template', async (workDir) => {
+    // Test error handling when requesting a language not supported by the template
+    const templateDir = await createSingleLanguageTemplate(workDir, 'typescript-only-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await expect(cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'python', // Request Python for a TypeScript-only template
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    })).rejects.toThrow(/Unsupported language: python/);
+  });
+
+  cliTest('detects language files in subdirectories', async (workDir) => {
+    // Test that hasLanguageFiles can find files in subdirectories (recursive traversal)
+    const templateDir = path.join(workDir, 'nested-template');
+    const tsDir = path.join(templateDir, 'typescript');
+    const srcDir = path.join(tsDir, 'src');
+    const libDir = path.join(srcDir, 'lib');
+    await fs.mkdirp(libDir);
+
+    // Put the TypeScript file in a nested subdirectory
+    await fs.writeFile(path.join(libDir, 'index.ts'), 'export * from "./main";');
+    await fs.writeFile(path.join(srcDir, 'main.ts'), 'console.log("nested");');
+    await fs.writeFile(path.join(tsDir, 'package.json'), '{}');
+
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    // Should successfully create project since TypeScript files were found in subdirectories
+    expect(await fs.pathExists(path.join(projectDir, 'src', 'main.ts'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'src', 'lib', 'index.ts'))).toBeTruthy();
+  });
+
+  cliTest('handles npm install failure in TypeScript post-install', async (workDir) => {
+    // Test npm install failure handling
+    const templateDir = await createSingleLanguageTemplate(workDir, 'ts-fail-template', 'typescript');
+    const projectDir = path.join(workDir, 'ts-project');
+    await fs.mkdirp(projectDir);
+
+    // Create a package.json that will cause npm install to fail
+    await fs.writeFile(path.join(templateDir, 'typescript', 'package.json'),
+      JSON.stringify({
+        name: 'test-project',
+        dependencies: { 'nonexistent-package-that-will-fail': '999.999.999' },
+      }, null, 2),
+    );
+
+    // This should complete without throwing, but npm install will fail internally
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: true, // Allow network to trigger npm install
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+  });
+
+  cliTest('handles Java Gradle project without network', async (workDir) => {
+    // Test Gradle project when network is disabled
+    const templateDir = path.join(workDir, 'gradle-template');
+    const javaDir = path.join(templateDir, 'java');
+    await fs.mkdirp(javaDir);
+
+    await fs.writeFile(path.join(javaDir, 'App.java'), 'public class App {}');
+    await fs.writeFile(path.join(javaDir, 'build.gradle'), 'plugins { id "java" }');
+
+    const projectDir = path.join(workDir, 'gradle-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'java',
+      canUseNetwork: false, // Disable network to test warning path
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'App.java'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'build.gradle'))).toBeTruthy();
+  });
+
+  cliTest('handles Java Maven project without network', async (workDir) => {
+    // Test Maven project when network is disabled
+    const templateDir = path.join(workDir, 'maven-template');
+    const javaDir = path.join(templateDir, 'java');
+    await fs.mkdirp(javaDir);
+
+    await fs.writeFile(path.join(javaDir, 'App.java'), 'public class App {}');
+    await fs.writeFile(path.join(javaDir, 'pom.xml'), '<project></project>');
+
+    const projectDir = path.join(workDir, 'maven-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'java',
+      canUseNetwork: false, // Disable network to test warning path
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'App.java'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'pom.xml'))).toBeTruthy();
+  });
+
+  cliTest('handles Java project with no build file', async (workDir) => {
+    // Test Java project without build.gradle or pom.xml
+    const templateDir = path.join(workDir, 'plain-java-template');
+    const javaDir = path.join(templateDir, 'java');
+    await fs.mkdirp(javaDir);
+
+    await fs.writeFile(path.join(javaDir, 'App.java'), 'public class App {}');
+    // No build.gradle or pom.xml
+
+    const projectDir = path.join(workDir, 'plain-java-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'java',
+      canUseNetwork: true,
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'App.java'))).toBeTruthy();
+  });
+
+  cliTest('handles Python project without requirements.txt', async (workDir) => {
+    // Test Python project without requirements.txt
+    const templateDir = path.join(workDir, 'plain-python-template');
+    const pythonDir = path.join(templateDir, 'python');
+    await fs.mkdirp(pythonDir);
+
+    await fs.writeFile(path.join(pythonDir, 'app.py'), 'print("hello")');
+    // No requirements.txt
+
+    const projectDir = path.join(workDir, 'plain-python-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'python',
+      canUseNetwork: true,
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.py'))).toBeTruthy();
+  });
+
+  cliTest('handles Go project without network', async (workDir) => {
+    // Test Go project when network is disabled
+    const templateDir = path.join(workDir, 'go-template');
+    const goDir = path.join(templateDir, 'go');
+    await fs.mkdirp(goDir);
+
+    await fs.writeFile(path.join(goDir, 'main.go'), 'package main\nfunc main() {}');
+    await fs.writeFile(path.join(goDir, 'go.mod'), 'module test');
+
+    const projectDir = path.join(workDir, 'go-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'go',
+      canUseNetwork: false, // Disable network to test warning path
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'main.go'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'go.mod'))).toBeTruthy();
+  });
+
+  cliTest('handles C# project without network', async (workDir) => {
+    // Test C# project when network is disabled
+    const templateDir = path.join(workDir, 'csharp-template');
+    const csharpDir = path.join(templateDir, 'csharp');
+    await fs.mkdirp(csharpDir);
+
+    await fs.writeFile(path.join(csharpDir, 'Program.cs'), 'class Program { static void Main() {} }');
+    await fs.writeFile(path.join(csharpDir, 'test.csproj'), '<Project Sdk="Microsoft.NET.Sdk"></Project>');
+
+    const projectDir = path.join(workDir, 'csharp-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'csharp',
+      canUseNetwork: false, // Disable network to test warning path
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'Program.cs'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'test.csproj'))).toBeTruthy();
+  });
+
+  cliTest('handles F# project delegation to C# post-install', async (workDir) => {
+    // Test F# project (should delegate to C# post-install logic)
+    const templateDir = path.join(workDir, 'fsharp-template');
+    const fsharpDir = path.join(templateDir, 'fsharp');
+    await fs.mkdirp(fsharpDir);
+
+    await fs.writeFile(path.join(fsharpDir, 'Program.fs'), '[<EntryPoint>]\nlet main argv = 0');
+    await fs.writeFile(path.join(fsharpDir, 'test.fsproj'), '<Project Sdk="Microsoft.NET.Sdk"></Project>');
+
+    const projectDir = path.join(workDir, 'fsharp-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'fsharp',
+      canUseNetwork: false, // Disable network to test warning path
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'Program.fs'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'test.fsproj'))).toBeTruthy();
+  });
+
+  cliTest('handles Gradle build failure with network enabled', async (workDir) => {
+    // Test Gradle build failure handling when network is enabled
+    const templateDir = path.join(workDir, 'gradle-fail-template');
+    const javaDir = path.join(templateDir, 'java');
+    await fs.mkdirp(javaDir);
+
+    await fs.writeFile(path.join(javaDir, 'App.java'), 'public class App {}');
+    // Create an invalid build.gradle that will cause build to fail
+    await fs.writeFile(path.join(javaDir, 'build.gradle'), 'invalid gradle syntax that will fail');
+
+    const projectDir = path.join(workDir, 'gradle-fail-project');
+    await fs.mkdirp(projectDir);
+
+    // Should complete without throwing even if gradle build fails
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'java',
+      canUseNetwork: true, // Enable network to trigger gradle build
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'App.java'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'build.gradle'))).toBeTruthy();
+  });
+
+  cliTest('handles Maven build failure with network enabled', async (workDir) => {
+    // Test Maven build failure handling when network is enabled
+    const templateDir = path.join(workDir, 'maven-fail-template');
+    const javaDir = path.join(templateDir, 'java');
+    await fs.mkdirp(javaDir);
+
+    await fs.writeFile(path.join(javaDir, 'App.java'), 'public class App {}');
+    // Create an invalid pom.xml that will cause build to fail
+    await fs.writeFile(path.join(javaDir, 'pom.xml'), '<invalid>xml</invalid>');
+
+    const projectDir = path.join(workDir, 'maven-fail-project');
+    await fs.mkdirp(projectDir);
+
+    // Should complete without throwing even if maven build fails
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'java',
+      canUseNetwork: true, // Enable network to trigger maven build
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'App.java'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'pom.xml'))).toBeTruthy();
+  });
+
+  cliTest('handles Python virtualenv creation failure', async (workDir) => {
+    // Test Python virtualenv creation failure handling
+    const templateDir = path.join(workDir, 'python-fail-template');
+    const pythonDir = path.join(templateDir, 'python');
+    await fs.mkdirp(pythonDir);
+
+    await fs.writeFile(path.join(pythonDir, 'app.py'), 'print("hello")');
+    // Create requirements.txt with invalid package to cause pip install to fail
+    await fs.writeFile(path.join(pythonDir, 'requirements.txt'), 'nonexistent-package-that-will-fail==999.999.999');
+
+    const projectDir = path.join(workDir, 'python-fail-project');
+    await fs.mkdirp(projectDir);
+
+    // Should complete without throwing even if python setup fails
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'python',
+      canUseNetwork: true, // Enable network to trigger python setup
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'app.py'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'requirements.txt'))).toBeTruthy();
+  });
+
+  cliTest('handles Go mod tidy failure with network enabled', async (workDir) => {
+    // Test Go mod tidy failure handling when network is enabled
+    const templateDir = path.join(workDir, 'go-fail-template');
+    const goDir = path.join(templateDir, 'go');
+    await fs.mkdirp(goDir);
+
+    await fs.writeFile(path.join(goDir, 'main.go'), 'package main\nfunc main() {}');
+    // Create an invalid go.mod that will cause mod tidy to fail
+    await fs.writeFile(path.join(goDir, 'go.mod'), 'invalid go.mod syntax');
+
+    const projectDir = path.join(workDir, 'go-fail-project');
+    await fs.mkdirp(projectDir);
+
+    // Should complete without throwing even if go mod tidy fails
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'go',
+      canUseNetwork: true, // Enable network to trigger go mod tidy
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'main.go'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'go.mod'))).toBeTruthy();
+  });
+
+  cliTest('handles dotnet restore/build failure with network enabled', async (workDir) => {
+    // Test dotnet restore/build failure handling when network is enabled
+    const templateDir = path.join(workDir, 'dotnet-fail-template');
+    const csharpDir = path.join(templateDir, 'csharp');
+    await fs.mkdirp(csharpDir);
+
+    await fs.writeFile(path.join(csharpDir, 'Program.cs'), 'class Program { static void Main() {} }');
+    // Create an invalid csproj that will cause dotnet commands to fail
+    await fs.writeFile(path.join(csharpDir, 'test.csproj'), '<invalid>project</invalid>');
+
+    const projectDir = path.join(workDir, 'dotnet-fail-project');
+    await fs.mkdirp(projectDir);
+
+    // Should complete without throwing even if dotnet commands fail
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'csharp',
+      canUseNetwork: true, // Enable network to trigger dotnet commands
+      generateOnly: false,
+      workDir: projectDir,
+    });
+
+    expect(await fs.pathExists(path.join(projectDir, 'Program.cs'))).toBeTruthy();
+    expect(await fs.pathExists(path.join(projectDir, 'test.csproj'))).toBeTruthy();
+  });
+
+  cliTest('adds migrate context when migrate option is enabled', async (workDir) => {
+    // Test that migrate context is added to cdk.json when migrate option is true
+    await cliInit({
+      ioHelper,
+      type: 'app',
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      migrate: true, // Enable migrate option
+      workDir,
+    });
+
+    // Check that cdk.json was created and contains migrate context
+    expect(await fs.pathExists(path.join(workDir, 'cdk.json'))).toBeTruthy();
+    const cdkJson = await fs.readJson(path.join(workDir, 'cdk.json'));
+    expect(cdkJson.context).toHaveProperty('cdk-migrate', true);
+  });
+
+  cliTest('handles migrate context when no cdk.json exists', async (workDir) => {
+    // Test that addMigrateContext handles missing cdk.json gracefully
+    const templateDir = path.join(workDir, 'no-cdk-json-template');
+    const tsDir = path.join(templateDir, 'typescript');
+    await fs.mkdirp(tsDir);
+
+    await fs.writeFile(path.join(tsDir, 'app.ts'), 'console.log("no cdk.json");');
+    await fs.writeFile(path.join(tsDir, 'package.json'), '{}');
+    // Intentionally don't create cdk.json
+
+    const projectDir = path.join(workDir, 'no-cdk-json-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      migrate: true, // Enable migrate option
+      workDir: projectDir,
+    });
+
+    // Should complete successfully even without cdk.json
+    expect(await fs.pathExists(path.join(projectDir, 'app.ts'))).toBeTruthy();
+    // cdk.json should not exist since template didn't have one
+    expect(await fs.pathExists(path.join(projectDir, 'cdk.json'))).toBeFalsy();
+  });
+
+  describe('package-manager option', () => {
+    let spawnSpy: jest.SpyInstance;
+
+    beforeEach(async () => {
+      // Mock child_process.spawn to track which package manager is called
+      spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
+        stdout: { on: jest.fn() },
+      }) as unknown as child_process.ChildProcess);
+    });
+
+    afterEach(() => {
+      spawnSpy.mockRestore();
+    });
+
+    test.each([
+      { language: 'typescript', packageManager: 'npm', pmCmdPrefix: 'npm run' },
+      { language: 'typescript', packageManager: 'yarn', pmCmdPrefix: 'yarn' },
+      { language: 'typescript', packageManager: 'pnpm', pmCmdPrefix: 'pnpm' },
+      { language: 'typescript', packageManager: 'bun', pmCmdPrefix: 'bun run' },
+      { language: 'javascript', packageManager: 'npm', pmCmdPrefix: 'npm run' },
+      { language: 'javascript', packageManager: 'yarn', pmCmdPrefix: 'yarn' },
+      { language: 'javascript', packageManager: 'pnpm', pmCmdPrefix: 'pnpm' },
+      { language: 'javascript', packageManager: 'bun', pmCmdPrefix: 'bun run' },
+    ])('uses $packageManager for $language project', async ({ language, packageManager, pmCmdPrefix }) => {
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language,
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('init type `lib` also respects package manager option', async () => {
+      const packageManager = 'pnpm';
+      const pmCmdPrefix = 'pnpm';
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'app',
+          language: 'typescript',
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('init type `sample-app` also respects package manager option', async () => {
+      const packageManager = 'pnpm';
+      const pmCmdPrefix = 'pnpm';
+
+      await withTempDir(async (workDir) => {
+        await cliInit({
+          ioHelper,
+          type: 'sample-app',
+          language: 'typescript',
+          packageManager: packageManager as JsPackageManager,
+          workDir,
+        });
+
+        const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+        const installCalls = spawnSpy.mock.calls.filter(
+          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        );
+
+        expect(installCalls.length).toBeGreaterThan(0);
+        expect(readme).toContain(pmCmdPrefix);
+      });
+    });
+
+    cliTest('uses npm as default when package manager not specified', async (workDir) => {
+      const defaultPackageManager = 'npm';
+      const pmCmdPrefix = 'npm run';
+
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'typescript',
+        workDir,
+      });
+
+      const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+      const installCalls = spawnSpy.mock.calls.filter(
+        ([cmd, args]) => cmd === defaultPackageManager && args.includes('install'),
+      );
+
+      expect(installCalls.length).toBeGreaterThan(0);
+      expect(readme).toContain(pmCmdPrefix);
+    });
+
+    cliTest('ignores package manager option for non-JavaScript languages', async (workDir) => {
+      const packageManager = 'yarn';
+      const pmCmdPrefix = 'yarn';
+
+      await cliInit({
+        ioHelper,
+        type: 'app',
+        language: 'python',
+        packageManager,
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      const requirementsExists = await fs.pathExists(path.join(workDir, 'requirements.txt'));
+      const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
+
+      expect(requirementsExists).toBeTruthy();
+      expect(readme).not.toContain(pmCmdPrefix);
+    });
+  });
+
+  describe('validate CLI init options', () => {
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', FORCE_COLOR: '0' };
+
+    test.each([
+      'python',
+      'java',
+      'go',
+      'csharp',
+      'fsharp',
+    ])('warns when package-manager option is specified for non-JS language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --package-manager npm --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
+        );
+
+        expect(output).toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
+      });
+    });
+
+    test.each([
+      'python',
+      'java',
+      'go',
+      'csharp',
+      'fsharp',
+    ])('does not warn when package-manager option is omitted for non-JS language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
+        );
+
+        expect(output).not.toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
+      });
+    });
+
+    test.each([
+      'typescript',
+      'javascript',
+    ])('does not warn when package-manager option is specified for language=%s', async (language) => {
+      await withTempDir(async (workDir) => {
+        const output = child_process.execSync(
+          `node ${cdkBin} init app --language ${language} --generate-only`,
+          {
+            cwd: workDir,
+            env: commonEnv,
+            encoding: 'utf-8',
+          },
+        );
+
+        expect(output).not.toContain('--package-manager option is only applicable for JavaScript and TypeScript projects');
+        expect(output).toContain(`Applying project template app for ${language}`);
+      });
+    });
+  });
 });
 
 test('when no version number is present (e.g., local development), the v2 templates are chosen by default', async () => {
@@ -298,10 +1576,11 @@ test('check available init languages', async () => {
   const langs = await availableInitLanguages();
   expect(langs.length).toBeGreaterThan(0);
   expect(langs).toContain('typescript');
+  expect(langs).toContain('ts');
 });
 
 test('exercise printing available templates', async () => {
-  await printAvailableTemplates();
+  await printAvailableTemplates(ioHelper);
 });
 
 describe('expandPlaceholders', () => {
@@ -319,8 +1598,8 @@ describe('expandPlaceholders', () => {
   });
 });
 
-function cliTest(name: string, handler: (dir: string) => void | Promise<any>): void {
-  test(name, () => withTempDir(handler));
+function cliTest(name: string, handler: (dir: string) => void | Promise<any>, timeout?: number): void {
+  test(name, () => withTempDir(handler), timeout);
 }
 
 async function withTempDir(cb: (dir: string) => void | Promise<any>) {

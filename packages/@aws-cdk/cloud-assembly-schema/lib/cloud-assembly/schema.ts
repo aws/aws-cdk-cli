@@ -30,6 +30,11 @@ export enum ArtifactType {
    * Nested Cloud Assembly
    */
   NESTED_CLOUD_ASSEMBLY = 'cdk:cloud-assembly',
+
+  /**
+   * Feature flag report
+   */
+  FEATURE_FLAG_REPORT = 'cdk:feature-flag-report',
 }
 
 /**

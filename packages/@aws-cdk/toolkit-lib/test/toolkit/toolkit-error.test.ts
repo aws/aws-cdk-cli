@@ -1,4 +1,4 @@
-import { AssemblyError, AuthenticationError, ContextProviderError, ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { AssemblyError, AuthenticationError, ContextProviderError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 describe('toolkit error', () => {
   let toolkitError = new ToolkitError('Test toolkit error');
@@ -7,6 +7,7 @@ describe('toolkit error', () => {
   let contextProviderError = new ContextProviderError('Test context provider error');
   let assemblyError = AssemblyError.withStacks('Test authentication error', []);
   let assemblyCauseError = AssemblyError.withCause('Test authentication error', new Error('other error'));
+  let noResultsError = new NoResultsFoundError('Test no results error');
 
   test('types are correctly assigned', async () => {
     expect(toolkitError.type).toBe('toolkit');
@@ -14,6 +15,7 @@ describe('toolkit error', () => {
     expect(assemblyError.type).toBe('assembly');
     expect(assemblyCauseError.type).toBe('assembly');
     expect(contextProviderError.type).toBe('context-provider');
+    expect(noResultsError.type).toBe('context-provider');
   });
 
   test('isToolkitError works', () => {
@@ -62,7 +64,19 @@ describe('toolkit error', () => {
     expect(contextProviderError.source).toBe('user');
 
     expect(ToolkitError.isContextProviderError(contextProviderError)).toBe(true);
+    expect(ToolkitError.isContextProviderError(noResultsError)).toBe(true);
     expect(ToolkitError.isContextProviderError(toolkitError)).toBe(false);
     expect(ToolkitError.isContextProviderError(authError)).toBe(false);
+  });
+
+  test('NoResultsFoundError works', () => {
+    expect(noResultsError.source).toBe('user');
+
+    expect(ContextProviderError.isNoResultsFoundError(noResultsError)).toBe(true);
+    expect(ToolkitError.isContextProviderError(noResultsError)).toBe(true);
+    expect(ToolkitError.isToolkitError(noResultsError)).toBe(true);
+
+    expect(ToolkitError.isAssemblyError(noResultsError)).toBe(false);
+    expect(ToolkitError.isAuthenticationError(noResultsError)).toBe(false);
   });
 });

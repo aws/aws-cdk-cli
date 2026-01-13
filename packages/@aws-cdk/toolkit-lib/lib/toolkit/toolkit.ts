@@ -1,5 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
+import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
@@ -9,7 +11,7 @@ import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
 import { ToolkitError } from './toolkit-error';
-import type { DeployResult, DestroyResult, RollbackResult } from './types';
+import type { DeployResult, DestroyResult, FeatureFlag, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
   BootstrapOptions,
@@ -20,52 +22,59 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
-  type ExtendedDeployOptions,
+  type PrivateDeployOptions,
   removePublishedAssetsFromWorkGraph,
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
+import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
-import type { MappingGroup, RefactorOptions } from '../actions/refactor';
+import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { WatchOptions } from '../actions/watch';
-import { patternsArrayForWatch } from '../actions/watch/private';
-import { BaseCredentials, type SdkConfig } from '../api/aws-auth';
-import { makeRequestHandler } from '../api/aws-auth/awscli-compatible';
-import type { SdkProviderServices } from '../api/aws-auth/private';
-import { SdkProvider, IoHostSdkLogger } from '../api/aws-auth/private';
+import type { IWatcher, WatchOptions } from '../actions/watch';
+import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
+import {
+  BaseCredentials,
+  type IBaseCredentialsProvider,
+  type SdkBaseClientConfig,
+  type SdkConfig,
+} from '../api/aws-auth';
+import { sdkRequestHandler } from '../api/aws-auth/awscli-compatible';
+import { IoHostSdkLogger, SdkProvider } from '../api/aws-auth/private';
 import { Bootstrapper } from '../api/bootstrap';
 import type { ICloudAssemblySource } from '../api/cloud-assembly';
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
-import { ALL_STACKS, CloudAssemblySourceBuilder } from '../api/cloud-assembly/private';
+import { ALL_STACKS } from '../api/cloud-assembly/private';
+import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { DiffFormatter } from '../api/diff';
+import { detectStackDrift } from '../api/drift';
+import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
 import type { IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
-import { PluginHost } from '../api/plugin';
+import { Mode, PluginHost } from '../api/plugin';
 import {
-  AmbiguityError,
-  ambiguousMovements,
-  findResourceMovements,
   formatAmbiguousMappings,
+  formatEnvironmentSectionHeader,
   formatTypedMappings,
-  fromManifestAndExclusionList,
-  resourceMappings,
-  usePrescribedMappings,
+  groupStacks,
 } from '../api/refactoring';
-import type { ResourceMapping } from '../api/refactoring/cloudformation';
+import type { CloudFormationStack } from '../api/refactoring/cloudformation';
+import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
+import { RefactoringContext } from '../api/refactoring/context';
+import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
-import { tagsForStack } from '../api/tags';
+import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraphBuilder } from '../api/work-graph';
-import type { AssemblyData, StackDetails, SuccessfulDeployStackResult } from '../payloads';
+import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
@@ -90,7 +99,7 @@ export interface ToolkitOptions {
    * in messages sent to the IoHost.
    * Setting this value to true is a no-op; it is equivalent to the default.
    *
-   * @default - detects color from the TTY status of the IoHost
+   * @default - Detects color from the TTY status of the IoHost
    */
   readonly color?: boolean;
 
@@ -123,7 +132,20 @@ export interface ToolkitOptions {
    * @default - A fresh plugin host
    */
   readonly pluginHost?: PluginHost;
+
+  /**
+   * Set of unstable features to opt into. If you are using an unstable feature,
+   * you must explicitly acknowledge that you are aware of the risks of using it,
+   * by passing it in this set.
+   */
+  readonly unstableFeatures?: Array<UnstableFeature>;
 }
+
+/**
+ * Names of toolkit features that are still under development, and may change in
+ * the future.
+ */
+export type UnstableFeature = 'refactor' | 'flags';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -149,7 +171,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   private sdkProviderCache?: SdkProvider;
 
-  private baseCredentials: BaseCredentials;
+  private baseCredentials: IBaseCredentialsProvider;
+
+  private readonly unstableFeatures: Array<UnstableFeature>;
 
   public constructor(private readonly props: ToolkitOptions = {}) {
     super();
@@ -168,10 +192,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // This also removes newlines that we currently emit for CLI backwards compatibility.
     this.ioHost = withTrimmedWhitespace(ioHost);
 
-    if (props.sdkConfig?.profile && props.sdkConfig?.baseCredentials) {
-      throw new ToolkitError('Specify at most one of \'sdkConfig.profile\' and \'sdkConfig.baseCredentials\'');
-    }
-    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible({ profile: props.sdkConfig?.profile });
+    this.baseCredentials = props.sdkConfig?.baseCredentials ?? BaseCredentials.awsCliCompatible();
+    this.unstableFeatures = props.unstableFeatures ?? [];
   }
 
   /**
@@ -182,15 +204,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // @todo this needs to be different instance per action
     if (!this.sdkProviderCache) {
       const ioHelper = asIoHelper(this.ioHost, action);
-      const services: SdkProviderServices = {
-        ioHelper,
-        requestHandler: await makeRequestHandler(ioHelper, this.props.sdkConfig?.httpOptions),
-        logger: new IoHostSdkLogger(ioHelper),
-        pluginHost: this.pluginHost,
+      const clientConfig: SdkBaseClientConfig = {
+        requestHandler: sdkRequestHandler(this.props.sdkConfig?.httpOptions?.agent),
       };
 
-      const config = await this.baseCredentials.makeSdkConfig(services);
-      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, services);
+      const config = await this.baseCredentials.sdkBaseConfig(ioHelper, clientConfig);
+      this.sdkProviderCache = new SdkProvider(config.credentialProvider, config.defaultRegion, {
+        ioHelper,
+        logger: new IoHostSdkLogger(ioHelper),
+        pluginHost: this.pluginHost,
+        requestHandler: clientConfig.requestHandler,
+      });
     }
 
     return this.sdkProviderCache;
@@ -281,11 +305,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
 
     // NOTE: NOT 'await using' because we return ownership to the caller
-    const assembly = await assemblyFromSource(ioHelper, cx);
+    const assembly = await assemblyFromSource(synthSpan.asHelper, cx);
 
     const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
-    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
+    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), synthSpan.asHelper);
     await synthSpan.end();
 
     // if we have a single stack, print it to STDOUT
@@ -326,7 +350,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(ioHelper, cx);
+    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
     const stacks = await assembly.selectStacksV2(selectStacks);
     await synthSpan.end();
 
@@ -337,42 +361,120 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
-    let formattedSecurityDiff = '';
-    let formattedStackDiff = '';
 
-    const templateInfos = await prepareDiff(ioHelper, stacks, deployments, await this.sdkProvider('diff'), options);
+    const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
-      const formatter = new DiffFormatter({
-        templateInfo,
-      });
+      const formatter = new DiffFormatter({ templateInfo });
+      const stackDiff = formatter.formatStackDiff({ strict, contextLines });
 
-      if (options.securityOnly) {
-        const securityDiff = formatter.formatSecurityDiff();
-        // In Diff, we only care about BROADENING security diffs
-        if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
-          const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
-          await ioHelper.defaults.warn(warningMessage);
-          formattedSecurityDiff = securityDiff.formattedDiff;
-          diffs = securityDiff.formattedDiff ? diffs + 1 : diffs;
-        }
-      } else {
-        const diff = formatter.formatStackDiff({
-          strict,
-          context: contextLines,
-        });
-        formattedStackDiff = diff.formattedDiff;
-        diffs = diff.numStacksWithChanges;
+      // Security Diff
+      const securityDiff = formatter.formatSecurityDiff();
+      const formattedSecurityDiff = securityDiff.permissionChangeType !== PermissionChangeType.NONE ? stackDiff.formattedDiff : undefined;
+      // We only warn about BROADENING changes
+      if (securityDiff.permissionChangeType == PermissionChangeType.BROADENING) {
+        const warningMessage = 'This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n';
+        await diffSpan.defaults.warn(warningMessage);
+        await diffSpan.defaults.info(securityDiff.formattedDiff);
       }
+
+      // Stack Diff
+      diffs += stackDiff.numStacksWithChanges;
       appendObject(templateDiffs, formatter.diffs);
+      await diffSpan.notify(IO.CDK_TOOLKIT_I4002.msg(stackDiff.formattedDiff, {
+        stack: templateInfo.newTemplate,
+        diffs: formatter.diffs,
+        numStacksWithChanges: stackDiff.numStacksWithChanges,
+        permissionChanges: securityDiff.permissionChangeType,
+        formattedDiff: {
+          diff: stackDiff.formattedDiff,
+          security: formattedSecurityDiff,
+        },
+      }));
     }
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
-      formattedSecurityDiff,
-      formattedStackDiff,
+      numStacksWithChanges: diffs,
+      diffs: templateDiffs,
     });
 
     return templateDiffs;
+  }
+
+  /**
+   * Drift Action
+   */
+  public async drift(cx: ICloudAssemblySource, options: DriftOptions = {}): Promise<{ [name: string]: DriftResult }> {
+    const ioHelper = asIoHelper(this.ioHost, 'drift');
+    const selectStacks = options.stacks ?? ALL_STACKS;
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
+    const stacks = await assembly.selectStacksV2(selectStacks);
+    await synthSpan.end();
+
+    const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
+    const allDriftResults: { [name: string]: DriftResult } = {};
+    const unavailableDrifts = [];
+    const sdkProvider = await this.sdkProvider('drift');
+
+    for (const stack of stacks.stackArtifacts) {
+      const cfn = (await sdkProvider.forEnvironment(stack.environment, Mode.ForReading)).sdk.cloudFormation();
+      const driftResults = await detectStackDrift(cfn, driftSpan.asHelper, stack.stackName);
+
+      if (!driftResults.StackResourceDrifts) {
+        const stackName = stack.displayName ?? stack.stackName;
+        unavailableDrifts.push(stackName);
+        await driftSpan.notify(IO.CDK_TOOLKIT_W4591.msg(`${stackName}: No drift results available`, { stack }));
+        continue;
+      }
+
+      const formatter = new DriftFormatter({ stack, resourceDrifts: driftResults.StackResourceDrifts });
+      const driftOutput = formatter.formatStackDrift();
+      const stackDrift = {
+        numResourcesWithDrift: driftOutput.numResourcesWithDrift,
+        numResourcesUnchecked: driftOutput.numResourcesUnchecked,
+        formattedDrift: {
+          unchanged: driftOutput.unchanged,
+          unchecked: driftOutput.unchecked,
+          modified: driftOutput.modified,
+          deleted: driftOutput.deleted,
+        },
+      };
+      allDriftResults[formatter.stackName] = stackDrift;
+
+      // header
+      await driftSpan.defaults.info(driftOutput.stackHeader);
+
+      // print the different sections at different levels
+      if (driftOutput.unchanged) {
+        await driftSpan.defaults.debug(driftOutput.unchanged);
+      }
+      if (driftOutput.unchecked) {
+        await driftSpan.defaults.debug(driftOutput.unchecked);
+      }
+      if (driftOutput.modified) {
+        await driftSpan.defaults.info(driftOutput.modified);
+      }
+      if (driftOutput.deleted) {
+        await driftSpan.defaults.info(driftOutput.deleted);
+      }
+
+      // main stack result
+      await driftSpan.notify(IO.CDK_TOOLKIT_I4590.msg(driftOutput.summary, {
+        stack,
+        drift: stackDrift,
+      }));
+    }
+
+    // print summary
+    const totalDrifts = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
+    const totalUnchecked = Object.values(allDriftResults).reduce((total, current) => total + (current.numResourcesUnchecked ?? 0), 0);
+    await driftSpan.end(`\n✨  Number of resources with drift: ${totalDrifts}${totalUnchecked ? ` (${totalUnchecked} unchecked)` : ''}`);
+    if (unavailableDrifts.length) {
+      await driftSpan.defaults.warn(`\n⚠️  Failed to check drift for ${unavailableDrifts.length} stack(s). Check log for more details.`);
+    }
+
+    return allDriftResults;
   }
 
   /**
@@ -409,7 +511,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   /**
    * Helper to allow deploy being called as part of the watch action.
    */
-  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: ExtendedDeployOptions = {}): Promise<DeployResult> {
+  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: PrivateDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
@@ -433,7 +535,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const parameterMap = buildParameterMap(options.parameters?.parameters);
 
-    if (options.deploymentMethod?.method === 'hotswap' ) {
+    if (options.deploymentMethod?.method === 'hotswap') {
       await ioHelper.notify(IO.CDK_TOOLKIT_W5400.msg([
         '⚠️ Hotswap deployments deliberately introduce CloudFormation drift to speed up deployments',
         '⚠️ They should only be used for development - never use them for your production Stacks!',
@@ -747,42 +849,29 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await assemblyFromSource(ioHelper, cx, false);
     const rootDir = options.watchDir ?? process.cwd();
 
-    if (options.include === undefined && options.exclude === undefined) {
-      throw new ToolkitError(
-        "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
-        'Make sure to add a "watch" key to your cdk.json',
-      );
+    // For the "include" setting, the behavior is:
+    // 1. "watch" setting without an "include" key? We default to observing "**".
+    // 2. "watch" setting with an empty "include" key? We default to observing "**".
+    // 3. Non-empty "include" key? Just use the "include" key.
+    const watchIncludes = options.include ?? [];
+    if (watchIncludes.length <= 0) {
+      watchIncludes.push('**');
     }
 
-    // For the "include" subkey under the "watch" key, the behavior is:
-    // 1. No "watch" setting? We error out.
-    // 2. "watch" setting without an "include" key? We default to observing "./**".
-    // 3. "watch" setting with an empty "include" key? We default to observing "./**".
-    // 4. Non-empty "include" key? Just use the "include" key.
-    const watchIncludes = patternsArrayForWatch(options.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
-    });
-
-    // For the "exclude" subkey under the "watch" key,
-    // the behavior is to add some default excludes in addition to the ones specified by the user:
-    // 1. The CDK output directory.
-    // 2. Any file whose name starts with a dot.
-    // 3. Any directory's content whose name starts with a dot.
-    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
-    const outdir = assembly.directory;
-    const watchExcludes = patternsArrayForWatch(options.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
-    });
-
-    // only exclude the outdir if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, outdir);
+    // For the "exclude" setting, the behavior is to add some default excludes in addition to
+    // patterns specified by the user sensible default patterns:
+    const watchExcludes = options.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
+    // 1. The CDK output directory, if it is under the rootDir
+    const relativeOutDir = path.relative(rootDir, assembly.directory);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
-
-    watchExcludes.push('**/.*', '**/.*/**', '**/node_modules/**');
+    // 2. Any file whose name starts with a dot.
+    watchExcludes.push('.*', '**/.*');
+    // 3. Any directory's content whose name starts with a dot.
+    watchExcludes.push('**/.*/**');
+    // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
+    watchExcludes.push('**/node_modules/**');
 
     // Print some debug information on computed settings
     await ioHelper.notify(IO.CDK_TOOLKIT_I5310.msg([
@@ -864,6 +953,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
+        // stop the logs monitor, if it exists
+        await cloudWatchLogMonitor?.deactivate();
+        // close the watcher itself
         await watcher.close();
         // Prevents Node from staying alive. There is no 'end' event that the watcher emits
         // that we can know it's definitely done, so best we can do is tell it to stop watching,
@@ -960,67 +1052,163 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Refactor Action. Moves resources from one location (stack + logical ID) to another.
    */
   public async refactor(cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
+    this.requireUnstableFeature('refactor');
+
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
-    const assembly = await assemblyFromSource(ioHelper, cx);
-    return this._refactor(assembly, ioHelper, options);
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    return await this._refactor(assembly, ioHelper, cx, options);
   }
 
-  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, options: RefactorOptions = {}): Promise<void> {
-    if (options.mappings && options.exclude) {
-      throw new ToolkitError("Cannot use both 'exclude' and 'mappings'.");
-    }
-
-    if (options.revert && !options.mappings) {
-      throw new ToolkitError("The 'revert' options can only be used with the 'mappings' option.");
-    }
-
-    if (!options.dryRun) {
-      throw new ToolkitError('Refactor is not available yet. Too see the proposed changes, use the --dry-run flag.');
-    }
-
+  private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
     const sdkProvider = await this.sdkProvider('refactor');
-    try {
-      const mappings = await getMappings();
-      const typedMappings = mappings.map(m => m.toTypedMapping());
-      await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatTypedMappings(typedMappings), {
-        typedMappings,
-      }));
-    } catch (e) {
-      if (e instanceof AmbiguityError) {
-        const paths = e.paths();
-        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(formatAmbiguousMappings(paths), {
-          ambiguousPaths: paths,
-        }));
-      } else {
-        throw e;
+    const selectedStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
+    const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
+
+    for (let { environment, localStacks, deployedStacks } of groups) {
+      await ioHelper.defaults.info(formatEnvironmentSectionHeader(environment));
+
+      const newStacks = localStacks.filter(s => !deployedStacks.map(t => t.stackName).includes(s.stackName));
+      if (newStacks.length > 0) {
+        /*
+         When the CloudFormation stack refactor operation creates a new stack, and the resources being moved to that
+         new stack have references to other resources, CloudFormation needs to do what they call "collapsing the
+         template". The details don't really matter, except that, in the process, it calls some service APIs, to read
+         the resources being moved. The role it uses to call these APIs internally is the role the user called the
+         stack refactoring API with, which in our case is the CloudFormation deployment role, from the bootstrap stack,
+         by default.
+
+         The problem is that this role does not have permissions to read all resource types. In this case,
+         CloudFormation will roll back the refactor operation. Since this is an implementation detail of the API, that
+         the user cannot know about, and didn't ask for, it will be very surprising. So we've decided to block this use
+         case until CloudFormation supports passing a different role to use for these read operations, as is the case
+         with deployment.
+         */
+
+        let message = `The following stack${newStacks.length === 1 ? ' is' : 's are'} new: ${newStacks.map(s => s.stackName).join(', ')}\n`;
+        message += 'Creation of new stacks is not yet supported by the refactor command. ';
+        message += 'Please deploy any new stacks separately before refactoring your stacks.';
+        await ioHelper.defaults.error(chalk.red(message));
+        continue;
+      }
+
+      try {
+        const context = new RefactoringContext({
+          environment,
+          deployedStacks,
+          localStacks,
+          assumeRoleArn: options.roleArn,
+          overrides: getOverrides(environment, deployedStacks, localStacks),
+        });
+
+        const mappings = context.mappings;
+
+        if (mappings.length === 0 && context.ambiguousPaths.length === 0) {
+          await ioHelper.defaults.info('Nothing to refactor.');
+          continue;
+        }
+
+        const typedMappings = mappings
+          .map(m => m.toTypedMapping())
+          .filter(m => m.type !== 'AWS::CDK::Metadata');
+
+        let refactorMessage = formatTypedMappings(typedMappings);
+        const refactorResult: RefactorResult = { typedMappings };
+
+        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+
+        if (context.ambiguousPaths.length > 0) {
+          const paths = context.ambiguousPaths;
+          refactorMessage += '\n' + formatAmbiguousMappings(paths);
+          refactorResult.ambiguousPaths = paths;
+        }
+
+        await ioHelper.notify(IO.CDK_TOOLKIT_I8900.msg(refactorMessage, refactorResult));
+
+        if (options.dryRun || context.mappings.length === 0 || context.ambiguousPaths.length > 0) {
+          // Nothing left to do.
+          continue;
+        }
+
+        // In interactive mode (TTY) we need confirmation before proceeding
+        if (process.stdout.isTTY && !await confirm(options.force ?? false)) {
+          await ioHelper.defaults.info(chalk.red(`Refactoring canceled for environment aws://${environment.account}/${environment.region}\n`));
+          continue;
+        }
+
+        await ioHelper.defaults.info('Refactoring...');
+        await context.execute(stackDefinitions, sdkProvider, ioHelper);
+        await ioHelper.defaults.info('✅  Stack refactor complete');
+
+        await ioHelper.defaults.info('Deploying updated stacks to finalize refactor...');
+        await this.deploy(cx, {
+          stacks: ALL_STACKS,
+          forceDeployment: true,
+        });
+      } catch (e: any) {
+        const message = `❌  Refactor failed: ${formatError(e)}`;
+        await ioHelper.notify(IO.CDK_TOOLKIT_E8900.msg(message, { error: e }));
+
+        // Also debugging the error, because the API does not always return a user-friendly message
+        await ioHelper.defaults.debug(e.message);
       }
     }
 
-    async function getMappings(): Promise<ResourceMapping[]> {
-      if (options.revert) {
-        return usePrescribedMappings(revert(options.mappings ?? []), sdkProvider);
-      }
-      if (options.mappings != null) {
-        return usePrescribedMappings(options.mappings ?? [], sdkProvider);
-      } else {
-        const stacks = await assembly.selectStacksV2(ALL_STACKS);
-        const exclude = fromManifestAndExclusionList(assembly.cloudAssembly.manifest, options.exclude);
-        const movements = await findResourceMovements(stacks.stackArtifacts, sdkProvider, exclude);
-        const ambiguous = ambiguousMovements(movements);
-        if (ambiguous.length === 0) {
-          const filteredStacks = await assembly.selectStacksV2(options.stacks ?? ALL_STACKS);
-          return resourceMappings(movements, filteredStacks.stackArtifacts);
+    function getOverrides(environment: cxapi.Environment, deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]) {
+      const mappingGroup = options.overrides
+        ?.find(g => g.region === environment.region && g.account === environment.account);
+
+      return mappingGroup == null
+        ? []
+        : Object.entries(mappingGroup.resources ?? {})
+          .map(([source, destination]) => new ResourceMapping(
+            getResourceLocation(source, deployedStacks),
+            getResourceLocation(destination, localStacks),
+          ));
+    }
+
+    function getResourceLocation(location: string, stacks: CloudFormationStack[]): ResourceLocation {
+      for (let stack of stacks) {
+        const [stackName, logicalId] = location.split('.');
+        if (stackName != null && logicalId != null && stack.stackName === stackName && stack.template.Resources?.[logicalId] != null) {
+          return new ResourceLocation(stack, logicalId);
         } else {
-          throw new AmbiguityError(ambiguous);
+          const resourceEntry = Object
+            .entries(stack.template.Resources ?? {})
+            .find(([_, r]) => r.Metadata?.['aws:cdk:path'] === location);
+          if (resourceEntry != null) {
+            return new ResourceLocation(stack, resourceEntry[0]);
+          }
         }
       }
+      throw new ToolkitError(`Cannot find resource in location ${location}`);
     }
 
-    function revert(mappings: MappingGroup[]): MappingGroup[] {
-      return mappings.map(group => ({
-        ...group,
-        resources: Object.fromEntries(Object.entries(group.resources).map(([src, dst]) => ([dst, src]))),
+    async function confirm(force: boolean): Promise<boolean> {
+      // 'force' is set to true is the equivalent of having pre-approval for any refactor
+      if (force) {
+        return true;
+      }
+
+      const question = 'Do you wish to refactor these resources?';
+      return ioHelper.requestResponse(IO.CDK_TOOLKIT_I8910.req(question, {
+        motivation: 'User input is needed',
       }));
+    }
+
+    function formatError(error: any): string {
+      try {
+        const payload = JSON.parse(error.message);
+        const messages: string[] = [];
+        if (payload.reason?.StatusReason) {
+          messages.push(`Refactor creation: [${payload.reason?.Status}] ${payload.reason.StatusReason}`);
+        }
+        if (payload.reason?.ExecutionStatusReason) {
+          messages.push(`Refactor execution: [${payload.reason?.Status}] ${payload.reason.ExecutionStatusReason}`);
+        }
+        return messages.length > 0 ? messages.join('\n') : `Unknown error (Stack refactor ID: ${payload.reason?.StackRefactorId ?? 'unknown'})`;
+      } catch (e) {
+        return formatErrorMessage(error);
+      }
     }
   }
 
@@ -1139,7 +1327,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   ): Promise<void> {
     // watch defaults to hotswap deployment
     const deploymentMethod = options.deploymentMethod ?? { method: 'hotswap' };
-    const deployOptions: ExtendedDeployOptions = {
+    const deployOptions: PrivateDeployOptions = {
       ...options,
       cloudWatchLogMonitor,
       deploymentMethod,
@@ -1152,26 +1340,56 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // just continue - deploy will show the error
     }
   }
-}
-
-/**
- * The result of a `cdk.watch()` operation.
- */
-export interface IWatcher extends AsyncDisposable {
-  /**
-   * Stop the watcher and wait for the current watch iteration to complete.
-   *
-   * An alias for `[Symbol.asyncDispose]`, as a more readable alternative for
-   * environments that don't support the Disposable APIs yet.
-   */
-  dispose(): Promise<void>;
 
   /**
-   * Wait for the watcher to stop.
-   *
-   * The watcher will only stop if `dispose()` or `[Symbol.asyncDispose]()` are called.
-   *
-   * If neither of those is called, awaiting this promise will wait forever.
+   * Retrieve feature flag information from the cloud assembly
    */
-  waitForEnd(): Promise<void>;
+  public async flags(cx: ICloudAssemblySource): Promise<FeatureFlag[]> {
+    this.requireUnstableFeature('flags');
+
+    const ioHelper = asIoHelper(this.ioHost, 'flags');
+    await using assembly = await assemblyFromSource(ioHelper, cx);
+    const artifacts = Object.values(assembly.cloudAssembly.manifest.artifacts ?? {});
+    const featureFlagReports = artifacts.filter(a => a.type === ArtifactType.FEATURE_FLAG_REPORT);
+
+    const flags = featureFlagReports.flatMap(report => {
+      const properties = report.properties as FeatureFlagReportProperties;
+      const moduleName = properties.module;
+
+      const flagsWithUnconfiguredBehavesLike = Object.entries(properties.flags)
+        .filter(([_, flagInfo]) => flagInfo.unconfiguredBehavesLike != undefined);
+
+      const shouldIncludeUnconfiguredBehavesLike = flagsWithUnconfiguredBehavesLike.length > 0;
+
+      return Object.entries(properties.flags).map(([flagName, flagInfo]) => {
+        const baseFlag = {
+          module: moduleName,
+          name: flagName,
+          recommendedValue: flagInfo.recommendedValue,
+          userValue: flagInfo.userValue ?? undefined,
+          explanation: flagInfo.explanation ?? '',
+        };
+
+        if (shouldIncludeUnconfiguredBehavesLike) {
+          return {
+            ...baseFlag,
+            unconfiguredBehavesLike: {
+              v2: flagInfo.unconfiguredBehavesLike?.v2 ?? false,
+            },
+          };
+        }
+
+        return baseFlag;
+      });
+    });
+
+    return flags;
+  }
+
+  private requireUnstableFeature(requestedFeature: UnstableFeature) {
+    if (!this.unstableFeatures.includes(requestedFeature)) {
+      throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+    }
+  }
 }
+

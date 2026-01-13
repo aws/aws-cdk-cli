@@ -2,17 +2,14 @@
   "dependencies": [
     {
       "name": "@aws-sdk/client-s3",
-      "version": "^3",
       "type": "build"
     },
     {
       "name": "@aws-sdk/credential-providers",
-      "version": "^3",
       "type": "build"
     },
     {
       "name": "@aws-sdk/lib-storage",
-      "version": "^3",
       "type": "build"
     },
     {
@@ -26,7 +23,7 @@
     },
     {
       "name": "@types/node",
-      "version": "ts5.6",
+      "version": "ts5.9",
       "type": "build"
     },
     {
@@ -101,7 +98,7 @@
     },
     {
       "name": "typescript",
-      "version": "5.6",
+      "version": "5.9",
       "type": "build"
     }
   ],

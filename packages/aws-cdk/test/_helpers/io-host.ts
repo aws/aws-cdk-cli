@@ -39,3 +39,10 @@ export class TestIoHost implements IIoHost {
     return msg.defaultResponse;
   }
 }
+
+export function expectIoMsg(message: any, level?: IoMessageLevel) {
+  return expect.objectContaining({
+    message,
+    level: level ?? expect.any(String),
+  });
+}

@@ -213,27 +213,37 @@ export class Bootstrapper {
       }
     }
 
-    return current.update(
-      bootstrapTemplate,
-      {
-        FileAssetsBucketName: params.bucketName,
-        FileAssetsBucketKmsKeyId: kmsKeyId,
-        // Empty array becomes empty string
-        TrustedAccounts: trustedAccounts.join(','),
-        TrustedAccountsForLookup: trustedAccountsForLookup.join(','),
-        CloudFormationExecutionPolicies: cloudFormationExecutionPolicies.join(','),
-        Qualifier: params.qualifier,
-        PublicAccessBlockConfiguration:
-          params.publicAccessBlockConfiguration || params.publicAccessBlockConfiguration === undefined
-            ? 'true'
-            : 'false',
-        InputPermissionsBoundary: policyName,
-      },
-      {
-        ...options,
-        terminationProtection: options.terminationProtection ?? current.terminationProtection,
-      },
-    );
+    const bootstrapTemplateParameters: Record<string, string | undefined> = {
+      FileAssetsBucketName: params.bucketName,
+      FileAssetsBucketKmsKeyId: kmsKeyId,
+      // Empty array becomes empty string
+      TrustedAccounts: trustedAccounts.join(','),
+      TrustedAccountsForLookup: trustedAccountsForLookup.join(','),
+      CloudFormationExecutionPolicies: cloudFormationExecutionPolicies.join(','),
+      Qualifier: params.qualifier,
+      PublicAccessBlockConfiguration:
+        params.publicAccessBlockConfiguration || params.publicAccessBlockConfiguration === undefined
+          ? 'true'
+          : 'false',
+      InputPermissionsBoundary: policyName,
+    };
+
+    const templateParameters = await this.templateParameters();
+
+    // Conditionally set these parameters: only set these parameters if they are accepted by the template.
+    // If we pass them unconditionally, older customized templates that don't know about these
+    // parameters yet will fail to deploy.
+    if (params.denyExternalId !== undefined) {
+      if (!templateParameters.includes('DenyExternalId')) {
+        throw new ToolkitError('The selected bootstrap template does not accept the DenyExternalId parameter');
+      }
+      bootstrapTemplateParameters.DenyExternalId = `${params.denyExternalId}`;
+    }
+
+    return current.update(bootstrapTemplate, bootstrapTemplateParameters, {
+      ...options,
+      terminationProtection: options.terminationProtection ?? current.terminationProtection,
+    });
   }
 
   private async getPolicyName(
@@ -368,14 +378,23 @@ export class Bootstrapper {
     }
   }
 
-  private async loadTemplate(params: BootstrappingParameters = {}): Promise<any> {
+  /**
+   * Return the set of parameter names accepted by the current bootstrapping template
+   */
+  private async templateParameters(legacyParams: BootstrappingParameters = {}): Promise<string[]> {
+    const template = await this.loadTemplate(legacyParams);
+
+    return Object.keys(template.Parameters ?? {});
+  }
+
+  private async loadTemplate(legacyParams: BootstrappingParameters = {}): Promise<any> {
     switch (this.source.source) {
       case 'custom':
         return loadStructuredFile(this.source.templateFile);
       case 'default':
         return loadStructuredFile(path.join(bundledPackageRootDir(__dirname), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'));
       case 'legacy':
-        return legacyBootstrapTemplate(params);
+        return legacyBootstrapTemplate(legacyParams);
     }
   }
 }

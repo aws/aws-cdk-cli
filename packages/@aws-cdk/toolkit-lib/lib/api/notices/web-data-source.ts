@@ -1,25 +1,65 @@
-import type { ClientRequest } from 'http';
-import type { RequestOptions } from 'https';
+import type { ClientRequest } from 'node:http';
+import type { RequestOptions } from 'node:https';
 import * as https from 'node:https';
-import type { SdkHttpOptions } from '../aws-auth';
 import type { Notice, NoticeDataSource } from './types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, humanHttpStatusError, humanNetworkError } from '../../util';
-import { ProxyAgentProvider } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
+import { NetworkDetector } from '../network-detector/network-detector';
+
+/**
+ * A data source that fetches notices from the CDK notices data source
+ */
+export class WebsiteNoticeDataSourceProps {
+  /**
+   * The URL to load notices from.
+   *
+   * Note this must be a valid JSON document in the CDK notices data schema.
+   *
+   * @see https://github.com/cdklabs/aws-cdk-notices
+   *
+   * @default - Official CDK notices
+   */
+  readonly url?: string | URL;
+
+  /**
+   * The agent responsible for making the network requests.
+   *
+   * Use this so set up a proxy connection.
+   *
+   * @default - Uses the shared global node agent
+   */
+  readonly agent?: https.Agent;
+}
 
 export class WebsiteNoticeDataSource implements NoticeDataSource {
-  private readonly options: SdkHttpOptions;
+  /**
+   * The URL notices are loaded from.
+   */
+  public readonly url: any;
 
-  constructor(private readonly ioHelper: IoHelper, options: SdkHttpOptions = {}) {
-    this.options = options;
+  private readonly agent?: https.Agent;
+
+  constructor(private readonly ioHelper: IoHelper, props: WebsiteNoticeDataSourceProps = {}) {
+    this.agent = props.agent;
+    this.url = props.url ?? 'https://cli.cdk.dev-tools.aws.dev/notices.json';
   }
 
   async fetch(): Promise<Notice[]> {
-    const timeout = 3000;
+    // Check connectivity before attempting network request
+    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
+    if (!hasConnectivity) {
+      throw new ToolkitError('No internet connectivity detected');
+    }
+
+    // We are observing lots of timeouts when running in a massively parallel
+    // integration test environment, so wait for a longer timeout there.
+    //
+    // In production, have a short timeout to not hold up the user experience.
+    const timeout = process.env.TESTING_CDK ? 30_000 : 3_000;
 
     const options: RequestOptions = {
-      agent: await new ProxyAgentProvider(this.ioHelper).create(this.options),
+      agent: this.agent,
     };
 
     const notices = await new Promise<Notice[]>((resolve, reject) => {
@@ -34,7 +74,8 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
       timer.unref();
 
       try {
-        req = https.get('https://cli.cdk.dev-tools.aws.dev/notices.json',
+        req = https.get(
+          this.url,
           options,
           res => {
             if (res.statusCode === 200) {
@@ -60,7 +101,8 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
             } else {
               reject(new ToolkitError(`${humanHttpStatusError(res.statusCode!)} (Status code: ${res.statusCode})`));
             }
-          });
+          },
+        );
         req.on('error', e => {
           reject(ToolkitError.withCause(humanNetworkError(e), e));
         });

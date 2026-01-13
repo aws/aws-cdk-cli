@@ -1,4 +1,4 @@
-// const cdk = require('aws-cdk-lib');
+// const cdk = require('aws-cdk-lib/core');
 // const { Template } = require('aws-cdk-lib/assertions');
 // const %name.PascalCased% = require('../lib/%name%-stack');
 

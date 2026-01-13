@@ -1,4 +1,6 @@
 import { format } from 'util';
+import type { FileManifestEntry } from '@aws-cdk/cdk-assets-lib';
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cx-api';
 import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
 import type {
@@ -10,8 +12,6 @@ import type {
 import {
   ChangeSetStatus,
 } from '@aws-sdk/client-cloudformation';
-import type { FileManifestEntry } from 'cdk-assets';
-import { AssetManifest } from 'cdk-assets';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import { ToolkitError } from '../../toolkit/toolkit-error';
@@ -21,13 +21,17 @@ import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
+export interface ValidationReporter {
+  fetchDetails(changeSetName: string, stackName: string): Promise<string>;
+}
+
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
  *
- * @param cfn           a CloudFormation client
- * @param stackName     the name of the Stack the ChangeSet belongs to
- * @param changeSetName the name of the ChangeSet
- * @param fetchAll      if true, fetches all pages of the change set description.
+ * @param cfn           - a CloudFormation client
+ * @param stackName     - the name of the Stack the ChangeSet belongs to
+ * @param changeSetName - the name of the ChangeSet
+ * @param fetchAll      - if true, fetches all pages of the change set description.
  *
  * @returns       CloudFormation information about the ChangeSet
  */
@@ -65,8 +69,8 @@ async function describeChangeSet(
 /**
  * Waits for a function to return non-+undefined+ before returning.
  *
- * @param valueProvider a function that will return a value that is not +undefined+ once the wait should be over
- * @param timeout     the time to wait between two calls to +valueProvider+
+ * @param valueProvider - a function that will return a value that is not +undefined+ once the wait should be over
+ * @param timeout     - the time to wait between two calls to +valueProvider+
  *
  * @returns       the value that was returned by +valueProvider+
  */
@@ -91,10 +95,10 @@ async function waitFor<T>(
  * Will return a changeset that is either ready to be executed or has no changes.
  * Will throw in other cases.
  *
- * @param cfn           a CloudFormation client
- * @param stackName     the name of the Stack that the ChangeSet belongs to
- * @param changeSetName the name of the ChangeSet
- * @param fetchAll      if true, fetches all pages of the ChangeSet before returning.
+ * @param cfn           - a CloudFormation client
+ * @param stackName     - the name of the Stack that the ChangeSet belongs to
+ * @param changeSetName - the name of the ChangeSet
+ * @param fetchAll      - if true, fetches all pages of the ChangeSet before returning.
  *
  * @returns       the CloudFormation description of the ChangeSet
  */
@@ -103,7 +107,7 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
-  { fetchAll }: { fetchAll: boolean },
+  { fetchAll, validationReporter }: { fetchAll: boolean; validationReporter?: ValidationReporter },
 ): Promise<DescribeChangeSetCommandOutput> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
@@ -121,9 +125,20 @@ export async function waitForChangeSet(
       return description;
     }
 
+    const isEarlyValidationError = description.Status === ChangeSetStatus.FAILED &&
+      description.StatusReason?.includes('AWS::EarlyValidation');
+
+    if (isEarlyValidationError) {
+      const details = await validationReporter?.fetchDetails(changeSetName, stackName);
+      if (details) {
+        throw new ToolkitError(details);
+      }
+    }
     // eslint-disable-next-line @stylistic/max-len
     throw new ToolkitError(
-      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${description.StatusReason || 'no reason provided'}`,
+      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
+        description.StatusReason || 'no reason provided'
+      }`,
     );
   });
 
@@ -377,8 +392,8 @@ export function changeSetHasNoChanges(description: DescribeChangeSetCommandOutpu
  * Fails if the stack is in a FAILED state. Will not fail if the stack was
  * already deleted.
  *
- * @param cfn        a CloudFormation client
- * @param stackName      the name of the stack to wait for after a delete
+ * @param cfn        - a CloudFormation client
+ * @param stackName      - the name of the stack to wait for after a delete
  *
  * @returns     the CloudFormation description of the stabilized stack after the delete attempt
  */
@@ -409,8 +424,8 @@ export async function waitForStackDelete(
  *
  * Fails if the stack is in a FAILED state, ROLLBACK state, or DELETED state.
  *
- * @param cfn        a CloudFormation client
- * @param stackName      the name of the stack to wait for after an update
+ * @param cfn        - a CloudFormation client
+ * @param stackName      - the name of the stack to wait for after an update
  *
  * @returns     the CloudFormation description of the stabilized stack after the update attempt
  */

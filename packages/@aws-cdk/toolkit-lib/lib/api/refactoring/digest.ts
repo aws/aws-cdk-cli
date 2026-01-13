@@ -1,122 +1,66 @@
 import * as crypto from 'node:crypto';
-import { loadResourceModel } from '@aws-cdk/cloudformation-diff/lib/diff/util';
-import type { CloudFormationTemplate } from './cloudformation';
+import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
+import { ResourceGraph } from './graph';
+
+export type GraphDirection =
+  'direct' // Edge A -> B mean that A depends on B
+  | 'opposite'; // Edge A -> B mean that B depends on A
 
 /**
  * Computes the digest for each resource in the template.
  *
  * Conceptually, the digest is computed as:
  *
- *     d(resource) = hash(type + physicalId)                       , if physicalId is defined
- *                 = hash(type + properties + dependencies.map(d)) , otherwise
+ *     digest(resource) = hash(type + properties + dependencies.map(d))
  *
- * where `hash` is a cryptographic hash function. In other words, if a resource has
- * a physical ID, we use the physical ID plus its type to uniquely identify
- * that resource. In this case, the digest can be computed from these two fields
- * alone. A corollary is that such resources can be renamed and have their
- * properties updated at the same time, and still be considered equivalent.
- *
- * Otherwise, the digest is computed from its type, its own properties (that is,
- * excluding properties that refer to other resources), and the digests of each of
- * its dependencies.
+ * where `hash` is a cryptographic hash function. In other words, the digest of a
+ * resource is computed from its type, its own properties (that is, excluding
+ * properties that refer to other resources), and the digests of each of its
+ * dependencies.
  *
  * The digest of a resource, defined recursively this way, remains stable even if
  * one or more of its dependencies gets renamed. Since the resources in a
  * CloudFormation template form a directed acyclic graph, this function is
  * well-defined.
  */
-export function computeResourceDigests(template: CloudFormationTemplate): Record<string, string> {
-  const resources = template.Resources || {};
-  const graph: Record<string, Set<string>> = {};
-  const reverseGraph: Record<string, Set<string>> = {};
+export function computeResourceDigests(stacks: CloudFormationStack[], direction: GraphDirection = 'direct'): Record<string, string> {
+  const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
+    stacks.flatMap((s) =>
+      Object.values(s.template.Outputs ?? {})
+        .filter((o) => o.Export != null && typeof o.Export.Name === 'string')
+        .map(
+          (o) =>
+            [o.Export.Name, { stackName: s.stackName, value: o.Value }] as [string, { stackName: string; value: any }],
+        ),
+    ),
+  );
 
-  // 1. Build adjacency lists
-  for (const id of Object.keys(resources)) {
-    graph[id] = new Set();
-    reverseGraph[id] = new Set();
-  }
+  const resources = Object.fromEntries(
+    stacks.flatMap((s) => {
+      return Object.entries(s.template.Resources ?? {})
+        .filter(([_, res]) => res.Type !== 'AWS::CDK::Metadata')
+        .map(([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource]);
+    }),
+  );
 
-  // 2. Detect dependencies by searching for Ref/Fn::GetAtt
-  const findDependencies = (value: any): string[] => {
-    if (!value || typeof value !== 'object') return [];
-    if (Array.isArray(value)) {
-      return value.flatMap(findDependencies);
-    }
-    if ('Ref' in value) {
-      return [value.Ref];
-    }
-    if ('Fn::GetAtt' in value) {
-      const refTarget = Array.isArray(value['Fn::GetAtt']) ? value['Fn::GetAtt'][0] : value['Fn::GetAtt'].split('.')[0];
-      return [refTarget];
-    }
-    const result = [];
-    if ('DependsOn' in value) {
-      if (Array.isArray(value.DependsOn)) {
-        result.push(...value.DependsOn);
-      } else {
-        result.push(value.DependsOn);
-      }
-    }
-    result.push(...Object.values(value).flatMap(findDependencies));
-    return result;
-  };
+  const graph = direction == 'direct'
+    ? ResourceGraph.fromStacks(stacks)
+    : ResourceGraph.fromStacks(stacks).opposite();
 
-  for (const [id, res] of Object.entries(resources)) {
-    const deps = findDependencies(res || {});
-    for (const dep of deps) {
-      if (dep in resources && dep !== id) {
-        graph[id].add(dep);
-        reverseGraph[dep].add(id);
-      }
-    }
-  }
+  return computeDigestsInTopologicalOrder(graph, resources, exports);
+}
 
-  // 3. Topological sort
-  const outDegree = Object.keys(graph).reduce((acc, k) => {
-    acc[k] = graph[k].size;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const queue = Object.keys(outDegree).filter((k) => outDegree[k] === 0);
-  const order: string[] = [];
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const nxt of reverseGraph[node]) {
-      outDegree[nxt]--;
-      if (outDegree[nxt] === 0) {
-        queue.push(nxt);
-      }
-    }
-  }
-
-  // 4. Compute digests in sorted order
+function computeDigestsInTopologicalOrder(
+  graph: ResourceGraph,
+  resources: Record<string, CloudFormationResource>,
+  exports: Record<string, { stackName: string; value: any }>): Record<string, string> {
+  const nodes = graph.sortedNodes.filter(n => resources[n] != null);
   const result: Record<string, string> = {};
-  for (const id of order) {
+  for (const id of nodes) {
     const resource = resources[id];
-    const resourceProperties = resource.Properties ?? {};
-    const model = loadResourceModel(resource.Type);
-    const identifier = intersection(Object.keys(resourceProperties), model?.primaryIdentifier ?? []);
-    let toHash: string;
-
-    if (identifier.length === model?.primaryIdentifier?.length) {
-      // The resource has a physical ID defined, so we can
-      // use the ID and the type as the identity of the resource.
-      toHash =
-        resource.Type +
-        identifier
-          .sort()
-          .map((attr) => JSON.stringify(resourceProperties[attr]))
-          .join('');
-    } else {
-      // The resource does not have a physical ID defined, so we need to
-      // compute the digest based on its properties and dependencies.
-      const depDigests = Array.from(graph[id]).map((d) => result[d]);
-      const propertiesHash = hashObject(stripReferences(stripConstructPath(resource)));
-      toHash = resource.Type + propertiesHash + depDigests.join('');
-    }
-
+    const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
+    const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
+    const toHash = resource.Type + propertiesHash + depDigests.join('');
     result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
   }
 
@@ -153,10 +97,10 @@ export function hashObject(obj: any): string {
  * Removes sub-properties containing Ref or Fn::GetAtt to avoid hashing
  * references themselves but keeps the property structure.
  */
-function stripReferences(value: any): any {
+function stripReferences(value: any, exports: { [p: string]: { stackName: string; value: any } }): any {
   if (!value || typeof value !== 'object') return value;
   if (Array.isArray(value)) {
-    return value.map(stripReferences);
+    return value.map(x => stripReferences(x, exports));
   }
   if ('Ref' in value) {
     return { __cloud_ref__: 'Ref' };
@@ -167,9 +111,21 @@ function stripReferences(value: any): any {
   if ('DependsOn' in value) {
     return { __cloud_ref__: 'DependsOn' };
   }
+  if ('Fn::ImportValue' in value) {
+    const exp = exports[value['Fn::ImportValue']];
+    if (exp != null) {
+      const v = exp.value;
+      // Treat Fn::ImportValue as if it were a reference with the same stack
+      if ('Ref' in v) {
+        return { __cloud_ref__: 'Ref' };
+      } else if ('Fn::GetAtt' in v) {
+        return { __cloud_ref__: 'Fn::GetAtt' };
+      }
+    }
+  }
   const result: any = {};
   for (const [k, v] of Object.entries(value)) {
-    result[k] = stripReferences(v);
+    result[k] = stripReferences(v, exports);
   }
   return result;
 }
@@ -182,8 +138,4 @@ function stripConstructPath(resource: any): any {
   const copy = JSON.parse(JSON.stringify(resource));
   delete copy.Metadata['aws:cdk:path'];
   return copy;
-}
-
-function intersection<T>(a: T[], b: T[]): T[] {
-  return a.filter((value) => b.includes(value));
 }

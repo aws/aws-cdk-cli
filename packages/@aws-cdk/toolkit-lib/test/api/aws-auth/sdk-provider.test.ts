@@ -833,7 +833,7 @@ function isProfileRole(x: ProfileUser | ProfileRole): x is ProfileRole {
 }
 
 async function providerFromProfile(profile: string | undefined) {
-  return SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, profile, logger: console, pluginHost: pluginHost });
+  return SdkProvider.withAwsCliCompatibleDefaults({ ioHelper, logger: console, pluginHost: pluginHost }, profile);
 }
 
 async function exerciseCredentials(provider: SdkProvider, e: cxapi.Environment, mode: Mode = Mode.ForReading,

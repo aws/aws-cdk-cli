@@ -1,13 +1,13 @@
 import * as path from 'path';
+import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
+import { MemoryContext } from '../../../lib';
+import * as environment from '../../../lib/api/cloud-assembly/environment';
 import { RWLock } from '../../../lib/api/rwlock';
-import { contextproviders } from '../../../lib/api/shared-private';
+import * as contextproviders from '../../../lib/context-providers';
 import { Toolkit } from '../../../lib/toolkit/toolkit';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { appFixture, appFixtureConfig, autoCleanOutDir, builderFixture, builderFunctionFromFixture, cdkOutFixture, TestIoHost } from '../../_helpers';
-
-// these tests often run a bit longer than the default
-jest.setTimeout(10_000);
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -38,6 +38,43 @@ describe('fromAssemblyBuilder', () => {
 
     // THEN
     expect(JSON.stringify(stack)).toContain('amzn-s3-demo-bucket');
+  });
+
+  test('can pass context automatically', async () => {
+    return toolkit.fromAssemblyBuilder(async () => {
+      const app = new App();
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      return app.synth();
+    }, {
+      contextStore: new MemoryContext({
+        'external-context': 'yes',
+      }),
+    });
+  });
+
+  test('can avoid setting environment variables', async () => {
+    return toolkit.fromAssemblyBuilder(async (props) => {
+      const app = new App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+
+      // Make sure the context makes it to the app
+      expect(app.node.tryGetContext('external-context')).toEqual('yes');
+
+      expect(process.env.CDK_CONTEXT).toBeUndefined();
+      expect(props.env.CDK_CONTEXT).toBeDefined();
+
+      return app.synth();
+    }, {
+      contextStore: new MemoryContext({
+        'external-context': 'yes',
+      }),
+      clobberEnv: false,
+    });
   });
 
   test.each(['sync', 'async'] as const)('errors are wrapped as AssemblyError for %s builder', async (sync) => {
@@ -86,13 +123,10 @@ describe('fromAssemblyBuilder', () => {
     // GIVEN
     const provideContextValues = jest.spyOn(contextproviders, 'provideContextValues').mockImplementation(async (
       missingValues,
-      context,
       _sdk,
       _ioHelper,
     ) => {
-      for (const missing of missingValues) {
-        context.set(missing.key, 'provided');
-      }
+      return Object.fromEntries(missingValues.map(missing => [missing.key, 'provided']));
     });
 
     const cx = await appFixture(toolkit, 'uses-context-provider');
@@ -123,6 +157,39 @@ describe('fromAssemblyBuilder', () => {
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
     expect(await (lock! as any)._currentReaders()).toEqual([]);
+  });
+
+  describe('resolveDefaultEnvironment', () => {
+    let prepareDefaultEnvironmentSpy: jest.SpyInstance;
+    beforeEach(() => {
+      // Mock the prepareDefaultEnvironment function to avoid actual STS calls
+      prepareDefaultEnvironmentSpy = jest.spyOn(environment, 'prepareDefaultEnvironment')
+        .mockImplementation(async () => {
+          return {
+            CDK_DEFAULT_ACCOUNT: '123456789012',
+            CDK_DEFAULT_REGION: 'us-east-1',
+          };
+        });
+    });
+
+    afterEach(() => {
+      prepareDefaultEnvironmentSpy.mockRestore();
+    });
+
+    test.each([[true, 1], [false, 0], [undefined, 1]])('respects resolveDefaultEnvironment=%s', async (resolveDefaultEnvironment, callCount) => {
+      // WHEN
+      const cx = await toolkit.fromAssemblyBuilder(async () => {
+        const app = new App();
+        return app.synth();
+      }, {
+        resolveDefaultEnvironment,
+      });
+
+      await using _ = await cx.produce();
+
+      // THEN
+      expect(prepareDefaultEnvironmentSpy).toHaveBeenCalledTimes(callCount);
+    });
   });
 });
 
@@ -186,9 +253,9 @@ describe('fromCdkApp', () => {
   test('can provide context', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'external-context', {
-      context: {
+      contextStore: new MemoryContext({
         'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
-      },
+      }),
     });
     await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
@@ -257,6 +324,45 @@ describe('fromCdkApp', () => {
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
     expect(await (lock! as any)._currentReaders()).toEqual([]);
   });
+
+  describe('resolveDefaultEnvironment', () => {
+    let prepareDefaultEnvironmentSpy: jest.SpyInstance;
+    beforeEach(() => {
+      // Mock the prepareDefaultEnvironment function to avoid actual STS calls
+      prepareDefaultEnvironmentSpy = jest.spyOn(environment, 'prepareDefaultEnvironment')
+        .mockImplementation(async () => {
+          return {
+            CDK_DEFAULT_ACCOUNT: '123456789012',
+            CDK_DEFAULT_REGION: 'us-east-1',
+          };
+        });
+    });
+
+    afterEach(() => {
+      prepareDefaultEnvironmentSpy.mockRestore();
+    });
+
+    test.each([[true, 1], [false, 0], [undefined, 1]])('respects resolveDefaultEnvironment=%s', async (resolveDefaultEnvironment, callCount) => {
+      // GIVEN
+      await using synthDir = autoCleanOutDir();
+
+      // WHEN
+      const cx = await toolkit.fromCdkApp('node -e "console.log(JSON.stringify(process.env))"', {
+        workingDirectory: process.cwd(),
+        outdir: synthDir.dir,
+        resolveDefaultEnvironment,
+      });
+
+      try {
+        await using _ = await cx.produce();
+      } catch {
+        // we expect this app to throw
+      }
+
+      // THEN
+      expect(prepareDefaultEnvironmentSpy).toHaveBeenCalledTimes(callCount);
+    });
+  });
 });
 
 describe('fromAssemblyDirectory', () => {
@@ -275,6 +381,23 @@ describe('fromAssemblyDirectory', () => {
 
     // THEN
     await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
+  });
+
+  test('fails on missing context', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'assembly-missing-context');
+
+    // THEN
+    await expect(() => cx.produce()).rejects.toThrow(/Assembly contains missing context./);
+  });
+
+  test('no fail on missing context', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'assembly-missing-context', { failOnMissingContext: false });
+
+    // THEN
+    await using assembly = await cx.produce();
+    expect(assembly.cloudAssembly.manifest.missing?.length).toEqual(1);
   });
 
   test('can disable manifest version validation', async () => {

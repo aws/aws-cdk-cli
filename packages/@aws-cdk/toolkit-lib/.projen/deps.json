@@ -42,6 +42,10 @@
       "type": "build"
     },
     {
+      "name": "@types/jest-when",
+      "type": "build"
+    },
+    {
       "name": "@types/node",
       "version": "^16",
       "type": "build"
@@ -129,6 +133,10 @@
       "type": "build"
     },
     {
+      "name": "jest-when",
+      "type": "build"
+    },
+    {
       "name": "license-checker",
       "type": "build"
     },
@@ -147,12 +155,8 @@
       "type": "build"
     },
     {
-      "name": "typedoc",
-      "type": "build"
-    },
-    {
       "name": "typescript",
-      "version": "5.6",
+      "version": "5.9",
       "type": "build"
     },
     {
@@ -162,6 +166,10 @@
     {
       "name": "@aws-cdk/cli-plugin-contract",
       "type": "peer"
+    },
+    {
+      "name": "@aws-cdk/cdk-assets-lib",
+      "type": "runtime"
     },
     {
       "name": "@aws-cdk/cloud-assembly-schema",
@@ -283,34 +291,31 @@
     },
     {
       "name": "@smithy/middleware-endpoint",
-      "type": "runtime"
-    },
-    {
-      "name": "@smithy/node-http-handler",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/property-provider",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/shared-ini-file-loader",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-retry",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-waiter",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "archiver",
-      "type": "runtime"
-    },
-    {
-      "name": "cdk-assets",
       "type": "runtime"
     },
     {
@@ -328,6 +333,10 @@
       "type": "runtime"
     },
     {
+      "name": "fast-deep-equal",
+      "type": "runtime"
+    },
+    {
       "name": "fs-extra",
       "version": "^9",
       "type": "runtime"
@@ -338,19 +347,12 @@
     },
     {
       "name": "minimatch",
+      "version": "10.0.1",
       "type": "runtime"
     },
     {
       "name": "p-limit",
       "version": "^3",
-      "type": "runtime"
-    },
-    {
-      "name": "promptly",
-      "type": "runtime"
-    },
-    {
-      "name": "proxy-agent",
       "type": "runtime"
     },
     {

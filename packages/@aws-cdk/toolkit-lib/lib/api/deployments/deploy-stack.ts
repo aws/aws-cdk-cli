@@ -33,11 +33,13 @@ import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/privat
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
+import { EnvironmentResourcesRegistry } from '../environment';
 import { HotswapPropertyOverrides, HotswapMode, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
+import { EarlyValidationReporter } from './early-validation';
 
 export interface DeployStackOptions {
   /**
@@ -86,7 +88,7 @@ export interface DeployStackOptions {
    * string though `TargetEnvironment.replacePlaceholders`.
    *
    * @default - No execution role; CloudFormation either uses the role currently associated with
-   * the stack, or otherwise uses current AWS credentials.
+   * the stack, or otherwise uses current AWS credentials
    */
   readonly roleArn?: StringWithoutPlaceholders;
 
@@ -132,7 +134,7 @@ export interface DeployStackOptions {
    * Note that parameters with `undefined` or empty values will be ignored,
    * and not passed to the template.
    *
-   * @default - no additional parameters will be passed to the template
+   * @default - No additional parameters will be passed to the template
    */
   readonly parameters?: { [name: string]: string | undefined };
 
@@ -179,7 +181,7 @@ export interface DeployStackOptions {
   /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - Nothing extra is appended to the User-Agent header
    */
   readonly extraUserAgent?: string;
 
@@ -511,8 +513,12 @@ class FullCloudFormationDeployment {
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
+    const envResources = environmentResourcesRegistry.for(this.options.resolvedEnvironment, this.options.sdk, this.ioHelper);
+    const validationReporter = new EarlyValidationReporter(this.options.sdk, envResources);
     return waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
       fetchAll: willExecute,
+      validationReporter,
     });
   }
 

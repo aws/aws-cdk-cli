@@ -46,10 +46,10 @@
       "path": "packages/@aws-cdk/user-input-gen"
     },
     {
-      "path": "packages/@aws-cdk/node-bundle"
+      "path": "packages/@aws-cdk/cli-plugin-contract"
     },
     {
-      "path": "packages/@aws-cdk/cli-plugin-contract"
+      "path": "packages/@aws-cdk/cdk-assets-lib"
     },
     {
       "path": "packages/cdk-assets"
@@ -59,9 +59,6 @@
     },
     {
       "path": "packages/aws-cdk"
-    },
-    {
-      "path": "packages/@aws-cdk/cli-lib-alpha"
     },
     {
       "path": "packages/@aws-cdk/cdk-cli-wrapper"

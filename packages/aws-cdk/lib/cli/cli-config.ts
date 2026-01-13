@@ -4,6 +4,8 @@ import { CliHelpers, type CliConfig } from '@aws-cdk/user-input-gen';
 import * as cdk_from_cfn from 'cdk-from-cfn';
 import { StackActivityProgress } from '../commands/deploy';
 import { availableInitLanguages } from '../commands/init';
+import { JS_PACKAGE_MANAGERS } from '../commands/init/package-manager';
+import { getLanguageAlias } from '../commands/language';
 
 export const YARGS_HELPERS = new CliHelpers('./util/yargs-helpers');
 
@@ -32,19 +34,21 @@ export async function makeConfig(): Promise<CliConfig> {
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
       'ca-bundle-path': { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true },
       'ec2creds': { type: 'boolean', alias: 'i', default: undefined, desc: 'Force trying to fetch EC2 instance credentials. Default: guess EC2 instance status' },
-      'version-reporting': { type: 'boolean', desc: 'Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)', default: undefined },
+      'version-reporting': { type: 'boolean', desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)', default: undefined, alias: 'telemetry' },
       'path-metadata': { type: 'boolean', desc: 'Include "aws:cdk:path" CloudFormation metadata for each resource (enabled by default)', default: undefined },
       'asset-metadata': { type: 'boolean', desc: 'Include "aws:asset:*" CloudFormation metadata for resources that uses assets (enabled by default)', default: undefined },
       'role-arn': { type: 'string', alias: 'r', desc: 'ARN of Role to use when invoking CloudFormation', default: undefined, requiresArg: true },
       'staging': { type: 'boolean', desc: 'Copy assets to the output directory (use --no-staging to disable the copy of assets which allows local debugging via the SAM CLI to reference the original source files)', default: true },
       'output': { type: 'string', alias: 'o', desc: 'Emits the synthesized cloud assembly into a directory (default: cdk.out)', requiresArg: true },
-      'notices': { type: 'boolean', desc: 'Show relevant notices', default: YARGS_HELPERS.shouldDisplayNotices() },
+      'notices': { type: 'boolean', desc: 'Show relevant notices' },
       'no-color': { type: 'boolean', desc: 'Removes colors and other style from console output', default: false },
       'ci': { type: 'boolean', desc: 'Force CI detection. If CI=true then logs will be sent to stdout instead of stderr', default: YARGS_HELPERS.isCI() },
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
+      'telemetry-file': { type: 'string', desc: 'Send telemetry data to a local file.', default: undefined },
+      'yes': { type: 'boolean', alias: 'y', desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.', default: false },
     },
     commands: {
-      list: {
+      'list': {
         arg: {
           name: 'STACKS',
           variadic: true,
@@ -56,7 +60,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'show-dependencies': { type: 'boolean', default: false, alias: 'd', desc: 'Display stack dependency information for each stack' },
         },
       },
-      synth: {
+      'synth': {
         arg: {
           name: 'STACKS',
           variadic: true,
@@ -69,7 +73,7 @@ export async function makeConfig(): Promise<CliConfig> {
           quiet: { type: 'boolean', alias: 'q', desc: 'Do not output CloudFormation Template to stdout', default: false },
         },
       },
-      bootstrap: {
+      'bootstrap': {
         arg: {
           name: 'ENVIRONMENTS',
           variadic: true,
@@ -83,6 +87,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
           'qualifier': { type: 'string', desc: 'String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default.', default: undefined },
           'public-access-block-configuration': { type: 'boolean', desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ', default: undefined },
+          'deny-external-id': { type: 'boolean', desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ', default: undefined },
           'tags': { type: 'array', alias: 't', desc: 'Tags to add for the stack (KEY=VALUE)', default: [] },
           'execute': { type: 'boolean', desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)', default: true },
           'trust': { type: 'array', desc: 'The AWS account IDs that should be trusted to perform deployments into this environment (may be repeated, modern bootstrapping only)', default: [] },
@@ -97,7 +102,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
         },
       },
-      gc: {
+      'gc': {
         description: 'Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc',
         arg: {
           name: 'ENVIRONMENTS',
@@ -109,10 +114,29 @@ export async function makeConfig(): Promise<CliConfig> {
           'rollback-buffer-days': { type: 'number', desc: 'Delete assets that have been marked as isolated for this many days', default: 0 },
           'created-buffer-days': { type: 'number', desc: 'Never delete assets younger than this (in days)', default: 1 },
           'confirm': { type: 'boolean', desc: 'Confirm via manual prompt before deletion', default: true },
-          'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true },
+          'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit"', requiresArg: true, conflicts: 'bootstrap-stack-name' },
+          'bootstrap-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)', deprecated: 'use --toolkit-stack-name', requiresArg: true, conflicts: 'toolkit-stack-name' }, // TODO: remove when garbage collection is GA
         },
       },
-      deploy: {
+      'flags': {
+        description: 'View and toggle feature flags.',
+        arg: {
+          name: 'FLAGNAME',
+          variadic: true,
+        },
+        options: {
+          value: { type: 'string', desc: 'The value the user would like to set the feature flag configuration to', requiresArg: true },
+          set: { type: 'boolean', desc: 'Signifies the user would like to modify their feature flag configuration', requiresArg: false },
+          all: { type: 'boolean', desc: 'Modify or view all feature flags', requiresArg: false },
+          unconfigured: { type: 'boolean', desc: 'Modify unconfigured feature flags', requiresArg: false },
+          recommended: { type: 'boolean', desc: 'Change flags to recommended states', requiresArg: false },
+          default: { type: 'boolean', desc: 'Change flags to default state', requiresArg: false },
+          interactive: { type: 'boolean', alias: ['i'], desc: 'Interactive option for the flags command' },
+          safe: { type: 'boolean', desc: 'Enable all feature flags that do not impact the user\'s application', requiresArg: false },
+          concurrency: { type: 'number', alias: ['n'], desc: 'Maximum number of simultaneous synths to execute.', default: 4, requiresArg: true },
+        },
+      },
+      'deploy': {
         description: 'Deploys the stack(s) named STACKS into your AWS account',
         options: {
           'all': { type: 'boolean', desc: 'Deploy all available stacks', default: false },
@@ -159,15 +183,15 @@ export async function makeConfig(): Promise<CliConfig> {
               'Do not use this in production environments',
           },
           'hotswap-ecs-minimum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-maximum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-stabilization-timeout-seconds': {
-            type: 'string',
+            type: 'number',
             desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'watch': {
@@ -193,7 +217,7 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
       },
-      rollback: {
+      'rollback': {
         description: 'Rolls back the stack(s) named STACKS to their last stable state',
         arg: {
           name: 'STACKS',
@@ -219,7 +243,7 @@ export async function makeConfig(): Promise<CliConfig> {
           },
         },
       },
-      import: {
+      'import': {
         description: 'Import existing resource(s) into the given STACK',
         arg: {
           name: 'STACK',
@@ -255,7 +279,7 @@ export async function makeConfig(): Promise<CliConfig> {
           },
         },
       },
-      watch: {
+      'watch': {
         description: "Shortcut for 'deploy --watch'",
         arg: {
           name: 'STACKS',
@@ -288,15 +312,15 @@ export async function makeConfig(): Promise<CliConfig> {
               'and falls back to a full deployment if that is not possible.',
           },
           'hotswap-ecs-minimum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Lower limit on the number of your service\'s tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-maximum-healthy-percent': {
-            type: 'string',
+            type: 'number',
             desc: 'Upper limit on the number of your service\'s tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount',
           },
           'hotswap-ecs-stabilization-timeout-seconds': {
-            type: 'string',
+            type: 'number',
             desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
           },
           'logs': {
@@ -308,7 +332,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'concurrency': { type: 'number', desc: 'Maximum number of simultaneous deployments (dependency permitting) to execute.', default: 1, requiresArg: true },
         },
       },
-      destroy: {
+      'destroy': {
         description: 'Destroy the stack(s) named STACKS',
         arg: {
           name: 'STACKS',
@@ -320,7 +344,7 @@ export async function makeConfig(): Promise<CliConfig> {
           force: { type: 'boolean', alias: 'f', desc: 'Do not ask for confirmation before destroying the stacks' },
         },
       },
-      diff: {
+      'diff': {
         description: 'Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found',
         arg: {
           name: 'STACKS',
@@ -337,16 +361,27 @@ export async function makeConfig(): Promise<CliConfig> {
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
+          'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
         },
       },
-      metadata: {
+      'drift': {
+        description: 'Detect drifts in the given CloudFormation stack(s)',
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+        options: {
+          fail: { type: 'boolean', desc: 'Fail with exit code 1 if drift is detected' },
+        },
+      },
+      'metadata': {
         description: 'Returns all metadata associated with this stack',
         arg: {
           name: 'STACK',
           variadic: false,
         },
       },
-      acknowledge: {
+      'acknowledge': {
         aliases: ['ack'],
         description: 'Acknowledge a notice so that it does not show up anymore',
         arg: {
@@ -354,13 +389,13 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: false,
         },
       },
-      notices: {
+      'notices': {
         description: 'Returns a list of relevant notices',
         options: {
           unacknowledged: { type: 'boolean', alias: 'u', default: false, desc: 'Returns a list of unacknowledged notices' },
         },
       },
-      init: {
+      'init': {
         description: 'Create a new, empty CDK project from a template.',
         arg: {
           name: 'TEMPLATE',
@@ -370,14 +405,25 @@ export async function makeConfig(): Promise<CliConfig> {
           'language': { type: 'string', alias: 'l', desc: 'The language to be used for the new project (default can be configured in ~/.cdk.json)', choices: await availableInitLanguages() },
           'list': { type: 'boolean', desc: 'List the available templates' },
           'generate-only': { type: 'boolean', default: false, desc: 'If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project' },
-          'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.' },
+          'lib-version': { type: 'string', alias: 'V', default: undefined, desc: 'The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.' },
+          'from-path': { type: 'string', desc: 'Path to a local custom template directory or multi-template repository', requiresArg: true, conflicts: ['lib-version'] },
+          'template-path': { type: 'string', desc: 'Path to a specific template within a multi-template repository', requiresArg: true },
+          'package-manager': { type: 'string', desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.', choices: JS_PACKAGE_MANAGERS.map(({ name }) => name) },
+          'project-name': { type: 'string', alias: 'n', desc: 'The name of the new project', requiresArg: true },
         },
+        implies: { 'template-path': 'from-path' },
       },
-      migrate: {
+      'migrate': {
         description: 'Migrate existing AWS resources into a CDK app',
         options: {
           'stack-name': { type: 'string', alias: 'n', desc: 'The name assigned to the stack created in the new project. The name of the app will be based off this name as well.', requiresArg: true },
-          'language': { type: 'string', default: 'typescript', alias: 'l', desc: 'The language to be used for the new project', choices: cdk_from_cfn.supported_languages() },
+          'language': {
+            type: 'string',
+            default: 'typescript',
+            alias: 'l',
+            desc: 'The language to be used for the new project',
+            choices: [...new Set(cdk_from_cfn.supported_languages().flatMap((lang) => [lang, getLanguageAlias(lang)]))],
+          },
           'account': { type: 'string', desc: 'The account to retrieve the CloudFormation stack template from' },
           'region': { type: 'string', desc: 'The region to retrieve the CloudFormation stack template from' },
           'from-path': { type: 'string', desc: 'The path to the CloudFormation template to migrate. Use this for locally stored templates' },
@@ -401,7 +447,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'compress': { type: 'boolean', desc: 'Use this flag to zip the generated CDK app' },
         },
       },
-      context: {
+      'context': {
         description: 'Manage cached context values',
         options: {
           reset: { alias: 'e', desc: 'The context key (or its index) to reset', type: 'string', requiresArg: true, default: undefined },
@@ -409,7 +455,7 @@ export async function makeConfig(): Promise<CliConfig> {
           clear: { desc: 'Clear all context', type: 'boolean', default: false },
         },
       },
-      docs: {
+      'docs': {
         aliases: ['doc'],
         description: 'Opens the reference documentation in a browser',
         options: {
@@ -421,35 +467,60 @@ export async function makeConfig(): Promise<CliConfig> {
           },
         },
       },
-      doctor: {
+      'doctor': {
         description: 'Check your set-up for potential problems',
       },
-      refactor: {
+      'refactor': {
         description: 'Moves resources between stacks or within the same stack',
-        arg: {
-          name: 'STACKS',
-          variadic: true,
-        },
         options: {
+          'additional-stack-name': {
+            type: 'array',
+            requiresArg: true,
+            desc: 'Names of deployed stacks to be considered for resource comparison.',
+          },
           'dry-run': {
             type: 'boolean',
             desc: 'Do not perform any changes, just show what would be done',
             default: false,
           },
-          'exclude-file': {
+          'override-file': {
             type: 'string',
             requiresArg: true,
-            desc: 'If specified, CDK will use the given file to exclude resources from the refactor',
-          },
-          'mapping-file': {
-            type: 'string',
-            requiresArg: true,
-            desc: 'A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.',
+            desc: 'A file that declares overrides to be applied to the list of mappings computed by the CLI.',
           },
           'revert': {
             type: 'boolean',
             default: false,
             desc: 'If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.',
+          },
+          'force': {
+            type: 'boolean',
+            default: false,
+            desc: 'Whether to do the refactor without asking for confirmation',
+          },
+        },
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+      },
+      'cli-telemetry': {
+        description: 'Enable or disable anonymous telemetry',
+        options: {
+          enable: {
+            type: 'boolean',
+            desc: 'Enable anonymous telemetry',
+            conflicts: 'disable',
+          },
+          disable: {
+            type: 'boolean',
+            desc: 'Disable anonymous telemetry',
+            conflicts: 'enable',
+          },
+          status: {
+            type: 'boolean',
+            desc: 'Report telemetry opt-in/out status',
+            conflicts: ['enable', 'disable'],
           },
         },
       },

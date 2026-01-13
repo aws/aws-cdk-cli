@@ -9,7 +9,7 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
     const shell = ShellHelper.fromContext(context);
     await context.cli.makeCliAvailable();
 
-    await shell.shell(['cdk', 'init', '-l', 'typescript', template]);
+    await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', template]);
 
     await shell.shell(['npm', 'prune']);
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
@@ -36,7 +36,7 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
     await shell.shell(['node', '--version']);
     await shell.shell(['npm', '--version']);
 
-    await shell.shell(['cdk', 'init', '-l', 'typescript', 'app', '--generate-only']);
+    await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', 'app', '--generate-only']);
 
     // Necessary because recent versions of ts-jest require TypeScript>=4.3 but we
     // still want to test with older versions as well.

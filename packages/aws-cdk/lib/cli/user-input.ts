@@ -46,6 +46,11 @@ export interface UserInput {
   readonly gc?: GcOptions;
 
   /**
+   * View and toggle feature flags.
+   */
+  readonly flags?: FlagsOptions;
+
+  /**
    * Deploys the stack(s) named STACKS into your AWS account
    */
   readonly deploy?: DeployOptions;
@@ -74,6 +79,11 @@ export interface UserInput {
    * Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found
    */
   readonly diff?: DiffOptions;
+
+  /**
+   * Detect drifts in the given CloudFormation stack(s)
+   */
+  readonly drift?: DriftOptions;
 
   /**
    * Returns all metadata associated with this stack
@@ -123,6 +133,11 @@ export interface UserInput {
    * Moves resources between stacks or within the same stack
    */
   readonly refactor?: RefactorOptions;
+
+  /**
+   * Enable or disable anonymous telemetry
+   */
+  readonly cliTelemetry?: CliTelemetryOptions;
 }
 
 /**
@@ -237,7 +252,7 @@ export interface GlobalOptions {
   readonly ec2creds?: boolean;
 
   /**
-   * Include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
+   * Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)
    *
    * @default - undefined
    */
@@ -305,6 +320,20 @@ export interface GlobalOptions {
    * @default - []
    */
   readonly unstable?: Array<string>;
+
+  /**
+   * Send telemetry data to a local file.
+   *
+   * @default - undefined
+   */
+  readonly telemetryFile?: string;
+
+  /**
+   * Automatically answer interactive prompts with the recommended response. This includes confirming actions.
+   *
+   * @default - false
+   */
+  readonly yes?: boolean;
 }
 
 /**
@@ -438,6 +467,13 @@ export interface BootstrapOptions {
    * @default - undefined
    */
   readonly publicAccessBlockConfiguration?: boolean;
+
+  /**
+   * Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default)
+   *
+   * @default - undefined
+   */
+  readonly denyExternalId?: boolean;
 
   /**
    * Tags to add for the stack (KEY=VALUE)
@@ -579,12 +615,99 @@ export interface GcOptions {
    *
    * @default - undefined
    */
+  readonly toolkitStackName?: string;
+
+  /**
+   * The name of the CDK toolkit stack, if different from the default "CDKToolkit" (deprecated, use --toolkit-stack-name)
+   *
+   * @deprecated use --toolkit-stack-name
+   * @default - undefined
+   */
   readonly bootstrapStackName?: string;
 
   /**
    * Positional argument for gc
    */
   readonly ENVIRONMENTS?: Array<string>;
+}
+
+/**
+ * View and toggle feature flags.
+ *
+ * @struct
+ */
+export interface FlagsOptions {
+  /**
+   * The value the user would like to set the feature flag configuration to
+   *
+   * @default - undefined
+   */
+  readonly value?: string;
+
+  /**
+   * Signifies the user would like to modify their feature flag configuration
+   *
+   * @default - undefined
+   */
+  readonly set?: boolean;
+
+  /**
+   * Modify or view all feature flags
+   *
+   * @default - undefined
+   */
+  readonly all?: boolean;
+
+  /**
+   * Modify unconfigured feature flags
+   *
+   * @default - undefined
+   */
+  readonly unconfigured?: boolean;
+
+  /**
+   * Change flags to recommended states
+   *
+   * @default - undefined
+   */
+  readonly recommended?: boolean;
+
+  /**
+   * Change flags to default state
+   *
+   * @default - undefined
+   */
+  readonly default?: boolean;
+
+  /**
+   * Interactive option for the flags command
+   *
+   * aliases: i
+   *
+   * @default - undefined
+   */
+  readonly interactive?: boolean;
+
+  /**
+   * Enable all feature flags that do not impact the user's application
+   *
+   * @default - undefined
+   */
+  readonly safe?: boolean;
+
+  /**
+   * Maximum number of simultaneous synths to execute.
+   *
+   * aliases: n
+   *
+   * @default - 4
+   */
+  readonly concurrency?: number;
+
+  /**
+   * Positional argument for flags
+   */
+  readonly FLAGNAME?: Array<string>;
 }
 
 /**
@@ -744,21 +867,21 @@ export interface DeployOptions {
    *
    * @default - undefined
    */
-  readonly hotswapEcsMinimumHealthyPercent?: string;
+  readonly hotswapEcsMinimumHealthyPercent?: number;
 
   /**
    * Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsMaximumHealthyPercent?: string;
+  readonly hotswapEcsMaximumHealthyPercent?: number;
 
   /**
    * Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsStabilizationTimeoutSeconds?: string;
+  readonly hotswapEcsStabilizationTimeoutSeconds?: number;
 
   /**
    * Continuously observe the project files, and deploy the given stack(s) automatically when changes are detected. Implies --hotswap by default
@@ -1004,21 +1127,21 @@ export interface WatchOptions {
    *
    * @default - undefined
    */
-  readonly hotswapEcsMinimumHealthyPercent?: string;
+  readonly hotswapEcsMinimumHealthyPercent?: number;
 
   /**
    * Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsMaximumHealthyPercent?: string;
+  readonly hotswapEcsMaximumHealthyPercent?: number;
 
   /**
    * Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount
    *
    * @default - undefined
    */
-  readonly hotswapEcsStabilizationTimeoutSeconds?: string;
+  readonly hotswapEcsStabilizationTimeoutSeconds?: number;
 
   /**
    * Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off
@@ -1160,7 +1283,33 @@ export interface DiffOptions {
   readonly importExistingResources?: boolean;
 
   /**
+   * Whether to include moves in the diff
+   *
+   * @default - false
+   */
+  readonly includeMoves?: boolean;
+
+  /**
    * Positional argument for diff
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
+ * Detect drifts in the given CloudFormation stack(s)
+ *
+ * @struct
+ */
+export interface DriftOptions {
+  /**
+   * Fail with exit code 1 if drift is detected
+   *
+   * @default - undefined
+   */
+  readonly fail?: boolean;
+
+  /**
+   * Positional argument for drift
    */
   readonly STACKS?: Array<string>;
 }
@@ -1237,13 +1386,43 @@ export interface InitOptions {
   readonly generateOnly?: boolean;
 
   /**
-   * The version of the CDK library (aws-cdk-lib) to initialize the project with. Defaults to the version that was current when this CLI was built.
+   * The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.
    *
    * aliases: V
    *
    * @default - undefined
    */
   readonly libVersion?: string;
+
+  /**
+   * Path to a local custom template directory or multi-template repository
+   *
+   * @default - undefined
+   */
+  readonly fromPath?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository
+   *
+   * @default - undefined
+   */
+  readonly templatePath?: string;
+
+  /**
+   * The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.
+   *
+   * @default - undefined
+   */
+  readonly packageManager?: string;
+
+  /**
+   * The name of the new project
+   *
+   * aliases: n
+   *
+   * @default - undefined
+   */
+  readonly projectName?: string;
 
   /**
    * Positional argument for init
@@ -1396,6 +1575,13 @@ export interface DocsOptions {
  */
 export interface RefactorOptions {
   /**
+   * Names of deployed stacks to be considered for resource comparison.
+   *
+   * @default - undefined
+   */
+  readonly additionalStackName?: Array<string>;
+
+  /**
    * Do not perform any changes, just show what would be done
    *
    * @default - false
@@ -1403,18 +1589,11 @@ export interface RefactorOptions {
   readonly dryRun?: boolean;
 
   /**
-   * If specified, CDK will use the given file to exclude resources from the refactor
+   * A file that declares overrides to be applied to the list of mappings computed by the CLI.
    *
    * @default - undefined
    */
-  readonly excludeFile?: string;
-
-  /**
-   * A file that declares an explicit mapping to be applied. If provided, the command will use it instead of computing the mapping.
-   *
-   * @default - undefined
-   */
-  readonly mappingFile?: string;
+  readonly overrideFile?: string;
 
   /**
    * If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.
@@ -1424,7 +1603,42 @@ export interface RefactorOptions {
   readonly revert?: boolean;
 
   /**
+   * Whether to do the refactor without asking for confirmation
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;
+}
+
+/**
+ * Enable or disable anonymous telemetry
+ *
+ * @struct
+ */
+export interface CliTelemetryOptions {
+  /**
+   * Enable anonymous telemetry
+   *
+   * @default - undefined
+   */
+  readonly enable?: boolean;
+
+  /**
+   * Disable anonymous telemetry
+   *
+   * @default - undefined
+   */
+  readonly disable?: boolean;
+
+  /**
+   * Report telemetry opt-in/out status
+   *
+   * @default - undefined
+   */
+  readonly status?: boolean;
 }

@@ -4,7 +4,7 @@ import { ToolkitError } from '../toolkit/toolkit-error';
 export { TRANSIENT_CONTEXT_KEY } from './settings';
 export const PROJECT_CONTEXT = 'cdk.context.json';
 
-interface ContextBag {
+export interface ContextBag {
   /**
    * The file name of the context. Will be used to potentially
    * save new context back to the original file.

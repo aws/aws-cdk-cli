@@ -1,4 +1,4 @@
-/.github/ @cdk-core-team
-/bin/ @cdk-core-team
-/lib/ @cdk-core-team
-/test/ @cdk-core-team
+/.github/ @aws/aws-cdk-core-team
+/bin/ @aws/aws-cdk-core-team
+/lib/ @aws/aws-cdk-core-team
+/test/ @aws/aws-cdk-core-team

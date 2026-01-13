@@ -1,5 +1,5 @@
 import { deploysSuccessfully } from './testcase';
-import { integTest, withCDKMigrateFixture } from '../../../lib';
+import { integTest, withCDKMigrateFixture, withRetry } from '../../../lib';
 
 const language = 'java';
 
@@ -7,7 +7,7 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 
 integTest(
   `cdk migrate ${language} deploys successfully`,
-  withCDKMigrateFixture(language, async (fixture) => {
+  withRetry(withCDKMigrateFixture(language, async (fixture) => {
     await deploysSuccessfully(fixture, language);
-  }),
+  })),
 );

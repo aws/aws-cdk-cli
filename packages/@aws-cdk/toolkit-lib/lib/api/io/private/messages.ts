@@ -1,13 +1,16 @@
 import type * as cxapi from '@aws-cdk/cx-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
-import type { DiffResult } from '../../../payloads';
+import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
 import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
+import type { DriftResultPayload } from '../../../payloads/drift';
+import type { FeatureFlagChangeRequest } from '../../../payloads/flags';
 import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
+import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
@@ -15,7 +18,15 @@ import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
 import type { StackActivity, StackMonitoringControlEvent } from '../../../payloads/stack-activity';
 import type { StackSelectionDetails } from '../../../payloads/synth';
-import type { AssemblyData, ConfirmationRequest, ContextProviderMessageSource, Duration, ErrorPayload, StackAndAssemblyData } from '../../../payloads/types';
+import type {
+  AssemblyData,
+  ConfirmationRequest,
+  ContextProviderMessageSource,
+  Duration,
+  ErrorPayload,
+  SingleStack,
+  StackAndAssemblyData,
+} from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
 
 /**
@@ -61,22 +72,59 @@ export const IO = {
   }),
 
   // 3: Import & Migrate
+  CDK_TOOLKIT_I3100: make.confirm<ResourceImportRequest>({
+    code: 'CDK_TOOLKIT_I3100',
+    description: 'Confirm the import of a specific resource',
+    interface: 'ResourceImportRequest',
+  }),
+  CDK_TOOLKIT_I3110: make.question<ResourceIdentificationRequest>({
+    code: 'CDK_TOOLKIT_I3110',
+    description: 'Additional information is needed to identify a resource',
+    interface: 'ResourceIdentificationRequest',
+  }),
   CDK_TOOLKIT_E3900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E3900',
     description: 'Resource import failed',
     interface: 'ErrorPayload',
   }),
 
-  // 4: Diff (4xxx)
+  // 4: Diff (40xx - 44xx)
   CDK_TOOLKIT_I4000: make.trace<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I4000',
     description: 'Diff stacks is starting',
     interface: 'StackSelectionDetails',
   }),
-  CDK_TOOLKIT_I4001: make.info<DiffResult>({
+  CDK_TOOLKIT_I4001: make.result<DiffResult>({
     code: 'CDK_TOOLKIT_I4001',
     description: 'Output of the diff command',
     interface: 'DiffResult',
+  }),
+  CDK_TOOLKIT_I4002: make.result<StackDiff>({
+    code: 'CDK_TOOLKIT_I4002',
+    description: 'The diff for a single stack',
+    interface: 'StackDiff',
+  }),
+
+  // 4: Drift (45xx - 49xx)
+  CDK_TOOLKIT_I4500: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I4500',
+    description: 'Drift detection is starting',
+    interface: 'StackSelectionDetails',
+  }),
+  CDK_TOOLKIT_I4509: make.result<Duration>({
+    code: 'CDK_TOOLKIT_I4592',
+    description: 'Results of the drift',
+    interface: 'Duration',
+  }),
+  CDK_TOOLKIT_I4590: make.result<DriftResultPayload>({
+    code: 'CDK_TOOLKIT_I4590',
+    description: 'Results of a stack drift',
+    interface: 'DriftResultPayload',
+  }),
+  CDK_TOOLKIT_W4591: make.warn<SingleStack>({
+    code: 'CDK_TOOLKIT_W4591',
+    description: 'Missing drift result fort a stack.',
+    interface: 'SingleStack',
   }),
 
   // 5: Deploy & Watch (5xxx)
@@ -330,10 +378,22 @@ export const IO = {
   }),
 
   // 8. Refactor (8xxx)
+  CDK_TOOLKIT_E8900: make.error<ErrorPayload>({
+    code: 'CDK_TOOLKIT_E8900',
+    description: 'Stack refactor failed',
+    interface: 'ErrorPayload',
+  }),
+
   CDK_TOOLKIT_I8900: make.result<RefactorResult>({
     code: 'CDK_TOOLKIT_I8900',
     description: 'Refactor result',
     interface: 'RefactorResult',
+  }),
+
+  CDK_TOOLKIT_I8910: make.confirm<ConfirmationRequest>({
+    code: 'CDK_TOOLKIT_I8910',
+    description: 'Confirm refactor',
+    interface: 'ConfirmationRequest',
   }),
 
   CDK_TOOLKIT_W8010: make.warn({
@@ -371,6 +431,13 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
+  // flags (93xxx)
+  CDK_TOOLKIT_I9300: make.info<FeatureFlagChangeRequest>({
+    code: 'CDK_TOOLKIT_I9300',
+    description: 'Confirm the feature flag configuration changes',
+    interface: 'FeatureFlagChangeRequest',
+  }),
+
   // Notices
   CDK_TOOLKIT_I0100: make.info({
     code: 'CDK_TOOLKIT_I0100',
@@ -400,7 +467,7 @@ export const IO = {
   }),
   CDK_ASSEMBLY_I0042: make.debug<UpdatedContext>({
     code: 'CDK_ASSEMBLY_I0042',
-    description: 'Writing updated context',
+    description: 'Writing context updates',
     interface: 'UpdatedContext',
   }),
   CDK_ASSEMBLY_I0240: make.debug<MissingContext>({
@@ -506,6 +573,11 @@ export const SPAN = {
     name: 'Diff',
     start: IO.CDK_TOOLKIT_I4000,
     end: IO.CDK_TOOLKIT_I4001,
+  },
+  DRIFT_APP: {
+    name: 'Drift',
+    start: IO.CDK_TOOLKIT_I4000,
+    end: IO.CDK_TOOLKIT_I4509,
   },
   DESTROY_STACK: {
     name: 'Destroy',

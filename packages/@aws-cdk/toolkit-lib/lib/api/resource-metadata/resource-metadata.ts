@@ -18,8 +18,8 @@ export interface ResourceMetadata {
 /**
  * Attempts to read metadata for resources from a CloudFormation stack artifact
  *
- * @param stack The CloudFormation stack to read from
- * @param logicalId The logical ID of the resource to read
+ * @param stack - The CloudFormation stack to read from
+ * @param logicalId - The logical ID of the resource to read
  *
  * @returns The resource metadata, or undefined if the resource was not found
  */

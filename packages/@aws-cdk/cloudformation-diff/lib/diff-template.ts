@@ -37,9 +37,9 @@ const DIFF_HANDLERS: HandlerRegistry = {
 /**
  * Compare two CloudFormation templates and return semantic differences between them.
  *
- * @param currentTemplate the current state of the stack.
- * @param newTemplate     the target state of the stack.
- * @param changeSet       the change set for this stack.
+ * @param currentTemplate - the current state of the stack.
+ * @param newTemplate     - the target state of the stack.
+ * @param changeSet       - the change set for this stack.
  *
  * @returns a +types.TemplateDiff+ object that represents the changes that will happen if
  *      a stack which current state is described by +currentTemplate+ is updated with

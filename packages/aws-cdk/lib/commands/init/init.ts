@@ -4,10 +4,13 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
+import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
-import { error, info, warning } from '../../logging';
-import { cdkHomeDir, formatErrorMessage, rangeFromSemver } from '../../util';
+import { cdkHomeDir, formatErrorMessage, rangeFromSemver, stripCaret } from '../../util';
+import type { LanguageInfo } from '../language';
+import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
+import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -15,65 +18,316 @@ const camelCase = require('camelcase');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const decamelize = require('decamelize');
 
+const SUPPORTED_LANGUAGE_NAMES = SUPPORTED_LANGUAGES.map((l: LanguageInfo) => l.name);
+
 export interface CliInitOptions {
+  /**
+   * Template name to initialize
+   * @default undefined
+   */
   readonly type?: string;
+
+  /**
+   * Programming language for the project
+   * @default - Optional/auto-detected if template supports only one language, otherwise required
+   */
   readonly language?: string;
+
+  /**
+   * @default true
+   */
   readonly canUseNetwork?: boolean;
+
+  /**
+   * @default false
+   */
   readonly generateOnly?: boolean;
+
+  /**
+   * @default process.cwd()
+   */
   readonly workDir?: string;
+
+  /**
+   * @default undefined
+   */
+  readonly projectName?: string;
+
+  /**
+   * @default undefined
+   */
   readonly stackName?: string;
+
+  /**
+   * @default undefined
+   */
   readonly migrate?: boolean;
 
   /**
    * Override the built-in CDK version
+   * @default undefined
    */
   readonly libVersion?: string;
+
+  /**
+   * Path to a local custom template directory
+   * @default undefined
+   */
+  readonly fromPath?: string;
+
+  /**
+   * Path to a specific template within a multi-template repository.
+   * This parameter requires --from-path to be specified.
+   * @default undefined
+   */
+  readonly templatePath?: string;
+
+  /**
+   * The package manager to use for installing dependencies. Only applicable for TypeScript and JavaScript projects.
+   * @default - If specified language is 'typescript' or 'javascript', 'npm' is selected. Otherwise, no package manager is used.
+   */
+  readonly packageManager?: JsPackageManager;
+
+  readonly ioHelper: IoHelper;
 }
 
 /**
  * Initialize a CDK package in the current directory
  */
 export async function cliInit(options: CliInitOptions) {
+  await ensureValidCliInitOptions(options, options.ioHelper);
+
+  const ioHelper = options.ioHelper;
   const canUseNetwork = options.canUseNetwork ?? true;
   const generateOnly = options.generateOnly ?? false;
   const workDir = options.workDir ?? process.cwd();
-  if (!options.type && !options.language) {
-    await printAvailableTemplates();
+
+  // Show available templates only if no fromPath, type, or language provided
+  if (!options.fromPath && !options.type && !options.language) {
+    await printAvailableTemplates(ioHelper);
     return;
   }
 
-  const type = options.type || 'default'; // "default" is the default type (and maps to "app")
-
-  const template = (await availableInitTemplates()).find((t) => t.hasName(type!));
-  if (!template) {
-    await printAvailableTemplates(options.language);
-    throw new ToolkitError(`Unknown init template: ${type}`);
-  }
-  if (!options.language && template.languages.length === 1) {
-    const language = template.languages[0];
-    warning(
-      `No --language was provided, but '${type}' supports only '${language}', so defaulting to --language=${language}`,
-    );
-  }
-  if (!options.language) {
-    info(`Available languages for ${chalk.green(type)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`);
-    throw new ToolkitError('No language was selected');
+  // Step 1: Load template
+  let template: InitTemplate;
+  if (options.fromPath) {
+    template = await loadLocalTemplate(options.fromPath, options.templatePath);
+  } else {
+    template = await loadBuiltinTemplate(ioHelper, options.type, options.language);
   }
 
+  // Step 2: Resolve language
+  const language = await resolveLanguage(ioHelper, template, options.language, options.type);
+
+  // Step 3: Initialize project following standard process
   await initializeProject(
+    ioHelper,
     template,
-    options.language,
+    language,
     canUseNetwork,
     generateOnly,
     workDir,
+    options.projectName,
     options.stackName,
     options.migrate,
     options.libVersion,
+    options.packageManager,
   );
 }
 
 /**
+ * Validate CLI init options and handle invalid or incompatible option combinations
+ */
+async function ensureValidCliInitOptions(options: CliInitOptions, ioHelper: IoHelper) {
+  if (options.packageManager && !['javascript', 'typescript'].includes(options.language ?? '')) {
+    await ioHelper.defaults.warn(`--package-manager option is only applicable for JavaScript and TypeScript projects. Ignoring the provided value: ${options.packageManager}`);
+  }
+}
+
+/**
+ * Load a local custom template from file system path
+ * @param fromPath - Path to the local template directory or multi-template repository
+ * @param templatePath - Optional path to a specific template within a multi-template repository
+ * @returns Promise resolving to the loaded InitTemplate
+ */
+async function loadLocalTemplate(fromPath: string, templatePath?: string): Promise<InitTemplate> {
+  try {
+    let actualTemplatePath = fromPath;
+
+    // If templatePath is provided, it's a multi-template repository
+    if (templatePath) {
+      actualTemplatePath = path.join(fromPath, templatePath);
+
+      if (!await fs.pathExists(actualTemplatePath)) {
+        throw new ToolkitError(`Template path does not exist: ${actualTemplatePath}`);
+      }
+    }
+
+    const template = await InitTemplate.fromPath(actualTemplatePath);
+
+    if (template.languages.length === 0) {
+      // Check if this might be a multi-template repository
+      if (!templatePath) {
+        const availableTemplates = await findPotentialTemplates(fromPath);
+        if (availableTemplates.length > 0) {
+          throw new ToolkitError(
+            'Use --template-path to specify which template to use.',
+          );
+        }
+      }
+      throw new ToolkitError('Custom template must contain at least one language directory');
+    }
+
+    return template;
+  } catch (error: any) {
+    const displayPath = templatePath ? `${fromPath}/${templatePath}` : fromPath;
+    throw new ToolkitError(`Failed to load template from path: ${displayPath}. ${error.message}`);
+  }
+}
+
+/**
+ * Load a built-in template by name
+ */
+async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?: string): Promise<InitTemplate> {
+  const templateType = type || 'default'; // "default" is the default type (and maps to "app")
+
+  const template = (await availableInitTemplates()).find((t) => t.hasName(templateType));
+  if (!template) {
+    await printAvailableTemplates(ioHelper, language);
+    throw new ToolkitError(`Unknown init template: ${templateType}`);
+  }
+
+  return template;
+}
+
+/**
+ * Resolve the programming language for the template
+ * @param ioHelper - IO helper for user interaction
+ * @param template - The template to resolve language for
+ * @param requestedLanguage - User-requested language (optional)
+ * @param type - The template type name for messages
+ * @default undefined
+ * @returns Promise resolving to the selected language
+ */
+async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, requestedLanguage?: string, type?: string): Promise<string> {
+  return (async () => {
+    if (requestedLanguage) {
+      return requestedLanguage;
+    }
+    if (template.languages.length === 1) {
+      const templateLanguage = template.languages[0];
+      // Only show auto-detection message for built-in templates
+      if (template.templateType !== TemplateType.CUSTOM) {
+        await ioHelper.defaults.warn(
+          `No --language was provided, but '${type || template.name}' supports only '${templateLanguage}', so defaulting to --language=${templateLanguage}`,
+        );
+      }
+      return templateLanguage;
+    }
+    await ioHelper.defaults.info(
+      `Available languages for ${chalk.green(type || template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
+    );
+    throw new ToolkitError('No language was selected');
+  })();
+}
+
+/**
+ * Find potential template directories in a multi-template repository
+ * @param repositoryPath - Path to the repository root
+ * @returns Promise resolving to array of potential template directory names
+ */
+async function findPotentialTemplates(repositoryPath: string): Promise<string[]> {
+  const entries = await fs.readdir(repositoryPath, { withFileTypes: true });
+
+  const templateValidationPromises = entries
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map(async (entry) => {
+      try {
+        const templatePath = path.join(repositoryPath, entry.name);
+        const { languages } = await getLanguageDirectories(templatePath);
+        return languages.length > 0 ? entry.name : null;
+      } catch (error: any) {
+        // If we can't read a specific template directory, skip it but don't fail the entire operation
+        return null;
+      }
+    });
+
+  /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Limited to directory entries
+  const validationResults = await Promise.all(templateValidationPromises);
+  return validationResults.filter((templateName): templateName is string => templateName !== null);
+}
+
+/**
+ * Get valid CDK language directories from a template path
+ * @param templatePath - Path to the template directory
+ * @returns Promise resolving to array of supported language names
+ */
+/**
+ * Get valid CDK language directories from a template path
+ * @param templatePath - Path to the template directory
+ * @returns Promise resolving to array of supported language names and directory entries
+ * @throws ToolkitError if directory cannot be read or validated
+ */
+async function getLanguageDirectories(templatePath: string): Promise<{ languages: string[]; entries: fs.Dirent[] }> {
+  try {
+    const entries = await fs.readdir(templatePath, { withFileTypes: true });
+
+    const languageValidationPromises = entries
+      .filter(directoryEntry => directoryEntry.isDirectory() && SUPPORTED_LANGUAGE_NAMES.includes(directoryEntry.name))
+      .map(async (directoryEntry) => {
+        const languageDirectoryPath = path.join(templatePath, directoryEntry.name);
+        try {
+          const hasValidLanguageFiles = await hasLanguageFiles(languageDirectoryPath, getLanguageExtensions(directoryEntry.name));
+          return hasValidLanguageFiles ? directoryEntry.name : null;
+        } catch (error: any) {
+          throw new ToolkitError(`Cannot read language directory '${directoryEntry.name}': ${error.message}`);
+        }
+      });
+
+    /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Limited to supported CDK languages (7 max)
+    const validationResults = await Promise.all(languageValidationPromises);
+    return {
+      languages: validationResults.filter((languageName): languageName is string => languageName !== null),
+      entries,
+    };
+  } catch (error: any) {
+    throw new ToolkitError(`Cannot read template directory '${templatePath}': ${error.message}`);
+  }
+}
+
+/**
+ * Iteratively check if a directory contains files with the specified extensions
+ * @param directoryPath - Path to search for language files
+ * @param extensions - Array of file extensions to look for
+ * @returns Promise resolving to true if language files are found
+ */
+async function hasLanguageFiles(directoryPath: string, extensions: string[]): Promise<boolean> {
+  const dirsToCheck = [directoryPath];
+
+  while (dirsToCheck.length > 0) {
+    const currentDir = dirsToCheck.pop()!;
+
+    try {
+      const entries = await fs.readdir(currentDir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isFile() && extensions.some(ext => entry.name.endsWith(ext))) {
+          return true;
+        } else if (entry.isDirectory()) {
+          dirsToCheck.push(path.join(currentDir, entry.name));
+        }
+      }
+    } catch (error: any) {
+      throw error;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Returns the name of the Python executable for this OS
+ * @returns The Python executable name for the current platform
  */
 function pythonExecutable() {
   let python = 'python3';
@@ -84,31 +338,81 @@ function pythonExecutable() {
 }
 const INFO_DOT_JSON = 'info.json';
 
+interface TemplateInitInfo {
+  readonly description: string;
+  readonly aliases?: string[];
+}
+
+enum TemplateType {
+  BUILT_IN = 'builtin',
+  CUSTOM = 'custom',
+}
+
 export class InitTemplate {
   public static async fromName(templatesDir: string, name: string) {
     const basePath = path.join(templatesDir, name);
     const languages = await listDirectory(basePath);
     const initInfo = await fs.readJson(path.join(basePath, INFO_DOT_JSON));
-    return new InitTemplate(basePath, name, languages, initInfo);
+    return new InitTemplate(basePath, name, languages, initInfo, TemplateType.BUILT_IN);
   }
 
-  public readonly description: string;
+  public static async fromPath(templatePath: string) {
+    const basePath = path.resolve(templatePath);
+
+    if (!await fs.pathExists(basePath)) {
+      throw new ToolkitError(`Template path does not exist: ${basePath}`);
+    }
+
+    let templateSourcePath = basePath;
+    let { languages, entries } = await getLanguageDirectories(basePath);
+
+    if (languages.length === 0) {
+      const languageDirs = entries.filter(entry =>
+        entry.isDirectory() &&
+        SUPPORTED_LANGUAGE_NAMES.includes(entry.name),
+      );
+
+      if (languageDirs.length === 1) {
+        // Validate that the language directory contains appropriate files
+        const langDir = languageDirs[0].name;
+        templateSourcePath = path.join(basePath, langDir);
+        const hasValidFiles = await hasLanguageFiles(templateSourcePath, getLanguageExtensions(langDir));
+
+        if (!hasValidFiles) {
+          // If we found a language directory but it doesn't contain valid files, we should inform the user
+          throw new ToolkitError(`Found '${langDir}' directory but it doesn't contain the expected language files. Ensure the template contains ${langDir} source files.`);
+        }
+      }
+    }
+
+    const name = path.basename(basePath);
+
+    return new InitTemplate(templateSourcePath, name, languages, null, TemplateType.CUSTOM);
+  }
+
+  public readonly description?: string;
   public readonly aliases = new Set<string>();
+  public readonly templateType: TemplateType;
 
   constructor(
     private readonly basePath: string,
     public readonly name: string,
     public readonly languages: string[],
-    initInfo: any,
+    initInfo: TemplateInitInfo | null,
+    templateType: TemplateType,
   ) {
-    this.description = initInfo.description;
-    for (const alias of initInfo.aliases || []) {
-      this.aliases.add(alias);
+    this.templateType = templateType;
+    // Only built-in templates have descriptions and aliases from info.json
+    if (templateType === TemplateType.BUILT_IN && initInfo) {
+      this.description = initInfo.description;
+      for (const alias of initInfo.aliases || []) {
+        this.aliases.add(alias);
+      }
     }
   }
 
   /**
-   * @param name the name that is being checked
+   * @param name - the name that is being checked
    * @returns ``true`` if ``name`` is the name of this template or an alias of it.
    */
   public hasName(name: string): boolean {
@@ -118,12 +422,24 @@ export class InitTemplate {
   /**
    * Creates a new instance of this ``InitTemplate`` for a given language to a specified folder.
    *
-   * @param language    the language to instantiate this template with
-   * @param targetDirectory the directory where the template is to be instantiated into
+   * @param language - the language to instantiate this template with
+   * @param targetDirectory - the directory where the template is to be instantiated into
+   * @param stackName - the name of the stack to create
+   * @default undefined
+   * @param libVersion - the version of the CDK library to use
+   * @default undefined
    */
-  public async install(language: string, targetDirectory: string, stackName?: string, libVersion?: string) {
+  public async install(
+    ioHelper: IoHelper,
+    language: string,
+    targetDirectory: string,
+    projectName?: string,
+    stackName?: string,
+    libVersion?: string,
+    packageManager?: JsPackageManager,
+  ): Promise<void> {
     if (this.languages.indexOf(language) === -1) {
-      error(
+      await ioHelper.defaults.error(
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
           `(it supports: ${this.languages.map((l) => chalk.blue(l)).join(', ')})`,
       );
@@ -131,7 +447,7 @@ export class InitTemplate {
     }
 
     const projectInfo: ProjectInfo = {
-      name: decamelize(path.basename(path.resolve(targetDirectory))),
+      name: projectName ? decamelize(projectName) : decamelize(path.basename(path.resolve(targetDirectory))),
       stackName,
       versions: await loadInitVersions(),
     };
@@ -140,35 +456,56 @@ export class InitTemplate {
       projectInfo.versions['aws-cdk-lib'] = libVersion;
     }
 
-    const sourceDirectory = path.join(this.basePath, language);
+    let sourceDirectory = path.join(this.basePath, language);
 
-    await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo);
-    await this.applyFutureFlags(targetDirectory);
-    await invokeBuiltinHooks(
-      { targetDirectory, language, templateName: this.name },
-      {
-        substitutePlaceholdersIn: async (...fileNames: string[]) => {
-          for (const fileName of fileNames) {
-            const fullPath = path.join(targetDirectory, fileName);
-            const template = await fs.readFile(fullPath, { encoding: 'utf-8' });
-            await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo));
-          }
+    // For auto-detected single language templates, use basePath directly
+    if (this.templateType === TemplateType.CUSTOM && this.languages.length === 1 &&
+        path.basename(this.basePath) === language) {
+      sourceDirectory = this.basePath;
+    }
+
+    if (this.templateType === TemplateType.CUSTOM) {
+      // For custom templates, copy files without processing placeholders
+      await this.installFilesWithoutProcessing(sourceDirectory, targetDirectory);
+    } else {
+      // For built-in templates, process placeholders as usual
+      await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo, packageManager);
+      await this.applyFutureFlags(targetDirectory);
+      await invokeBuiltinHooks(
+        ioHelper,
+        { targetDirectory, language, templateName: this.name },
+        {
+          substitutePlaceholdersIn: async (...fileNames: string[]) => {
+            const fileProcessingPromises = fileNames.map(async (fileName) => {
+              const fullPath = path.join(targetDirectory, fileName);
+              const template = await fs.readFile(fullPath, { encoding: 'utf-8' });
+              await fs.writeFile(fullPath, expandPlaceholders(template, language, projectInfo, packageManager));
+            });
+            /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Processing a small, known set of template files
+            await Promise.all(fileProcessingPromises);
+          },
+          placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo, packageManager),
         },
-        placeholder: (ph: string) => expandPlaceholders(`%${ph}%`, language, projectInfo),
-      },
-    );
+      );
+    }
   }
 
-  private async installFiles(sourceDirectory: string, targetDirectory: string, language: string, project: ProjectInfo) {
+  private async installFiles(
+    sourceDirectory: string,
+    targetDirectory: string,
+    language: string,
+    project: ProjectInfo,
+    packageManager?: JsPackageManager,
+  ): Promise<void> {
     for (const file of await fs.readdir(sourceDirectory)) {
       const fromFile = path.join(sourceDirectory, file);
-      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project));
+      const toFile = path.join(targetDirectory, expandPlaceholders(file, language, project, packageManager));
       if ((await fs.stat(fromFile)).isDirectory()) {
         await fs.mkdir(toFile);
-        await this.installFiles(fromFile, toFile, language, project);
+        await this.installFiles(fromFile, toFile, language, project, packageManager);
         continue;
       } else if (file.match(/^.*\.template\.[^.]+$/)) {
-        await this.installProcessed(fromFile, toFile.replace(/\.template(\.[^.]+)$/, '$1'), language, project);
+        await this.installProcessed(fromFile, toFile.replace(/\.template(\.[^.]+)$/, '$1'), language, project, packageManager);
         continue;
       } else if (file.match(/^.*\.hook\.(d.)?[^.]+$/)) {
         // Ignore
@@ -179,9 +516,27 @@ export class InitTemplate {
     }
   }
 
-  private async installProcessed(templatePath: string, toFile: string, language: string, project: ProjectInfo) {
+  private async installProcessed(
+    templatePath: string,
+    toFile: string,
+    language: string,
+    project: ProjectInfo,
+    packageManager?: JsPackageManager,
+  ) {
     const template = await fs.readFile(templatePath, { encoding: 'utf-8' });
-    await fs.writeFile(toFile, expandPlaceholders(template, language, project));
+    await fs.writeFile(toFile, expandPlaceholders(template, language, project, packageManager));
+  }
+
+  /**
+   * Copy template files without processing placeholders (for custom templates)
+   */
+  private async installFilesWithoutProcessing(sourceDirectory: string, targetDirectory: string) {
+    await fs.copy(sourceDirectory, targetDirectory, {
+      filter: (src: string) => {
+        const filename = path.basename(src);
+        return !filename.match(/^.*\.hook\.(d.)?[^.]+$/);
+      },
+    });
   }
 
   /**
@@ -219,19 +574,25 @@ export class InitTemplate {
   }
 }
 
-export function expandPlaceholders(template: string, language: string, project: ProjectInfo) {
-  const cdkVersion = project.versions['aws-cdk-lib'];
+export function expandPlaceholders(template: string, language: string, project: ProjectInfo, packageManager?: JsPackageManager) {
   const cdkCliVersion = project.versions['aws-cdk'];
+  let cdkVersion = project.versions['aws-cdk-lib'];
   let constructsVersion = project.versions.constructs;
 
   switch (language) {
     case 'java':
     case 'csharp':
     case 'fsharp':
+      cdkVersion = rangeFromSemver(cdkVersion, 'bracket');
       constructsVersion = rangeFromSemver(constructsVersion, 'bracket');
       break;
     case 'python':
+      cdkVersion = rangeFromSemver(cdkVersion, 'pep');
       constructsVersion = rangeFromSemver(constructsVersion, 'pep');
+      break;
+    case 'go':
+      cdkVersion = stripCaret(cdkVersion);
+      constructsVersion = stripCaret(constructsVersion);
       break;
   }
   return template
@@ -253,7 +614,8 @@ export function expandPlaceholders(template: string, language: string, project: 
     .replace(/%cdk-home%/g, cdkHomeDir())
     .replace(/%name\.PythonModule%/g, project.name.replace(/-/g, '_'))
     .replace(/%python-executable%/g, pythonExecutable())
-    .replace(/%name\.StackName%/g, project.name.replace(/[^A-Za-z0-9-]/g, '-'));
+    .replace(/%name\.StackName%/g, project.name.replace(/[^A-Za-z0-9-]/g, '-'))
+    .replace(/%pm-cmd%/g, getPmCmdPrefix(packageManager ?? 'npm'));
 }
 
 interface ProjectInfo {
@@ -265,36 +627,39 @@ interface ProjectInfo {
 }
 
 export async function availableInitTemplates(): Promise<InitTemplate[]> {
-  return new Promise(async (resolve) => {
-    try {
-      const templatesDir = path.join(cliRootDir(), 'lib', 'init-templates');
-      const templateNames = await listDirectory(templatesDir);
-      const templates = new Array<InitTemplate>();
-      for (const templateName of templateNames) {
-        templates.push(await InitTemplate.fromName(templatesDir, templateName));
-      }
-      resolve(templates);
-    } catch {
-      resolve([]);
+  try {
+    const templatesDir = path.join(cliRootDir(), 'lib', 'init-templates');
+    const templateNames = await listDirectory(templatesDir);
+    const templatePromises = templateNames.map(templateName =>
+      InitTemplate.fromName(templatesDir, templateName),
+    );
+    /* eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism */ // Built-in templates are limited in number
+    return await Promise.all(templatePromises);
+  } catch (error: any) {
+    // Return empty array if templates directory doesn't exist or can't be read
+    // This allows the CLI to gracefully handle missing built-in templates
+    if (error.code === 'ENOENT' || error.code === 'EACCES') {
+      return [];
     }
-  });
+    throw error;
+  }
 }
 
 export async function availableInitLanguages(): Promise<string[]> {
-  return new Promise(async (resolve) => {
-    const templates = await availableInitTemplates();
-    const result = new Set<string>();
-    for (const template of templates) {
-      for (const language of template.languages) {
-        result.add(language);
-      }
+  const templates = await availableInitTemplates();
+  const result = new Set<string>();
+  for (const template of templates) {
+    for (const language of template.languages) {
+      const alias = getLanguageAlias(language);
+      result.add(language);
+      alias && result.add(alias);
     }
-    resolve([...result]);
-  });
+  }
+  return [...result];
 }
 
 /**
- * @param dirPath is the directory to be listed.
+ * @param dirPath - is the directory to be listed.
  * @returns the list of file or directory names contained in ``dirPath``, excluding any dot-file, and sorted.
  */
 async function listDirectory(dirPath: string) {
@@ -308,135 +673,257 @@ async function listDirectory(dirPath: string) {
   );
 }
 
-export async function printAvailableTemplates(language?: string) {
-  info('Available templates:');
+/**
+ * Print available templates to the user
+ * @param ioHelper - IO helper for user interaction
+ * @param language - Programming language filter
+ * @default undefined
+ */
+export async function printAvailableTemplates(ioHelper: IoHelper, language?: string) {
+  await ioHelper.defaults.info('Available templates:');
   for (const template of await availableInitTemplates()) {
     if (language && template.languages.indexOf(language) === -1) {
       continue;
     }
-    info(`* ${chalk.green(template.name)}: ${template.description}`);
+    await ioHelper.defaults.info(`* ${chalk.green(template.name)}: ${template.description!}`);
     const languageArg = language
       ? chalk.bold(language)
       : template.languages.length > 1
         ? `[${template.languages.map((t) => chalk.bold(t)).join('|')}]`
         : chalk.bold(template.languages[0]);
-    info(`   └─ ${chalk.blue(`cdk init ${chalk.bold(template.name)} --language=${languageArg}`)}`);
+    await ioHelper.defaults.info(`   └─ ${chalk.blue(`cdk init ${chalk.bold(template.name)} --language=${languageArg}`)}`);
   }
 }
 
 async function initializeProject(
+  ioHelper: IoHelper,
   template: InitTemplate,
   language: string,
   canUseNetwork: boolean,
   generateOnly: boolean,
   workDir: string,
+  projectName?: string,
   stackName?: string,
   migrate?: boolean,
   cdkVersion?: string,
+  packageManager?: JsPackageManager,
 ) {
+  // Step 1: Ensure target directory is empty
   await assertIsEmptyDirectory(workDir);
-  info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
-  await template.install(language, workDir, stackName, cdkVersion);
+
+  // Step 2: Copy template files
+  await ioHelper.defaults.info(`Applying project template ${chalk.green(template.name)} for ${chalk.blue(language)}`);
+  await template.install(ioHelper, language, workDir, projectName, stackName, cdkVersion, packageManager);
+
   if (migrate) {
     await template.addMigrateContext(workDir);
   }
+
   if (await fs.pathExists(`${workDir}/README.md`)) {
     const readme = await fs.readFile(`${workDir}/README.md`, { encoding: 'utf-8' });
-    info(chalk.green(readme));
+    await ioHelper.defaults.info(chalk.green(readme));
   }
 
   if (!generateOnly) {
-    await initializeGitRepository(workDir);
-    await postInstall(language, canUseNetwork, workDir);
+    // Step 3: Initialize Git repository and create initial commit
+    await initializeGitRepository(ioHelper, workDir);
+
+    // Step 4: Post-install steps
+    await postInstall(ioHelper, language, canUseNetwork, workDir, packageManager);
   }
 
-  info('✅ All done!');
-}
-
-async function assertIsEmptyDirectory(workDir: string) {
-  const files = await fs.readdir(workDir);
-  if (files.filter((f) => !f.startsWith('.')).length !== 0) {
-    throw new ToolkitError('`cdk init` cannot be run in a non-empty directory!');
-  }
-}
-
-async function initializeGitRepository(workDir: string) {
-  if (await isInGitRepository(workDir)) {
-    return;
-  }
-  info('Initializing a new git repository...');
-  try {
-    await execute('git', ['init'], { cwd: workDir });
-    await execute('git', ['add', '.'], { cwd: workDir });
-    await execute('git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
-  } catch {
-    warning('Unable to initialize git repository for your project.');
-  }
-}
-
-async function postInstall(language: string, canUseNetwork: boolean, workDir: string) {
-  switch (language) {
-    case 'javascript':
-      return postInstallJavascript(canUseNetwork, workDir);
-    case 'typescript':
-      return postInstallTypescript(canUseNetwork, workDir);
-    case 'java':
-      return postInstallJava(canUseNetwork, workDir);
-    case 'python':
-      return postInstallPython(workDir);
-  }
-}
-
-async function postInstallJavascript(canUseNetwork: boolean, cwd: string) {
-  return postInstallTypescript(canUseNetwork, cwd);
-}
-
-async function postInstallTypescript(canUseNetwork: boolean, cwd: string) {
-  const command = 'npm';
-
-  if (!canUseNetwork) {
-    warning(`Please run '${command} install'!`);
-    return;
-  }
-
-  info(`Executing ${chalk.green(`${command} install`)}...`);
-  try {
-    await execute(command, ['install'], { cwd });
-  } catch (e: any) {
-    warning(`${command} install failed: ` + formatErrorMessage(e));
-  }
-}
-
-async function postInstallJava(canUseNetwork: boolean, cwd: string) {
-  const mvnPackageWarning = "Please run 'mvn package'!";
-  if (!canUseNetwork) {
-    warning(mvnPackageWarning);
-    return;
-  }
-
-  info("Executing 'mvn package'");
-  try {
-    await execute('mvn', ['package'], { cwd });
-  } catch {
-    warning('Unable to package compiled code as JAR');
-    warning(mvnPackageWarning);
-  }
-}
-
-async function postInstallPython(cwd: string) {
-  const python = pythonExecutable();
-  warning(`Please run '${python} -m venv .venv'!`);
-  info(`Executing ${chalk.green('Creating virtualenv...')}`);
-  try {
-    await execute(python, ['-m venv', '.venv'], { cwd });
-  } catch {
-    warning('Unable to create virtualenv automatically');
-    warning(`Please run '${python} -m venv .venv'!`);
-  }
+  await ioHelper.defaults.info('✅ All done!');
 }
 
 /**
- * @param dir a directory to be checked
+ * Validate that a directory exists and is empty (ignoring hidden files)
+ * @param workDir - Directory path to validate
+ * @throws ToolkitError if directory doesn't exist or is not empty
+ */
+async function assertIsEmptyDirectory(workDir: string) {
+  try {
+    const stats = await fs.stat(workDir);
+    if (!stats.isDirectory()) {
+      throw new ToolkitError(`Path exists but is not a directory: ${workDir}`);
+    }
+
+    const files = await fs.readdir(workDir);
+    const visibleFiles = files.filter(f => !f.startsWith('.'));
+
+    if (visibleFiles.length > 0) {
+      throw new ToolkitError(
+        '`cdk init` cannot be run in a non-empty directory!\n' +
+        `Found ${visibleFiles.length} visible files in ${workDir}:\n` +
+        visibleFiles.map(f => `  - ${f}`).join('\n'),
+      );
+    }
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      throw new ToolkitError(
+        `Directory does not exist: ${workDir}\n` +
+        'Please create the directory first using: mkdir -p ' + workDir,
+      );
+    }
+    throw new ToolkitError(`Failed to validate directory ${workDir}: ${e.message}`);
+  }
+}
+
+async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
+  if (await isInGitRepository(workDir)) {
+    return;
+  }
+  await ioHelper.defaults.info('Initializing a new git repository...');
+  try {
+    await execute(ioHelper, 'git', ['init'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
+  } catch {
+    await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
+  }
+}
+
+async function postInstall(ioHelper: IoHelper, language: string, canUseNetwork: boolean, workDir: string, packageManager?: JsPackageManager) {
+  switch (language) {
+    case 'javascript':
+      return postInstallJavascript(ioHelper, canUseNetwork, workDir, packageManager);
+    case 'typescript':
+      return postInstallTypescript(ioHelper, canUseNetwork, workDir, packageManager);
+    case 'java':
+      return postInstallJava(ioHelper, canUseNetwork, workDir);
+    case 'python':
+      return postInstallPython(ioHelper, workDir);
+    case 'go':
+      return postInstallGo(ioHelper, canUseNetwork, workDir);
+    case 'csharp':
+      return postInstallCSharp(ioHelper, canUseNetwork, workDir);
+    case 'fsharp':
+      return postInstallFSharp(ioHelper, canUseNetwork, workDir);
+  }
+}
+
+async function postInstallJavascript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string, packageManager?: JsPackageManager) {
+  return postInstallTypescript(ioHelper, canUseNetwork, cwd, packageManager);
+}
+
+async function postInstallTypescript(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string, packageManager?: JsPackageManager) {
+  const command = packageManager ?? 'npm';
+
+  if (!canUseNetwork) {
+    await ioHelper.defaults.warn(`Please run '${command} install'!`);
+    return;
+  }
+
+  await ioHelper.defaults.info(`Executing ${chalk.green(`${command} install`)}...`);
+  try {
+    await execute(ioHelper, command, ['install'], { cwd });
+  } catch (e: any) {
+    await ioHelper.defaults.warn(`${command} install failed: ` + formatErrorMessage(e));
+  }
+}
+
+async function postInstallJava(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  // Check if this is a Gradle or Maven project
+  const hasGradleBuild = await fs.pathExists(path.join(cwd, 'build.gradle'));
+  const hasMavenPom = await fs.pathExists(path.join(cwd, 'pom.xml'));
+
+  if (hasGradleBuild) {
+    // Gradle project
+    const gradleWarning = "Please run './gradlew build'!";
+    if (!canUseNetwork) {
+      await ioHelper.defaults.warn(gradleWarning);
+      return;
+    }
+
+    await ioHelper.defaults.info("Executing './gradlew build'");
+    try {
+      await execute(ioHelper, './gradlew', ['build'], { cwd });
+    } catch {
+      await ioHelper.defaults.warn('Unable to build Gradle project');
+      await ioHelper.defaults.warn(gradleWarning);
+    }
+  } else if (hasMavenPom) {
+    // Maven project
+    const mvnPackageWarning = "Please run 'mvn package'!";
+    if (!canUseNetwork) {
+      await ioHelper.defaults.warn(mvnPackageWarning);
+      return;
+    }
+
+    await ioHelper.defaults.info("Executing 'mvn package'");
+    try {
+      await execute(ioHelper, 'mvn', ['package'], { cwd });
+    } catch {
+      await ioHelper.defaults.warn('Unable to package compiled code as JAR');
+      await ioHelper.defaults.warn(mvnPackageWarning);
+    }
+  } else {
+    // No recognized build file
+    await ioHelper.defaults.warn('No build.gradle or pom.xml found. Please set up your build system manually.');
+  }
+}
+
+async function postInstallPython(ioHelper: IoHelper, cwd: string) {
+  const python = pythonExecutable();
+
+  // Check if requirements.txt exists
+  const hasRequirements = await fs.pathExists(path.join(cwd, 'requirements.txt'));
+
+  if (hasRequirements) {
+    await ioHelper.defaults.info(`Executing ${chalk.green('Creating virtualenv...')}`);
+    try {
+      await execute(ioHelper, python, ['-m', 'venv', '.venv'], { cwd });
+      await ioHelper.defaults.info(`Executing ${chalk.green('Installing dependencies...')}`);
+      // Install dependencies in the virtual environment
+      const pipPath = process.platform === 'win32' ? '.venv\\Scripts\\pip' : '.venv/bin/pip';
+      await execute(ioHelper, pipPath, ['install', '-r', 'requirements.txt'], { cwd });
+    } catch {
+      await ioHelper.defaults.warn('Unable to create virtualenv or install dependencies automatically');
+      await ioHelper.defaults.warn(`Please run '${python} -m venv .venv && .venv/bin/pip install -r requirements.txt'!`);
+    }
+  } else {
+    await ioHelper.defaults.warn('No requirements.txt found. Please set up your Python environment manually.');
+  }
+}
+
+async function postInstallGo(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  if (!canUseNetwork) {
+    await ioHelper.defaults.warn('Please run \'go mod tidy\'!');
+    return;
+  }
+
+  await ioHelper.defaults.info(`Executing ${chalk.green('go mod tidy')}...`);
+  try {
+    await execute(ioHelper, 'go', ['mod', 'tidy'], { cwd });
+  } catch (e: any) {
+    await ioHelper.defaults.warn('\'go mod tidy\' failed: ' + formatErrorMessage(e));
+  }
+}
+
+async function postInstallCSharp(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  const dotnetWarning = "Please run 'dotnet restore && dotnet build'!";
+  if (!canUseNetwork) {
+    await ioHelper.defaults.warn(dotnetWarning);
+    return;
+  }
+
+  await ioHelper.defaults.info(`Executing ${chalk.green('dotnet restore')}...`);
+  try {
+    await execute(ioHelper, 'dotnet', ['restore'], { cwd });
+    await ioHelper.defaults.info(`Executing ${chalk.green('dotnet build')}...`);
+    await execute(ioHelper, 'dotnet', ['build'], { cwd });
+  } catch (e: any) {
+    await ioHelper.defaults.warn('Unable to restore/build .NET project: ' + formatErrorMessage(e));
+    await ioHelper.defaults.warn(dotnetWarning);
+  }
+}
+
+async function postInstallFSharp(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
+  // F# uses the same build system as C#
+  return postInstallCSharp(ioHelper, canUseNetwork, cwd);
+}
+
+/**
+ * @param dir - a directory to be checked
  * @returns true if ``dir`` is within a git repository.
  */
 async function isInGitRepository(dir: string) {
@@ -452,7 +939,7 @@ async function isInGitRepository(dir: string) {
 }
 
 /**
- * @param dir a directory to be checked.
+ * @param dir - a directory to be checked.
  * @returns true if ``dir`` is the root of a filesystem.
  */
 function isRoot(dir: string) {
@@ -462,12 +949,12 @@ function isRoot(dir: string) {
 /**
  * Executes `command`. STDERR is emitted in real-time.
  *
- * If command exits with non-zero exit code, an exceprion is thrown and includes
+ * If command exits with non-zero exit code, an exception is thrown and includes
  * the contents of STDOUT.
  *
  * @returns STDOUT (if successful).
  */
-async function execute(cmd: string, args: string[], { cwd }: { cwd: string }) {
+async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }: { cwd: string }) {
   const child = childProcess.spawn(cmd, args, {
     cwd,
     shell: true,
@@ -481,10 +968,12 @@ async function execute(cmd: string, args: string[], { cwd }: { cwd: string }) {
       if (status === 0) {
         return ok(stdout);
       } else {
-        error(stdout);
         return fail(new ToolkitError(`${cmd} exited with status ${status}`));
       }
     });
+  }).catch(async (err) => {
+    await ioHelper.defaults.error(stdout);
+    throw err;
   });
 }
 
@@ -509,11 +998,9 @@ async function loadInitVersions(): Promise<Versions> {
     'aws-cdk': versionNumber(),
   };
   for (const [key, value] of Object.entries(ret)) {
-    /* c8 ignore start */
     if (!value) {
       throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
     }
-    /* c8 ignore stop */
   }
 
   return ret;

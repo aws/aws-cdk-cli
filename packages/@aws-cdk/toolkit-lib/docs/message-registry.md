@@ -1,20 +1,82 @@
 ---
-title: IoMessages Registry
+title: Messages and payloads
 group: Documents
 ---
-# IoMessages Registry
+# Messages and payloads
 
-| Code | Description | Level | Data Interface |
-|------|-------------|-------|----------------|
+The CDK Toolkit emits *messages* and *requests* to structure interactions.
+A *request* is a special *message* that allows the receiver to respond, if no response is returned the toolkit will continue with a default.
+Messages are unidirectional and always send from the CDK Toolkit to your integration.
+
+All messages include text that is suitable for display to an end-user or logging.
+Some messages also include a unique `code` and a additional payload `data`, providing you with structured information for your integration.
+*Requests* always have a `code` and can be addressed explicitly.
+See {@link IoMessage} and {@link IoRequest} for a complete list of available fields.
+
+## Levels
+
+Messages have a `level` assigned to them.
+Levels are ordered by their importance, with `error` being the most and `trace` being the least important.
+
+| Level      | Description                                    |
+| ---------- | ---------------------------------------------- |
+| `error`  | Error messages that may affect operation.      |
+| `result` | Primary message of an operation.               |
+| `warn`   | Warning messages that don't prevent operation. |
+| `info`   | General informational messages.                |
+| `debug`  | Detailed messages for troubleshooting.         |
+| `trace`  | Very detailed execution flow information.      |
+
+Attached levels are an informal recommendation of what *we* believe is the relevance of a specific message.
+Your integration will always receive all messages of all levels.
+It is up to you to filter out irrelevant messages.
+For standard operations, we recommend to display all messages with level `info` or above.
+
+## Backwards compatibility
+
+Messages and requests are an essential part of the CDK Toolkit's public contract.
+We recognize integrators will build critical workflows depending on these structured interactions.
+To help integrators build with confidence, we provide clear expectations with regards to backwards compatibility of messages.
+
+**Depend only on messages and requests with a `code`. Treat all other messages as informational only.**
+If a message does not have a code, it can change or disappear at any time without notice.
+
+**Only the `code` and `data` properties of a message are in scope for backwards compatibility.**
+Payload data can change, but we will only make type-compatible, additive changes.
+For example we may add new data, but will not remove information.
+
+For the avoidance of doubt, the following changes are explicitly not considered breaking:
+
+- a change to the message text or level,
+- a change to the default response of a request,
+- a change to the order messages and requests are emitted in,
+- the addition of new messages and requests, and
+- the removal of messages without a code
+
+## Registry
+
+This is the complete list of all currently available messages with codes and their respective payload interface.
+We are welcoming requests for additional coded messages and data.
+Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issues/new/choose).
+
+| Code | Description | Level | Payload data interface |
+|------|-------------|-------|------------------------|
 | `CDK_TOOLKIT_W0100` | Credential plugin warnings | `warn` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
+| `CDK_TOOLKIT_I3100` | Confirm the import of a specific resource | `info` | {@link ResourceImportRequest} |
+| `CDK_TOOLKIT_I3110` | Additional information is needed to identify a resource | `info` | {@link ResourceIdentificationRequest} |
 | `CDK_TOOLKIT_E3900` | Resource import failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I4000` | Diff stacks is starting | `trace` | {@link StackSelectionDetails} |
-| `CDK_TOOLKIT_I4001` | Output of the diff command | `info` | {@link DiffResult} |
+| `CDK_TOOLKIT_I4001` | Output of the diff command | `result` | {@link DiffResult} |
+| `CDK_TOOLKIT_I4002` | The diff for a single stack | `result` | {@link StackDiff} |
+| `CDK_TOOLKIT_I4500` | Drift detection is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I4592` | Results of the drift | `result` | {@link Duration} |
+| `CDK_TOOLKIT_I4590` | Results of a stack drift | `result` | {@link DriftResultPayload} |
+| `CDK_TOOLKIT_W4591` | Missing drift result fort a stack. | `warn` | {@link SingleStack} |
 | `CDK_TOOLKIT_I5000` | Provides deployment times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5001` | Provides total time in deploy action, including synth and rollback | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |
@@ -63,20 +125,23 @@ group: Documents
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I8900` | Refactor result | `result` | {@link RefactorResult} |
+| `CDK_TOOLKIT_I8910` | Confirm refactor | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_W8010` | Refactor execution not yet supported | `warn` | n/a |
 | `CDK_TOOLKIT_I9000` | Provides bootstrap times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
 | `CDK_TOOLKIT_I9210` | Confirm the deletion of a batch of assets | `info` | {@link AssetBatchDeletionRequest} |
 | `CDK_TOOLKIT_I9900` | Bootstrap results on success | `result` | [cxapi.Environment](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.Environment.html) |
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_I9300` | Confirm the feature flag configuration changes | `info` | {@link FeatureFlagChangeRequest} |
 | `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |
 | `CDK_TOOLKIT_I0101` | A notice that is marked as informational | `info` | n/a |
 | `CDK_ASSEMBLY_I0010` | Generic environment preparation debug messages | `debug` | n/a |
 | `CDK_ASSEMBLY_W0010` | Emitted if the found framework version does not support context overflow | `warn` | n/a |
-| `CDK_ASSEMBLY_I0042` | Writing updated context | `debug` | {@link UpdatedContext} |
+| `CDK_ASSEMBLY_I0042` | Writing context updates | `debug` | {@link UpdatedContext} |
 | `CDK_ASSEMBLY_I0240` | Context lookup was stopped as no further progress was made.  | `debug` | {@link MissingContext} |
 | `CDK_ASSEMBLY_I0241` | Fetching missing context. This is an iterative message that may appear multiple times with different missing keys. | `debug` | {@link MissingContext} |
 | `CDK_ASSEMBLY_I1000` | Cloud assembly output starts | `debug` | n/a |

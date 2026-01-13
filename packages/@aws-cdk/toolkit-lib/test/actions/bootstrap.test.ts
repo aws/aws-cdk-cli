@@ -12,7 +12,7 @@ import { bold } from 'chalk';
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
 import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
-import { SdkProvider } from '../../lib/api/shared-private';
+import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
 import {
@@ -492,6 +492,30 @@ describe('bootstrap', () => {
     // THEN
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
+  });
+
+  describe('forceDeployment option', () => {
+    test('accepts forceDeployment option in BootstrapOptions', async () => {
+      // GIVEN
+      const mockStack = createMockStack([
+        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
+        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
+        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
+      ]);
+      setupMockCloudFormationClient(mockStack);
+
+      const cx = await builderFixture(toolkit, 'stack-with-asset');
+      const bootstrapEnvs = BootstrapEnvironments.fromCloudAssemblySource(cx);
+
+      // WHEN
+      const result = await toolkit.bootstrap(bootstrapEnvs, {
+        forceDeployment: true,
+      });
+
+      // THEN
+      expectValidBootstrapResult(result);
+      expectSuccessfulBootstrap();
+    });
   });
 
   describe('error handling', () => {

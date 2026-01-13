@@ -6,7 +6,7 @@ import { ToolkitError } from '../toolkit/toolkit-error';
 export type RangeType = 'bracket' | 'pep';
 
 export function rangeFromSemver(ver: string, targetType: RangeType) {
-  const re = ver.match(/^([^\d]*)([\d.]*)$/);
+  const re = ver.match(/^([^\d]*)([\d.]*)[^\s]*$/);
   if (!re || !semver.valid(re[2])) {
     throw new ToolkitError('not a semver or unsupported range syntax');
   }
@@ -35,4 +35,11 @@ export function rangeFromSemver(ver: string, targetType: RangeType) {
           throw new ToolkitError(`unsupported range syntax - ${prefixPart}`);
       }
   }
+}
+
+/**
+ * Strips a leading caret ^, if present
+ */
+export function stripCaret(ver: string): string {
+  return ver.startsWith('^') ? ver.slice(1) : ver;
 }

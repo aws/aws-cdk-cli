@@ -4,7 +4,16 @@ import { iterDeps, isPackage, type PackageLockFile, type PackageLockTree } from 
 /**
  * Hoist package-lock dependencies in-place
  *
- * This happens in two phases:
+ * Packages are declared in two different roles here:
+ *
+ * - "requires" indicates where a package is consumed
+ * - "dependencies" indicates where a package is provided; it will be available
+ *   to the package it is provided under, as well as any of its children.
+ *
+ * This function manipulates the "dependencies" part of the package tree, minimizing
+ * the occurrences of packages in "dependencies" while keeping all "requires" satified.
+ *
+ * This happens by applying two basic operations:
  *
  * 1) Move every package into the parent scope (as long as it introduces no conflicts).
  *    Leave "moved" markers to indicate that a package used to be there and no
@@ -23,6 +32,7 @@ import { iterDeps, isPackage, type PackageLockFile, type PackageLockTree } from 
  */
 export function hoistDependencies(packageTree: PackageLockFile): PackageLockFile {
   let tree = packageTree;
+  tree = _addTombstones(tree);
   tree = _pushDepsToParent(tree);
   tree = _removeDupesWithParent(tree);
   tree = _removeTombstones(tree);
@@ -57,6 +67,36 @@ export function renderTree(tree: PackageLockTree): string[] {
     }
 
     return as.length - bs.length;
+  }
+}
+
+export function _addTombstones<A extends PackageLockTree>(root: A): A {
+  let tree = structuredClone(root);
+  recurse(tree, [tree]);
+  return tree;
+
+  function recurse(nodeToCheck: PackageLockTree, rootPathToAdd: PackageLockTree[]) {
+    // Rootpath is ordered deep -> shallow.
+
+    // For every node, all the packages they or any of their children 'requires' should be in 'dependencies'.
+    // If it's not in 'dependencies', that must mean its at a higher level already, so we put
+    // the 'moved' tombstone in to make sure we don't accidentally replace this package with a different version.
+    // Also add 'moved' to all of its parents, until we find a node that has it in 'dependencies'.
+    for (const name of Object.keys(nodeToCheck.requires ?? {})) {
+      // For every dependency in 'nodeToCheck', add 'moved' to 'depend. As soon as we find
+      // the dependency provided declared anywhere, we stop.
+      for (const nodeToAdd of rootPathToAdd) {
+        if (nodeToAdd.dependencies?.[name]) {
+          break;
+        }
+        nodeToAdd.dependencies = nodeToAdd.dependencies ?? {};
+        nodeToAdd.dependencies[name] = 'moved';
+      }
+    }
+
+    for (const [_, dep] of iterDeps(nodeToCheck)) {
+      recurse(dep, [dep, ...rootPathToAdd]);
+    }
   }
 }
 

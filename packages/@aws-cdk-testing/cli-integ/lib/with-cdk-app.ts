@@ -163,6 +163,36 @@ export function withCDKMigrateFixture(language: string, block: (content: TestFix
   return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkMigrateApp(language, block)));
 }
 
+/**
+ * Retry wrapper that executes a test callback up to maxAttempts times
+ *
+ * If any attempt succeeds, it returns immediately. If all attempts fail,
+ * it throws the last error encountered.
+ */
+
+export function withRetry<T extends TestContext>(
+  callback: (context: T) => Promise<void>,
+  maxAttempts: number = 2,
+): (context: T) => Promise<void> {
+  return async (context: T) => {
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await callback(context);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxAttempts) {
+          context.log(`Attempt ${attempt}/${maxAttempts} failed: ${error}. Retrying...`);
+        }
+      }
+    }
+
+    throw lastError;
+  };
+}
+
 export interface DisableBootstrapContext {
   /**
    * Whether to disable creating the default bootstrap
@@ -188,6 +218,8 @@ export interface CdkCliOptions extends ShellOptions {
   options?: string[];
   neverRequireApproval?: boolean;
   verbose?: boolean;
+  verboseLevel?: number;
+  telemetryFile?: string;
 }
 
 export interface CdkDestroyCliOptions extends CdkCliOptions {
@@ -282,6 +314,11 @@ export interface CdkModernBootstrapCommandOptions extends CommonCdkBootstrapComm
   readonly customPermissionsBoundary?: string;
 
   /**
+   * @default true
+   */
+  readonly denyExternalId?: boolean;
+
+  /**
    * @default undefined
    */
   readonly usePreviousParameters?: boolean;
@@ -319,6 +356,7 @@ export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
   private readonly bucketsToDelete = new Array<string>();
   public readonly cli: ITestCliSource;
+  public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
 
   constructor(
@@ -331,6 +369,7 @@ export class TestFixture extends ShellHelper {
 
     this.qualifier = this.randomString.slice(0, 10);
     this.cli = testSource('cli');
+    this.cdkAssets = testSource('cdkAssets');
     this.library = testSource('library');
   }
 
@@ -381,6 +420,7 @@ export class TestFixture extends ShellHelper {
       // use events because bar renders bad in tests
       '--progress', 'events',
       ...(skipStackRename ? stackNames : this.fullStackName(stackNames)),
+      ...(options.telemetryFile ? [`--telemetry-file=${options.telemetryFile}`] : []),
     ];
   }
 
@@ -475,6 +515,10 @@ export class TestFixture extends ShellHelper {
     } else if (options.examplePermissionsBoundary !== undefined) {
       args.push('--example-permissions-boundary');
     }
+    if (options.denyExternalId !== undefined) {
+      args.push(options.denyExternalId ? '--deny-external-id' : '--no-deny-external-id');
+    }
+
     if (options.usePreviousParameters === false) {
       args.push('--no-previous-parameters');
     }
@@ -536,9 +580,19 @@ export class TestFixture extends ShellHelper {
   public async cdk(args: string[], options: CdkCliOptions = {}) {
     const verbose = options.verbose ?? true;
 
+    if (!verbose && options.verboseLevel) {
+      throw new Error(`Invalid verbose state: verbose is false and verboseLevel is ${options.verboseLevel}`);
+    }
+
+    const verboseLevel = options.verboseLevel ?? 1;
+
     await this.cli.makeCliAvailable();
 
-    return this.shell(['cdk', ...(verbose ? ['-v'] : []), ...args], {
+    return this.shell([
+      'cdk',
+      ...(verbose ? [`-${'v'.repeat(verboseLevel)}`] : []),
+      ...args,
+    ], {
       ...options,
       modEnv: {
         ...this.cdkShellEnv(),
@@ -560,6 +614,7 @@ export class TestFixture extends ShellHelper {
       AWS_DEFAULT_REGION: this.aws.region,
       STACK_NAME_PREFIX: this.stackNamePrefix,
       PACKAGE_LAYOUT_VERSION: '2',
+      TESTING_CDK: 'true',
       // In these tests we want to make a distinction between stdout and sterr
       CI: 'false',
       ...awsCreds,

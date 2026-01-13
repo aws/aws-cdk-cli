@@ -296,7 +296,7 @@ async function classifyResourceChanges(
 /**
  * Returns all changes to resources in the given Stack.
  *
- * @param stackChanges the collection of all changes to a given Stack
+ * @param stackChanges - the collection of all changes to a given Stack
  */
 function getStackResourceDifferences(stackChanges: cfn_diff.TemplateDiff): {
   [logicalId: string]: cfn_diff.ResourceDifference;
@@ -499,7 +499,7 @@ async function applyAllHotswapOperations(sdk: SDK, ioSpan: IMessageSpan<any>, ho
     return Promise.resolve([]);
   }
 
-  await ioSpan.notifyDefault('info', `\n${ICON} hotswapping resources:`);
+  await ioSpan.defaults.info(`\n${ICON} hotswapping resources:`);
   const limit = pLimit(10);
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   return Promise.all(hotswappableChanges.map(hotswapOperation => limit(() => {
@@ -594,7 +594,7 @@ async function logRejectedChanges(
   }
   messages.push(''); // newline
 
-  await ioSpan.notifyDefault('info', messages.join('\n'));
+  await ioSpan.defaults.info(messages.join('\n'));
 }
 
 /**

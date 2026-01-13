@@ -35,7 +35,7 @@ interface ActualComponent {
    * If there is more than one component with the same dynamic name, they are
    * joined by ','.
    *
-   * @default - Don't add to the set of dynamic values.
+   * @default - Don't add to the set of dynamic values
    */
   readonly dynamicName?: string;
 
@@ -45,7 +45,7 @@ interface ActualComponent {
    * Only used if `dynamicName` is set; by default we will add the actual version
    * of the component.
    *
-   * @default - The version.
+   * @default - The version
    */
   readonly dynamicValue?: string;
 }
@@ -193,7 +193,7 @@ export class NoticesFilter {
    * Load the construct tree from the given directory and return its components
    */
   private async constructTreeComponents(manifestDir: string): Promise<ActualComponent[]> {
-    const tree = await loadTreeFromDir(manifestDir, (msg: string) => this.ioHelper.assemblyDefaults.trace(msg));
+    const tree = await loadTreeFromDir(manifestDir, (msg: string) => this.ioHelper.defaults.trace(msg));
     if (!tree) {
       return [];
     }

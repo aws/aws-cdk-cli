@@ -1,4 +1,4 @@
-// import * as cdk from 'aws-cdk-lib';
+// import * as cdk from 'aws-cdk-lib/core';
 // import { Template } from 'aws-cdk-lib/assertions';
 // import * as %name.PascalCased% from '../lib/index';
 

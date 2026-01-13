@@ -29,6 +29,47 @@ export function exec(commandLine: string[], options: { cwd?: string; verbose?: b
   return output;
 }
 
+type Command = Array<string | Command>;
+
+/**
+ * Like exec, but any arrays encountered inside the command array are pull out and executed first, than their value is inserted again.
+ * This mimics execution a command with sub shell behavior.
+ *
+ * For example this input:
+ * ```
+ * ["git", "checkout", ["git", "merge-base", "HEAD"], "--," "path/to/file"]
+ * ```
+ * will run something like this:
+ * ```
+ * git checkout $(git merge-base HEAD) -- path/to/file
+ * ```
+ *
+ * Note that the algorithm will detect sub shells first, exec them and then
+ * substitute the return values in.
+ */
+export function execWithSubShell(command: Command, options: { cwd?: string; verbose?: boolean; env?: any } = { }): any {
+  const resolvedCommand: string[] = command.map((cmd) => {
+    if (Array.isArray(cmd)) {
+      return execWithSubShell(cmd, options);
+    }
+    return cmd;
+  });
+
+  return exec(resolvedCommand, options);
+}
+
+/**
+ * Takes the same input as `execWithSubShell` and returns a string with sub shells.
+ */
+export function renderCommand(command: Command): string {
+  return command.map((cmd) => {
+    if (Array.isArray(cmd)) {
+      return `$(${renderCommand(cmd)})`;
+    }
+    return cmd;
+  }).join(' ');
+}
+
 /**
  * Flatten a list of lists into a list of elements
  */
@@ -107,4 +148,24 @@ export interface WorkListOptions<A> {
    * Function to call when timeout hits
    */
   readonly onTimeout?: (x: Set<A>) => void;
+}
+
+/**
+ * A backport of Promiser.withResolvers
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers
+ */
+export function promiseWithResolvers<A>(): PromiseAndResolvers<A> {
+  let resolve: PromiseAndResolvers<A>['resolve'], reject: PromiseAndResolvers<A>['reject'];
+  const promise = new Promise<A>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve: resolve!, reject: reject! };
+}
+
+interface PromiseAndResolvers<A> {
+  promise: Promise<A>;
+  resolve: (value: A) => void;
+  reject: (reason: any) => void;
 }
