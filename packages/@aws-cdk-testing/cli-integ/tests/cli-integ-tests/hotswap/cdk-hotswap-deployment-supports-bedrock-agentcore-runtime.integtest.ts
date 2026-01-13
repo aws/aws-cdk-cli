@@ -27,7 +27,7 @@ integTest(
     }
 
     // GIVEN
-    const stackArn = await fixture.cdkDeploy('bedrock-agentcore-runtime-hotswap', {
+    const stackArn = await fixture.cdkDeploy('agentcore-hotswap', {
       captureStderr: false,
       modEnv: {
         DYNAMIC_BEDROCK_RUNTIME_DESCRIPTION: 'original description',
@@ -36,7 +36,7 @@ integTest(
     });
 
     // WHEN
-    const deployOutput = await fixture.cdkDeploy('bedrock-agentcore-runtime-hotswap', {
+    const deployOutput = await fixture.cdkDeploy('agentcore-hotswap', {
       options: ['--hotswap'],
       captureStderr: true,
       onlyStderr: true,

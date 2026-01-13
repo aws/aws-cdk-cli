@@ -673,7 +673,7 @@ class EcsHotswapStack extends cdk.Stack {
   }
 }
 
-class BedrockAgentCoreRuntimeHotswapStack extends cdk.Stack {
+class AgentCoreHotswapStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
 
@@ -967,7 +967,7 @@ switch (stackSet) {
     new SessionTagsWithNoExecutionRoleCustomSynthesizerStack(app, `${stackPrefix}-session-tags-with-custom-synthesizer`);
     new LambdaHotswapStack(app, `${stackPrefix}-lambda-hotswap`);
     new EcsHotswapStack(app, `${stackPrefix}-ecs-hotswap`);
-    new BedrockAgentCoreRuntimeHotswapStack(app, `${stackPrefix}-bedrock-agentcore-runtime-hotswap`);
+    new AgentCoreHotswapStack(app, `${stackPrefix}-agentcore-hotswap`);
     new AppSyncHotswapStack(app, `${stackPrefix}-appsync-hotswap`);
     new DockerStack(app, `${stackPrefix}-docker`);
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
