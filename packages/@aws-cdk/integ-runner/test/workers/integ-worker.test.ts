@@ -142,6 +142,35 @@ describe('test runner', () => {
   });
 
   test('has snapshot', async () => {
+    // GIVEN
+    // Mock the assertion results file to exist and contain success results
+    // The test uses xxxxx.test-with-snapshot.js which has an assertion stack
+    // We need to mock existsSync to return true for the assertion results file
+    // but still allow the real existsSync to be called for other paths
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockImplementation((filePath: fs.PathLike) => {
+      const pathStr = filePath.toString();
+      // Return true for assertion results file and snapshot directories
+      if (pathStr.includes('assertion-results.json') || pathStr.includes('.snapshot')) {
+        return true;
+      }
+      // For other paths, return true to allow the test to proceed
+      return true;
+    });
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockImplementation((filePath: string) => {
+      if (filePath.includes('assertion-results.json')) {
+        return {
+          BundlingDefaultTestDeployAssertAACA0CAF: {
+            AssertionResultsTest: '{"status":"success","message":"All assertions passed"}',
+          },
+        };
+      }
+      // For other JSON files, use the real implementation
+      const realFs = jest.requireActual('fs-extra') as typeof fs;
+      return realFs.readJSONSync(filePath);
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
     // WHEN
     const test = {
       fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
@@ -168,6 +197,11 @@ describe('test runner', () => {
     ]));
 
     expect(results).toEqual([]);
+
+    // Restore mocks
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
   });
 
   test('deploy failed', async () => {

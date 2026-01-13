@@ -539,34 +539,49 @@ export class IntegTestRunner extends IntegRunner {
    */
   private processAssertionResults(file: string, assertionStackName: string, assertionStackId: string): AssertionResults | undefined {
     const results: AssertionResults = {};
-    if (fs.existsSync(file)) {
-      try {
-        const outputs: { [key: string]: { [key: string]: string } } = fs.readJSONSync(file);
 
-        if (assertionStackName in outputs) {
-          for (const [assertionId, result] of Object.entries(outputs[assertionStackName])) {
-            if (assertionId.startsWith('AssertionResults')) {
-              const assertionResult: AssertionResult = JSON.parse(result.replace(/\n/g, '\\n'));
-              if (assertionResult.status === 'fail' || assertionResult.status === 'success') {
-                results[assertionId] = assertionResult;
-              }
+    // If the outputs file doesn't exist, return a failure result
+    if (!fs.existsSync(file)) {
+      results[assertionStackId] = {
+        status: 'fail',
+        message: `Assertion results file not found: ${file}`,
+      };
+      return results;
+    }
+
+    try {
+      const outputs: { [key: string]: { [key: string]: string } } = fs.readJSONSync(file);
+
+      // If the assertion stack name is not in the outputs, return a failure result
+      if (!(assertionStackName in outputs)) {
+        results[assertionStackId] = {
+          status: 'fail',
+          message: `Assertion stack '${assertionStackName}' not found in outputs file`,
+        };
+      } else {
+        for (const [assertionId, result] of Object.entries(outputs[assertionStackName])) {
+          if (assertionId.startsWith('AssertionResults')) {
+            const assertionResult: AssertionResult = JSON.parse(result.replace(/\n/g, '\\n'));
+            if (assertionResult.status === 'fail' || assertionResult.status === 'success') {
+              results[assertionId] = assertionResult;
             }
           }
         }
-      } catch (e) {
-        // if there are outputs, but they cannot be processed, then throw an error
-        // so that the test fails
-        results[assertionStackId] = {
-          status: 'fail',
-          message: `error processing assertion results: ${e}`,
-        };
-      } finally {
-        // remove the outputs file so it is not part of the snapshot
-        // it will contain env specific information from values
-        // resolved at deploy time
-        fs.unlinkSync(file);
       }
+    } catch (e) {
+      // if there are outputs, but they cannot be processed, then throw an error
+      // so that the test fails
+      results[assertionStackId] = {
+        status: 'fail',
+        message: `error processing assertion results: ${e}`,
+      };
+    } finally {
+      // remove the outputs file so it is not part of the snapshot
+      // it will contain env specific information from values
+      // resolved at deploy time
+      fs.unlinkSync(file);
     }
+
     return Object.keys(results).length > 0 ? results : undefined;
   }
 

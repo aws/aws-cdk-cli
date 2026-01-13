@@ -44,6 +44,17 @@ afterEach(() => {
 
 describe('IntegTest runIntegTests', () => {
   test('with defaults', async () => {
+    // GIVEN
+    // Mock the assertion results file to exist and contain success results
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest: '{"status":"success","message":"All assertions passed"}',
+      },
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -55,6 +66,11 @@ describe('IntegTest runIntegTests', () => {
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
+
+    // Restore mocks
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
 
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
@@ -214,6 +230,17 @@ describe('IntegTest runIntegTests', () => {
   });
 
   test('with an assertion stack', async () => {
+    // GIVEN
+    // Mock the assertion results file to exist and contain success results
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest: '{"status":"success","message":"All assertions passed"}',
+      },
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -257,6 +284,11 @@ describe('IntegTest runIntegTests', () => {
       all: true,
       output: 'test/test-data/cdk-integ.out.xxxxx.test-with-snapshot.js.snapshot',
     });
+
+    // Restore mocks
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
   });
 
   test('no clean', async () => {
@@ -607,6 +639,17 @@ describe('IntegTest runIntegTests', () => {
   });
 
   test('with custom app run command', async () => {
+    // GIVEN
+    // Mock the assertion results file to exist and contain success results
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest: '{"status":"success","message":"All assertions passed"}',
+      },
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
@@ -633,6 +676,152 @@ describe('IntegTest runIntegTests', () => {
     expect(cdkMock.mocks.destroy).toHaveBeenCalledWith(expect.objectContaining({
       app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
     }));
+
+    // Restore mocks
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
+  });
+});
+
+describe('IntegTest processAssertionResults', () => {
+  test('returns failure when outputs file does not exist', async () => {
+    // GIVEN
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // WHEN
+    const results = await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    });
+
+    // THEN
+    // The test has an assertion stack, so when the outputs file doesn't exist,
+    // it should return a failure result
+    expect(results).toBeDefined();
+    expect(Object.values(results ?? {}).some(r => r.status === 'fail')).toBe(true);
+
+    existsSyncMock.mockRestore();
+  });
+
+  test('returns failure when stack name not found in outputs', async () => {
+    // GIVEN
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      SomeOtherStackName: {
+        AssertionResultsTest: '{"status":"success","message":"test passed"}',
+      },
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // WHEN
+    const results = await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    });
+
+    // THEN
+    // The assertion stack name is 'BundlingDefaultTestDeployAssertAACA0CAF' but outputs
+    // contain 'SomeOtherStackName', so it should return a failure result
+    expect(results).toBeDefined();
+    expect(Object.values(results ?? {}).some(r => r.status === 'fail')).toBe(true);
+
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
+  });
+
+  test('returns failure results when assertions fail', async () => {
+    // GIVEN
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest123: '{"status":"fail","message":"Expected 200 but got 500"}',
+      },
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // WHEN
+    const results = await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    });
+
+    // THEN
+    expect(results).toBeDefined();
+    expect(results!.AssertionResultsTest123).toEqual({
+      status: 'fail',
+      message: 'Expected 200 but got 500',
+    });
+
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
+  });
+
+  test('returns success results when all assertions pass', async () => {
+    // GIVEN
+    const existsSyncMock = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const readJSONSyncMock = jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest123: '{"status":"success","message":"All assertions passed"}',
+        AssertionResultsTest456: '{"status":"success","message":"HTTP call succeeded"}',
+      },
+    });
+    const unlinkSyncMock = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+    });
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // WHEN
+    const results = await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    });
+
+    // THEN
+    expect(results).toBeDefined();
+    expect(results!.AssertionResultsTest123).toEqual({
+      status: 'success',
+      message: 'All assertions passed',
+    });
+    expect(results!.AssertionResultsTest456).toEqual({
+      status: 'success',
+      message: 'HTTP call succeeded',
+    });
+    expect(Object.values(results!).every(r => r.status === 'success')).toBe(true);
+
+    existsSyncMock.mockRestore();
+    readJSONSyncMock.mockRestore();
+    unlinkSyncMock.mockRestore();
   });
 });
 
