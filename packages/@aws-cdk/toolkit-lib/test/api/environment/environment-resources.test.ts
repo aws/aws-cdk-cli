@@ -80,7 +80,7 @@ test('failure to read SSM parameter results in exception passthrough for existin
   await expect(envResources().validateVersion(99, '/abc')).rejects.toThrow(/Computer says no/);
 });
 
-describe('validateversion without bootstrap stack', () => {
+describe('validate version without bootstrap stack', () => {
   beforeEach(() => {
     mockToolkitInfo(ToolkitInfo.bootstrapStackNotFoundInfo('TestBootstrapStack'));
   });
@@ -155,5 +155,21 @@ describe('validateversion without bootstrap stack', () => {
 
     // WHEN
     await expect(envResources().validateVersion(8, '/abc')).rejects.toThrow(/Has the environment been bootstrapped?/);
+  });
+
+  test('SSM parameter is requested with decryption enabled', async () => {
+    // GIVEN
+    mockSSMClient.on(GetParameterCommand).resolves({
+      Parameter: { Value: '10' },
+    });
+
+    // WHEN
+    await envResources().versionFromSsmParameter('/abc');
+
+    // THEN
+    expect(mockSSMClient.commandCalls(GetParameterCommand)[0].args[0].input).toEqual({
+      Name: '/abc',
+      WithDecryption: true,
+    });
   });
 });
