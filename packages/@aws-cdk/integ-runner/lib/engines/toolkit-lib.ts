@@ -177,6 +177,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       traceLogs: options.traceLogs,
       stacks: this.stackSelector(options),
       deploymentMethod: this.deploymentMethod(options),
+      outputsFile: options.outputsFile ? path.join(this.options.workingDirectory, options.outputsFile) : undefined,
     });
   }
 
