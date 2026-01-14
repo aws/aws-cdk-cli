@@ -1499,6 +1499,8 @@ integRunner.tsconfig?.addExclude('test/language-tests/**/integ.*.ts');
 
 integRunner.preCompileTask.prependExec('./build-tools/generate.sh');
 
+new TypecheckTests(integRunner);
+
 new BundleCli(integRunner, {
   externals: {
     optionalDependencies: [
