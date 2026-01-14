@@ -1493,6 +1493,7 @@ integRunner.gitignore?.addPatterns(
   'lib/recommended-feature-flags.json',
 );
 integRunner.tsconfig?.addInclude('lib/*.json');
+integRunner.tsconfigDev?.addInclude('lib/*.json');
 integRunner.tsconfig?.addInclude('lib/init-templates/*/*/add-project.hook.ts');
 integRunner.tsconfig?.addExclude('lib/init-templates/*/typescript/**/*.ts');
 integRunner.tsconfig?.addExclude('test/language-tests/**/integ.*.ts');
