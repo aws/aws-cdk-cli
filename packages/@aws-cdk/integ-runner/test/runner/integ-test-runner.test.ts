@@ -634,6 +634,44 @@ describe('IntegTest runIntegTests', () => {
       app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
     }));
   });
+
+  test('with failed assertions', async () => {
+    // GIVEN
+    const outputsFile = 'cdk-integ.out.xxxxx.test-with-snapshot.js.snapshot/assertion-results.json';
+    const fullOutputsPath = `test/test-data/${outputsFile}`;
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest123: '{"status":"fail","message":"Expected 2 but received 1"}',
+      },
+    });
+    jest.spyOn(fs, 'unlinkSync').mockImplementation();
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // WHEN
+    const results = await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    });
+
+    // THEN
+    expect(results).toBeDefined();
+    expect(results?.AssertionResultsTest123).toEqual({
+      status: 'fail',
+      message: 'Expected 2 but received 1',
+    });
+    expect(cdkMock.mocks.deploy).toHaveBeenCalledWith(expect.objectContaining({
+      outputsFile: fullOutputsPath,
+    }));
+    expect(fs.readJSONSync).toHaveBeenCalledWith(fullOutputsPath);
+  });
 });
 
 describe('IntegTest watchIntegTest', () => {
