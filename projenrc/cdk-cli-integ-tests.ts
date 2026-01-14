@@ -5,6 +5,151 @@ import { Component, github, TextFile } from 'projen';
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
 /**
+ * Common workflow steps
+ */
+function downloadArtifactsSteps(): github.workflows.JobStep[] {
+  return [
+    {
+      name: 'Download build artifacts',
+      uses: 'actions/download-artifact@v4',
+      with: {
+        name: 'build-artifact',
+        path: 'packages',
+      },
+    },
+    {
+      name: 'Download scripts',
+      uses: 'actions/download-artifact@v4',
+      with: {
+        name: 'script-artifact',
+        path: '.projen',
+      },
+    },
+  ];
+}
+
+function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
+  return {
+    name: 'Setup Node.js',
+    uses: 'actions/setup-node@v4',
+    with: {
+      'node-version': nodeVersion,
+    },
+  };
+}
+
+function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string): github.workflows.JobStep {
+  return {
+    name: 'Authenticate Via OIDC Role',
+    id: 'creds',
+    uses: 'aws-actions/configure-aws-credentials@v4',
+    with: {
+      'aws-region': 'us-east-1',
+      'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
+      // Expect this in Environment Variables
+      'role-to-assume': props.enableAtmosphere ? props.enableAtmosphere.oidcRoleArn : '${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}',
+      'role-session-name': sessionName,
+      'output-credentials': true,
+    },
+  };
+}
+
+function gitIdentityStep(): github.workflows.JobStep {
+  // This is necessary for the init tests to succeed, they set up a git repo.
+  return {
+    name: 'Set git identity',
+    run: [
+      'git config --global user.name "aws-cdk-cli-integ"',
+      'git config --global user.email "noreply@example.com"',
+    ].join('\n'),
+  };
+}
+
+function verdaccioSteps(): github.workflows.JobStep[] {
+  return [
+    {
+      name: 'Prepare Verdaccio',
+      run: 'chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh',
+    },
+    {
+      name: 'Download and install the test artifact',
+      run: 'npm install @aws-cdk-testing/cli-integ',
+    },
+  ];
+}
+
+function determineVersionsStep(): github.workflows.JobStep {
+  return {
+    name: 'Determine latest package versions',
+    id: 'versions',
+    run: [
+      'CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)',
+      'echo "CLI version: ${CLI_VERSION}"',
+      'echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT',
+      'LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)',
+      'echo "lib version: ${LIB_VERSION}"',
+      'echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT',
+    ].join('\n'),
+  };
+}
+
+function testEnvVars(props: CdkCliIntegTestsWorkflowProps): Record<string, string> {
+  return {
+    JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: 'true',
+    JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: 'true',
+    JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: 'true',
+    DOCKERHUB_DISABLED: 'true',
+    ...(props.enableAtmosphere ?
+      {
+        CDK_INTEG_ATMOSPHERE_ENABLED: 'true',
+        CDK_INTEG_ATMOSPHERE_ENDPOINT: props.enableAtmosphere.endpoint,
+        CDK_INTEG_ATMOSPHERE_POOL: props.enableAtmosphere.pool,
+      } :
+      {
+        AWS_REGIONS: ['us-east-2', 'eu-west-1', 'eu-north-1', 'ap-northeast-1', 'ap-south-1'].join(','),
+      }),
+    CDK_MAJOR_VERSION: '2',
+    RELEASE_TAG: 'latest',
+    GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+    INTEG_LOGS: 'logs',
+  };
+}
+
+function logUploadSteps(artifactName: string): github.workflows.JobStep[] {
+  return [
+    {
+      name: 'Set workflow summary',
+      if: 'always()',
+      run: [
+        // Don't fail the glob expansion if there are no .md files
+        'if compgen -G "logs/md/*.md" > /dev/null; then',
+        '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
+        'fi',
+      ].join('\n'),
+    },
+    {
+      name: 'Upload logs',
+      if: 'always()',
+      uses: 'actions/upload-artifact@v4.4.0',
+      id: 'logupload',
+      with: {
+        name: artifactName,
+        path: 'logs/',
+        overwrite: 'true',
+      },
+    },
+    {
+      name: 'Append artifact URL',
+      if: 'always()',
+      run: [
+        'echo "" >> $GITHUB_STEP_SUMMARY',
+        'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
+      ].join('\n'),
+    },
+  ];
+}
+
+/**
  * Options for atmosphere service usage.
  */
 export interface AtmosphereOptions {
@@ -305,6 +450,38 @@ export class CdkCliIntegTestsWorkflow extends Component {
       ],
     });
 
+    // Add a job for telemetry tests that runs before the main matrix
+    const JOB_TELEMETRY = 'telemetry_tests';
+    runTestsWorkflow.addJob(JOB_TELEMETRY, {
+      environment: props.testEnvironment,
+      runsOn: [props.testRunsOn],
+      needs: [JOB_PREPARE],
+      permissions: {
+        contents: github.workflows.JobPermission.READ,
+        idToken: github.workflows.JobPermission.WRITE,
+      },
+      env: {
+        MAVEN_ARGS: '--no-transfer-progress',
+        IS_CANARY: 'true',
+        CI: 'true',
+      },
+      if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
+      steps: [
+        ...downloadArtifactsSteps(),
+        setupNodeStep('lts/*'),
+        awsAuthStep(props, 'telemetry-tests@aws-cdk-cli-integ'),
+        gitIdentityStep(),
+        ...verdaccioSteps(),
+        determineVersionsStep(),
+        {
+          name: 'Run telemetry tests',
+          run: `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} telemetry-integ-tests`,
+          env: testEnvVars(props),
+        },
+        ...logUploadSteps('logs-telemetry-tests'),
+      ],
+    });
+
     // We create a matrix job for the test.
     // This job will run all the different test suites in parallel.
     const matrixInclude: github.workflows.JobMatrix['include'] = [];
@@ -322,7 +499,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
     runTestsWorkflow.addJob(JOB_INTEG_MATRIX, {
       environment: props.testEnvironment,
       runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE],
+      needs: [JOB_PREPARE, JOB_TELEMETRY],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
@@ -362,29 +539,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
       },
       steps: [
-        {
-          name: 'Download build artifacts',
-          uses: 'actions/download-artifact@v4',
-          with: {
-            name: 'build-artifact',
-            path: 'packages',
-          },
-        },
-        {
-          name: 'Download scripts',
-          uses: 'actions/download-artifact@v4',
-          with: {
-            name: 'script-artifact',
-            path: '.projen',
-          },
-        },
-        {
-          name: 'Setup Node.js',
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': '${{ matrix.node }}',
-          },
-        },
+        ...downloadArtifactsSteps(),
+        setupNodeStep('${{ matrix.node }}'),
         {
           name: 'Set up JDK 18',
           if: 'matrix.suite == \'init-java\' || matrix.suite == \'cli-integ-tests\'',
@@ -394,73 +550,14 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'distribution': 'corretto',
           },
         },
-        {
-          name: 'Authenticate Via OIDC Role',
-          id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v4',
-          with: {
-            'aws-region': 'us-east-1',
-            'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
-            // Expect this in Environment Variables
-            'role-to-assume': props.enableAtmosphere ? props.enableAtmosphere.oidcRoleArn : '${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}',
-            'role-session-name': 'run-tests@aws-cdk-cli-integ',
-            'output-credentials': true,
-          },
-        },
-        // This is necessary for the init tests to succeed, they set up a git repo.
-        {
-          name: 'Set git identity',
-          run: [
-            'git config --global user.name "aws-cdk-cli-integ"',
-            'git config --global user.email "noreply@example.com"',
-          ].join('\n'),
-        },
-        {
-          name: 'Prepare Verdaccio',
-          run: 'chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh',
-        },
-        {
-          name: 'Download and install the test artifact',
-          run: [
-            'npm install @aws-cdk-testing/cli-integ',
-          ].join('\n'),
-        },
-        {
-          name: 'Determine latest package versions',
-          id: 'versions',
-          run: [
-            'CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)',
-            'echo "CLI version: ${CLI_VERSION}"',
-            'echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT',
-            'LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)',
-            'echo "lib version: ${LIB_VERSION}"',
-            'echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT',
-          ].join('\n'),
-        },
+        awsAuthStep(props, 'run-tests@aws-cdk-cli-integ'),
+        gitIdentityStep(),
+        ...verdaccioSteps(),
+        determineVersionsStep(),
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
-          run: [
-            `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
-          ].join('\n'),
-          env: {
-            JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: 'true',
-            JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: 'true',
-            JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: 'true',
-            DOCKERHUB_DISABLED: 'true',
-            ...(props.enableAtmosphere ?
-              {
-                CDK_INTEG_ATMOSPHERE_ENABLED: 'true',
-                CDK_INTEG_ATMOSPHERE_ENDPOINT: props.enableAtmosphere.endpoint,
-                CDK_INTEG_ATMOSPHERE_POOL: props.enableAtmosphere.pool,
-              } :
-              {
-                AWS_REGIONS: ['us-east-2', 'eu-west-1', 'eu-north-1', 'ap-northeast-1', 'ap-south-1'].join(','),
-              }),
-            CDK_MAJOR_VERSION: '2',
-            RELEASE_TAG: 'latest',
-            GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
-            INTEG_LOGS: 'logs',
-          },
+          run: `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
+          env: testEnvVars(props),
         },
         {
           name: 'Set workflow summary',
@@ -514,7 +611,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
     runTestsWorkflow.addJob('integ', {
       permissions: {},
       runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE, JOB_INTEG_MATRIX],
+      needs: [JOB_PREPARE, JOB_TELEMETRY, JOB_INTEG_MATRIX],
       if: 'always()',
       steps: [
         {
@@ -523,7 +620,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           // Don't fail the job if the test was successful or intentionally skipped
-          if: `\${{ !(contains(fromJSON('["success", "skipped"]'), needs.${JOB_PREPARE}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_INTEG_MATRIX}.result)) }}`,
+          if: `\${{ !(contains(fromJSON('["success", "skipped"]'), needs.${JOB_PREPARE}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_TELEMETRY}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_INTEG_MATRIX}.result)) }}`,
           name: 'Set status based on matrix job',
           run: 'exit 1',
         },

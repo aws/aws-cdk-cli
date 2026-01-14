@@ -33,6 +33,13 @@ export interface ToolkitLibEngineOptions {
    * The region the CDK app should synthesize itself for
    */
   readonly region: string;
+
+  /**
+   * The AWS profile to use when authenticating
+   *
+   * @default - no profile is passed, the default profile is used
+   */
+  readonly profile?: string;
 }
 
 /**
@@ -56,6 +63,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
       sdkConfig: {
         baseCredentials: BaseCredentials.awsCliCompatible({
+          profile: options.profile,
           defaultRegion: options.region,
         }),
       },

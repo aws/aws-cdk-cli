@@ -100,10 +100,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
-  if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
-    throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
-  }
-
   try {
     await ioHost.startTelemetry(argv, configuration.context);
   } catch (e: any) {
@@ -502,7 +498,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
-        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit);
+        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit, configuration.context.all);
         return handler.processFlagsCommand();
 
       case 'synthesize':
@@ -541,7 +537,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         if (args.status) {
-          return cli.cliTelemetryStatus(args['version-reporting']);
+          return cli.cliTelemetryStatus(args);
         } else {
           const enable = args.enable ?? !args.disable;
           return cli.cliTelemetry(enable);
@@ -565,6 +561,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             libVersion: args.libVersion,
             fromPath: args['from-path'],
             templatePath: args['template-path'],
+            packageManager: args['package-manager'],
+            projectName: args.name,
           });
         }
       case 'migrate':

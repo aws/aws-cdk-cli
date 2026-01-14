@@ -1093,9 +1093,13 @@
                     "description": "Identifier of the resource to look up using `GetResource`.\n\nSpecifying exactIdentifier will return exactly one result, or throw an error\nunless `ignoreErrorOnMissingContext` is set. (Default - Either exactIdentifier or propertyMatch should be specified.)",
                     "type": "string"
                 },
+                "resourceModel": {
+                    "description": "The resource model to use to select the resources, using `ListResources`..\n\nThis is needed for sub-resources where the parent Arn is required.\n\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/resource-operations-list.html#resource-operations-list-containers (Default - no resource Model is provided)",
+                    "$ref": "#/definitions/Record%3Cstring%2Cunknown%3E"
+                },
                 "propertyMatch": {
                     "description": "Returns any resources matching these properties, using `ListResources`.\n\nBy default, specifying propertyMatch will successfully return 0 or more\nresults. To throw an error if the number of results is unexpected (and\nprevent the query results from being committed to context), specify\n`expectedMatchCount`.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe resources that `propertyMatch` matches against will *only ever* be the\nproperties returned by the `ListResources` call. (Default - Either exactIdentifier or propertyMatch should be specified.)",
-                    "$ref": "#/definitions/Record<string,unknown>"
+                    "$ref": "#/definitions/Record%3Cstring%2Cunknown%3E"
                 },
                 "propertiesToReturn": {
                     "description": "This is a set of properties returned from CC API that we want to return from ContextQuery.\n\nIf any properties listed here are absent from the target resource, an error will be thrown.\n\nThe returned object will always include the key `Identifier` with the CC-API returned\nfield `Identifier`.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe returned properties here are *currently* selected from the response\nobject that CloudControl API returns to the CDK CLI.\n\nHowever, if we find there is need to do so, we may decide to change this\nbehavior in the future: we might change it to perform an additional\n`GetResource` call for resources matched by `propertyMatch`.",

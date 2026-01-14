@@ -47,6 +47,7 @@ jspm_packages/
 !/nx.json
 !/.github/workflows/bootstrap-template-protection.yml
 !/.eslintrc.json
+!/.github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml
 !/.github/dependabot.yml
 !/.github/workflows/integ.yml
 !/.projen/prepare-verdaccio.sh

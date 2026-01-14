@@ -1,11 +1,11 @@
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { InteractiveHandler } from './interactive-handler';
+import { OBSOLETE_FLAGS } from './obsolete-flags';
 import { FlagOperations } from './operations';
 import { FlagOperationRouter } from './router';
 import type { FlagOperationsParams } from './types';
 import { FlagValidator } from './validator';
 import type { IoHelper } from '../../api-private';
-import { OBSOLETE_FLAGS } from '../../obsolete-flags';
 
 export class FlagCommandHandler {
   private readonly flags: FeatureFlag[];
@@ -14,13 +14,19 @@ export class FlagCommandHandler {
   private readonly ioHelper: IoHelper;
 
   /** Main component that sets up all flag operation components */
-  constructor(flagData: FeatureFlag[], ioHelper: IoHelper, options: FlagOperationsParams, toolkit: Toolkit) {
+  constructor(
+    flagData: FeatureFlag[],
+    ioHelper: IoHelper,
+    options: FlagOperationsParams,
+    toolkit: Toolkit,
+    cliContextValues: Record<string, any> = {},
+  ) {
     this.flags = flagData.filter(flag => !OBSOLETE_FLAGS.includes(flag.name));
     this.options = { ...options, concurrency: options.concurrency ?? 4 };
     this.ioHelper = ioHelper;
 
     const validator = new FlagValidator(ioHelper);
-    const flagOperations = new FlagOperations(this.flags, toolkit, ioHelper);
+    const flagOperations = new FlagOperations(this.flags, toolkit, ioHelper, cliContextValues);
     const interactiveHandler = new InteractiveHandler(this.flags, flagOperations);
 
     this.router = new FlagOperationRouter(validator, interactiveHandler, flagOperations);

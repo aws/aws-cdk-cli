@@ -192,6 +192,11 @@ export enum DiagnosticReason {
   TEST_ERROR = 'TEST_ERROR',
 
   /**
+   * A non-failing warning from the integration test run
+   */
+  TEST_WARNING = 'TEST_WARNING',
+
+  /**
    * The snapshot test failed because the actual
    * snapshot was different than the expected snapshot
    */
@@ -293,6 +298,9 @@ export function printResults(diagnostic: Diagnostic): void {
       break;
     case DiagnosticReason.SNAPSHOT_FAILED:
       logger.error('  CHANGED    %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      break;
+    case DiagnosticReason.TEST_WARNING:
+      logger.warning('  WARN       %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.SNAPSHOT_ERROR:
     case DiagnosticReason.TEST_ERROR:
