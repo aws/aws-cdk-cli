@@ -220,7 +220,7 @@ describe('ToolkitLibRunnerEngine', () => {
 
   describe('constructor options', () => {
     it('should handle showOutput option', () => {
-      const engineWithOutput = new ToolkitLibRunnerEngine({
+      new ToolkitLibRunnerEngine({
         workingDirectory: '/test',
         showOutput: true,
         region: 'us-dummy-1',

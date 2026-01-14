@@ -47,6 +47,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -112,6 +113,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -155,6 +157,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
         discoveryRoot: 'test/test-data',
@@ -217,6 +220,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -263,6 +267,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -283,6 +288,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -303,6 +309,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const runner = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -327,6 +334,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -377,6 +385,7 @@ describe('IntegTest runIntegTests', () => {
   test('with hooks', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets.js',
         discoveryRoot: 'test/test-data',
@@ -430,6 +439,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -470,6 +480,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -511,6 +522,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -531,6 +543,7 @@ describe('IntegTest runIntegTests', () => {
   test('with assets manifest, assets are removed if stackUpdateWorkflow is disabled', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets.js',
         discoveryRoot: 'test/test-data',
@@ -553,6 +566,7 @@ describe('IntegTest runIntegTests', () => {
   test('with assembly manifest, assets are removed if stackUpdateWorkflow is disabled', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
         discoveryRoot: 'test/test-data',
@@ -581,6 +595,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -610,6 +625,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -641,6 +657,7 @@ describe('IntegTest watchIntegTest', () => {
     // GIVEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -668,6 +685,7 @@ describe('IntegTest watchIntegTest', () => {
     // GIVEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -697,6 +715,7 @@ describe('IntegTest watchIntegTest', () => {
       // GIVEN
       const runner = new IntegTestRunner({
         cdk: cdkMock.cdk,
+        region: 'eu-west-1',
         test: new IntegTest({
           fileName: 'test/test-data/xxxxx.test-with-error.js',
           discoveryRoot: 'test/test-data',
