@@ -11,7 +11,7 @@ import {
 import { bold } from 'chalk';
 
 import type { BootstrapOptions } from '../../lib/actions/bootstrap';
-import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters } from '../../lib/actions/bootstrap';
+import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters, BootstrapTemplate } from '../../lib/actions/bootstrap';
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
@@ -625,6 +625,49 @@ describe('bootstrap', () => {
         level: 'error',
         message: expect.stringContaining('❌'),
       }));
+    });
+  });
+
+  describe('BootstrapTemplate.fromSource', () => {
+    test('can retrieve default bootstrap template as YAML', async () => {
+      // WHEN
+      const bootstrapTemplate = await BootstrapTemplate.fromSource();
+      const template = bootstrapTemplate.asYAML();
+
+      // THEN
+      expect(template).toContain('Description:');
+      expect(template).toContain('Parameters:');
+      expect(template).toContain('Resources:');
+      expect(template).toContain('StagingBucket:');
+      // Should be YAML format (not valid JSON)
+      expect(() => JSON.parse(template)).toThrow();
+    });
+
+    test('can retrieve default bootstrap template as JSON', async () => {
+      // WHEN
+      const bootstrapTemplate = await BootstrapTemplate.fromSource();
+      const template = bootstrapTemplate.asJSON();
+
+      // THEN
+      const parsed = JSON.parse(template);
+      expect(parsed.Description).toBeDefined();
+      expect(parsed.Parameters).toBeDefined();
+      expect(parsed.Resources).toBeDefined();
+      expect(parsed.Resources.StagingBucket).toBeDefined();
+    });
+
+    test('can retrieve custom bootstrap template', async () => {
+      // GIVEN
+      const customTemplatePath = path.join(__dirname, '_fixtures/custom-bootstrap-template.yaml');
+
+      // WHEN
+      const bootstrapTemplate = await BootstrapTemplate.fromSource(
+        BootstrapSource.customTemplate(customTemplatePath),
+      );
+      const template = bootstrapTemplate.asYAML();
+
+      // THEN
+      expect(template).toContain('Description: Custom CDK Bootstrap Template');
     });
   });
 });

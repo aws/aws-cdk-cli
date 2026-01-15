@@ -32,7 +32,8 @@
   },
   "include": [
     "lib/**/*.ts",
-    "test/**/*.ts"
+    "test/**/*.ts",
+    "lib/*.json"
   ],
   "exclude": [
     "node_modules"

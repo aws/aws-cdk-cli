@@ -1,3 +1,4 @@
+import * as path from 'path';
 import type * as cxapi from '@aws-cdk/cx-api';
 import { environmentsFromDescriptors } from './private';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
@@ -6,6 +7,7 @@ import type { IIoHost } from '../../api/io';
 import { asIoHelper } from '../../api/io/private';
 import type { Tag } from '../../api/tags';
 import { assemblyFromSource } from '../../toolkit/private';
+import { bundledPackageRootDir, loadStructuredFile, serializeStructure } from '../../util';
 
 /**
  * Create manage bootstrap environments
@@ -251,5 +253,52 @@ export class BootstrapSource {
       source: 'custom',
       templateFile,
     };
+  }
+}
+
+/**
+ * Represents a bootstrap template that can be serialized to YAML or JSON
+ */
+export class BootstrapTemplate {
+  /**
+   * Load a bootstrap template from a source
+   *
+   * @param source - The bootstrap template source configuration
+   * @returns A BootstrapTemplate instance
+   */
+  static async fromSource(source: BootstrapOptions['source'] = { source: 'default' }): Promise<BootstrapTemplate> {
+    let template: any;
+
+    switch (source.source) {
+      case 'custom':
+        template = await loadStructuredFile(source.templateFile);
+        break;
+      case 'default':
+        template = await loadStructuredFile(path.join(bundledPackageRootDir(__dirname), 'lib', 'api', 'bootstrap', 'bootstrap-template.yaml'));
+        break;
+    }
+
+    return new BootstrapTemplate(template);
+  }
+
+  private constructor(private readonly template: any) {
+  }
+
+  /**
+   * Serialize the template as YAML
+   *
+   * @returns The template as a YAML string
+   */
+  public asYAML(): string {
+    return serializeStructure(this.template, false);
+  }
+
+  /**
+   * Serialize the template as JSON
+   *
+   * @returns The template as a JSON string
+   */
+  public asJSON(): string {
+    return serializeStructure(this.template, true);
   }
 }

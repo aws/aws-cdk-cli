@@ -142,7 +142,14 @@ export class EnvironmentResources {
     const ssm = this.sdk.ssm();
 
     try {
-      const result = await ssm.getParameter({ Name: parameterName });
+      const result = await ssm.getParameter({
+        Name: parameterName,
+        // A custom template might use a SecureString for this, so we request the decrypted parameter.
+        // The flag is safe to set, since it will be ignored for unencrypted parameters.
+        // It is still up to user to ensure that all roles have sufficient permissions,
+        // however when using AWS Managed Keys, SSM is granted decryption permissions by default.
+        WithDecryption: true,
+      });
 
       const asNumber = parseInt(`${result.Parameter?.Value}`, 10);
       if (isNaN(asNumber)) {

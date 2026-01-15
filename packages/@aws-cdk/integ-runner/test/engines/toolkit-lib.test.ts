@@ -144,6 +144,30 @@ describe('ToolkitLibRunnerEngine', () => {
           method: 'hotswap',
           fallback: { method: 'change-set' },
         },
+        outputsFile: undefined,
+      });
+    });
+
+    it('should pass outputsFile with absolute path when provided', async () => {
+      const mockCx = {};
+      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+
+      await engine.deploy({
+        app: 'test-app',
+        stacks: ['stack1'],
+        outputsFile: 'assertion-results.json',
+      });
+
+      expect(mockToolkit.deploy).toHaveBeenCalledWith(mockCx, {
+        stacks: {
+          strategy: 'pattern-must-match',
+          patterns: ['stack1'],
+          expand: 'upstream',
+        },
+        deploymentMethod: {
+          method: 'change-set',
+        },
+        outputsFile: '/test/dir/assertion-results.json',
       });
     });
 
@@ -220,7 +244,7 @@ describe('ToolkitLibRunnerEngine', () => {
 
   describe('constructor options', () => {
     it('should handle showOutput option', () => {
-      const engineWithOutput = new ToolkitLibRunnerEngine({
+      new ToolkitLibRunnerEngine({
         workingDirectory: '/test',
         showOutput: true,
         region: 'us-dummy-1',
