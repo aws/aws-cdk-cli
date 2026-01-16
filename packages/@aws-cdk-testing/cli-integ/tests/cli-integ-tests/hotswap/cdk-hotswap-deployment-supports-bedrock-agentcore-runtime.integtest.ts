@@ -14,6 +14,7 @@ integTest(
         DYNAMIC_BEDROCK_RUNTIME_ENV_VAR: 'original value',
       },
     });
+    fixture.log(`StackArn: ${stackArn}`);
 
     // WHEN
     const deployOutput = await fixture.cdkDeploy('agentcore-hotswap', {
