@@ -321,6 +321,7 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     rollback: argv.rollback,
     notices: argv.notices,
     assetParallelism: argv['asset-parallelism'],
+    assetBuildConcurrency: argv['asset-build-concurrency'],
     assetPrebuild: argv['asset-prebuild'],
     ignoreNoStacks: argv['ignore-no-stacks'],
     hotswap: {
