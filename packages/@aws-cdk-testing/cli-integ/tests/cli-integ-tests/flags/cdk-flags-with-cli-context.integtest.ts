@@ -20,6 +20,6 @@ integTest(
 
       expect(output).toContain('Flag changes:');
     }),
-    true,
+    { disableBootstrap: true },
   ),
 );
