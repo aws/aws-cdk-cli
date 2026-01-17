@@ -640,9 +640,6 @@ $ cdk publish MyStack --unstable=publish
 $ # Publish assets for all stacks
 $ cdk publish --all --unstable=publish
 
-$ # Publish with parallel asset operations
-$ cdk publish MyStack --unstable=publish --asset-parallelism
-
 $ # Force re-publish even if assets already exist
 $ cdk publish MyStack --unstable=publish --force
 ```
