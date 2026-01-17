@@ -300,9 +300,7 @@ describe('cdk publish', () => {
     });
 
     const mockDeployments = instanceMockFrom(Deployments);
-    mockDeployments.buildSingleAsset.mockResolvedValue(undefined);
-    mockDeployments.publishSingleAsset.mockResolvedValue(undefined);
-    mockDeployments.isSingleAssetPublished.mockResolvedValue(false);
+    // Note: No mocks needed - MOCK_STACK_B has no assets, and dependencies are excluded with exclusively: true
 
     const toolkit = new CdkToolkit({
       ioHost,
