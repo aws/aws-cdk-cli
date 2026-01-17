@@ -3,6 +3,7 @@ import { type Account } from '@aws-cdk/cdk-assets-lib';
 import type { SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import type { Environment } from '@aws-cdk/cx-api';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
+import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CloudFormationClient, StackStatus } from '@aws-sdk/client-cloudformation';
@@ -38,6 +39,7 @@ export const FAKE_CREDENTIAL_CHAIN = createCredentialChain(() => Promise.resolve
 // Default implementations
 export const awsMock = {
   appSync: mockClient(AppSyncClient),
+  bedrockAgentCoreControl: mockClient(BedrockAgentCoreControlClient),
   cloudControl: mockClient(CloudControlClient),
   cloudFormation: mockClient(CloudFormationClient),
   cloudWatch: mockClient(CloudWatchLogsClient),
@@ -59,6 +61,7 @@ export const awsMock = {
 
 // Global aliases for the mock clients for backwards compatibility
 export const mockAppSyncClient = awsMock.appSync;
+export const mockBedrockAgentCoreControlClient = awsMock.bedrockAgentCoreControl;
 export const mockCloudControlClient = awsMock.cloudControl;
 export const mockCloudFormationClient = awsMock.cloudFormation;
 export const mockCloudWatchClient = awsMock.cloudWatch;
