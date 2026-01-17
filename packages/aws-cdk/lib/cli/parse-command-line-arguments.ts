@@ -627,6 +627,43 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
         }),
     )
+    .command('publish [STACKS..]', 'Publish assets for the given stack(s) without deploying', (yargs: Argv) =>
+      yargs
+        .option('all', {
+          default: false,
+          type: 'boolean',
+          desc: 'Publish assets for all available stacks',
+        })
+        .option('exclusively', {
+          default: undefined,
+          type: 'boolean',
+          alias: 'e',
+          desc: "Only publish assets for requested stacks, don't include dependencies",
+        })
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          desc: 'The name of the existing CDK toolkit stack',
+          requiresArg: true,
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          alias: 'f',
+          desc: 'Always publish assets, even if they are already published',
+        })
+        .option('asset-parallelism', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Whether to build/publish assets in parallel',
+        })
+        .option('concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.',
+          requiresArg: true,
+        }),
+    )
     .command('import [STACK]', 'Import existing resource(s) into the given STACK', (yargs: Argv) =>
       yargs
         .option('execute', {
