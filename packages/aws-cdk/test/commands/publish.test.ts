@@ -90,9 +90,8 @@ describe('cdk publish', () => {
   test('calls removePublishedAssets to skip already published assets when --force is not provided', async () => {
     // GIVEN
     const mockDeployments = instanceMockFrom(Deployments);
-    mockDeployments.buildSingleAsset.mockResolvedValue(undefined);
-    mockDeployments.publishSingleAsset.mockResolvedValue(undefined);
     mockDeployments.isSingleAssetPublished.mockResolvedValue(true); // Asset already published
+    // Note: buildSingleAsset and publishSingleAsset are not mocked - they should not be called
 
     const toolkit = new CdkToolkit({
       ioHost,
@@ -187,9 +186,7 @@ describe('cdk publish', () => {
     });
 
     const mockDeployments = instanceMockFrom(Deployments);
-    mockDeployments.buildSingleAsset.mockResolvedValue(undefined);
-    mockDeployments.publishSingleAsset.mockResolvedValue(undefined);
-    mockDeployments.isSingleAssetPublished.mockResolvedValue(false);
+    // Note: No mocks needed - methods should not be called for stacks without assets
 
     const toolkit = new CdkToolkit({
       ioHost,
