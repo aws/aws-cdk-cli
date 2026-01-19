@@ -1,5 +1,5 @@
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 
 /**
  * Metadata entry for a resource within a CloudFormation stack

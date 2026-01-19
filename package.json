@@ -60,6 +60,7 @@
     "packages": [
       "packages/@aws-cdk/cloud-assembly-schema",
       "packages/@aws-cdk/cloudformation-diff",
+      "packages/@aws-cdk/cloud-assembly-api",
       "packages/@aws-cdk/yarn-cling",
       "packages/@aws-cdk/user-input-gen",
       "packages/@aws-cdk/cli-plugin-contract",
@@ -76,13 +77,18 @@
       "@aws-cdk/cloud-assembly-schema/jsonschema",
       "@aws-cdk/cloud-assembly-schema/jsonschema/**",
       "@aws-cdk/cloud-assembly-schema/semver",
-      "@aws-cdk/cloud-assembly-schema/semver/**"
+      "@aws-cdk/cloud-assembly-schema/semver/**",
+      "@aws-cdk/cloud-assembly-api/jsonschema",
+      "@aws-cdk/cloud-assembly-api/jsonschema/**",
+      "@aws-cdk/cloud-assembly-api/semver",
+      "@aws-cdk/cloud-assembly-api/semver/**"
     ]
   },
   "jest": {
     "projects": [
       "<rootDir>/packages/@aws-cdk/cloud-assembly-schema",
       "<rootDir>/packages/@aws-cdk/cloudformation-diff",
+      "<rootDir>/packages/@aws-cdk/cloud-assembly-api",
       "<rootDir>/packages/@aws-cdk/yarn-cling",
       "<rootDir>/packages/@aws-cdk/user-input-gen",
       "<rootDir>/packages/@aws-cdk/cli-plugin-contract",

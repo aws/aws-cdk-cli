@@ -1,10 +1,10 @@
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
 import {
   formatAmbiguousMappings as fmtAmbiguousMappings,
   formatEnvironmentSectionHeader as fmtEnvironmentSectionHeader,
   formatTypedMappings as fmtTypedMappings,
 } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackSummary } from '@aws-sdk/client-cloudformation';
 import { deserializeStructure, indexBy } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';

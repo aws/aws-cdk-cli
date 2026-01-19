@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { format } from 'util';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { CdkAppMultiContext, MemoryContext, type IContextStore } from './context-store';
 import { RWLock } from '../rwlock';

@@ -1,8 +1,8 @@
 import { format } from 'util';
 import type { FileManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
-import * as cxapi from '@aws-cdk/cx-api';
-import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cloud-assembly-api';
 import type {
   DescribeChangeSetCommandOutput,
   Parameter,

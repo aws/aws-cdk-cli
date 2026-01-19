@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext } from '@aws-cdk/cloud-assembly-schema';
-import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cx-api';
 import { cxapiAssemblyWithForcedVersion } from './assembly-versions';
 import { TestIoHost } from './io-host';
 import { asIoHelper } from '../../lib/api-private';

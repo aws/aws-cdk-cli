@@ -63,6 +63,14 @@ async function main() {
         break;
       }
 
+      case 'atLeast': {
+        const v = makeAbsolute(bump, currentVersion);
+        if (semver.lt(v, value)) {
+          bump = value;
+        }
+        break;
+      }
+
       default:
         throw new Error(`Unknown command: ${cmd}`);
     }

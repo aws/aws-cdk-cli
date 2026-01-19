@@ -1,4 +1,4 @@
-import type { CloudFormationStackArtifact, Environment } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact, Environment } from '@aws-cdk/cloud-assembly-api';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';

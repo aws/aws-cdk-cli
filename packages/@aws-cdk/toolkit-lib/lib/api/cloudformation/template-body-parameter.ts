@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as util from 'node:util';
-import { type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cx-api';
+import { type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import * as chalk from 'chalk';

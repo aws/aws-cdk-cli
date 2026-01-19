@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { EnvironmentUtils } from '@aws-cdk/cx-api';
+import { EnvironmentUtils } from '@aws-cdk/cloud-assembly-api';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import {
   CreateChangeSetCommand,

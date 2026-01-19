@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { EnvironmentResources } from './environment-resources';
 import { EnvironmentResourcesRegistry } from './environment-resources';
 import type { StringWithoutPlaceholders } from './placeholders';

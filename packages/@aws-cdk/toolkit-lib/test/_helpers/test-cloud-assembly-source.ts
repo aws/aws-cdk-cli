@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { AssetManifest, AssetMetadataEntry, AwsCloudFormationStackProperties, MetadataEntry, MissingContext } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType, ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
-import * as cxapi from '@aws-cdk/cx-api';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib';
 import { BorrowedAssembly } from '../../lib/api/cloud-assembly/private/borrowed-assembly';
 

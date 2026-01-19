@@ -40,6 +40,7 @@ jobs:
             cli
             cli-integ
             cli-plugin-contract
+            cloud-assembly-api
             cloud-assembly-schema
             cloudformation-diff
             deps
