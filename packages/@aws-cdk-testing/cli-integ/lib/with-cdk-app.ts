@@ -415,6 +415,10 @@ export class TestFixture extends ShellHelper {
     });
   }
 
+  /**
+   * @returns the captured output of the deploy command.
+   * !!! DO NOT assume this is the stack's ARN. It will contain other output. !!!
+   */
   public async cdkDeploy(stackNames: string | string[], options: CdkCliOptions = {}, skipStackRename?: boolean) {
     return this.cdk(this.cdkDeployCommandLine(stackNames, options, skipStackRename), options);
   }

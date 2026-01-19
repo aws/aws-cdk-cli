@@ -7,17 +7,17 @@ integTest(
   'hotswap deployment supports Bedrock AgentCore Runtime',
   withDefaultFixture(async (fixture) => {
     // GIVEN
-    const stackArn = await fixture.cdkDeploy('agentcore-hotswap', {
+    const stackName = 'agentcore-hotswap';
+    await fixture.cdkDeploy(stackName, {
       captureStderr: false,
       modEnv: {
         DYNAMIC_BEDROCK_RUNTIME_DESCRIPTION: 'original description',
         DYNAMIC_BEDROCK_RUNTIME_ENV_VAR: 'original value',
       },
     });
-    fixture.log(`StackArn: ${stackArn}`);
 
     // WHEN
-    const deployOutput = await fixture.cdkDeploy('agentcore-hotswap', {
+    const deployOutput = await fixture.cdkDeploy(stackName, {
       options: ['--hotswap'],
       captureStderr: true,
       onlyStderr: true,
@@ -27,13 +27,9 @@ integTest(
       },
     });
 
-    // Extract stack name from ARN (format: arn:aws:cloudformation:region:account:stack/name/id)
-    // Using the full ARN can cause "Stack name cannot exceed 128 characters" error in some cases
-    const stackName = stackArn.split('/')[1];
-
     const response = await fixture.aws.cloudFormation.send(
       new DescribeStacksCommand({
-        StackName: stackName,
+        StackName: fixture.fullStackName(stackName),
       }),
     );
     const runtimeId = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'RuntimeId')?.OutputValue;
