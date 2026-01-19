@@ -144,6 +144,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'boolean',
       desc: 'Removes colors and other style from console output',
     })
+    .option('force-color', {
+      default: undefined,
+      type: 'string',
+      desc: 'Force colored output even when terminal is not a TTY. Accepts color level: 1 (16 colors), 2 (256 colors), 3 (16 million colors). If specified without a value, defaults to 1.',
+    })
     .option('ci', {
       default: helpers.isCI(),
       type: 'boolean',
