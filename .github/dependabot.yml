@@ -2,6 +2,9 @@
 
 version: 2
 updates:
+  - package-ecosystem: npm
+    labels:
+      - auto-approve
   - package-ecosystem: pip
     directory: /packages/aws-cdk/lib/init-templates
     schedule:

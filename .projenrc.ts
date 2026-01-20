@@ -1252,6 +1252,7 @@ new pj.javascript.UpgradeDependencies(cli, {
   workflow: true,
   workflowOptions: {
     schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKDAY,
+    labels: ['auto-approve'],
   },
 });
 
@@ -1652,13 +1653,20 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
     version: 2,
-    updates: ['pip', 'maven', 'nuget'].map((pkgEco) => ({
-      'package-ecosystem': pkgEco,
-      'directory': '/packages/aws-cdk/lib/init-templates',
-      'schedule': { interval: 'weekly' },
-      'labels': ['auto-approve'],
-      'open-pull-requests-limit': 5,
-    })),
+    updates: [
+      {
+        'package-ecosystem': 'npm',
+        'labels': ['auto-approve'],
+      },
+      // init-templates
+      ...['pip', 'maven', 'nuget'].map((pkgEco) => ({
+        'package-ecosystem': pkgEco,
+        'directory': '/packages/aws-cdk/lib/init-templates',
+        'schedule': { interval: 'weekly' },
+        'labels': ['auto-approve'],
+        'open-pull-requests-limit': 5,
+      })),
+    ],
   },
   committed: true,
 });
