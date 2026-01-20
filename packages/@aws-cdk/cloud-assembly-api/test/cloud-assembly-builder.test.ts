@@ -69,7 +69,8 @@ test('cloud assembly builder', () => {
   // verify the manifest looks right
   expect(manifest).toStrictEqual({
     version: cxschema.Manifest.version(),
-    // minimumCliVersion: expect.anything(),
+    // During development this returns "undefined" and is not in the schema, in production/on build server with a candidate bump it is
+    ...cxschema.Manifest.cliVersion() ? { minimumCliVersion: cxschema.Manifest.cliVersion() } : {},
     missing: [
       {
         key: 'foo',
