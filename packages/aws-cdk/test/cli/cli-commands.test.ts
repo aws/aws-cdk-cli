@@ -3,7 +3,7 @@ import { CliIoHost } from '../../lib/cli/io-host';
 
 const notifySpy = jest.spyOn(CliIoHost.prototype, 'notify');
 
-jest.mock('@aws-cdk/cx-api');
+jest.mock('@aws-cdk/cloud-assembly-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));

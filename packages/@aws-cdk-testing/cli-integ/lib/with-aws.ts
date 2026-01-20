@@ -1,3 +1,4 @@
+import type { Constraint } from '@cdklabs/cdk-atmosphere-client';
 import { AtmosphereClient } from '@cdklabs/cdk-atmosphere-client';
 import { AwsClients } from './aws';
 import type { TestContext } from './integ-test';
@@ -27,6 +28,22 @@ export function atmospherePool() {
 
 export type AwsContext = { readonly aws: AwsClients };
 
+export interface AwsContextOptions {
+  /**
+   * Request the test environment to be in one of these regions
+   *
+   * @default - all regions are possible
+   */
+  readonly regions?: string[];
+
+  /**
+   * Do not bootstrap the env
+   *
+   * @default false
+   */
+  readonly disableBootstrap?: boolean;
+}
+
 /**
  * Higher order function to execute a block with an AWS client setup
  *
@@ -34,16 +51,31 @@ export type AwsContext = { readonly aws: AwsClients };
  */
 export function withAws<A extends TestContext>(
   block: (context: A & AwsContext & DisableBootstrapContext) => Promise<void>,
-  disableBootstrap: boolean = false,
+  options: AwsContextOptions = {},
 ): (context: A) => Promise<void> {
   return async (context: A) => {
+    const disableBootstrap = options.disableBootstrap ?? false;
+
     if (atmosphereEnabled()) {
       const atmosphere = new AtmosphereClient(atmosphereEndpoint(), {
         logStream: context.output,
       });
 
+      const constraints: Constraint[] = [];
+      if (options.regions) {
+        constraints.push({
+          type: 'region',
+          value: [...options.regions],
+        });
+      }
+
       const start = Date.now();
-      const allocation = await atmosphere.acquire({ pool: atmospherePool(), requester: context.name, timeoutSeconds: 60 * 30 });
+      const allocation = await atmosphere.acquire({
+        pool: atmospherePool(),
+        requester: context.name,
+        timeoutSeconds: 60 * 30,
+        constraints,
+      });
       let outcome = 'success';
       context.reportWaitTime(Date.now() - start);
 

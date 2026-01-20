@@ -192,6 +192,7 @@ function transitiveToolkitPackages(thisPkg: string) {
   const toolkitPackages = [
     'aws-cdk',
     '@aws-cdk/cloud-assembly-schema',
+    '@aws-cdk/cloud-assembly-api',
     '@aws-cdk/cloudformation-diff',
     '@aws-cdk/toolkit-lib',
   ];
@@ -493,43 +494,45 @@ const cloudFormationDiff = configureProject(
 );
 
 // #endregion
+
 //////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cx-api
+// #region @aws-cdk/cloud-assembly-api
 
-// cx-api currently is generated from `aws-cdk-lib` at build time. Not breaking
-// this dependency right now.
-
-const cxApi = '@aws-cdk/cx-api';
-
-/*
-const cxApi = overrideEslint(
+const cloudAssemblyApi = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
     parent: repo,
-    name: '@aws-cdk/cx-api',
-    description: 'Helper functions to work with CDK Cloud Assembly files',
+    name: '@aws-cdk/cloud-assembly-api',
+    description: 'API for working with Cloud Assemblies',
     srcdir: 'lib',
-    deps: ['semver'],
-    devDeps: [cloudAssemblySchema, '@types/mock-fs', '@types/semver', 'madge', 'mock-fs'],
-    bundledDeps: ['semver'],
-    peerDeps: ['@aws-cdk/cloud-assembly-schema@>=38.0.0'],
-    // FIXME: this should be a jsii project
-    // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
+    bundledDeps: ['jsonschema@~1.4.1', 'semver'],
+    devDeps: [cloudAssemblySchema],
+    peerDeps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+    ],
 
-    /*
-    "build": "yarn gen && cdk-build --skip-lint",
-    "gen": "cdk-copy cx-api",
-    "watch": "cdk-watch",
-    "lint": "cdk-lint && madge --circular --extensions js lib",
-    */
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          functions: 75,
+        },
+      },
+    }),
 
-/*
-  "awscdkio": {
-    "announce": false
-  },
+    // Append a specific version string for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
   }),
 );
-*/
+
+// #endregion
+
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cx-api
+
+// cx-api represents the flags that the Cloud Executable expects. It is
+// generated from `aws-cdk-lib` at build time.  Stay within the same MV,
+// otherwise any should work
+const cxApi = '@aws-cdk/cx-api@^2';
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -626,7 +629,8 @@ const cdkAssetsLib = configureProject(
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      `${cxApi}@^2`, // stay within the same MV, otherwise any should work
+      cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       'archiver',
       'glob',
       'mime@^2',
@@ -806,7 +810,8 @@ const toolkitLib = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }), // needs to be newer than what this was build with
       cloudFormationDiff.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
       cdkAssetsLib.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
-      `${cxApi}@^2`, // stay within the same MV, otherwise any should work
+      cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       sdkDepForLib('@aws-sdk/client-appsync'),
       sdkDepForLib('@aws-sdk/client-bedrock-agentcore-control'),
       sdkDepForLib('@aws-sdk/client-cloudformation'),
@@ -1126,6 +1131,7 @@ const cli = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
       'archiver',
       '@aws-sdk/client-appsync',
@@ -1442,6 +1448,7 @@ const integRunner = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),

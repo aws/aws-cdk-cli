@@ -9,6 +9,9 @@
       "path": "../../cloud-assembly-schema"
     },
     {
+      "path": "../../cloud-assembly-api"
+    },
+    {
       "path": "../../cdk-cli-wrapper"
     },
     {

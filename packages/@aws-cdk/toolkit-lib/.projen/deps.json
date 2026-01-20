@@ -172,6 +172,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cloud-assembly-api",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/cloud-assembly-schema",
       "type": "runtime"
     },

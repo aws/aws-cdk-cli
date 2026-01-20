@@ -1,5 +1,5 @@
+import type { KeyContextResponse } from '@aws-cdk/cloud-assembly-api';
 import type { KeyContextQuery } from '@aws-cdk/cloud-assembly-schema';
-import type { KeyContextResponse } from '@aws-cdk/cx-api';
 import type { AliasListEntry, ListAliasesCommandOutput } from '@aws-sdk/client-kms';
 import type { IContextProviderMessages } from '.';
 import type { IKMSClient, SdkProvider } from '../api/aws-auth/private';

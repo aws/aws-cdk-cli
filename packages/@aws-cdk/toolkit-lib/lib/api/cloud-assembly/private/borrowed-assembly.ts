@@ -1,5 +1,5 @@
 import '../../../private/dispose-polyfill';
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { IReadableCloudAssembly } from '../types';
 
 /**

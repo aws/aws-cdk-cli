@@ -1,4 +1,4 @@
-import type { Environment } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
 
 export interface Component {
   name: string;

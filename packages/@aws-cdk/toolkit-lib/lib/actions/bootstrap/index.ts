@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { environmentsFromDescriptors } from './private';
 import type { ICloudAssemblySource } from '../../api/cloud-assembly';
 import { ALL_STACKS } from '../../api/cloud-assembly/private';

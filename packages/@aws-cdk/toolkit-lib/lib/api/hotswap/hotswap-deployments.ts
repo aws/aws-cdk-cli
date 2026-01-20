@@ -1,6 +1,6 @@
 import { format } from 'util';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
 import type { AffectedResource, HotswapResult, ResourceSubject, ResourceChange, NonHotswappableChange } from '../../payloads';

@@ -1,7 +1,7 @@
 import 'aws-sdk-client-mock-jest';
 import { type Account } from '@aws-cdk/cdk-assets-lib';
 import type { SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
-import type { Environment } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
 import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';

@@ -13,7 +13,7 @@
  * calls and locally fake an STS Endpoint using the `FakeSts` class.
  */
 import * as os from 'os';
-import * as cxapi from '@aws-cdk/cx-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as fromEnv from '@aws-sdk/credential-provider-env';
 import * as uuid from 'uuid';
 import type { RegisterRoleOptions, RegisterUserOptions } from './fake-sts';

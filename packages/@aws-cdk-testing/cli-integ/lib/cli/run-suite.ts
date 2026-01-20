@@ -88,6 +88,11 @@ async function main() {
         type: 'string',
         requiresArg: true,
       })
+      .options('seed', {
+        describe: 'Set the seed value to replicate a test run',
+        type: 'string',
+        requiresArg: true,
+      })
       .options('verbose', {
         alias: 'v',
         describe: 'Run in verbose mode',
@@ -225,6 +230,7 @@ async function main() {
 
     await jest.run([
       '--randomize',
+      ...args.seed ? [`--seed=${args.seed}`] : [],
       ...args.runInBand ? ['-i'] : [],
       ...args.test ? ['-t', args.test] : [],
       ...args.verbose ? ['--verbose'] : [],

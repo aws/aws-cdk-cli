@@ -1,8 +1,8 @@
 import * as child_process from 'child_process';
 import * as builtinFs from 'fs';
 import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
+import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
-import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { IntegTestRunner, IntegTest } from '../../lib/runner';
 import { MockCdkProvider } from '../helpers';

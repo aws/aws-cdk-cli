@@ -1,6 +1,6 @@
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { PermissionChangeType } from './diff';
 import type { ConfirmationRequest } from './types';
 

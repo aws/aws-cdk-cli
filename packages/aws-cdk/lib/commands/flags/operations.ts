@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import { formatTable } from '@aws-cdk/cloudformation-diff';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';

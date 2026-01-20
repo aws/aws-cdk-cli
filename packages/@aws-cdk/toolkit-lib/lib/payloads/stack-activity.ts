@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { StackProgress } from './progress';
 import type { ResourceMetadata } from '../api/resource-metadata/resource-metadata';

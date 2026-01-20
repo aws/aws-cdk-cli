@@ -1,5 +1,6 @@
 import * as childProcess from 'child_process';
 import { format } from 'util';
+import { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -12,7 +13,7 @@ import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
 
 export interface ExecProgramResult {
-  readonly assembly: cxapi.CloudAssembly;
+  readonly assembly: CloudAssembly;
   readonly lock: IReadLock;
 }
 
@@ -142,7 +143,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
  */
 export function createAssembly(appDir: string) {
   try {
-    return new cxapi.CloudAssembly(appDir, {
+    return new CloudAssembly(appDir, {
       // We sort as we deploy
       topoSort: false,
     });
