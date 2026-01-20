@@ -1749,7 +1749,8 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
   pj.JsonPatch.replace('/jobs/validate/steps/0/with/scopes', [
     'cli',
     'deps',
-    'dev-deps',
+    'dev-deps', // projen
+    'deps-dev', // dependabot
     'docs',
     'bootstrap',
     'integ-testing',
