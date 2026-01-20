@@ -1656,7 +1656,12 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     updates: [
       {
         'package-ecosystem': 'npm',
+        'schedule': { interval: 'daily' },
         'labels': ['auto-approve'],
+        'directories': ['/', ...repoProject.node.children
+          .filter(child => child instanceof TypeScriptWorkspace)
+          .map(ts => `/${path.relative(repoProject.outdir, ts.outdir)}`)
+          .sort()],
       },
       // init-templates
       ...['pip', 'maven', 'nuget'].map((pkgEco) => ({
