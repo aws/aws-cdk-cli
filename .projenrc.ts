@@ -507,7 +507,7 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     bundledDeps: ['jsonschema@~1.4.1', 'semver'],
     devDeps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'exact' })
+      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
     ],
     peerDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
