@@ -199,7 +199,7 @@ function splitFirstShellWord(commandLine: string): [string, string] {
 async function checkFile(fileName: string): Promise<FileInfo | undefined> {
   try {
     const fstat = await fs.stat(fileName);
-    return  {
+    return {
       fileName,
       // eslint-disable-next-line no-bitwise
       isExecutable: (fstat.mode & fs.constants.X_OK) !== 0,

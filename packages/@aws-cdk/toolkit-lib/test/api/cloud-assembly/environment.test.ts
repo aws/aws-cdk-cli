@@ -51,7 +51,6 @@ test.each([
   expect(actual).toEqual(expected);
 });
 
-
 /**
  * Explode all 'both's in a test array to both false and true
  */
@@ -65,7 +64,7 @@ function explodeBoth<F extends unknown, R extends unknown[]>(input: [F, ...R]): 
   }
   const explodedRest = explodeBoth(rest as any);
 
-  const ret: [NotBoth<F>, ...NotBothA<R>][]  = [];
+  const ret: [NotBoth<F>, ...NotBothA<R>][] = [];
   for (const value of values) {
     for (const remainder of explodedRest) {
       ret.push([value as any, ...remainder] as any);
