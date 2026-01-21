@@ -6,8 +6,8 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../lib/api-private';
-import type { SdkProvider, IReadLock } from '../api';
-import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
+import type { SdkProvider, IReadLock, Command } from '../api';
+import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, toCommand } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -41,7 +41,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     await exec(build);
   }
 
-  const app = config.settings.get(['app']);
+  let app = config.settings.get(['app']);
   if (!app) {
     throw new ToolkitError(`--app is required either in command-line, in ${PROJECT_CONFIG} or in ${USER_DEFAULTS}`);
   }
@@ -56,7 +56,8 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     return { assembly: createAssembly(app), lock };
   }
 
-  const commandLine = await guessExecutable(app, debugFn);
+  const command = toCommand(app);
+  const commandLine = command.type === 'shell' ? await guessExecutable(app, debugFn) : command;
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
@@ -98,28 +99,40 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     await cleanupTemp();
   }
 
-  async function exec(commandAndArgs: string) {
+  async function exec(command: Command) {
     try {
       await new Promise<void>((ok, fail) => {
-        // We use a slightly lower-level interface to:
-        //
-        // - Pass arguments in an array instead of a string, to get around a
-        //   number of quoting issues introduced by the intermediate shell layer
-        //   (which would be different between Linux and Windows).
-        //
+        // Depending on the type of command we have to execute, spawn slightly differently
+
         // - Inherit stderr from controlling terminal. We don't use the captured value
         //   anyway, and if the subprocess is printing to it for debugging purposes the
         //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
         //   processes like Maven.
-        const proc = childProcess.spawn(commandAndArgs, {
+        let proc : childProcess.ChildProcessByStdio<null, null, null>;
+        const spawnOpts: childProcess.SpawnOptionsWithStdioTuple<childProcess.StdioNull, childProcess.StdioNull, childProcess.StdioNull> = {
           stdio: ['ignore', 'inherit', 'inherit'],
           detached: false,
-          shell: true,
           env: {
             ...process.env,
             ...env,
           },
-        });
+        };
+
+        switch (command.type) {
+          case 'argv':
+            proc = childProcess.spawn(command.argv[0], command.argv.slice(1), spawnOpts);
+            break;
+          case 'shell':
+            proc = childProcess.spawn(command.command, {
+              ...spawnOpts,
+              // Command lines need a shell; necessary on windows for .bat and .cmd files, necessary on
+              // Linux to use the shell features we've traditionally supported.
+              // Code scanning tools will flag this as a risk. The input comes from a trusted source,
+              // so it does not represent a security risk.
+              shell: true,
+            });
+            break;
+        }
 
         proc.on('error', fail);
 
@@ -127,12 +140,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           if (code === 0) {
             return ok();
           } else {
-            return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
+            return fail(new ToolkitError(`${command}: Subprocess exited with error ${code}`));
           }
         });
       });
     } catch (e: any) {
-      await debugFn(`failed command: ${commandAndArgs}`);
+      await debugFn(`failed command: ${command}`);
       throw e;
     }
   }

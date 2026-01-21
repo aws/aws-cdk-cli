@@ -21,6 +21,7 @@ import { loadTree, some } from '../../tree';
 import type { Context, Env } from '../environment';
 import { prepareDefaultEnvironment, spaceAvailableForContext, guessExecutable, synthParametersFromSettings } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
+import { Command } from './exec';
 
 export interface ExecutionEnvironmentOptions {
   /**
@@ -163,8 +164,8 @@ export class ExecutionEnvironment implements AsyncDisposable {
    * verify if registry associations have or have not been set up for this
    * file type, so we'll assume the worst and take control.
    */
-  public guessExecutable(app: string): Promise<string> {
-    return guessExecutable(app, this.debugFn);
+  public guessExecutable(command: Command): Promise<Command> {
+    return guessExecutable(command, this.debugFn);
   }
 
   /**

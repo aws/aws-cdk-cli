@@ -1,5 +1,6 @@
 import * as fs from 'fs-extra';
 import { guessExecutable } from '../../../lib/api/cloud-assembly/environment';
+import { toCommand } from '../../../lib/api/cloud-assembly/private/exec';
 
 const BOTH = 'both' as const;
 const DONTCARE = 'DONT-CARE';
@@ -45,7 +46,7 @@ test.each([
   });
 
   // WHEN
-  const actual = await guessExecutable(commandLine, (_) => Promise.resolve());
+  const actual = await guessExecutable(toCommand(commandLine), (_) => Promise.resolve());
 
   // THEN
   expect(actual).toEqual(expected);
