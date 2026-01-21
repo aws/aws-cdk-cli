@@ -107,58 +107,121 @@ export function spaceAvailableForContext(env: Env, limit: number) {
 /**
  * Guess the executable from the command-line argument
  *
- * Only do this if the file is NOT marked as executable. If it is,
- * we'll defer to the shebang inside the file itself.
+ * Input is the "app" string the user gave us. Output is the command line we are going to execute.
  *
- * If we're on Windows, we ALWAYS take the handler, since it's hard to
- * verify if registry associations have or have not been set up for this
- * file type, so we'll assume the worst and take control.
+ * - On Windows: it's hard to verify if registry associations have or have not
+ *   been set up for this file type (i.e., ShellExec'ing the file will work or not),
+ *   so we'll assume the worst and take control ourselves.
+ *
+ * - On POSIX: if the file is NOT marked as executable, guess the interpreter. If it is executable,
+ *   the correct interpreter should be in the file's shebang and we just execute it directly.
+ *
+ * The behavior of only guessing the interpreter if the command line is a single file name
+ * is a bit limited: we can't put a `.js` file with arguments in the command line and have
+ * it work properly. Nevertheless, this is the behavior we have had for a long time and nobody
+ * has really complained about it, so we'll keep it for now.
  */
-export async function guessExecutable(app: string, debugFn: (msg: string) => Promise<void>) {
-  const commandLine = appToArray(app);
-  if (commandLine.length === 1) {
-    let fstat;
-
-    try {
-      fstat = await fs.stat(commandLine[0]);
-    } catch {
-      await debugFn(`Not a file: '${commandLine[0]}'. Using '${commandLine}' as command-line`);
-      return commandLine;
-    }
-
-    // eslint-disable-next-line no-bitwise
-    const isExecutable = (fstat.mode & fs.constants.X_OK) !== 0;
-    const isWindows = process.platform === 'win32';
-
-    const handler = EXTENSION_MAP.get(path.extname(commandLine[0]));
-    if (handler && (!isExecutable || isWindows)) {
-      return handler(commandLine[0]);
-    }
+export async function guessExecutable(commandLine: string, debugFn: (msg: string) => Promise<void>): Promise<string> {
+  // The command line with spaces in it could reference a file on disk. If true,
+  // we quote it and return that, optionally by prefixing an interpreter.
+  const fullFile = await checkFile(commandLine);
+  if (fullFile) {
+    return guessInterpreter(fullFile);
   }
+
+  // Otherwise, the first word on the command line could reference a file on
+  // disk (quoted or non-quoted). If true, we optionally prefix an interpreter.
+  const [first, rest] = splitFirstShellWord(commandLine);
+  const firstFile = await checkFile(first);
+  if (firstFile) {
+    return `${guessInterpreter(firstFile)} ${rest}`.trim();
+  }
+
+  // We couldn't parse it, so just use the given command line.
+  await debugFn(`Not a file: '${commandLine}'. Using '${commandLine} as command-line`);
   return commandLine;
+}
+
+/**
+ * Guess the right interpreter to use to execute the given file and return a (partial) command line to execute it.
+ *
+ * This may entail:
+ *
+ * - Prefixing an interpreter if necessary
+ * - Quoting the file name if necessary
+ */
+function guessInterpreter(file: FileInfo): string {
+  const isWindows = process.platform === 'win32';
+
+  const handler = EXTENSION_MAP[path.extname(file.fileName)];
+  if (handler && (!file.isExecutable || isWindows)) {
+    return handler(file.fileName);
+  }
+
+  return quoteSpaces(file.fileName);
 }
 
 /**
  * Mapping of extensions to command-line generators
  */
-const EXTENSION_MAP = new Map<string, CommandGenerator>([
-  ['.js', executeNode],
-]);
+const EXTENSION_MAP: Record<string, CommandGenerator> = {
+  '.js': executeNode,
+};
 
-type CommandGenerator = (file: string) => string[];
+type CommandGenerator = (file: string) => string;
 
 /**
  * Execute the given file with the same 'node' process as is running the current process
  */
-function executeNode(scriptFile: string): string[] {
-  return [process.execPath, scriptFile];
+function executeNode(scriptFile: string): string {
+  return `${quoteSpaces(process.execPath)} ${quoteSpaces(scriptFile)}`;
 }
 
 /**
- * Make sure the 'app' is an array
- *
- * If it's a string, split on spaces as a trivial way of tokenizing the command line.
+ * Parse off the first quoted or unquoted shell word.
  */
-function appToArray(app: any) {
-  return typeof app === 'string' ? app.split(' ') : app;
+function splitFirstShellWord(commandLine: string): [string, string] {
+  commandLine = commandLine.trim();
+  if (commandLine[0] === '"') {
+    // Split on the next quote, ignore any escaping
+    const endQuote = commandLine.indexOf('"', 1);
+    return endQuote > -1 ? [commandLine.slice(1, endQuote), commandLine.slice(endQuote + 1).trim()] : [commandLine, ''];
+  } else {
+    // Split on the first space
+    const space = commandLine.indexOf(' ');
+    return space > -1 ? [commandLine.slice(0, space), commandLine.slice(space + 1)] : [commandLine, ''];
+  }
+}
+
+/**
+ * Look up a file and see if it exists and is executable
+ */
+async function checkFile(fileName: string): Promise<FileInfo | undefined> {
+  try {
+    const fstat = await fs.stat(fileName);
+    return  {
+      fileName,
+      // eslint-disable-next-line no-bitwise
+      isExecutable: (fstat.mode & fs.constants.X_OK) !== 0,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+interface FileInfo {
+  readonly fileName: string;
+  readonly isExecutable: boolean;
+}
+
+/**
+ * Quote a shell part if it contains spaces
+ *
+ * We're only interested in spaces, nothing else.
+ */
+function quoteSpaces(part: string) {
+  if (part.includes(' ')) {
+    return `"${part}"`;
+  }
+  return part;
 }
