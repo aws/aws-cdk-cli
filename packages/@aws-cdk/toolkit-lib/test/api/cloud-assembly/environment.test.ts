@@ -52,7 +52,6 @@ test.each([
   expect(actual).toEqual(expected);
 });
 
-
 /**
  * Explode all 'both's in a test array to both false and true
  */
