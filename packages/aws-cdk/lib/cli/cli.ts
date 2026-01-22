@@ -343,11 +343,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           return bootstrapper.showTemplate(args.json);
         }
 
-        // Warn if --permissions-boundary-all-roles is used without a permissions boundary
-        if (args.permissionsBoundaryAllRoles && !argv.customPermissionsBoundary && !argv.examplePermissionsBoundary) {
-          await ioHost.defaults.warn('--permissions-boundary-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary');
-        }
-
         return cli.bootstrap(args.ENVIRONMENTS, {
           source,
           roleArn: args.roleArn,

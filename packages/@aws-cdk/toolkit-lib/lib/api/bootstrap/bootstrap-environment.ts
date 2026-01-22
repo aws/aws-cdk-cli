@@ -213,6 +213,13 @@ export class Bootstrapper {
       }
     }
 
+    // Warn if --permissions-boundary-all-roles is used without a permissions boundary
+    if (params.permissionsBoundaryAllRoles && !inputPolicyName) {
+      await this.ioHelper.defaults.warn(
+        '--permissions-boundary-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary',
+      );
+    }
+
     const bootstrapTemplateParameters: Record<string, string | undefined> = {
       FileAssetsBucketName: params.bucketName,
       FileAssetsBucketKmsKeyId: kmsKeyId,
