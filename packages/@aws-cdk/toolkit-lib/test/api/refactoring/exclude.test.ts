@@ -72,7 +72,7 @@ describe('ManifestExcludeList', () => {
       },
     };
 
-    const excludeList = new ManifestExcludeList(manifest as any);
+    const excludeList = new ManifestExcludeList('/', manifest as any);
 
     expect(excludeList.isExcluded(resource1)).toBe(true);
     expect(excludeList.isExcluded(resource2)).toBe(true);
@@ -91,7 +91,7 @@ describe('ManifestExcludeList', () => {
       },
     };
 
-    const excludeList = new ManifestExcludeList(manifest as any);
+    const excludeList = new ManifestExcludeList('/', manifest as any);
     expect(excludeList.isExcluded(resource1)).toBe(false);
   });
 });

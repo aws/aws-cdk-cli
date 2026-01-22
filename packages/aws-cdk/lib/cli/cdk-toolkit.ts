@@ -195,7 +195,7 @@ export class CdkToolkit {
 
   public async metadata(stackName: string, json: boolean) {
     const stacks = await this.selectSingleStackByName(stackName);
-    await printSerializedObject(this.ioHost.asIoHelper(), stacks.firstStack.manifest.metadata ?? {}, json);
+    await printSerializedObject(this.ioHost.asIoHelper(), stacks.firstStack.metadata ?? {}, json);
   }
 
   public async acknowledge(noticeId: string) {

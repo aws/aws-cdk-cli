@@ -1,3 +1,4 @@
+import { CloudArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { AssemblyManifest } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactMetadataEntryType, ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { ResourceLocation as CfnResourceLocation } from '@aws-sdk/client-cloudformation';
@@ -20,12 +21,12 @@ abstract class AbstractExcludeList implements ExcludeList {
 export class ManifestExcludeList extends AbstractExcludeList {
   private readonly excludedLocations: CfnResourceLocation[];
 
-  constructor(manifest: AssemblyManifest) {
+  constructor(directory: string, manifest: AssemblyManifest) {
     super();
-    this.excludedLocations = this.getExcludedLocations(manifest);
+    this.excludedLocations = this.getExcludedLocations(directory, manifest);
   }
 
-  private getExcludedLocations(asmManifest: AssemblyManifest): CfnResourceLocation[] {
+  private getExcludedLocations(directory: string, asmManifest: AssemblyManifest): CfnResourceLocation[] {
     // First, we need to filter the artifacts to only include CloudFormation stacks
     const stackManifests = Object.entries(asmManifest.artifacts ?? {}).filter(
       ([_, manifest]) => manifest.type === ArtifactType.AWS_CLOUDFORMATION_STACK,
@@ -33,7 +34,7 @@ export class ManifestExcludeList extends AbstractExcludeList {
 
     const result: CfnResourceLocation[] = [];
     for (let [stackName, manifest] of stackManifests) {
-      const locations = Object.values(manifest.metadata ?? {})
+      const locations = Object.values(CloudArtifact.readMetadata(directory, manifest))
         // Then pick only the resources in each stack marked with DO_NOT_REFACTOR
         .filter((entries) =>
           entries.some((entry) => entry.type === ArtifactMetadataEntryType.DO_NOT_REFACTOR && entry.data === true),
