@@ -21,7 +21,7 @@ import { loadTree, some } from '../../tree';
 import type { Context, Env } from '../environment';
 import { prepareDefaultEnvironment, spaceAvailableForContext, guessExecutable, synthParametersFromSettings } from '../environment';
 import type { AppSynthOptions, LoadAssemblyOptions } from '../source-builder';
-import { Command } from './exec';
+import type { Command } from './exec';
 
 export interface ExecutionEnvironmentOptions {
   /**

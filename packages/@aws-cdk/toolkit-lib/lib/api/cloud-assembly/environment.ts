@@ -3,7 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
-import { Command } from './private/exec';
+import type { Command } from './private/exec';
 
 export type Env = { [key: string]: string | undefined };
 export type Context = { [key: string]: unknown };

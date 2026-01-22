@@ -1,8 +1,8 @@
 import * as child_process from 'node:child_process';
+import type { Readable } from 'node:stream';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
 import { AssemblyError } from '../../../toolkit/toolkit-error';
-import { Readable } from 'node:stream';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 
