@@ -254,6 +254,11 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-quicksight",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-route-53",
       "version": "^3",
       "type": "runtime"
