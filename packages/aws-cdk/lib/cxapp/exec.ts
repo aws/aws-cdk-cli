@@ -7,7 +7,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock, Command } from '../api';
-import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, toCommand } from '../api';
+import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, toCommand, renderCommand } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -140,12 +140,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           if (code === 0) {
             return ok();
           } else {
-            return fail(new ToolkitError(`${command}: Subprocess exited with error ${code}`));
+            return fail(new ToolkitError(`${renderCommand(command)}: Subprocess exited with error ${code}`));
           }
         });
       });
     } catch (e: any) {
-      await debugFn(`failed command: ${command}`);
+      await debugFn(`failed command: ${renderCommand(command)}`);
       throw e;
     }
   }

@@ -106,7 +106,7 @@ export function spaceAvailableForContext(env: Env, limit: number) {
 }
 
 /**
- * Guess the executable from the string command
+ * Guess the executable from the command
  *
  * Input is the "app" string the user gave us. Output is the command line we are going to execute.
  *
@@ -232,7 +232,7 @@ function splitFirstShellWord(commandLine: string): [string, string] {
 async function checkFile(fileName: string): Promise<FileInfo | undefined> {
   try {
     const fstat = await fs.stat(fileName);
-    return  {
+    return {
       fileName,
       // eslint-disable-next-line no-bitwise
       isExecutable: (fstat.mode & fs.constants.X_OK) !== 0,
