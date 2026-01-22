@@ -49,7 +49,7 @@
                     "type": "string"
                 },
                 "metadata": {
-                    "description": "Associated metadata. (Default - no metadata.)",
+                    "description": "Associated metadata.\n\nMetadata can be stored directly in the assembly manifest, as well as in a\nseparate file (see `additionalMetadataFile`). It should prefer to be stored\nin the additional file, as that will reduce the size of the assembly\nmanifest in cases of a lot of metdata (which CDK does emit by default). (Default - no metadata.)",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -57,6 +57,10 @@
                             "$ref": "#/definitions/MetadataEntry"
                         }
                     }
+                },
+                "additionalMetadataFile": {
+                    "description": "A file with additional metadata entries.\n\nThe schema of this file is exactly the same as the type of the `metadata` field.\nIn other words, that file contains an object mapping construct paths to arrays\nof metadata entries. (Default - no additional metadata)",
+                    "type": "string"
                 },
                 "dependencies": {
                     "description": "IDs of artifacts that must be deployed before this artifact. (Default - no dependencies.)",
