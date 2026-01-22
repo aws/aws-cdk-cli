@@ -22,6 +22,21 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 const TYPESCRIPT_VERSION = '5.9';
 
 /**
+ * Global note on customizeReference
+ * ---------------------------------
+ *
+ * All packages references using `customizeReference()` should have an `^0.0.0`
+ * dependency in `package.json` regardless of what the argument to
+ * `customizeReference()` is. This because unbump will always set the range
+ * specified to that value, and if it used to be something else then we will
+ * introduce a git diff that stops the release. Do not worry, the bumped version
+ * will have the correct range character.
+ *
+ * When adding a fresh package, projen sometimes inserts `"0.0.0"` there, if
+ * that happens you need to edit `package.json` once by hand.
+ */
+
+/**
  * When adding an SDK dependency for a library, use this function
  *
  * It forces the package.json to contain `@^3`; if we don't force that, projen

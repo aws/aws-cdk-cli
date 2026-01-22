@@ -31,7 +31,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/cloud-assembly-schema": "0.0.0",
+    "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@cdklabs/eslint-plugin": "^1.5.0",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^30.0.0",
