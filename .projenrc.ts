@@ -293,6 +293,8 @@ new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
 
+repoProject.gitignore.addPatterns('.vscode/settings.json');
+
 // Eslint for projen config
 // @ts-ignore
 repoProject.eslint = new pj.javascript.Eslint(repoProject, {

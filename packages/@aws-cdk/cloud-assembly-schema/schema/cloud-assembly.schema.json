@@ -355,7 +355,7 @@
                     }
                 },
                 "tags": {
-                    "description": "Values for CloudFormation stack tags that should be passed when the stack is deployed. (Default - No tags)",
+                    "description": "Values for CloudFormation stack tags that should be passed when the stack is deployed.\n\nN.B.: Tags are also written to stack metadata, under the path of the Stack\nconstruct. Only in CDK CLI v1 are those tags found in metadata used for\nactual deployments; in all stable versions of CDK only the stack tags\ndirectly found in the `tags` property of `AwsCloudFormationStack` artifact\n(i.e., this property) are used. (Default - No tags)",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"

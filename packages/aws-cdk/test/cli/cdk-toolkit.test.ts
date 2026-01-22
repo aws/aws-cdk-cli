@@ -1740,13 +1740,8 @@ class MockStack {
     stackName: 'Test-Stack-A',
     template: { Resources: { TemplateName: 'Test-Stack-A' } },
     env: 'aws://123456789012/bermuda-triangle-1',
-    metadata: {
-      '/Test-Stack-A': [
-        {
-          type: cxschema.ArtifactMetadataEntryType.STACK_TAGS,
-          data: [{ key: 'Foo', value: 'Bar' }],
-        },
-      ],
+    properties: {
+      tags: { Foo: 'Bar' },
     },
     displayName: 'Test-Stack-A-Display-Name',
   };
@@ -1754,26 +1749,16 @@ class MockStack {
     stackName: 'Test-Stack-B',
     template: { Resources: { TemplateName: 'Test-Stack-B' } },
     env: 'aws://123456789012/bermuda-triangle-1',
-    metadata: {
-      '/Test-Stack-B': [
-        {
-          type: cxschema.ArtifactMetadataEntryType.STACK_TAGS,
-          data: [{ key: 'Baz', value: 'Zinga!' }],
-        },
-      ],
+    properties: {
+      tags: { Baz: 'Zinga!' },
     },
   };
   public static readonly MOCK_STACK_C: TestStackArtifact = {
     stackName: 'Test-Stack-C',
     template: { Resources: { TemplateName: 'Test-Stack-C' } },
     env: 'aws://123456789012/bermuda-triangle-1',
-    metadata: {
-      '/Test-Stack-C': [
-        {
-          type: cxschema.ArtifactMetadataEntryType.STACK_TAGS,
-          data: [{ key: 'Baz', value: 'Zinga!' }],
-        },
-      ],
+    properties: {
+      tags: { Baz: 'Zinga!' },
     },
     displayName: 'Test-Stack-A/Test-Stack-C',
   };
@@ -1781,13 +1766,8 @@ class MockStack {
     stackName: 'Test-Stack-D',
     template: { Resources: { TemplateName: 'Test-Stack-D' } },
     env: 'aws://123456789012/bermuda-triangle-1',
-    metadata: {
-      '/Test-Stack-D': [
-        {
-          type: cxschema.ArtifactMetadataEntryType.STACK_TAGS,
-          data: [{ key: 'Baz', value: 'Zinga!' }],
-        },
-      ],
+    properties: {
+      tags: { Baz: 'Zinga!' },
     },
     depends: [MockStack.MOCK_STACK_C.stackName],
   };
@@ -1832,13 +1812,8 @@ class MockStack {
     notificationArns: ['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic'],
     template: { Resources: { TemplateName: 'Test-Stack-Notification-Arns' } },
     env: 'aws://123456789012/bermuda-triangle-1337',
-    metadata: {
-      '/Test-Stack-Notification-Arns': [
-        {
-          type: cxschema.ArtifactMetadataEntryType.STACK_TAGS,
-          data: [{ key: 'Foo', value: 'Bar' }],
-        },
-      ],
+    properties: {
+      tags: { Foo: 'Bar' },
     },
   };
 
@@ -1847,13 +1822,8 @@ class MockStack {
     notificationArns: ['arn:1337:123456789012:sns:bad'],
     template: { Resources: { TemplateName: 'Test-Stack-Bad-Notification-Arns' } },
     env: 'aws://123456789012/bermuda-triangle-1337',
-    metadata: {
-      '/Test-Stack-Bad-Notification-Arns': [
-        {
-          type: cxschema.ArtifactMetadataEntryType.STACK_TAGS,
-          data: [{ key: 'Foo', value: 'Bar' }],
-        },
-      ],
+    properties: {
+      tags: { Foo: 'Bar' },
     },
   };
 }

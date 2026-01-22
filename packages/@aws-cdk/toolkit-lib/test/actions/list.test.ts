@@ -496,6 +496,7 @@ const MOCK_STACK_A: TestStackArtifact = {
     '/Test-Stack-A': [
       {
         type: ArtifactMetadataEntryType.STACK_TAGS,
+        data: [],
       },
     ],
   },
@@ -508,6 +509,7 @@ const MOCK_STACK_B: TestStackArtifact = {
     '/Test-Stack-B': [
       {
         type: ArtifactMetadataEntryType.STACK_TAGS,
+        data: [],
       },
     ],
   },
@@ -530,6 +532,7 @@ const MOCK_STACK_C: TestStackArtifact = {
     '/Test-Stack-C': [
       {
         type: ArtifactMetadataEntryType.STACK_TAGS,
+        data: [],
       },
     ],
   },
