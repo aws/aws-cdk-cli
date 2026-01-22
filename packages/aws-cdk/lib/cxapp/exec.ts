@@ -38,7 +38,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const build = config.settings.get(['build']);
   if (build) {
-    await exec(build);
+    await exec(toCommand(build));
   }
 
   let app = config.settings.get(['app']);
