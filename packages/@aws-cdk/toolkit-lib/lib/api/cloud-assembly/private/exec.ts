@@ -28,6 +28,15 @@ export function toCommand(input: string | string[]): Command {
   }
 }
 
+export function renderCommand(command: Command): string {
+  switch (command.type) {
+    case 'shell':
+      return command.command;
+    case 'argv':
+      return JSON.stringify(command.argv);
+  }
+}
+
 /**
  * Execute a command line in a child process
  */
@@ -91,7 +100,7 @@ export async function execInChildProcess(command: Command, options: ExecOptions 
           cause = new Error(stderr.join('\n'));
           cause.name = 'ExecutionError';
         }
-        return fail(AssemblyError.withCause(`${command}: Subprocess exited with error ${code}`, cause));
+        return fail(AssemblyError.withCause(`${renderCommand(command)}: Subprocess exited with error ${code}`, cause));
       }
     });
   });
