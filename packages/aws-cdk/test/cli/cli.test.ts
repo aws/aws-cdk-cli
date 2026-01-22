@@ -94,16 +94,10 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
 
     // Handle color flags
     if (args.includes('--no-color')) {
-      result = { ...result, color: false };
+      result = { ...result, noColor: true };
     }
-    const forceColorIndex = args.findIndex((arg: string) => arg.startsWith('--force-color'));
-    if (forceColorIndex !== -1) {
-      const arg = args[forceColorIndex];
-      if (arg.includes('=')) {
-        result = { ...result, forceColor: arg.split('=')[1] };
-      } else {
-        result = { ...result, forceColor: '' };
-      }
+    if (args.includes('--color')) {
+      result = { ...result, color: true };
     }
 
     return Promise.resolve(result);
@@ -621,39 +615,18 @@ describe('color output flag tests', () => {
     jest.setMock('../../lib/cli/version', originalVersion);
   });
 
-  test('should set FORCE_COLOR=0 when --no-color is passed', async () => {
+  test('should disable colors when --no-color is passed', async () => {
     await exec(['--no-color', 'version']);
     expect(process.env.FORCE_COLOR).toBe('0');
   });
 
-  test('should set FORCE_COLOR=1 when --force-color=1 is passed', async () => {
-    await exec(['--force-color=1', 'version']);
-    expect(process.env.FORCE_COLOR).toBe('1');
-  });
-
-  test('should set FORCE_COLOR=2 when --force-color=2 is passed', async () => {
-    await exec(['--force-color=2', 'version']);
-    expect(process.env.FORCE_COLOR).toBe('2');
-  });
-
-  test('should set FORCE_COLOR=3 when --force-color=3 is passed', async () => {
-    await exec(['--force-color=3', 'version']);
+  test('should enable colors when --color is passed', async () => {
+    await exec(['--color', 'version']);
     expect(process.env.FORCE_COLOR).toBe('3');
   });
 
-  test('should set FORCE_COLOR=1 when --force-color is passed without value', async () => {
-    await exec(['--force-color', 'version']);
-    expect(process.env.FORCE_COLOR).toBe('1');
-  });
-
-  test('--no-color should take priority over --force-color', async () => {
-    await exec(['--force-color=3', '--no-color', 'version']);
+  test('--no-color should take priority over --color', async () => {
+    await exec(['--color', '--no-color', 'version']);
     expect(process.env.FORCE_COLOR).toBe('0');
-  });
-
-  test('should throw error for invalid --force-color value', async () => {
-    await expect(exec(['--force-color=5', 'version'])).rejects.toThrow(
-      'Invalid --force-color value: 5. Must be 1, 2, or 3.',
-    );
   });
 });

@@ -3,8 +3,8 @@
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
+import { Argv } from 'yargs';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {
@@ -144,10 +144,10 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'boolean',
       desc: 'Removes colors and other style from console output',
     })
-    .option('force-color', {
+    .option('color', {
       default: undefined,
-      type: 'string',
-      desc: 'Force colored output even when terminal is not a TTY. Accepts color level: 1 (16 colors), 2 (256 colors), 3 (16 million colors). If specified without a value, defaults to 1.',
+      type: 'boolean',
+      desc: 'Force colored output even when stdout is not a TTY',
     })
     .option('ci', {
       default: helpers.isCI(),

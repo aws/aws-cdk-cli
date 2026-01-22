@@ -308,11 +308,11 @@ export interface GlobalOptions {
   readonly noColor?: boolean;
 
   /**
-   * Force colored output even when terminal is not a TTY. Accepts color level: 1 (16 colors), 2 (256 colors), 3 (16 million colors). If specified without a value, defaults to 1.
+   * Force colored output even when stdout is not a TTY
    *
    * @default - undefined
    */
-  readonly forceColor?: string;
+  readonly color?: boolean;
 
   /**
    * Force CI detection. If CI=true then logs will be sent to stdout instead of stderr

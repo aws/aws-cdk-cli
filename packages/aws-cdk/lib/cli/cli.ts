@@ -43,17 +43,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
   // Handle color output settings
-  // Priority: --no-color > --force-color > TTY detection
-  // Note: yargs interprets --no-color as setting argv.color=false (negation pattern)
-  if (argv.noColor || argv.color === false) {
+  // Priority: --no-color > --color > TTY detection
+  if (argv.noColor) {
     process.env.FORCE_COLOR = '0';
-  } else if (argv.forceColor !== undefined) {
-    // Validate and set force-color level (1, 2, or 3)
-    const level = argv.forceColor === '' || argv.forceColor === true ? '1' : String(argv.forceColor);
-    if (!['1', '2', '3'].includes(level)) {
-      throw new ToolkitError(`Invalid --force-color value: ${level}. Must be 1, 2, or 3.`);
-    }
-    process.env.FORCE_COLOR = level;
+  } else if (argv.color) {
+    process.env.FORCE_COLOR = '3';
   } else if (!process.stdout.isTTY) {
     // Default behavior: disable colors for non-TTY
     process.env.FORCE_COLOR = '0';
