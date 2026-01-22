@@ -844,6 +844,7 @@ const toolkitLib = configureProject(
       sdkDepForLib('@aws-sdk/client-iam'),
       sdkDepForLib('@aws-sdk/client-kms'),
       sdkDepForLib('@aws-sdk/client-lambda'),
+      sdkDepForLib('@aws-sdk/client-quicksight'),
       sdkDepForLib('@aws-sdk/client-route-53'),
       sdkDepForLib('@aws-sdk/client-s3'),
       sdkDepForLib('@aws-sdk/client-secrets-manager'),
