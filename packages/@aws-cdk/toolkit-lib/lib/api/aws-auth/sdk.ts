@@ -324,6 +324,24 @@ import {
   type ListHostedZonesCommandOutput,
   Route53Client,
 } from '@aws-sdk/client-route-53';
+import {
+  QuickSightClient,
+  UpdateAnalysisCommand,
+  type UpdateAnalysisCommandInput,
+  type UpdateAnalysisCommandOutput,
+  UpdateDashboardCommand,
+  type UpdateDashboardCommandInput,
+  type UpdateDashboardCommandOutput,
+  UpdateDataSetCommand,
+  type UpdateDataSetCommandInput,
+  type UpdateDataSetCommandOutput,
+  UpdateDataSourceCommand,
+  type UpdateDataSourceCommandInput,
+  type UpdateDataSourceCommandOutput,
+  UpdateTemplateCommand,
+  type UpdateTemplateCommandInput,
+  type UpdateTemplateCommandOutput,
+} from '@aws-sdk/client-quicksight';
 import type {
   DeleteObjectsCommandInput,
   DeleteObjectsCommandOutput,
@@ -581,6 +599,14 @@ export interface IRoute53Client {
   getHostedZone(input: GetHostedZoneCommandInput): Promise<GetHostedZoneCommandOutput>;
   listHostedZones(input: ListHostedZonesCommandInput): Promise<ListHostedZonesCommandOutput>;
   listHostedZonesByName(input: ListHostedZonesByNameCommandInput): Promise<ListHostedZonesByNameCommandOutput>;
+}
+
+export interface IQuickSightClient {
+  updateAnalysis(input: UpdateAnalysisCommandInput): Promise<UpdateAnalysisCommandOutput>;
+  updateDashboard(input: UpdateDashboardCommandInput): Promise<UpdateDashboardCommandOutput>;
+  updateDataSet(input: UpdateDataSetCommandInput): Promise<UpdateDataSetCommandOutput>;
+  updateDataSource(input: UpdateDataSourceCommandInput): Promise<UpdateDataSourceCommandOutput>;
+  updateTemplate(input: UpdateTemplateCommandInput): Promise<UpdateTemplateCommandOutput>;
 }
 
 export interface IS3Client {
@@ -1039,6 +1065,22 @@ export class SDK {
         client.send(new ListHostedZonesCommand(input)),
       listHostedZonesByName: (input: ListHostedZonesByNameCommandInput): Promise<ListHostedZonesByNameCommandOutput> =>
         client.send(new ListHostedZonesByNameCommand(input)),
+    };
+  }
+
+  public quickSight(): IQuickSightClient {
+    const client = new QuickSightClient(this.config);
+    return {
+      updateAnalysis: (input: UpdateAnalysisCommandInput): Promise<UpdateAnalysisCommandOutput> =>
+        client.send(new UpdateAnalysisCommand(input)),
+      updateDashboard: (input: UpdateDashboardCommandInput): Promise<UpdateDashboardCommandOutput> =>
+        client.send(new UpdateDashboardCommand(input)),
+      updateDataSet: (input: UpdateDataSetCommandInput): Promise<UpdateDataSetCommandOutput> =>
+        client.send(new UpdateDataSetCommand(input)),
+      updateDataSource: (input: UpdateDataSourceCommandInput): Promise<UpdateDataSourceCommandOutput> =>
+        client.send(new UpdateDataSourceCommand(input)),
+      updateTemplate: (input: UpdateTemplateCommandInput): Promise<UpdateTemplateCommandOutput> =>
+        client.send(new UpdateTemplateCommand(input)),
     };
   }
 

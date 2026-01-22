@@ -96,6 +96,7 @@
     "@aws-sdk/client-iam": "^3",
     "@aws-sdk/client-kms": "^3",
     "@aws-sdk/client-lambda": "^3",
+    "@aws-sdk/client-quicksight": "^3",
     "@aws-sdk/client-route-53": "^3",
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/client-secrets-manager": "^3",
