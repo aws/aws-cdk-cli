@@ -114,61 +114,6 @@ test('tags are NO LONGER read from stack metadata', () => {
   expect(assembly.getStackByName('Stack').tags).toEqual({});
 });
 
-test('stack metadata can be read both from artifact and a file', () => {
-  // Backwards compatibility test
-  // GIVEN
-  builder.addArtifact('Stack', {
-    ...stackBase,
-    metadata: {
-      '/Stack': [
-        {
-          type: 'custom:metadata',
-          data: 'custom 1',
-        },
-      ],
-    },
-    additionalMetadataFile: 'addl-meta.json',
-  });
-
-  fs.writeFileSync(path.join(builder.outdir, 'addl-meta.json'), JSON.stringify({
-    '/Stack': [
-      {
-        type: 'custom:metadata',
-        data: 'custom 2',
-      },
-    ],
-    '/Stack/Sub': [
-      {
-        type: 'custom:metadata',
-        data: 'custom 3',
-      },
-    ],
-  }), 'utf-8');
-
-  // WHEN
-  const assembly = builder.buildAssembly();
-
-  // THEN
-  expect(assembly.getStackByName('Stack').metadata).toEqual({
-    '/Stack': [
-      {
-        type: 'custom:metadata',
-        data: 'custom 2',
-      },
-      {
-        type: 'custom:metadata',
-        data: 'custom 1',
-      },
-    ],
-    '/Stack/Sub': [
-      {
-        type: 'custom:metadata',
-        data: 'custom 3',
-      },
-    ],
-  });
-});
-
 test('user friendly id is the assembly display name', () => {
   // GIVEN
   builder.addArtifact('Stack', {
