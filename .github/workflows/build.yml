@@ -53,35 +53,3 @@ jobs:
           echo "::error::Files were changed during build (see build log). If this was triggered from a fork, you will need to update your branch."
           cat repo.patch
           exit 1
-  self-mutation:
-    needs: build
-    runs-on: aws-cdk_ubuntu-latest_16-core
-    permissions:
-      contents: write
-    environment: automation
-    if: always() && needs.build.outputs.self_mutation_happened && !(github.event.pull_request.head.repo.full_name != github.repository)
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.PROJEN_GITHUB_TOKEN }}
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-      - name: Download patch
-        uses: actions/download-artifact@v5
-        with:
-          name: repo.patch
-          path: ${{ runner.temp }}
-      - name: Apply patch
-        run: '[ -s ${{ runner.temp }}/repo.patch ] && git apply ${{ runner.temp }}/repo.patch || echo "Empty patch. Skipping."'
-      - name: Set git identity
-        run: |-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Push changes
-        env:
-          PULL_REQUEST_REF: ${{ github.event.pull_request.head.ref }}
-        run: |-
-          git add .
-          git commit -s -m "chore: self mutation"
-          git push origin "HEAD:$PULL_REQUEST_REF"
