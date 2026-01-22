@@ -226,6 +226,7 @@ export class Bootstrapper {
           ? 'true'
           : 'false',
       InputPermissionsBoundary: policyName,
+      PermissionsBoundaryAllRoles: params.permissionsBoundaryAllRoles ? 'true' : 'false',
     };
 
     const templateParameters = await this.templateParameters();

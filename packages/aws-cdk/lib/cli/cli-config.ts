@@ -84,6 +84,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-kms-key-id': { type: 'string', desc: 'AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)', default: undefined, conflicts: 'bootstrap-customer-key' },
           'example-permissions-boundary': { type: 'boolean', alias: 'epb', desc: 'Use the example permissions boundary.', default: undefined, conflicts: 'custom-permissions-boundary' },
           'custom-permissions-boundary': { type: 'string', alias: 'cpb', desc: 'Use the permissions boundary specified by name.', default: undefined, conflicts: 'example-permissions-boundary' },
+          'permissions-boundary-all-roles': { type: 'boolean', desc: 'Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).', default: false },
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
           'qualifier': { type: 'string', desc: 'String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default.', default: undefined },
           'public-access-block-configuration': { type: 'boolean', desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ', default: undefined },

@@ -220,6 +220,11 @@
           "desc": "Use the permissions boundary specified by name.",
           "conflicts": "example-permissions-boundary"
         },
+        "permissions-boundary-all-roles": {
+          "type": "boolean",
+          "desc": "Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).",
+          "default": false
+        },
         "bootstrap-customer-key": {
           "type": "boolean",
           "desc": "Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)",

@@ -448,6 +448,13 @@ export interface BootstrapOptions {
   readonly customPermissionsBoundary?: string;
 
   /**
+   * Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).
+   *
+   * @default - false
+   */
+  readonly permissionsBoundaryAllRoles?: boolean;
+
+  /**
    * Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)
    *
    * @default - undefined

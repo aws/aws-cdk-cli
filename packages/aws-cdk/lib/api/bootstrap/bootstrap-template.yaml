@@ -50,6 +50,11 @@ Parameters:
     Default: 'false'
     AllowedValues: [ 'true', 'false' ]
     Type: String
+  PermissionsBoundaryAllRoles:
+    Description: Whether to apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role)
+    Default: 'false'
+    Type: String
+    AllowedValues: ['true', 'false']
   BootstrapVariant:
     Type: String
     Default: 'AWS CDK: Default Resources'
@@ -112,6 +117,12 @@ Conditions:
       - Fn::Equals:
         - ''
         - Ref: InputPermissionsBoundary
+  ApplyPermissionsBoundaryToAllRoles:
+    Fn::And:
+      - Condition: PermissionsBoundarySet
+      - Fn::Equals:
+        - 'true'
+        - Ref: PermissionsBoundaryAllRoles
   HasCustomContainerAssetsRepositoryName:
     Fn::Not:
       - Fn::Equals:
@@ -358,6 +369,11 @@ Resources:
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       Tags:
         - Key: aws-cdk:bootstrap-role
           Value: file-publishing
@@ -412,6 +428,11 @@ Resources:
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-image-publishing-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       Tags:
         - Key: aws-cdk:bootstrap-role
           Value: image-publishing
@@ -492,6 +513,11 @@ Resources:
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-lookup-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       ManagedPolicyArns:
         - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/ReadOnlyAccess"
       Policies:
@@ -721,6 +747,11 @@ Resources:
           PolicyName: default
       RoleName:
         Fn::Sub: cdk-${Qualifier}-deploy-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       Tags:
         - Key: aws-cdk:bootstrap-role
           Value: deploy

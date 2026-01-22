@@ -148,6 +148,14 @@ export interface BootstrappingParameters {
   readonly customPermissionsBoundary?: string;
 
   /**
+   * Whether to apply the permissions boundary to all bootstrap roles
+   * (not just the CloudFormation execution role)
+   *
+   * @default false
+   */
+  readonly permissionsBoundaryAllRoles?: boolean;
+
+  /**
    * Whether to deny AssumeRole calls with an ExternalId
    *
    * @default - template default (true)
