@@ -49,7 +49,7 @@ test.each([
   const actual = await guessExecutable(toCommand(commandLine), (_) => Promise.resolve());
 
   // THEN
-  expect(actual).toEqual(expected);
+  expect(actual.type === 'shell' && actual.command).toEqual(expected);
 });
 
 /**
