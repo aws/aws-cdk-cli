@@ -45,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: automation
     if: ${{ needs.upgrade.outputs.patch_created }}
     steps:
       - name: Checkout
@@ -77,6 +78,7 @@ jobs:
             *Automatically created by projen via the "upgrade-aws-cdk-lib_aws-cdk" workflow*
           branch: github-actions/upgrade-aws-cdk-lib_aws-cdk
           title: "feat(deps): upgrade aws-cdk-lib"
+          labels: auto-approve
           body: |-
             Upgrades project dependencies. See details in [workflow run].
 

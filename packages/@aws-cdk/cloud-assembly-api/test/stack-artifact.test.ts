@@ -58,40 +58,6 @@ test('read tags from artifact properties', () => {
   expect(assembly.getStackByName('Stack').tags).toEqual({ foo: 'bar' });
 });
 
-test('stack tags get uppercased when written to Cloud Assembly', () => {
-  // Backwards compatibility test
-  // GIVEN
-  builder.addArtifact('Stack', {
-    ...stackBase,
-    metadata: {
-      '/Stack': [
-        {
-          type: 'aws:cdk:stack-tags',
-          data: [{ key: 'foo', value: 'bar' }],
-        },
-      ],
-    },
-  });
-
-  // WHEN
-  const assembly = builder.buildAssembly();
-
-  // THEN
-  const manifestStructure = JSON.parse(fs.readFileSync(path.join(assembly.directory, 'manifest.json'), { encoding: 'utf-8' }));
-  expect(manifestStructure.artifacts.Stack.metadata['/Stack']).toEqual([
-    {
-      type: 'aws:cdk:stack-tags',
-      data: [
-        {
-          // Note: uppercase due to historical accident
-          Key: 'foo',
-          Value: 'bar',
-        },
-      ],
-    },
-  ]);
-});
-
 test('already uppercased stack tags get left alone', () => {
   // Backwards compatibility test
   // GIVEN
@@ -126,7 +92,7 @@ test('already uppercased stack tags get left alone', () => {
   ]);
 });
 
-test('read tags from stack metadata', () => {
+test('tags are NO LONGER read from stack metadata', () => {
   // Backwards compatibility test
   // GIVEN
   builder.addArtifact('Stack', {
@@ -145,7 +111,7 @@ test('read tags from stack metadata', () => {
   const assembly = builder.buildAssembly();
 
   // THEN
-  expect(assembly.getStackByName('Stack').tags).toEqual({ foo: 'bar' });
+  expect(assembly.getStackByName('Stack').tags).toEqual({});
 });
 
 test('user friendly id is the assembly display name', () => {
