@@ -92,6 +92,14 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, yes: true };
     }
 
+    // Handle color flags
+    if (args.includes('--no-color')) {
+      result = { ...result, noColor: true };
+    }
+    if (args.includes('--color')) {
+      result = { ...result, color: true };
+    }
+
     return Promise.resolve(result);
   }),
 }));
@@ -587,5 +595,38 @@ describe('flags command tests', () => {
       mockConfig.context.all, // cliContextValues
     );
     expect(mockProcessFlagsCommand).toHaveBeenCalled();
+  });
+});
+
+describe('color output flag tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.FORCE_COLOR;
+    jest.mock('../../lib/cli/version', () => ({
+      ...originalVersion,
+      DISPLAY_VERSION: 'test-version',
+      displayVersionMessage: jest.fn().mockResolvedValue(undefined),
+    }));
+  });
+
+  afterEach(() => {
+    delete process.env.FORCE_COLOR;
+    jest.resetModules();
+    jest.setMock('../../lib/cli/version', originalVersion);
+  });
+
+  test('should disable colors when --no-color is passed', async () => {
+    await exec(['--no-color', 'version']);
+    expect(process.env.FORCE_COLOR).toBe('0');
+  });
+
+  test('should enable colors when --color is passed', async () => {
+    await exec(['--color', 'version']);
+    expect(process.env.FORCE_COLOR).toBe('3');
+  });
+
+  test('--no-color should take priority over --color', async () => {
+    await exec(['--color', '--no-color', 'version']);
+    expect(process.env.FORCE_COLOR).toBe('0');
   });
 });
