@@ -163,7 +163,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
    * verify if registry associations have or have not been set up for this
    * file type, so we'll assume the worst and take control.
    */
-  public guessExecutable(app: string) {
+  public guessExecutable(app: string): Promise<string> {
     return guessExecutable(app, this.debugFn);
   }
 

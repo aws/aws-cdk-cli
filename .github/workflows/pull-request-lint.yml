@@ -44,6 +44,7 @@ jobs:
             cloud-assembly-schema
             cloudformation-diff
             deps
+            deps-dev
             dev-deps
             docs
             integ-runner
