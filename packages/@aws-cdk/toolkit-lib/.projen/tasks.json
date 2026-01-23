@@ -33,7 +33,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../cloud-assembly-schema ../cloudformation-diff",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../cloud-assembly-schema ../cloud-assembly-api ../cloudformation-diff",
         "MAJOR": "1"
       },
       "steps": [
@@ -114,7 +114,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=any-minor @aws-cdk/cdk-assets-lib=any-minor @aws-cdk/cli-plugin-contract=any-minor",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=any-minor @aws-cdk/cdk-assets-lib=any-minor @aws-cdk/cloud-assembly-api=exact @aws-cdk/cli-plugin-contract=any-minor",
           "receiveArgs": true
         }
       ]
@@ -238,7 +238,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../cloud-assembly-schema ../cloudformation-diff"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../../aws-cdk ../cloud-assembly-schema ../cloud-assembly-api ../cloudformation-diff"
       },
       "steps": [
         {

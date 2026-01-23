@@ -1,6 +1,9 @@
-export enum GitHubToken {
-  GITHUB_TOKEN = 'secrets.GITHUB_TOKEN',
-  PROJEN_GITHUB_TOKEN = 'secrets.PROJEN_GITHUB_TOKEN',
+import { github } from 'projen';
+
+export class GitHubToken {
+  public static readonly GITHUB_TOKEN = github.GithubCredentials.fromPersonalAccessToken({
+    secret: 'GITHUB_TOKEN',
+  });
 }
 
 export function stringifyList(list: string[]) {

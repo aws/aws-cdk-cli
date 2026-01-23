@@ -190,6 +190,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cloud-assembly-api",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/cloud-assembly-schema",
       "type": "runtime"
     },
@@ -199,6 +203,7 @@
     },
     {
       "name": "@aws-cdk/cx-api",
+      "version": "^2",
       "type": "runtime"
     },
     {

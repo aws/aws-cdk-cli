@@ -1,5 +1,6 @@
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
+import { EnvironmentUtils, PROVIDER_ERROR_KEY } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import * as cxapi from '@aws-cdk/cx-api';
 import { AmiContextProviderPlugin } from './ami';
 import { AZContextProviderPlugin } from './availability-zones';
 import { CcApiContextProviderPlugin } from './cc-api-provider';
@@ -102,10 +103,10 @@ export async function provideContextValues(
     let value;
     try {
       const environment = missingContext.props.account && missingContext.props.region
-        ? cxapi.EnvironmentUtils.make(missingContext.props.account, missingContext.props.region)
+        ? EnvironmentUtils.make(missingContext.props.account, missingContext.props.region)
         : undefined;
 
-      const resolvedEnvironment: cxapi.Environment = environment
+      const resolvedEnvironment: Environment = environment
         ? await sdk.resolveEnvironment(environment)
         : { account: '?', region: '?', name: '?' };
 
@@ -117,7 +118,7 @@ export async function provideContextValues(
     } catch (e: any) {
       // Set a specially formatted provider value which will be interpreted
       // as a lookup failure in the toolkit.
-      value = { [cxapi.PROVIDER_ERROR_KEY]: formatErrorMessage(e), [TRANSIENT_CONTEXT_KEY]: true };
+      value = { [PROVIDER_ERROR_KEY]: formatErrorMessage(e), [TRANSIENT_CONTEXT_KEY]: true };
     }
     updates[key] = value;
     await ioHelper.defaults.debug(`Setting "${key}" context to ${JSON.stringify(value)}`);

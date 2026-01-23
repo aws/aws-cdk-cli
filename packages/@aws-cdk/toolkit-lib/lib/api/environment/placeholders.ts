@@ -1,4 +1,4 @@
-import { type Environment, EnvironmentPlaceholders } from '@aws-cdk/cx-api';
+import { type Environment, EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import type { Branded } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import { Mode } from '../plugin';

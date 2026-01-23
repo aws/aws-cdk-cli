@@ -1,4 +1,4 @@
-import * as cxapi from '@aws-cdk/cx-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,

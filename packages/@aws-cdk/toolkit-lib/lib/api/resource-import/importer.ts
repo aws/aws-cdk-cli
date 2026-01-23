@@ -1,7 +1,7 @@
 import { format } from 'util';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfnDiff from '@aws-cdk/cloudformation-diff';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';

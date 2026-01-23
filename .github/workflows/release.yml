@@ -12,6 +12,7 @@ jobs:
       latest_commit: ${{ steps.git_remote.outputs.latest_commit }}
       publish-aws-cdk-cloud-assembly-schema: ${{ steps.check-publish-aws-cdk-cloud-assembly-schema.outputs.publish }}
       publish-aws-cdk-cloudformation-diff: ${{ steps.check-publish-aws-cdk-cloudformation-diff.outputs.publish }}
+      publish-aws-cdk-cloud-assembly-api: ${{ steps.check-publish-aws-cdk-cloud-assembly-api.outputs.publish }}
       publish-aws-cdk-cli-plugin-contract: ${{ steps.check-publish-aws-cdk-cli-plugin-contract.outputs.publish }}
       publish-aws-cdk-cdk-assets-lib: ${{ steps.check-publish-aws-cdk-cdk-assets-lib.outputs.publish }}
       publish-cdk-assets: ${{ steps.check-publish-cdk-assets.outputs.publish }}
@@ -45,6 +46,9 @@ jobs:
       - id: check-publish-aws-cdk-cloudformation-diff
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/@aws-cdk/cloudformation-diff
+      - id: check-publish-aws-cdk-cloud-assembly-api
+        run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
+        working-directory: packages/@aws-cdk/cloud-assembly-api
       - id: check-publish-aws-cdk-cli-plugin-contract
         run: (git ls-remote -q --exit-code --tags origin $(cat dist/releasetag.txt) && (echo "publish=false" >> $GITHUB_OUTPUT)) || echo "publish=true" >> $GITHUB_OUTPUT
         working-directory: packages/@aws-cdk/cli-plugin-contract
@@ -95,6 +99,18 @@ jobs:
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: packages/@aws-cdk/cloudformation-diff/dist
+          overwrite: true
+      - name: "@aws-cdk/cloud-assembly-api: Backup artifact permissions"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        run: cd dist && getfacl -R . > permissions-backup.acl
+        continue-on-error: true
+        working-directory: packages/@aws-cdk/cloud-assembly-api
+      - name: "@aws-cdk/cloud-assembly-api: Upload artifact"
+        if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: aws-cdk-cloud-assembly-api_build-artifact
+          path: packages/@aws-cdk/cloud-assembly-api/dist
           overwrite: true
       - name: "@aws-cdk/cli-plugin-contract: Backup artifact permissions"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
@@ -494,6 +510,60 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          NPM_DIST_TAG: latest
+          NPM_REGISTRY: registry.npmjs.org
+          NPM_CONFIG_PROVENANCE: "true"
+          NPM_TRUSTED_PUBLISHER: "true"
+        run: npx -p publib@latest publib-npm
+  aws-cdk-cloud-assembly-api_release_github:
+    name: "@aws-cdk/cloud-assembly-api: Publish to GitHub Releases"
+    needs:
+      - release
+      - aws-cdk-cloud-assembly-api_release_npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: releasing
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: aws-cdk-cloud-assembly-api_build-artifact
+          path: dist
+      - name: Restore build artifact permissions
+        run: cd dist && setfacl --restore=permissions-backup.acl
+        continue-on-error: true
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+  aws-cdk-cloud-assembly-api_release_npm:
+    name: "@aws-cdk/cloud-assembly-api: Publish to npm"
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: releasing
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: aws-cdk-cloud-assembly-api_build-artifact
           path: dist
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl

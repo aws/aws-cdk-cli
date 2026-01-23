@@ -1,5 +1,5 @@
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { TypedMapping } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { ResourceMapping as CfnResourceMapping } from '@aws-sdk/client-cloudformation';
 
 export interface CloudFormationResource {

@@ -1,8 +1,8 @@
 import * as os from 'os';
 import * as path from 'path';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
+import { CloudAssemblyBuilder, EnvironmentUtils } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
-import type { Environment } from '@aws-cdk/cx-api';
-import { CloudAssemblyBuilder, EnvironmentUtils } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { BootstrapEnvironmentOptions } from './bootstrap-props';
 import {

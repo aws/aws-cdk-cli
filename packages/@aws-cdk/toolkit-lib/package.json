@@ -50,7 +50,7 @@
     "@types/split2": "^4.2.3",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "aws-cdk-lib": "2.232.2",
+    "aws-cdk-lib": "2.235.1",
     "aws-sdk-client-mock": "^4.1.0",
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^12",
@@ -79,6 +79,7 @@
   },
   "dependencies": {
     "@aws-cdk/cdk-assets-lib": "^0.0.0",
+    "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
     "@aws-cdk/cx-api": "^2",

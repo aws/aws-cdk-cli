@@ -1,9 +1,9 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import * as fs from 'fs-extra';
@@ -1114,7 +1114,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
-        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const stackDefinitions = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, sdkProvider, ioHelper);
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;

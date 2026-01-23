@@ -15,11 +15,27 @@ import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
 
 const TYPESCRIPT_VERSION = '5.9';
+
+/**
+ * Global note on customizeReference
+ * ---------------------------------
+ *
+ * All packages references using `customizeReference()` should have an `^0.0.0`
+ * dependency in `package.json` regardless of what the argument to
+ * `customizeReference()` is. This because unbump will always set the range
+ * specified to that value, and if it used to be something else then we will
+ * introduce a git diff that stops the release. Do not worry, the bumped version
+ * will have the correct range character.
+ *
+ * When adding a fresh package, projen sometimes inserts `"0.0.0"` there, if
+ * that happens you need to edit `package.json` once by hand.
+ */
 
 /**
  * When adding an SDK dependency for a library, use this function
@@ -192,6 +208,7 @@ function transitiveToolkitPackages(thisPkg: string) {
   const toolkitPackages = [
     'aws-cdk',
     '@aws-cdk/cloud-assembly-schema',
+    '@aws-cdk/cloud-assembly-api',
     '@aws-cdk/cloudformation-diff',
     '@aws-cdk/toolkit-lib',
   ];
@@ -253,6 +270,10 @@ const repoProject = new yarn.Monorepo({
   },
 
   githubOptions: {
+    projenCredentials: pj.github.GithubCredentials.fromPersonalAccessToken({
+      secret: 'PROJEN_GITHUB_TOKEN',
+      environment: 'automation',
+    }),
     mergify: false,
     mergeQueue: true,
     mergeQueueOptions: {
@@ -291,6 +312,9 @@ const repoProject = new yarn.Monorepo({
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
+new SelfMutationOnForks(repoProject, { environment: 'automation' });
+
+repoProject.gitignore.addPatterns('.vscode/settings.json');
 
 // Eslint for projen config
 // @ts-ignore
@@ -493,43 +517,47 @@ const cloudFormationDiff = configureProject(
 );
 
 // #endregion
+
 //////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cx-api
+// #region @aws-cdk/cloud-assembly-api
 
-// cx-api currently is generated from `aws-cdk-lib` at build time. Not breaking
-// this dependency right now.
-
-const cxApi = '@aws-cdk/cx-api';
-
-/*
-const cxApi = overrideEslint(
+const cloudAssemblyApi = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
     parent: repo,
-    name: '@aws-cdk/cx-api',
-    description: 'Helper functions to work with CDK Cloud Assembly files',
+    name: '@aws-cdk/cloud-assembly-api',
+    description: 'API for working with Cloud Assemblies',
     srcdir: 'lib',
-    deps: ['semver'],
-    devDeps: [cloudAssemblySchema, '@types/mock-fs', '@types/semver', 'madge', 'mock-fs'],
-    bundledDeps: ['semver'],
-    peerDeps: ['@aws-cdk/cloud-assembly-schema@>=38.0.0'],
-    // FIXME: this should be a jsii project
-    // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
+    bundledDeps: ['jsonschema@~1.4.1', 'semver'],
+    devDeps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+    ],
+    peerDeps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+    ],
 
-    /*
-    "build": "yarn gen && cdk-build --skip-lint",
-    "gen": "cdk-copy cx-api",
-    "watch": "cdk-watch",
-    "lint": "cdk-lint && madge --circular --extensions js lib",
-    */
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          functions: 75,
+        },
+      },
+    }),
 
-/*
-  "awscdkio": {
-    "announce": false
-  },
+    // Append a specific version string for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
   }),
 );
-*/
+
+// #endregion
+
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cx-api
+
+// cx-api represents the flags that the Cloud Executable expects. It is
+// generated from `aws-cdk-lib` at build time.  Stay within the same MV,
+// otherwise any should work
+const cxApi = '@aws-cdk/cx-api@^2';
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -626,7 +654,8 @@ const cdkAssetsLib = configureProject(
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      `${cxApi}@^2`, // stay within the same MV, otherwise any should work
+      cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       'archiver',
       'glob',
       'mime@^2',
@@ -806,7 +835,8 @@ const toolkitLib = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }), // needs to be newer than what this was build with
       cloudFormationDiff.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
       cdkAssetsLib.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
-      `${cxApi}@^2`, // stay within the same MV, otherwise any should work
+      cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       sdkDepForLib('@aws-sdk/client-appsync'),
       sdkDepForLib('@aws-sdk/client-bedrock-agentcore-control'),
       sdkDepForLib('@aws-sdk/client-cloudformation'),
@@ -1126,6 +1156,7 @@ const cli = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
       'archiver',
       '@aws-sdk/client-appsync',
@@ -1246,6 +1277,7 @@ new pj.javascript.UpgradeDependencies(cli, {
   workflow: true,
   workflowOptions: {
     schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKDAY,
+    labels: ['auto-approve'],
   },
 });
 
@@ -1442,6 +1474,7 @@ const integRunner = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cxApi,
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
@@ -1645,13 +1678,25 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
     version: 2,
-    updates: ['pip', 'maven', 'nuget'].map((pkgEco) => ({
-      'package-ecosystem': pkgEco,
-      'directory': '/packages/aws-cdk/lib/init-templates',
-      'schedule': { interval: 'weekly' },
-      'labels': ['auto-approve'],
-      'open-pull-requests-limit': 5,
-    })),
+    updates: [
+      {
+        'package-ecosystem': 'npm',
+        'schedule': { interval: 'daily' },
+        'labels': ['auto-approve'],
+        'directories': ['/', ...repoProject.node.children
+          .filter(child => child instanceof TypeScriptWorkspace)
+          .map(ts => `/${path.relative(repoProject.outdir, ts.outdir)}`)
+          .sort()],
+      },
+      // init-templates
+      ...['pip', 'maven', 'nuget'].map((pkgEco) => ({
+        'package-ecosystem': pkgEco,
+        'directory': '/packages/aws-cdk/lib/init-templates',
+        'schedule': { interval: 'weekly' },
+        'labels': ['auto-approve'],
+        'open-pull-requests-limit': 5,
+      })),
+    ],
   },
   committed: true,
 });
@@ -1729,7 +1774,8 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
   pj.JsonPatch.replace('/jobs/validate/steps/0/with/scopes', [
     'cli',
     'deps',
-    'dev-deps',
+    'dev-deps', // projen
+    'deps-dev', // dependabot
     'docs',
     'bootstrap',
     'integ-testing',

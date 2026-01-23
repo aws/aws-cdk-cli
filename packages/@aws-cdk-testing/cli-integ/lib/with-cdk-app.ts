@@ -14,13 +14,20 @@ import { testSource } from './package-sources/subprocess';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
-import type { AwsContext } from './with-aws';
+import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
 import { findYarnPackages } from './yarn';
 
 export const DEFAULT_TEST_TIMEOUT_S = 20 * 60;
 export const EXTENDED_TEST_TIMEOUT_S = 30 * 60;
+
+export interface CdkAppContextOptions {
+  /**
+   * Configure the AWS context of the app.
+   */
+  readonly aws?: AwsContextOptions;
+}
 
 /**
  * Higher order function to execute a block with a CDK app fixture
@@ -147,20 +154,20 @@ export function withCdkMigrateApp(
  * We could have put `withAws(withCdkApp(fixture => { /... actual test here.../ }))` in every
  * test declaration but centralizing it is going to make it convenient to modify in the future.
  */
-export function withDefaultFixture(block: (context: TestFixture) => Promise<void>) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkApp(block)));
+export function withDefaultFixture(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkApp(block)), options.aws);
 }
 
-export function withSpecificFixture(appName: string, block: (context: TestFixture) => Promise<void>) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSpecificCdkApp(appName, block)));
+export function withSpecificFixture(appName: string, block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSpecificCdkApp(appName, block)), options.aws);
 }
 
-export function withExtendedTimeoutFixture(block: (context: TestFixture) => Promise<void>) {
-  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withCdkApp(block)));
+export function withExtendedTimeoutFixture(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
+  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withCdkApp(block)), options.aws);
 }
 
-export function withCDKMigrateFixture(language: string, block: (content: TestFixture) => Promise<void>) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkMigrateApp(language, block)));
+export function withCDKMigrateFixture(language: string, block: (content: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkMigrateApp(language, block)), options.aws);
 }
 
 /**
@@ -210,8 +217,11 @@ export interface DisableBootstrapContext {
  * To be used in place of `withDefaultFixture` when the test
  * should not create the default bootstrap stack
  */
-export function withoutBootstrap(block: (context: TestFixture) => Promise<void>) {
-  return withAws(withCdkApp(block), true);
+export function withoutBootstrap(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
+  return withAws(withCdkApp(block), {
+    ...options.aws,
+    disableBootstrap: true,
+  });
 }
 
 export interface CdkCliOptions extends ShellOptions {
@@ -405,6 +415,10 @@ export class TestFixture extends ShellHelper {
     });
   }
 
+  /**
+   * @returns the captured output of the deploy command.
+   * !!! DO NOT assume this is the stack's ARN. It will contain other output. !!!
+   */
   public async cdkDeploy(stackNames: string | string[], options: CdkCliOptions = {}, skipStackRename?: boolean) {
     return this.cdk(this.cdkDeployCommandLine(stackNames, options, skipStackRename), options);
   }

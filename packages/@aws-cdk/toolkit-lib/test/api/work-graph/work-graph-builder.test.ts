@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { CloudAssemblyBuilder } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import type * as cxapi from '@aws-cdk/cx-api';
-import { CloudAssemblyBuilder } from '@aws-cdk/cx-api';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expect } from '@jest/globals';
 import { WorkGraphBuilder } from '../../../lib/api/work-graph';

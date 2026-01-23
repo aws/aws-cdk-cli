@@ -38,6 +38,7 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
+    environment: automation
     steps:
       - name: Triage Manager
         uses: aws-github-ops/aws-issue-triage-manager@main

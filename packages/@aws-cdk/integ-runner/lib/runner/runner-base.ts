@@ -1,8 +1,9 @@
 /* eslint-disable @cdklabs/no-literal-partition */
 import * as path from 'path';
 import type { ICdk } from '@aws-cdk/cdk-cli-wrapper';
+import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import type { TestCase, DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema';
-import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY, TARGET_PARTITIONS } from '@aws-cdk/cx-api';
+import { TARGET_PARTITIONS } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
