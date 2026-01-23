@@ -255,7 +255,7 @@
     },
     {
       "name": "@aws-sdk/client-quicksight",
-      "version": "^3",
+      "version": "3.953.0",
       "type": "runtime"
     },
     {
