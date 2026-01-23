@@ -15,6 +15,7 @@ import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
@@ -269,6 +270,10 @@ const repoProject = new yarn.Monorepo({
   },
 
   githubOptions: {
+    projenCredentials: pj.github.GithubCredentials.fromPersonalAccessToken({
+      secret: 'PROJEN_GITHUB_TOKEN',
+      environment: 'automation',
+    }),
     mergify: false,
     mergeQueue: true,
     mergeQueueOptions: {
@@ -307,6 +312,7 @@ const repoProject = new yarn.Monorepo({
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
+new SelfMutationOnForks(repoProject, { environment: 'automation' });
 
 repoProject.gitignore.addPatterns('.vscode/settings.json');
 

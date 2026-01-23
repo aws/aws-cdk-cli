@@ -1114,7 +1114,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
-        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const stackDefinitions = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, sdkProvider, ioHelper);
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
