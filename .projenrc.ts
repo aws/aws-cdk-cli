@@ -15,11 +15,27 @@ import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
 
 const TYPESCRIPT_VERSION = '5.9';
+
+/**
+ * Global note on customizeReference
+ * ---------------------------------
+ *
+ * All packages references using `customizeReference()` should have an `^0.0.0`
+ * dependency in `package.json` regardless of what the argument to
+ * `customizeReference()` is. This because unbump will always set the range
+ * specified to that value, and if it used to be something else then we will
+ * introduce a git diff that stops the release. Do not worry, the bumped version
+ * will have the correct range character.
+ *
+ * When adding a fresh package, projen sometimes inserts `"0.0.0"` there, if
+ * that happens you need to edit `package.json` once by hand.
+ */
 
 /**
  * When adding an SDK dependency for a library, use this function
@@ -254,6 +270,10 @@ const repoProject = new yarn.Monorepo({
   },
 
   githubOptions: {
+    projenCredentials: pj.github.GithubCredentials.fromPersonalAccessToken({
+      secret: 'PROJEN_GITHUB_TOKEN',
+      environment: 'automation',
+    }),
     mergify: false,
     mergeQueue: true,
     mergeQueueOptions: {
@@ -292,6 +312,9 @@ const repoProject = new yarn.Monorepo({
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
+new SelfMutationOnForks(repoProject, { environment: 'automation' });
+
+repoProject.gitignore.addPatterns('.vscode/settings.json');
 
 // Eslint for projen config
 // @ts-ignore
@@ -506,7 +529,9 @@ const cloudAssemblyApi = configureProject(
     description: 'API for working with Cloud Assemblies',
     srcdir: 'lib',
     bundledDeps: ['jsonschema@~1.4.1', 'semver'],
-    devDeps: [cloudAssemblySchema],
+    devDeps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+    ],
     peerDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
     ],
