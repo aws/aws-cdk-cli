@@ -313,18 +313,6 @@ import {
   waitUntilFunctionUpdatedV2,
 } from '@aws-sdk/client-lambda';
 import {
-  GetHostedZoneCommand,
-  type GetHostedZoneCommandInput,
-  type GetHostedZoneCommandOutput,
-  ListHostedZonesByNameCommand,
-  type ListHostedZonesByNameCommandInput,
-  type ListHostedZonesByNameCommandOutput,
-  ListHostedZonesCommand,
-  type ListHostedZonesCommandInput,
-  type ListHostedZonesCommandOutput,
-  Route53Client,
-} from '@aws-sdk/client-route-53';
-import {
   QuickSightClient,
   UpdateAnalysisCommand,
   type UpdateAnalysisCommandInput,
@@ -342,6 +330,18 @@ import {
   type UpdateTemplateCommandInput,
   type UpdateTemplateCommandOutput,
 } from '@aws-sdk/client-quicksight';
+import {
+  GetHostedZoneCommand,
+  type GetHostedZoneCommandInput,
+  type GetHostedZoneCommandOutput,
+  ListHostedZonesByNameCommand,
+  type ListHostedZonesByNameCommandInput,
+  type ListHostedZonesByNameCommandOutput,
+  ListHostedZonesCommand,
+  type ListHostedZonesCommandInput,
+  type ListHostedZonesCommandOutput,
+  Route53Client,
+} from '@aws-sdk/client-route-53';
 import type {
   DeleteObjectsCommandInput,
   DeleteObjectsCommandOutput,
