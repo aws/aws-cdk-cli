@@ -1591,7 +1591,7 @@ const cliInteg = configureProject(
       'glob@^9',
       'make-runnable@^1',
       'mockttp@^3',
-      'npm@^10',
+      'npm@^11',
       'p-queue@^6',
       'semver@^7',
       'sinon@^9',
