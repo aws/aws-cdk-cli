@@ -867,7 +867,7 @@ const toolkitLib = configureProject(
       'archiver',
       'cdk-from-cfn',
       'chalk@^4',
-      'chokidar@^3',
+      'chokidar@^4',
       'fast-deep-equal',
       'fs-extra@^9',
       'glob',
@@ -1191,7 +1191,7 @@ const cli = configureProject(
       cdkAssetsLib,
       'cdk-from-cfn',
       'chalk@^4',
-      'chokidar@^3',
+      'chokidar@^4',
       'decamelize@^5', // Non-ESM
       'enquirer',
       'fs-extra@^9',
@@ -1370,11 +1370,6 @@ for (const resourceCommand of includeCliResourcesCommands) {
 }
 
 new BundleCli(cli, {
-  externals: {
-    optionalDependencies: [
-      'fsevents',
-    ],
-  },
   allowedLicenses: BUNDLED_LICENSES,
   dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
   test: 'bin/cdk --version',
@@ -1481,7 +1476,7 @@ const integRunner = configureProject(
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
       'workerpool@^6',
-      'chokidar@^3',
+      'chokidar@^4',
       'chalk@^4',
       'fs-extra@^9',
       'yargs@^16',
@@ -1539,9 +1534,6 @@ new TypecheckTests(integRunner);
 
 new BundleCli(integRunner, {
   externals: {
-    optionalDependencies: [
-      'fsevents',
-    ],
     dependencies: [
       '@aws-cdk/aws-service-spec',
       'aws-cdk',

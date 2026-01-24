@@ -4,11 +4,9 @@
 // need to make sure that the constants they access are initialized before the imports.
 const mockChokidarWatcherOn = jest.fn();
 const mockChokidarWatcherClose = jest.fn();
-const mockChokidarWatcherUnref = jest.fn();
 const fakeChokidarWatcher = {
   on: mockChokidarWatcherOn,
   close: mockChokidarWatcherClose,
-  unref: mockChokidarWatcherUnref,
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 } satisfies Partial<ReturnType<typeof import('chokidar')['watch']>>;
 const fakeChokidarWatcherOn = {
@@ -183,7 +181,6 @@ describe('watch', () => {
     const watcher = await toolkit.watch(cx, { include: [] });
 
     expect(mockChokidarWatcherClose).not.toHaveBeenCalled();
-    expect(mockChokidarWatcherUnref).not.toHaveBeenCalled();
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all([
@@ -192,7 +189,6 @@ describe('watch', () => {
     ]);
 
     expect(mockChokidarWatcherClose).toHaveBeenCalled();
-    expect(mockChokidarWatcherUnref).toHaveBeenCalled();
   });
 
   describe.each<[DeploymentMethod, string]>([
