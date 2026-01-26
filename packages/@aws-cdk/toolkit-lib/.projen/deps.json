@@ -343,7 +343,7 @@
     },
     {
       "name": "chokidar",
-      "version": "^3",
+      "version": "^4",
       "type": "runtime"
     },
     {

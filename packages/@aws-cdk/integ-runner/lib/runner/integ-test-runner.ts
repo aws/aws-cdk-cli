@@ -4,6 +4,7 @@ import { HotswapMode, StackActivityProgress } from '@aws-cdk/cdk-cli-wrapper';
 import type { DestroyOptions, TestCase } from '@aws-cdk/cloud-assembly-schema';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
+import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
@@ -12,6 +13,21 @@ import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
 import { DiagnosticReason, formatAssertionResults, formatError } from '../workers/common';
+
+/**
+ * File events that we care about from chokidar.
+ * In chokidar v4, EventName includes additional events like 'error', 'raw', 'ready', 'all'
+ * that we need to filter out in the 'all' handler.
+ */
+const FILE_EVENTS = [EVENTS.ADD, EVENTS.CHANGE] as const;
+type FileEvent = typeof FILE_EVENTS[number];
+
+/**
+ * Type guard to check if an event is a file event we should process.
+ */
+function isFileEvent(event: EventName): event is FileEvent {
+  return (FILE_EVENTS as readonly string[]).includes(event);
+}
 
 export interface CommonOptions {
   /**
@@ -362,7 +378,10 @@ export class IntegTestRunner extends IntegRunner {
     const watcher = chokidar.watch([this.cdkOutDir], {
       cwd: this.directory,
     });
-    watcher.on('all', (event: 'add' | 'change', file: string) => {
+    watcher.on('all', (event: EventName, file: string) => {
+      if (!isFileEvent(event)) {
+        return; // Ignore non-file events like 'error', 'raw', 'ready', 'all'
+      }
       // we only care about changes to the `assertion-results.json` file. If there
       // are assertions then this will change on every deployment
       if (assertionResults.endsWith(file) && (event === 'add' || event === 'change')) {

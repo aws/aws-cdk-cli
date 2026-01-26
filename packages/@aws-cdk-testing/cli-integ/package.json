@@ -93,7 +93,7 @@
     "make-runnable": "^1",
     "mockttp": "^3",
     "node-pty": "^1.0.0",
-    "npm": "^10",
+    "npm": "^11",
     "p-queue": "^6",
     "proxy-agent": "^6.5.0",
     "semver": "^7",
