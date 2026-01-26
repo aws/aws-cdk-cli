@@ -4,6 +4,7 @@ import type { DifferenceCollection, Move, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
 import type { Difference, ResourceDifference } from './diff-template';
 import { isPropertyDifference, ResourceImpact } from './diff-template';
+import { ForEachDiffFormatter, isForEachKey } from './format-foreach';
 import { formatTable } from './format-table';
 import type { IamChanges } from './iam/iam-changes';
 import type { SecurityGroupChanges } from './network/security-group-changes';
@@ -161,6 +162,16 @@ export class Formatter {
    */
   public formatResourceDifference(_type: string, logicalId: string, diff: ResourceDifference) {
     if (!diff.isDifferent) {
+      return;
+    }
+
+    // Handle Fn::ForEach resources specially
+    if (isForEachKey(logicalId)) {
+      const forEachFormatter = new ForEachDiffFormatter();
+      const lines = forEachFormatter.formatForEach(logicalId, diff.oldValue, diff.newValue);
+      for (const line of lines) {
+        this.print(line);
+      }
       return;
     }
 
