@@ -145,7 +145,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-backpack pack --destination dist/js --external @aws-cdk/aws-service-spec:runtime --external aws-cdk:runtime --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js' --metafile dist/metafile.json"
+          "exec": "node-backpack pack --destination dist/js --external @aws-cdk/aws-service-spec:runtime --external aws-cdk:runtime --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js' --metafile dist/metafile.json"
         }
       ]
     },
@@ -154,7 +154,7 @@
       "description": "Runs after successful compilation",
       "steps": [
         {
-          "exec": "node-backpack validate --fix --external @aws-cdk/aws-service-spec:runtime --external aws-cdk:runtime --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js'"
+          "exec": "node-backpack validate --fix --external @aws-cdk/aws-service-spec:runtime --external aws-cdk:runtime --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js'"
         }
       ]
     },

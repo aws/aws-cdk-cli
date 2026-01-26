@@ -38,14 +38,20 @@ import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { getLanguageFromAlias } from '../commands/language';
 
-if (!process.stdout.isTTY) {
-  // Disable chalk color highlighting
-  process.env.FORCE_COLOR = '0';
-}
-
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
+  // Handle color output settings
+  // Priority: --no-color > --color > TTY detection
+  if (argv.noColor) {
+    process.env.FORCE_COLOR = '0';
+  } else if (argv.color) {
+    process.env.FORCE_COLOR = '3';
+  } else if (!process.stdout.isTTY) {
+    // Default behavior: disable colors for non-TTY
+    process.env.FORCE_COLOR = '0';
+  }
 
   const cmd = argv._[0];
 
