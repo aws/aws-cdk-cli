@@ -68,7 +68,7 @@
     "jest-junit": "^16",
     "jest-when": "^3.7.0",
     "license-checker": "^25.0.1",
-    "nock": "13",
+    "nock": "14",
     "prettier": "^2.8",
     "ts-jest": "^29.4.6",
     "typescript": "5.9",
