@@ -4,9 +4,11 @@ version: 2
 updates:
   - package-ecosystem: npm
     schedule:
-      interval: daily
+      interval: weekly
     labels:
       - auto-approve
+    allow:
+      - dependency-type: production
     directories:
       - /
       - /packages/@aws-cdk-testing/cli-integ
