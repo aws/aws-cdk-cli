@@ -1673,8 +1673,11 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     updates: [
       {
         'package-ecosystem': 'npm',
-        'schedule': { interval: 'daily' },
+        'schedule': { interval: 'weekly' },
         'labels': ['auto-approve'],
+        'allow': [{
+          'dependency-type': 'production',
+        }],
         'directories': ['/', ...repoProject.node.children
           .filter(child => child instanceof TypeScriptWorkspace)
           .map(ts => `/${path.relative(repoProject.outdir, ts.outdir)}`)
