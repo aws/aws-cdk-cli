@@ -16,6 +16,7 @@ import { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balan
 import { IAMClient } from '@aws-sdk/client-iam';
 import { KMSClient } from '@aws-sdk/client-kms';
 import { LambdaClient } from '@aws-sdk/client-lambda';
+import { QuickSightClient } from '@aws-sdk/client-quicksight';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
@@ -51,6 +52,7 @@ export const awsMock = {
   iAM: mockClient(IAMClient),
   kMS: mockClient(KMSClient),
   lambda: mockClient(LambdaClient),
+  quickSight: mockClient(QuickSightClient),
   route53: mockClient(Route53Client),
   s3: mockClient(S3Client),
   sSM: mockClient(SSMClient),
@@ -73,6 +75,7 @@ export const mockElasticLoadBalancingV2Client = awsMock.elasticLoadBalancingV2;
 export const mockIAMClient = awsMock.iAM;
 export const mockKMSClient = awsMock.kMS;
 export const mockLambdaClient = awsMock.lambda;
+export const mockQuickSightClient = awsMock.quickSight;
 export const mockRoute53Client = awsMock.route53;
 export const mockS3Client = awsMock.s3;
 export const mockSSMClient = awsMock.sSM;
