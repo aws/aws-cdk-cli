@@ -2968,10 +2968,10 @@
   resolved "https://registry.yarnpkg.com/@cdklabs/tskb/-/tskb-0.0.4.tgz#6d7af32427ef947dddcb6f1f1d76d75924e33323"
   integrity sha512-NFx1X0l7p5DyHtLLEyNeh1hPN4UN9hTkZkzFs/Mp+kFk7dpdINGmGVpCfRDjJ2DrcNSNENUmT+w8g73TvmBbTw==
 
-"@cdklabs/typewriter@^0.0.14":
-  version "0.0.14"
-  resolved "https://registry.yarnpkg.com/@cdklabs/typewriter/-/typewriter-0.0.14.tgz#57f10a3acb36c1e3604a8c5233e381579939d03e"
-  integrity sha512-Om+W7PT4OOwdgkxXGm6Xyk3sj3aGWcAys3qMs9tWivENKfluD2WvL4J7+ZhmIcNdJ9oqE8X/9kR+ne92QdsJLA==
+"@cdklabs/typewriter@^0.0.15":
+  version "0.0.15"
+  resolved "https://registry.yarnpkg.com/@cdklabs/typewriter/-/typewriter-0.0.15.tgz#7f10149dfad8ba96cbdbe13c897581d8ebf0c6ac"
+  integrity sha512-plRMUPYH8yQN+4C9UhyMNFa+rQGVkH3S2sADdy7Rw4D/wYZNrwIi8Pt9TV+JEPVIwzlEpIWffVIE643/aY3fCQ==
 
 "@cspotcode/source-map-support@^0.8.0":
   version "0.8.1"
@@ -5552,7 +5552,7 @@
     semver "^7.3.5"
     tsutils "^3.21.0"
 
-"@typescript-eslint/utils@8.50.0", "@typescript-eslint/utils@^6.0.0 || ^7.0.0 || ^8.0.0", "@typescript-eslint/utils@^8.13.0":
+"@typescript-eslint/utils@8.50.0", "@typescript-eslint/utils@^8.13.0":
   version "8.50.0"
   resolved "https://registry.yarnpkg.com/@typescript-eslint/utils/-/utils-8.50.0.tgz#107f20a5747eab5db988c5f6ad462b59851cdd1f"
   integrity sha512-87KgUXET09CRjGCi2Ejxy3PULXna63/bMYv72tCAlDJC3Yqwln0HiFJ3VJMst2+mEtNtZu5oFvX4qJGjKsnAgg==
@@ -8049,13 +8049,6 @@ eslint-plugin-import@^2.32.0:
     semver "^6.3.1"
     string.prototype.trimend "^1.0.9"
     tsconfig-paths "^3.15.0"
-
-eslint-plugin-jest@^28.14.0:
-  version "28.14.0"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-jest/-/eslint-plugin-jest-28.14.0.tgz#02da77dc27d7b4c5480df3552ea26de056857b36"
-  integrity sha512-P9s/qXSMTpRTerE2FQ0qJet2gKbcGyFTPAJipoKxmWqR6uuFqIqk8FuEfg5yBieOezVrEfAMZrEwJ6yEp+1MFQ==
-  dependencies:
-    "@typescript-eslint/utils" "^6.0.0 || ^7.0.0 || ^8.0.0"
 
 eslint-plugin-jest@^29.12.1:
   version "29.12.1"
