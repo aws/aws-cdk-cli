@@ -409,6 +409,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           traceLogs: args.logs,
           concurrency: args.concurrency,
           assetParallelism: configuration.settings.get(['assetParallelism']),
+          assetBuildConcurrency: configuration.settings.get(['assetBuildConcurrency']),
           assetBuildTime: configuration.settings.get(['assetPrebuild'])
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,

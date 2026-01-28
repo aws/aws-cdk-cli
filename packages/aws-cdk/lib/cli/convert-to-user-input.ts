@@ -141,6 +141,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         logs: args.logs,
         concurrency: args.concurrency,
         assetParallelism: args.assetParallelism,
+        assetBuildConcurrency: args.assetBuildConcurrency,
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
         STACKS: args.STACKS,
@@ -429,6 +430,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     logs: config.deploy?.logs,
     concurrency: config.deploy?.concurrency,
     assetParallelism: config.deploy?.assetParallelism,
+    assetBuildConcurrency: config.deploy?.assetBuildConcurrency,
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
   };
