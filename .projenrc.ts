@@ -15,6 +15,7 @@ import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
@@ -269,6 +270,10 @@ const repoProject = new yarn.Monorepo({
   },
 
   githubOptions: {
+    projenCredentials: pj.github.GithubCredentials.fromPersonalAccessToken({
+      secret: 'PROJEN_GITHUB_TOKEN',
+      environment: 'automation',
+    }),
     mergify: false,
     mergeQueue: true,
     mergeQueueOptions: {
@@ -307,6 +312,7 @@ const repoProject = new yarn.Monorepo({
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
+new SelfMutationOnForks(repoProject, { environment: 'automation' });
 
 repoProject.gitignore.addPatterns('.vscode/settings.json');
 
@@ -861,7 +867,7 @@ const toolkitLib = configureProject(
       'archiver',
       'cdk-from-cfn',
       'chalk@^4',
-      'chokidar@^3',
+      'chokidar@^4',
       'fast-deep-equal',
       'fs-extra@^9',
       'glob',
@@ -1185,7 +1191,7 @@ const cli = configureProject(
       cdkAssetsLib,
       'cdk-from-cfn',
       'chalk@^4',
-      'chokidar@^3',
+      'chokidar@^4',
       'decamelize@^5', // Non-ESM
       'enquirer',
       'fs-extra@^9',
@@ -1364,11 +1370,6 @@ for (const resourceCommand of includeCliResourcesCommands) {
 }
 
 new BundleCli(cli, {
-  externals: {
-    optionalDependencies: [
-      'fsevents',
-    ],
-  },
   allowedLicenses: BUNDLED_LICENSES,
   dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
   test: 'bin/cdk --version',
@@ -1475,7 +1476,7 @@ const integRunner = configureProject(
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
       'workerpool@^6',
-      'chokidar@^3',
+      'chokidar@^4',
       'chalk@^4',
       'fs-extra@^9',
       'yargs@^16',
@@ -1533,9 +1534,6 @@ new TypecheckTests(integRunner);
 
 new BundleCli(integRunner, {
   externals: {
-    optionalDependencies: [
-      'fsevents',
-    ],
     dependencies: [
       '@aws-cdk/aws-service-spec',
       'aws-cdk',
@@ -1593,7 +1591,7 @@ const cliInteg = configureProject(
       'glob@^9',
       'make-runnable@^1',
       'mockttp@^3',
-      'npm@^10',
+      'npm@^11',
       'p-queue@^6',
       'semver@^7',
       'sinon@^9',
@@ -1675,8 +1673,11 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     updates: [
       {
         'package-ecosystem': 'npm',
-        'schedule': { interval: 'daily' },
+        'schedule': { interval: 'weekly' },
         'labels': ['auto-approve'],
+        'allow': [{
+          'dependency-type': 'production',
+        }],
         'directories': ['/', ...repoProject.node.children
           .filter(child => child instanceof TypeScriptWorkspace)
           .map(ts => `/${path.relative(repoProject.outdir, ts.outdir)}`)

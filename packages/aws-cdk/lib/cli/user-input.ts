@@ -308,6 +308,13 @@ export interface GlobalOptions {
   readonly noColor?: boolean;
 
   /**
+   * Force colored output even when stdout is not a TTY
+   *
+   * @default - undefined
+   */
+  readonly color?: boolean;
+
+  /**
    * Force CI detection. If CI=true then logs will be sent to stdout instead of stderr
    *
    * @default - undefined
