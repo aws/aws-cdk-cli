@@ -118,7 +118,7 @@
     "archiver": "^7.0.1",
     "camelcase": "^6",
     "cdk-from-cfn": "^0.263.0",
-    "chalk": "^5",
+    "chalk": "^4",
     "chokidar": "^4",
     "decamelize": "^5",
     "enquirer": "^2.4.1",

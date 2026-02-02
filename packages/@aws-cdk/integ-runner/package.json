@@ -75,7 +75,7 @@
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@aws-sdk/client-cloudformation": "^3",
     "aws-cdk": "^0.0.0",
-    "chalk": "^5",
+    "chalk": "^4",
     "chokidar": "^4",
     "fs-extra": "^9",
     "workerpool": "^6",
