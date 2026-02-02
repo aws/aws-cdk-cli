@@ -118,7 +118,7 @@
     "fs-extra": "^9",
     "glob": "^11.1.0",
     "minimatch": "10.0.1",
-    "p-limit": "^7",
+    "p-limit": "^3",
     "semver": "^7.7.3",
     "split2": "^4.2.0",
     "uuid": "^11.1.0",
