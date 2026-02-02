@@ -171,6 +171,36 @@ describe('CLI config file', () => {
     ]);
   });
 
+  test('parallel-regions parses comma-separated values', async () => {
+    // WHEN
+    const options = parseCliArgs(['--parallel-regions=us-east-1,us-east-2']);
+
+    // THEN
+    expect(options.testRegions).toEqual([
+      'us-east-1',
+      'us-east-2',
+    ]);
+  });
+
+  test('parallel-regions trims whitespace from comma-separated values', async () => {
+    // WHEN
+    const options = parseCliArgs(['--parallel-regions=us-east-1, us-east-2']);
+
+    // THEN
+    expect(options.testRegions).toEqual([
+      'us-east-1',
+      'us-east-2',
+    ]);
+  });
+
+  test('profiles parses comma-separated values', async () => {
+    // WHEN
+    const options = parseCliArgs(['--profiles=dev,prod']);
+
+    // THEN
+    expect(options.profiles).toEqual(['dev', 'prod']);
+  });
+
   test('cli options take precedent', async () => {
     // WHEN
     withConfig({ maxWorkers: 3 });
