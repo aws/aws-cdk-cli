@@ -85,7 +85,7 @@
     "@smithy/types": "^4.10.0",
     "@smithy/util-retry": "^4.2.6",
     "axios": "^1",
-    "chalk": "^4",
+    "chalk": "^5",
     "fs-extra": "^9",
     "glob": "^9",
     "jest": "^29",
