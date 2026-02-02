@@ -32,9 +32,9 @@ export function parseCliArgs(args: string[] = []) {
     .option('dry-run', { type: 'boolean', default: false, desc: 'do not actually deploy the stack. just update the snapshot (not recommended!)' })
     .option('update-on-failed', { type: 'boolean', default: false, desc: 'rerun integration tests and update snapshots for failed tests.' })
     .option('force', { type: 'boolean', default: false, desc: 'Rerun all integration tests even if tests are passing' })
-    .option('parallel-regions', { type: 'array', desc: 'Tests are run in parallel across these regions. To prevent tests from running in parallel, provide only a single region', default: [] })
+    .option('parallel-regions', { type: 'array', desc: 'Tests are run in parallel across these regions. To prevent tests from running in parallel, provide only a single region', default: [], coerce: splitByComma })
     .options('directory', { type: 'string', default: 'test', desc: 'starting directory to discover integration tests. Tests will be discovered recursively from this directory' })
-    .options('profiles', { type: 'array', desc: 'list of AWS profiles to use. Tests will be run in parallel across each profile+regions', default: [] })
+    .options('profiles', { type: 'array', desc: 'list of AWS profiles to use. Tests will be run in parallel across each profile+regions', default: [], coerce: splitByComma })
     .options('max-workers', { type: 'number', desc: 'The max number of workerpool workers to use when running integration tests in parallel', default: 16 })
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
@@ -340,4 +340,12 @@ function engineFromOptions(options: { unstable?: string[] }): Required<EngineOpt
     return { engine: 'cli-wrapper' };
   }
   return { engine: 'toolkit-lib' };
+}
+
+/**
+ * Coerce function for yargs array options to support comma-separated values.
+ * Yargs doesn't natively split `--option=a,b,c` into ['a', 'b', 'c'].
+ */
+function splitByComma(xs: string[]): string[] {
+  return xs.flatMap(x => x.split(',')).map(x => x.trim());
 }
