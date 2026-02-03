@@ -3,6 +3,8 @@ import type { AssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { addMetadataAssetsToManifest, AssetManifestBuilder } from '../../../lib/api/deployments';
 import type { EnvironmentResources } from '../../../lib/api/environment';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
+import { ToolkitInfo } from '../../../lib/api/toolkit-info';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { MockSdk } from '../../_helpers/mock-sdk';
 import { MockToolkitInfo } from '../_helpers/mock-toolkitinfo';
 import { TestIoHost } from '../../_helpers/test-io-host';
@@ -257,3 +259,38 @@ function mockFn<F extends (...xs: any[]) => any>(fn: F): jest.Mock<ReturnType<F>
   }
   return fn;
 }
+
+describe('BootstrapError throwing', () => {
+  test('throws BootstrapError with correct environment info when toolkit not found', async () => {
+    // GIVEN - toolkit not found
+    toolkitMock.dispose();
+    ToolkitInfo.lookup = jest.fn().mockResolvedValue(ToolkitInfo.bootstrapStackNotFoundInfo('CDKToolkit'));
+
+    const stack = stackWithAssets([
+      {
+        sourceHash: 'source-hash',
+        path: __filename,
+        id: 'SomeStackSomeResource4567',
+        packaging: 'file',
+        s3BucketParameter: 'BucketParameter',
+        s3KeyParameter: 'KeyParameter',
+        artifactHashParameter: 'ArtifactHashParameter',
+      },
+    ]);
+
+    // WHEN/THEN
+    await expect(addMetadataAssetsToManifest(ioHelper, stack, assets, envResources)).rejects.toThrow(
+      /toolkit stack must be deployed/,
+    );
+
+    try {
+      await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources);
+    } catch (error: any) {
+      expect(ToolkitError.isBootstrapError(error)).toBe(true);
+      expect(error.environment).toEqual({
+        account: '123456789012',
+        region: 'here',
+      });
+    }
+  });
+});
