@@ -1,4 +1,4 @@
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { BootstrapError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 
@@ -45,42 +45,42 @@ interface BootstrapStackInfo {
 }
 
 export async function getBootstrapStackInfo(sdk: SDK, stackName: string): Promise<BootstrapStackInfo> {
-  try {
-    const cfn = sdk.cloudFormation();
-    const stackResponse = await cfn.describeStacks({ StackName: stackName });
+  const cfn = sdk.cloudFormation();
+  const stackResponse = await cfn.describeStacks({ StackName: stackName });
 
-    if (!stackResponse.Stacks || stackResponse.Stacks.length === 0) {
-      throw new ToolkitError(`Toolkit stack ${stackName} not found`);
-    }
-
-    const stack = stackResponse.Stacks[0];
-    const versionOutput = stack.Outputs?.find(output => output.OutputKey === 'BootstrapVersion');
-
-    if (!versionOutput?.OutputValue) {
-      throw new ToolkitError(`Unable to find BootstrapVersion output in the toolkit stack ${stackName}`);
-    }
-
-    const bootstrapVersion = parseInt(versionOutput.OutputValue);
-    if (isNaN(bootstrapVersion)) {
-      throw new ToolkitError(`Invalid BootstrapVersion value: ${versionOutput.OutputValue}`);
-    }
-
-    // try to get bucketname from the logical resource id. If there is no
-    // bucketname, or the value doesn't look like an S3 bucket name, we assume
-    // the bucket doesn't exist (this is for the case where a template customizer did
-    // not dare to remove the Output, but put a dummy value there like '' or '-' or '***').
-    //
-    // We would have preferred to look at the stack resources here, but
-    // unfortunately the deploy role doesn't have permissions call DescribeStackResources.
-    const bucketName = stack.Outputs?.find(output => output.OutputKey === 'BucketName')?.OutputValue;
-    // Must begin and end with letter or number.
-    const hasStagingBucket = !!(bucketName && bucketName.match(/^[a-z0-9]/) && bucketName.match(/[a-z0-9]$/));
-
-    return {
-      hasStagingBucket,
-      bootstrapVersion,
-    };
-  } catch (e) {
-    throw new ToolkitError(`Error retrieving toolkit stack info: ${e}`);
+  if (!stackResponse.Stacks || stackResponse.Stacks.length === 0) {
+    const account = await sdk.currentAccount();
+    throw new BootstrapError(
+      `Toolkit stack ${stackName} not found. Please run 'cdk bootstrap'.`,
+      { account: account.accountId, region: sdk.currentRegion },
+    );
   }
+
+  const stack = stackResponse.Stacks[0];
+  const versionOutput = stack.Outputs?.find(output => output.OutputKey === 'BootstrapVersion');
+
+  if (!versionOutput?.OutputValue) {
+    throw new ToolkitError(`Unable to find BootstrapVersion output in the toolkit stack ${stackName}`);
+  }
+
+  const bootstrapVersion = parseInt(versionOutput.OutputValue);
+  if (isNaN(bootstrapVersion)) {
+    throw new ToolkitError(`Invalid BootstrapVersion value: ${versionOutput.OutputValue}`);
+  }
+
+  // try to get bucketname from the logical resource id. If there is no
+  // bucketname, or the value doesn't look like an S3 bucket name, we assume
+  // the bucket doesn't exist (this is for the case where a template customizer did
+  // not dare to remove the Output, but put a dummy value there like '' or '-' or '***').
+  //
+  // We would have preferred to look at the stack resources here, but
+  // unfortunately the deploy role doesn't have permissions call DescribeStackResources.
+  const bucketName = stack.Outputs?.find(output => output.OutputKey === 'BucketName')?.OutputValue;
+  // Must begin and end with letter or number.
+  const hasStagingBucket = !!(bucketName && bucketName.match(/^[a-z0-9]/) && bucketName.match(/[a-z0-9]$/));
+
+  return {
+    hasStagingBucket,
+    bootstrapVersion,
+  };
 }

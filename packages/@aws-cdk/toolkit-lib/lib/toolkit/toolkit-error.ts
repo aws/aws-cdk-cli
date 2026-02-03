@@ -5,6 +5,7 @@ const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.Authenticat
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
+const BOOTSTRAP_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.BootstrapError');
 
 /**
  * Represents a general toolkit error in the AWS CDK Toolkit.
@@ -36,6 +37,13 @@ export class ToolkitError extends Error {
    */
   public static isContextProviderError(x: any): x is ContextProviderError {
     return ToolkitError.isToolkitError(x) && CONTEXT_PROVIDER_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of BootstrapError.
+   */
+  public static isBootstrapError(x: any): x is BootstrapError {
+    return ToolkitError.isToolkitError(x) && BOOTSTRAP_ERROR_SYMBOL in x;
   }
 
   /**
@@ -166,5 +174,47 @@ export class NoResultsFoundError extends ContextProviderError {
     super(message);
     Object.setPrototypeOf(this, NoResultsFoundError.prototype);
     Object.defineProperty(this, NO_RESULTS_FOUND_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Information about the AWS environment where a bootstrap error occurred
+ */
+export interface BootstrapEnvironment {
+  /**
+   * The AWS account ID
+   */
+  readonly account: string;
+
+  /**
+   * The AWS region
+   */
+  readonly region: string;
+}
+
+/**
+ * Represents a bootstrap-related error in the AWS CDK Toolkit.
+ *
+ * This error is thrown when:
+ * - The CDK toolkit stack is not found in a region
+ * - The bootstrap stack version is insufficient
+ * - The SSM parameter for bootstrap version is not found
+ */
+export class BootstrapError extends ToolkitError {
+  /**
+   * The AWS environment (account/region) where the bootstrap error occurred
+   */
+  public readonly environment: BootstrapEnvironment;
+
+  /**
+   * Denotes the source of the error as user (they need to bootstrap)
+   */
+  public readonly source = 'user';
+
+  constructor(message: string, environment: BootstrapEnvironment, cause?: unknown) {
+    super(message, 'bootstrap', cause);
+    Object.setPrototypeOf(this, BootstrapError.prototype);
+    Object.defineProperty(this, BOOTSTRAP_ERROR_SYMBOL, { value: true });
+    this.environment = environment;
   }
 }

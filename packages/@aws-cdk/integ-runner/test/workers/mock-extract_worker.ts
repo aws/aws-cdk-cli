@@ -1,9 +1,13 @@
 import * as workerpool from 'workerpool';
-import type { IntegTestInfo } from '../../lib/runner';
+import type { IntegTestWorkerResponse } from '../../lib/workers/extract/extract_worker';
 import type { IntegTestBatchRequest } from '../../lib/workers/integ-test-worker';
 
-async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestInfo[]> {
-  return request.tests;
+async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerResponse> {
+  return {
+    failedTests: request.tests,
+    retryableFailures: undefined,
+    environmentRemovals: undefined,
+  };
 }
 
 workerpool.worker({

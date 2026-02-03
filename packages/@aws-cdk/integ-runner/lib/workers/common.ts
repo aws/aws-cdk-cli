@@ -2,6 +2,7 @@ import { format } from 'util';
 import type { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as logger from '../logger';
+import type { TestEnvironment, RemovedEnvironmentInfo } from './environment-pool';
 import type { IntegTestInfo } from '../runner/integration-tests';
 
 /**
@@ -35,6 +36,41 @@ export interface IntegTestWorkerConfig extends IntegTestInfo {
    * @default []
    */
   readonly destructiveChanges?: DestructiveChange[];
+}
+
+/**
+ * Request to remove an environment from the pool
+ */
+export interface EnvironmentRemovalRequest {
+  /**
+   * The environment to remove
+   */
+  readonly environment: TestEnvironment;
+
+  /**
+   * Human-readable reason for removal
+   */
+  readonly reason: string;
+
+  /**
+   * AWS account ID if known
+   */
+  readonly account?: string;
+}
+
+/**
+ * A test failure that can potentially be retried
+ */
+export interface RetryableTestFailure extends IntegTestInfo {
+  /**
+   * The environment where the failure occurred
+   */
+  readonly failedEnvironment: TestEnvironment;
+
+  /**
+   * Human-readable error message
+   */
+  readonly errorMessage: string;
 }
 
 /**
@@ -118,6 +154,16 @@ export interface IntegBatchResponse {
    * list represents metrics from a single worker (account + region).
    */
   readonly metrics: IntegRunnerMetrics[];
+
+  /**
+   * Tests that failed but may succeed if retried in a different environment
+   */
+  readonly retryableFailures?: RetryableTestFailure[];
+
+  /**
+   * Environments that should be removed from the pool
+   */
+  readonly environmentRemovals?: EnvironmentRemovalRequest[];
 }
 
 /**
@@ -343,4 +389,25 @@ export function formatError(error: any): string {
   }
 
   return `${name}: ${message}`;
+}
+
+/**
+ * Prints a summary of environments that were removed due to bootstrap errors
+ */
+export function printRemovedEnvironmentsSummary(removedEnvironments: RemovedEnvironmentInfo[]): void {
+  if (removedEnvironments.length === 0) {
+    return;
+  }
+
+  logger.warning('\n%s', chalk.bold('Environments removed due to bootstrap errors:'));
+
+  for (const env of removedEnvironments) {
+    const profileStr = env.profile ? `${env.profile}/` : '';
+    const accountStr = env.account ? `aws://${env.account}/${env.region}` : env.region;
+
+    logger.warning('  • %s%s', profileStr, env.region);
+    logger.warning('    Run: %s', chalk.blue(`cdk bootstrap ${accountStr}`));
+  }
+
+  logger.warning('');
 }

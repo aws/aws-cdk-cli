@@ -1456,6 +1456,7 @@ const integRunner = configureProject(
       '@types/yargs',
       'constructs@^10',
       '@aws-cdk/integ-tests-alpha@2.184.1-alpha.0',
+      'fast-check@^3.23.2',
     ],
     allowPrivateDeps: true,
     tsconfig: {
