@@ -79,7 +79,10 @@ export function parseCliArgs(args: string[] = []) {
   }
 
   const requestedTests = fromFile
-    ? (fs.readFileSync(fromFile, { encoding: 'utf8' })).split('\n').filter(x => x)
+    ? (fs.readFileSync(fromFile, { encoding: 'utf8' }))
+      .split('\n')
+      .filter(x => x)
+      .filter(x => !x.startsWith('#'))
     : (tests.length > 0 ? tests : undefined); // 'undefined' means no request
 
   if (argv['disable-update-workflow'] !== undefined && argv['update-workflow'] !== undefined) {
