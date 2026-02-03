@@ -576,14 +576,16 @@ describe('IntegTest runIntegTests', () => {
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
     });
 
-    expect(removeSyncMock.mock.calls).toEqual([
-      ['test/test-data/cdk-integ.out.xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
-      ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
-      [
-        'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
-      ],
-      ['test/test-data/cdk-integ.out.xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
-    ]);
+    // The cdk-integ.out.* directory removal only happens if the directory exists on disk.
+    // Since git doesn't track empty directories, we only assert on the calls that always happen.
+    expect(removeSyncMock.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
+        [
+          'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
+        ],
+      ]),
+    );
   });
 
   test.each`
