@@ -68,7 +68,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-cloudformation": "^3.953.0",
-    "@aws-sdk/client-codeartifact": "^3.953.0",
+    "@aws-sdk/client-codeartifact": "^3.981.0",
     "@aws-sdk/client-ecr": "^3.953.0",
     "@aws-sdk/client-ecr-public": "^3.953.0",
     "@aws-sdk/client-ecs": "^3.953.0",
