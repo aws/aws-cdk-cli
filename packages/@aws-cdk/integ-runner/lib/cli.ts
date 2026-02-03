@@ -4,10 +4,9 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as workerpool from 'workerpool';
 import * as logger from './logger';
-import type { EngineOptions } from './runner/engine';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
-import { processUnstableFeatures } from './unstable-features';
+import { processUnstableFeatures, availableFeaturesDescription } from './unstable-features';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
 import { runSnapshotTests, runIntegrationTests } from './workers';
 import { watchIntegrationTest } from './workers/integ-watch-worker';
@@ -53,7 +52,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
-    .option('unstable', { type: 'array', desc: 'Opt-in to using unstable features. Currently no unstable features are available.', nargs: 1, default: [] })
+    .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
     .strict()
     .parse(args);
 
@@ -121,17 +120,16 @@ export async function main(args: string[]) {
     const options = parseCliArgs(args);
 
     // Process unstable features and emit appropriate warnings
-    processUnstableFeatures(options.unstable);
+    options.unstable = processUnstableFeatures(options.unstable);
 
-    const engine = engineFromOptions();
-    await run(options, engine);
+    await run(options);
   } catch (err: any) {
     logger.error(err);
     throw err;
   }
 }
 
-async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineOptions) {
+async function run(options: ReturnType<typeof parseCliArgs>) {
   const testsFromArgs = await new IntegrationTests(path.resolve(options.directory)).fromCliOptions(options);
 
   // List only prints the discovered tests
@@ -162,7 +160,6 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
       failedSnapshots = await runSnapshotTests(pool, testsFromArgs, {
         retain: options.inspectFailures,
         verbose: options.verbose,
-        engine,
       });
       for (const failure of failedSnapshots) {
         logger.warning(`Failed: ${failure.fileName}`);
@@ -186,7 +183,6 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
     if (options.runUpdateOnFailed || options.force) {
       const { success, metrics } = await runIntegrationTests({
         pool,
-        engine,
         tests: testsToRun,
         regions: options.testRegions,
         profiles: options.profiles,
@@ -212,7 +208,6 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
     } else if (options.watch) {
       await watchIntegrationTest(pool, {
         watch: true,
-        engine,
         verbosity: options.verbosity,
         ...testsToRun[0],
         profile: options.profiles ? options.profiles[0] : undefined,
@@ -332,10 +327,6 @@ function configFromFile(fileName?: string): Record<string, any> {
   } catch {
     return {};
   }
-}
-
-function engineFromOptions(): Required<EngineOptions> {
-  return { engine: 'toolkit-lib' };
 }
 
 /**

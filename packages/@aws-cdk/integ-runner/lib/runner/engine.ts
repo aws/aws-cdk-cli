@@ -2,20 +2,6 @@ import type { IntegRunnerOptions } from './runner-base';
 import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
 
 /**
- * Engine options for the integ runner
- *
- * Note: The 'cli-wrapper' engine has been removed. Only 'toolkit-lib' is supported.
- */
-export interface EngineOptions {
-  /**
-   * The CDK Toolkit engine to be used by the runner.
-   *
-   * @default "toolkit-lib"
-   */
-  readonly engine?: 'toolkit-lib';
-}
-
-/**
  * Creates the engine for running integration tests.
  *
  * Only the toolkit-lib engine is supported.

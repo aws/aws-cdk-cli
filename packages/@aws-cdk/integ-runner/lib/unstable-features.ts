@@ -16,80 +16,60 @@ export enum FeatureStatus {
  * Definition of an unstable feature
  */
 export interface UnstableFeature {
-  /** The feature name as passed to --unstable */
-  readonly name: string;
   /** Current status of the feature */
   readonly status: FeatureStatus;
-  /** Warning message to display when feature is used */
-  readonly warningMessage: string;
-  /** Optional: message to display for removed features */
-  readonly removalMessage?: string;
-}
-
-/**
- * Result of processing unstable features
- */
-export interface ProcessedFeatures {
-  /** Features that are valid and should be applied */
-  readonly validFeatures: string[];
-  /** Features that were ignored (removed or unknown) */
-  readonly ignoredFeatures: string[];
+  /** Warning message to display when requested feature is deprecated */
+  readonly deprecationMessage: string;
+  /** Message to display for requested features that are removed */
+  readonly removalMessage: string;
 }
 
 /**
  * Registry of all unstable features
  */
-export const UNSTABLE_FEATURES: readonly UnstableFeature[] = [
-  {
-    name: 'deprecated-cli-engine',
+export const UNSTABLE_FEATURES: Record<string, UnstableFeature> = {
+  'deprecated-cli-engine': {
     status: FeatureStatus.REMOVED,
-    warningMessage: 'The deprecated-cli-engine option has been removed.',
-    removalMessage: 'The cli-wrapper engine has been removed. The toolkit-lib engine is now the only supported engine.',
+    deprecationMessage: 'You have opted-in to use the deprecated CLI engine which is scheduled to be removed in January 2026. If you have encountered blockers while using the new default engine, please let us know by opening an issue: https://github.com/aws/aws-cdk-cli/issues/new/choose\n\nTo use the new default engine, remove the `--unstable=deprecated-cli-engine` option.',
+    removalMessage: 'The CLI engine has been removed. The toolkit-lib engine is now the only supported engine. Please remove this flag.',
   },
-  {
-    name: 'toolkit-lib-engine',
+  'toolkit-lib-engine': {
     status: FeatureStatus.REMOVED,
-    warningMessage: 'The toolkit-lib-engine option is no longer needed.',
+    deprecationMessage: 'The toolkit-lib engine is now the default engine. This flag can be safely removed. You may choose to temporarily revert to the old engine by adding the `--unstable=deprecated-cli-engine` option.',
     removalMessage: 'The toolkit-lib engine is now the default and only engine. This flag can be safely removed.',
   },
-];
+};
 
 /**
  * Process unstable feature flags and emit appropriate warnings
  *
- * @param features - Array of feature names from CLI --unstable option
- * @returns ProcessedFeatures with validFeatures and ignoredFeatures
+ * @param unstableFeatures - Array of feature names from CLI --unstable option
+ * @returns Array of valid, enabled feature names
  */
-export function processUnstableFeatures(features: string[] | undefined | null): ProcessedFeatures {
+export function processUnstableFeatures(unstableFeatures: string[] = []): string[] {
   const validFeatures: string[] = [];
-  const ignoredFeatures: string[] = [];
 
-  // Handle null/undefined input as empty array
-  const featureList = features ?? [];
-
-  for (const featureName of featureList) {
-    const feature = UNSTABLE_FEATURES.find(f => f.name === featureName);
+  for (const featureName of unstableFeatures) {
+    const feature = UNSTABLE_FEATURES[featureName];
 
     if (!feature) {
       // Unknown feature - warn and ignore
       logger.warning(`Unknown unstable feature: '${featureName}'. This option will be ignored.`);
-      ignoredFeatures.push(featureName);
       continue;
     }
 
     switch (feature.status) {
       case FeatureStatus.REMOVED:
         // Removed feature - warn with removal message and ignore
-        logger.warning(`[Removed] ${feature.warningMessage}`);
+        logger.warning(`[Removed] ${feature.deprecationMessage}`);
         if (feature.removalMessage) {
           logger.warning(feature.removalMessage);
         }
-        ignoredFeatures.push(featureName);
         break;
 
       case FeatureStatus.DEPRECATED:
         // Deprecated feature - warn but still apply
-        logger.warning(`[Deprecated] ${feature.warningMessage}`);
+        logger.warning(`[Deprecated] ${feature.deprecationMessage}`);
         validFeatures.push(featureName);
         break;
 
@@ -100,5 +80,22 @@ export function processUnstableFeatures(features: string[] | undefined | null): 
     }
   }
 
-  return { validFeatures, ignoredFeatures };
+  return validFeatures;
+}
+
+/**
+ * Returns a description of available unstable features for CLI help text
+ *
+ * @returns A string describing available features or indicating none are available
+ */
+export function availableFeaturesDescription(): string {
+  const availableFeatures = Object.entries(UNSTABLE_FEATURES)
+    .filter(([_, feature]) => feature.status === FeatureStatus.SUPPORTED)
+    .map(([name]) => name);
+
+  if (availableFeatures.length === 0) {
+    return 'Currently no unstable features are available.';
+  }
+
+  return `Available features: ${availableFeatures.join(', ')}.`;
 }

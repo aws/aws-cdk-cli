@@ -1388,10 +1388,6 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cdk-cli-wrapper - REMOVED
-// The cdk-cli-wrapper package has been removed. The toolkit-lib engine is now the only supported engine.
-// #endregion
-//////////////////////////////////////////////////////////////////////
 // #region cdk
 
 const cdkAliasPackage = configureProject(
