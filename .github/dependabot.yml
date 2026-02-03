@@ -13,7 +13,6 @@ updates:
       - /
       - /packages/@aws-cdk-testing/cli-integ
       - /packages/@aws-cdk/cdk-assets-lib
-      - /packages/@aws-cdk/cdk-cli-wrapper
       - /packages/@aws-cdk/cli-plugin-contract
       - /packages/@aws-cdk/cloud-assembly-api
       - /packages/@aws-cdk/cloud-assembly-schema

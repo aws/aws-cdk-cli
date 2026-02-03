@@ -1,6 +1,4 @@
 import * as path from 'path';
-import type { DeployOptions } from '@aws-cdk/cdk-cli-wrapper';
-import { HotswapMode, StackActivityProgress } from '@aws-cdk/cdk-cli-wrapper';
 import type { DestroyOptions, TestCase } from '@aws-cdk/cloud-assembly-schema';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
@@ -9,6 +7,8 @@ import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
 import { IntegRunner } from './runner-base';
+import { HotswapMode, StackActivityProgress } from '../engines/cdk-interface';
+import type { DeployOptions } from '../engines/cdk-interface';
 import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';

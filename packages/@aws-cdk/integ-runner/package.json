@@ -67,7 +67,6 @@
   "dependencies": {
     "@aws-cdk/aws-service-spec": "^0.1.132",
     "@aws-cdk/cdk-assets-lib": "^0.0.0",
-    "@aws-cdk/cdk-cli-wrapper": "^0.0.0",
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",

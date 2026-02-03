@@ -1,6 +1,5 @@
 /* eslint-disable @cdklabs/no-literal-partition */
 import * as path from 'path';
-import type { ICdk } from '@aws-cdk/cdk-cli-wrapper';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import type { TestCase, DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema';
 import { TARGET_PARTITIONS } from '@aws-cdk/cx-api';
@@ -9,7 +8,8 @@ import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
-import { makeEngine, type EngineOptions } from './engine';
+import { makeEngine } from './engine';
+import type { ICdk } from '../engines/cdk-interface';
 import * as logger from '../logger';
 import type { ManifestTrace } from './private/cloud-assembly';
 import { AssemblyManifestReader } from './private/cloud-assembly';
@@ -21,7 +21,7 @@ const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 /**
  * Options for creating an integration test runner
  */
-export interface IntegRunnerOptions extends EngineOptions {
+export interface IntegRunnerOptions {
   /**
    * Information about the test to run
    */
