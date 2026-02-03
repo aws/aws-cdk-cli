@@ -22,11 +22,7 @@ afterAll(() => {
   stderrMock.mockRestore();
 });
 
-describe.each([
-  ['cli-wrapper', ['--unstable', 'deprecated-cli-engine']],
-  ['toolkit-lib', ['--unstable', 'toolkit-lib-engine']],
-  ['toolkit-lib', []], // default
-])('Test discovery with engine %s', (_engine: string, engineArgs: string[]) => {
+describe('Test discovery', () => {
   const currentCwd = process.cwd();
   beforeAll(() => {
     process.chdir(path.join(__dirname, '..'));
@@ -35,7 +31,7 @@ describe.each([
     process.chdir(currentCwd);
   });
 
-  const cli = (args: string[]) => main([...engineArgs, ...args]);
+  const cli = (args: string[]) => main(args);
 
   test('find by default pattern', async () => {
     await cli(['--list', '--directory=test/test-data']);

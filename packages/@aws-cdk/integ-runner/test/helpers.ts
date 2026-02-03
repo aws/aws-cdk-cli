@@ -1,8 +1,32 @@
 import * as path from 'path';
-import type { CdkCliWrapperOptions, DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '@aws-cdk/cdk-cli-wrapper';
 import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
+import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '../lib/engines/cdk-interface';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
 import type { DestructiveChange, Diagnostic } from '../lib/workers';
+
+/**
+ * Options for creating a MockCdkProvider
+ */
+export interface MockCdkProviderOptions {
+  /**
+   * The directory to run the cdk commands from
+   */
+  readonly directory: string;
+
+  /**
+   * Additional environment variables to set
+   *
+   * @default - no additional env vars
+   */
+  readonly env?: { [name: string]: string };
+
+  /**
+   * Show the output from running the CDK CLI
+   *
+   * @default false
+   */
+  readonly showOutput?: boolean;
+}
 
 export interface MockCdkMocks {
   deploy?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
@@ -17,7 +41,7 @@ export class MockCdkProvider {
   public readonly cdk: ICdk;
   public readonly mocks: MockCdkMocks = {};
 
-  constructor(_options: CdkCliWrapperOptions) {
+  constructor(_options: MockCdkProviderOptions) {
     this.cdk = {
       deploy: jest.fn().mockImplementation(),
       watch: jest.fn().mockImplementation(),

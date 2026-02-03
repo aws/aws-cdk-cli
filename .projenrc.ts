@@ -1371,7 +1371,7 @@ for (const resourceCommand of includeCliResourcesCommands) {
 
 new BundleCli(cli, {
   allowedLicenses: BUNDLED_LICENSES,
-  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$',
   test: 'bin/cdk --version',
   entryPoints: [
     'lib/index.js',
@@ -1388,48 +1388,8 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cdk-cli-wrapper
-
-const cdkCliWrapper = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-cli-wrapper',
-    description: 'CDK CLI Wrapper Library',
-    srcdir: 'lib',
-    deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-    ],
-    nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
-    releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
-
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          branches: 62,
-        },
-      },
-    }),
-
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-  }),
-);
-
-/* Can't have this -- the integ-runner depends on this package
-(() => {
-  const integ = cdkCliWrapper.addTask('integ', {
-    exec: 'integ-runner --language javascript',
-  });
-  cdkCliWrapper.testTask.spawn(integ);
-})();
-*/
-
+// #region @aws-cdk/cdk-cli-wrapper - REMOVED
+// The cdk-cli-wrapper package has been removed. The toolkit-lib engine is now the only supported engine.
 // #endregion
 //////////////////////////////////////////////////////////////////////
 // #region cdk
@@ -1470,7 +1430,6 @@ const integRunner = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
@@ -1540,7 +1499,7 @@ new BundleCli(integRunner, {
     ],
   },
   allowedLicenses: BUNDLED_LICENSES,
-  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$',
   test: 'bin/integ-runner --version',
   entryPoints: [
     'lib/index.js',

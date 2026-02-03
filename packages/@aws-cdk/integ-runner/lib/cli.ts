@@ -7,6 +7,7 @@ import * as logger from './logger';
 import type { EngineOptions } from './runner/engine';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
+import { processUnstableFeatures } from './unstable-features';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
 import { runSnapshotTests, runIntegrationTests } from './workers';
 import { watchIntegrationTest } from './workers/integ-watch-worker';
@@ -52,7 +53,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
-    .option('unstable', { type: 'array', desc: 'Opt-in to using unstable features. By using these flags you acknowledges that scope and APIs of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to.', nargs: 1, choices: ['toolkit-lib-engine', 'deprecated-cli-engine'], default: [] })
+    .option('unstable', { type: 'array', desc: 'Opt-in to using unstable features. Currently no unstable features are available.', nargs: 1, default: [] })
     .strict()
     .parse(args);
 
@@ -116,17 +117,16 @@ export function parseCliArgs(args: string[] = []) {
 }
 
 export async function main(args: string[]) {
-  let engineForError;
   try {
     const options = parseCliArgs(args);
-    const engine = engineFromOptions(options);
-    engineForError = engine.engine;
+
+    // Process unstable features and emit appropriate warnings
+    processUnstableFeatures(options.unstable);
+
+    const engine = engineFromOptions();
     await run(options, engine);
   } catch (err: any) {
     logger.error(err);
-    if (engineForError === 'toolkit-lib') {
-      logger.warning('\n[Notice] You are using the new default engine to run integration tests. If you think the above failure has been caused by the new engine, you may choose to temporarily revert to the old engine by adding the `--unstable=deprecated-cli-engine` option. Please note that this engine is deprecated and scheduled to be removed in January 2026.\n\nIf reverting to the old engine resolves an issue for you, please let us know so we can address this in the new engine. Report issues here: https://github.com/aws/aws-cdk-cli/issues/new/choose');
-    }
     throw err;
   }
 }
@@ -334,11 +334,7 @@ function configFromFile(fileName?: string): Record<string, any> {
   }
 }
 
-function engineFromOptions(options: { unstable?: string[] }): Required<EngineOptions> {
-  if (options.unstable?.includes('deprecated-cli-engine')) {
-    logger.warning('[Deprecation Notice] You have opted-in to use the deprecated CLI engine which is scheduled to be removed in January 2026. If you have encountered blockers while using the new default engine, please let us know by opening an issue: https://github.com/aws/aws-cdk-cli/issues/new/choose\n\nTo use the new default engine, remove the `--unstable=deprecated-cli-engine` option.');
-    return { engine: 'cli-wrapper' };
-  }
+function engineFromOptions(): Required<EngineOptions> {
   return { engine: 'toolkit-lib' };
 }
 
