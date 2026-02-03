@@ -1976,16 +1976,16 @@
     tslib "^2.6.2"
 
 "@aws-sdk/ec2-metadata-service@^3":
-  version "3.953.0"
-  resolved "https://registry.yarnpkg.com/@aws-sdk/ec2-metadata-service/-/ec2-metadata-service-3.953.0.tgz#c6f44aa5fad6fe71b36b56728f0a7a17e9349ece"
-  integrity sha512-XYlSaE+djH5n4yxaL5p3q9L+3VjNM6pxIuewbiipbhBtCbyLQx+XHHTAJXgpRpaL9mIEvZ79QgFcYmhAqkS0GQ==
+  version "3.981.0"
+  resolved "https://registry.yarnpkg.com/@aws-sdk/ec2-metadata-service/-/ec2-metadata-service-3.981.0.tgz#7f379bede2ec0fdbc7d780b65d60bda386c7eaf8"
+  integrity sha512-yjo4ww8544+YbQ1zJJmGlEc2F6cyFD+CQiTLWcPnmJkmHlFa+8dn/Gh3UYqo2PHoTD2lu0T1+AzvlB5JvTTH5w==
   dependencies:
-    "@aws-sdk/types" "3.953.0"
-    "@smithy/node-config-provider" "^4.3.6"
-    "@smithy/node-http-handler" "^4.4.6"
-    "@smithy/protocol-http" "^5.3.6"
-    "@smithy/types" "^4.10.0"
-    "@smithy/util-stream" "^4.5.7"
+    "@aws-sdk/types" "^3.973.1"
+    "@smithy/node-config-provider" "^4.3.8"
+    "@smithy/node-http-handler" "^4.4.8"
+    "@smithy/protocol-http" "^5.3.8"
+    "@smithy/types" "^4.12.0"
+    "@smithy/util-stream" "^4.5.10"
     tslib "^2.6.2"
 
 "@aws-sdk/fetch-http-handler@3.0.0":
