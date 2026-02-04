@@ -1,15 +1,13 @@
 import * as fc from 'fast-check';
 import * as logger from '../../lib/logger';
-import { printRemovedEnvironmentsSummary } from '../../lib/workers/common';
-import type { EnvironmentRemovalRequest } from '../../lib/workers/common';
-import type { RemovedEnvironmentInfo } from '../../lib/workers/environment-pool';
+import { printEnvironmentsSummary } from '../../lib/workers/common';
+import type { RemovedEnvironment, TestEnvironment } from '../../lib/workers/environment-pool';
 
 // Mock the logger module
 jest.mock('../../lib/logger', () => ({
   print: jest.fn(),
   error: jest.fn(),
   warning: jest.fn(),
-  success: jest.fn(),
   highlight: jest.fn(),
   trace: jest.fn(),
 }));
@@ -26,10 +24,10 @@ describe('printRemovedEnvironmentsSummary', () => {
   describe('unit tests', () => {
     test('does not print anything when no environments were removed', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [];
+      const removedEnvironments: RemovedEnvironment[] = [];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - no logger calls should be made
       expect(logger.warning).not.toHaveBeenCalled();
@@ -38,7 +36,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints summary header when environments were removed', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'us-east-1',
           reason: 'Bootstrap stack not found',
@@ -47,7 +45,7 @@ describe('printRemovedEnvironmentsSummary', () => {
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - should print header
       expect(logger.warning).toHaveBeenCalledWith(
@@ -58,7 +56,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints region name for each removed environment', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'us-east-1',
           reason: 'Not bootstrapped',
@@ -67,7 +65,7 @@ describe('printRemovedEnvironmentsSummary', () => {
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - should include region name
       expect(logger.warning).toHaveBeenCalledWith(
@@ -79,7 +77,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints profile prefix when profile is provided', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'us-west-2',
           profile: 'dev-profile',
@@ -89,7 +87,7 @@ describe('printRemovedEnvironmentsSummary', () => {
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - should include profile prefix
       expect(logger.warning).toHaveBeenCalledWith(
@@ -101,7 +99,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints bootstrap command with account when account is provided', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'eu-west-1',
           account: '123456789012',
@@ -111,7 +109,7 @@ describe('printRemovedEnvironmentsSummary', () => {
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - should include bootstrap command with account
       expect(logger.warning).toHaveBeenCalledWith(
@@ -122,7 +120,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints bootstrap command with region only when account is not provided', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'ap-southeast-1',
           reason: 'Not bootstrapped',
@@ -131,7 +129,7 @@ describe('printRemovedEnvironmentsSummary', () => {
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - should include bootstrap command with region only
       expect(logger.warning).toHaveBeenCalledWith(
@@ -142,7 +140,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints entry for each removed environment', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'us-east-1',
           reason: 'Not bootstrapped',
@@ -151,20 +149,20 @@ describe('printRemovedEnvironmentsSummary', () => {
         {
           region: 'us-west-2',
           profile: 'prod',
-          account: '987654321098',
+          account: '123456789012',
           reason: 'Version insufficient',
           removedAt: new Date(),
         },
         {
           region: 'eu-central-1',
-          account: '111122223333',
+          account: '234567890123',
           reason: 'SSM parameter not found',
           removedAt: new Date(),
         },
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - should print entry for each environment
       // Header + 3 environments * 2 lines each + trailing newline = 8 calls
@@ -180,7 +178,7 @@ describe('printRemovedEnvironmentsSummary', () => {
 
     test('prints trailing newline after summary', () => {
       // GIVEN
-      const removedEnvironments: RemovedEnvironmentInfo[] = [
+      const removedEnvironments: RemovedEnvironment[] = [
         {
           region: 'us-east-1',
           reason: 'Not bootstrapped',
@@ -189,7 +187,7 @@ describe('printRemovedEnvironmentsSummary', () => {
       ];
 
       // WHEN
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary({ removed: removedEnvironments });
 
       // THEN - last call should be empty string (trailing newline)
       const lastCall = (logger.warning as jest.Mock).mock.calls.slice(-1)[0];
@@ -222,7 +220,7 @@ describe('Notification Property-Based Tests', () => {
   );
   const reasonArb = fc.string({ minLength: 1, maxLength: 200 });
 
-  const removedEnvironmentInfoArb: fc.Arbitrary<RemovedEnvironmentInfo> = fc.record({
+  const RemovedEnvironmentArb: fc.Arbitrary<RemovedEnvironment> = fc.record({
     region: awsRegionArb,
     profile: profileArb,
     account: fc.option(awsAccountArb, { nil: undefined }),
@@ -243,13 +241,13 @@ describe('Notification Property-Based Tests', () => {
     test('summary contains entry for each removed region', () => {
       fc.assert(
         fc.property(
-          fc.array(removedEnvironmentInfoArb, { minLength: 1, maxLength: 10 }),
+          fc.array(RemovedEnvironmentArb, { minLength: 1, maxLength: 10 }),
           (removedEnvironments) => {
             // Clear mocks before each property test iteration
             jest.clearAllMocks();
 
             // WHEN
-            printRemovedEnvironmentsSummary(removedEnvironments);
+            printEnvironmentsSummary({ removed: removedEnvironments });
 
             // THEN - logger.warning should have been called
             expect(logger.warning).toHaveBeenCalled();
@@ -271,13 +269,13 @@ describe('Notification Property-Based Tests', () => {
     test('each entry includes profile when provided', () => {
       fc.assert(
         fc.property(
-          fc.array(removedEnvironmentInfoArb, { minLength: 1, maxLength: 10 }),
+          fc.array(RemovedEnvironmentArb, { minLength: 1, maxLength: 10 }),
           (removedEnvironments) => {
             // Clear mocks before each property test iteration
             jest.clearAllMocks();
 
             // WHEN
-            printRemovedEnvironmentsSummary(removedEnvironments);
+            printEnvironmentsSummary({ removed: removedEnvironments });
 
             // THEN - for each environment with a profile, the profile should appear
             const allCalls = (logger.warning as jest.Mock).mock.calls;
@@ -298,13 +296,13 @@ describe('Notification Property-Based Tests', () => {
     test('each entry includes bootstrap command', () => {
       fc.assert(
         fc.property(
-          fc.array(removedEnvironmentInfoArb, { minLength: 1, maxLength: 10 }),
+          fc.array(RemovedEnvironmentArb, { minLength: 1, maxLength: 10 }),
           (removedEnvironments) => {
             // Clear mocks before each property test iteration
             jest.clearAllMocks();
 
             // WHEN
-            printRemovedEnvironmentsSummary(removedEnvironments);
+            printEnvironmentsSummary({ removed: removedEnvironments });
 
             // THEN - bootstrap command should appear for each environment
             const allCalls = (logger.warning as jest.Mock).mock.calls;
@@ -333,12 +331,12 @@ describe('Notification Property-Based Tests', () => {
       fc.assert(
         fc.property(
           fc.constant([]),
-          (removedEnvironments: RemovedEnvironmentInfo[]) => {
-            // Clear mocks before each property test iteration
+          (removedEnvironments: RemovedEnvironment[]) => {
+            // Clear mocks beforRemovedEnvironmentteration
             jest.clearAllMocks();
 
             // WHEN
-            printRemovedEnvironmentsSummary(removedEnvironments);
+            printEnvironmentsSummary({ removed: removedEnvironments });
 
             // THEN - no output should be produced
             expect(logger.warning).not.toHaveBeenCalled();
@@ -351,13 +349,13 @@ describe('Notification Property-Based Tests', () => {
     test('number of environment entries matches number of removed environments', () => {
       fc.assert(
         fc.property(
-          fc.array(removedEnvironmentInfoArb, { minLength: 1, maxLength: 10 }),
+          fc.array(RemovedEnvironmentArb, { minLength: 1, maxLength: 10 }),
           (removedEnvironments) => {
             // Clear mocks before each property test iteration
             jest.clearAllMocks();
 
             // WHEN
-            printRemovedEnvironmentsSummary(removedEnvironments);
+            printEnvironmentsSummary({ removed: removedEnvironments });
 
             // THEN - should have correct number of calls
             // Format: 1 header + (2 lines per env) + 1 trailing newline
@@ -384,14 +382,22 @@ describe('Warning Message Content Tests', () => {
     jest.clearAllMocks();
   });
 
+  /**
+   * Helper interface for testing NOT_BOOTSTRAPPED diagnostic handling
+   */
+  interface NotBootstrappedDiagnosticInput {
+    environment: TestEnvironment;
+    reason: string;
+  }
+
   // Helper function that mimics emitEnvironmentRemovedWarning logic for testing
-  function emitWarningForTesting(removal: EnvironmentRemovalRequest): string[] {
-    const profileStr = removal.environment.profile ? `${removal.environment.profile}/` : '';
-    const accountStr = removal.account ? `aws://${removal.account}/${removal.environment.region}` : removal.environment.region;
+  function emitWarningForTesting(input: NotBootstrappedDiagnosticInput): string[] {
+    const profileStr = input.environment.profile ? `${input.environment.profile}/` : '';
+    const accountStr = input.environment.account ? `aws://${input.environment.account}/${input.environment.region}` : input.environment.region;
 
     return [
-      `⚠️  Environment ${profileStr}${removal.environment.region} removed due to bootstrap error`,
-      `   Reason: ${removal.reason}`,
+      `⚠️  Environment ${profileStr}${input.environment.region} removed due to bootstrap error`,
+      `   Reason: ${input.reason}`,
       `   Run: cdk bootstrap ${accountStr}`,
     ];
   }
@@ -399,13 +405,13 @@ describe('Warning Message Content Tests', () => {
   describe('unit tests for warning message content', () => {
     test('warning contains region name', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
+      const input: NotBootstrappedDiagnosticInput = {
         environment: { region: 'us-east-1' },
         reason: 'Not bootstrapped',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN
       expect(messages[0]).toContain('us-east-1');
@@ -413,13 +419,13 @@ describe('Warning Message Content Tests', () => {
 
     test('warning contains profile when provided', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
+      const input: NotBootstrappedDiagnosticInput = {
         environment: { region: 'us-west-2', profile: 'dev-profile' },
         reason: 'Not bootstrapped',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN
       expect(messages[0]).toContain('dev-profile/');
@@ -428,13 +434,13 @@ describe('Warning Message Content Tests', () => {
 
     test('warning does not contain profile prefix when profile is not provided', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
+      const input: NotBootstrappedDiagnosticInput = {
         environment: { region: 'eu-west-1' },
         reason: 'Not bootstrapped',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN - should not have double slash or undefined
       expect(messages[0]).not.toContain('undefined');
@@ -443,13 +449,13 @@ describe('Warning Message Content Tests', () => {
 
     test('warning contains cdk bootstrap command', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
+      const input: NotBootstrappedDiagnosticInput = {
         environment: { region: 'ap-southeast-1' },
         reason: 'Not bootstrapped',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN
       expect(messages[2]).toContain('cdk bootstrap');
@@ -457,14 +463,13 @@ describe('Warning Message Content Tests', () => {
 
     test('warning contains account in bootstrap command when provided', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
-        environment: { region: 'sa-east-1' },
+      const input: NotBootstrappedDiagnosticInput = {
+        environment: { region: 'sa-east-1', account: '123456789012' },
         reason: 'Not bootstrapped',
-        account: '123456789012',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN
       expect(messages[2]).toContain('cdk bootstrap aws://123456789012/sa-east-1');
@@ -472,13 +477,13 @@ describe('Warning Message Content Tests', () => {
 
     test('warning contains region only in bootstrap command when account not provided', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
+      const input: NotBootstrappedDiagnosticInput = {
         environment: { region: 'ca-central-1' },
         reason: 'Not bootstrapped',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN
       expect(messages[2]).toContain('cdk bootstrap ca-central-1');
@@ -487,13 +492,13 @@ describe('Warning Message Content Tests', () => {
 
     test('warning contains reason', () => {
       // GIVEN
-      const removal: EnvironmentRemovalRequest = {
+      const input: NotBootstrappedDiagnosticInput = {
         environment: { region: 'us-east-1' },
         reason: 'Bootstrap stack version is insufficient',
       };
 
       // WHEN
-      const messages = emitWarningForTesting(removal);
+      const messages = emitWarningForTesting(input);
 
       // THEN
       expect(messages[1]).toContain('Bootstrap stack version is insufficient');
@@ -524,26 +529,26 @@ describe('Warning Message Content Tests', () => {
     );
     const reasonArb = fc.string({ minLength: 1, maxLength: 200 });
 
-    const environmentRemovalRequestArb: fc.Arbitrary<EnvironmentRemovalRequest> = fc.record({
+    const notBootstrappedInputArb: fc.Arbitrary<NotBootstrappedDiagnosticInput> = fc.record({
       environment: fc.record({
         region: awsRegionArb,
         profile: profileArb,
+        account: fc.option(awsAccountArb, { nil: undefined }),
       }),
       reason: reasonArb,
-      account: fc.option(awsAccountArb, { nil: undefined }),
     });
 
     test('warning message contains region name for any removal request', () => {
       fc.assert(
         fc.property(
-          environmentRemovalRequestArb,
-          (removal) => {
+          notBootstrappedInputArb,
+          (input) => {
             // WHEN
-            const messages = emitWarningForTesting(removal);
+            const messages = emitWarningForTesting(input);
             const allMessages = messages.join('\n');
 
             // THEN - region should appear in the warning
-            expect(allMessages).toContain(removal.environment.region);
+            expect(allMessages).toContain(input.environment.region);
           },
         ),
         { numRuns: 100 },
@@ -553,15 +558,15 @@ describe('Warning Message Content Tests', () => {
     test('warning message contains profile when provided', () => {
       fc.assert(
         fc.property(
-          environmentRemovalRequestArb,
-          (removal) => {
+          notBootstrappedInputArb,
+          (input) => {
             // WHEN
-            const messages = emitWarningForTesting(removal);
+            const messages = emitWarningForTesting(input);
             const allMessages = messages.join('\n');
 
             // THEN - if profile is provided, it should appear with trailing slash
-            if (removal.environment.profile) {
-              expect(allMessages).toContain(`${removal.environment.profile}/`);
+            if (input.environment.profile) {
+              expect(allMessages).toContain(`${input.environment.profile}/`);
             }
           },
         ),
@@ -572,10 +577,10 @@ describe('Warning Message Content Tests', () => {
     test('warning message contains cdk bootstrap command for any removal request', () => {
       fc.assert(
         fc.property(
-          environmentRemovalRequestArb,
-          (removal) => {
+          notBootstrappedInputArb,
+          (input) => {
             // WHEN
-            const messages = emitWarningForTesting(removal);
+            const messages = emitWarningForTesting(input);
             const allMessages = messages.join('\n');
 
             // THEN - should contain cdk bootstrap command
@@ -589,17 +594,17 @@ describe('Warning Message Content Tests', () => {
     test('bootstrap command contains correct target for any removal request', () => {
       fc.assert(
         fc.property(
-          environmentRemovalRequestArb,
-          (removal) => {
+          notBootstrappedInputArb,
+          (input) => {
             // WHEN
-            const messages = emitWarningForTesting(removal);
+            const messages = emitWarningForTesting(input);
             const bootstrapLine = messages[2];
 
             // THEN - bootstrap target should be correct
-            if (removal.account) {
-              expect(bootstrapLine).toContain(`aws://${removal.account}/${removal.environment.region}`);
+            if (input.environment.account) {
+              expect(bootstrapLine).toContain(`aws://${input.environment.account}/${input.environment.region}`);
             } else {
-              expect(bootstrapLine).toContain(removal.environment.region);
+              expect(bootstrapLine).toContain(input.environment.region);
               expect(bootstrapLine).not.toContain('aws://');
             }
           },
@@ -611,10 +616,10 @@ describe('Warning Message Content Tests', () => {
     test('warning message does not contain undefined or null strings', () => {
       fc.assert(
         fc.property(
-          environmentRemovalRequestArb,
-          (removal) => {
+          notBootstrappedInputArb,
+          (input) => {
             // WHEN
-            const messages = emitWarningForTesting(removal);
+            const messages = emitWarningForTesting(input);
             const allMessages = messages.join('\n');
 
             // THEN - should not contain literal 'undefined' or 'null'

@@ -4,14 +4,21 @@
 export interface TestEnvironment {
   readonly profile?: string;
   readonly region: string;
+  readonly account?: string;
+}
+
+export interface EnvironmentSummary {
+  /**
+   * Enviornments that got removed from the pool during the test run.s
+   */
+  readonly removed: RemovedEnvironment[];
 }
 
 /**
  * Information about why an environment was removed
  */
-export interface RemovedEnvironmentInfo extends TestEnvironment {
+export interface RemovedEnvironment extends TestEnvironment {
   readonly reason: string;
-  readonly account?: string;
   readonly removedAt: Date;
 }
 
@@ -30,7 +37,7 @@ export interface RemovedEnvironmentInfo extends TestEnvironment {
  */
 export class EnvironmentPool {
   private readonly availableEnvironments: Set<string>;
-  private readonly removedEnvironments: Map<string, RemovedEnvironmentInfo> = new Map();
+  private readonly removedEnvironments: Map<string, RemovedEnvironment> = new Map();
 
   constructor(environments: TestEnvironment[]) {
     this.availableEnvironments = new Set(environments.map(e => this.makeKey(e)));
@@ -57,14 +64,13 @@ export class EnvironmentPool {
   /**
    * Marks an environment as removed (unavailable for future tests)
    */
-  public removeEnvironment(env: TestEnvironment, reason: string, account?: string): void {
+  public removeEnvironment(env: TestEnvironment, reason: string): void {
     const key = this.makeKey(env);
     if (this.availableEnvironments.has(key)) {
       this.availableEnvironments.delete(key);
       this.removedEnvironments.set(key, {
         ...env,
         reason,
-        account,
         removedAt: new Date(),
       });
     }
@@ -87,7 +93,9 @@ export class EnvironmentPool {
   /**
    * Gets all removed environments with their removal info
    */
-  public getRemovedEnvironments(): RemovedEnvironmentInfo[] {
-    return Array.from(this.removedEnvironments.values());
+  public summary(): EnvironmentSummary {
+    return {
+      removed: Array.from(this.removedEnvironments.values()),
+    };
   }
 }

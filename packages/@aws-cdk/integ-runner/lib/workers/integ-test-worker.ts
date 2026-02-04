@@ -1,10 +1,12 @@
 import * as chalk from 'chalk';
 import type * as workerpool from 'workerpool';
-import type { IntegBatchResponse, IntegTestOptions, IntegRunnerMetrics, IntegTestWorkerConfig, EnvironmentRemovalRequest } from './common';
-import { printResults, printSummary } from './common';
-import { EnvironmentPool, type RemovedEnvironmentInfo, type TestEnvironment } from './environment-pool';
+import type { IntegBatchResponse, IntegTestOptions, IntegRunnerMetrics, IntegTestWorkerConfig, Diagnostic } from './common';
+import { printResults, printSummary, DiagnosticReason } from './common';
+import type { EnvironmentSummary, TestEnvironment } from './environment-pool';
+import { EnvironmentPool } from './environment-pool';
 import * as logger from '../logger';
-import type { IntegTestWorkerResponse } from './extract/extract_worker';
+import type { IntegTestInfo } from '../runner/integration-tests';
+import { flatten } from '../utils';
 
 /**
  * Options for an integration test batch
@@ -58,9 +60,9 @@ export interface IntegTestRunResult {
   readonly metrics: IntegRunnerMetrics[];
 
   /**
-   * Environments that were removed due to bootstrap errors
+   * Summary of the environments involed in the test run.
    */
-  readonly removedEnvironments: RemovedEnvironmentInfo[];
+  readonly testEnvironments: EnvironmentSummary;
 }
 
 /**
@@ -80,7 +82,7 @@ export async function runIntegrationTests(options: IntegTestRunOptions): Promise
   return {
     success: responses.failedTests.length === 0,
     metrics: responses.metrics,
-    removedEnvironments: (responses as any).removedEnvironments ?? [],
+    testEnvironments: responses.testEnvironments,
   };
 }
 
@@ -135,7 +137,7 @@ export async function runIntegrationTestsInParallel(
   options: IntegTestRunOptions,
 ): Promise<IntegBatchResponse> {
   const queue = options.tests;
-  const results: IntegBatchResponse = {
+  const results: Omit<IntegBatchResponse, 'testEnvironments'> = {
     metrics: [],
     failedTests: [],
   };
@@ -172,7 +174,38 @@ export async function runIntegrationTestsInParallel(
 
       const testStart = Date.now();
       logger.highlight(`Running test ${test.fileName} in ${worker.profile ? worker.profile + '/' : ''}${worker.region}`);
-      const response: IntegTestWorkerResponse = await options.pool.exec('integTestWorker', [{
+
+      // Create a message handler that processes diagnostics and handles NOT_BOOTSTRAPPED
+      const handleWorkerMessage = (diagnostic: Diagnostic) => {
+        if (diagnostic.reason === DiagnosticReason.NOT_BOOTSTRAPPED) {
+          // Handle bootstrap error - remove environment and potentially retry test
+          if (diagnostic.environment && environmentPool.isAvailable(diagnostic.environment)) {
+            environmentPool.removeEnvironment(diagnostic.environment, diagnostic.message);
+            emitEnvironmentRemovedWarning(diagnostic.environment, diagnostic.message);
+          }
+
+          const availableEnvs = environmentPool.getAvailableEnvironments();
+          if (availableEnvs.length > 0) {
+            retryQueue.push({
+              fileName: test.fileName,
+              discoveryRoot: test.discoveryRoot,
+            });
+            emitTestRetryInfo(test.fileName);
+          } else {
+            // No valid environments remain - add to failed tests
+            results.failedTests.push({
+              fileName: test.fileName,
+              discoveryRoot: test.discoveryRoot,
+            });
+            logger.print(chalk.red(`  No valid environments remaining for test ${test.fileName}`));
+          }
+        }
+
+        // Handle regular diagnostic messages
+        printResults(diagnostic);
+      };
+
+      const response: IntegTestInfo[][] = await options.pool.exec('integTestWorker', [{
         watch: options.watch,
         region: worker.region,
         profile: worker.profile,
@@ -182,43 +215,10 @@ export async function runIntegrationTestsInParallel(
         verbosity: options.verbosity,
         updateWorkflow: options.updateWorkflow,
       }], {
-        on: printResults,
+        on: handleWorkerMessage,
       });
 
-      // Process environment removals
-      if (response.environmentRemovals) {
-        for (const removal of response.environmentRemovals) {
-          if (environmentPool.isAvailable(removal.environment)) {
-            environmentPool.removeEnvironment(removal.environment, removal.reason, removal.account);
-            emitEnvironmentRemovedWarning(removal);
-          }
-        }
-      }
-
-      // Process retryable failures - re-queue if valid environments remain
-      if (response.retryableFailures) {
-        for (const failure of response.retryableFailures) {
-          const availableEnvs = environmentPool.getAvailableEnvironments();
-          if (availableEnvs.length > 0) {
-            // Re-queue the test for retry in a different environment
-            retryQueue.push({
-              fileName: failure.fileName,
-              discoveryRoot: failure.discoveryRoot,
-            });
-            emitTestRetryInfo(failure.fileName);
-          } else {
-            // No valid environments remain - add to failed tests
-            results.failedTests.push({
-              fileName: failure.fileName,
-              discoveryRoot: failure.discoveryRoot,
-            });
-            logger.print(chalk.red(`  No valid environments remaining for test ${failure.fileName}`));
-          }
-        }
-      }
-
-      // Add non-retryable failures to results
-      results.failedTests.push(...response.failedTests);
+      results.failedTests.push(...flatten(response));
       tests[test.fileName] = (Date.now() - testStart) / 1000;
     } while (queue.length > 0 || retryQueue.length > 0);
 
@@ -238,27 +238,23 @@ export async function runIntegrationTestsInParallel(
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   await Promise.all(workers);
 
-  // Store removed environments in results for summary reporting
-  const removedEnvs = environmentPool.getRemovedEnvironments();
-  if (removedEnvs.length > 0) {
-    (results as any).removedEnvironments = removedEnvs;
-  }
-
-  return results;
+  return {
+    ...results,
+    // Return environments summary in ressults for summary reporting
+    testEnvironments: environmentPool.summary(),
+  };
 }
 
 /**
  * Emits a warning when an environment is removed due to a bootstrap error
  */
-function emitEnvironmentRemovedWarning(removal: EnvironmentRemovalRequest): void {
-  const profileStr = removal.environment.profile ? `${removal.environment.profile}/` : '';
-  const accountStr = removal.account ? `aws://${removal.account}/${removal.environment.region}` : removal.environment.region;
+function emitEnvironmentRemovedWarning(environment: TestEnvironment, reason: string): void {
+  const profileStr = environment.profile ? `${environment.profile}/` : '';
+  const accountStr = environment.account ? `aws://${environment.account}/${environment.region}` : environment.region;
 
-  logger.warning(
-    chalk.yellow(`\n⚠️  Environment ${profileStr}${removal.environment.region} removed due to bootstrap error`),
-  );
-  logger.warning(chalk.yellow(`   Reason: ${removal.reason}`));
-  logger.warning(chalk.yellow(`   Run: ${chalk.blue(`cdk bootstrap ${accountStr}`)}\n`));
+  logger.warning(`\n⚠️  Environment ${profileStr}${environment.region} removed due to bootstrap error`);
+  logger.warning(`   Reason: ${reason}`);
+  logger.warning(`   Run: ${chalk.blue(`cdk bootstrap ${accountStr}`)}\n`);
 }
 
 /**

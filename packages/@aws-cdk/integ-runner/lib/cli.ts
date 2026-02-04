@@ -8,7 +8,7 @@ import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
 import { processUnstableFeatures, availableFeaturesDescription } from './unstable-features';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
-import { runSnapshotTests, runIntegrationTests, printRemovedEnvironmentsSummary } from './workers';
+import { runSnapshotTests, runIntegrationTests, printEnvironmentsSummary } from './workers';
 import { watchIntegrationTest } from './workers/integ-watch-worker';
 
 // https://github.com/yargs/yargs/issues/1929
@@ -184,7 +184,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
 
     // run integration tests if `--update-on-failed` OR `--force` is used
     if (options.runUpdateOnFailed || options.force) {
-      const { success, metrics, removedEnvironments } = await runIntegrationTests({
+      const { success, metrics, testEnvironments } = await runIntegrationTests({
         pool,
         tests: testsToRun,
         regions: options.testRegions,
@@ -198,7 +198,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
       testsSucceeded = success;
 
       // Print summary of removed environments due to bootstrap errors
-      printRemovedEnvironmentsSummary(removedEnvironments);
+      printEnvironmentsSummary(testEnvironments);
 
       if (options.clean === false) {
         logger.warning('Not cleaning up stacks since "--no-clean" was used');

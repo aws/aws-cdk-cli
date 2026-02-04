@@ -1,33 +1,12 @@
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as workerpool from 'workerpool';
 import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
 import { IntegTest } from '../../runner/integration-tests';
-import { detectBootstrapError } from '../bootstrap-error-detection';
-import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic, EnvironmentRemovalRequest, RetryableTestFailure } from '../common';
+import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic } from '../common';
 import { DiagnosticReason, formatAssertionResults, formatError } from '../common';
-import type { TestEnvironment } from '../environment-pool';
 import type { IntegTestBatchRequest } from '../integ-test-worker';
 import type { IntegWatchOptions } from '../integ-watch-worker';
-
-/**
- * Response from the integTestWorker function
- */
-export interface IntegTestWorkerResponse {
-  /**
-   * Tests that failed (non-retryable)
-   */
-  readonly failedTests: IntegTestWorkerConfig[];
-
-  /**
-   * Tests that failed but may succeed if retried in a different environment
-   */
-  readonly retryableFailures?: RetryableTestFailure[];
-
-  /**
-   * Environments that should be removed from the pool
-   */
-  readonly environmentRemovals?: EnvironmentRemovalRequest[];
-}
 
 /**
  * Runs a single integration test batch request.
@@ -37,17 +16,9 @@ export interface IntegTestWorkerResponse {
  *
  * If the tests succeed it will then save the snapshot
  */
-export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerResponse> {
+export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerConfig[]> {
   const failures: IntegTestInfo[] = [];
-  const retryableFailures: RetryableTestFailure[] = [];
-  const environmentRemovals: EnvironmentRemovalRequest[] = [];
   const verbosity = request.verbosity ?? 0;
-
-  // Create the current environment from the request
-  const currentEnvironment: TestEnvironment = {
-    profile: request.profile,
-    region: request.region,
-  };
 
   for (const testInfo of request.tests) {
     const test = new IntegTest({
@@ -88,93 +59,55 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
               testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
               message: formatAssertionResults(results),
               duration: (Date.now() - start) / 1000,
-            });
+            } as Diagnostic);
           } else {
             workerpool.workerEmit({
               reason: DiagnosticReason.TEST_SUCCESS,
               testName: `${runner.testName}-${testCaseName}`,
               message: results ? formatAssertionResults(results) : 'NO ASSERTIONS',
               duration: (Date.now() - start) / 1000,
-            });
+            } as Diagnostic);
           }
         } catch (e) {
+          const diagnostic: Diagnostic = {
+            reason: DiagnosticReason.TEST_FAILED,
+            testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
+            message: `Integration test failed: ${formatError(e)}`,
+            duration: (Date.now() - start) / 1000,
+          };
+
           // Check if this is a bootstrap error
-          const bootstrapInfo = detectBootstrapError(e);
-          if (bootstrapInfo.isBootstrapError) {
-            // This is a retryable failure - add to retryable list
-            retryableFailures.push({
-              ...testInfo,
-              failedEnvironment: currentEnvironment,
-              errorMessage: bootstrapInfo.message,
-            });
-
-            // Request environment removal
-            environmentRemovals.push({
-              environment: currentEnvironment,
-              reason: bootstrapInfo.message,
-              account: bootstrapInfo.account,
-            });
-
+          if (ToolkitError.isBootstrapError(e)) {
+            // Emit NOT_BOOTSTRAPPED diagnostic with environment
             workerpool.workerEmit({
-              reason: DiagnosticReason.TEST_FAILED,
-              testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
-              message: `Bootstrap error (will retry in different region): ${formatError(e)}`,
-              duration: (Date.now() - start) / 1000,
-            });
+              ...diagnostic,
+              reason: DiagnosticReason.NOT_BOOTSTRAPPED,
+              message: formatError(e),
+              environment: {
+                profile: request.profile,
+                region: request.region,
+                account: e.environment.account,
+              },
+            } as Diagnostic);
           } else {
-            // Non-bootstrap error - regular failure
+            // Non-bootstrap error - record as failure
             failures.push(testInfo);
-            workerpool.workerEmit({
-              reason: DiagnosticReason.TEST_FAILED,
-              testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
-              message: `Integration test failed: ${formatError(e)}`,
-              duration: (Date.now() - start) / 1000,
-            });
+            workerpool.workerEmit(diagnostic);
           }
         }
       }
     } catch (e) {
-      // Check if this is a bootstrap error at the test level
-      const bootstrapInfo = detectBootstrapError(e);
-      if (bootstrapInfo.isBootstrapError) {
-        // This is a retryable failure - add to retryable list
-        retryableFailures.push({
-          ...testInfo,
-          failedEnvironment: currentEnvironment,
-          errorMessage: bootstrapInfo.message,
-        });
-
-        // Request environment removal
-        environmentRemovals.push({
-          environment: currentEnvironment,
-          reason: bootstrapInfo.message,
-          account: bootstrapInfo.account,
-        });
-
-        workerpool.workerEmit({
-          reason: DiagnosticReason.TEST_ERROR,
-          testName: `${testInfo.fileName} (${request.profile}/${request.region})`,
-          message: `Bootstrap error (will retry in different region): ${formatError(e)}`,
-          duration: (Date.now() - start) / 1000,
-        });
-      } else {
-        // Non-bootstrap error - regular failure
-        failures.push(testInfo);
-        workerpool.workerEmit({
-          reason: DiagnosticReason.TEST_ERROR,
-          testName: `${testInfo.fileName} (${request.profile}/${request.region})`,
-          message: `Error during integration test: ${formatError(e)}`,
-          duration: (Date.now() - start) / 1000,
-        });
-      }
+      failures.push(testInfo);
+      workerpool.workerEmit({
+        reason: DiagnosticReason.TEST_ERROR,
+        testName: `${testInfo.fileName} (${request.profile}/${request.region})`,
+        message: `Error during integration test: ${formatError(e)}`,
+        duration: (Date.now() - start) / 1000,
+      });
     }
   }
 
-  return {
-    failedTests: failures,
-    retryableFailures: retryableFailures.length > 0 ? retryableFailures : undefined,
-    environmentRemovals: environmentRemovals.length > 0 ? environmentRemovals : undefined,
-  };
+  return failures;
 }
 
 export async function watchTestWorker(options: IntegWatchOptions): Promise<void> {
