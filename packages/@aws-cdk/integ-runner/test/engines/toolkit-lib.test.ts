@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
 import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
+import { HotswapMode } from '../../lib/engines/cdk-interface';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
