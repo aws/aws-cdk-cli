@@ -9,7 +9,7 @@ describe('toolkit error', () => {
   let assemblyCauseError = AssemblyError.withCause('Test authentication error', new Error('other error'));
   let noResultsError = new NoResultsFoundError('Test no results error');
   let bootstrapError = new BootstrapError('Test bootstrap error', { account: '123456789012', region: 'us-east-1' });
-  let bootstrapErrorWithCause = new BootstrapError('Test bootstrap error with cause', { account: '987654321098', region: 'eu-west-1' }, new Error('underlying cause'));
+  let bootstrapErrorWithCause = new BootstrapError('Test bootstrap error with cause', { account: '123456789012', region: 'eu-west-1' }, new Error('underlying cause'));
 
   test('types are correctly assigned', async () => {
     expect(toolkitError.type).toBe('toolkit');
@@ -88,12 +88,12 @@ describe('toolkit error', () => {
 
   describe('BootstrapError', () => {
     test('constructor creates error with correct properties', () => {
-      const error = new BootstrapError('Bootstrap stack not found', { account: '111122223333', region: 'ap-southeast-1' });
+      const error = new BootstrapError('Bootstrap stack not found', { account: '123456789012', region: 'ap-southeast-1' });
 
       expect(error.message).toBe('Bootstrap stack not found');
       expect(error.type).toBe('bootstrap');
       expect(error.source).toBe('user');
-      expect(error.environment).toEqual({ account: '111122223333', region: 'ap-southeast-1' });
+      expect(error.environment).toEqual({ account: '123456789012', region: 'ap-southeast-1' });
       expect(error.name).toBe('BootstrapError');
     });
 
@@ -109,7 +109,7 @@ describe('toolkit error', () => {
       expect(bootstrapError.environment.account).toBe('123456789012');
       expect(bootstrapError.environment.region).toBe('us-east-1');
 
-      expect(bootstrapErrorWithCause.environment.account).toBe('987654321098');
+      expect(bootstrapErrorWithCause.environment.account).toBe('123456789012');
       expect(bootstrapErrorWithCause.environment.region).toBe('eu-west-1');
     });
 

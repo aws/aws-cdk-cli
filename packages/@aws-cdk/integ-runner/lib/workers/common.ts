@@ -2,7 +2,7 @@ import { format } from 'util';
 import type { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as logger from '../logger';
-import type { TestEnvironment, RemovedEnvironmentInfo } from './environment-pool';
+import type { TestEnvironment, EnvironmentSummary } from './environment-pool';
 import type { IntegTestInfo } from '../runner/integration-tests';
 
 /**
@@ -36,41 +36,6 @@ export interface IntegTestWorkerConfig extends IntegTestInfo {
    * @default []
    */
   readonly destructiveChanges?: DestructiveChange[];
-}
-
-/**
- * Request to remove an environment from the pool
- */
-export interface EnvironmentRemovalRequest {
-  /**
-   * The environment to remove
-   */
-  readonly environment: TestEnvironment;
-
-  /**
-   * Human-readable reason for removal
-   */
-  readonly reason: string;
-
-  /**
-   * AWS account ID if known
-   */
-  readonly account?: string;
-}
-
-/**
- * A test failure that can potentially be retried
- */
-export interface RetryableTestFailure extends IntegTestInfo {
-  /**
-   * The environment where the failure occurred
-   */
-  readonly failedEnvironment: TestEnvironment;
-
-  /**
-   * Human-readable error message
-   */
-  readonly errorMessage: string;
 }
 
 /**
@@ -156,14 +121,9 @@ export interface IntegBatchResponse {
   readonly metrics: IntegRunnerMetrics[];
 
   /**
-   * Tests that failed but may succeed if retried in a different environment
+   * Summary of the environments involed in the test run.
    */
-  readonly retryableFailures?: RetryableTestFailure[];
-
-  /**
-   * Environments that should be removed from the pool
-   */
-  readonly environmentRemovals?: EnvironmentRemovalRequest[];
+  readonly testEnvironments: EnvironmentSummary;
 }
 
 /**
@@ -266,6 +226,11 @@ export enum DiagnosticReason {
    * The assertion failed
    */
   ASSERTION_FAILED = 'ASSERTION_FAILED',
+
+  /**
+   * The environment is not bootstrapped - test can be retried in a different environment
+   */
+  NOT_BOOTSTRAPPED = 'NOT_BOOTSTRAPPED',
 }
 
 /**
@@ -281,7 +246,7 @@ export interface Diagnostic {
   /**
    * The name of the stack
    */
-  readonly stackName: string;
+  readonly stackName?: string;
 
   /**
    * The diagnostic message
@@ -307,6 +272,12 @@ export interface Diagnostic {
    * Relevant config options that were used for the integ test
    */
   readonly config?: Record<string, any>;
+
+  /**
+   * The environment where the diagnostic occurred.
+   * Used for NOT_BOOTSTRAPPED diagnostics to track which environment failed.
+   */
+  readonly environment?: TestEnvironment;
 }
 
 export function printSummary(total: number, failed: number): void {
@@ -328,34 +299,44 @@ export function formatAssertionResults(results: AssertionResults): string {
 }
 
 /**
+ * Formats a status keyword with 2 spaces prefix and right-padded to 12 characters total.
+ */
+function formatStatus(keyword: string): string {
+  return `  ${keyword}`.padEnd(12);
+}
+
+/**
  * Print out the results from tests
  */
 export function printResults(diagnostic: Diagnostic): void {
   switch (diagnostic.reason) {
     case DiagnosticReason.SNAPSHOT_SUCCESS:
-      logger.success('  UNCHANGED  %s %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
+      logger.success('%s %s %s', formatStatus('UNCHANGED'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
       break;
     case DiagnosticReason.TEST_SUCCESS:
-      logger.success('  SUCCESS    %s %s\n      ', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
+      logger.success('%s %s %s\n      ', formatStatus('SUCCESS'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
       break;
     case DiagnosticReason.NO_SNAPSHOT:
-      logger.error('  NEW        %s %s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
+      logger.error('%s %s %s', formatStatus('NEW'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`));
       break;
     case DiagnosticReason.SNAPSHOT_FAILED:
-      logger.error('  CHANGED    %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      logger.error('%s %s %s\n%s', formatStatus('CHANGED'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.TEST_WARNING:
-      logger.warning('  WARN       %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      logger.warning('%s %s %s\n%s', formatStatus('WARN'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.SNAPSHOT_ERROR:
     case DiagnosticReason.TEST_ERROR:
-      logger.error('  ERROR      %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      logger.error('%s %s %s\n%s', formatStatus('ERROR'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.TEST_FAILED:
-      logger.error('  FAILED     %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      logger.error('%s %s %s\n%s', formatStatus('FAILED'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.ASSERTION_FAILED:
-      logger.error('  ASSERT     %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      logger.error('%s %s %s\n%s', formatStatus('ASSERT'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      break;
+    case DiagnosticReason.NOT_BOOTSTRAPPED:
+      logger.warning('%s %s %s\n%s', formatStatus('ENV'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
   }
   for (const addl of diagnostic.additionalMessages ?? []) {
@@ -394,14 +375,14 @@ export function formatError(error: any): string {
 /**
  * Prints a summary of environments that were removed due to bootstrap errors
  */
-export function printRemovedEnvironmentsSummary(removedEnvironments: RemovedEnvironmentInfo[]): void {
-  if (removedEnvironments.length === 0) {
+export function printEnvironmentsSummary(summary: EnvironmentSummary): void {
+  if (summary.removed.length === 0) {
     return;
   }
 
   logger.warning('\n%s', chalk.bold('Environments removed due to bootstrap errors:'));
 
-  for (const env of removedEnvironments) {
+  for (const env of summary.removed) {
     const profileStr = env.profile ? `${env.profile}/` : '';
     const accountStr = env.account ? `aws://${env.account}/${env.region}` : env.region;
 

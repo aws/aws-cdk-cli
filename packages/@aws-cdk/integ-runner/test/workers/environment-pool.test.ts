@@ -26,7 +26,7 @@ describe('EnvironmentPool', () => {
 
       // THEN
       expect(pool.getAvailableEnvironments()).toHaveLength(0);
-      expect(pool.getRemovedEnvironments()).toHaveLength(0);
+      expect(pool.summary().removed).toHaveLength(0);
     });
 
     test('handles duplicate environments', () => {
@@ -63,13 +63,13 @@ describe('EnvironmentPool', () => {
 
     test('records removal reason and account', () => {
       // GIVEN
-      const pool = new EnvironmentPool([{ region: 'us-east-1' }]);
+      const pool = new EnvironmentPool([{ region: 'us-east-1', account: '123456789012' }]);
 
       // WHEN
-      pool.removeEnvironment({ region: 'us-east-1' }, 'Bootstrap stack not found', '123456789012');
+      pool.removeEnvironment({ region: 'us-east-1', account: '123456789012' }, 'Bootstrap stack not found');
 
       // THEN
-      const removed = pool.getRemovedEnvironments();
+      const { removed } = pool.summary();
       expect(removed).toHaveLength(1);
       expect(removed[0].region).toBe('us-east-1');
       expect(removed[0].reason).toBe('Bootstrap stack not found');
@@ -85,7 +85,7 @@ describe('EnvironmentPool', () => {
       pool.removeEnvironment({ region: 'eu-west-1' }, 'Not bootstrapped');
 
       // THEN
-      expect(pool.getRemovedEnvironments()).toHaveLength(0);
+      expect(pool.summary().removed).toHaveLength(0);
     });
 
     test('removing same environment twice has no effect', () => {
@@ -97,8 +97,8 @@ describe('EnvironmentPool', () => {
       pool.removeEnvironment({ region: 'us-east-1' }, 'Second removal');
 
       // THEN - should still only have one removal record
-      expect(pool.getRemovedEnvironments()).toHaveLength(1);
-      expect(pool.getRemovedEnvironments()[0].reason).toBe('First removal');
+      expect(pool.summary().removed).toHaveLength(1);
+      expect(pool.summary().removed[0].reason).toBe('First removal');
     });
   });
 
@@ -183,8 +183,8 @@ describe('EnvironmentPool', () => {
       expect(pool.getAvailableEnvironments()).toEqual([
         { region: 'us-east-1', profile: 'prod' },
       ]);
-      expect(pool.getRemovedEnvironments()).toHaveLength(1);
-      expect(pool.getRemovedEnvironments()[0].profile).toBe('dev');
+      expect(pool.summary().removed).toHaveLength(1);
+      expect(pool.summary().removed[0].profile).toBe('dev');
     });
   });
 
@@ -224,22 +224,22 @@ describe('EnvironmentPool', () => {
       const pool = new EnvironmentPool([{ region: 'us-east-1' }]);
 
       // THEN
-      expect(pool.getRemovedEnvironments()).toEqual([]);
+      expect(pool.summary()).toEqual({ removed: [] });
     });
 
     test('returns all removed environments with info', () => {
       // GIVEN
       const pool = new EnvironmentPool([
-        { region: 'us-east-1' },
-        { region: 'us-west-2', profile: 'dev' },
+        { region: 'us-east-1', account: '111111111111' },
+        { region: 'us-west-2', profile: 'dev', account: '222222222222' },
       ]);
 
       // WHEN
-      pool.removeEnvironment({ region: 'us-east-1' }, 'Reason 1', '111111111111');
-      pool.removeEnvironment({ region: 'us-west-2', profile: 'dev' }, 'Reason 2', '222222222222');
+      pool.removeEnvironment({ region: 'us-east-1', account: '111111111111' }, 'Reason 1');
+      pool.removeEnvironment({ region: 'us-west-2', profile: 'dev', account: '222222222222' }, 'Reason 2');
 
       // THEN
-      const removed = pool.getRemovedEnvironments();
+      const { removed } = pool.summary();
       expect(removed).toHaveLength(2);
 
       const env1 = removed.find(e => e.region === 'us-east-1');
@@ -271,6 +271,7 @@ describe('EnvironmentPool Property-Based Tests', () => {
   const testEnvironmentArb: fc.Arbitrary<TestEnvironment> = fc.record({
     region: regionArb,
     profile: profileArb,
+    account: accountArb,
   });
 
   /**
@@ -288,8 +289,7 @@ describe('EnvironmentPool Property-Based Tests', () => {
         fc.property(
           fc.array(testEnvironmentArb, { minLength: 1, maxLength: 20 }),
           reasonArb,
-          accountArb,
-          (environments, reason, account) => {
+          (environments, reason) => {
             // GIVEN - a pool with some environments
             const pool = new EnvironmentPool(environments);
 
@@ -300,7 +300,7 @@ describe('EnvironmentPool Property-Based Tests', () => {
             const wasAvailable = pool.isAvailable(envToRemove);
 
             // WHEN - remove the environment
-            pool.removeEnvironment(envToRemove, reason, account);
+            pool.removeEnvironment(envToRemove, reason);
 
             // THEN
             // 1. isAvailable should return false for the removed environment
@@ -308,14 +308,14 @@ describe('EnvironmentPool Property-Based Tests', () => {
 
             // 2. If it was available before, it should now be in getRemovedEnvironments
             if (wasAvailable) {
-              const removed = pool.getRemovedEnvironments();
+              const { removed } = pool.summary();
               const found = removed.find(
                 r => r.region === envToRemove.region && r.profile === envToRemove.profile,
               );
               expect(found).toBeDefined();
               expect(found!.reason).toBe(reason);
-              if (account !== undefined) {
-                expect(found!.account).toBe(account);
+              if (envToRemove.account !== undefined) {
+                expect(found!.account).toBe(envToRemove.account);
               }
             }
           },
@@ -356,9 +356,9 @@ describe('EnvironmentPool Property-Based Tests', () => {
             }
 
             // And getRemovedEnvironments should contain all removed ones
-            const removedEnvs = pool.getRemovedEnvironments();
-            for (const removed of removedEnvs) {
-              const key = `${removed.profile ?? 'default'}:${removed.region}`;
+            const { removed } = pool.summary();
+            for (const removedEnv of removed) {
+              const key = `${removedEnv.profile ?? 'default'}:${removedEnv.region}`;
               expect(removedSet.has(key)).toBe(true);
             }
           },
