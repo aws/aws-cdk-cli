@@ -237,7 +237,7 @@ const repoProject = new yarn.Monorepo({
     '@aws-sdk/lib-storage',
   ],
   scripts: {
-    preinstall: 'node scripts/check-node-version.js',
+    'postinstall': 'node scripts/check-node-version.js',
   },
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {

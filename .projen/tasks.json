@@ -126,8 +126,8 @@
       "name": "post-upgrade",
       "description": "Runs after upgrading dependencies"
     },
-    "preinstall": {
-      "name": "preinstall",
+    "postinstall": {
+      "name": "postinstall",
       "steps": [
         {
           "exec": "node scripts/check-node-version.js"
