@@ -10,8 +10,10 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
-import { CLI_PRIVATE_IO, EventResult } from '../telemetry/messages';
-import { TelemetryEvent, TelemetrySession } from '../telemetry/session';
+import type { EventResult } from '../telemetry/messages';
+import { CLI_PRIVATE_IO } from '../telemetry/messages';
+import type { TelemetryEvent } from '../telemetry/session';
+import { TelemetrySession } from '../telemetry/session';
 import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
@@ -625,12 +627,11 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
   }
   return undefined;
 
-
-  function eventResult(eventType: TelemetryEvent['eventType'], msg: IoMessage<EventResult>): TelemetryEvent {
+  function eventResult(eventType: TelemetryEvent['eventType'], m: IoMessage<EventResult>): TelemetryEvent {
     return {
       eventType,
-      duration: msg.data.duration,
-      error: msg.data.error,
+      duration: m.data.duration,
+      error: m.data.error,
     };
   }
 }
