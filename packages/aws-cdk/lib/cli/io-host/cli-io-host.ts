@@ -10,10 +10,8 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
-import type { EventResult } from '../telemetry/messages';
-import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
-import type { EventType } from '../telemetry/schema';
-import { TelemetrySession } from '../telemetry/session';
+import { CLI_PRIVATE_IO, EventResult } from '../telemetry/messages';
+import { TelemetryEvent, TelemetrySession } from '../telemetry/session';
 import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
@@ -349,12 +347,9 @@ export class CliIoHost implements IIoHost {
 
   private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
     try {
-      if (this.telemetry && isTelemetryMessage(msg)) {
-        await this.telemetry.emit({
-          eventType: getEventType(msg),
-          duration: msg.data.duration,
-          error: msg.data.error,
-        });
+      const telemetryEvent = eventFromMessage(msg);
+      if (telemetryEvent) {
+        await this.telemetry?.emit(telemetryEvent);
       }
     } catch (e: any) {
       await this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
@@ -618,19 +613,24 @@ function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
 
-function isTelemetryMessage(msg: IoMessage<unknown>): msg is IoMessage<EventResult> {
-  return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
-}
+function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
+  if (CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg)) {
+    return eventResult('SYNTH', msg);
+  }
+  if (CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg)) {
+    return eventResult('INVOKE', msg);
+  }
+  if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
+    return eventResult('DEPLOY', msg);
+  }
+  return undefined;
 
-function getEventType(msg: IoMessage<unknown>): EventType {
-  switch (msg.code) {
-    case CLI_PRIVATE_IO.CDK_CLI_I1001.code:
-      return 'SYNTH';
-    case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
-      return 'INVOKE';
-    case CLI_PRIVATE_IO.CDK_CLI_I3001.code:
-      return 'DEPLOY';
-    default:
-      throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
+
+  function eventResult(eventType: TelemetryEvent['eventType'], msg: IoMessage<EventResult>): TelemetryEvent {
+    return {
+      eventType,
+      duration: msg.data.duration,
+      error: msg.data.error,
+    };
   }
 }
