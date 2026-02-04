@@ -14,6 +14,7 @@
     "git-secrets-scan": "npx projen git-secrets-scan",
     "package": "npx projen package",
     "post-upgrade": "npx projen post-upgrade",
+    "preinstall": "npx projen preinstall",
     "release": "npx projen release",
     "run": "npx projen run",
     "test": "npx projen test",
@@ -46,7 +47,7 @@
     "typescript": "5.9"
   },
   "engines": {
-    "node": ">= 18.0.0"
+    "node": ">= 20.0.0"
   },
   "main": "lib/index.js",
   "license": "Apache-2.0",

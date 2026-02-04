@@ -126,6 +126,14 @@
       "name": "post-upgrade",
       "description": "Runs after upgrading dependencies"
     },
+    "preinstall": {
+      "name": "preinstall",
+      "steps": [
+        {
+          "exec": "node scripts/check-node-version.js"
+        }
+      ]
+    },
     "release": {
       "name": "release",
       "description": "Prepare a release from all monorepo packages",
