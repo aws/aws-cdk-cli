@@ -22,7 +22,7 @@ contributing guide will focus on technical aspects.
 
 ## Prerequisites
 
-- [Node.js >= 20.17.0](https://nodejs.org/download/release/latest-v20.x/)
+- Node.js [^20.17.0](https://nodejs.org/download/release/latest-v20.x/) or [>=22.9.0](https://nodejs.org/download/release/latest-v22.x/)
   - We recommend using a version in [Active LTS](https://nodejs.org/en/about/releases/)
 - [Yarn >= 1.19.1, < 2](https://yarnpkg.com/lang/en/docs/install)
 - [Docker >= 19.03](https://docs.docker.com/get-docker/)
