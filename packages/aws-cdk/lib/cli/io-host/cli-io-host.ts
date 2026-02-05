@@ -632,6 +632,7 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
       eventType,
       duration: m.data.duration,
       error: m.data.error,
+      counters: m.data.counters,
     };
   }
 }

@@ -71,7 +71,7 @@ import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
-import type { IoHelper } from '../api/io/private';
+import type { ElapsedTime, IMessageSpan, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
@@ -321,12 +321,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
 
     // NOTE: NOT 'await using' because we return ownership to the caller
-    const assembly = await assemblyFromSource(synthSpan.asHelper, cx);
+    const assembly = await loggedAssemblyFromSource(synthSpan, cx);
+    await synthSpan.end();
 
     const stacks = await assembly.selectStacksV2(selectStacks);
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), synthSpan.asHelper);
-    await synthSpan.end();
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -366,10 +366,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    await using assembly = await loggedAssemblyFromSource(synthSpan, cx);
     await synthSpan.end();
 
+    const stacks = await assembly.selectStacksV2(selectStacks);
     const diffSpan = await ioHelper.span(SPAN.DIFF_STACK).begin({ stacks: selectStacks });
     const deployments = await this.deploymentsForAction('diff');
 
@@ -424,9 +424,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(synthSpan.asHelper, cx);
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    await using assembly = await loggedAssemblyFromSource(synthSpan, cx);
     await synthSpan.end();
+
+    const stacks = await assembly.selectStacksV2(selectStacks);
 
     const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
     const allDriftResults: { [name: string]: DriftResult } = {};
@@ -502,10 +503,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = options.stacks ?? ALL_STACKS;
     const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
-    await using assembly = await assemblyFromSource(ioHelper, cx);
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    await using assembly = await loggedAssemblyFromSource(synthSpan, cx);
     await synthSpan.end();
 
+    const stackCollection = await assembly.selectStacksV2(selectStacks);
     const stacks = stackCollection.withDependencies();
     const message = stacks.map(s => s.id).join('\n');
 
@@ -520,20 +521,22 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, 'deploy');
-    await using assembly = await assemblyFromSource(ioHelper, cx);
-    return await this._deploy(assembly, 'deploy', options);
+    const selectStacks = options.stacks ?? ALL_STACKS;
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+    await using assembly = await loggedAssemblyFromSource(synthSpan, cx);
+    const synthDuration = await synthSpan.end();
+
+    return await this._deploy(assembly, 'deploy', synthDuration, options);
   }
 
   /**
    * Helper to allow deploy being called as part of the watch action.
    */
-  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', options: PrivateDeployOptions = {}): Promise<DeployResult> {
+  private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', synthDuration: ElapsedTime, options: PrivateDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = options.stacks ?? ALL_STACKS;
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     const stackCollection = await assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stackCollection, ioHelper);
-    const synthDuration = await synthSpan.end();
 
     const ret: DeployResult = {
       stacks: [],
@@ -997,7 +1000,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async rollback(cx: ICloudAssemblySource, options: RollbackOptions = {}): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
+    const selectStacks = options.stacks ?? ALL_STACKS;
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     await using assembly = await assemblyFromSource(ioHelper, cx);
+    await synthSpan.end();
+
     return await this._rollback(assembly, 'rollback', options);
   }
 
@@ -1007,10 +1014,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _rollback(assembly: StackAssembly, action: 'rollback' | 'deploy' | 'watch', options: RollbackOptions): Promise<RollbackResult> {
     const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
+
     const stacks = await assembly.selectStacksV2(selectStacks);
     await this.validateStacksMetadata(stacks, ioHelper);
-    await synthSpan.end();
 
     const ret: RollbackResult = {
       stacks: [],
@@ -1236,7 +1242,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, 'destroy');
+
+    const selectStacks = options.stacks ?? ALL_STACKS;
+    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     await using assembly = await assemblyFromSource(ioHelper, cx);
+    await synthSpan.end();
+
     return await this._destroy(assembly, 'destroy', options);
   }
 
@@ -1246,10 +1257,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const selectStacks = options.stacks ?? ALL_STACKS;
     const ioHelper = asIoHelper(this.ioHost, action);
-    const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
     // The stacks will have been ordered for deployment, so reverse them for deletion.
     const stacks = (await assembly.selectStacksV2(selectStacks)).reversed();
-    await synthSpan.end();
 
     const ret: DestroyResult = {
       stacks: [],
@@ -1352,7 +1361,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     };
 
     try {
-      await this._deploy(assembly, 'watch', deployOptions);
+      await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
     } catch {
       // just continue - deploy will show the error
     }
@@ -1410,3 +1419,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 }
 
+/**
+ * Produce an assembly from a source, and emit the number of stacks to the span
+ */
+async function loggedAssemblyFromSource(span: IMessageSpan<any>,  assemblySource: ICloudAssemblySource, cache: boolean = true) {
+  const ret = await assemblyFromSource(span.asHelper, assemblySource, cache);
+  return ret;
+}
+
+function zeroTime(): ElapsedTime {
+  return { asMs: 0, asSec: 0 };
+}

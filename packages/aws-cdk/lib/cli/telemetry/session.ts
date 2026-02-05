@@ -27,6 +27,22 @@ export interface TelemetryEvent {
   readonly eventType: EventType;
   readonly duration: number;
   readonly error?: ErrorDetails;
+  counters?: Record<string, number>;
+}
+
+/**
+ * Timer of a single event
+ */
+export interface Timing {
+  /**
+   * Total time spent in this operation
+   */
+  totalMs: number;
+
+  /**
+   * Count of operations that together took `totalMs`.
+   */
+  count: number;
 }
 
 export class TelemetrySession {
@@ -110,6 +126,7 @@ export class TelemetrySession {
 
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
+
     return this.client.emit({
       event: {
         command: this.sessionInfo.event.command,
@@ -131,6 +148,7 @@ export class TelemetrySession {
           name: event.error.name,
         },
       } : {}),
+      ...(event.counters && Object.keys(event.counters).length > 0 ? { counters: event.counters } : {}),
     });
   }
 

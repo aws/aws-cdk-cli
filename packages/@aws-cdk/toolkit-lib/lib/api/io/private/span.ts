@@ -7,8 +7,12 @@ import { formatTime } from '../../../util';
 import type { IActionAwareIoHost } from '../io-host';
 import type { IoDefaultMessages } from './io-default-messages';
 
+/**
+ * These data fields are automatically added by ending a span
+ */
 export interface SpanEnd {
   readonly duration: number;
+  readonly counters?: Record<string, number>;
 }
 
 /**
@@ -23,13 +27,26 @@ export interface SpanDefinition<S extends object, E extends SpanEnd> {
   readonly end: make.IoMessageMaker<E>;
 }
 
+
+/**
+ * Arguments to the span.end() function
+ *
+ * `SpanEnd` represents fields that are added by the underlying `end` function.
+ *
+ * - In principle, the intersection of the underlying type and the SpanEnd keys
+ *   are made optional, the rest is the same as the underlying type.
+ * - If the expected type is subsumed by the SpanEnd type, then either void or
+ *   their intersection with all fields optional.
+ */
+type SpanEndArguments<T> = keyof T extends keyof SpanEnd
+  ? (Pick<Partial<SpanEnd>, keyof T & keyof SpanEnd> | void)
+  : Optional<T, keyof T & keyof SpanEnd>;
+
 /**
  * Used in conditional types to check if a type (e.g. after omitting fields) is an empty object
  * This is needed because counter-intuitive neither `object` nor `{}` represent that.
  */
-type EmptyObject = {
-  [index: string | number | symbol]: never;
-};
+type EmptyObject = Record<string, never>;
 
 /**
  * Helper type to force a parameter to be not present of the computed type is an empty object
@@ -37,20 +54,14 @@ type EmptyObject = {
 type VoidWhenEmpty<T> = T extends EmptyObject ? void : T;
 
 /**
- * Helper type to force a parameter to be an empty object if the computed type is an empty object
- * This is weird, but some computed types (e.g. using `Omit`) don't end up enforcing this.
- */
-type ForceEmpty<T> = T extends EmptyObject ? EmptyObject : T;
-
-/**
  * Make some properties optional
  */
-type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+type Optional<T, K extends keyof T> = Omit<T, K> & Pick<Partial<T>, K>;
 
 /**
  * Ending the span returns the observed duration
  */
-interface ElapsedTime {
+export interface ElapsedTime {
   readonly asMs: number;
   readonly asSec: number;
 }
@@ -67,6 +78,7 @@ export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
    * An IoDefaultMessages wrapped around the span.
    */
   readonly defaults: IoDefaultMessages;
+
   /**
    * Get the time elapsed since the start
    */
@@ -79,15 +91,34 @@ export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
   /**
    * End the span with a payload
    */
-  end(payload: VoidWhenEmpty<Omit<E, keyof SpanEnd>>): Promise<ElapsedTime>;
-  /**
-   * End the span with a payload, overwriting
-   */
-  end(payload: VoidWhenEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime>;
+  end(payload: SpanEndArguments<E>): Promise<ElapsedTime>;
   /**
    * End the span with a message and payload
    */
-  end(message: string, payload: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime>;
+  end(message: string, payload: SpanEndArguments<E>): Promise<ElapsedTime>;
+
+  /**
+   * Increment a counter
+   */
+  incCounter(name: string, delta?: number): void;
+
+  /**
+   * Return a new timer object
+   *
+   * It will be added into the span data when it's stopped. All open timers are
+   * automatically stopped when the span is ended.
+   *
+   * Timers are ultimately added to the `counters` array with `<name>_ms` and
+   * `<name>_cnt` keys.
+   */
+  startTimer(name: string): ITimer;
+}
+
+/**
+ * A timer to time an operation in a span.
+ */
+export interface ITimer {
+  stop(): void;
 }
 
 /**
@@ -133,6 +164,8 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
   private readonly spanId: string;
   private readonly startTime: number;
   private readonly timingMsgTemplate: string;
+  private readonly counters: Record<string, number> = {};
+  private readonly openTimers = new Set<ITimer>();
 
   public constructor(ioHelper: IoHelper, definition: SpanDefinition<S, E>, makeHelper: (ioHost: IActionAwareIoHost) => IoHelper) {
     this.definition = definition;
@@ -161,24 +194,48 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
   public async notify(msg: ActionLessMessage<unknown>): Promise<void> {
     return this.ioHelper.notify(withSpanId(this.spanId, msg));
   }
-  public async end(x: any, y?: ForceEmpty<Optional<E, keyof SpanEnd>>): Promise<ElapsedTime> {
+  public async end(x: any, y?: SpanEndArguments<E>): Promise<ElapsedTime> {
     const duration = this.time();
 
-    const endInput = parseArgs<ForceEmpty<Optional<E, keyof SpanEnd>>>(x, y);
+    for (const t of this.openTimers) {
+      t.stop();
+    }
+    this.openTimers.clear();
+
+    const endInput = parseArgs<SpanEndArguments<E>>(x, y);
     const endMsg = endInput.message ?? util.format(this.timingMsgTemplate, this.definition.name, duration.asSec);
     const endPayload = endInput.payload;
 
     await this.notify(this.definition.end.msg(
       endMsg, {
         duration: duration.asMs,
+        ...(Object.keys(this.counters).length > 0 ? { counters: this.counters } : {}),
         ...endPayload,
       } as E));
 
     return duration;
   }
 
+  public incCounter(name: string, delta: number = 1): void {
+    this.counters[name] = (this.counters[name] ?? 0) + delta;
+  }
+
   public async requestResponse<T>(msg: ActionLessRequest<unknown, T>): Promise<T> {
     return this.ioHelper.requestResponse(withSpanId(this.spanId, msg));
+  }
+
+  public startTimer(name: string): ITimer {
+    const start = Date.now();
+
+    const t: ITimer = {
+      stop: () => {
+        this.openTimers.delete(t);
+        this.incCounter(`${name}_ms`, Math.floor(Date.now() - start) / 1000);
+        this.incCounter(`${name}_cnt`, 1);
+      },
+    };
+    this.openTimers.add(t);
+    return t;
   }
 
   private time() {
@@ -190,7 +247,7 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
   }
 }
 
-function parseArgs<S extends object>(first: any, second?: S): { message: string | undefined; payload: S } {
+function parseArgs<S>(first: any, second?: S): { message: string | undefined; payload: S } {
   const firstIsMessage = typeof first === 'string';
 
   // When the first argument is a string or we have a second argument, then the first arg is the message
