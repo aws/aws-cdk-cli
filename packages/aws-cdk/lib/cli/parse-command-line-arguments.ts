@@ -3,8 +3,8 @@
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-import { Argv } from 'yargs';
 import * as helpers from './util/yargs-helpers';
+import { Argv } from 'yargs';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {

@@ -3,6 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
+import type { Command } from './private/exec';
 
 export type Env = { [key: string]: string | undefined };
 export type Context = { [key: string]: unknown };
@@ -105,7 +106,7 @@ export function spaceAvailableForContext(env: Env, limit: number) {
 }
 
 /**
- * Guess the executable from the command-line argument
+ * Guess the executable from the command
  *
  * Input is the "app" string the user gave us. Output is the command line we are going to execute.
  *
@@ -121,25 +122,57 @@ export function spaceAvailableForContext(env: Env, limit: number) {
  * it work properly. Nevertheless, this is the behavior we have had for a long time and nobody
  * has really complained about it, so we'll keep it for now.
  */
-export async function guessExecutable(commandLine: string, debugFn: (msg: string) => Promise<void>): Promise<string> {
+export function guessExecutable(command: Command, debugFn: (msg: string) => Promise<void>): Promise<Command> {
+  switch (command.type) {
+    case 'argv':
+      return guessArgvExecutable(command, debugFn);
+    case 'shell':
+      return guessShellExecutable(command, debugFn);
+  }
+}
+
+export async function guessArgvExecutable(command: Extract<Command, { type: 'argv' }>, debugFn: (msg: string) => Promise<void>): Promise<Command> {
+  // We perform "guessInterpreter" on the first value in the array to execute successfully on Windows and on POSIX without the executable
+  // bit, and nothing else.
+  const [first, ...rest] = command.argv;
+  const firstFile = await checkFile(first);
+  if (firstFile) {
+    return {
+      type: 'argv',
+      argv: [...guessInterpreter(firstFile), ...rest],
+    };
+  }
+
+  // Not a file, so just use the given command line
+  await debugFn(`Not a file: '${first}'. Using ${JSON.stringify(command.argv)} as command`);
+  return command;
+}
+
+export async function guessShellExecutable(command: Extract<Command, { type: 'shell' }>, debugFn: (msg: string) => Promise<void>): Promise<Command> {
   // The command line with spaces in it could reference a file on disk. If true,
   // we quote it and return that, optionally by prefixing an interpreter.
-  const fullFile = await checkFile(commandLine);
+  const fullFile = await checkFile(command.command);
   if (fullFile) {
-    return guessInterpreter(fullFile);
+    return {
+      type: 'shell',
+      command: guessInterpreter(fullFile).map(quoteSpaces).join(' '),
+    };
   }
 
   // Otherwise, the first word on the command line could reference a file on
   // disk (quoted or non-quoted). If true, we optionally prefix an interpreter.
-  const [first, rest] = splitFirstShellWord(commandLine);
+  const [first, rest] = splitFirstShellWord(command.command);
   const firstFile = await checkFile(first);
   if (firstFile) {
-    return `${guessInterpreter(firstFile)} ${rest}`.trim();
+    return {
+      type: 'shell',
+      command: [...guessInterpreter(firstFile).map(quoteSpaces), rest].join(' ').trim(),
+    };
   }
 
   // We couldn't parse it, so just use the given command line.
-  await debugFn(`Not a file: '${commandLine}'. Using '${commandLine} as command-line`);
-  return commandLine;
+  await debugFn(`Not a file: '${command.command}'. Using '${command.command} as command-line`);
+  return command;
 }
 
 /**
@@ -150,7 +183,7 @@ export async function guessExecutable(commandLine: string, debugFn: (msg: string
  * - Prefixing an interpreter if necessary
  * - Quoting the file name if necessary
  */
-function guessInterpreter(file: FileInfo): string {
+function guessInterpreter(file: FileInfo): string[] {
   const isWindows = process.platform === 'win32';
 
   const handler = EXTENSION_MAP[path.extname(file.fileName)];
@@ -158,7 +191,7 @@ function guessInterpreter(file: FileInfo): string {
     return handler(file.fileName);
   }
 
-  return quoteSpaces(file.fileName);
+  return [file.fileName];
 }
 
 /**
@@ -168,13 +201,13 @@ const EXTENSION_MAP: Record<string, CommandGenerator> = {
   '.js': executeNode,
 };
 
-type CommandGenerator = (file: string) => string;
+type CommandGenerator = (file: string) => string[];
 
 /**
  * Execute the given file with the same 'node' process as is running the current process
  */
-function executeNode(scriptFile: string): string {
-  return `${quoteSpaces(process.execPath)} ${quoteSpaces(scriptFile)}`;
+function executeNode(scriptFile: string): string[] {
+  return [process.execPath, scriptFile];
 }
 
 /**

@@ -8,7 +8,7 @@ import { RWLock } from '../rwlock';
 import { CachedCloudAssembly } from './cached-source';
 import type { ContextAwareCloudAssemblyProps } from './private/context-aware-source';
 import { ContextAwareCloudAssemblySource } from './private/context-aware-source';
-import { execInChildProcess } from './private/exec';
+import { execInChildProcess, toCommand } from './private/exec';
 import { ExecutionEnvironment, assemblyFromDirectory, parametersFromSynthOptions, writeContextToEnv } from './private/prepare-source';
 import { ReadableCloudAssembly } from './private/readable-assembly';
 import type { ICloudAssemblySource } from './types';
@@ -491,7 +491,7 @@ export abstract class CloudAssemblySourceBuilder {
             resolveDefaultAppEnv: props.resolveDefaultEnvironment ?? true,
           });
 
-          const commandLine = await execution.guessExecutable(app);
+          const commandLine = await execution.guessExecutable(toCommand(app));
 
           const synthParams = parametersFromSynthOptions(props.synthOptions);
 

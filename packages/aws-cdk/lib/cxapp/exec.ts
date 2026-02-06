@@ -6,8 +6,8 @@ import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../lib/api-private';
-import type { SdkProvider, IReadLock } from '../api';
-import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
+import type { SdkProvider, IReadLock, Command } from '../api';
+import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, toCommand, renderCommand } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -38,7 +38,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const build = config.settings.get(['build']);
   if (build) {
-    await exec(build);
+    await exec(toCommand(build));
   }
 
   let app = config.settings.get(['app']);
@@ -56,14 +56,8 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     return { assembly: createAssembly(app), lock };
   }
 
-  // Traditionally it has been possible, though not widely advertised, to put a string[] into `cdk.json`.
-  // However, we would just quickly join this array back up to string with spaces (unquoted even!) and proceed as usual,
-  // thereby losing all the benefits of a pre-segmented command line. This coercion is just here for backwards
-  // compatibility with existing configurations. An upcoming PR might retain the benefit of the string[].
-  if (Array.isArray(app)) {
-    app = app.join(' ');
-  }
-  const commandLine = await guessExecutable(app, debugFn);
+  const command = toCommand(app);
+  const commandLine = command.type === 'shell' ? await guessExecutable(app, debugFn) : command;
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
@@ -105,28 +99,40 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     await cleanupTemp();
   }
 
-  async function exec(commandAndArgs: string) {
+  async function exec(command: Command) {
     try {
       await new Promise<void>((ok, fail) => {
-        // We use a slightly lower-level interface to:
-        //
-        // - Pass arguments in an array instead of a string, to get around a
-        //   number of quoting issues introduced by the intermediate shell layer
-        //   (which would be different between Linux and Windows).
-        //
+        // Depending on the type of command we have to execute, spawn slightly differently
+
         // - Inherit stderr from controlling terminal. We don't use the captured value
         //   anyway, and if the subprocess is printing to it for debugging purposes the
         //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
         //   processes like Maven.
-        const proc = childProcess.spawn(commandAndArgs, {
+        let proc : childProcess.ChildProcessByStdio<null, null, null>;
+        const spawnOpts: childProcess.SpawnOptionsWithStdioTuple<childProcess.StdioNull, childProcess.StdioNull, childProcess.StdioNull> = {
           stdio: ['ignore', 'inherit', 'inherit'],
           detached: false,
-          shell: true,
           env: {
             ...process.env,
             ...env,
           },
-        });
+        };
+
+        switch (command.type) {
+          case 'argv':
+            proc = childProcess.spawn(command.argv[0], command.argv.slice(1), spawnOpts);
+            break;
+          case 'shell':
+            proc = childProcess.spawn(command.command, {
+              ...spawnOpts,
+              // Command lines need a shell; necessary on windows for .bat and .cmd files, necessary on
+              // Linux to use the shell features we've traditionally supported.
+              // Code scanning tools will flag this as a risk. The input comes from a trusted source,
+              // so it does not represent a security risk.
+              shell: true,
+            });
+            break;
+        }
 
         proc.on('error', fail);
 
@@ -134,12 +140,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           if (code === 0) {
             return ok();
           } else {
-            return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
+            return fail(new ToolkitError(`${renderCommand(command)}: Subprocess exited with error ${code}`));
           }
         });
       });
     } catch (e: any) {
-      await debugFn(`failed command: ${commandAndArgs}`);
+      await debugFn(`failed command: ${renderCommand(command)}`);
       throw e;
     }
   }
