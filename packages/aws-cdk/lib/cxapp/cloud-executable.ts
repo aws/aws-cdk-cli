@@ -2,7 +2,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
-import type { IoHelper } from '../../lib/api-private';
+import type { IMessageSpan, IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
@@ -110,26 +110,33 @@ export class CloudExecutable implements ICloudAssemblySource {
           previouslyMissingKeys = missingKeys;
 
           if (tryLookup) {
-            await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
+            const lookupsTimer = synthSpan.startTimer('lookups');
+            try {
+              await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
 
-            const updates = await contextproviders.provideContextValues(
-              assembly.manifest.missing,
-              this.props.sdkProvider,
-              GLOBAL_PLUGIN_HOST,
-              this.props.ioHelper,
-            );
+              const updates = await contextproviders.provideContextValues(
+                assembly.manifest.missing,
+                this.props.sdkProvider,
+                GLOBAL_PLUGIN_HOST,
+                this.props.ioHelper,
+              );
 
-            for (const [key, value] of Object.entries(updates)) {
-              this.props.configuration.context.set(key, value);
+              for (const [key, value] of Object.entries(updates)) {
+                this.props.configuration.context.set(key, value);
+              }
+
+              // Cache the new context to disk
+              await this.props.configuration.saveContext();
+            } finally {
+              lookupsTimer.stop();
             }
-
-            // Cache the new context to disk
-            await this.props.configuration.saveContext();
 
             // Execute again
             continue;
           }
         }
+
+        countAssemblyResults(synthSpan, assembly);
         return new CloudAssembly(assembly, this.props.ioHelper);
       }
     } catch (e: any) {
@@ -164,4 +171,13 @@ function setsEqual<A>(a: Set<A>, b: Set<A>) {
     }
   }
   return true;
+}
+
+function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly) {
+  span.incCounter('stacks', asm.stacksRecursively.length);
+  span.incCounter('assemblies', asmCount(asm));
+
+  function asmCount(x: cxapi.CloudAssembly): number {
+    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.assembly), 0);
+  }
 }

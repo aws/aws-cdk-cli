@@ -114,6 +114,30 @@ export class TelemetrySession {
   }
 
   /**
+   * Attach a language guess
+   */
+  public attachLanguage(language: string | undefined) {
+    if (language) {
+      mutable(this.sessionInfo.project).language = language;
+    }
+  }
+
+  /**
+   * Attach the CDK library version
+   *
+   * By default the telemetry will guess at the CDK library version if it so
+   * happens that the CDK project is an NPM project and the CDK CLI is executed
+   * in the root of NPM project with `aws-cdk-lib` available in `node_modules`.
+   * This may succeed or may fail.
+   *
+   * Once we have produced and loaded the cloud assembly more accurate
+   * information becomes available that we can add in.
+   */
+  public attachCdkLibVersion(libVersion: string) {
+    mutable(this.sessionInfo.identifiers).cdkLibraryVersion = libVersion;
+  }
+
+  /**
    * When the command is complete, so is the CliIoHost. Ends the span of the entire CliIoHost
    * and notifies with an optional error message in the data.
    */
@@ -172,4 +196,8 @@ function isAbortedError(error?: ErrorDetails) {
     return true;
   }
   return false;
+}
+
+function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
+  return x;
 }

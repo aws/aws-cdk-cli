@@ -422,8 +422,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacksV2(selectStacks);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
-
     const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
     const allDriftResults: { [name: string]: DriftResult } = {};
     const unavailableDrifts = [];

@@ -542,6 +542,7 @@ export class CdkToolkit {
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
       const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+
       let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {

@@ -72,6 +72,7 @@ interface Dependency {
 
 interface SessionProject {
   readonly dependencies?: Dependency[];
+  readonly language?: string;
 }
 
 interface Project extends SessionProject {

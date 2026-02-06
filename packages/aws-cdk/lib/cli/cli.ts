@@ -37,6 +37,7 @@ import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { getLanguageFromAlias } from '../commands/language';
+import { guessLanguage } from './util/guess-language';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -107,10 +108,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context);
+    await ioHost.startTelemetry(argv, configuration.context, undefined);
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
+
+  ioHost.telemetry?.attachLanguage(await guessLanguage(process.cwd()));
 
   /**
    * The default value for displaying (and refreshing) notices on all commands.
