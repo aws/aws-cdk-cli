@@ -609,7 +609,7 @@ test('computes one set of mappings per environment', async () => {
   });
 
   // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledTimes(4);
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(5);
 
   expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
     1,
