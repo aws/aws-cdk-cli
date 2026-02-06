@@ -63,6 +63,7 @@ import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
+import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { Template, SdkProvider } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
@@ -145,6 +146,42 @@ function defaultToolkitSetup() {
     deployments: new FakeCloudFormation({
       'Test-Stack-A': { Foo: 'Bar' },
       'Test-Stack-B': { Baz: 'Zinga!' },
+      'Test-Stack-C': { Baz: 'Zinga!' },
+    }),
+  });
+}
+
+async function singleStackToolkitSetup() {
+  const singleStackExecutable = await MockCloudExecutable.create({
+    stacks: [MockStack.MOCK_STACK_B],
+  });
+
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable: singleStackExecutable,
+    configuration: singleStackExecutable.configuration,
+    sdkProvider: singleStackExecutable.sdkProvider,
+    deployments: new FakeCloudFormation({
+      'Test-Stack-B': { Foo: 'Bar' },
+    }),
+  });
+}
+
+// only stacks within stages (no top-level stacks)
+async function stageOnlyToolkitSetup() {
+  const stageOnlyExecutable = await MockCloudExecutable.create({
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [MockStack.MOCK_STACK_C],
+    }],
+  });
+
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable: stageOnlyExecutable,
+    configuration: stageOnlyExecutable.configuration,
+    sdkProvider: stageOnlyExecutable.sdkProvider,
+    deployments: new FakeCloudFormation({
       'Test-Stack-C': { Baz: 'Zinga!' },
     }),
   });
@@ -1077,17 +1114,232 @@ describe('deploy', () => {
 });
 
 describe('destroy', () => {
-  test('destroy correct stack', async () => {
+  test('destroys correct stack', async () => {
     const toolkit = defaultToolkitSetup();
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys with --all flag', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] }, // --all flag sets allTopLevel: true
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack within stage with wildcard pattern', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack in single-stack configuration', async () => {
+    const toolkit = await singleStackToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: [] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack with pattern in single-stack configuration', async () => {
+    const toolkit = await singleStackToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack within stage in stage-only configuration', async () => {
+    const toolkit = await stageOnlyToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('destroys stack within stage with wildcard pattern in stage-only configuration', async () => {
+    const toolkit = await stageOnlyToolkitSetup();
+
+    await expect(toolkit.destroy({
+      selector: { patterns: ['Test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    })).resolves.not.toThrow();
+  });
+
+  test('warns if there are only non-existent stacks', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X', 'Test-Stack-Y'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual([
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-Y')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Test-Stack-X, Test-Stack-Y')}`), 'warn'),
+    ]);
+  });
+
+  test('warns if there are only non-existent stacks even when exclusively is false', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X', 'Test-Stack-Y'] },
+      exclusively: false,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual([
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-Y')} does not exist.`), 'warn'),
+      expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Test-Stack-X, Test-Stack-Y')}`), 'warn'),
+    ]);
+  });
+
+  test('warns if there is a non-existent stack and the other exists', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-X', 'Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-X')} does not exist.`), 'warn'),
+      ]),
+    );
+    expect(flatten(notifySpy.mock.calls)).not.toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('Test-Stack-B')} does not exist.`), 'warn'),
+      ]),
+    );
+    expect(flatten(notifySpy.mock.calls)).not.toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringMatching(/No stacks match the name\(s\)/), 'warn'),
+      ]),
+    );
+  });
+
+  test('warns when wildcard pattern does not match any stacks', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Foo*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('Foo*/*')} does not exist.`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Foo*/*')}`), 'warn'),
+      ]),
+    );
+  });
+
+  test('warns when destroying non-existent stack in stage-only configuration', async () => {
+    const toolkit = await stageOnlyToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['Foo*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('Foo*/*')} does not exist.`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('Foo*/*')}`), 'warn'),
+      ]),
+    );
+  });
+
+  test('suggests valid names if there is a non-existent but closely matching stack', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test-stack-b'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('test-stack-b')} does not exist. Do you mean ${chalk.blue('Test-Stack-B')}?`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test-stack-b')}`), 'warn'),
+      ]),
+    );
+  });
+
+  test('suggests stack names within stages if there is a non-existent but closely matching stack', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test-stack-a/test-stack-c'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('test-stack-a/test-stack-c')} does not exist. Do you mean ${chalk.blue('Test-Stack-A/Test-Stack-C')}?`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test-stack-a/test-stack-c')}`), 'warn'),
+      ]),
+    );
+  });
+
+  test('suggests stack with wildcard pattern when only case differs', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['test*/*'] },
+      exclusively: true,
+      force: true,
+      fromDeploy: true,
+    });
+
+    expect(flatten(notifySpy.mock.calls)).toEqual(
+      expect.arrayContaining([
+        expectIoMsg(expect.stringContaining(`${chalk.red('test*/*')} does not exist. Do you mean ${chalk.blue('Test-Stack-A/Test-Stack-C')}?`), 'warn'),
+        expectIoMsg(expect.stringContaining(`No stacks match the name(s): ${chalk.red('test*/*')}`), 'warn'),
+      ]),
+    );
   });
 });
 
