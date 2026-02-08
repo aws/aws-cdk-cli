@@ -643,6 +643,9 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
       if (args.importExistingResources) {
         throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
       }
+      if (args.revertDrift) {
+        throw new ToolkitError('--revert-drift cannot be used with method=direct');
+      }
       deploymentMethod = { method: 'direct' };
       break;
     case 'change-set':
