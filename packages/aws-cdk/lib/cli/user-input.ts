@@ -933,6 +933,13 @@ export interface DeployOptions {
   readonly ignoreNoStacks?: boolean;
 
   /**
+   * Create a drift-aware change set that brings actual resource states in line with template definitions
+   *
+   * @default - false
+   */
+  readonly revertDrift?: boolean;
+
+  /**
    * Positional argument for deploy
    */
   readonly STACKS?: Array<string>;

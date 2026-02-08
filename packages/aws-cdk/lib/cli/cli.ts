@@ -651,6 +651,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case 'prepare-change-set':
@@ -659,6 +660,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: false,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case undefined:
@@ -668,6 +670,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: watch ? true : args.execute ?? true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
   }

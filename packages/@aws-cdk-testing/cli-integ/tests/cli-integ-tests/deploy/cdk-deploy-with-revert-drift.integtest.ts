@@ -1,19 +1,14 @@
 import { DescribeStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
-import { waitForLambdaUpdateComplete } from './drift_helpers';
 import { integTest, withDefaultFixture } from '../../../lib';
+import { waitForLambdaUpdateComplete } from '../drift/drift_helpers';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
 integTest(
-  'cdk drift --fail throws when drift is detected',
+  'deploy with revert-drift true',
   withDefaultFixture(async (fixture) => {
     await fixture.cdkDeploy('driftable', {});
-
-    // Assert that, right after deploying, there is no drift (because we just deployed it)
-    const drift = await fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable')], { verbose: false });
-
-    expect(drift).toContain('No drift detected');
 
     // Get the Lambda, we want to now make it drift
     const response = await fixture.aws.cloudFormation.send(
@@ -40,8 +35,21 @@ integTest(
     // Wait for the stack update to complete
     await waitForLambdaUpdateComplete(fixture, functionName);
 
-    await expect(
-      fixture.cdk(['drift', '--fail', fixture.fullStackName('driftable')], { verbose: false }),
-    ).rejects.toThrow('exited with error');
+    const drifted = await fixture.cdk(['drift', fixture.fullStackName('driftable')], { verbose: false });
+
+    expect(drifted).toMatch(/Stack.*driftable/);
+    expect(drifted).toContain('1 resource has drifted');
+
+    // Update the Stack with drift-aware
+    await fixture.cdkDeploy('driftable', {
+      options: ['--revert-drift'],
+      captureStderr: false,
+    });
+
+    // After performing a drift-aware deployment, verify that no drift has occurred.
+    const noDrifted = await fixture.cdk(['drift', fixture.fullStackName('driftable')], { verbose: false });
+
+    expect(noDrifted).toMatch(/Stack.*driftable/); // can't just .toContain because of formatting
+    expect(noDrifted).toContain('No drift detected');
   }),
 );
