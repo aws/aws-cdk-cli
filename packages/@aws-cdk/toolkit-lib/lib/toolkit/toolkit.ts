@@ -95,6 +95,7 @@ import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 
 export interface ToolkitOptions {
   /**
@@ -1435,11 +1436,18 @@ function zeroTime(): ElapsedTime {
 }
 
 function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly) {
-  span.incCounter('stacks', asm.stacksRecursively.length);
+  const stacksRecursively = asm.stacksRecursively;
+  span.incCounter('stacks', stacksRecursively.length);
   span.incCounter('assemblies', asmCount(asm));
+  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
+  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
 
   function asmCount(x: cxapi.CloudAssembly): number {
     console.log(x.directory);
     return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
   }
+}
+
+function sum(xs: number[]) {
+  return xs.reduce((a, b) => a + b, 0);
 }

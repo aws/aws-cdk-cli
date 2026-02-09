@@ -11,6 +11,7 @@ import { CLI_PRIVATE_SPAN } from '../cli/telemetry/messages';
 import type { ErrorDetails } from '../cli/telemetry/schema';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 
 /**
  * @returns output directory
@@ -174,10 +175,19 @@ function setsEqual<A>(a: Set<A>, b: Set<A>) {
 }
 
 function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly) {
-  span.incCounter('stacks', asm.stacksRecursively.length);
+  const stacksRecursively = asm.stacksRecursively;
+
+  span.incCounter('stacks', stacksRecursively.length);
+  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
+  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
+
   span.incCounter('assemblies', asmCount(asm));
 
   function asmCount(x: cxapi.CloudAssembly): number {
     return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
   }
+}
+
+function sum(xs: number[]) {
+  return xs.reduce((a, b) => a + b, 0);
 }
