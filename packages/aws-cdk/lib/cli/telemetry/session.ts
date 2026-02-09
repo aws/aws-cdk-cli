@@ -123,6 +123,13 @@ export class TelemetrySession {
   }
 
   /**
+   * Attach our best guess at running under an agent or not
+   */
+  public attachAgent(isAgent: boolean | undefined) {
+    mutable(this.sessionInfo.environment).agent = isAgent;
+  }
+
+  /**
    * Attach the CDK library version
    *
    * By default the telemetry will guess at the CDK library version if it so
