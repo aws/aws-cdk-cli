@@ -174,14 +174,14 @@ function setsEqual<A>(a: Set<A>, b: Set<A>) {
   return true;
 }
 
-function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly) {
-  const stacksRecursively = asm.stacksRecursively;
+function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
+  const stacksRecursively = assembly.stacksRecursively;
 
   span.incCounter('stacks', stacksRecursively.length);
   span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
   span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
 
-  span.incCounter('assemblies', asmCount(asm));
+  span.incCounter('assemblies', asmCount(assembly));
 
   function asmCount(x: cxapi.CloudAssembly): number {
     return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);

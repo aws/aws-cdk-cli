@@ -1,6 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
@@ -95,7 +96,6 @@ import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { promiseWithResolvers } from '../util/promises';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 
 export interface ToolkitOptions {
   /**
@@ -1435,15 +1435,14 @@ function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
 }
 
-function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly) {
-  const stacksRecursively = asm.stacksRecursively;
+function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
+  const stacksRecursively = assembly.stacksRecursively;
   span.incCounter('stacks', stacksRecursively.length);
-  span.incCounter('assemblies', asmCount(asm));
+  span.incCounter('assemblies', asmCount(assembly));
   span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
   span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
 
   function asmCount(x: cxapi.CloudAssembly): number {
-    console.log(x.directory);
     return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
   }
 }
