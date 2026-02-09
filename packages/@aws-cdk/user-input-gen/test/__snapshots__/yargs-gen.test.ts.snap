@@ -6,8 +6,8 @@ exports[`render can generate global options 1`] = `
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-import * as helpers from './util/yargs-helpers';
 import { Argv } from 'yargs';
+import * as helpers from './util/yargs-helpers';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {
@@ -54,8 +54,8 @@ exports[`render can generate negativeAlias 1`] = `
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-import * as helpers from './util/yargs-helpers';
 import { Argv } from 'yargs';
+import * as helpers from './util/yargs-helpers';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {
@@ -94,8 +94,8 @@ exports[`render special notification-arn option gets NO default value 1`] = `
 // Do not edit by hand; all changes will be overwritten at build time from the config file.
 // -------------------------------------------------------------------------------------------
 /* eslint-disable @stylistic/max-len, @typescript-eslint/consistent-type-imports */
-import * as helpers from './util/yargs-helpers';
 import { Argv } from 'yargs';
+import * as helpers from './util/yargs-helpers';
 
 // @ts-ignore TS6133
 export function parseCommandLineArguments(args: Array<string>): any {

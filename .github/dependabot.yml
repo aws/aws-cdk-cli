@@ -4,14 +4,15 @@ version: 2
 updates:
   - package-ecosystem: npm
     schedule:
-      interval: daily
+      interval: weekly
     labels:
       - auto-approve
+    allow:
+      - dependency-type: production
     directories:
       - /
       - /packages/@aws-cdk-testing/cli-integ
       - /packages/@aws-cdk/cdk-assets-lib
-      - /packages/@aws-cdk/cdk-cli-wrapper
       - /packages/@aws-cdk/cli-plugin-contract
       - /packages/@aws-cdk/cloud-assembly-api
       - /packages/@aws-cdk/cloud-assembly-schema

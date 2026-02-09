@@ -1,11 +1,11 @@
 import * as path from 'node:path';
-import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions, WatchEvents } from '@aws-cdk/cdk-cli-wrapper';
 import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
 import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
 import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
+import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions, WatchEvents } from './cdk-interface';
 
 export interface ToolkitLibEngineOptions {
   /**

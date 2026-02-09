@@ -6,6 +6,22 @@ import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
+import { type EventName, EVENTS } from 'chokidar/handler.js';
+
+/**
+ * File events that we care about from chokidar.
+ * In chokidar v4, EventName includes additional events like 'error', 'raw', 'ready', 'all'
+ * that we need to filter out in the 'all' handler.
+ */
+const FILE_EVENTS = [EVENTS.ADD, EVENTS.ADD_DIR, EVENTS.CHANGE, EVENTS.UNLINK, EVENTS.UNLINK_DIR] as const;
+type FileEvent = typeof FILE_EVENTS[number];
+
+/**
+ * Type guard to check if an event is a file event we should process.
+ */
+function isFileEvent(event: EventName): event is FileEvent {
+  return (FILE_EVENTS as readonly string[]).includes(event);
+}
 import * as fs from 'fs-extra';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
@@ -929,7 +945,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg("Triggering initial 'cdk deploy'"));
         await deployAndWatch();
       })
-      .on('all', async (event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir', filePath: string) => {
+      .on('all', async (event: EventName, filePath: string) => {
+        // Filter out non-file events (e.g., 'error', 'raw', 'ready', 'all')
+        // These are handled separately or not relevant for watch deployments
+        if (!isFileEvent(event)) {
+          return;
+        }
         const watchEvent = {
           event,
           path: filePath,
@@ -957,10 +978,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         await cloudWatchLogMonitor?.deactivate();
         // close the watcher itself
         await watcher.close();
-        // Prevents Node from staying alive. There is no 'end' event that the watcher emits
-        // that we can know it's definitely done, so best we can do is tell it to stop watching,
-        // stop keeping Node alive, and then pretend that's everything we needed to do.
-        watcher.unref();
         stoppedPromise.resolve();
         return stoppedPromise.promise;
       },
@@ -1114,7 +1131,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
-        const stackDefinitions = generateStackDefinitions(mappings, deployedStacks, localStacks);
+        const stackDefinitions = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, sdkProvider, ioHelper);
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
