@@ -40,7 +40,7 @@ export async function loadTree(assembly: CloudAssembly, trace: (msg: string) => 
   try {
     const outdir = assembly.directory;
     const fileName = assembly.tree()?.file;
-    return fileName ? fs.readJSONSync(path.join(outdir, fileName)).tree : ({} as ConstructTreeNode);
+    return fileName ? fs.readJSONSync(path.join(outdir, fileName)).tree : undefined;
   } catch (e) {
     await trace(`Failed to get tree.json file: ${e}. Proceeding with empty tree.`);
     return undefined;

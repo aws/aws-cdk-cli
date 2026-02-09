@@ -475,7 +475,8 @@ export class CdkToolkit {
         );
       }
 
-      if (Object.keys(stack.template.Resources || {}).length === 0) {
+      const resourceCount = Object.keys(stack.template.Resources || {}).length;
+      if (resourceCount === 0) {
         // The generated stack has no resources
         if (!(await this.props.deployments.stackExists({ stack }))) {
           await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, skipping deployment.', chalk.bold(stack.displayName));
@@ -542,6 +543,7 @@ export class CdkToolkit {
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
       const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+      deploySpan.incCounter('resources', resourceCount);
       let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
