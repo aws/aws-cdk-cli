@@ -1440,6 +1440,7 @@ function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly)
   span.incCounter('assemblies', asmCount(asm));
 
   function asmCount(x: cxapi.CloudAssembly): number {
-    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.assembly), 0);
+    console.log(x.directory);
+    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
   }
 }

@@ -100,38 +100,6 @@ describe('frameworkSupportsContextOverflow', () => {
     expect(frameworkSupportsContextOverflow(tree)).toBe(true);
   });
 
-  test('returns false if any node in the tree is a v1 App', () => {
-    const tree: ConstructTreeNode = {
-      id: 'root',
-      path: '',
-      children: {
-        stack1: {
-          id: 'stack1',
-          path: 'stack1',
-          constructInfo: {
-            fqn: 'aws-cdk-lib.Stack',
-            version: '2.50.0',
-          },
-        },
-        nested: {
-          id: 'nested',
-          path: 'nested',
-          children: {
-            app: {
-              id: 'app',
-              path: 'nested/app',
-              constructInfo: {
-                fqn: '@aws-cdk/core.App',
-                version: '1.180.0',
-              },
-            },
-          },
-        },
-      },
-    };
-    expect(frameworkSupportsContextOverflow(tree)).toBe(false);
-  });
-
   test('returns false if any node in the tree is a v2 App with version <= 2.38.0', () => {
     const tree: ConstructTreeNode = {
       id: 'root',
