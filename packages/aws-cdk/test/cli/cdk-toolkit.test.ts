@@ -571,6 +571,27 @@ describe('deploy', () => {
     });
   });
 
+  test('emits resource counters', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-B'] },
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    const deploy = notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_CLI_I3001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
+  });
+
   test('globless bootstrap uses environment without question', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();

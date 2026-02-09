@@ -1419,9 +1419,8 @@ async function synthAndMeasure(
   const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
   try {
     const ret = await assemblyFromSource(synthSpan.asHelper, cx);
-    const synthDuration = await synthSpan.end({});
-
     countAssemblyResults(synthSpan, ret.assembly);
+    const synthDuration = await synthSpan.end({});
 
     return Object.assign(ret, { synthDuration });
   } catch (error: any) {
