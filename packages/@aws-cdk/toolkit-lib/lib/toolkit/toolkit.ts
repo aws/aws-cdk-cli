@@ -1409,7 +1409,11 @@ function stacksOpt(o: { stacks?: StackSelector }): StackSelector {
 /**
  * Perform synthesis and emit the time taken to a new span
  */
-async function synthAndMeasure(ioHelper: IoHelper, cx: ICloudAssemblySource, selectStacks: StackSelector): Promise<StackAssembly & { synthDuration: ElapsedTime }> {
+async function synthAndMeasure(
+  ioHelper: IoHelper,
+  cx: ICloudAssemblySource,
+  selectStacks: StackSelector,
+): Promise<StackAssembly & { synthDuration: ElapsedTime }> {
   const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
   try {
     const ret = await assemblyFromSource(synthSpan.asHelper, cx);
