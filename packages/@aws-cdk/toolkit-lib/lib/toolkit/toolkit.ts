@@ -71,7 +71,7 @@ import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
-import type { ElapsedTime, IoHelper } from '../api/io/private';
+import type { ElapsedTime, IMessageSpan, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
@@ -596,7 +596,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
 
       // The generated stack has no resources
-      if (Object.keys(stack.template.Resources || {}).length === 0) {
+      const resourceCount = Object.keys(stack.template.Resources || {}).length;
+      if (resourceCount === 0) {
         // stack is empty and doesn't exist => do nothing
         const stackExists = await deployments.stackExists({ stack });
         if (!stackExists) {
@@ -661,6 +662,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           current: stackIndex,
           stack,
         });
+      deploySpan.incCounter('resources', resourceCount);
 
       let tags = options.tags;
       if (!tags || tags.length === 0) {
@@ -1418,6 +1420,9 @@ async function synthAndMeasure(
   try {
     const ret = await assemblyFromSource(synthSpan.asHelper, cx);
     const synthDuration = await synthSpan.end({});
+
+    countAssemblyResults(synthSpan, ret.assembly);
+
     return Object.assign(ret, { synthDuration });
   } catch (error: any) {
     // End the span even if we had a failure
@@ -1428,4 +1433,13 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
+}
+
+function countAssemblyResults(span: IMessageSpan<any>, asm: cxapi.CloudAssembly) {
+  span.incCounter('stacks', asm.stacksRecursively.length);
+  span.incCounter('assemblies', asmCount(asm));
+
+  function asmCount(x: cxapi.CloudAssembly): number {
+    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.assembly), 0);
+  }
 }
