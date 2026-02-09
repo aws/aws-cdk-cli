@@ -609,17 +609,17 @@ test('computes one set of mappings per environment', async () => {
   });
 
   // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledTimes(4);
+  expect(ioHost.notifySpy).toHaveBeenCalledTimes(5);
 
   expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
-    1,
+    2,
     expect.objectContaining({
       message: expect.stringMatching('aws://123456789012/us-east-1'),
     }),
   );
 
   expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
-    2,
+    3,
     expect.objectContaining({
       action: 'refactor',
       level: 'result',
@@ -640,14 +640,14 @@ test('computes one set of mappings per environment', async () => {
   );
 
   expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
-    3,
+    4,
     expect.objectContaining({
       message: expect.stringMatching('aws://123456789012/us-east-2'),
     }),
   );
 
   expect(ioHost.notifySpy).toHaveBeenNthCalledWith(
-    4,
+    5,
     expect.objectContaining({
       action: 'refactor',
       level: 'result',
