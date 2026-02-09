@@ -137,6 +137,54 @@ describe('TelemetrySession', () => {
     // THEN
     expect(clientFlushSpy).toHaveBeenCalledTimes(1);
   });
+
+  test('attach cdk library version', async () => {
+    session.attachCdkLibVersion('1.2.3');
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      identifiers: expect.objectContaining({
+        cdkLibraryVersion: '1.2.3',
+      }),
+    }));
+  });
+
+  test('attach language', async () => {
+    session.attachLanguage('basic');
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      project: expect.objectContaining({
+        language: 'basic',
+      }),
+    }));
+  });
+
+  test('attack agent', async () => {
+    session.attachAgent(true);
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      environment: expect.objectContaining({
+        agent: true,
+      }),
+    }));
+  });
 });
 
 test('ci is recorded properly - true', async () => {

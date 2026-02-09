@@ -117,6 +117,11 @@ export class TelemetrySession {
    * Attach a language guess
    */
   public attachLanguage(language: string | undefined) {
+    // Don't want to crash accidentally
+    if (!this._sessionInfo) {
+      return;
+    }
+
     if (language) {
       mutable(this.sessionInfo.project).language = language;
     }
@@ -126,6 +131,11 @@ export class TelemetrySession {
    * Attach our best guess at running under an agent or not
    */
   public attachAgent(isAgent: boolean | undefined) {
+    // Don't want to crash accidentally
+    if (!this._sessionInfo) {
+      return;
+    }
+
     mutable(this.sessionInfo.environment).agent = isAgent;
   }
 
@@ -141,6 +151,11 @@ export class TelemetrySession {
    * information becomes available that we can add in.
    */
   public attachCdkLibVersion(libVersion: string) {
+    // Don't want to crash accidentally
+    if (!this._sessionInfo) {
+      return;
+    }
+
     mutable(this.sessionInfo.identifiers).cdkLibraryVersion = libVersion;
   }
 
