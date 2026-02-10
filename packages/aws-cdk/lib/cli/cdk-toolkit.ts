@@ -9,6 +9,7 @@ import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
+import { convertGlobsToChokidarV4 } from './convert-globs';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
@@ -35,6 +36,7 @@ import type { Deployments, SuccessfulDeployStackResult } from '../api/deployment
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
+import { FlagOperations } from '../commands/flags/operations';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -68,7 +70,6 @@ import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
-import { FlagOperations } from '../commands/flags/operations';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -863,9 +864,11 @@ export class CdkToolkit {
       await cloudWatchLogMonitor?.activate();
     };
 
+    const { watchPaths, ignored } = convertGlobsToChokidarV4(watchIncludes, watchExcludes);
+
     chokidar
-      .watch(watchIncludes, {
-        ignored: watchExcludes,
+      .watch(watchPaths, {
+        ignored,
         cwd: rootDir,
       })
       .on('ready', async () => {
@@ -877,6 +880,10 @@ export class CdkToolkit {
       .on('all', async (event: EventName, filePath?: string) => {
         if (!isFileEvent(event)) {
           return; // Ignore non-file events like 'error', 'raw', 'ready', 'all'
+        }
+        // Skip logging for ignored files during initial scan
+        if (filePath && ignored(filePath)) {
+          return;
         }
         if (latch === 'pre-ready') {
           await this.ioHost.asIoHelper().defaults.info(`'watch' is observing ${event === 'addDir' ? 'directory' : 'the file'} '%s' for changes`, filePath);
