@@ -1,4 +1,4 @@
-import { convertGlobsToChokidarV4 } from '../../lib/cli/strip-globs';
+import { convertGlobsToChokidarV4 } from '../../lib/cli/convert-globs';
 
 describe('convertGlobsToChokidarV4', () => {
   describe('watchPaths extraction', () => {
