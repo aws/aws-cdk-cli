@@ -10,6 +10,7 @@ import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
+import { convertGlobsToChokidarV4 } from './strip-globs';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
@@ -863,9 +864,11 @@ export class CdkToolkit {
       await cloudWatchLogMonitor?.activate();
     };
 
+    const { watchPaths, ignored } = convertGlobsToChokidarV4(watchIncludes, watchExcludes);
+
     chokidar
-      .watch(watchIncludes, {
-        ignored: watchExcludes,
+      .watch(watchPaths, {
+        ignored,
         cwd: rootDir,
       })
       .on('ready', async () => {
