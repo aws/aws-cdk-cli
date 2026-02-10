@@ -12,6 +12,7 @@ export const ASSET_RESOURCE_METADATA_ENABLED_CONTEXT = 'aws:cdk:enable-asset-met
 export const ASSET_RESOURCE_METADATA_PATH_KEY = 'aws:asset:path';
 export const ASSET_RESOURCE_METADATA_DOCKERFILE_PATH_KEY = 'aws:asset:dockerfile-path';
 export const ASSET_RESOURCE_METADATA_DOCKER_BUILD_ARGS_KEY = 'aws:asset:docker-build-args';
+export const ASSET_RESOURCE_METADATA_DOCKER_BUILD_CONTEXTS_KEY = 'aws:asset:docker-build-contexts';
 export const ASSET_RESOURCE_METADATA_DOCKER_BUILD_SECRETS_KEY = 'aws:asset:docker-build-secrets';
 export const ASSET_RESOURCE_METADATA_DOCKER_BUILD_SSH_KEY = 'aws:asset:docker-build-ssh';
 export const ASSET_RESOURCE_METADATA_DOCKER_BUILD_TARGET_KEY = 'aws:asset:docker-build-target';
