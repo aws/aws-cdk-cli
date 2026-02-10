@@ -1,9 +1,9 @@
 import * as child_process from 'child_process';
 import * as builtinFs from 'fs';
-import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
+import { HotswapMode } from '../../lib/engines/cdk-interface';
 import { IntegTestRunner, IntegTest } from '../../lib/runner';
 import { MockCdkProvider } from '../helpers';
 
@@ -576,12 +576,16 @@ describe('IntegTest runIntegTests', () => {
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
     });
 
-    expect(removeSyncMock.mock.calls).toEqual([
-      ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
-      [
-        'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
-      ],
-    ]);
+    // The cdk-integ.out.* directory removal only happens if the directory exists on disk.
+    // Since git doesn't track empty directories, we only assert on the calls that always happen.
+    expect(removeSyncMock.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
+        [
+          'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
+        ],
+      ]),
+    );
   });
 
   test.each`

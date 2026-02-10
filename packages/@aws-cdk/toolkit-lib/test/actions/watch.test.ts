@@ -162,11 +162,11 @@ describe('watch', () => {
     await fakeChokidarWatcherOn.readyCallback();
 
     // THEN
-    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
+    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
       cloudWatchLogMonitor: expect.anything(), // Not undefined
     }));
 
-    const logMonitorSpy = jest.spyOn((deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor, 'deactivate');
+    const logMonitorSpy = jest.spyOn((deploySpy.mock.calls[0]?.[3] as any).cloudWatchLogMonitor, 'deactivate');
 
     // Deactivate the watcher and cloudWatchLogMonitor that we created, otherwise the tests won't exit
     await watcher.dispose();
@@ -209,7 +209,7 @@ describe('watch', () => {
       await fakeChokidarWatcherOn.readyCallback();
 
       // THEN
-      expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
+      expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
         deploymentMethod: deploymentMethod,
         extraUserAgent: `cdk-watch/hotswap-${userAgent}`,
       }));
@@ -228,7 +228,7 @@ describe('watch', () => {
     await fakeChokidarWatcherOn.readyCallback();
 
     // THEN
-    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
+    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
       deploymentMethod: { method: 'hotswap' },
       extraUserAgent: 'cdk-watch/hotswap-on',
     }));
