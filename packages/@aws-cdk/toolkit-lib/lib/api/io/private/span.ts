@@ -27,7 +27,6 @@ export interface SpanDefinition<S extends object, E extends SpanEnd> {
   readonly end: make.IoMessageMaker<E>;
 }
 
-
 /**
  * Arguments to the span.end() function
  *

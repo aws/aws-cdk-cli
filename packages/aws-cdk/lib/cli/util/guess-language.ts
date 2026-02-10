@@ -1,5 +1,5 @@
-import * as fs from 'fs-extra';
 import * as path from 'path';
+import * as fs from 'fs-extra';
 
 /**
  * Guess the CDK app language based on the files in the given directory
@@ -43,15 +43,16 @@ export async function guessLanguage(dir: string): Promise<string | undefined> {
   }
   return undefined;
 
-  async function listFiles(dir: string, depth: number): Promise<string[]> {
-    const ret = await fs.readdir(dir, { encoding: 'utf-8', withFileTypes: true });
+  async function listFiles(dirName: string, depth: number): Promise<string[]> {
+    const ret = await fs.readdir(dirName, { encoding: 'utf-8', withFileTypes: true });
 
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     return (await Promise.all(ret.map(async (f) => {
       if (f.isDirectory()) {
         if (depth <= 1) {
           return Promise.resolve([]);
         }
-        return await listFiles(path.join(dir, f.name), depth - 1);
+        return listFiles(path.join(dirName, f.name), depth - 1);
       } else {
         return Promise.resolve([f.name]);
       }

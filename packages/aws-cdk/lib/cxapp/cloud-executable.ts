@@ -1,4 +1,5 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
@@ -11,7 +12,6 @@ import { CLI_PRIVATE_SPAN } from '../cli/telemetry/messages';
 import type { ErrorDetails } from '../cli/telemetry/schema';
 import type { Configuration } from '../cli/user-configuration';
 import * as contextproviders from '../context-providers';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 
 /**
  * @returns output directory
