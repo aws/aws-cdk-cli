@@ -791,6 +791,80 @@ export class CdkToolkit {
     }
   }
 
+  public async publish(options: PublishOptions) {
+    const startSynthTime = new Date().getTime();
+    const stackCollection = await this.selectStacksForDeploy(
+      options.selector,
+      options.exclusively,
+    );
+    const elapsedSynthTime = new Date().getTime() - startSynthTime;
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
+
+    if (stackCollection.stackCount === 0) {
+      await this.ioHost.asIoHelper().defaults.error('No stacks selected');
+      return;
+    }
+
+    const buildAsset = async (assetNode: AssetBuildNode) => {
+      await this.props.deployments.buildSingleAsset(
+        assetNode.assetManifestArtifact,
+        assetNode.assetManifest,
+        assetNode.asset,
+        {
+          stack: assetNode.parentStack,
+          roleArn: options.roleArn,
+          stackName: assetNode.parentStack.stackName,
+        },
+      );
+    };
+
+    const publishAsset = async (assetNode: AssetPublishNode) => {
+      await this.props.deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
+        stack: assetNode.parentStack,
+        roleArn: options.roleArn,
+        stackName: assetNode.parentStack.stackName,
+        forcePublish: options.force,
+      });
+    };
+
+    const startPublishTime = new Date().getTime();
+    const stacks = stackCollection.stackArtifacts;
+    const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
+      stack,
+      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
+    ]);
+
+    const workGraph = new WorkGraphBuilder(
+      asIoHelper(this.ioHost, 'publish'),
+      true, // prebuild all assets
+    ).build(stacksAndTheirAssetManifests);
+
+    // Unless we are running with '--force', skip already published assets
+    if (!options.force) {
+      await this.removePublishedAssets(workGraph, options);
+    }
+
+    await this.ioHost.asIoHelper().defaults.info('Publishing assets for %s stack(s)', chalk.bold(String(stackCollection.stackCount)));
+
+    const graphConcurrency: Concurrency = {
+      'stack': 1, // Not relevant since we're not deploying stacks
+      'asset-build': 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+      'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+    };
+
+    await workGraph.doParallel(graphConcurrency, {
+      deployStack: async () => {
+        // No-op: we're only publishing assets, not deploying
+      },
+      buildAsset,
+      publishAsset,
+    });
+
+    const elapsedPublishTime = new Date().getTime() - startPublishTime;
+    await this.ioHost.asIoHelper().defaults.info(chalk.green('\n✨  Assets published successfully'));
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(elapsedPublishTime)}s\n`);
+  }
+
   public async watch(options: WatchOptions) {
     const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
     const ioHelper = asIoHelper(this.ioHost, 'watch');
@@ -1849,6 +1923,55 @@ export interface RollbackOptions {
    * @default true
    */
   readonly validateBootstrapStackVersion?: boolean;
+}
+
+export interface PublishOptions {
+  /**
+   * Criteria for selecting stacks
+   */
+  readonly selector: StackSelector;
+
+  /**
+   * Only select the given stack
+   *
+   * @default false
+   */
+  readonly exclusively?: boolean;
+
+  /**
+   * Name of the toolkit stack to use/deploy
+   *
+   * @default CDKToolkit
+   */
+  readonly toolkitStackName?: string;
+
+  /**
+   * Role to pass to CloudFormation for deployment
+   *
+   * @default - Current role
+   */
+  readonly roleArn?: string;
+
+  /**
+   * Always publish assets, even if they are already published
+   *
+   * @default false
+   */
+  readonly force?: boolean;
+
+  /**
+   * Whether to build/publish assets in parallel
+   *
+   * @default true
+   */
+  readonly assetParallelism?: boolean;
+
+  /**
+   * Maximum number of simultaneous asset publishing operations
+   *
+   * @default 1
+   */
+  readonly concurrency?: number;
 }
 
 export interface ImportOptions extends CfnDeployOptions {
