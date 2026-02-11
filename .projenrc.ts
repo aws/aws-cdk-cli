@@ -1451,7 +1451,7 @@ const integRunner = configureProject(
     allowPrivateDeps: true,
     tsconfig: {
       compilerOptions: {
-        ...defaultTsOptions,
+        ...toolkitLibTsCompilerOptions,
       },
     },
     jestOptions: jestOptionsForProject({
