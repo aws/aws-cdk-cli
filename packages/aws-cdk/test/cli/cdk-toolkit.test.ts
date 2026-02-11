@@ -42,7 +42,7 @@ const fakeChokidarWatch = {
     return mockChokidarWatch.mock.calls[0][0];
   },
 
-  get excludeArgs(): string[] | ((path: string, stats?: any) => boolean) {
+  get excludeArgs(): string[] {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
     // the ignore args are a property of the second parameter to the 'watch()' call
     const chokidarWatchOpts = mockChokidarWatch.mock.calls[0][1];
@@ -1144,21 +1144,7 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    // stripGlobs converts '**/my-dir2/*' to '.' (current directory)
-    // Note: this is more permissive than the inputted values in 'include'.
-    // The restrictions are added as an 'ignore' function.
-    expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir1', '.']);
-
-    // Verify the ignored function filters based on include patterns
-    const ignored = fakeChokidarWatch.excludeArgs;
-    expect(typeof ignored).toBe('function');
-    if (typeof ignored === 'function') {
-      // Files matching the include patterns should not be ignored
-      expect(ignored('my-dir1/file.ts', { isFile: () => true })).toBe(false);
-      expect(ignored('my-dir2/file.ts', { isFile: () => true })).toBe(false);
-      // Files not matching should be ignored
-      expect(ignored('other-dir/file.ts', { isFile: () => true })).toBe(true);
-    }
+    expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir1', '**/my-dir2/*']);
   });
 
   test('ignores the output dir, dot files, dot directories, and node_modules by default', async () => {
@@ -1171,19 +1157,7 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    // stripGlobs converts exclude patterns to an ignored function
-    const ignored = fakeChokidarWatch.excludeArgs;
-    expect(typeof ignored).toBe('function');
-
-    // Test that the ignored function works correctly
-    if (typeof ignored === 'function') {
-      expect(ignored('cdk.out/test.js')).toBe(true);
-      expect(ignored('.hidden')).toBe(true);
-      expect(ignored('.hidden/file.js')).toBe(true);
-      expect(ignored('node_modules/package')).toBe(true);
-      expect(ignored('src/node_modules/package')).toBe(true);
-      expect(ignored('src/index.ts')).toBe(false);
-    }
+    expect(fakeChokidarWatch.excludeArgs).toStrictEqual(['cdk.out/**', '**/.*', '**/.*/**', '**/node_modules/**']);
   });
 
   test("allows providing a single string in 'watch.exclude'", async () => {
@@ -1197,15 +1171,9 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    // stripGlobs converts exclude patterns to an ignored function
-    const ignored = fakeChokidarWatch.excludeArgs;
-    expect(typeof ignored).toBe('function');
-
-    // Test that the ignored function works correctly
-    if (typeof ignored === 'function') {
-      expect(ignored('my-dir')).toBe(true);
-      expect(ignored('other-dir')).toBe(false);
-    }
+    const excludeArgs = fakeChokidarWatch.excludeArgs;
+    expect(excludeArgs.length).toBe(5);
+    expect(excludeArgs[0]).toBe('my-dir');
   });
 
   test("allows providing an array of strings in 'watch.exclude'", async () => {
@@ -1219,16 +1187,10 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    // stripGlobs converts exclude patterns to an ignored function
-    const ignored = fakeChokidarWatch.excludeArgs;
-    expect(typeof ignored).toBe('function');
-
-    // Test that the ignored function works correctly
-    if (typeof ignored === 'function') {
-      expect(ignored('my-dir1')).toBe(true);
-      expect(ignored('path/my-dir2/file.js')).toBe(true);
-      expect(ignored('other-dir')).toBe(false);
-    }
+    const excludeArgs = fakeChokidarWatch.excludeArgs;
+    expect(excludeArgs.length).toBe(6);
+    expect(excludeArgs[0]).toBe('my-dir1');
+    expect(excludeArgs[1]).toBe('**/my-dir2');
   });
 
   test('allows watching with deploy concurrency', async () => {
