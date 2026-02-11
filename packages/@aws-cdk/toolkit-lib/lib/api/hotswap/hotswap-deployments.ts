@@ -24,6 +24,7 @@ import {
 } from './common';
 import { isHotswappableEcsServiceChange } from './ecs-services';
 import { isHotswappableLambdaFunctionChange } from './lambda-functions';
+import { isHotswappableQuickSightChange } from './quicksight';
 import {
   skipChangeForS3DeployCustomResourcePolicy,
   isHotswappableS3BucketDeploymentChange,
@@ -59,6 +60,13 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   'AWS::AppSync::FunctionConfiguration': isHotswappableAppSyncChange,
   'AWS::AppSync::GraphQLSchema': isHotswappableAppSyncChange,
   'AWS::AppSync::ApiKey': isHotswappableAppSyncChange,
+
+  // QuickSight
+  'AWS::QuickSight::DataSet': isHotswappableQuickSightChange,
+  'AWS::QuickSight::DataSource': isHotswappableQuickSightChange,
+  'AWS::QuickSight::Dashboard': isHotswappableQuickSightChange,
+  'AWS::QuickSight::Analysis': isHotswappableQuickSightChange,
+  'AWS::QuickSight::Template': isHotswappableQuickSightChange,
 
   'AWS::BedrockAgentCore::Runtime': isHotswappableBedrockAgentCoreRuntimeChange,
   'AWS::ECS::TaskDefinition': isHotswappableEcsServiceChange,
