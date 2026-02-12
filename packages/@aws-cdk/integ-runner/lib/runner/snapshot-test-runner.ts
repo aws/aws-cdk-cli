@@ -63,8 +63,8 @@ export class IntegSnapshotRunner extends IntegRunner {
       // generates an incorrect snapshot and I have no idea why so synth again here
       // to produce the "correct" snapshot
       const env = DEFAULT_SYNTH_OPTIONS.env;
-      await this.cdk.synthFast({
-        execCmd: this.cdkApp.split(' '),
+      await this.cdk.synth({
+        app: this.cdkApp,
         context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
         env,
         output: path.relative(this.directory, this.cdkOutDir),

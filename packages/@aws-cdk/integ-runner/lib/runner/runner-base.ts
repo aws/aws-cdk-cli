@@ -182,8 +182,8 @@ export abstract class IntegRunner {
    * This will synth and then load the integration test manifest
    */
   public async generateActualSnapshot(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
-    await this.cdk.synthFast({
-      execCmd: this.cdkApp.split(' '),
+    await this.cdk.synth({
+      app: this.cdkApp,
       // we don't know the "actual" context yet (this method is what generates it) so just
       // use the "expected" context. This is only run in order to read the manifest
       context: this.getContext((await this.expectedTestSuite())?.synthContext),
@@ -358,8 +358,8 @@ export abstract class IntegRunner {
 
     // if lookups are enabled then we need to synth again
     // using dummy context and save that as the snapshot
-    await this.cdk.synthFast({
-      execCmd: this.cdkApp.split(' '),
+    await this.cdk.synth({
+      app: this.cdkApp,
       context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
       env: DEFAULT_SYNTH_OPTIONS.env,
       output: path.relative(this.directory, this.snapshotDir),
