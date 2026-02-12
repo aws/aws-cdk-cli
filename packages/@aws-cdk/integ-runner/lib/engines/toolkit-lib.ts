@@ -264,7 +264,12 @@ export class ToolkitLibRunnerEngine implements ICdk {
    *
    * This catches that misconfiguration.
    */
-  private async validateRegion(asm: IReadableCloudAssembly) {
+  private async validateRegion(asm: IReadableCloudAssembly): Promise<void> {
+    // this happens for existing snapshots, in that case nothing to check
+    if (this.options.region === UNKNOWN_REGION) {
+      return;
+    }
+
     for (const stack of asm.cloudAssembly.stacksRecursively) {
       if (stack.environment.region !== this.options.region && stack.environment.region !== UNKNOWN_REGION) {
         this.ioHost.notify({
