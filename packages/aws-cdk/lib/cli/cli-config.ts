@@ -212,6 +212,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
+          'allow-resource-changes': { type: 'array', desc: 'Allow only changes to specified resource types or properties (e.g., AWS::Lambda::Function, AWS::Lambda::Function.Code.S3Key)', default: [] },
         },
         arg: {
           name: 'STACKS',
@@ -363,6 +364,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
           'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
+          'allow-resource-changes': { type: 'array', desc: 'Allow only changes to specified resource types or properties (e.g., AWS::Lambda::Function, AWS::Lambda::Function.Code.S3Key)', default: [] },
         },
       },
       'drift': {

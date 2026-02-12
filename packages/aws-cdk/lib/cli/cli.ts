@@ -315,6 +315,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
+          allowResourceChanges: args.allowResourceChanges,
         });
 
       case 'drift':
@@ -413,6 +414,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+          allowResourceChanges: args.allowResourceChanges,
         });
 
       case 'rollback':

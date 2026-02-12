@@ -33,6 +33,7 @@ import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
+import { validateResourceChanges, formatViolationMessage } from '../api/resource-filter';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
 import { listStacks } from '../commands/list-stacks';
@@ -286,6 +287,17 @@ export class CdkToolkit {
           contextLines,
           quiet,
         });
+
+        // Validate resource changes against allowed filters
+        if (options.allowResourceChanges && options.allowResourceChanges.length > 0) {
+          const validation = validateResourceChanges(formatter.diffs.resources.changes, options.allowResourceChanges);
+          if (!validation.isValid) {
+            const violationMessage = formatViolationMessage(validation.violations, options.allowResourceChanges);
+            await this.ioHost.asIoHelper().defaults.error(violationMessage);
+            return 1;
+          }
+        }
+
         diffs = diff.numStacksWithChanges;
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
       }
@@ -379,6 +391,17 @@ export class CdkToolkit {
             contextLines,
             quiet,
           });
+
+          // Validate resource changes against allowed filters
+          if (options.allowResourceChanges && options.allowResourceChanges.length > 0) {
+            const validation = validateResourceChanges(formatter.diffs.resources.changes, options.allowResourceChanges);
+            if (!validation.isValid) {
+              const violationMessage = formatViolationMessage(validation.violations, options.allowResourceChanges);
+              await this.ioHost.asIoHelper().defaults.error(violationMessage);
+              return 1;
+            }
+          }
+
           await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
         }
@@ -492,6 +515,23 @@ export class CdkToolkit {
         return;
       }
 
+      // Always validate resource changes if filters are specified, regardless of approval settings
+      if (options.allowResourceChanges && options.allowResourceChanges.length > 0) {
+        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
+        const formatter = new DiffFormatter({
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+          },
+        });
+
+        const validation = validateResourceChanges(formatter.diffs.resources.changes, options.allowResourceChanges);
+        if (!validation.isValid) {
+          const violationMessage = formatViolationMessage(validation.violations, options.allowResourceChanges);
+          throw new ToolkitError(violationMessage);
+        }
+      }
+
       if (requireApproval !== RequireApproval.NEVER) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
@@ -500,6 +540,7 @@ export class CdkToolkit {
             newTemplate: stack,
           },
         });
+
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
           const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates';
@@ -1609,6 +1650,13 @@ export interface DiffOptions {
    * @default false
    */
   readonly includeMoves?: boolean;
+
+  /**
+   * Allow only changes to specified resource types or properties
+   *
+   * @default []
+   */
+  readonly allowResourceChanges?: string[];
 }
 
 interface CfnDeployOptions {
@@ -1812,6 +1860,13 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Allow only changes to specified resource types or properties
+   *
+   * @default []
+   */
+  readonly allowResourceChanges?: string[];
 }
 
 export interface RollbackOptions {
