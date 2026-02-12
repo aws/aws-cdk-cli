@@ -4,7 +4,6 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { ConfirmationRequest, DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
-import { createIgnoreMatcher } from '@aws-cdk/toolkit-lib/lib/util/glob-matcher';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
@@ -14,7 +13,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -810,9 +809,12 @@ export class CdkToolkit {
     // 2. "watch" setting without an "include" key? We default to observing "./**".
     // 3. "watch" setting with an empty "include" key? We default to observing "./**".
     // 4. Non-empty "include" key? Just use the "include" key.
+    // Note: We use '**' as the default pattern (not rootDir) because chokidar reports
+    // file paths relative to cwd, and the ignored function uses picomatch which expects
+    // glob patterns, not absolute paths.
     const watchIncludes = this.patternsArrayForWatch(watchSettings.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
+      defaultPattern: '**',
+      returnDefaultIfEmpty: true,
     });
     await this.ioHost.asIoHelper().defaults.debug("'include' patterns for 'watch': %s", watchIncludes);
 
@@ -824,8 +826,8 @@ export class CdkToolkit {
     // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
     const outputDir = this.props.configuration.settings.get(['output']);
     const watchExcludes = this.patternsArrayForWatch(watchSettings.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
+      defaultPattern: '',
+      returnDefaultIfEmpty: false,
     }).concat(`${outputDir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
     await this.ioHost.asIoHelper().defaults.debug("'exclude' patterns for 'watch': %s", watchExcludes);
 
@@ -1457,10 +1459,10 @@ export class CdkToolkit {
 
   private patternsArrayForWatch(
     patterns: string | string[] | undefined,
-    options: { rootDir: string; returnRootDirIfEmpty: boolean },
+    options: { defaultPattern: string; returnDefaultIfEmpty: boolean },
   ): string[] {
     const patternsArray: string[] = patterns !== undefined ? (Array.isArray(patterns) ? patterns : [patterns]) : [];
-    return patternsArray.length > 0 ? patternsArray : options.returnRootDirIfEmpty ? [options.rootDir] : [];
+    return patternsArray.length > 0 ? patternsArray : options.returnDefaultIfEmpty ? [options.defaultPattern] : [];
   }
 
   private async invokeDeployFromWatch(

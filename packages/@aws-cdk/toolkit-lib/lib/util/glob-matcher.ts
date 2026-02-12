@@ -18,6 +18,25 @@ export interface GlobMatcherOptions {
 }
 
 /**
+ * Normalizes a pattern to ensure it matches files within directories.
+ * If a pattern doesn't contain glob characters, it's treated as a directory
+ * and `/**` is appended to match all files within it.
+ *
+ * @param pattern - The pattern to normalize
+ * @returns The normalized pattern
+ */
+function normalizePattern(pattern: string): string {
+  // If pattern already contains glob characters, use as-is
+  if (pattern.includes('*') || pattern.includes('?') || pattern.includes('[')) {
+    return pattern;
+  }
+  // Otherwise, treat as a directory and match all files within
+  // Remove trailing slash if present, then append /**
+  const normalized = pattern.replace(/\/+$/, '');
+  return `${normalized}/**`;
+}
+
+/**
  * Creates a function that returns true if a file should be ignored.
  * A file is ignored if:
  * - It matches any exclude pattern, OR
@@ -29,8 +48,10 @@ export interface GlobMatcherOptions {
  * @returns A function that takes a file path and returns true if it should be ignored
  */
 export function createIgnoreMatcher(options: GlobMatcherOptions): (filePath: string) => boolean {
-  const includePatterns = options.include && options.include.length > 0 ? options.include : ['**'];
-  const excludePatterns = options.exclude ?? [];
+  const includePatterns = options.include && options.include.length > 0
+    ? options.include.map(normalizePattern)
+    : ['**'];
+  const excludePatterns = (options.exclude ?? []).map(normalizePattern);
 
   // Compile patterns into matchers for better performance
   const picomatchOptions: picomatch.PicomatchOptions = {

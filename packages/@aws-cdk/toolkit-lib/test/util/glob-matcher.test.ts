@@ -224,5 +224,92 @@ describe('glob-matcher', () => {
         expect(shouldIgnore('app.ts')).toBe(false);
       });
     });
+
+    describe('pattern normalization (directory patterns)', () => {
+      test('directory name without glob is treated as directory/** for include', () => {
+        // When a pattern like 'my-dir' is provided (no glob characters),
+        // it should match all files within that directory (like 'my-dir/**')
+        const shouldIgnore = createIgnoreMatcher({
+          include: ['my-dir'],
+        });
+
+        // Should NOT ignore files inside my-dir
+        expect(shouldIgnore('my-dir/file.ts')).toBe(false);
+        expect(shouldIgnore('my-dir/nested/file.ts')).toBe(false);
+
+        // Should ignore files outside my-dir
+        expect(shouldIgnore('other-dir/file.ts')).toBe(true);
+        expect(shouldIgnore('file.ts')).toBe(true);
+      });
+
+      test('directory name without glob is treated as directory/** for exclude', () => {
+        const shouldIgnore = createIgnoreMatcher({
+          exclude: ['my-dir'],
+        });
+
+        // Should ignore files inside my-dir
+        expect(shouldIgnore('my-dir/file.ts')).toBe(true);
+        expect(shouldIgnore('my-dir/nested/file.ts')).toBe(true);
+
+        // Should NOT ignore files outside my-dir
+        expect(shouldIgnore('other-dir/file.ts')).toBe(false);
+        expect(shouldIgnore('file.ts')).toBe(false);
+      });
+
+      test('directory with trailing slash is normalized', () => {
+        const shouldIgnore = createIgnoreMatcher({
+          include: ['my-dir/'],
+        });
+
+        // Should NOT ignore files inside my-dir
+        expect(shouldIgnore('my-dir/file.ts')).toBe(false);
+        expect(shouldIgnore('my-dir/nested/file.ts')).toBe(false);
+
+        // Should ignore files outside my-dir
+        expect(shouldIgnore('other-dir/file.ts')).toBe(true);
+      });
+
+      test('patterns with glob characters are not normalized', () => {
+        // Patterns with *, ?, or [ should be used as-is
+        const shouldIgnore = createIgnoreMatcher({
+          include: ['src/*.ts'], // Only matches .ts files directly in src/
+        });
+
+        // Should NOT ignore .ts files directly in src/
+        expect(shouldIgnore('src/file.ts')).toBe(false);
+
+        // Should ignore nested .ts files (pattern doesn't have **)
+        expect(shouldIgnore('src/nested/file.ts')).toBe(true);
+
+        // Should ignore non-.ts files
+        expect(shouldIgnore('src/file.js')).toBe(true);
+      });
+
+      test('dot pattern is treated as directory', () => {
+        // The '.' pattern should match all files (becomes './**')
+        const shouldIgnore = createIgnoreMatcher({
+          include: ['.'],
+        });
+
+        expect(shouldIgnore('file.ts')).toBe(false);
+        expect(shouldIgnore('src/file.ts')).toBe(false);
+        expect(shouldIgnore('deep/nested/file.ts')).toBe(false);
+      });
+
+      test('multiple directory patterns work together', () => {
+        const shouldIgnore = createIgnoreMatcher({
+          include: ['src', 'lib'],
+        });
+
+        // Should NOT ignore files in src/ or lib/
+        expect(shouldIgnore('src/file.ts')).toBe(false);
+        expect(shouldIgnore('lib/file.ts')).toBe(false);
+        expect(shouldIgnore('src/nested/file.ts')).toBe(false);
+
+        // Should ignore files outside src/ and lib/
+        expect(shouldIgnore('test/file.ts')).toBe(true);
+        expect(shouldIgnore('file.ts')).toBe(true);
+      });
+    });
   });
 });
