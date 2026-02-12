@@ -493,6 +493,48 @@ describe(computeResourceDigests, () => {
     expect(result['Stack1.Bucket']).toEqual(result['Stack2.AnotherBucket']);
   });
 
+  test('XXXXXXXXXXXXXXXXXXXXXXXXXXXX', () => {
+    const template1 = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          // Take the string from the export
+          Properties: { SomeProp: { 'Fn::ImportValue': 'Stack2:Bar' } },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          // Same string hard-coded here
+          Properties: { SomeProp: 'SomeStringValue' },
+        },
+      },
+    };
+
+    const template2 = {
+      Outputs: {
+        PrimitiveExport: {
+          Value: 'SomeStringValue',
+          Export: { Name: 'Stack2:Bar' },
+        },
+      },
+      Resources: {
+        // Not referenced by anything
+        Dummy: {
+          Type: 'AWS::X::Y',
+          Properties: { Banana: true },
+        },
+      },
+    };
+
+    const stacks = makeStacks([template1, template2]);
+    const result = computeResourceDigests(stacks);
+    expect(result['Stack1.Bucket1']).toBeDefined();
+    expect(result['Stack1.Bucket2']).toBeDefined();
+
+    // Regardless of the fact that Bucket1 gets its value from an import and Bucket2 has it hardcoded,
+    // they should be considered identical because the final value of the property is the same.
+    expect(result['Stack1.Bucket1']).toEqual(result['Stack1.Bucket2']);
+  });
+
   test('different resources from different stacks', () => {
     const template1 = {
       Resources: {
