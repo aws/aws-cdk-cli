@@ -15,6 +15,14 @@ export interface GlobMatcherOptions {
    * Patterns for files to exclude (glob patterns)
    */
   exclude?: string[];
+
+  /**
+   * The root directory for matching. If provided, absolute paths will be
+   * converted to relative paths before matching against patterns.
+   * This is necessary because chokidar v4 passes absolute paths to the
+   * ignored callback even when a cwd is specified.
+   */
+  rootDir?: string;
 }
 
 /**
@@ -52,6 +60,7 @@ export function createIgnoreMatcher(options: GlobMatcherOptions): (filePath: str
     ? options.include.map(normalizePattern)
     : ['**'];
   const excludePatterns = (options.exclude ?? []).map(normalizePattern);
+  const rootDir = options.rootDir ? options.rootDir.replace(/\\/g, '/').replace(/\/+$/, '') : undefined;
 
   // Compile patterns into matchers for better performance
   const picomatchOptions: picomatch.PicomatchOptions = {
@@ -65,7 +74,19 @@ export function createIgnoreMatcher(options: GlobMatcherOptions): (filePath: str
 
   return (filePath: string): boolean => {
     // Normalize path separators for cross-platform compatibility
-    const normalizedPath = filePath.replace(/\\/g, '/');
+    let normalizedPath = filePath.replace(/\\/g, '/');
+
+    // If rootDir is provided and the path appears to be absolute, make it relative
+    // This is necessary because chokidar v4 passes absolute paths to the
+    // ignored callback even when a cwd is specified
+    if (rootDir) {
+      if (normalizedPath.startsWith(rootDir + '/')) {
+        normalizedPath = normalizedPath.slice(rootDir.length + 1);
+      } else if (normalizedPath === rootDir) {
+        // The root directory itself - don't ignore it
+        return false;
+      }
+    }
 
     // A file is ignored if:
     // 1. It matches any exclude pattern, OR

@@ -313,3 +313,131 @@ describe('glob-matcher', () => {
     });
   });
 });
+
+describe('rootDir option (absolute path handling)', () => {
+  const rootDir = '/Users/test/my-project';
+
+  test('converts absolute paths to relative paths when rootDir is provided', () => {
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: ['README.md', 'cdk*.json'],
+      rootDir,
+    });
+
+    // Absolute paths should be converted to relative and matched
+    expect(shouldIgnore(`${rootDir}/README.md`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/cdk.json`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/cdk.context.json`)).toBe(true);
+
+    // Non-excluded files should NOT be ignored
+    expect(shouldIgnore(`${rootDir}/src/index.ts`)).toBe(false);
+    expect(shouldIgnore(`${rootDir}/lib/stack.ts`)).toBe(false);
+  });
+
+  test('handles the root directory itself', () => {
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: ['README.md'],
+      rootDir,
+    });
+
+    // The root directory itself should NOT be ignored
+    expect(shouldIgnore(rootDir)).toBe(false);
+  });
+
+  test('still works with relative paths when rootDir is provided', () => {
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: ['README.md', 'cdk*.json'],
+      rootDir,
+    });
+
+    // Relative paths should still work
+    expect(shouldIgnore('README.md')).toBe(true);
+    expect(shouldIgnore('cdk.json')).toBe(true);
+    expect(shouldIgnore('src/index.ts')).toBe(false);
+  });
+
+  test('handles paths outside rootDir', () => {
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: ['README.md'],
+      rootDir,
+    });
+
+    // Paths outside rootDir are not converted to relative paths
+    // They remain as absolute paths. The ** pattern still matches them,
+    // but the exclude pattern 'README.md' won't match '/other/path/README.md'
+    // because it's not relative
+    expect(shouldIgnore('/other/path/README.md')).toBe(false); // Matches ** but not excluded
+    expect(shouldIgnore('/other/path/file.ts')).toBe(false); // Matches **
+  });
+
+  test('handles Windows-style rootDir', () => {
+    const windowsRootDir = 'C:\\Users\\test\\my-project';
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: ['README.md'],
+      rootDir: windowsRootDir,
+    });
+
+    // Windows paths should be normalized and converted to relative
+    expect(shouldIgnore('C:/Users/test/my-project/README.md')).toBe(true);
+    expect(shouldIgnore('C:/Users/test/my-project/src/index.ts')).toBe(false);
+  });
+
+  test('handles rootDir with trailing slash', () => {
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: ['README.md'],
+      rootDir: '/Users/test/my-project/',
+    });
+
+    expect(shouldIgnore('/Users/test/my-project/README.md')).toBe(true);
+    expect(shouldIgnore('/Users/test/my-project/src/index.ts')).toBe(false);
+  });
+
+  test('realistic chokidar v4 scenario', () => {
+    // This simulates what chokidar v4 actually does - passing absolute paths
+    // to the ignored callback even when cwd is set
+    const shouldIgnore = createIgnoreMatcher({
+      include: ['**'],
+      exclude: [
+        'README.md',
+        'cdk*.json',
+        '**/*.d.ts',
+        '**/*.js',
+        'tsconfig.json',
+        'package*.json',
+        'yarn.lock',
+        'node_modules',
+        'test',
+        'cdk.out/**',
+        '**/.*',
+        '**/.*/**',
+        '**/node_modules/**',
+      ],
+      rootDir,
+    });
+
+    // Files that should be ignored (absolute paths as chokidar passes them)
+    expect(shouldIgnore(`${rootDir}/README.md`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/cdk.json`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/cdk.context.json`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/package.json`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/yarn.lock`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/tsconfig.json`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/node_modules/pkg/index.js`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/.gitignore`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/.git/config`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/cdk.out/manifest.json`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/src/index.js`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/lib/stack.d.ts`)).toBe(true);
+    expect(shouldIgnore(`${rootDir}/test/stack.test.ts`)).toBe(true);
+
+    // Files that should NOT be ignored
+    expect(shouldIgnore(`${rootDir}/src/index.ts`)).toBe(false);
+    expect(shouldIgnore(`${rootDir}/lib/stack.ts`)).toBe(false);
+    expect(shouldIgnore(`${rootDir}/bin/app.ts`)).toBe(false);
+  });
+});

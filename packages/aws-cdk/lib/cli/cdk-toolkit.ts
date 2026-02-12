@@ -868,9 +868,11 @@ export class CdkToolkit {
 
     // Create ignore matcher for chokidar v4 compatibility
     // Chokidar v4 removed glob pattern support, so we use picomatch to filter files
+    // We pass rootDir because chokidar v4 passes absolute paths to the ignored callback
     const shouldIgnore = createIgnoreMatcher({
       include: watchIncludes,
       exclude: watchExcludes,
+      rootDir,
     });
 
     chokidar
