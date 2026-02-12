@@ -493,7 +493,7 @@ describe(computeResourceDigests, () => {
     expect(result['Stack1.Bucket']).toEqual(result['Stack2.AnotherBucket']);
   });
 
-  test('XXXXXXXXXXXXXXXXXXXXXXXXXXXX', () => {
+  test('resources with same final values via different sources have identical digests', () => {
     const template1 = {
       Resources: {
         Bucket1: {
