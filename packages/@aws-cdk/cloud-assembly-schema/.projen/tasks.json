@@ -255,7 +255,7 @@
       "name": "test",
       "description": "Run tests",
       "env": {
-        "CDK_TESTING": "1"
+        "TESTING_CDK": "1"
       },
       "steps": [
         {
