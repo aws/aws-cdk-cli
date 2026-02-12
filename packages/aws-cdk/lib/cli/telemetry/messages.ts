@@ -5,6 +5,11 @@ import type { SpanDefinition } from '../../api-private';
 
 export interface EventResult extends Duration {
   error?: ErrorDetails;
+
+  /**
+   * Counts of noteworthy things in this event
+   */
+  counters?: Record<string, number>;
 }
 
 export interface EventStart {

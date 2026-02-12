@@ -16,7 +16,7 @@ import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
-import { ToolkitInfo, Notices } from '../api';
+import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -37,6 +37,8 @@ import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { getLanguageFromAlias } from '../commands/language';
+import { guessAgent } from './util/guess-agent';
+import { guessLanguage } from './util/guess-language';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -112,6 +114,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
+  ioHost.telemetry?.attachLanguage(await guessLanguage(process.cwd()));
+  ioHost.telemetry?.attachAgent(guessAgent());
+
   /**
    * The default value for displaying (and refreshing) notices on all commands.
    *
@@ -186,6 +191,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         await outDirLock?.release();
         const { assembly, lock } = await execProgram(aws, ioHost.asIoHelper(), config);
         outDirLock = lock;
+
+        const tree = await loadTree(assembly, ioHelper.defaults.trace.bind(ioHelper.defaults));
+        if (tree) {
+          const v = findConstructLibraryVersion(tree);
+          if (v) {
+            ioHost.telemetry?.attachCdkLibVersion(v);
+          }
+        }
+
         return assembly;
       }),
     ioHelper: ioHost.asIoHelper(),
