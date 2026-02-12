@@ -95,6 +95,11 @@
       "type": "build"
     },
     {
+      "name": "fast-check",
+      "version": "^3.23.2",
+      "type": "build"
+    },
+    {
       "name": "jest",
       "type": "build"
     },

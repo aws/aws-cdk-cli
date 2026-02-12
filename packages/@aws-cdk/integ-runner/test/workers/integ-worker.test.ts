@@ -1,5 +1,6 @@
 import * as builtinFs from 'fs';
 import * as path from 'path';
+import { BootstrapError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import { IntegTestRunner } from '../../lib/runner';
@@ -301,6 +302,206 @@ describe('integTestWorker', () => {
       }),
     );
   });
+
+  describe('bootstrap error handling', () => {
+    /**
+     * Tests for bootstrap error detection in extract_worker
+     * Validates: Requirements 2.1, 2.2, 3.1
+     */
+
+    test('bootstrap error during test case execution emits NOT_BOOTSTRAPPED diagnostic', async () => {
+      // GIVEN
+      mockActualTests.mockResolvedValue({
+        'test-case-1': { stacks: ['Stack1'] },
+      });
+      const bootstrapError = new BootstrapError('Bootstrap stack not found', {
+        account: '123456789012',
+        region: 'us-east-1',
+      });
+      mockRunIntegTestCase.mockRejectedValue(bootstrapError);
+
+      // WHEN
+      const results = await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'us-east-1',
+        profile: 'test-profile',
+      });
+
+      // THEN - test should NOT be in failedTests (it's retryable via diagnostic)
+      expect(results).toEqual([]);
+      // NOT_BOOTSTRAPPED diagnostic should be emitted with environment
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'NOT_BOOTSTRAPPED',
+          environment: {
+            profile: 'test-profile',
+            region: 'us-east-1',
+            account: '123456789012',
+          },
+        }),
+      );
+    });
+
+    test('bootstrap error emits diagnostic with environment info for removal', async () => {
+      // GIVEN
+      mockActualTests.mockResolvedValue({
+        'test-case-1': { stacks: ['Stack1'] },
+      });
+      const bootstrapError = new BootstrapError('CDKToolkit stack not found', {
+        account: '123456789012',
+        region: 'eu-west-1',
+      });
+      mockRunIntegTestCase.mockRejectedValue(bootstrapError);
+
+      // WHEN
+      await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'eu-west-1',
+        profile: 'prod-profile',
+      });
+
+      // THEN - NOT_BOOTSTRAPPED diagnostic should contain environment for removal
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'NOT_BOOTSTRAPPED',
+          environment: {
+            profile: 'prod-profile',
+            region: 'eu-west-1',
+            account: '123456789012',
+          },
+        }),
+      );
+    });
+
+    test('bootstrap error emits NOT_BOOTSTRAPPED diagnostic with error message', async () => {
+      // GIVEN
+      mockActualTests.mockResolvedValue({
+        'test-case-1': { stacks: ['Stack1'] },
+      });
+      const bootstrapError = new BootstrapError('Bootstrap version insufficient', {
+        account: '123456789012',
+        region: 'ap-southeast-1',
+      });
+      mockRunIntegTestCase.mockRejectedValue(bootstrapError);
+
+      // WHEN
+      await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'ap-southeast-1',
+      });
+
+      // THEN - diagnostic should be NOT_BOOTSTRAPPED with error message
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'NOT_BOOTSTRAPPED',
+          message: expect.stringContaining('Bootstrap version insufficient'),
+        }),
+      );
+    });
+
+    test('non-bootstrap error is handled normally and added to failedTests', async () => {
+      // GIVEN
+      mockActualTests.mockResolvedValue({
+        'test-case-1': { stacks: ['Stack1'] },
+      });
+      mockRunIntegTestCase.mockRejectedValue(new Error('Deployment failed: resource limit exceeded'));
+
+      // WHEN
+      const results = await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'us-west-2',
+      });
+
+      // THEN - test should be in failedTests
+      expect(results).toEqual([{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }]);
+      // Should emit TEST_FAILED, not NOT_BOOTSTRAPPED
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'TEST_FAILED',
+        }),
+      );
+      expect(workerpool.workerEmit).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'NOT_BOOTSTRAPPED',
+        }),
+      );
+    });
+
+    test('non-bootstrap error at test level is handled normally', async () => {
+      // GIVEN - non-bootstrap error thrown during actualTests() call
+      mockActualTests.mockRejectedValue(
+        new Error('xxxxx.integ-test2 is a new test. Please use the IntegTest construct'),
+      );
+
+      // WHEN
+      const results = await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.integ-test2.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'us-east-1',
+      });
+
+      // THEN - test should be in failedTests
+      expect(results).toEqual([{
+        fileName: 'test/test-data/xxxxx.integ-test2.js',
+        discoveryRoot: 'test/test-data',
+      }]);
+      // Should emit TEST_ERROR, not NOT_BOOTSTRAPPED
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'TEST_ERROR',
+        }),
+      );
+    });
+
+    test('bootstrap error without profile sets profile to undefined in environment', async () => {
+      // GIVEN
+      mockActualTests.mockResolvedValue({
+        'test-case-1': { stacks: ['Stack1'] },
+      });
+      const bootstrapError = new BootstrapError('Not bootstrapped', {
+        account: '123456789012',
+        region: 'sa-east-1',
+      });
+      mockRunIntegTestCase.mockRejectedValue(bootstrapError);
+
+      // WHEN - no profile specified
+      await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'sa-east-1',
+      });
+
+      // THEN - environment should have undefined profile
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'NOT_BOOTSTRAPPED',
+          environment: expect.objectContaining({
+            profile: undefined,
+            region: 'sa-east-1',
+          }),
+        }),
+      );
+    });
+  });
 });
 
 describe('parallel worker', () => {
@@ -365,6 +566,9 @@ describe('parallel worker', () => {
           },
         },
       ]),
+      testEnvironments: {
+        removed: [],
+      },
     });
   });
 
@@ -459,6 +663,9 @@ describe('parallel worker', () => {
           },
         },
       ]),
+      testEnvironments: {
+        removed: [],
+      },
     });
   });
 
@@ -512,6 +719,9 @@ describe('parallel worker', () => {
           },
         },
       ]),
+      testEnvironments: {
+        removed: [],
+      },
     });
   });
 
@@ -559,6 +769,9 @@ describe('parallel worker', () => {
           },
         },
       ]),
+      testEnvironments: {
+        removed: [],
+      },
     });
   });
 
@@ -612,6 +825,417 @@ describe('parallel worker', () => {
           },
         },
       ]),
+      testEnvironments: {
+        removed: [],
+      },
     });
+  });
+});
+
+describe('parallel worker retry logic', () => {
+  /**
+   * Tests for retry logic in runIntegrationTestsInParallel
+   * Validates: Requirements 3.2, 4.1, 4.2, 4.3
+   *
+   * The new approach uses NOT_BOOTSTRAPPED diagnostics emitted via workerEmit
+   * instead of returning retryableFailures/environmentRemovals in the response.
+   * The message handler in integ-test-worker.ts processes these diagnostics.
+   */
+
+  let mockPool: workerpool.WorkerPool;
+  let execMock: jest.Mock;
+
+  beforeEach(() => {
+    execMock = jest.fn();
+    mockPool = {
+      exec: execMock,
+      terminate: jest.fn(),
+    } as unknown as workerpool.WorkerPool;
+  });
+
+  /**
+   * Helper to create a mock pool.exec that emits NOT_BOOTSTRAPPED diagnostics
+   * via the 'on' callback (simulating workerEmit behavior)
+   */
+  function createMockExecWithDiagnostics(
+    shouldFailInRegion: (region: string, profile?: string) => boolean,
+    testsRunInRegion?: Record<string, string[]>,
+  ) {
+    return (_method: string, args: any[], options?: { on?: (msg: any) => void }) => {
+      const request = args[0];
+      const region = request.region;
+      const profile = request.profile;
+      const testName = request.tests[0].fileName;
+
+      // Track which tests run in which region
+      if (testsRunInRegion) {
+        if (!testsRunInRegion[region]) {
+          testsRunInRegion[region] = [];
+        }
+        testsRunInRegion[region].push(testName);
+      }
+
+      if (shouldFailInRegion(region, profile)) {
+        // Emit NOT_BOOTSTRAPPED diagnostic via the 'on' callback
+        if (options?.on) {
+          options.on({
+            reason: 'NOT_BOOTSTRAPPED',
+            testName: `${testName} (${profile ? profile + '/' : ''}${region})`,
+            message: 'Bootstrap stack not found',
+            environment: {
+              profile,
+              region,
+              account: '123456789012',
+            },
+            testInfo: {
+              fileName: testName,
+              discoveryRoot: request.tests[0].discoveryRoot,
+            },
+          });
+        }
+        // Return empty failures since the test is retryable
+        return Promise.resolve([]);
+      }
+
+      // Success case - emit TEST_SUCCESS diagnostic
+      if (options?.on) {
+        options.on({
+          reason: 'TEST_SUCCESS',
+          testName: `${testName} (${profile ? profile + '/' : ''}${region})`,
+          message: 'Test passed',
+        });
+      }
+      return Promise.resolve([]);
+    };
+  }
+
+  test('tests are re-queued when bootstrap error occurs and other environments available', async () => {
+    /**
+     * Validates: Requirements 3.2, 4.1, 4.2
+     * When a bootstrap error occurs and other valid regions remain,
+     * the test should be re-queued for execution in a valid region.
+     */
+
+    // GIVEN - us-east-1 fails with bootstrap error, us-east-2 succeeds
+    const testsRunInRegion: Record<string, string[]> = {};
+
+    execMock.mockImplementation(
+      createMockExecWithDiagnostics(
+        (region) => region === 'us-east-1',
+        testsRunInRegion,
+      ),
+    );
+
+    // WHEN - run with multiple tests so us-east-2 worker stays active
+    const results = await runIntegrationTestsInParallel({
+      pool: mockPool,
+      tests: [
+        { fileName: 'test1.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test2.js', discoveryRoot: 'test/test-data' },
+      ],
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    // THEN - all tests should succeed (failed test was retried in us-east-2)
+    expect(results.failedTests).toEqual([]);
+
+    // us-east-1 should only have run one test (then stopped)
+    expect(testsRunInRegion['us-east-1']?.length).toBe(1);
+
+    // us-east-2 should have run multiple tests (including the retried one)
+    expect(testsRunInRegion['us-east-2']?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('tests are not re-queued when all environments have been removed', async () => {
+    /**
+     * Validates: Requirements 4.3
+     * If all regions have been removed due to bootstrap errors,
+     * the test should NOT be retried and should be reported as failed.
+     */
+
+    // GIVEN - single region that fails with bootstrap error
+    execMock.mockImplementation(
+      createMockExecWithDiagnostics(() => true), // All regions fail
+    );
+
+    // WHEN - run with only one region that will fail
+    const results = await runIntegrationTestsInParallel({
+      pool: mockPool,
+      tests: [{
+        fileName: 'test.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      regions: ['us-east-1'],
+    });
+
+    // THEN - test should be in failedTests since no valid environments remain
+    expect(results.failedTests).toEqual([{
+      fileName: 'test.js',
+      discoveryRoot: 'test/test-data',
+    }]);
+  });
+
+  test('removed environments are skipped for new tests', async () => {
+    /**
+     * Validates: Requirements 3.2
+     * When a region is removed, the worker for that environment should stop
+     * and not schedule any new tests for that region.
+     */
+
+    // GIVEN - track which regions tests are run in
+    const regionsUsed: string[] = [];
+
+    execMock.mockImplementation((_method: string, args: any[], options?: { on?: (msg: any) => void }) => {
+      const request = args[0];
+      regionsUsed.push(request.region);
+
+      if (request.region === 'us-east-1') {
+        // First region fails with bootstrap error on first test
+        if (options?.on) {
+          options.on({
+            reason: 'NOT_BOOTSTRAPPED',
+            testName: `${request.tests[0].fileName} (${request.region})`,
+            message: 'Bootstrap stack not found',
+            environment: {
+              profile: request.profile,
+              region: request.region,
+              account: '123456789012',
+            },
+            testInfo: {
+              fileName: request.tests[0].fileName,
+              discoveryRoot: request.tests[0].discoveryRoot,
+            },
+          });
+        }
+        return Promise.resolve([]);
+      }
+
+      // us-east-2 succeeds
+      if (options?.on) {
+        options.on({
+          reason: 'TEST_SUCCESS',
+          testName: `${request.tests[0].fileName} (${request.region})`,
+          message: 'Test passed',
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    // WHEN - run with multiple tests
+    const results = await runIntegrationTestsInParallel({
+      pool: mockPool,
+      tests: [
+        { fileName: 'test1.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test2.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test3.js', discoveryRoot: 'test/test-data' },
+      ],
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    // THEN - us-east-1 should only be used once (then removed)
+    const usEast1Count = regionsUsed.filter(r => r === 'us-east-1').length;
+    expect(usEast1Count).toBe(1);
+
+    // All tests should eventually succeed (retried in us-east-2)
+    expect(results.failedTests).toEqual([]);
+  });
+
+  test('environment removal is tracked in results for summary reporting', async () => {
+    /**
+     * Validates: Requirements 3.1
+     * When an environment is removed, it should be tracked in the results
+     * for summary reporting at the end of the test run.
+     */
+
+    // GIVEN - region fails with bootstrap error
+    execMock.mockImplementation((_method: string, args: any[], options?: { on?: (msg: any) => void }) => {
+      const request = args[0];
+
+      if (request.region === 'us-east-1') {
+        if (options?.on) {
+          options.on({
+            reason: 'NOT_BOOTSTRAPPED',
+            testName: `${request.tests[0].fileName} (${request.region})`,
+            message: 'Bootstrap stack not found',
+            environment: {
+              profile: request.profile,
+              region: request.region,
+              account: '123456789012',
+            },
+            testInfo: {
+              fileName: request.tests[0].fileName,
+              discoveryRoot: request.tests[0].discoveryRoot,
+            },
+          });
+        }
+        return Promise.resolve([]);
+      }
+
+      if (options?.on) {
+        options.on({
+          reason: 'TEST_SUCCESS',
+          testName: `${request.tests[0].fileName} (${request.region})`,
+          message: 'Test passed',
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    // WHEN - run with multiple tests so us-east-2 stays active
+    const results = await runIntegrationTestsInParallel({
+      pool: mockPool,
+      tests: [
+        { fileName: 'test1.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test2.js', discoveryRoot: 'test/test-data' },
+      ],
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    // THEN - removed environments should be tracked in results
+    expect(results.testEnvironments.removed).toBeDefined();
+    expect(results.testEnvironments.removed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          region: 'us-east-1',
+          reason: 'Bootstrap stack not found',
+        }),
+      ]),
+    );
+  });
+
+  test('duplicate environment removal requests are handled correctly', async () => {
+    /**
+     * Validates: Requirements 3.1
+     * When multiple tests fail in the same environment with bootstrap errors,
+     * the environment should only be removed once.
+     */
+
+    // GIVEN - multiple tests fail in the same region
+    let usEast1CallCount = 0;
+    execMock.mockImplementation((_method: string, args: any[], options?: { on?: (msg: any) => void }) => {
+      const request = args[0];
+
+      if (request.region === 'us-east-1') {
+        usEast1CallCount++;
+        // Emit NOT_BOOTSTRAPPED diagnostic
+        if (options?.on) {
+          options.on({
+            reason: 'NOT_BOOTSTRAPPED',
+            testName: `${request.tests[0].fileName} (${request.region})`,
+            message: 'Bootstrap stack not found',
+            environment: {
+              profile: request.profile,
+              region: request.region,
+              account: '123456789012',
+            },
+            testInfo: {
+              fileName: request.tests[0].fileName,
+              discoveryRoot: request.tests[0].discoveryRoot,
+            },
+          });
+        }
+        return Promise.resolve([]);
+      }
+
+      if (options?.on) {
+        options.on({
+          reason: 'TEST_SUCCESS',
+          testName: `${request.tests[0].fileName} (${request.region})`,
+          message: 'Test passed',
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    // WHEN - run with multiple tests
+    const results = await runIntegrationTestsInParallel({
+      pool: mockPool,
+      tests: [
+        { fileName: 'test1.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test2.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test3.js', discoveryRoot: 'test/test-data' },
+      ],
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    // THEN - us-east-1 should only be called once (worker stops after removal)
+    expect(usEast1CallCount).toBe(1);
+
+    // Only one removal entry for us-east-1
+    const removedEnvs = results.testEnvironments.removed || [];
+    const usEast1Removals = removedEnvs.filter((e: any) => e.region === 'us-east-1');
+    expect(usEast1Removals.length).toBe(1);
+
+    // All tests should succeed (retried in us-east-2)
+    expect(results.failedTests).toEqual([]);
+  });
+
+  test('profile-specific environment removal only affects that profile', async () => {
+    /**
+     * Validates: Requirements 3.3
+     * When multiple profiles are configured, removing a region for one profile
+     * should not affect the same region for other profiles.
+     */
+
+    // GIVEN - track calls by profile+region
+    const callsByEnv: Record<string, number> = {};
+
+    execMock.mockImplementation((_method: string, args: any[], options?: { on?: (msg: any) => void }) => {
+      const request = args[0];
+      const envKey = `${request.profile || 'default'}/${request.region}`;
+      callsByEnv[envKey] = (callsByEnv[envKey] || 0) + 1;
+
+      // Only profile1/us-east-1 fails with bootstrap error
+      if (request.profile === 'profile1' && request.region === 'us-east-1') {
+        if (options?.on) {
+          options.on({
+            reason: 'NOT_BOOTSTRAPPED',
+            testName: `${request.tests[0].fileName} (${request.profile}/${request.region})`,
+            message: 'Bootstrap stack not found',
+            environment: {
+              profile: request.profile,
+              region: request.region,
+              account: '111111111111',
+            },
+            testInfo: {
+              fileName: request.tests[0].fileName,
+              discoveryRoot: request.tests[0].discoveryRoot,
+            },
+          });
+        }
+        return Promise.resolve([]);
+      }
+
+      if (options?.on) {
+        options.on({
+          reason: 'TEST_SUCCESS',
+          testName: `${request.tests[0].fileName} (${request.profile}/${request.region})`,
+          message: 'Test passed',
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    // WHEN - run with two profiles
+    const results = await runIntegrationTestsInParallel({
+      pool: mockPool,
+      tests: [
+        { fileName: 'test1.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test2.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test3.js', discoveryRoot: 'test/test-data' },
+        { fileName: 'test4.js', discoveryRoot: 'test/test-data' },
+      ],
+      profiles: ['profile1', 'profile2'],
+      regions: ['us-east-1'],
+    });
+
+    // THEN - profile1/us-east-1 should only be called once (then removed)
+    expect(callsByEnv['profile1/us-east-1']).toBe(1);
+
+    // profile2/us-east-1 should still be available and used for multiple tests
+    expect(callsByEnv['profile2/us-east-1']).toBeGreaterThan(1);
+
+    // All tests should succeed
+    expect(results.failedTests).toEqual([]);
   });
 });

@@ -1,3 +1,4 @@
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as workerpool from 'workerpool';
 import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
@@ -58,23 +59,41 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
               testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
               message: formatAssertionResults(results),
               duration: (Date.now() - start) / 1000,
-            });
+            } as Diagnostic);
           } else {
             workerpool.workerEmit({
               reason: DiagnosticReason.TEST_SUCCESS,
               testName: `${runner.testName}-${testCaseName}`,
               message: results ? formatAssertionResults(results) : 'NO ASSERTIONS',
               duration: (Date.now() - start) / 1000,
-            });
+            } as Diagnostic);
           }
         } catch (e) {
-          failures.push(testInfo);
-          workerpool.workerEmit({
+          const diagnostic: Diagnostic = {
             reason: DiagnosticReason.TEST_FAILED,
             testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
             message: `Integration test failed: ${formatError(e)}`,
             duration: (Date.now() - start) / 1000,
-          });
+          };
+
+          // Check if this is a bootstrap error
+          if (ToolkitError.isBootstrapError(e)) {
+            // Emit NOT_BOOTSTRAPPED diagnostic with environment
+            workerpool.workerEmit({
+              ...diagnostic,
+              reason: DiagnosticReason.NOT_BOOTSTRAPPED,
+              message: formatError(e),
+              environment: {
+                profile: request.profile,
+                region: request.region,
+                account: e.environment.account,
+              },
+            } as Diagnostic);
+          } else {
+            // Non-bootstrap error - record as failure
+            failures.push(testInfo);
+            workerpool.workerEmit(diagnostic);
+          }
         }
       }
     } catch (e) {
