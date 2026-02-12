@@ -421,6 +421,7 @@ const cloudAssemblySchema = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
   }),
 );
+cloudAssemblySchema.tasks.tryFind('test')?.env('TESTING_CDK', '1');
 
 new JsiiBuild(cloudAssemblySchema, {
   docgen: false,
@@ -548,6 +549,8 @@ const cloudAssemblyApi = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
   }),
 );
+
+cloudAssemblyApi.tasks.tryFind('test')?.env('TESTING_CDK', '1');
 
 // #endregion
 
@@ -710,6 +713,8 @@ const cdkAssetsLib = configureProject(
   }),
 );
 
+cdkAssetsLib.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+
 // Prevent imports of private API surface
 cdkAssetsLib.package.addField('exports', {
   '.': {
@@ -786,6 +791,8 @@ const cdkAssetsCli = configureProject(
     ]),
   }),
 );
+
+cdkAssetsCli.tasks.tryFind('test')?.env('TESTING_CDK', '1');
 
 cdkAssetsCli.gitignore.addPatterns(
   '*.js',
@@ -941,6 +948,7 @@ const toolkitLib = configureProject(
   }),
 );
 
+toolkitLib.tasks.tryFind('test')?.env('TESTING_CDK', '1');
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1284,6 +1292,8 @@ new pj.javascript.UpgradeDependencies(cli, {
 });
 
 new TypecheckTests(cli);
+
+cli.tasks.tryFind('test')?.env('TESTING_CDK', '1');
 
 // Eslint rules
 cli.eslint?.addRules({
@@ -1715,7 +1725,10 @@ new LargePrChecker(repo, {
   excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
 });
 
-((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}).DEBUG = 'true';
+Object.assign((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}, {
+  DEBUG: 'true',
+  TESTING_CDK: '1',
+});
 
 // Set allowed scopes based on monorepo packages
 const disallowed = new Set([
