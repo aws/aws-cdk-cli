@@ -45,7 +45,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
     this.url = props.url ?? 'https://cli.cdk.dev-tools.aws.dev/notices.json';
   }
 
-  async fetch(opts?: { forceShortTimeout?: boolean }): Promise<Notice[]> {
+  async fetch(): Promise<Notice[]> {
     // Check connectivity before attempting network request
     const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
     if (!hasConnectivity) {
@@ -56,7 +56,10 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
     // integration test environment, so wait for a longer timeout there.
     //
     // In production, have a short timeout to not hold up the user experience.
-    const timeout = process.env.TESTING_CDK && !opts?.forceShortTimeout ? 30_000 : 3_000;
+    const timeout = process.env.CDK_NOTICES_TIMEOUT !== undefined
+      ? parseInt(process.env.CDK_NOTICES_TIMEOUT, 10)
+      : process.env.TESTING_CDK
+      ? 30_000 : 3_000;
 
     const options: RequestOptions = {
       agent: this.agent,
