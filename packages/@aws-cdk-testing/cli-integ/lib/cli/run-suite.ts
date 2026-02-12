@@ -228,6 +228,10 @@ async function main() {
 
     const jestConfig = path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js');
 
+    // Flip a flag to indicate we're testing CDK itself. Some parts of CDK behave more thoroughly
+    // (but slowly) if this flag is set.
+    process.env.TESTING_CDK = '1';
+
     await jest.run([
       '--randomize',
       ...args.seed ? [`--seed=${args.seed}`] : [],

@@ -254,6 +254,9 @@
     "test": {
       "name": "test",
       "description": "Run tests",
+      "env": {
+        "CDK_TESTING": "1"
+      },
       "steps": [
         {
           "exec": "jest --passWithNoTests --updateSnapshot",
