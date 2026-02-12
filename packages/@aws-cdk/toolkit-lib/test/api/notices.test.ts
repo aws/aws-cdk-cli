@@ -617,7 +617,7 @@ describe(WebsiteNoticeDataSource, () => {
         notices: [BASIC_NOTICE],
       });
 
-    const result = dataSource.fetch();
+    const result = dataSource.fetch({ forceShortTimeout: true });
 
     await expect(result).rejects.toThrow(/timed out/);
   });
@@ -630,7 +630,7 @@ describe(WebsiteNoticeDataSource, () => {
         notices: [BASIC_NOTICE],
       });
 
-    const result = dataSource.fetch();
+    const result = dataSource.fetch({ forceShortTimeout: true });
 
     await expect(result).rejects.toThrow(/timed out/);
   });
