@@ -51,6 +51,11 @@
       "type": "build"
     },
     {
+      "name": "@types/picomatch",
+      "version": "^4",
+      "type": "build"
+    },
+    {
       "name": "@types/split2",
       "type": "build"
     },
@@ -362,6 +367,11 @@
     {
       "name": "p-limit",
       "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "picomatch",
+      "version": "^4",
       "type": "runtime"
     },
     {
