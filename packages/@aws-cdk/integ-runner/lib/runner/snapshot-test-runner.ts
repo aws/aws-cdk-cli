@@ -2,6 +2,7 @@ import * as path from 'path';
 import type { WritableOptions } from 'stream';
 import { Writable } from 'stream';
 import { StringDecoder } from 'string_decoder';
+import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import { fullDiff, formatDifferences, ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import { AssemblyManifestReader } from './private/cloud-assembly';
@@ -37,7 +38,7 @@ export class IntegSnapshotRunner extends IntegRunner {
   constructor(options: Omit<IntegRunnerOptions, 'region'>) {
     super({
       ...options,
-      region: 'unused',
+      region: UNKNOWN_REGION,
     });
   }
 
