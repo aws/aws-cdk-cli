@@ -71,6 +71,15 @@ export interface DockerImageSource {
   readonly dockerBuildArgs?: { [name: string]: string };
 
   /**
+   * Additional build contexts
+   *
+   * Only allowed when `directory` is set.
+   *
+   * @default - No additional build contexts
+   */
+  readonly dockerBuildContexts?: { [name: string]: string };
+
+  /**
    * SSH agent socket or keys
    *
    * Requires building with docker buildkit.
