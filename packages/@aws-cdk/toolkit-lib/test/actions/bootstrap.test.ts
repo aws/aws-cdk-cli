@@ -232,6 +232,10 @@ describe('bootstrap', () => {
           ParameterKey: 'PublicAccessBlockConfiguration',
           ParameterValue: 'true',
         },
+        {
+          ParameterKey: 'PermissionsBoundaryAllRoles',
+          ParameterValue: 'false',
+        },
       ]));
       expectSuccessfulBootstrap();
     });
@@ -355,6 +359,10 @@ describe('bootstrap', () => {
         {
           ParameterKey: 'PublicAccessBlockConfiguration',
           ParameterValue: 'true',
+        },
+        {
+          ParameterKey: 'PermissionsBoundaryAllRoles',
+          ParameterValue: 'false',
         },
       ]));
       expectSuccessfulBootstrap();
