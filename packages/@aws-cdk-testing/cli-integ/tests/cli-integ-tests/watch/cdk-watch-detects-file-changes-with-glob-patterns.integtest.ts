@@ -67,7 +67,9 @@ integTest(
     } finally {
       // Kill entire process group
       if (watchProcess.pid) {
-        try { process.kill(-watchProcess.pid, 'SIGKILL'); } catch {
+        try {
+          process.kill(-watchProcess.pid, 'SIGKILL');
+        } catch {
           /* ignore */
         }
       }
