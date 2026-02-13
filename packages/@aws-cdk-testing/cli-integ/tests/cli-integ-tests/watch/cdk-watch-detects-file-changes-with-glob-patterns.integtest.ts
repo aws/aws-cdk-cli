@@ -18,6 +18,15 @@ integTest(
     const testFile = path.join(fixture.integTestDir, 'watch-test-file.ts');
     fs.writeFileSync(testFile, 'export const initial = true;');
 
+    // Update cdk.json to include watch configuration
+    const cdkJsonPath = path.join(fixture.integTestDir, 'cdk.json');
+    const cdkJson = JSON.parse(fs.readFileSync(cdkJsonPath, 'utf-8'));
+    cdkJson.watch = {
+      include: ['**/*.ts', '**/*.js'],
+      exclude: ['node_modules/**', 'cdk.out/**', '**/*.d.ts'],
+    };
+    fs.writeFileSync(cdkJsonPath, JSON.stringify(cdkJson, null, 2));
+
     // Make CLI available
     await fixture.cli.makeCliAvailable();
 
