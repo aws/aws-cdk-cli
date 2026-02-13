@@ -74,17 +74,38 @@ integTest(
       await waitForOutput(() => output, 'Detected change to', 60000);
       fixture.log('✓ Watch detected file change');
 
-      // Verify the deployment was triggered
-      await waitForOutput(() => output, "Triggering 'cdk deploy'", 60000);
+      // Wait for the second deployment to complete
+      // Count occurrences of 'deployment time' - need to see it twice
+      await waitForCondition(
+        () => (output.match(/deployment time/g) || []).length >= 2,
+        60000,
+        'second deployment to complete',
+      );
       fixture.log('✓ Watch triggered deployment after file change');
     } finally {
-      // Clean up: kill the watch process
+      // Clean up: kill the watch process first and wait for it to fully terminate
+      // before doing anything else to avoid conflicts
       watchProcess.kill('SIGTERM');
 
-      // Wait a bit for process to terminate
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for the process to actually exit
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          watchProcess.kill('SIGKILL');
+          resolve();
+        }, 10000);
 
-      // Clean up test file
+        watchProcess.on('exit', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+
+      fixture.log('✓ Watch process terminated');
+
+      // Wait additional time to ensure no lingering file handles
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Clean up test file (do this AFTER watch is fully stopped)
       if (fs.existsSync(testFile)) {
         fs.unlinkSync(testFile);
       }
@@ -118,5 +139,34 @@ async function waitForOutput(getOutput: () => string, searchString: string, time
     };
 
     checkOutput();
+  });
+}
+
+/**
+ * Wait for a condition to become true
+ */
+async function waitForCondition(
+  condition: () => boolean,
+  timeoutMs: number,
+  description: string,
+): Promise<void> {
+  const startTime = Date.now();
+
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      if (condition()) {
+        resolve();
+        return;
+      }
+
+      if (Date.now() - startTime > timeoutMs) {
+        reject(new Error(`Timeout waiting for ${description}`));
+        return;
+      }
+
+      setTimeout(check, 1000);
+    };
+
+    check();
   });
 }
