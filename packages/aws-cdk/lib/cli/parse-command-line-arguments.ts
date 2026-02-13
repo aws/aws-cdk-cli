@@ -598,6 +598,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to deploy if the app contains no stacks',
+        })
+        .option('revert-drift', {
+          default: false,
+          type: 'boolean',
+          desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
         }),
     )
     .command('rollback [STACKS..]', 'Rolls back the stack(s) named STACKS to their last stable state', (yargs: Argv) =>
