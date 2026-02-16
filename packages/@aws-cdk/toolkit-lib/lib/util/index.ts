@@ -1,5 +1,6 @@
 export * from './archive';
 export * from './arrays';
+export * from './glob-matcher';
 export * from './bool';
 export * from './bytes';
 export * from './cloudformation';

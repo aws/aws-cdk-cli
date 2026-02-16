@@ -15,6 +15,8 @@ import {
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
+process.env.TESTING_CDK = '1';
+
 function fixture(name: string) {
   return path.join(FIXTURES, name, 'manifest.json');
 }
